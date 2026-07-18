@@ -1,0 +1,51 @@
+[
+  {
+    "id": "loop-welders-pipeline",
+    "name": "Welders Lead Pipeline",
+    "description": "4-stage pipeline for welders staffing outreach.",
+    "createdAt": "2026-06-26T10:15:41.588Z",
+    "status": "completed",
+    "maxIterations": 1,
+    "steps": [
+      {
+        "id": "jobDiscovery",
+        "name": "Job Discovery",
+        "agentId": "agent-jarvis",
+        "prompt": "Find hiring companies.",
+        "mode": "task",
+        "outputKey": "raw_jobs"
+      },
+      {
+        "id": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "agentId": "agent-gemini-welders-research",
+        "prompt": "Deep crawl for emails/phones.",
+        "mode": "task",
+        "dependsOn": [
+          "jobDiscovery"
+        ],
+        "outputKey": "leads_output"
+      },
+      {
+        "id": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "agentId": "agent-gemini-email-copy",
+        "prompt": "Draft templates.",
+        "mode": "task",
+        "dependsOn": [
+          "leadEnrichment"
+        ]
+      },
+      {
+        "id": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "agentId": "agent-hermes",
+        "prompt": "Send emails & log.",
+        "mode": "task",
+        "dependsOn": [
+          "outreachPreparation"
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,146 @@
+[
+  {
+    "id": "art-schema-diff",
+    "type": "document",
+    "title": "API Schema Change Proposal",
+    "preview": "Proposed 3 breaking changes to the REST API schema affecting auth and user endpoints.",
+    "sourceRunId": "run-004",
+    "linkedAgentId": "agent-hermes",
+    "version": "1.2",
+    "status": "review"
+  },
+  {
+    "id": "art-unit-tests",
+    "type": "code",
+    "title": "Payment Module Unit Tests",
+    "preview": "14 unit tests covering all public methods in the payment processing module. 100% branch coverage.",
+    "sourceRunId": "run-006",
+    "linkedAgentId": "agent-hermes",
+    "version": "1.0",
+    "status": "done"
+  },
+  {
+    "id": "art-staging-build",
+    "type": "build",
+    "title": "Staging Build v2.4.1",
+    "preview": "Production-ready build with database migration scripts. Includes auth module updates.",
+    "sourceRunId": "run-002",
+    "linkedAgentId": "agent-jarvis",
+    "version": "2.4.1",
+    "status": "active"
+  },
+  {
+    "id": "art-e2e-report",
+    "type": "report",
+    "title": "E2E Test Report",
+    "preview": "Full end-to-end test results: 47/47 tests passed across 12 feature areas.",
+    "sourceRunId": "run-007",
+    "linkedAgentId": "agent-jarvis",
+    "version": "1.0",
+    "status": "done"
+  },
+  {
+    "id": "art-weekly-summary",
+    "type": "document",
+    "title": "Weekly Research Summary",
+    "preview": "12 key findings from last week's research sprint across competitive analysis, market sizing, and tech evaluation.",
+    "sourceRunId": "run-008",
+    "linkedAgentId": "agent-athena",
+    "linkedBoardId": "board-research",
+    "version": "1.0",
+    "status": "archived"
+  },
+  {
+    "id": "art-security-draft",
+    "type": "report",
+    "title": "Security Audit Draft",
+    "preview": "Preliminary findings from the auth module security scan. 2 potential vulnerabilities identified.",
+    "sourceRunId": "run-001",
+    "linkedAgentId": "agent-hermes",
+    "version": "0.1",
+    "status": "draft"
+  },
+  {
+    "id": "art-brief-3491878d-4d22-4488-b6ea-3e397ef0e60e",
+    "type": "markdown",
+    "title": "Competitor Analysis: Acme Corp - Draft",
+    "preview": "# Competitor Analysis: Acme Corp\n      \n## Executive Summary\nThis is a synthesized research brief re...",
+    "content": "# Competitor Analysis: Acme Corp\n      \n## Executive Summary\nThis is a synthesized research brief regarding **Acme Corp**. The primary goal is: Understand their market share and product offerings.\n\n## Subject Overview\nAcme Corp is a key entity in this space. Our analysis indicates significant market presence.\n\n## Key Findings\n- Finding 1: Strong positioning.\n- Finding 2: Increasing market share.\n\n## Competitor / Market Notes\nCompetitors identified: Globex, Initech\nThe market is highly competitive and rapidly evolving.\n\n## Risks\n- Regulatory changes.\n- Competitor innovation.\n\n## Opportunities\n- Expansion into new verticals.\n- Strategic partnerships.\n\n## Recommended Next Actions\n1. Monitor competitor announcements.\n2. Conduct deep-dive product teardown.\n\n## Sources\n- Internal Market Database\n- Public Filings\n",
+    "linkedBoardId": "board-research",
+    "version": "1.0",
+    "status": "review",
+    "createdAt": "2026-06-20T10:22:03.183Z",
+    "updatedAt": "2026-06-20T10:22:03.183Z"
+  },
+  {
+    "id": "art-prop-38877caf-f2fa-4e15-ab0c-8f5d14a550c6",
+    "type": "markdown",
+    "title": "Proposal for LexCorp",
+    "preview": "Service Proposal for Lex Luthor...",
+    "content": "# Service Proposal: MARKET\n## Prepared for Lex Luthor (LexCorp)\n\n**Goal:** Total domination of the Metropolis real estate market.\n\n### Scope of Work\nOur AI research team (Hermes) will conduct a deep-dive analysis on your specified target. \nYou will receive a comprehensive Research Brief including:\n- Executive Summary\n- Market/Competitor Notes\n- Risks & Opportunities\n- Strategic Recommendations\n\n### Pricing\n**Total Cost:** $1,500.00\n*Based on standard deep-dive tier.*\n\n### Next Steps\nOnce you submit the payment via the secure link, the research workflow will begin immediately.\n",
+    "linkedBoardId": "board-pipeline",
+    "version": "1.0",
+    "status": "review",
+    "createdAt": "2026-06-20T12:04:37.618Z",
+    "updatedAt": "2026-06-20T12:04:37.618Z"
+  },
+  {
+    "id": "art-brief-a5df245a-7c70-4ff8-92bb-81d8325f0619",
+    "type": "markdown",
+    "title": "Research for LexCorp - Draft",
+    "preview": "# Research for LexCorp\n      \n## Executive Summary\nThis is a synthesized research brief regarding **...",
+    "content": "# Research for LexCorp\n      \n## Executive Summary\nThis is a synthesized research brief regarding **LexCorp**. The primary goal is: Total domination of the Metropolis real estate market..\n\n## Subject Overview\nLexCorp is a key entity in this space. Our analysis indicates significant market presence.\n\n## Key Findings\n- Finding 1: Strong positioning.\n- Finding 2: Increasing market share.\n\n## Competitor / Market Notes\nCompetitors identified: None specified.\nThe market is highly competitive and rapidly evolving.\n\n## Risks\n- Regulatory changes.\n- Competitor innovation.\n\n## Opportunities\n- Expansion into new verticals.\n- Strategic partnerships.\n\n## Recommended Next Actions\n1. Monitor competitor announcements.\n2. Conduct deep-dive product teardown.\n\n## Sources\n- Internal Market Database\n- Public Filings\n",
+    "linkedBoardId": "board-research",
+    "version": "1.0",
+    "status": "review",
+    "createdAt": "2026-06-20T12:04:48.063Z",
+    "updatedAt": "2026-06-20T12:04:48.063Z"
+  },
+  {
+    "id": "art-prop-d65a5b8e-118e-4669-a921-7d2528bf5126",
+    "type": "markdown",
+    "title": "Proposal for Wayne Enterprises",
+    "preview": "Service Proposal for Bruce Wayne...",
+    "content": "# Recruiter Intelligence Brief Proposal\n## Prepared for Bruce Wayne (Wayne Enterprises)\n\n**Target Role / Goal:** Role: CTO | Target Candidate: Lucius Fox\n\n### Scope of Work\nOur AI research team (Hermes) will conduct a deep-dive analysis on your specified candidate/target. \nYou will receive a comprehensive Recruiter Intelligence Brief including:\n- Candidate Overview & Assessment\n- Role Fit & Gap Analysis\n- Market Compensation Estimates\n- Competitor Talent Mapping\n- Strategic Recommendations\n\n### Pricing\n**Total Cost:** $1,500.00\n*Based on standard deep-dive tier.*\n\n### Next Steps\nOnce you submit the payment via the secure link, the research workflow will begin immediately.\n",
+    "linkedBoardId": "board-pipeline",
+    "version": "1.0",
+    "status": "review",
+    "createdAt": "2026-06-20T12:16:18.032Z",
+    "updatedAt": "2026-06-20T12:16:18.032Z"
+  },
+  {
+    "id": "art-77bdeb0f-43c8-48a0-b132-f497e2045aa4",
+    "type": "markdown",
+    "title": "Research for Wayne Enterprises - Final Brief",
+    "preview": "# Recruiter Intelligence Brief: Research for Wayne Enterprises\n      \n## Candidate Overview & Assess...",
+    "content": "# Recruiter Intelligence Brief: Research for Wayne Enterprises\n      \n## Candidate Overview & Assessment\nThis is a synthesized intelligence brief regarding **Wayne Enterprises**. \nGoal: Role: CTO | Target Candidate: Lucius Fox\n\n## Role Fit & Gap Analysis\nWayne Enterprises shows a strong potential fit for the target role. \n\n## Market Compensation Estimates\nEstimated OTE for this tier of talent in the current market is highly competitive.\n\n## Competitor Talent Mapping\nTarget organizations identified: None specified.\n\n## Strategic Recommendations\n- Move quickly to schedule an introductory call.\n- Highlight growth opportunities to counter current employer retention efforts.\n\n## Sources\n- LinkedIn, Crunchbase, internal CRM data.\n",
+    "sourceRunId": "run-41302867-d4c5-4712-8cf1-94d4c07a3e16",
+    "linkedBoardId": "board-research",
+    "version": "1.0",
+    "status": "done",
+    "createdAt": "2026-06-20T12:16:27.329Z",
+    "updatedAt": "2026-06-20T12:16:27.329Z"
+  },
+  {
+    "id": "artifact-lead-afc66552-28df-4143-9c82-2822eb27a18e-1781988306910",
+    "title": "Full Brief: Lead lead-afc66552-28df-4143-9c82-2822eb27a18e",
+    "type": "report",
+    "content": "# Candidate Intelligence Brief\n\nPrepared for: Recruiter AI\nTarget Role: Evaluated Candidate\n\n## Candidate Match: 87/100\nThis candidate is a strong fit.\n\n## Full Executive Summary\nThis candidate exceeds the 5-year requirement and possesses a deep background in scalable architecture.\nTheir previous roles emphasize leadership, React, and Node.js.\n\n## Interview Guide & Red Flags\n- Probe them on their specific contributions to the migration at their last company.\n- Ask about handling underperforming team members.\n\n## Recommended Outreach Email\n\"Hi Candidate, I saw your impressive background and think you'd be a great fit for a VP Engineering role...\"\n",
+    "preview": "Executive Summary for Candidate",
+    "version": "1",
+    "status": "done",
+    "createdAt": "2026-06-20T20:45:06.910Z"
+  },
+  {
+    "id": "art-prop-ebd9a4b9-c72d-4c1d-b36e-a642056c681c",
+    "type": "markdown",
+    "title": "Proposal for Stark Industries",
+    "preview": "Service Proposal for Stark Industries...",
+    "content": "# Recruiter Intelligence Brief Proposal\n## Prepared for Stark Industries (Stark Industries)\n\n**Target Role / Goal:** Find top robotics engineers for our new division\n\n### Scope of Work\nOur AI research team (Hermes) will conduct a deep-dive analysis on your specified candidate/target. \nYou will receive a comprehensive Recruiter Intelligence Brief including:\n- Candidate Overview & Assessment\n- Role Fit & Gap Analysis\n- Market Compensation Estimates\n- Competitor Talent Mapping\n- Strategic Recommendations\n\n### Pricing\n**Total Cost:** $1,500.00\n*Based on standard deep-dive tier.*\n\n### Next Steps\nOnce you submit the payment via the secure link, the research workflow will begin immediately.\n",
+    "linkedBoardId": "board-pipeline",
+    "version": "1.0",
+    "status": "review",
+    "createdAt": "2026-06-25T13:31:00.999Z",
+    "updatedAt": "2026-06-25T13:31:00.999Z"
+  }
+]

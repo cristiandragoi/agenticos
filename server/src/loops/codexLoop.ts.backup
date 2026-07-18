@@ -1,0 +1,380 @@
+import crypto from 'crypto';
+import { computeRunSummary } from '../utils/diagnostics.js';
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import { customProviderChat, getCustomProviderConfig } from '../adapters/customProvider.js';
+import { llmChat } from '../services/llmGateway.js';
+import { goalStore } from '../services/goalStore.js';
+import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
+import type { GoalState, GoalEvent } from '../types.js';
+import { goalControllers } from '../routers/chat.js';
+import { db } from '../db/index.js';
+import { providerCircuitBreakers } from '../db/schema.js';
+import { eq, and, sql } from 'drizzle-orm';
+
+interface ToolCall {
+  tool: 'writeFile' | 'readFile' | 'runCommand' | 'reasoningQuery' | 'finish';
+  path?: string;
+  content?: string;
+  cmd?: string;
+  args?: string[];
+  prompt?: string;
+  message?: string;
+}
+
+const SYSTEM_PROMPT = `You are CodeX, a Restricted Process Runner. Achieve the user's goal autonomously.
+Use JSON inside <tool_call> tags. Wait for the tool result before proceeding.
+
+Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.
+
+Tools:
+1. writeFile: { "tool": "writeFile", "path": "relative/path/to/file", "content": "file contents" }
+2. readFile: { "tool": "readFile", "path": "relative/path/to/file" }
+3. runCommand: { "tool": "runCommand", "cmd": "npm", "args": ["install", "express"] }
+4. reasoningQuery: { "tool": "reasoningQuery", "prompt": "ask OmniRoute for validation" }
+5. finish: { "tool": "finish", "message": "Goal completed." }
+`;
+
+interface PushEventOptions {
+  operationId?: string;
+  eventType?: any;
+  normalizedStatus?: any;
+  lifecycleState?: any;
+  userMessage?: string;
+  eventType?: import('../types.js').EventType;
+  normalizedStatus?: import('../types.js').NormalizedStatus;
+  lifecycleState?: import('../types.js').LifecycleState;
+  userMessage?: string;
+  durationMs?: number;
+  filePath?: string;
+  command?: string;
+  provider?: string;
+  model?: string;
+  nextAction?: string;
+  retryCount?: number;
+  requiresUserAction?: boolean;
+  errorCode?: string;
+  errorDetails?: string;
+}
+
+function pushEvent(goalId: string, state: GoalState, message: string, tool?: string, error?: string, opts?: PushEventOptions) {
+  const goal = goalStore.get(goalId);
+  if (!goal) return;
+
+  const event: GoalEvent = {
+    runId: goalId,
+    sequenceId: goal.history.length + 1,
+    timestamp: new Date().toISOString(),
+    state,
+    step: goal.history.length + 1,
+    message,
+    provider: opts?.provider || 'unknown',
+    model: opts?.model || 'unknown',
+    tool,
+    error,
+    eventType: opts?.eventType,
+    normalizedStatus: opts?.normalizedStatus,
+    lifecycleState: opts?.lifecycleState,
+    userMessage: opts?.userMessage,
+    technicalMessage: message,
+    durationMs: opts?.durationMs,
+    filePath: opts?.filePath,
+    command: opts?.command,
+    nextAction: opts?.nextAction,
+    retryCount: opts?.retryCount,
+    requiresUserAction: opts?.requiresUserAction,
+    errorCode: opts?.errorCode,
+    errorDetails: opts?.errorDetails,
+    eventSchemaVersion: 1,
+    operationId: opts?.operationId
+  };
+
+  goalStore.pushEvent(event);
+}
+
+function checkCircuitBreaker(id: string): 'open' | 'half-open' | 'closed' {
+  const cb = db.select().from(providerCircuitBreakers).where(eq(providerCircuitBreakers.id, id)).get();
+  if (!cb) {
+    db.insert(providerCircuitBreakers).values({
+      id, provider: id.split('-')[0], model: id.split('-')[1] || 'unknown',
+      errorCount: 0, cooldownUntil: null, updatedAt: Date.now().toString()
+    }).run();
+    return 'closed';
+  }
+  if (cb.cooldownUntil) {
+    if (parseInt(cb.cooldownUntil) > Date.now()) {
+      return 'open';
+    } else {
+      // Cooldown expired, half-open probe permitted once
+      // Atomic test-and-set to extend the cooldown slightly to block other probes
+      const result = db.run(sql`UPDATE provider_circuit_breakers SET cooldown_until = ${(Date.now() + 10000).toString()}, updated_at = ${Date.now().toString()} WHERE id = ${id} AND cooldown_until = ${cb.cooldownUntil}`);
+      if (result.changes > 0) return 'half-open';
+      return 'open'; // Another worker claimed the half-open probe
+    }
+  }
+  return 'closed';
+}
+
+function recordCircuitBreakerError(id: string) {
+  // Atomic increment via SQL
+  db.run(sql`UPDATE provider_circuit_breakers SET error_count = error_count + 1, updated_at = ${Date.now().toString()} WHERE id = ${id}`);
+  const cb = db.select().from(providerCircuitBreakers).where(eq(providerCircuitBreakers.id, id)).get();
+  if (cb && cb.errorCount > 3) {
+    const cooldown = (Date.now() + 60000).toString();
+    db.update(providerCircuitBreakers).set({ cooldownUntil: cooldown, updatedAt: Date.now().toString() }).where(eq(providerCircuitBreakers.id, id)).run();
+  }
+}
+
+function recordCircuitBreakerSuccess(id: string) {
+  db.update(providerCircuitBreakers).set({ errorCount: 0, cooldownUntil: null, updatedAt: Date.now().toString() }).where(eq(providerCircuitBreakers.id, id)).run();
+}
+
+async function generateCheckpoint(goalId: string, phase: string, stepId?: string, stepIndex?: number) {
+  const goal = goalStore.get(goalId);
+  if (!goal) return undefined;
+  const snapshot = await captureWorkspaceSnapshot();
+  const ckptId = `ckpt-${goalId}-${Date.now()}`;
+  goalStore.createCheckpoint({
+    id: ckptId,
+    goalId,
+    sequenceId: goal.history.length,
+    stepId,
+    stepIndex,
+    goalStatus: goal.status,
+    executionPhase: phase,
+    workspaceSnapshot: { status: snapshot.status, branch: snapshot.branch },
+    workspaceHash: snapshot.hash,
+    changedFiles: snapshot.status.split('\n').filter(Boolean).map(l => l.substring(3).trim())
+  });
+  return ckptId;
+}
+
+export async function resumeCodexGoalLoop(goalId: string) { console.trace('Resuming loop for goal:', goalId);
+  const workerId = randomUUID();
+  
+  if (!goalStore.acquireLease(goalId, workerId, 30000)) {
+    console.log(`[GoalMode] Goal ${goalId} is already running elsewhere.`);
+    return;
+  }
+
+  const controller = new AbortController();
+  goalControllers.set(goalId, controller);
+
+  let goal = goalStore.get(goalId);
+  if (!goal) return;
+
+  if (['executing', 'planning', 'reasoning', 'retrying'].includes(goal.status)) {
+    const lastStep = goalStore.getStep(goalId, goal.history.length);
+    if (lastStep && lastStep.status === 'started' && lastStep.toolCall) {
+      const toolCall = JSON.parse(lastStep.toolCall as string);
+      if (toolCall.tool === 'writeFile') {
+        const absolutePath = enforceWorkspacePath(toolCall.path);
+        if (fs.existsSync(absolutePath)) {
+          const content = fs.readFileSync(absolutePath, 'utf-8');
+          if (content === toolCall.content) {
+            goalStore.upsertStep(goalId, lastStep.stepNumber, 'completed', toolCall, 'Recovered: File write was already completed before crash.');
+            pushEvent(goalId, 'checkpointed', `Tool Result:\nRecovered: File write was already completed.`, toolCall.tool);
+          } else {
+            goalStore.upsertStep(goalId, lastStep.stepNumber, 'failed', toolCall, undefined, 'File content mismatch after crash.');
+          }
+        } else {
+          goalStore.upsertStep(goalId, lastStep.stepNumber, 'failed', toolCall, undefined, 'File was not written before crash.');
+        }
+      } else if (toolCall.tool === 'runCommand') {
+        goalStore.upsertStep(goalId, lastStep.stepNumber, 'waiting_for_approval', toolCall, undefined, 'Command orphaned by server crash. Requires review.');
+        pushEvent(goalId, 'waiting_for_approval', 'Previous worker crashed mid-command. Requires review.', undefined, undefined, { normalizedStatus: 'attention', lifecycleState: 'waiting_for_approval', userMessage: 'The server restarted while executing a terminal command. Please review the state.', eventType: 'approval_requested' });
+      }
+    }
+    goal.status = 'queued';
+  }
+
+  const conversation = [
+    { role: 'user', content: `Goal: ${goal.originalGoal}` }
+  ];
+
+  const latestCheckpoint = goalStore.getLatestCheckpoint(goalId);
+  let startSequenceId = 0;
+
+  if (latestCheckpoint) {
+    const currentSnapshot = await captureWorkspaceSnapshot();
+    if (currentSnapshot.hash !== latestCheckpoint.workspaceHash && latestCheckpoint.workspaceHash !== 'no-git-available') {
+      goalStore.update(goalId, { status: 'waiting_for_approval' });
+      pushEvent(goalId, 'waiting_for_approval', 'Workspace modified since last checkpoint. Recovery required.', undefined, undefined, { normalizedStatus: 'attention', lifecycleState: 'waiting_for_approval', userMessage: 'The files on disk have changed since I last ran. Please approve recovery.', eventType: 'approval_requested' });
+      goalControllers.delete(goalId);
+      goalStore.releaseLease(goalId, workerId);
+      return;
+    }
+    conversation.push({ role: 'system', content: `Resumed from checkpoint. The goal is partially complete.` });
+    startSequenceId = latestCheckpoint.sequenceId;
+  }
+
+  for (const event of goal.history) {
+    if (event.sequenceId <= startSequenceId) continue;
+    if (event.state === 'executing' || event.state === 'reasoning') {
+      conversation.push({ role: 'assistant', content: `<tool_call>{"tool": "${event.tool}"}</tool_call>` });
+    } else if (event.message.startsWith('Tool Result:')) {
+      conversation.push({ role: 'system', content: event.message });
+    }
+  }
+
+  pushEvent(goalId, 'planning', 'Resuming goal loop...', undefined, undefined, { normalizedStatus: 'active', lifecycleState: 'running', userMessage: 'Continuing the task from the previous checkpoint.', eventType: 'task_resumed' });
+  let stepCounter = goal.history.length;
+
+  
+  let currentProvider = getCustomProviderConfig()?.providerName || 'custom';
+  let currentModel = getCustomProviderConfig()?.defaultModel || 'unknown';
+
+  while (true) {
+    if (controller.signal.aborted) {
+      goalStore.upsertStep(goalId, stepCounter, 'paused', undefined, 'Goal paused explicitly.');
+      goalStore.update(goalId, { status: 'paused' });
+      await generateCheckpoint(goalId, 'paused', `step-${stepCounter}`, stepCounter);
+      goalStore.releaseLease(goalId, workerId);
+      break;
+    }
+
+    goal = goalStore.get(goalId);
+    if (!goal || goal.status === 'paused' || goal.status === 'stopped' || goal.status === 'completed' || goal.status === 'failed') {
+      break; 
+    }
+
+    if (!goalStore.acquireLease(goalId, workerId, 30000)) {
+      pushEvent(goalId, 'failed', 'Worker lost lease lock. Terminating.', undefined, undefined, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX could not continue because another worker claimed the task.', eventType: 'task_failed', provider: currentProvider, model: currentModel });
+      break;
+    }
+
+    stepCounter++;
+
+    try {
+      const PLANNING_MESSAGES = [
+        "Reviewing project structure...",
+        "Reading dependencies...",
+        "Locating affected files...",
+        "Preparing modifications...",
+        "Validating generated code..."
+      ];
+      const planningMsg = PLANNING_MESSAGES[stepCounter % PLANNING_MESSAGES.length];
+      pushEvent(goalId, 'planning', planningMsg, undefined, undefined, { 
+        normalizedStatus: 'planning', 
+        lifecycleState: 'planning', 
+        userMessage: planningMsg, 
+        eventType: 'planning_started', 
+        provider: currentProvider, 
+        model: currentModel 
+      });
+
+      const cbState = checkCircuitBreaker('custom-codex');
+      if (cbState === 'open') {
+        pushEvent(goalId, 'failed', 'CodeX Execution Circuit Breaker Open. Failing loop immediately.', undefined, undefined, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX stopped because the provider is unresponsive.', eventType: 'task_failed', provider: currentProvider, model: currentModel });
+        break;
+      }
+      
+      const prompt = conversation.map(m => `${m.role.toUpperCase()}:
+${m.content}`).join('\n\n');
+      
+      let llmResult;
+      try {
+        llmResult = await llmChat({
+          prompt,
+          systemPrompt: SYSTEM_PROMPT,
+          provider: 'ollama' // Force CodeX to use the intended local setup by default, though llmGateway handles routing.
+        });
+        
+        currentProvider = llmResult.provider;
+        currentModel = llmResult.model || 'unknown';
+
+        if (llmResult.offline) {
+          throw new Error(llmResult.error || 'All models unreachable');
+        }
+
+        if (cbState === 'half-open') {
+          recordCircuitBreakerSuccess('custom-codex');
+        }
+      } catch (providerErr: any) {
+        recordCircuitBreakerError('custom-codex');
+        pushEvent(goalId, 'failed', `CodeX provider failed: ${providerErr.message}`, undefined, providerErr.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX could not continue. Open the error details for more information.', eventType: 'step_failed', provider: currentProvider, model: currentModel });
+        break;
+      }
+
+      const response = llmResult.reply;
+      conversation.push({ role: 'assistant', content: response });
+
+      const toolMatch = response.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
+      if (toolMatch) {
+        let toolResult = '';
+        try {
+          const toolCall: ToolCall = JSON.parse(toolMatch[1]);
+          pushEvent(goalId, 'executing', `Executing tool: ${toolCall.tool}`, toolCall.tool, undefined, { normalizedStatus: 'active', lifecycleState: 'running', userMessage: `Running tool: ${toolCall.tool}`, eventType: 'tool_started', filePath: toolCall.path, command: toolCall.cmd, provider: currentProvider, model: currentModel });
+          const startTime = Date.now();
+          goalStore.upsertStep(goalId, stepCounter, 'started', JSON.stringify(toolCall));
+
+          if (toolCall.tool === 'writeFile' && toolCall.path && toolCall.content) {
+            const absolutePath = enforceWorkspacePath(toolCall.path);
+            fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+            fs.writeFileSync(absolutePath, toolCall.content, 'utf-8');
+            validatePostWrite(absolutePath);
+            toolResult = `Successfully wrote to ${toolCall.path}`;
+          } 
+          else if (toolCall.tool === 'readFile' && toolCall.path) {
+            const absolutePath = enforceWorkspacePath(toolCall.path);
+            if (fs.existsSync(absolutePath)) {
+              toolResult = fs.readFileSync(absolutePath, 'utf-8').substring(0, 4096);
+            } else {
+              toolResult = `Error: File not found at ${toolCall.path}`;
+            }
+          }
+          else if (toolCall.tool === 'runCommand' && toolCall.cmd) {
+            const { stdout, stderr } = await runSandboxedCommand(toolCall.cmd, toolCall.args || [], controller.signal);
+            toolResult = `STDOUT:\n${stdout}\nSTDERR:\n${stderr}`;
+          }
+          else if (toolCall.tool === 'reasoningQuery' && toolCall.prompt) {
+            pushEvent(goalId, 'reasoning', 'Consulting OmniRoute...', toolCall.tool, undefined, { normalizedStatus: 'planning', lifecycleState: 'planning', userMessage: 'Evaluating result with OmniRoute...', eventType: 'validation_started', provider: currentProvider, model: currentModel });
+            const result = await llmChat({
+              prompt: toolCall.prompt,
+              provider: 'omniRoute',
+              systemPrompt: 'You are OmniRoute, a pure validation engine. Validate the input strictly as text. Do not emit tools. Do not execute commands.'
+            });
+            toolResult = result.reply.substring(0, 4096);
+          }
+          else if (toolCall.tool === 'finish') {
+            toolResult = `Goal finished: ${toolCall.message}`;
+            pushEvent(goalId, 'completed', toolResult, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: `CodeX finished the task successfully.`, eventType: 'task_completed', provider: currentProvider, model: currentModel });
+            goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
+            break;
+          }
+          else {
+            toolResult = `Error: Invalid tool call`;
+          }
+
+          conversation.push({ role: 'system', content: `Tool Result:\n${toolResult}` });
+          goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
+          const durationMs = Date.now() - startTime;
+          pushEvent(goalId, 'checkpointed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel });
+          await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter);
+
+        } catch (err: any) {
+          conversation.push({ role: 'system', content: `Tool Error: ${err.message}` });
+          if (controller.signal.aborted) {
+            goalStore.upsertStep(goalId, stepCounter, 'interrupted', undefined, undefined, err.message);
+          } else {
+            goalStore.upsertStep(goalId, stepCounter, 'failed', undefined, undefined, err.message);
+            pushEvent(goalId, 'retrying', `Tool error: ${err.message}`, undefined, err.message, { normalizedStatus: 'attention', lifecycleState: 'retrying', userMessage: 'The last tool failed. CodeX will attempt to retry.', eventType: 'step_failed', provider: currentProvider, model: currentModel });
+          }
+        }
+      } else {
+        // No tools used - terminal state
+        pushEvent(goalId, 'completed', 'CodeX stopped using tools.', undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: 'Task finished.', eventType: 'task_completed', provider: currentProvider, model: currentModel });
+        break;
+      }
+    } catch (err: any) {
+      pushEvent(goalId, 'failed', `Fatal loop error: ${err.message}`, undefined, err.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'A fatal error occurred. Task stopped.', eventType: 'task_failed', provider: currentProvider, model: currentModel });
+      break;
+    }
+  }
+
+  goalControllers.delete(goalId);
+  if (!controller.signal.aborted) {
+    goalStore.releaseLease(goalId, workerId);
+  }
+}

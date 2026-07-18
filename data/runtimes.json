@@ -1,0 +1,51 @@
+[
+  {
+    "id": "rt-hermes",
+    "label": "Hermes Runtime",
+    "adapterType": "hermes-adapter",
+    "health": {
+      "status": "healthy",
+      "lastCheck": "2026-06-18T13:16:10.631Z",
+      "latencyMs": 42
+    },
+    "supportedModes": [
+      "chat",
+      "task",
+      "workflow"
+    ],
+    "eventProtocol": "sse",
+    "toolAccessMode": "unrestricted"
+  },
+  {
+    "id": "rt-jarvis",
+    "label": "Jarvis Runtime",
+    "adapterType": "jarvis-adapter",
+    "health": {
+      "status": "healthy",
+      "lastCheck": "2026-06-18T13:16:10.631Z",
+      "latencyMs": 38
+    },
+    "supportedModes": [
+      "task",
+      "workflow"
+    ],
+    "eventProtocol": "websocket",
+    "toolAccessMode": "scoped"
+  },
+  {
+    "id": "rt-video",
+    "label": "Video-Agent Runtime",
+    "adapterType": "video-adapter",
+    "health": {
+      "status": "healthy",
+      "lastCheck": "2026-06-18T13:16:10.631Z",
+      "latencyMs": 5
+    },
+    "supportedModes": [
+      "task",
+      "workflow"
+    ],
+    "eventProtocol": "sse",
+    "toolAccessMode": "scoped"
+  }
+]

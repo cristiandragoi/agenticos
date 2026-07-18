@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tool-code-runner",
+    "name": "Code Runner (Verified)",
+    "description": "Executes code in sandboxed environment"
+  },
+  {
+    "id": "tool-browser",
+    "name": "Browser",
+    "description": "Headless browser for web interaction"
+  },
+  {
+    "id": "tool-file-system",
+    "name": "File System",
+    "description": "Read/write access to workspace files"
+  },
+  {
+    "id": "tool-deploy",
+    "name": "Deploy",
+    "description": "Deploy artifacts to staging/production"
+  },
+  {
+    "id": "tool-apify",
+    "name": "Apify Actor",
+    "description": "Run Apify actors for scraping workflows"
+  },
+  {
+    "id": "tool-search",
+    "name": "Web Search",
+    "description": "Search the web for information"
+  },
+  {
+    "id": "tool-log-reader",
+    "name": "Log Reader",
+    "description": "Read and parse system logs"
+  },
+  {
+    "id": "tool-metrics",
+    "name": "Metrics",
+    "description": "Query system metrics and health data"
+  }
+]

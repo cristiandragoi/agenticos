@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1784227476305,
+      "tag": "0000_empty_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784228729943,
+      "tag": "0001_lucky_lake",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784229578024,
+      "tag": "0002_sleepy_randall",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784231535267,
+      "tag": "0003_outstanding_umar",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784233492747,
+      "tag": "0004_mature_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784235115561,
+      "tag": "0005_goofy_butterfly",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784236152615,
+      "tag": "0006_majestic_blue_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784304434007,
+      "tag": "0007_bitter_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784305625766,
+      "tag": "0008_woozy_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784344945520,
+      "tag": "0009_tough_reavers",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784345373916,
+      "tag": "0010_faulty_nuke",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784345398509,
+      "tag": "0011_square_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1784357076949,
+      "tag": "0012_clammy_emma_frost",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1784360051825,
+      "tag": "0013_clever_morgan_stark",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+[
+  {
+    "id": "brief-515ac472-6361-43c4-b8d2-553f43d55f37",
+    "title": "Competitor Analysis: Acme Corp",
+    "requestType": "competitor",
+    "target": "Acme Corp",
+    "goal": "Understand their market share and product offerings",
+    "competitors": [
+      "Globex",
+      "Initech"
+    ],
+    "priority": "high",
+    "outputFormat": "markdown",
+    "status": "awaiting_review",
+    "createdAt": "2026-06-20T10:21:59.827Z",
+    "updatedAt": "2026-06-20T10:21:59.827Z",
+    "runId": "run-697026d2-928e-4587-a0b1-66bd8a25e178",
+    "artifactIds": [
+      "art-brief-3491878d-4d22-4488-b6ea-3e397ef0e60e"
+    ]
+  },
+  {
+    "id": "brief-c1aa06aa-a70e-4a1d-ae8d-2bc81701a389",
+    "title": "Research for LexCorp",
+    "requestType": "company",
+    "target": "LexCorp",
+    "goal": "Total domination of the Metropolis real estate market.",
+    "competitors": [],
+    "priority": "high",
+    "outputFormat": "markdown",
+    "status": "awaiting_review",
+    "createdAt": "2026-06-20T12:04:44.643Z",
+    "updatedAt": "2026-06-20T12:04:44.643Z",
+    "artifactIds": [
+      "art-brief-a5df245a-7c70-4ff8-92bb-81d8325f0619"
+    ]
+  },
+  {
+    "id": "brief-02a0e75c-d740-4f41-b298-3ae56dcf5a4e",
+    "title": "Research for Wayne Enterprises",
+    "requestType": "company",
+    "target": "Wayne Enterprises",
+    "goal": "Role: CTO | Target Candidate: Lucius Fox",
+    "competitors": [],
+    "priority": "high",
+    "outputFormat": "markdown",
+    "status": "exported",
+    "createdAt": "2026-06-20T12:16:23.845Z",
+    "updatedAt": "2026-06-20T12:16:23.845Z",
+    "artifactIds": [
+      "art-77bdeb0f-43c8-48a0-b132-f497e2045aa4"
+    ]
+  }
+]

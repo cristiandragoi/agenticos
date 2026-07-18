@@ -1,0 +1,81 @@
+[
+  {
+    "id": "lead-cbaf7f27-6444-4c7a-b174-6aea1124367f",
+    "customerName": "Lex Luthor",
+    "customerEmail": "lex@lexcorp.com",
+    "company": "LexCorp",
+    "requestType": "market",
+    "budget": ",000",
+    "goal": "Total domination of the Metropolis real estate market.",
+    "status": "rejected",
+    "createdAt": "2026-06-20T12:04:07.326Z",
+    "updatedAt": "2026-06-20T12:04:07.326Z"
+  },
+  {
+    "id": "lead-d22be958-e0fd-4be0-a77f-77b41d060873",
+    "customerName": "Lex Luthor",
+    "customerEmail": "lex@lexcorp.com",
+    "company": "LexCorp",
+    "requestType": "market",
+    "budget": "10000",
+    "goal": "Total domination of the Metropolis real estate market.",
+    "status": "in_progress",
+    "createdAt": "2026-06-20T12:04:33.087Z",
+    "updatedAt": "2026-06-20T12:04:44.642Z",
+    "proposalArtifactId": "art-prop-38877caf-f2fa-4e15-ab0c-8f5d14a550c6",
+    "briefId": "brief-c1aa06aa-a70e-4a1d-ae8d-2bc81701a389"
+  },
+  {
+    "id": "lead-89e8d1d4-0c99-4dd0-afd5-c40fba4b62d4",
+    "customerName": "Bruce Wayne",
+    "customerEmail": "bruce@wayne-enterprises.com",
+    "company": "Wayne Enterprises",
+    "requestType": "recruiter",
+    "budget": "15000",
+    "goal": "Role: CTO | Target Candidate: Lucius Fox",
+    "status": "in_progress",
+    "createdAt": "2026-06-20T12:16:13.492Z",
+    "updatedAt": "2026-06-20T12:16:23.843Z",
+    "proposalArtifactId": "art-prop-d65a5b8e-118e-4669-a921-7d2528bf5126",
+    "briefId": "brief-02a0e75c-d740-4f41-b298-3ae56dcf5a4e"
+  },
+  {
+    "id": "lead-afc66552-28df-4143-9c82-2822eb27a18e",
+    "customerName": "Test User",
+    "customerEmail": "test@example.com",
+    "company": "Test Agency",
+    "requestType": "cv_evaluation",
+    "budget": "0",
+    "goal": "Test E2E",
+    "status": "rejected",
+    "createdAt": "2026-06-20T20:45:06.897Z",
+    "updatedAt": "2026-06-20T20:45:06.897Z"
+  },
+  {
+    "id": "lead-907c3ac9-320d-4b12-973b-9deb3a380e64",
+    "customerName": "Acme Corp",
+    "customerEmail": "ceo@acme.com",
+    "company": "Acme Corp",
+    "requestType": "research",
+    "budget": "Unknown",
+    "goal": "Find top AI researchers for our new lab",
+    "status": "rejected",
+    "createdAt": "2026-06-25T13:30:45.793Z",
+    "updatedAt": "2026-06-25T13:30:45.793Z"
+  },
+  {
+    "id": "lead-3095726c-eb20-41a9-9786-0e0161dc014b",
+    "customerName": "Stark Industries",
+    "customerEmail": "tony@stark.com",
+    "company": "Stark Industries",
+    "requestType": "research",
+    "budget": "$10,000",
+    "goal": "Find top robotics engineers for our new division",
+    "cvText": "",
+    "jobDescription": "Looking for senior robotics engineers",
+    "status": "offered",
+    "createdAt": "2026-06-25T13:30:56.420Z",
+    "updatedAt": "2026-06-25T13:30:56.420Z",
+    "proposalArtifactId": "art-prop-ebd9a4b9-c72d-4c1d-b36e-a642056c681c"
+  }
+]

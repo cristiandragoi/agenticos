@@ -1,0 +1,475 @@
+import { Router } from 'express';
+import { db } from '../services/db.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ENV_PATH = path.resolve(__dirname, '..', '.env');
+
+const router = Router();
+
+/* ─── Provider → Env Var Map ─── */
+const ENV_VAR_MAP: Record<string, string> = {
+  'prov-openai': 'OPENAI_API_KEY',
+  'prov-openrouter': 'OPENROUTER_API_KEY',
+  'prov-anthropic': 'ANTHROPIC_API_KEY',
+  'prov-deepseek': 'DEEPSEEK_API_KEY',
+  'prov-minimax': 'MINIMAX_API_KEY',
+  'prov-kimi': 'KIMI_API_KEY',
+  'prov-qwen': 'QWEN_API_KEY',
+  'prov-xai': 'XAI_API_KEY',
+  'prov-mistral': 'MISTRAL_API_KEY',
+  'prov-gemini': 'GOOGLE_API_KEY',
+  'prov-perplexity': 'PERPLEXITY_API_KEY',
+  'prov-fugu': 'SAKANA_API_KEY',
+  'prov-apify': 'APIFY_API_KEY',
+  'prov-storage': 'STORAGE_API_KEY',
+  'prov-automation': 'N8N_API_KEY',
+  'prov-ollama': '', // local, no key needed
+  'prov-ornith': '', // local, no key needed
+  'prov-mcp-filesystem': '',
+  'prov-browser-tool': '',
+  'prov-internal-api': 'INTERNAL_OAUTH_TOKEN',
+};
+
+/* ─── LIST all providers ─── */
+router.get('/', (_req, res) => {
+  const providers = db.providers.list();
+  // Enrich with key status from env vars
+  const enriched = providers.map(p => ({
+    ...p,
+    hasKey: providerHasKey(p.id),
+  }));
+  res.json(enriched);
+});
+
+/* ─── LIST installed Ollama models (dynamic discovery) ─── */
+// MUST be before /:id routes so it isn't caught by the wildcard
+router.get('/prov-ollama/installed-models', async (_req, res) => {
+  const ollamaBase = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  try {
+    const resp = await fetch(`${ollamaBase}/api/tags`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!resp.ok) {
+      res.status(200).json({ reachable: false, models: [], codingModels: [], error: `Ollama returned HTTP ${resp.status}` });
+      return;
+    }
+    const data: any = await resp.json();
+    const models = (data.models || []).map((m: any) => ({
+      id: m.name || m.model,
+      name: m.name || m.model,
+      size: m.size,
+      modifiedAt: m.modified_at,
+      contextLength: m.details?.context_length,
+      quantization: m.details?.quantization_level,
+      family: m.details?.family,
+    }));
+    const codingModelIds = ['qwen2.5-coder:14b', 'deepseek-coder-v2:16b'];
+    const installedIds: string[] = models.map((m: any) => m.id);
+    const codingModels = codingModelIds.map(id => ({
+      id,
+      displayName: id === 'qwen2.5-coder:14b' ? 'Qwen2.5-Coder 14B (Local)' : 'DeepSeek-Coder-V2 16B (Local)',
+      installed: installedIds.some((iid: string) => iid === id || iid.startsWith(id.split(':')[0])),
+    }));
+    res.json({ reachable: true, models, codingModels });
+  } catch (err: any) {
+    res.json({ reachable: false, models: [], codingModels: [], error: err.message });
+  }
+});
+
+/* ─── GET /runtime-status (Unified Health) ─── */
+router.get('/runtime-status', async (_req, res) => {
+  try {
+    const { llmProbe } = await import('../services/llmGateway.js');
+    const [omniProbe, ollamaResp] = await Promise.all([
+      llmProbe(),
+      fetch(`${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}/api/tags`, { signal: AbortSignal.timeout(5000) }).catch(() => null)
+    ]);
+    
+    let ollamaReachable = false;
+    let ollamaModels: any[] = [];
+    if (ollamaResp && ollamaResp.ok) {
+      ollamaReachable = true;
+      const data: any = await ollamaResp.json();
+      ollamaModels = (data.models || []).map((m: any) => ({
+        id: m.name || m.model,
+        displayName: m.name || m.model,
+      }));
+    }
+
+    res.json({
+      omniRoute: omniProbe,
+      ollama: { reachable: ollamaReachable, models: ollamaModels }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ─── GET key status for a provider ─── */
+router.get('/:id/key', (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+  const envVar = ENV_VAR_MAP[provider.id];
+  const hasKey = !!envVar && !!process.env[envVar] && process.env[envVar]!.length > 0;
+  const rawVal = hasKey ? process.env[envVar]! : '';
+  const lastFour = rawVal.length >= 4 ? rawVal.slice(-4) : rawVal;
+  res.json({
+    providerId: provider.id,
+    hasKey,
+    envVar: envVar || null,
+    maskedKey: hasKey ? `•••• •••• •••• ${lastFour}` : null,
+    isLocal: provider.authScheme === 'none',
+  });
+});
+
+/* ─── SAVE key for a provider (writes to .env) ─── */
+router.put('/:id/key', async (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+  const envVar = ENV_VAR_MAP[provider.id];
+  if (!envVar) {
+    res.status(400).json({ error: { code: 'NO_ENV_VAR', message: 'This provider does not use an API key env var' } });
+    return;
+  }
+  const { keyValue } = req.body;
+  if (!keyValue || typeof keyValue !== 'string' || keyValue.trim().length === 0) {
+    res.status(400).json({ error: { code: 'INVALID_KEY', message: 'keyValue is required and must be a non-empty string' } });
+    return;
+  }
+
+  const trimmed = keyValue.trim();
+
+  // Write to .env file
+  try {
+    let envContent = '';
+    try {
+      envContent = fs.readFileSync(ENV_PATH, 'utf-8');
+    } catch {
+      envContent = '';
+    }
+
+    const lines = envContent.split('\n');
+    let found = false;
+    const updatedLines = lines.map(line => {
+      if (line.startsWith(`${envVar}=`)) {
+        found = true;
+        return `${envVar}=${trimmed}`;
+      }
+      return line;
+    });
+
+    if (!found) {
+      updatedLines.push(`\n${envVar}=${trimmed}`);
+    }
+
+    fs.writeFileSync(ENV_PATH, updatedLines.join('\n'), 'utf-8');
+
+    // Also set in current process.env so the running server picks it up
+    process.env[envVar] = trimmed;
+
+    // Update provider status
+    provider.status = 'connected';
+    provider.errorMessage = undefined;
+    provider.lastActivity = 'just now';
+    db.providers.upsert(provider);
+
+    const lastFour = trimmed.length >= 4 ? trimmed.slice(-4) : trimmed;
+    res.json({
+      success: true,
+      providerId: provider.id,
+      envVar,
+      maskedKey: `•••• •••• •••• ${lastFour}`,
+      message: `API key saved for ${provider.name}`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'WRITE_FAILED', message: `Failed to write .env: ${err.message}` } });
+  }
+});
+
+/* ─── DELETE key for a provider ─── */
+router.delete('/:id/key', async (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+  const envVar = ENV_VAR_MAP[provider.id];
+  if (!envVar) {
+    res.status(400).json({ error: { code: 'NO_ENV_VAR', message: 'This provider does not use an API key env var' } });
+    return;
+  }
+
+  try {
+    let envContent = '';
+    try {
+      envContent = fs.readFileSync(ENV_PATH, 'utf-8');
+    } catch {
+      envContent = '';
+    }
+
+    const lines = envContent.split('\n');
+    const updatedLines = lines.filter(line => !line.startsWith(`${envVar}=`));
+    fs.writeFileSync(ENV_PATH, updatedLines.join('\n'), 'utf-8');
+
+    // Clear from process.env
+    delete process.env[envVar];
+
+    // Update provider status
+    provider.status = 'needs-auth';
+    provider.errorMessage = 'API key not configured';
+    provider.lastActivity = 'just now';
+    db.providers.upsert(provider);
+
+    res.json({
+      success: true,
+      providerId: provider.id,
+      message: `API key removed for ${provider.name}`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: { code: 'WRITE_FAILED', message: `Failed to update .env: ${err.message}` } });
+  }
+});
+
+/* ─── GET single provider ─── */
+router.get('/:id', (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+  res.json({ ...provider, hasKey: providerHasKey(provider.id) });
+});
+
+/* ─── REFRESH provider status ─── */
+router.post('/:id/refresh', (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+
+  // Refresh logic — if key exists, attempt a connection test
+  const hasKey = providerHasKey(provider.id);
+  if (hasKey) {
+    provider.status = 'connected';
+    provider.errorMessage = undefined;
+  } else if (provider.authScheme !== 'none') {
+    provider.status = 'needs-auth';
+    provider.errorMessage = 'API key not configured';
+  }
+  provider.lastActivity = 'just now';
+  db.providers.upsert(provider);
+
+  res.json({ message: 'Auth refreshed successfully', provider: { ...provider, hasKey } });
+});
+
+/* ─── TEST provider connectivity (ping) ─── */
+router.post('/:id/test', async (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+
+  const hasKey = providerHasKey(provider.id);
+  let reachable = false;
+  let latencyMs = 0;
+  let errorMessage: string | undefined;
+
+  if (provider.authScheme !== 'none' && !hasKey) {
+    errorMessage = 'No API key configured — cannot test';
+  } else {
+    try {
+      const start = Date.now();
+      reachable = await pingProvider(provider);
+      latencyMs = Date.now() - start;
+    } catch (err: any) {
+      errorMessage = err.message || 'Connection test failed';
+    }
+  }
+
+  if (reachable) {
+    provider.status = 'connected';
+    provider.errorMessage = undefined;
+  } else if (errorMessage) {
+    provider.status = 'error';
+    provider.errorMessage = errorMessage;
+  }
+  provider.lastActivity = 'just now';
+  db.providers.upsert(provider);
+
+  res.json({
+    providerId: provider.id,
+    providerName: provider.name,
+    reachable,
+    latencyMs,
+    status: provider.status,
+    errorMessage,
+    hasKey,
+  });
+});
+
+/* ─── UPDATE provider (model defaults, etc.) ─── */
+router.put('/:id', (req, res) => {
+  const existing = db.providers.get(req.params.id);
+  if (!existing) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+
+  const updates = req.body;
+  // Only allow updating safe fields
+  const safeFields = ['defaultModel', 'status', 'errorMessage', 'usedByAgentDefaults'];
+  for (const field of safeFields) {
+    if (updates[field] !== undefined) {
+      (existing as any)[field] = updates[field];
+    }
+  }
+  existing.lastActivity = 'just now';
+  db.providers.upsert(existing);
+
+  res.json({ ...existing, hasKey: providerHasKey(existing.id) });
+});
+
+/* ─── AGENT MODEL DEFAULTS ─── */
+// GET per-agent model routing
+router.get('/agent-defaults/:agentId', (req, res) => {
+  const agent = db.agents.get(req.params.agentId);
+  if (!agent) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } });
+    return;
+  }
+
+  const providers = db.providers.list();
+  const agentProviders = (agent.providerIds || [])
+    .map((pid: string) => providers.find((p: any) => p.id === pid))
+    .filter(Boolean);
+
+  const modelDefaults = {
+    agentId: agent.id,
+    agentName: agent.name,
+    providerIds: agent.providerIds || [],
+    providers: agentProviders.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      status: p.status,
+      defaultModel: p.defaultModel,
+      models: p.models || [],
+      hasKey: providerHasKey(p.id),
+      authScheme: p.authScheme,
+    })),
+  };
+
+  res.json(modelDefaults);
+});
+
+// PUT update agent provider assignment
+router.put('/agent-defaults/:agentId', (req, res) => {
+  const agent = db.agents.get(req.params.agentId);
+  if (!agent) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } });
+    return;
+  }
+
+  const { providerIds } = req.body;
+  if (!Array.isArray(providerIds)) {
+    res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'providerIds must be an array' } });
+    return;
+  }
+
+  agent.providerIds = providerIds;
+  agent.updatedAt = new Date().toISOString();
+  db.agents.upsert(agent);
+
+  const providers = db.providers.list();
+  const agentProviders = providerIds
+    .map((pid: string) => providers.find((p: any) => p.id === pid))
+    .filter(Boolean);
+
+  res.json({
+    agentId: agent.id,
+    agentName: agent.name,
+    providerIds: agent.providerIds,
+    providers: agentProviders.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      status: p.status,
+      defaultModel: p.defaultModel,
+      hasKey: providerHasKey(p.id),
+    })),
+  });
+});
+
+/* ─── Helpers ─── */
+
+function providerHasKey(providerId: string): boolean {
+  const envVar = ENV_VAR_MAP[providerId];
+  if (!envVar) return false;
+  const val = process.env[envVar];
+  return !!val && val.length > 0;
+}
+
+async function pingProvider(provider: any): Promise<boolean> {
+  const baseUrls: Record<string, string> = {
+    'prov-openai': 'https://api.openai.com/v1/models',
+    'prov-openrouter': 'https://openrouter.ai/api/v1/models',
+    'prov-anthropic': 'https://api.anthropic.com/v1/messages',
+    'prov-deepseek': 'https://api.deepseek.com/v1/models',
+    'prov-minimax': 'https://api.minimax.chat/v1/models',
+    'prov-kimi': 'https://api.moonshot.cn/v1/models',
+    'prov-qwen': 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+    'prov-xai': 'https://api.x.ai/v1/models',
+    'prov-mistral': 'https://api.mistral.ai/v1/models',
+    'prov-gemini': 'https://generativelanguage.googleapis.com/v1/models',
+    'prov-perplexity': 'https://api.perplexity.ai/v1/models',
+    'prov-apify': 'https://api.apify.com/v2/acts',
+    'prov-ollama': (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/api/tags',
+    'prov-ornith': (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/api/tags',
+  };
+
+  const url = baseUrls[provider.id];
+  if (!url) return true; // infra providers auto-pass
+
+  const envVarMap: Record<string, string> = { ...ENV_VAR_MAP };
+
+  const apiKey = process.env[envVarMap[provider.id]] || '';
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  if (apiKey) {
+    if (provider.id === 'prov-gemini') {
+      // Gemini uses query param
+    } else {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+  }
+
+  // For Gemini, key is in URL
+  const testUrl = provider.id === 'prov-gemini' && apiKey
+    ? `${url}?key=${apiKey}`
+    : url;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const res = await fetch(testUrl, { headers, signal: controller.signal });
+    return res.ok || res.status === 401 || res.status === 403; // key recognized even if no access
+  } catch {
+    return (provider.id === 'prov-ollama' || provider.id === 'prov-ornith') ? false : true; // Ollama unreachable = fail, others might be network
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export default router;

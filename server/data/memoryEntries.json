@@ -1,0 +1,319 @@
+[
+  {
+    "id": "entry-001",
+    "scopeId": "mem-global",
+    "kind": "fact",
+    "title": "Project Architecture (Verified)",
+    "content": "The system uses a four-layer architecture: UI Shell → OS Services → Agent Runtimes → Execution Providers.",
+    "links": [
+      "board-mission-control"
+    ],
+    "createdAt": "2026-05-01T00:00:00Z",
+    "updatedAt": "2026-05-01T00:00:00Z"
+  },
+  {
+    "id": "entry-002",
+    "scopeId": "mem-global",
+    "kind": "decision",
+    "title": "Runtime Adapter Contract",
+    "content": "All runtimes must implement the RuntimeAdapter interface. No direct coupling between the UI shell and runtime internals.",
+    "links": [
+      "rt-hermes",
+      "rt-jarvis"
+    ],
+    "createdAt": "2026-05-01T00:00:00Z",
+    "updatedAt": "2026-05-15T00:00:00Z"
+  },
+  {
+    "id": "entry-003",
+    "scopeId": "mem-hermes-agent",
+    "kind": "note",
+    "title": "Preferred Code Style",
+    "content": "User prefers functional components with hooks, explicit return types, and comprehensive JSDoc comments.",
+    "createdAt": "2026-05-10T00:00:00Z",
+    "updatedAt": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "entry-004",
+    "scopeId": "mem-session-current",
+    "kind": "conversation",
+    "title": "Current Focus: Auth Module Review",
+    "content": "Currently reviewing the auth module for security vulnerabilities. Hermes is running analysis, awaiting results.",
+    "sourceRunId": "run-001",
+    "createdAt": "2026-06-18T16:26:08.868Z",
+    "updatedAt": "2026-06-18T16:26:53.868Z"
+  },
+  {
+    "id": "entry-005",
+    "scopeId": "mem-research-board",
+    "kind": "summary",
+    "title": "Q3 Competitive Analysis Draft",
+    "content": "Initial findings on 6 competitor agent frameworks. Key differentiator: unified runtime adapter model.",
+    "sourceRunId": "run-008",
+    "links": [
+      "art-weekly-summary"
+    ],
+    "createdAt": "2026-06-17T16:26:53.868Z",
+    "updatedAt": "2026-06-17T16:27:23.868Z"
+  },
+  {
+    "id": "mem-ent-1781875094992",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781875094982",
+    "title": "jarvis-sync-1781875094982",
+    "kind": "note",
+    "content": "System, what is the current status of the loops engine?",
+    "createdAt": "2026-06-19T13:18:14.992Z",
+    "updatedAt": "2026-06-19T13:18:14.992Z"
+  },
+  {
+    "id": "mem-ent-1781875189854",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781875189845",
+    "title": "jarvis-voice-1781875189845",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T13:19:49.854Z",
+    "updatedAt": "2026-06-19T13:19:49.854Z"
+  },
+  {
+    "id": "mem-ent-1781875191009",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781875191004",
+    "title": "jarvis-sync-1781875191004",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T13:19:51.009Z",
+    "updatedAt": "2026-06-19T13:19:51.009Z"
+  },
+  {
+    "id": "mem-ent-1781883025424",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781883025399",
+    "title": "jarvis-voice-1781883025399",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T15:30:25.424Z",
+    "updatedAt": "2026-06-19T15:30:25.424Z"
+  },
+  {
+    "id": "mem-ent-1781883026583",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781883026577",
+    "title": "jarvis-sync-1781883026577",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T15:30:26.583Z",
+    "updatedAt": "2026-06-19T15:30:26.583Z"
+  },
+  {
+    "id": "mem-ent-1781884537396",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781884537390",
+    "title": "jarvis-voice-1781884537390",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T15:55:37.396Z",
+    "updatedAt": "2026-06-19T15:55:37.396Z"
+  },
+  {
+    "id": "mem-ent-1781884538725",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781884538723",
+    "title": "jarvis-sync-1781884538723",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T15:55:38.725Z",
+    "updatedAt": "2026-06-19T15:55:38.725Z"
+  },
+  {
+    "id": "mem-ent-1781888702689",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781888702673",
+    "title": "jarvis-voice-1781888702673",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:05:02.689Z",
+    "updatedAt": "2026-06-19T17:05:02.689Z"
+  },
+  {
+    "id": "mem-ent-1781888703996",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781888703992",
+    "title": "jarvis-sync-1781888703992",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:05:03.996Z",
+    "updatedAt": "2026-06-19T17:05:03.996Z"
+  },
+  {
+    "id": "mem-ent-1781888754938",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781888754931",
+    "title": "jarvis-voice-1781888754931",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:05:54.938Z",
+    "updatedAt": "2026-06-19T17:05:54.938Z"
+  },
+  {
+    "id": "mem-ent-1781888756229",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781888756227",
+    "title": "jarvis-sync-1781888756227",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:05:56.229Z",
+    "updatedAt": "2026-06-19T17:05:56.229Z"
+  },
+  {
+    "id": "mem-ent-1781891240858",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781891240853",
+    "title": "jarvis-voice-1781891240853",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:47:20.858Z",
+    "updatedAt": "2026-06-19T17:47:20.858Z"
+  },
+  {
+    "id": "mem-ent-1781891242153",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781891242152",
+    "title": "jarvis-sync-1781891242152",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:47:22.153Z",
+    "updatedAt": "2026-06-19T17:47:22.153Z"
+  },
+  {
+    "id": "mem-ent-1781891760613",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781891760605",
+    "title": "jarvis-voice-1781891760605",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:56:00.613Z",
+    "updatedAt": "2026-06-19T17:56:00.613Z"
+  },
+  {
+    "id": "mem-ent-1781891828889",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781891828870",
+    "title": "jarvis-voice-1781891828870",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:57:08.889Z",
+    "updatedAt": "2026-06-19T17:57:08.889Z"
+  },
+  {
+    "id": "mem-ent-1781891899353",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781891899347",
+    "title": "jarvis-voice-1781891899347",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:58:19.353Z",
+    "updatedAt": "2026-06-19T17:58:19.353Z"
+  },
+  {
+    "id": "mem-ent-1781891967640",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781891967629",
+    "title": "jarvis-voice-1781891967629",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T17:59:27.640Z",
+    "updatedAt": "2026-06-19T17:59:27.640Z"
+  },
+  {
+    "id": "mem-ent-1781892057691",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781892057676",
+    "title": "jarvis-voice-1781892057676",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T18:00:57.691Z",
+    "updatedAt": "2026-06-19T18:00:57.691Z"
+  },
+  {
+    "id": "mem-ent-1781893666178",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781893666160",
+    "title": "jarvis-voice-1781893666160",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T18:27:46.178Z",
+    "updatedAt": "2026-06-19T18:27:46.178Z"
+  },
+  {
+    "id": "mem-ent-1781893667610",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781893667604",
+    "title": "jarvis-sync-1781893667604",
+    "kind": "note",
+    "content": "I'm sorry, I encountered an error while communicating with the provider.",
+    "createdAt": "2026-06-19T18:27:47.610Z",
+    "updatedAt": "2026-06-19T18:27:47.610Z"
+  },
+  {
+    "id": "mem-ent-1781940363975",
+    "scopeId": "scope-core",
+    "key": "jarvis-voice-1781940363959",
+    "title": "jarvis-voice-1781940363959",
+    "kind": "note",
+    "content": "I have initiated the build process for the frontend application as requested. The task is now running.",
+    "createdAt": "2026-06-20T07:26:03.975Z",
+    "updatedAt": "2026-06-20T07:26:03.975Z"
+  },
+  {
+    "id": "mem-ent-1781941398010",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781941397993",
+    "title": "jarvis-sync-1781941397993",
+    "kind": "note",
+    "content": "I have initiated the build process for the frontend application as requested. The task is now running.",
+    "createdAt": "2026-06-20T07:43:18.010Z",
+    "updatedAt": "2026-06-20T07:43:18.010Z"
+  },
+  {
+    "id": "mem-ent-1781941434384",
+    "scopeId": "scope-core",
+    "key": "jarvis-sync-1781941434359",
+    "title": "jarvis-sync-1781941434359",
+    "kind": "note",
+    "content": "I have initiated the build process for the frontend application as requested. The task is now running.",
+    "createdAt": "2026-06-20T07:43:54.384Z",
+    "updatedAt": "2026-06-20T07:43:54.384Z"
+  },
+  {
+    "id": "mem-ent-1782474325914",
+    "scopeId": "mem-global",
+    "key": "Cold Email Templates Drafted",
+    "title": "Cold Email Templates Drafted",
+    "kind": "note",
+    "content": "Generated welders outreach templates in Obsidian.",
+    "createdAt": "2026-06-26T11:45:25.914Z",
+    "updatedAt": "2026-06-26T11:45:25.914Z"
+  },
+  {
+    "id": "mem-ent-1782474592936",
+    "scopeId": "mem-global",
+    "key": "Cold Email Templates Drafted",
+    "title": "Cold Email Templates Drafted",
+    "kind": "note",
+    "content": "Generated welders outreach templates in Obsidian.",
+    "createdAt": "2026-06-26T11:49:52.936Z",
+    "updatedAt": "2026-06-26T11:49:52.936Z"
+  },
+  {
+    "id": "mem-ent-1782476857449",
+    "scopeId": "mem-global",
+    "key": "Cold Email Templates Drafted",
+    "title": "Cold Email Templates Drafted",
+    "kind": "note",
+    "content": "Generated welders outreach templates in Obsidian.",
+    "createdAt": "2026-06-26T12:27:37.451Z",
+    "updatedAt": "2026-06-26T12:27:37.451Z"
+  }
+]

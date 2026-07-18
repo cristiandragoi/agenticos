@@ -1,0 +1,59 @@
+[
+  {
+    "id": "entry-001",
+    "scopeId": "mem-global",
+    "kind": "fact",
+    "title": "Project Architecture",
+    "content": "The system uses a four-layer architecture: UI Shell → OS Services → Agent Runtimes → Execution Providers.",
+    "links": [
+      "board-mission-control"
+    ],
+    "createdAt": "2026-05-01T00:00:00Z",
+    "updatedAt": "2026-05-01T00:00:00Z"
+  },
+  {
+    "id": "entry-002",
+    "scopeId": "mem-global",
+    "kind": "decision",
+    "title": "Runtime Adapter Contract",
+    "content": "All runtimes must implement the RuntimeAdapter interface. No direct coupling between the UI shell and runtime internals.",
+    "links": [
+      "rt-hermes",
+      "rt-jarvis"
+    ],
+    "createdAt": "2026-05-01T00:00:00Z",
+    "updatedAt": "2026-05-15T00:00:00Z"
+  },
+  {
+    "id": "entry-003",
+    "scopeId": "mem-hermes-agent",
+    "kind": "note",
+    "title": "Preferred Code Style",
+    "content": "User prefers functional components with hooks, explicit return types, and comprehensive JSDoc comments.",
+    "createdAt": "2026-05-10T00:00:00Z",
+    "updatedAt": "2026-06-01T00:00:00Z"
+  },
+  {
+    "id": "entry-004",
+    "scopeId": "mem-session-current",
+    "kind": "conversation",
+    "title": "Current Focus: Auth Module Review",
+    "content": "Currently reviewing the auth module for security vulnerabilities. Hermes is running analysis, awaiting results.",
+    "sourceRunId": "run-001",
+    "createdAt": "2026-06-18T13:15:25.632Z",
+    "updatedAt": "2026-06-18T13:16:10.632Z"
+  },
+  {
+    "id": "entry-005",
+    "scopeId": "mem-research-board",
+    "kind": "summary",
+    "title": "Q3 Competitive Analysis Draft",
+    "content": "Initial findings on 6 competitor agent frameworks. Key differentiator: unified runtime adapter model.",
+    "sourceRunId": "run-008",
+    "links": [
+      "art-weekly-summary"
+    ],
+    "createdAt": "2026-06-17T13:16:10.632Z",
+    "updatedAt": "2026-06-17T13:16:40.632Z"
+  }
+]

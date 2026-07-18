@@ -1,0 +1,52 @@
+[
+  {
+    "id": "sched-hc-03e06da2",
+    "name": "Runtime Health Check",
+    "agentId": "agent-sentinel",
+    "interval": "30m",
+    "prompt": "Check all runtime adapters are healthy. Report any that are down or have errors.",
+    "type": "health-check",
+    "status": "active",
+    "createdAt": "2026-06-23T14:02:53.912Z",
+    "updatedAt": "2026-06-23T14:02:53.912Z"
+  },
+  {
+    "id": "sched-seo-7bf30d60",
+    "name": "SEO Pipeline Status",
+    "agentId": "agent-hermes",
+    "interval": "6h",
+    "prompt": "Run SEO pipeline checks. Report any pages with critical issues.",
+    "type": "workflow",
+    "status": "active",
+    "createdAt": "2026-06-23T14:02:53.912Z",
+    "updatedAt": "2026-06-23T14:02:53.912Z"
+  },
+  {
+    "id": "sched-1890768e",
+    "name": "Runtime Adapters Check",
+    "agentId": "agent-hermes",
+    "interval": "30m",
+    "prompt": "Run the Hermes Runtime Adapters self-check: query /api/providers, /api/agents, /api/runs, and /api/health; check provider statuses (connected/error/needs-auth/experimental), adapter types, agent-provider bindings, and recent run health; POST a detailed report to /api/runs with source 'self-check:cron:runtime-adapters'. Execute: python /c/Users/Cris/AppData/Local/hermes/scripts/post-runtime-healthcheck.py",
+    "type": "health-check",
+    "status": "active",
+    "createdAt": "2026-06-24T08:26:43.030Z",
+    "updatedAt": "2026-06-24T08:26:51.835Z",
+    "lastRunAt": "2026-06-24T08:26:50.205Z",
+    "lastRunStatus": "success",
+    "lastRunOutput": "[24/06/2026, 10:26:51] Executed: Run the Hermes Runtime Adapters self-check: query /api/provi..."
+  },
+  {
+    "id": "sched-aa00368d",
+    "name": "Failed Runs Scan",
+    "agentId": "agent-hermes",
+    "interval": "2h",
+    "prompt": "Run the Failed Runs Scanner self-check: query /api/runs for all failed and awaiting-review runs; categorize errors (timeout, cancelled, invalid model, internal error); check agent-provider bindings; POST a detailed report to /api/runs with source 'self-check:cron:failed-runs-scan'. Execute: python /c/Users/Cris/AppData/Local/hermes/scripts/post-failed-runs-scan.py",
+    "type": "health-check",
+    "status": "active",
+    "createdAt": "2026-06-24T08:26:43.046Z",
+    "updatedAt": "2026-06-24T08:26:52.965Z",
+    "lastRunAt": "2026-06-24T08:26:51.459Z",
+    "lastRunStatus": "success",
+    "lastRunOutput": "[24/06/2026, 10:26:52] Executed: Run the Failed Runs Scanner self-check: query /api/runs for ..."
+  }
+]

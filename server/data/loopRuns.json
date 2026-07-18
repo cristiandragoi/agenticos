@@ -1,0 +1,1649 @@
+[
+  {
+    "id": "lrun-f1ba79b8-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "run-3b6b52fb-",
+      "step-email-draft": "run-d46a2293-",
+      "step-summary": "run-d0a86be2-"
+    },
+    "status": "completed",
+    "createdAt": "2026-06-24T21:42:34.097Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-24T21:42:34.581Z"
+  },
+  {
+    "id": "lrun-1026dad8-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "run-a5af7520-",
+      "step-email-draft": "run-89924e6c-",
+      "step-summary": "run-5beab1a2-"
+    },
+    "status": "completed",
+    "createdAt": "2026-06-25T06:50:38.690Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T06:50:39.139Z"
+  },
+  {
+    "id": "lrun-2f189b21-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "run-6020b4cf-",
+      "step-email-draft": "run-6f772296-",
+      "step-summary": "run-5a100b0e-"
+    },
+    "status": "completed",
+    "createdAt": "2026-06-25T06:50:43.834Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T06:50:44.272Z"
+  },
+  {
+    "id": "lrun-0054b84b-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "run-d6cfe4ad-",
+      "step-email-draft": "run-e1d67234-",
+      "step-summary": "run-ce04b2ef-"
+    },
+    "status": "completed",
+    "createdAt": "2026-06-25T06:51:03.428Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T06:51:03.871Z"
+  },
+  {
+    "id": "lrun-1e119cb1-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:04:32.696Z",
+        "completedAt": "2026-06-25T07:04:33.382Z"
+      },
+      {
+        "stepId": "step-email-draft",
+        "status": "failed"
+      },
+      {
+        "stepId": "step-summary",
+        "status": "failed"
+      }
+    ],
+    "status": "failed",
+    "createdAt": "2026-06-25T07:04:32.692Z",
+    "iteration": 1,
+    "score": 0,
+    "errorMessage": "Cannot set properties of undefined (setting 'status')"
+  },
+  {
+    "id": "lrun-fc252ec5-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:05:45.317Z",
+        "completedAt": "2026-06-25T07:05:45.979Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:05:45.984Z",
+        "completedAt": "2026-06-25T07:05:46.422Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:05:46.426Z",
+        "completedAt": "2026-06-25T07:05:46.438Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T07:05:45.312Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T07:05:46.441Z"
+  },
+  {
+    "id": "lrun-ce5a5f39-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:08:20.306Z",
+        "completedAt": "2026-06-25T07:08:20.818Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:08:20.822Z",
+        "completedAt": "2026-06-25T07:08:21.210Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:08:21.213Z",
+        "completedAt": "2026-06-25T07:08:21.225Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T07:08:20.299Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T07:08:21.230Z"
+  },
+  {
+    "id": "lrun-2e17d910-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:09:44.071Z",
+        "completedAt": "2026-06-25T07:09:44.610Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:09:44.613Z",
+        "completedAt": "2026-06-25T07:09:45.029Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T07:09:45.034Z",
+        "completedAt": "2026-06-25T07:09:45.046Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T07:09:44.066Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T07:09:45.050Z"
+  },
+  {
+    "id": "lrun-a4e22d2d-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T11:52:09.904Z",
+        "completedAt": "2026-06-25T11:52:10.756Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T11:52:10.758Z",
+        "completedAt": "2026-06-25T11:52:11.193Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T11:52:11.197Z",
+        "completedAt": "2026-06-25T11:52:11.219Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T11:52:09.897Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T11:52:11.223Z"
+  },
+  {
+    "id": "lrun-7488b056-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:43:16.857Z",
+        "completedAt": "2026-06-25T12:43:17.843Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:43:17.845Z",
+        "completedAt": "2026-06-25T12:43:18.325Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:43:18.328Z",
+        "completedAt": "2026-06-25T12:43:18.344Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T12:43:16.845Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T12:43:18.346Z"
+  },
+  {
+    "id": "lrun-6b3174f0-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:45:18.336Z",
+        "completedAt": "2026-06-25T12:45:18.888Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:45:18.892Z",
+        "completedAt": "2026-06-25T12:45:19.186Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:45:19.188Z",
+        "completedAt": "2026-06-25T12:45:19.197Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T12:45:18.331Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T12:45:19.200Z"
+  },
+  {
+    "id": "lrun-1f21eb81-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:55:04.761Z",
+        "completedAt": "2026-06-25T12:55:05.274Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:55:05.275Z",
+        "completedAt": "2026-06-25T12:55:05.525Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:55:05.527Z",
+        "completedAt": "2026-06-25T12:55:05.533Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T12:55:04.758Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T12:55:05.534Z"
+  },
+  {
+    "id": "lrun-63451e44-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:56:59.578Z",
+        "completedAt": "2026-06-25T12:57:00.063Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:57:00.065Z",
+        "completedAt": "2026-06-25T12:57:00.328Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:57:00.330Z",
+        "completedAt": "2026-06-25T12:57:00.345Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T12:56:59.575Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T12:57:00.346Z"
+  },
+  {
+    "id": "lrun-e8656deb-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:57:39.925Z",
+        "completedAt": "2026-06-25T12:57:40.375Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:57:40.377Z",
+        "completedAt": "2026-06-25T12:57:40.629Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T12:57:40.631Z",
+        "completedAt": "2026-06-25T12:57:40.638Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T12:57:39.922Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T12:57:40.639Z"
+  },
+  {
+    "id": "lrun-b29c58de-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:16:19.036Z",
+        "completedAt": "2026-06-25T13:16:25.293Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:16:25.296Z",
+        "completedAt": "2026-06-25T13:16:25.852Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:16:25.853Z",
+        "completedAt": "2026-06-25T13:16:25.860Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T13:16:19.032Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T13:16:25.861Z"
+  },
+  {
+    "id": "lrun-313fafb1-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:30:29.381Z",
+        "completedAt": "2026-06-25T13:30:35.820Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:30:35.822Z",
+        "completedAt": "2026-06-25T13:30:36.492Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:30:36.494Z",
+        "completedAt": "2026-06-25T13:30:36.501Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T13:30:29.378Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T13:30:36.503Z"
+  },
+  {
+    "id": "lrun-7da5fa56-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:31:56.074Z",
+        "completedAt": "2026-06-25T13:32:02.186Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:32:02.188Z",
+        "completedAt": "2026-06-25T13:32:02.925Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T13:32:02.926Z",
+        "completedAt": "2026-06-25T13:32:02.931Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T13:31:56.071Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T13:32:02.932Z"
+  },
+  {
+    "id": "lrun-2803da34-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:24:49.175Z",
+        "completedAt": "2026-06-25T15:24:54.278Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:24:54.280Z",
+        "completedAt": "2026-06-25T15:24:55.190Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:24:55.192Z",
+        "completedAt": "2026-06-25T15:24:55.198Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T15:24:49.172Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T15:24:55.200Z"
+  },
+  {
+    "id": "lrun-194f4079-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:40:04.354Z",
+        "completedAt": "2026-06-25T15:40:09.900Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:40:09.901Z",
+        "completedAt": "2026-06-25T15:40:10.483Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:40:10.484Z",
+        "completedAt": "2026-06-25T15:40:10.492Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T15:40:04.351Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T15:40:10.494Z"
+  },
+  {
+    "id": "lrun-5ea3eac7-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:49:57.882Z",
+        "completedAt": "2026-06-25T15:50:03.055Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:50:03.056Z",
+        "completedAt": "2026-06-25T15:50:04.295Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:50:04.297Z",
+        "completedAt": "2026-06-25T15:50:04.301Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T15:49:57.879Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T15:50:04.303Z"
+  },
+  {
+    "id": "lrun-00b66254-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:51:32.031Z",
+        "completedAt": "2026-06-25T15:51:37.679Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:51:37.680Z",
+        "completedAt": "2026-06-25T15:51:38.749Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:51:38.750Z",
+        "completedAt": "2026-06-25T15:51:38.757Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T15:51:32.030Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T15:51:38.760Z"
+  },
+  {
+    "id": "lrun-0e347f33-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:58:07.295Z",
+        "completedAt": "2026-06-25T15:58:16.972Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:58:16.974Z",
+        "completedAt": "2026-06-25T15:58:17.672Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T15:58:17.673Z",
+        "completedAt": "2026-06-25T15:58:17.678Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T15:58:07.293Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T15:58:17.679Z"
+  },
+  {
+    "id": "lrun-f4658125-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T16:05:28.896Z",
+        "completedAt": "2026-06-25T16:05:35.979Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T16:05:35.980Z",
+        "completedAt": "2026-06-25T16:05:36.822Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T16:05:36.823Z",
+        "completedAt": "2026-06-25T16:05:36.828Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T16:05:28.895Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T16:05:36.829Z"
+  },
+  {
+    "id": "lrun-500d2af9-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T16:10:08.351Z",
+        "completedAt": "2026-06-25T16:10:13.181Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T16:10:13.182Z",
+        "completedAt": "2026-06-25T16:10:15.289Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T16:10:15.290Z",
+        "completedAt": "2026-06-25T16:10:15.294Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T16:10:08.350Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T16:10:15.295Z"
+  },
+  {
+    "id": "lrun-b942c539-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": "done",
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T20:37:28.692Z",
+        "completedAt": "2026-06-25T20:37:31.820Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T20:37:31.821Z",
+        "completedAt": "2026-06-25T20:37:32.851Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T20:37:32.852Z",
+        "completedAt": "2026-06-25T20:37:32.863Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T20:37:28.687Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T20:37:32.867Z"
+  },
+  {
+    "id": "lrun-d8dc715d-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "step-research": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 5
+      },
+      "step-leads-and-templates": "done",
+      "step-briefing-and-log": "done"
+    },
+    "stepStatuses": [
+      {
+        "stepId": "step-research",
+        "name": "Research",
+        "status": "completed",
+        "startedAt": "2026-06-25T21:19:25.161Z",
+        "completedAt": "2026-06-25T21:19:42.676Z"
+      },
+      {
+        "stepId": "step-leads-and-templates",
+        "name": "Leads & Templates",
+        "status": "completed",
+        "startedAt": "2026-06-25T21:19:42.682Z",
+        "completedAt": "2026-06-25T21:19:43.596Z"
+      },
+      {
+        "stepId": "step-briefing-and-log",
+        "name": "Briefing & Log",
+        "status": "completed",
+        "startedAt": "2026-06-25T21:19:43.601Z",
+        "completedAt": "2026-06-25T21:19:43.615Z"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-25T21:19:25.157Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-25T21:19:43.619Z"
+  },
+  {
+    "id": "lrun-8d3a11a0-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 7,
+        "rawJobs": [
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Stehmeyer-Bischoff-Berlin-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "jobUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "role": "Stehmeyer + Bischoff Berlin GmbH & Co. KG - Jobs",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "Arbeiten bei OMEXOM: Arbeitnehmerbewertungen",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-06-26T08:47:02.179Z",
+        "completedAt": "2026-06-26T08:47:12.877Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-06-26T08:47:12.879Z",
+        "completedAt": "2026-06-26T08:47:14.471Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "failed",
+        "startedAt": "2026-06-26T08:47:14.474Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "failed"
+      }
+    ],
+    "status": "failed",
+    "createdAt": "2026-06-26T08:47:02.173Z",
+    "iteration": 1,
+    "score": 0,
+    "errorMessage": "API Error from fugu-20260615: <!doctype html><meta charset=\"utf-8\"><meta name=viewport content=\"width=device-width, initial-scale=1\"><title>403</title>403 Forbidden"
+  },
+  {
+    "id": "lrun-a5d53ac0-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 7,
+        "rawJobs": [
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Stehmeyer-Bischoff-Berlin-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "jobUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "role": "Stehmeyer + Bischoff Berlin GmbH & Co. KG - Jobs",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "Arbeiten bei OMEXOM: Arbeitnehmerbewertungen",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-06-26T11:44:48.022Z",
+        "completedAt": "2026-06-26T11:44:54.213Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-06-26T11:44:54.216Z",
+        "completedAt": "2026-06-26T11:44:56.273Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-06-26T11:44:56.275Z",
+        "completedAt": "2026-06-26T11:45:25.916Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-26T11:44:48.019Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-26T11:45:25.918Z"
+  },
+  {
+    "id": "lrun-9e1569ff-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 6,
+        "rawJobs": [
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://nl.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "47: OMEXOM reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-06-26T11:49:16.071Z",
+        "completedAt": "2026-06-26T11:49:40.742Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-06-26T11:49:40.743Z",
+        "completedAt": "2026-06-26T11:49:42.014Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-06-26T11:49:42.016Z",
+        "completedAt": "2026-06-26T11:49:52.938Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-26T11:49:16.060Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-26T11:49:52.939Z"
+  },
+  {
+    "id": "lrun-fbdb6fb4-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 7,
+        "rawJobs": [
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Stehmeyer-Bischoff-Berlin-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "jobUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "role": "Stehmeyer + Bischoff Berlin GmbH & Co. KG - Jobs",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "Arbeiten bei OMEXOM: Arbeitnehmerbewertungen",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-06-26T12:27:09.555Z",
+        "completedAt": "2026-06-26T12:27:17.904Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-06-26T12:27:17.905Z",
+        "completedAt": "2026-06-26T12:27:20.950Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-06-26T12:27:20.953Z",
+        "completedAt": "2026-06-26T12:27:37.461Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-26T12:27:09.546Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-26T12:27:37.463Z"
+  },
+  {
+    "id": "lrun-6792770d-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 7,
+        "rawJobs": [
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://nl.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "47: OMEXOM reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Stehmeyer-Bischoff-Berlin-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "jobUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "role": "Stehmeyer + Bischoff Berlin GmbH & Co. KG - Jobs",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-06-28T15:33:59.508Z",
+        "completedAt": "2026-06-28T15:34:17.631Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-06-28T15:34:17.635Z",
+        "completedAt": "2026-06-28T15:34:20.802Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-06-28T15:34:20.807Z",
+        "completedAt": "2026-06-28T15:34:20.863Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-06-28T15:33:59.506Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-06-28T15:34:20.865Z"
+  },
+  {
+    "id": "lrun-797b71e5-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 4,
+        "rawJobs": [
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews",
+            "role": "Arbeiten bei Amentum: 70 Bewertungen",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "Arbeiten bei OMEXOM: Arbeitnehmerbewertungen",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-07-03T18:21:11.596Z",
+        "completedAt": "2026-07-03T18:21:23.108Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-07-03T18:21:23.114Z",
+        "completedAt": "2026-07-03T18:21:24.398Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-07-03T18:21:24.401Z",
+        "completedAt": "2026-07-03T18:21:24.435Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-07-03T18:21:11.589Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-07-03T18:21:24.439Z"
+  },
+  {
+    "id": "lrun-269a4c94-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 7,
+        "rawJobs": [
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://nl.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "47: OMEXOM reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Lackus-Schlosserei-&-Sonderkonstruktionen-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Lackus-Schlosserei-&-Sonderkonstruktionen-Gmbh-&-Co.kg-1/salaries",
+            "jobUrl": "https://de.indeed.com/cmp/Lackus-Schlosserei-&-Sonderkonstruktionen-Gmbh-&-Co.kg-1/salaries",
+            "role": "Lackus Schlosserei & Sonderkonstruktionen GmbH & C",
+            "country": "DE",
+            "source": "de.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-07-04T09:16:00.729Z",
+        "completedAt": "2026-07-04T09:16:11.274Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-07-04T09:16:11.280Z",
+        "completedAt": "2026-07-04T09:16:13.462Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-07-04T09:16:13.466Z",
+        "completedAt": "2026-07-04T09:16:13.512Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-07-04T09:16:00.715Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-07-04T09:16:13.517Z"
+  },
+  {
+    "id": "lrun-2026cc17-",
+    "loopId": "loop-welders-pipeline",
+    "stepResults": {
+      "jobDiscovery": {
+        "apifyActor": "apify/google-search-scraper",
+        "totalFound": 8,
+        "rawJobs": [
+          {
+            "companyName": "Mr-Wash-Autoservice-Ag-1",
+            "websiteUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "jobUrl": "https://de.indeed.com/cmp/Mr-Wash-Autoservice-Ag-1",
+            "role": "Beruf und Karriere bei Mr Wash Autoservice AG",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Amentum",
+            "websiteUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "jobUrl": "https://de.indeed.com/cmp/Amentum/reviews?ftopic=mgmt",
+            "role": "Bewertungen für Amentum zum Thema Management",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Stehmeyer-Bischoff-Berlin-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "jobUrl": "https://de.indeed.com/cmp/Stehmeyer-Bischoff-Berlin-Gmbh-&-Co.-Kg/jobs/l-Berlin",
+            "role": "Stehmeyer + Bischoff Berlin GmbH & Co. KG - Jobs",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Lackus-Schlosserei-&-Sonderkonstruktionen-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Lackus-Schlosserei-&-Sonderkonstruktionen-Gmbh-&-Co.kg-1/salaries",
+            "jobUrl": "https://de.indeed.com/cmp/Lackus-Schlosserei-&-Sonderkonstruktionen-Gmbh-&-Co.kg-1/salaries",
+            "role": "Lackus Schlosserei & Sonderkonstruktionen GmbH & C",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Bang-Kransysteme-Gmbh-&-Co",
+            "websiteUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "jobUrl": "https://de.indeed.com/cmp/Bang-Kransysteme-Gmbh-&-Co.-Kg/jobs/l-Oelsnitz",
+            "role": "Jobs bei BANG Kransysteme GmbH & Co. KG in Oelsnit",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Omexom",
+            "websiteUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "jobUrl": "https://de.indeed.com/cmp/Omexom/reviews?fcountry=ALL",
+            "role": "Arbeiten bei OMEXOM: Arbeitnehmerbewertungen",
+            "country": "DE",
+            "source": "de.indeed.com"
+          },
+          {
+            "companyName": "Ambaflex",
+            "websiteUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Ambaflex/reviews?fcountry=ALL",
+            "role": "14: AMBAFLEX reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          },
+          {
+            "companyName": "Double-D",
+            "websiteUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "jobUrl": "https://nl.indeed.com/cmp/Double-D/reviews?fcountry=ALL",
+            "role": "10: DOUBLE D reviews van werknemers",
+            "country": "DE",
+            "source": "nl.indeed.com"
+          }
+        ]
+      }
+    },
+    "stepStatuses": [
+      {
+        "stepId": "jobDiscovery",
+        "name": "Job Discovery",
+        "status": "completed",
+        "startedAt": "2026-07-08T20:21:53.262Z",
+        "completedAt": "2026-07-08T20:22:06.229Z"
+      },
+      {
+        "stepId": "leadEnrichment",
+        "name": "Lead Enrichment",
+        "status": "completed",
+        "startedAt": "2026-07-08T20:22:06.241Z",
+        "completedAt": "2026-07-08T20:22:09.372Z"
+      },
+      {
+        "stepId": "outreachPreparation",
+        "name": "Outreach Preparation",
+        "status": "completed",
+        "startedAt": "2026-07-08T20:22:09.411Z",
+        "completedAt": "2026-07-08T20:22:09.468Z"
+      },
+      {
+        "stepId": "outreachExecution",
+        "name": "Outreach Execution & Logging",
+        "status": "pending"
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-07-08T20:21:53.198Z",
+    "iteration": 1,
+    "score": 0,
+    "completedAt": "2026-07-08T20:22:09.472Z"
+  }
+]
