@@ -9,6 +9,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
   const [view, setView] = useState<'input' | 'preflight'>('input');
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isStartingGoal, setIsStartingGoal] = useState(false);
   const [execProvider, setExecProvider] = useState('ollama');
   const [valProvider, setValProvider] = useState('omniRoute');
   const [approvalPolicy, setApprovalPolicy] = useState('auto');
@@ -67,51 +68,9 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
   const isRepoValid = workspacePath && gitRoots.length > 0 && !isDetecting && !workspaceError;
   const isExecutable = prompt.trim() && isRepoValid;
 
-  const handleReview = async () => {
-    setError(null);
-    if (!isRepoValid) {
-      setError(workspaceError || "Please wait for a valid Git repository to be selected.");
-      return;
-    }
-    if (!prompt.trim()) {
-      setError("Goal description cannot be empty.");
-      return;
-    }
-    
-    setTokenCount(Math.ceil(prompt.length / 4));
-    setView('preflight');
-    setLoading(true);
-
-    console.log('[DEBUG] Review Goal pressed. Payload to be executed:', {
-      executionProvider: execProvider,
-      validationProvider: valProvider,
-      repositoryRoot: workspacePath,
-      approvalPolicy
-    });
-    
-    try {
-      const res = await fetch('http://localhost:4001/api/chat/quick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: `Analyze this goal and return a very concise 3-step plan and a list of expected files/directories to inspect. Format with bullet points.\nGoal: ${prompt}`,
-          provider: execProvider
-        })
-      });
-      const data = await res.json();
-      if (data.reply) {
-        setPlan(data.reply);
-      } else {
-        setPlan("Failed to generate plan.");
-      }
-    } catch (e) {
-      setPlan("Error generating plan.");
-    }
-    setLoading(false);
-  };
-
-  const startGoal = async () => {
-    setLoading(true);
+  const startGoalFromPlan = async (planText?: string) => {
+    if (isStartingGoal) return;
+    setIsStartingGoal(true);
     setError(null);
     try {
       const payload = { 
@@ -133,11 +92,65 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
         onGoalCreated(data.goalId);
       } else {
         setError("Failed to create goal: " + (data.error || 'Unknown error'));
-        setLoading(false);
       }
     } catch (e) {
-      setError("API Error: Could not connect to backend.");
-      setLoading(false);
+      setError("API Error: Could not connect to backend to start goal.");
+    } finally {
+      setIsStartingGoal(false);
+    }
+  };
+
+  const handleReview = async () => {
+    if (loading || isStartingGoal) return;
+    setError(null);
+    if (!isRepoValid) {
+      setError(workspaceError || "Please wait for a valid Git repository to be selected.");
+      return;
+    }
+    if (!prompt.trim()) {
+      setError("Goal description cannot be empty.");
+      return;
+    }
+    
+    setTokenCount(Math.ceil(prompt.length / 4));
+    setView('preflight');
+    setLoading(true);
+
+    console.log('[DEBUG] Review Goal pressed. Payload to be executed:', {
+      executionProvider: execProvider,
+      validationProvider: valProvider,
+      repositoryRoot: workspacePath,
+      approvalPolicy
+    });
+    
+    let generatedPlan = "";
+    try {
+      const res = await fetch('http://localhost:4001/api/chat/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: `Analyze this goal and return a very concise 3-step plan and a list of expected files/directories to inspect. Format with bullet points.\nGoal: ${prompt}`,
+          provider: execProvider
+        })
+      });
+      const data = await res.json();
+      if (data.reply) {
+        generatedPlan = data.reply;
+        setPlan(generatedPlan);
+      } else {
+        setPlan("Failed to generate plan.");
+        setView('input');
+        setError("Failed to generate preflight plan.");
+      }
+    } catch (e) {
+      setPlan("Error generating plan.");
+      setView('input');
+      setError("API Error: Could not connect to backend to generate plan.");
+    }
+    setLoading(false);
+
+    if (generatedPlan && approvalPolicy === 'auto') {
+      await startGoalFromPlan(generatedPlan);
     }
   };
 
@@ -190,17 +203,17 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setView('input')}
-              disabled={loading}
+              disabled={loading || isStartingGoal}
               className="px-6 py-2 text-[#cccccc] bg-[#333333] hover:bg-[#444444] transition-colors text-[13px]"
             >
               Cancel
             </button>
             <button
-              onClick={startGoal}
-              disabled={loading}
+              onClick={() => startGoalFromPlan(plan)}
+              disabled={loading || isStartingGoal}
               className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium transition-colors border border-emerald-500 text-[13px]"
             >
-              {loading ? <Loader2 className="animate-spin" size={16} /> : <Target size={16} />}
+              {isStartingGoal ? <Loader2 className="animate-spin" size={16} /> : <Target size={16} />}
               Approve and Start
             </button>
           </div>
@@ -231,7 +244,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
             <textarea
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
-              disabled={loading}
+              disabled={loading || isStartingGoal}
               placeholder="What do you want CodeX to build or change?"
               className="w-full flex-1 bg-[#252526] border border-[#333333] p-4 text-[#cccccc] focus:outline-none focus:border-emerald-500 font-mono text-[13px] resize-none transition-colors placeholder:text-[#555555]"
             />
@@ -319,8 +332,8 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
             {!isRepoValid && !isDetecting && (
               <span className="text-rose-400 text-[12px] flex items-center gap-1"><AlertTriangle size={12}/> {workspaceError || "Waiting for valid repository..."}</span>
             )}
-            <button onClick={handleReview} disabled={!isExecutable} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors border border-emerald-500 text-[13px] h-[34px]">
-              <Send size={14} />
+            <button onClick={handleReview} disabled={!isExecutable || loading || isStartingGoal} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors border border-emerald-500 text-[13px] h-[34px]">
+              {loading || isStartingGoal ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               {actionLabel}
             </button>
           </div>
