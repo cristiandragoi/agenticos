@@ -1,0 +1,24 @@
+{
+  "checkpointVersion": 1,
+  "teamId": "39ddcddb-fa3a-49fd-8165-a0297f40edc2",
+  "goalId": "fe0f4b1a-c08d-4d85-a7d1-9ea6bbb0b3bb",
+  "currentStep": 2,
+  "activeAgentId": "verifier",
+  "completedAgentIds": [
+    "planner",
+    "builder"
+  ],
+  "artifactMetadata": [
+    {
+      "path": ".agentos/runtime-tests/status.txt",
+      "checksum": "de1aeb36275d93ff072ae8e5db6ba310134d1c73599d3e3bb255f50001abfdb7",
+      "checksumAlgorithm": "sha256",
+      "size": 29,
+      "producedBy": "builder"
+    }
+  ],
+  "lastEventSequence": 12,
+  "databaseRevision": 3,
+  "repairCount": 0,
+  "createdAt": "2026-07-19T17:03:38.436Z"
+}

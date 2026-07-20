@@ -8,12 +8,13 @@ import os from 'os';
 // If running in production (spawned by Electron), it should provide USER_DATA_PATH.
 // Otherwise, fallback to a local .data folder or os temp dir.
 const userDataPath = process.env.USER_DATA_PATH || path.join(os.homedir(), '.agentic-os');
-const dbPath = path.join(userDataPath, 'agentic-os.db');
+const dbPath = process.env.AGENT_TEAMS_DB_PATH || path.join(userDataPath, 'agentic-os.db');
 
 // Ensure the directory exists
 import fs from 'fs';
-if (!fs.existsSync(userDataPath)) {
-  fs.mkdirSync(userDataPath, { recursive: true });
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
 }
 
 // Initialize SQLite database

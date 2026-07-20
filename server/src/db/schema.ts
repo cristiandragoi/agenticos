@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, uniqueIndex, unique } from 'drizzle-orm/sqlite-core';
 
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
@@ -83,9 +83,9 @@ export const goals = sqliteTable('goals', {
 });
 
 export const goalEvents = sqliteTable('goal_events', {
-  id: text('id').primaryKey(), // Usually runId + sequenceId
+  id: text('id').primaryKey(),
   goalId: text('goal_id').notNull().references(() => goals.id, { onDelete: 'cascade' }),
-  sequenceId: integer('sequence_id').notNull(),
+  sequence: integer('sequence').notNull(),
   timestamp: text('timestamp').notNull(),
   state: text('state').notNull(),
   step: integer('step').notNull(),
@@ -96,7 +96,6 @@ export const goalEvents = sqliteTable('goal_events', {
   checkpointId: text('checkpoint_id'),
   error: text('error'),
   
-  // UX Fields
   eventType: text('event_type'),
   normalizedStatus: text('normalized_status'),
   lifecycleState: text('lifecycle_state'),
@@ -110,8 +109,17 @@ export const goalEvents = sqliteTable('goal_events', {
   requiresUserAction: integer('requires_user_action', { mode: 'boolean' }),
   errorCode: text('error_code'),
   errorDetails: text('error_details'),
+  teamId: text('team_id'),
+  agentId: text('agent_id'),
+  payload: text('payload', { mode: 'json' }),
   eventSchemaVersion: integer('event_schema_version').notNull().default(1),
   operationId: text('operation_id')
+}, (table) => {
+  return {
+    runSeqUnique: uniqueIndex('goal_events_goal_seq_idx').on(table.goalId, table.sequence),
+    teamSeqIdx: index('goal_events_team_seq_idx').on(table.teamId, table.sequence),
+    teamAgentSeqIdx: index('goal_events_team_agent_seq_idx').on(table.teamId, table.agentId, table.sequence)
+  };
 });
 
 export const goalSteps = sqliteTable('goal_steps', {
@@ -554,3 +562,80 @@ export const treasuryLedger = sqliteTable('treasury_ledger', {
   runIdx: index('idx_treasury_run').on(table.runId),
   typeIdx: index('idx_treasury_type').on(table.transactionType),
 }));
+
+// Agent Teams MVP Schema
+export const teams = sqliteTable('teams', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  originalPrompt: text('original_prompt').notNull(),
+  teamSheet: text('team_sheet', { mode: 'json' }),
+  status: text('status').notNull().default('awaiting_approval'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const teamRuns = sqliteTable('team_runs', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'), // 'pending' | 'running' | 'paused' | 'completed' | 'failed'
+  currentAgent: text('current_agent'), // deprecated in favor of activeAgentId
+  activeAgentId: text('active_agent_id'),
+  currentStep: integer('current_step').notNull().default(0), // Index in executionSequence
+  goalId: text('goal_id'), // The active goal for the current agent
+  verificationReport: text('verification_report', { mode: 'json' }), // Verification report output
+  repairCount: integer('repair_count').notNull().default(0), // Max 1 repair cycle
+  checkpointVersion: integer('checkpoint_version').notNull().default(1),
+  checkpointSequence: integer('checkpoint_sequence').notNull().default(0),
+  databaseRevision: integer('database_revision').notNull().default(1),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const agentTeamHandoffs = sqliteTable('agent_team_handoffs', {
+  id: text('id').primaryKey(),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  goalId: text('goal_id').notNull(),
+  agentId: text('agent_id').notNull(),
+  status: text('status').notNull(), // 'completed' | 'failed' | 'blocked'
+  summary: text('summary').notNull(),
+  decisions: text('decisions', { mode: 'json' }), // string[]
+  artifacts: text('artifacts', { mode: 'json' }), // Array<{path, checksum, checksumAlgorithm, size, producedBy}>
+  openIssues: text('open_issues', { mode: 'json' }), // string[]
+  recommendedNextActions: text('recommended_next_actions', { mode: 'json' }), // string[]
+  createdAt: text('created_at').notNull(),
+});
+export const agentTeamArtifacts = sqliteTable('agent_team_artifacts', {
+  id: text('id').primaryKey(),
+  runId: text('run_id').notNull().references(() => teamRuns.id, { onDelete: 'cascade' }),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  goalId: text('goal_id').notNull(),
+  agentId: text('agent_id').notNull(),
+  handoffId: text('handoff_id'),
+  path: text('path').notNull(),
+  checksum: text('checksum').notNull(),
+  checksumAlgorithm: text('checksum_algorithm').notNull().default('sha256'),
+  size: integer('size').notNull(),
+  mimeType: text('mime_type'),
+  createdAt: text('created_at').notNull(),
+  verifiedAt: text('verified_at').notNull()
+}, (table) => {
+  return {
+    runIdx: index('idx_agent_team_artifacts_run').on(table.runId),
+    runAgentIdx: index('idx_agent_team_artifacts_run_agent').on(table.runId, table.agentId),
+    uniqueArtifact: unique('uq_agent_team_artifacts_run_path_checksum').on(table.runId, table.path, table.checksum)
+  };
+});
+
+export const verificationReports = sqliteTable('verification_reports', {
+  id: text('id').primaryKey(),
+  runId: text('run_id').notNull().references(() => teamRuns.id, { onDelete: 'cascade' }),
+  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  goalId: text('goal_id').notNull(),
+  verifierId: text('verifier_id').notNull(),
+  passed: integer('passed', { mode: 'boolean' }).notNull(),
+  checks: text('checks', { mode: 'json' }).notNull(),
+  evidence: text('evidence').notNull(),
+  blockingIssues: text('blocking_issues', { mode: 'json' }),
+  recommendedFixes: text('recommended_fixes', { mode: 'json' }),
+  createdAt: text('created_at').notNull()
+});

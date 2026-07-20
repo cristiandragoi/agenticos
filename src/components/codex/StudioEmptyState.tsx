@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, Send, Zap, AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -11,35 +11,91 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
   const [loading, setLoading] = useState(false);
   const [execProvider, setExecProvider] = useState('ollama');
   const [valProvider, setValProvider] = useState('omniRoute');
-  const [workspacePath, setWorkspacePath] = useState('');
   const [approvalPolicy, setApprovalPolicy] = useState('auto');
   const [error, setError] = useState<string | null>(null);
   
+  // Workspace Auto-detection state
+  const [folderTree, setFolderTree] = useState('');
+  const [workspacePath, setWorkspacePath] = useState('');
+  const [gitRoots, setGitRoots] = useState<string[]>([]);
+  const [cwd, setCwd] = useState('');
+  const [isDetecting, setIsDetecting] = useState(true);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+
   const [plan, setPlan] = useState('');
   const [tokenCount, setTokenCount] = useState(0);
 
+  useEffect(() => {
+    const detectWorkspace = async (path?: string) => {
+      setIsDetecting(true);
+      setWorkspaceError(null);
+      try {
+        const res = await fetch('http://localhost:4001/api/workspace/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ basePath: path || undefined })
+        });
+        const data = await res.json();
+        setCwd(data.cwd || '');
+        if (!data.isValid) {
+          setGitRoots([]);
+          setWorkspacePath('');
+          setWorkspaceError(data.errorMessage);
+        } else {
+          setGitRoots(data.gitRoots);
+          if (data.gitRoots.length === 1) {
+            setWorkspacePath(data.gitRoots[0]);
+          } else if (data.gitRoots.length > 0 && !data.gitRoots.includes(workspacePath)) {
+            setWorkspacePath(data.gitRoots[0]);
+          }
+        }
+      } catch (err) {
+        setWorkspaceError("Failed to connect to backend for workspace detection.");
+        setGitRoots([]);
+      } finally {
+        setIsDetecting(false);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      detectWorkspace(folderTree);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [folderTree, workspacePath]);
+
+  const isRepoValid = workspacePath && gitRoots.length > 0 && !isDetecting && !workspaceError;
+  const isExecutable = prompt.trim() && isRepoValid;
+
   const handleReview = async () => {
     setError(null);
-    if (!prompt.trim()) {
-      setError("Goal description cannot be empty.");
+    if (!isRepoValid) {
+      setError(workspaceError || "Please wait for a valid Git repository to be selected.");
       return;
     }
-    const wp = workspacePath.trim();
-    if (!wp || wp === '/' || wp === '\\') {
-      setError("Please provide a specific repository root, not the file system root.");
+    if (!prompt.trim()) {
+      setError("Goal description cannot be empty.");
       return;
     }
     
     setTokenCount(Math.ceil(prompt.length / 4));
     setView('preflight');
     setLoading(true);
+
+    console.log('[DEBUG] Review Goal pressed. Payload to be executed:', {
+      executionProvider: execProvider,
+      validationProvider: valProvider,
+      repositoryRoot: workspacePath,
+      approvalPolicy
+    });
     
     try {
-      const res = await fetch('/api/chat/quick', {
+      const res = await fetch('http://localhost:4001/api/chat/quick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: `Analyze this goal and return a very concise 3-step plan and a list of expected files/directories to inspect. Format with bullet points.\nGoal: ${prompt}`
+          message: `Analyze this goal and return a very concise 3-step plan and a list of expected files/directories to inspect. Format with bullet points.\nGoal: ${prompt}`,
+          provider: execProvider
         })
       });
       const data = await res.json();
@@ -58,16 +114,19 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/chat/agents/goal', {
+      const payload = { 
+        goal: prompt,
+        executionProvider: execProvider,
+        validationProvider: valProvider,
+        workspacePath,
+        approvalPolicy
+      };
+      console.log('[DEBUG] startGoal pressed. Sending payload:', payload);
+
+      const res = await fetch('http://localhost:4001/api/chat/agents/goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          goal: prompt,
-          executionProvider: execProvider,
-          validationProvider: valProvider,
-          workspacePath,
-          approvalPolicy
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.goalId) {
@@ -100,11 +159,12 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
           <div className="bg-[#252526] border border-[#333333] p-4 mb-6">
             <h3 className="text-[11px] font-bold text-[#858585] uppercase tracking-widest mb-3">Configuration</h3>
             <div className="grid grid-cols-2 gap-y-3 text-[13px]">
-              <div><span className="text-[#858585]">Workspace:</span> <span className="text-emerald-400 font-mono">{workspacePath}</span></div>
+              <div><span className="text-[#858585]">Repository Root:</span> <span className="text-emerald-400 font-mono" title={workspacePath}>{workspacePath.length > 40 ? '...' + workspacePath.slice(-37) : workspacePath}</span></div>
               <div><span className="text-[#858585]">Prompt Size:</span> <span className="text-[#cccccc]">~{tokenCount} tokens</span></div>
+              <div><span className="text-[#858585]">Current Working Dir:</span> <span className="text-[#cccccc] font-mono" title={cwd}>{cwd.length > 40 ? '...' + cwd.slice(-37) : cwd}</span></div>
               <div><span className="text-[#858585]">Exec Provider:</span> <span className="text-[#cccccc]">{execProvider}</span></div>
-              <div><span className="text-[#858585]">Val Provider:</span> <span className="text-[#cccccc]">{valProvider}</span></div>
               <div><span className="text-[#858585]">Approval Policy:</span> <span className="text-[#cccccc]">{approvalPolicy}</span></div>
+              <div><span className="text-[#858585]">Val Provider:</span> <span className="text-[#cccccc]">{valProvider}</span></div>
             </div>
           </div>
 
@@ -196,37 +256,70 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       </div>
 
       <div className="shrink-0 bg-[#252526] border-t border-[#333333] p-4 flex justify-center sticky bottom-0 z-10">
-        <div className="max-w-6xl w-full flex items-end gap-4">
-          <div className="flex-1 grid grid-cols-4 gap-4">
+        <div className="max-w-[1400px] w-full flex flex-col gap-4">
+          <div className="grid grid-cols-5 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Selected Folder Tree</label>
+              <input 
+                type="text" 
+                value={folderTree} 
+                onChange={e => setFolderTree(e.target.value)} 
+                className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 font-mono" 
+                placeholder={cwd || "Enter path..."} 
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Repository Root</label>
+              {isDetecting ? (
+                <div className="w-full bg-[#1e1e1e] border border-[#333333] text-[#858585] text-[12px] p-2 font-mono flex items-center gap-2 h-[34px]">
+                  <Loader2 size={12} className="animate-spin" /> Detecting...
+                </div>
+              ) : gitRoots.length === 0 ? (
+                <div className="w-full bg-[#3a1a1a] border border-[#552222] text-[#ff8888] text-[12px] p-2 font-mono truncate h-[34px]" title={workspaceError || "No git repo found"}>
+                  {workspaceError || "No repo found"}
+                </div>
+              ) : gitRoots.length === 1 ? (
+                <div className="w-full bg-[#1a2e22] border border-[#225533] text-[#88ffaa] text-[12px] p-2 font-mono truncate h-[34px]" title={gitRoots[0]}>
+                  {gitRoots[0]}
+                </div>
+              ) : (
+                <select 
+                  value={workspacePath} 
+                  onChange={e => setWorkspacePath(e.target.value)} 
+                  className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 font-mono h-[34px]"
+                >
+                  {gitRoots.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              )}
+            </div>
             <div>
               <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Execution Provider</label>
-              <select value={execProvider} onChange={e => setExecProvider(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500">
+              <select value={execProvider} onChange={e => setExecProvider(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 h-[34px]">
                 <option value="ollama">Ollama (Local)</option>
                 <option value="omniRoute">OmniRoute (Cloud)</option>
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Validation Provider</label>
-              <select value={valProvider} onChange={e => setValProvider(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-indigo-500">
+              <select value={valProvider} onChange={e => setValProvider(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-indigo-500 h-[34px]">
                 <option value="omniRoute">OmniRoute (Cloud)</option>
                 <option value="ollama">Ollama (Local)</option>
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Workspace Directory</label>
-              <input type="text" value={workspacePath} onChange={e => setWorkspacePath(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 font-mono" placeholder="/path/to/repo" />
-            </div>
-            <div>
               <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Approval Policy</label>
-              <select value={approvalPolicy} onChange={e => setApprovalPolicy(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500">
+              <select value={approvalPolicy} onChange={e => setApprovalPolicy(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 h-[34px]">
                 <option value="auto">Auto-Approve Safe</option>
                 <option value="strict">Require Review</option>
               </select>
             </div>
           </div>
           
-          <div className="shrink-0">
-            <button onClick={handleReview} disabled={!prompt.trim()} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium transition-colors border border-emerald-500 text-[13px] h-[34px]">
+          <div className="flex justify-end items-center gap-4">
+            {!isRepoValid && !isDetecting && (
+              <span className="text-rose-400 text-[12px] flex items-center gap-1"><AlertTriangle size={12}/> {workspaceError || "Waiting for valid repository..."}</span>
+            )}
+            <button onClick={handleReview} disabled={!isExecutable} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors border border-emerald-500 text-[13px] h-[34px]">
               <Send size={14} />
               {actionLabel}
             </button>

@@ -156,7 +156,7 @@ export interface RunRecord {
   updatedAt: string;
 }
 
-export type GoalState = "queued" | "planning" | "executing" | "reasoning" | "validating" | "checkpointed" | "paused" | "retrying" | "completed" | "failed" | "stopped" | "interrupted" | "pause_requested" | "waiting_for_approval";
+export type GoalState = "queued" | "planning" | "executing" | "reasoning" | "validating" | "checkpointed" | "paused" | "retrying" | "completed" | "failed" | "stopped" | "interrupted" | "pause_requested" | "waiting_for_approval" | "tool_completed" | "tool_started" | "artifact_created" | "agent_completed" | "checkpoint_written" | "verification_completed" | "handoff_created" | "recovery_conflict" | "recovery_available" | "agent_started" | "agent_switch" | "team_paused" | "team_completed" | "repair_requested" | "team_resumed" | "user_action_required";
 
 export type NormalizedStatus = 'idle' | 'active' | 'planning' | 'attention' | 'completed' | 'failed';
 
@@ -180,21 +180,78 @@ export type EventType =
   | 'tool_started' | 'tool_completed' | 'tool_failed' 
   | 'file_search_started' | 'file_found' | 'file_read_started' | 'file_read_completed' 
   | 'file_edit_started' | 'file_edit_completed' | 'command_started' | 'command_output' 
-  | 'command_completed' | 'command_failed' | 'model_request_started' | 'model_stream_active' 
+  | 'command_completed' | 'command_failed' | 'verification_completed' | 'handoff_created' | 'artifact_created' | 'agent_completed' | 'checkpoint_written' | 'agent_started' | 'model_request_started' | 'model_stream_active' 
   | 'model_request_slow' | 'model_request_completed' | 'model_request_timed_out' 
   | 'retry_started' | 'approval_requested' | 'approval_received' | 'validation_started' 
   | 'validation_passed' | 'validation_failed' | 'task_paused' | 'task_resumed' 
-  | 'task_stopped' | 'task_completed' | 'task_failed' | 'user_action_required';
+  | 'task_stopped' | 'task_completed' | 'task_failed' | 'user_action_required'
+  | 'agent_switch' | 'agent_started' | 'artifact_created' | 'checkpoint_written'
+  | 'recovery_conflict' | 'recovery_available' | 'agent_completed' | 'team_paused'
+  | 'team_completed' | 'repair_requested' | 'team_resumed';
+
+export interface AgentHandoff {
+  agentId: string;
+  status: 'completed' | 'failed' | 'blocked';
+  summary: string;
+  decisions: any[];
+  artifacts: Array<{
+    path: string;
+    checksum: string;
+    checksumAlgorithm: 'sha256';
+    size: number;
+    producedBy: string;
+  }>;
+  openIssues: any[];
+  recommendedNextActions: any[];
+  createdAt?: string;
+}
+
+export interface VerificationReport {
+  passed: boolean;
+  summary: string;
+  checks: Array<{
+    name: string;
+    passed: boolean;
+    command?: string;
+    evidence: string;
+  }>;
+  blockingIssues: string[];
+  recommendedFixes: string[];
+  completedAt: string;
+}
+
+export interface AgentExecutionContext {
+  runId?: string;
+  teamId?: string;
+  agentId?: string;
+  role?: string;
+  instructions?: string;
+  responsibilities?: string[];
+  acceptanceCriteria?: string[];
+  workspaceRoot?: string;
+  allowedTools?: string[];
+  readScopes?: string[];
+  writeScopes?: string[];
+  dependencyArtifacts?: Array<{
+    path: string;
+    checksum: string;
+    size: number;
+    producedBy: string;
+  }>;
+  handoffs?: AgentHandoff[];
+  approvalPolicy?: string;
+  isTeamExecution?: boolean;
+}
 
 export interface GoalEvent {
-  runId: string;
-  sequenceId: number;
+  goalId: string;
+  sequence: number;
   timestamp: string;
   state: GoalState;
   step: number;
   message: string;
-  provider: string;
-  model: string;
+  provider?: string;
+  model?: string;
   tool?: string;
   checkpointId?: string;
   error?: string;
@@ -213,8 +270,12 @@ export interface GoalEvent {
   requiresUserAction?: boolean;
   errorCode?: string;
   errorDetails?: string;
-  eventSchemaVersion: number;
+  eventSchemaVersion?: number;
   operationId?: string;
+  
+  teamId?: string;
+  agentId?: string;
+  payload?: any;
 }
 
 export interface RunDiagnostics {

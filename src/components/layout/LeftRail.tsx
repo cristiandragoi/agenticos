@@ -58,6 +58,12 @@ const LeftRail: React.FC = () => {
           </div>
           <span className="font-medium text-emerald-500/90 tracking-wide">CodeX</span>
         </NavLink>
+        <NavLink to="/teams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-purple-500/30 bg-purple-500/20">
+            <Users size={12} className="text-purple-400" />
+          </div>
+          <span className="font-medium text-purple-500/90 tracking-wide">Agent Teams</span>
+        </NavLink>
 
         <div className="nav-section-label">Workspace</div>
         <NavLink to="/mission-control" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>

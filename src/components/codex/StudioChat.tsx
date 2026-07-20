@@ -279,7 +279,7 @@ export const StudioChat = ({ activeGoalId }: { activeGoalId: string | null }) =>
           <div className="w-full h-full overflow-y-auto p-4 flex flex-col gap-4 pb-20">
             {displayData.map((item) => (
               <ToolCard 
-                key={`${item.normalized.runId}-${item.normalized.sequenceId}`} 
+                key={`${item.normalized.goalId}-${item.normalized.sequence}`} 
                 event={item.normalized} 
                 presented={item.presented} 
                 isHighlighted={!!debouncedSearch} 

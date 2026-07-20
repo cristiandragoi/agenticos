@@ -159,13 +159,13 @@ router.get('/stream/:runId', (req, res) => {
    Dead-simple chat: message → OmniRoute (auto) → reply.
    No agent orchestration, no tools, no SSE streaming.      */
 router.post('/quick', async (req, res) => {
-  const { message } = req.body;
+  const { message, provider, model } = req.body;
   if (!message) {
     res.status(400).json({ error: 'message is required' });
     return;
   }
 
-  const result = await llmChat({ prompt: message });
+  const result = await llmChat({ prompt: message, provider, ollamaModel: model });
   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });
 });
 
@@ -194,7 +194,15 @@ router.post('/agents/run', async (req, res) => {
    Starts a new durable Goal Mode loop                 */
 router.post('/agents/goal', async (req, res) => {
   try {
-    const { goal: prompt, executionProvider, workspacePath, approvalPolicy } = req.body;
+    const { goal: prompt, executionProvider, validationProvider, workspacePath, approvalPolicy } = req.body;
+    
+    console.log('[DEBUG] Received POST /api/chat/agents/goal payload:', {
+      executionProvider,
+      validationProvider,
+      repositoryRoot: workspacePath,
+      approvalPolicy
+    });
+
     if (!prompt) return res.status(400).json({ error: 'goal is required' });
 
     const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, executionProvider);
@@ -236,9 +244,9 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
   let highestSequence = lastEventId;
 
   for (const event of missedEvents) {
-    if (event.sequenceId > highestSequence) {
-      try { res.write(`id: ${event.sequenceId}\nevent: goal_event\ndata: ${JSON.stringify(event)}\n\n`); } catch (_) {}
-      highestSequence = event.sequenceId;
+    if (event.sequence > highestSequence) {
+      try { res.write(`id: ${event.sequence}\nevent: goal_event\ndata: ${JSON.stringify(event)}\n\n`); } catch (_) {}
+      highestSequence = event.sequence;
     }
   }
 
@@ -251,9 +259,9 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
       // Live Catch-Up to guarantee no gap
       const newEvents = goalStore.getEventsAfter(goalId, highestSequence);
       for (const event of newEvents) {
-        if (event.sequenceId > highestSequence) {
-          try { res.write(`id: ${event.sequenceId}\nevent: goal_event\ndata: ${JSON.stringify(event)}\n\n`); } catch (_) {}
-          highestSequence = event.sequenceId;
+        if (event.sequence > highestSequence) {
+          try { res.write(`id: ${event.sequence}\nevent: goal_event\ndata: ${JSON.stringify(event)}\n\n`); } catch (_) {}
+          highestSequence = event.sequence;
         }
       }
       

@@ -54,11 +54,15 @@ initScheduler();
 import './services/revenue/attributionEngine.js';
 import './services/execution/costTracker.js';
 
+import { checkTeamRecovery } from './services/agentTeams/recovery.js';
+checkTeamRecovery();
+
 // Routers
 import healthRouter from './routers/health.js';
 import agentsRouter from './routers/agents.js';
 import providersRouter from './routers/providers.js';
 import runtimesRouter from './routers/runtimes.js';
+import teamsRouter from './routers/teams.js';
 import runsRouter from './routers/runs.js';
 import chatRouter from './routers/chat.js';
 import memoryRouter from './routers/memory.js';
@@ -193,10 +197,12 @@ app.use('/api/gemini', authMiddleware, geminiRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/runtimes', runtimesRouter);
+app.use('/api/teams', teamsRouter);
 app.use('/api/runs', runsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/boards', boardsRouter);
+app.use('/api/teams', teamsRouter);
 app.use('/api/tools', toolsRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/loops', loopsRouter);
@@ -215,7 +221,11 @@ import { connectorRouter } from './routers/connectorRouter.js';
 app.use('/api/connectors', connectorRouter);
 app.use('/api/pipeline/welders', weldersPipelineRouter);
 app.use('/api/jarvis', jarvisRouter);
+
 app.use('/api/agentic', agenticRouter);
+
+import workspaceRouter from './routers/workspace.js';
+app.use('/api/workspace', workspaceRouter);
 
 import revenueRouter from './routers/revenue.js';
 app.use('/api/revenue', revenueRouter);

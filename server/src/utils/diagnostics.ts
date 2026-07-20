@@ -51,7 +51,7 @@ export function computeRunSummary(goal: GoalRecord, events: GoalEvent[]): RunSum
     if (currentOpDuration > maxDuration) {
       maxDuration = currentOpDuration;
       longestOperation = {
-        eventId: e.runId + "-" + e.sequenceId,
+        eventId: e.goalId + "-" + e.sequence,
         eventType: e.eventType || ('unknown' as any),
         label: e.tool || e.eventType || 'Unknown',
         durationMs: maxDuration,

@@ -34,6 +34,9 @@ import HermesWorkspace from './pages/HermesWorkspace';
 import CodeXStudio from './pages/CodeXStudio';
 import EvolutionDashboard from './pages/evolution/EvolutionDashboard';
 import PromptLab from './pages/evolution/PromptLab';
+import AgentTeamsDashboard from './pages/AgentTeamsDashboard';
+import TeamDetailView from './pages/TeamDetailView';
+
 function App() {
   return (
     <DataProvider>
@@ -70,6 +73,8 @@ function App() {
                 <Route path="hermes-studio" element={<HermesStudioHub />} />
                 <Route path="evolution" element={<EvolutionDashboard />} />
                 <Route path="prompt-lab" element={<PromptLab />} />
+                <Route path="teams" element={<AgentTeamsDashboard />} />
+                <Route path="teams/:id" element={<TeamDetailView />} />
                 <Route path="hermes" element={<Navigate to="/hermes-studio?view=kanban" replace />} />
                 <Route path="codex" element={<CodeXStudio />} />
                 <Route path="apollo" element={<Navigate to="/hermes-studio?view=apollo" replace />} />

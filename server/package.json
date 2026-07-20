@@ -21,13 +21,15 @@
     "express": "^4.19.2",
     "google-it": "^1.6.4",
     "jsonwebtoken": "^9.0.3",
+    "minimatch": "^10.2.5",
     "multer": "^2.2.0",
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.1",
     "openai": "^6.44.0",
     "resend": "^6.14.0",
     "stripe": "^22.2.2",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

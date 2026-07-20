@@ -19,7 +19,12 @@ export type SystemEventType =
   | 'asset_published' 
   | 'asset_deleted' 
   | 'compliance_warning'
-  | 'cost_incurred';
+  | 'cost_incurred'
+  | 'llm_output_received'
+  | 'llm_schema_validation_failed'
+  | 'llm_schema_repair_started'
+  | 'llm_schema_repair_completed'
+  | 'llm_schema_repair_failed';
 
 export interface SystemEventPayload {
   id?: string;

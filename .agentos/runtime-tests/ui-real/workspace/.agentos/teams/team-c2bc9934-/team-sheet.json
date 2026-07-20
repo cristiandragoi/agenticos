@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "teamName": "AgentTeams",
+  "objective": "Create the file status.txt with exactly this content: Agent Teams real runtime verified.",
+  "workspaceRoot": "B:\\AgenticOS\\.agentos\\runtime-tests\\ui-real\\workspace",
+  "agents": [
+    {
+      "id": "Planner1",
+      "name": "Planner",
+      "role": "Planner",
+      "responsibilities": [
+        "create a plan for building and verifying the status.txt file"
+      ],
+      "instructions": "Develop a plan to build the status.txt file and verify its content.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file",
+        "search_files"
+      ],
+      "readScopes": [
+        "workspaceRoot"
+      ],
+      "writeScopes": [
+        "Planner1.plan.json"
+      ],
+      "outputArtifacts": [
+        "Planner1.plan.json"
+      ]
+    },
+    {
+      "id": "Builder2",
+      "name": "Builder",
+      "role": "Builder",
+      "responsibilities": [
+        "build the status.txt file according to the planner's plan"
+      ],
+      "instructions": "Build the status.txt file and then finish.",
+      "dependencies": [
+        "Planner1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "patch_file",
+        "write_file"
+      ],
+      "readScopes": [
+        "workspaceRoot",
+        "Planner1.plan.json"
+      ],
+      "writeScopes": [
+        "status.txt"
+      ],
+      "outputArtifacts": []
+    },
+    {
+      "id": "Verifier3",
+      "name": "Verifier",
+      "role": "Verifier",
+      "responsibilities": [
+        "verify the content of the status.txt file"
+      ],
+      "instructions": "Verify the content of status.txt and then finish.",
+      "dependencies": [
+        "Builder2",
+        "Planner1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "terminal"
+      ],
+      "readScopes": [
+        "workspaceRoot",
+        "status.txt"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": []
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "Planner1",
+      "to": "Builder2",
+      "artifact": "Planner1.plan.json",
+      "required": true
+    },
+    {
+      "from": "Builder2",
+      "to": "Verifier3",
+      "artifact": "status.txt",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "Planner1",
+    "Builder2",
+    "Verifier3"
+  ],
+  "acceptanceCriteria": [
+    "Content of status.txt should be 'Agent Teams real runtime verified.'"
+  ],
+  "estimatedParallelism": 1,
+  "approvalRequired": true
+}

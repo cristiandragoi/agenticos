@@ -28,6 +28,7 @@ function startBackendServer() {
   
   serverProcess = spawn('node', [serverPath], {
     cwd: path.join(process.env.APP_ROOT, 'server'),
+    env: process.env,
     stdio: 'inherit'
   });
 

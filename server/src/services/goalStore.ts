@@ -36,7 +36,7 @@ class GoalStore extends EventEmitter {
     const row = db.select().from(goals).where(eq(goals.id, id)).get();
     if (!row) return undefined;
 
-    const events = db.select().from(goalEvents).where(eq(goalEvents.goalId, id)).orderBy(goalEvents.sequenceId).all();
+    const events = db.select().from(goalEvents).where(eq(goalEvents.goalId, id)).orderBy(goalEvents.sequence).all();
 
     return {
       id: row.id,
@@ -52,19 +52,101 @@ class GoalStore extends EventEmitter {
     };
   }
 
-  getEventsAfter(id: string, sequenceId: number): GoalEvent[] {
+  getEventsAfter(id: string, sequence: number): GoalEvent[] {
     return db.select()
       .from(goalEvents)
-      .where(and(eq(goalEvents.goalId, id), sql`${goalEvents.sequenceId} > ${sequenceId}`))
-      .orderBy(goalEvents.sequenceId)
+      .where(and(eq(goalEvents.goalId, id), sql`${goalEvents.sequence} > ${sequence}`))
+      .orderBy(goalEvents.sequence)
       .all() as unknown as GoalEvent[];
+  }
+
+  createEventWriter(opts: { goalId: string; teamId?: string; agentId?: string }) {
+    return {
+      push: (payloadOpts: Omit<GoalEvent, 'goalId' | 'sequence' | 'timestamp' | 'step'>) => {
+        if (payloadOpts.payload !== undefined) {
+          try {
+            JSON.stringify(payloadOpts.payload);
+          } catch (e) {
+            throw new Error("Payload is not JSON serializable");
+          }
+        }
+        
+        const MAX_RETRIES = 5;
+        let attempt = 0;
+        
+        while (attempt < MAX_RETRIES) {
+          try {
+            db.transaction((tx) => {
+              const existing = tx.select({ seq: goalEvents.sequence })
+                .from(goalEvents)
+                .where(eq(goalEvents.goalId, opts.goalId))
+                .orderBy(desc(goalEvents.sequence))
+                .limit(1)
+                .get();
+              
+              const nextSeq = existing ? existing.seq + 1 : 1;
+              
+              tx.insert(goalEvents).values({
+                id: `${opts.goalId}-${nextSeq}`,
+                goalId: opts.goalId,
+                sequence: nextSeq,
+                timestamp: new Date().toISOString(),
+                state: payloadOpts.state,
+                step: nextSeq,
+                message: payloadOpts.message,
+                provider: payloadOpts.provider || 'unknown',
+                model: payloadOpts.model || 'unknown',
+                tool: payloadOpts.tool || null,
+                checkpointId: payloadOpts.checkpointId || null,
+                error: payloadOpts.error || null,
+                eventType: payloadOpts.eventType || null,
+                normalizedStatus: payloadOpts.normalizedStatus || null,
+                lifecycleState: payloadOpts.lifecycleState || null,
+                userMessage: payloadOpts.userMessage || null,
+                technicalMessage: payloadOpts.technicalMessage || null,
+                durationMs: payloadOpts.durationMs || null,
+                filePath: payloadOpts.filePath || null,
+                command: payloadOpts.command || null,
+                nextAction: payloadOpts.nextAction || null,
+                retryCount: payloadOpts.retryCount || null,
+                requiresUserAction: payloadOpts.requiresUserAction || null,
+                errorCode: payloadOpts.errorCode || null,
+                errorDetails: payloadOpts.errorDetails || null,
+                teamId: opts.teamId || null,
+                agentId: opts.agentId || null,
+                payload: payloadOpts.payload || null
+              }).run();
+
+              tx.update(goals).set({
+                status: payloadOpts.state,
+                updatedAt: Date.now().toString()
+              }).where(eq(goals.id, opts.goalId)).run();
+            });
+            const updated = this.get(opts.goalId);
+            if (updated) this.emit('goal:updated', updated);
+            return;
+          } catch (e: any) {
+            if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || (e.message && e.message.includes('UNIQUE'))) {
+              attempt++;
+              if (attempt >= MAX_RETRIES) {
+                throw new Error(`Failed to allocate sequence for event after ${MAX_RETRIES} attempts.`);
+              }
+              const waitTill = new Date(new Date().getTime() + 10 * attempt);
+              while(waitTill > new Date()){}
+            } else {
+              throw e;
+            }
+          }
+        }
+      }
+    };
   }
 
   pushEvent(event: GoalEvent) {
     db.insert(goalEvents).values({
-      id: `${event.runId}-${event.sequenceId}`,
-      goalId: event.runId,
-      sequenceId: event.sequenceId,
+      id: `${event.goalId}-${event.sequence}`,
+      goalId: event.goalId,
+      sequence: event.sequence,
       timestamp: event.timestamp,
       state: event.state,
       step: event.step,
@@ -86,15 +168,18 @@ class GoalStore extends EventEmitter {
       retryCount: event.retryCount || null,
       requiresUserAction: event.requiresUserAction || null,
       errorCode: event.errorCode || null,
-      errorDetails: event.errorDetails || null
+      errorDetails: event.errorDetails || null,
+      teamId: event.teamId || null,
+      agentId: event.agentId || null,
+      payload: event.payload || null
     }).onConflictDoNothing().run();
 
     db.update(goals).set({
       status: event.state,
       updatedAt: Date.now().toString()
-    }).where(eq(goals.id, event.runId)).run();
+    }).where(eq(goals.id, event.goalId)).run();
 
-    const updated = this.get(event.runId);
+    const updated = this.get(event.goalId);
     if (updated) this.emit('goal:updated', updated);
   }
 

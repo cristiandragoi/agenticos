@@ -5,8 +5,61 @@ import os from 'os';
 
 const ALLOWLIST_BINARIES = ['node', 'npm', 'npx', 'tsc', 'jest', 'git'];
 
-export function enforceWorkspacePath(targetPath: string): string {
-  const cwd = fs.realpathSync.native(process.cwd());
+import { minimatch } from 'minimatch';
+
+function isPathInScope(absPath: string, workspacePath: string, scopes?: string[]): boolean {
+  if (!scopes || scopes.length === 0) return true; // Default to allowing all if no scopes provided
+  
+  // All candidate paths must first be canonicalized. If the file doesn't exist, use its real parent.
+  let canonicalAbs: string;
+  try {
+    canonicalAbs = fs.realpathSync.native(absPath);
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      let current = absPath;
+      let suffix = '';
+      while (!fs.existsSync(current)) {
+        const parent = path.dirname(current);
+        if (parent === current) break;
+        suffix = suffix ? path.join(path.basename(current), suffix) : path.basename(current);
+        current = parent;
+      }
+      canonicalAbs = path.join(fs.realpathSync.native(current), suffix);
+    } else {
+      throw e;
+    }
+  }
+  const canonicalWorkspace = fs.realpathSync.native(workspacePath);
+  
+  // Convert to repository-relative normalized paths
+  let relPath = path.relative(canonicalWorkspace, canonicalAbs).replace(/\\/g, '/');
+  if (relPath === '') relPath = '.';
+
+  return scopes.some(scope => {
+    // Reject absolute patterns, .., drive-relative, UNC, device, empty
+    if (!scope || scope.trim() === '') return false;
+    if (scope.includes('..') || path.isAbsolute(scope) || scope.match(/^[a-zA-Z]:/) || scope.startsWith('//') || scope.startsWith('\\\\')) {
+      return false; // Malformed / dangerous pattern
+    }
+    
+    // Normalize scope
+    const normalizedScope = scope.replace(/\\/g, '/');
+    
+    try {
+      return minimatch(relPath, normalizedScope, { dot: true, matchBase: true }) || 
+             minimatch(relPath, normalizedScope + '/**', { dot: true });
+    } catch (e) {
+      return false; // Invalid minimatch pattern
+    }
+  });
+}
+
+export function enforceWorkspacePath(targetPath: string, scopes?: string[], workspaceRootOverride?: string): string {
+  if (!targetPath) targetPath = '';
+  if (targetPath.startsWith('/') && !targetPath.startsWith('//')) {
+    targetPath = targetPath.substring(1);
+  }
+  const cwd = fs.realpathSync.native(workspaceRootOverride || process.cwd());
   let current = path.resolve(cwd, targetPath);
   const targetAbs = current;
 
@@ -30,11 +83,15 @@ export function enforceWorkspacePath(targetPath: string): string {
     throw new Error('Sandbox violation: Path escapes the workspace directory (symlink/junction/reparse-point check).');
   }
 
+  if (!isPathInScope(targetAbs, cwd, scopes)) {
+    throw new Error(`Sandbox violation: Path '${targetPath}' is outside the allowed scopes.`);
+  }
+
   return targetAbs;
 }
 
-export function validatePostWrite(targetPath: string): void {
-  const cwd = fs.realpathSync.native(process.cwd());
+export function validatePostWrite(targetPath: string, scopes?: string[], workspaceRootOverride?: string): void {
+  const cwd = fs.realpathSync.native(workspaceRootOverride || process.cwd());
   const realFile = fs.realpathSync.native(targetPath);
   
   const isWin = os.platform() === 'win32';
@@ -55,6 +112,11 @@ export function validatePostWrite(targetPath: string): void {
     }
     throw new Error('Sandbox violation: File raced outside workspace after creation. Containment violation logged.');
   }
+
+  if (!isPathInScope(realFile, cwd, scopes)) {
+    try { fs.unlinkSync(targetPath); } catch (e) {}
+    throw new Error(`Sandbox violation: File '${targetPath}' written outside the allowed scopes.`);
+  }
 }
 
 function truncateOutput(output: string, maxLength: number = 4096): string {
@@ -67,8 +129,10 @@ function truncateOutput(output: string, maxLength: number = 4096): string {
 export async function runSandboxedCommand(
   cmd: string, 
   args: string[], 
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  workspaceRootOverride?: string
 ): Promise<{ stdout: string; stderr: string }> {
+  const cwd = workspaceRootOverride ? fs.realpathSync.native(workspaceRootOverride) : process.cwd();
   const binary = cmd.trim().toLowerCase();
 
   if (!ALLOWLIST_BINARIES.includes(binary)) {
@@ -106,7 +170,7 @@ export async function runSandboxedCommand(
     let stderrData = '';
 
     const child = spawn(binary, safeArgs, {
-      cwd: process.cwd(),
+      cwd,
       env: safeEnv,
       detached: !isWin, // POSIX process group
       shell: false

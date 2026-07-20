@@ -347,7 +347,7 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
     } catch (err: any) {
       console.error(`[llmGateway] Direct Ollama call failed for model '${model}': ${err.message}`);
       finalResult = {
-        reply: `⚠️ Local model unavailable: ${err.message}`,
+        reply: `Ollama is not reachable at ${OLLAMA_BASE}.`,
         provider: 'offline',
         offline: true,
         model,

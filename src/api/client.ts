@@ -1,8 +1,22 @@
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const BASE_URL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://localhost:4001/api' : '/api');
 
 import type { RunRecord } from '../types';
 
 export const apiClient = {
+  async get(path: string) {
+    const res = await fetch(`${BASE_URL.replace('/api', '')}${path}`);
+    if (!res.ok) throw new Error(`GET ${path} failed: ${res.statusText}`);
+    return res.json();
+  },
+  async post(path: string, body?: any) {
+    const res = await fetch(`${BASE_URL.replace('/api', '')}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) throw new Error(`POST ${path} failed: ${res.statusText}`);
+    return res.json();
+  },
   async getAgents() {
     const res = await fetch(`${BASE_URL}/agents`);
     if (!res.ok) return [];
