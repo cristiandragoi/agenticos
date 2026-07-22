@@ -70,6 +70,9 @@ export const runSteps = sqliteTable('run_steps', {
 // Goal Mode Schema
 export const goals = sqliteTable('goals', {
   id: text('id').primaryKey(),
+  workspacePath: text('workspace_path'),
+  conversationId: text('conversation_id'),
+  workspaceId: text('workspace_id'),
   originalGoal: text('original_goal').notNull(),
   status: text('status').notNull().default('queued'),
   retryCount: integer('retry_count').notNull().default(0),

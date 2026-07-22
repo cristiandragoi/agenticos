@@ -1,7 +1,7 @@
 import { llmChat } from '../../services/llmGateway.js';
 
 export interface IntentResult {
-  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required';
+  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams';
   confidence: number;
   reason: string;
 }
@@ -19,7 +19,16 @@ export class IntentRouter {
       return { route: 'memory', confidence: 0.9, reason: 'Explicit memory keyword detected' };
     }
 
-    // 2. CodeX checks (build, deploy, code, ui, app)
+    // 2. Agent Teams checks (team, agents, multi-agent)
+    const hasAgentKeyword = p.includes('team') || p.includes('agents') || p.includes('multi-agent') || p.includes('agent team');
+    const hasExecutionVerb = p.includes('build') || p.includes('create') || p.includes('implement') || p.includes('investigate') || p.includes('execute') || p.includes('analyze') || p.includes('assemble');
+    const isConversational = p.includes('what is') || p.includes('explain') || p.includes('who') || p.includes('which') || p.includes('write a message to') || p.includes('what are');
+
+    if (hasAgentKeyword && hasExecutionVerb && !isConversational) {
+      return { route: 'agent_teams', confidence: 0.95, reason: 'Explicit agent teams execution request detected' };
+    }
+
+    // 3. CodeX checks (build, deploy, code, ui, app)
     if (
       p.includes('build a') ||
       p.includes('make a') ||
@@ -32,7 +41,7 @@ export class IntentRouter {
       return { route: 'codex', confidence: 0.95, reason: 'Explicit software engineering request' };
     }
 
-    // 3. Hermes checks (projects, goals, plans, milestones, tasks, dependencies, execution tracking)
+    // 4. Hermes checks (projects, goals, plans, milestones, tasks, dependencies, execution tracking)
     if (
       p.includes('project') ||
       p.includes('goal') ||
@@ -46,7 +55,7 @@ export class IntentRouter {
       return { route: 'hermes', confidence: 0.90, reason: 'Hermes project management/orchestration command detected' };
     }
 
-    // 4. Ambiguous intent handling
+    // 5. Ambiguous intent handling
     // If the prompt is very short or vague, ask for clarification
     if (p.split(' ').length <= 2 && !p.includes('hi') && !p.includes('hello')) {
       return { route: 'clarification_required', confidence: 0.4, reason: 'Prompt is too brief to confidently route' };

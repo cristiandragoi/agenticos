@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StudioWorkspace } from '../components/codex/StudioWorkspace';
-import { StudioInspector } from '../components/codex/StudioInspector';
-import { StudioDrawer } from '../components/codex/StudioDrawer';
+import { DiagnosticsDrawer } from '../components/codex/DiagnosticsDrawer';
 
 import { useCodexStore } from '../store/codexStore';
 import './codex-studio.css';
@@ -10,8 +9,7 @@ export default function CodeXStudio() {
   const {
     activeGoalId, setActiveGoalId,
     goalStatus, setGoalStatus,
-    activeTab, setActiveTab,
-    isDrawerOpen, setIsDrawerOpen
+    activeTab, setActiveTab
   } = useCodexStore();
   const [goals, setGoals] = useState<any[]>([]);
 
@@ -34,33 +32,14 @@ export default function CodeXStudio() {
       setGoalStatus(null);
       return;
     }
-    
-    // Quick load initial status
+    // Initial status from the goals list; live updates arrive via the
+    // workspace event stream, which owns the SSE connection.
     const currentGoal = goals.find(g => g.id === activeGoalId);
     if (currentGoal) setGoalStatus(currentGoal.status);
-    
-    const es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
-    
-    es.addEventListener('goal_event', (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        setGoalStatus(data.state);
-        fetchGoals();
-      } catch (err) {}
-    });
-
-    return () => es.close();
-  }, [activeGoalId]);
+  }, [activeGoalId, goals]);
 
   return (
-    <div 
-      className="codex-studio"
-      style={{ '--drawer-height': isDrawerOpen ? '300px' : '40px' } as React.CSSProperties}
-    >
-      <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', background: '#3b82f6', color: '#fff', padding: '4px 12px', fontSize: '12px', fontWeight: 'bold', zIndex: 9999, borderBottomLeftRadius: '4px', borderBottomRightRadius: '4px' }}>
-        Workspace CodeX UX v1.0
-      </div>
-
+    <div className="codex-studio">
       <div className="codex-studio__body">
         <main data-testid="codex-workspace" className="codex-studio__workspace w-full flex-1 flex">
           <StudioWorkspace 
@@ -70,20 +49,13 @@ export default function CodeXStudio() {
             setActiveTab={setActiveTab}
             onGoalCreated={(id) => {
               setActiveGoalId(id);
-              setIsDrawerOpen(true);
               fetchGoals();
             }}
           />
         </main>
-        
-        <div data-testid="codex-inspector" className="shrink-0 h-full overflow-hidden border-l border-[#30363d]">
-          <StudioInspector activeGoalId={activeGoalId} />
-        </div>
       </div>
       
-      <div data-testid="codex-drawer" className="shrink-0 w-full overflow-hidden z-20">
-        <StudioDrawer activeGoalId={activeGoalId} onClose={() => setIsDrawerOpen(false)} />
-      </div>
+      <DiagnosticsDrawer />
     </div>
   );
 }

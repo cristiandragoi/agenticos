@@ -3,9 +3,9 @@ import { TeamSheet, teamSheetSchema } from '../../types/teamSheet.js';
 
 export class LLMSchemaValidationError extends Error {
   public attempts: number;
-  public issues: Array<{ path: string, expected: string, received: string }>;
+  public issues: Array<{ path: string, expected: string, received: string, message?: string }>;
   
-  constructor(message: string, issues: Array<{ path: string, expected: string, received: string }>, attempts: number) {
+  constructor(message: string, issues: Array<{ path: string, expected: string, received: string, message?: string }>, attempts: number) {
     super(message);
     this.name = 'LLMSchemaValidationError';
     this.issues = issues;
@@ -14,17 +14,18 @@ export class LLMSchemaValidationError extends Error {
 }
 
 /**
- * Extracts a JSON block from a string containing markdown fences or leading/trailing text.
- * Rejects multiple JSON objects.
+ * Extracts the first complete JSON object from a model response.
+ * Accepts plain JSON, fenced JSON (```json / ```), and JSON embedded in prose.
+ * Trailing prose after the object is ignored; a missing or truncated object fails.
  */
 export function extractJsonFromMarkdown(jsonStr: string): string {
   let cleaned = jsonStr.trim();
   if (cleaned.startsWith('```json')) {
     cleaned = cleaned.replace(/^```json\s*/, '');
-    cleaned = cleaned.replace(/\s*```$/, '');
+    cleaned = cleaned.replace(/\s*```\s*$/, '');
   } else if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```\s*/, '');
-    cleaned = cleaned.replace(/\s*```$/, '');
+    cleaned = cleaned.replace(/\s*```\s*$/, '');
   }
   
   // Extract the first JSON object using a basic brace matching algorithm
@@ -69,27 +70,118 @@ export function extractJsonFromMarkdown(jsonStr: string): string {
     throw new Error('Truncated or malformed JSON object.');
   }
 
-  const extracted = cleaned.substring(startIdx, endIdx + 1);
-
-  // Check if there's another object afterwards
-  const remainder = cleaned.substring(endIdx + 1).trim();
-  if (remainder.includes('{')) {
-    throw new Error('Multiple JSON objects found. Provide exactly one.');
+  if (cleaned.slice(endIdx + 1).includes('{')) {
+    throw new Error('Multiple JSON objects found.');
   }
 
-  return extracted;
+  return cleaned.substring(startIdx, endIdx + 1);
+}
+
+/** Top-level field-name aliases the model commonly produces. */
+const SHEET_ALIASES: Record<string, string> = {
+  team_name: 'teamName',
+  workspace_root: 'workspaceRoot',
+  execution_sequence: 'executionSequence',
+  acceptance_criteria: 'acceptanceCriteria',
+  estimated_parallelism: 'estimatedParallelism',
+  approval_required: 'approvalRequired',
+  approval_policy: 'approvalPolicy'
+};
+
+/** Per-agent field-name aliases. */
+const AGENT_ALIASES: Record<string, string> = {
+  allowed_tools: 'allowedTools',
+  read_scopes: 'readScopes',
+  write_scopes: 'writeScopes',
+  output_artifacts: 'outputArtifacts',
+  deps: 'dependencies'
+};
+
+const KNOWN_ROLES = new Set(['planner', 'builder', 'verifier']);
+
+function titleCaseRole(role: unknown): unknown {
+  if (typeof role !== 'string') return role;
+  const lower = role.trim().toLowerCase();
+  if (KNOWN_ROLES.has(lower)) return lower.charAt(0).toUpperCase() + lower.slice(1);
+  return role;
 }
 
 /**
- * Normalizes low-risk fields before validation.
- * e.g., fixing acceptanceCriteria which is often hallucinated as objects.
+ * Convert a path that points INSIDE the workspace root into a workspace-
+ * relative path. Models frequently emit absolute paths (e.g. "B:/Repo/out/")
+ * when they mean workspace-relative ones ("out/"). Paths outside the
+ * workspace are returned unchanged so the schema can reject them honestly.
  */
-export function normalizeTeamSheetCandidate(input: unknown): unknown {
+function relativizeToWorkspace(p: unknown, workspaceRoot?: string): unknown {
+  if (typeof p !== 'string' || !workspaceRoot) return p;
+  const normPath = p.replace(/\\/g, '/');
+  const normRoot = workspaceRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (normPath.toLowerCase().startsWith(normRoot.toLowerCase() + '/')) {
+    return normPath.slice(normRoot.length + 1);
+  }
+  return p;
+}
+
+function relativizeList(value: unknown, workspaceRoot?: string): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map(item => relativizeToWorkspace(item, workspaceRoot));
+}
+
+function applyAliases(obj: Record<string, unknown>, aliases: Record<string, string>) {
+  for (const [alias, canonical] of Object.entries(aliases)) {
+    if (obj[canonical] === undefined && obj[alias] !== undefined) {
+      obj[canonical] = obj[alias];
+      delete obj[alias];
+    }
+  }
+}
+
+/**
+ * Normalizes ONLY known-harmless variations before validation:
+ * - common snake_case field-name aliases (top level and per agent)
+ * - role casing ('builder' → 'Builder')
+ * - missing optional arrays → []
+ * - acceptanceCriteria given as a string or as objects ({text|criterion|description})
+ * It never invents required agents, roles, or acceptance criteria — anything
+ * structurally missing is left for the schema to reject with precise errors.
+ */
+export function normalizeTeamSheetCandidate(input: unknown, workspaceRoot?: string): unknown {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return input; // Not an object, let Zod handle the failure
   }
 
   const obj = input as Record<string, unknown>;
+  applyAliases(obj, SHEET_ALIASES);
+
+  // Missing optional arrays → []
+  if (obj.handoffs === undefined) obj.handoffs = [];
+  if (obj.acceptanceCriteria === undefined) obj.acceptanceCriteria = [];
+
+  // Per-agent normalization
+  if (Array.isArray(obj.agents)) {
+    obj.agents = obj.agents.map((agent: any) => {
+      if (!agent || typeof agent !== 'object' || Array.isArray(agent)) return agent;
+      const a = { ...agent };
+      applyAliases(a, AGENT_ALIASES);
+      a.role = titleCaseRole(a.role);
+      for (const field of ['responsibilities', 'dependencies', 'allowedTools', 'readScopes', 'writeScopes', 'outputArtifacts']) {
+        if (a[field] === undefined) a[field] = [];
+      }
+      // Models often emit workspace-absolute paths where relative ones are required.
+      a.readScopes = relativizeList(a.readScopes, workspaceRoot);
+      a.writeScopes = relativizeList(a.writeScopes, workspaceRoot);
+      a.outputArtifacts = relativizeList(a.outputArtifacts, workspaceRoot);
+      return a;
+    });
+  }
+
+  // Handoff artifact paths get the same treatment.
+  if (Array.isArray(obj.handoffs)) {
+    obj.handoffs = obj.handoffs.map((h: any) => {
+      if (!h || typeof h !== 'object') return h;
+      return { ...h, artifact: relativizeToWorkspace(h.artifact, workspaceRoot) };
+    });
+  }
 
   // Safe normalization of acceptanceCriteria
   if (obj.acceptanceCriteria) {
@@ -119,11 +211,6 @@ export function normalizeTeamSheetCandidate(input: unknown): unknown {
     } else if (typeof obj.acceptanceCriteria === 'string') {
       const trimmed = obj.acceptanceCriteria.trim();
       obj.acceptanceCriteria = trimmed ? [trimmed] : [];
-    } else {
-      // Reject numbers, booleans, null, nested arrays, etc.
-      // Set to an empty array so Zod or logic can decide if it's valid.
-      // Wait, if it's invalid, we should leave it as is so Zod throws a meaningful error!
-      // If we set it to [], Zod might accept it if it defaults to []. We should leave it.
     }
   }
 
@@ -131,33 +218,44 @@ export function normalizeTeamSheetCandidate(input: unknown): unknown {
 }
 
 /**
- * Parses, normalizes, and validates the candidate JSON.
- * Throws LLMSchemaValidationError if it fails Zod validation.
+ * Parses, normalizes, and validates the candidate JSON with safeParse.
+ * Throws LLMSchemaValidationError carrying detailed, readable issues
+ * (path, expected, received, message) on any failure.
  */
-export function processTeamSheetCandidate(jsonStr: string, attempts: number = 1): TeamSheet {
+export function processTeamSheetCandidate(jsonStr: string, attempts: number = 1, workspaceRoot?: string): TeamSheet {
   let parsed: unknown;
   try {
     const extracted = extractJsonFromMarkdown(jsonStr);
     parsed = JSON.parse(extracted);
   } catch (err: any) {
-    throw new LLMSchemaValidationError(`Invalid JSON syntax: ${err.message}`, [], attempts);
+    throw new LLMSchemaValidationError(`Invalid JSON syntax: ${err.message}`, [{
+      path: '(json)', expected: 'valid JSON object', received: 'unparseable text', message: err.message
+    }], attempts);
   }
 
-  const normalized = normalizeTeamSheetCandidate(parsed);
+  const normalized = normalizeTeamSheetCandidate(parsed, workspaceRoot);
 
-  try {
-    const valid = teamSheetSchema.parse(normalized);
-    return valid;
-  } catch (err) {
-    if (err instanceof ZodError) {
-      const issues = err.issues.map(i => ({
-        path: i.path.join('.'),
-        expected: (i as any).expected || 'valid format',
-        received: (i as any).received || 'invalid format'
-      }));
-      console.error("Zod Error details:", JSON.stringify(issues, null, 2));
-      throw new LLMSchemaValidationError('The model could not produce a valid TeamSheet.', issues, attempts);
-    }
-    throw new LLMSchemaValidationError(`Unknown validation error: ${(err as Error).message}`, [], attempts);
+  const result = teamSheetSchema.safeParse(normalized);
+  if (!result.success) {
+    const issues = result.error.issues.map(i => ({
+      path: i.path.length > 0 ? i.path.join('.') : '(root)',
+      expected: String((i as any).expected ?? 'valid value'),
+      received: String((i as any).received ?? 'invalid value'),
+      message: i.message
+    }));
+    console.error('[schemaRecovery] TeamSheet validation issues:', JSON.stringify(issues));
+    throw new LLMSchemaValidationError('The model could not produce a valid TeamSheet.', issues, attempts);
   }
+  return result.data;
+}
+
+/**
+ * Renders validation issues as a compact, UI-safe one-line summary.
+ * e.g. "agents.0.role: Invalid input: expected 'Planner' | (root): Exactly one Verifier must exist"
+ */
+export function summarizeValidationIssues(issues: Array<{ path: string; message?: string; expected?: string; received?: string }>, max = 4): string {
+  if (!issues || issues.length === 0) return 'unknown validation issue';
+  const rendered = issues.slice(0, max).map(i => `${i.path}: ${i.message || `expected ${i.expected}, received ${i.received}`}`);
+  const suffix = issues.length > max ? ` (+${issues.length - max} more)` : '';
+  return rendered.join(' | ') + suffix;
 }

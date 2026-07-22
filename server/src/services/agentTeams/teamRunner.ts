@@ -1,11 +1,13 @@
 import { db } from '../../db/index.js';
-import { teams, teamRuns, agentTeamHandoffs } from '../../db/schema.js';
+import { teams, teamRuns, agentTeamHandoffs, verificationReports, agentTeamArtifacts } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { goalStore } from '../goalStore.js';
 import { AgentRunner } from './agentRunner.js';
+import { adjudicateVerificationPass, adjudicateVerificationReport, type ReportAdjudicationResult } from './verificationAdjudicator.js';
+import { findRepairTarget } from './repairRouting.js';
 import { randomUUID } from 'crypto';
 import crypto from 'crypto';
 import type { AgentExecutionContext } from '../../types.js';
@@ -27,6 +29,22 @@ export const AgentHandoffSchema = z.object({
   createdAt: z.string().optional()
 });
 
+/**
+ * LLMs emit blocking issues both as plain strings and as structured objects
+ * ({ name, evidence, passed }). Accept both and normalize to strings so a
+ * well-formed report is never rejected for format alone.
+ */
+const issueList = (schemaName: string) => z.array(
+  z.union([
+    z.string(),
+    z.object({
+      name: z.string(),
+      evidence: z.string().optional(),
+      passed: z.boolean().optional()
+    }).transform(o => o.evidence ? `${o.name} — ${o.evidence}` : o.name)
+  ])
+);
+
 export const VerificationReportSchema = z.object({
   passed: z.boolean(),
   summary: z.string(),
@@ -34,10 +52,13 @@ export const VerificationReportSchema = z.object({
     name: z.string(),
     passed: z.boolean(),
     command: z.string().optional(),
-    evidence: z.string()
+    evidence: z.string(),
+    path: z.string().optional(),
+    expectedContent: z.string().optional(),
+    expectedSha256: z.string().optional()
   })),
-  blockingIssues: z.array(z.string()),
-  recommendedFixes: z.array(z.string()),
+  blockingIssues: issueList('blockingIssues'),
+  recommendedFixes: issueList('recommendedFixes'),
   completedAt: z.string().optional()
 });
 
@@ -78,6 +99,16 @@ async function createContext(teamId: string, teamSheet: any, agentId: string, or
   const handoffs: import('../../types.js').AgentHandoff[] = [];
   const dependencyArtifacts: Array<{ path: string; checksum: string; size: number; producedBy: string }> = [];
 
+  // When several handoffs reference the same artifact path (e.g. an initial
+  // build and a later repair), only the LATEST declaration is authoritative —
+  // repairs legitimately supersede older bytes on disk.
+  const latestArtifactByPath = new Map<string, any>();
+  for (const record of handoffsRecords) {
+    for (const art of parseJSONField(record.artifacts)) {
+      if (art?.path) latestArtifactByPath.set(art.path, art);
+    }
+  }
+
   for (const record of handoffsRecords) {
     const obj = {
       agentId: record.agentId,
@@ -95,6 +126,10 @@ async function createContext(teamId: string, teamSheet: any, agentId: string, or
     
     if (parsed.artifacts) {
       for (const art of parsed.artifacts) {
+        // Skip superseded declarations: only the latest handoff for a path is verified.
+        const latest = latestArtifactByPath.get(art.path);
+        if (latest && latest.checksum !== art.checksum) continue;
+
         // Recompute actual checksum
         let actualChecksum = art.checksum;
         let actualSize = art.size;
@@ -198,28 +233,98 @@ export class TeamRunner {
     return runId;
   }
 
+  /**
+   * Resume a paused run safely.
+   * - Exactly one new attempt per call (guarded by the paused→running transition).
+   * - When the pause came from a failed verification/adjudication and the repair
+   *   budget allows, the resume is routed as a REPAIR to the correct Builder
+   *   (by role) with the real blocking issues — not blindly to the agent that
+   *   happened to be current (often the Verifier, which would just fail again).
+   * - A goal purged from the goals table is recreated so the loop and the
+   *   listener have something to attach to.
+   */
   static async resumeTeam(runId: string) {
     const run = db.select().from(teamRuns).where(eq(teamRuns.id, runId)).get();
     if (!run) throw new Error(`Run ${runId} not found`);
     if (run.status !== 'paused' && run.status !== 'pending') throw new Error(`Run is ${run.status}`);
 
-    db.update(teamRuns).set({ status: 'running', updatedAt: Date.now().toString() }).where(eq(teamRuns.id, runId)).run();
-    
-    if (run.goalId && run.teamId) {
-      this.attachGoalListener(runId, run.goalId);
-      const team = db.select().from(teams).where(eq(teams.id, run.teamId)).get();
-      const teamSheet: any = team?.teamSheet;
-      const context = await createContext(run.teamId, teamSheet, run.currentAgent || '', teamSheet?.objective || '', runId, run.goalId);
-      const writer = goalStore.createEventWriter({ goalId: run.goalId, teamId: run.id, agentId: run.currentAgent || undefined });
-      writer.push({
-        state: 'team_resumed',
-        message: 'Team execution resumed.',
-        eventType: 'team_resumed',
-        normalizedStatus: 'active',
-        lifecycleState: 'running'
+    const team = db.select().from(teams).where(eq(teams.id, run.teamId)).get();
+    const teamSheet: any = team?.teamSheet;
+    if (!teamSheet) throw new Error(`Team ${run.teamId} has no team sheet`);
+
+    const goalId = run.goalId || randomUUID();
+
+    // Recreate a purged goal so resumeCodexGoalLoop does not silently no-op.
+    if (!goalStore.get(goalId)) {
+      goalStore.create({
+        id: goalId,
+        originalGoal: teamSheet.objective,
+        status: 'queued',
+        retryCount: 0,
+        providerFallbackCount: 0,
+        history: [],
+        createdAt: Date.now().toString(),
+        updatedAt: Date.now().toString()
       });
-      await AgentRunner.resumeAgent(run.goalId, context);
     }
+
+    // Parse the stored adjudicated report (tolerate double-encoded legacy rows).
+    let storedReport: any = null;
+    try {
+      let raw: any = run.verificationReport;
+      if (typeof raw === 'string') raw = JSON.parse(raw);
+      if (typeof raw === 'string') raw = JSON.parse(raw);
+      storedReport = raw;
+    } catch { storedReport = null; }
+
+    const sequence: string[] = teamSheet.executionSequence || [];
+    let targetAgentId = run.currentAgent || sequence[0];
+    let targetStep = run.currentStep || 0;
+    let isRepairResume = false;
+    let repairContext: any = null;
+
+    if (storedReport && storedReport.passed === false && run.repairCount < 1) {
+      const target = findRepairTarget(teamSheet, []);
+      if (target && target.index !== -1) {
+        targetAgentId = sequence[target.index];
+        targetStep = target.index;
+        isRepairResume = true;
+        repairContext = {
+          blockingIssues: (storedReport.blockingIssues || []).map(String),
+          recommendedFixes: (storedReport.recommendedFixes || []).map(String),
+          attempt: run.repairCount + 1
+        };
+      }
+    }
+
+    db.transaction((tx) => {
+      tx.update(teamRuns).set({
+        status: 'running',
+        currentAgent: targetAgentId,
+        activeAgentId: targetAgentId,
+        currentStep: targetStep,
+        goalId,
+        repairCount: isRepairResume ? run.repairCount + 1 : run.repairCount,
+        updatedAt: Date.now().toString()
+      }).where(eq(teamRuns.id, runId)).run();
+      tx.update(teams).set({ status: 'running', updatedAt: Date.now().toString() }).where(eq(teams.id, run.teamId)).run();
+    });
+
+    this.attachGoalListener(runId, goalId);
+    const context = await createContext(run.teamId, teamSheet, targetAgentId, teamSheet.objective, runId, goalId);
+    if (repairContext) context.repairContext = repairContext;
+
+    const writer = goalStore.createEventWriter({ goalId, teamId: run.teamId, agentId: targetAgentId });
+    writer.push({
+      state: 'team_resumed',
+      message: isRepairResume
+        ? `Team resumed as repair attempt ${run.repairCount + 1} routed to ${targetAgentId}.`
+        : 'Team execution resumed.',
+      eventType: 'team_resumed',
+      normalizedStatus: 'active',
+      lifecycleState: 'running'
+    });
+    await AgentRunner.resumeAgent(goalId, context);
   }
 
   static async pauseTeam(runId: string) {
@@ -258,6 +363,41 @@ export class TeamRunner {
   }
 
   private static async handleAgentCompletion(runId: string, goalId: string) {
+    try {
+      await this.processAgentCompletion(runId, goalId);
+    } catch (err: any) {
+      console.error(`[TeamRunner] Agent completion handling failed for run ${runId}:`, err);
+      await this.failRun(runId, goalId, err?.message || 'Agent completion handling failed');
+    }
+  }
+
+  /**
+   * Drive a run (and its team) to a truthful terminal 'failed' state with a
+   * clear reason. Never leave a team stuck in 'running' after an internal error.
+   */
+  private static async failRun(runId: string, goalId: string, reason: string) {
+    const run = db.select().from(teamRuns).where(eq(teamRuns.id, runId)).get();
+    if (run && !['completed', 'failed'].includes(run.status)) {
+      db.transaction((tx) => {
+        tx.update(teamRuns).set({ status: 'failed', updatedAt: Date.now().toString() }).where(eq(teamRuns.id, runId)).run();
+        tx.update(teams).set({ status: 'failed', updatedAt: Date.now().toString() }).where(eq(teams.id, run.teamId)).run();
+      });
+    }
+    try {
+      const writer = goalStore.createEventWriter({ goalId, teamId: run?.teamId });
+      writer.push({
+        state: 'failed',
+        message: `Team failed: ${reason}`,
+        eventType: 'task_failed',
+        normalizedStatus: 'failed',
+        lifecycleState: 'failed',
+        error: reason
+      });
+    } catch {}
+    this.detachGoalListener(runId);
+  }
+
+  private static async processAgentCompletion(runId: string, goalId: string) {
     const run = db.select().from(teamRuns).where(eq(teamRuns.id, runId)).get();
     if (!run) return;
 
@@ -275,6 +415,10 @@ export class TeamRunner {
     // Validate the AgentHandoff
     const rawHandoff = typeof finishEvent.payload.handoff === 'string' ? JSON.parse(finishEvent.payload.handoff) : finishEvent.payload.handoff;
     const handoff = AgentHandoffSchema.parse(rawHandoff) as import('../../types.js').AgentHandoff;
+
+    // An attempt that declared failure must be treated as failed — never as a
+    // quiet success. Its open issues become the repair instructions.
+    const attemptDeclaredFailure = handoff.status === 'failed' || handoff.status === 'blocked';
 
     // Validate required artifacts & Recompute SHA-256 checksums from the actual files
     if (handoff.artifacts) {
@@ -295,10 +439,24 @@ export class TeamRunner {
 
     let verificationReport: any = null;
     let isVerificationFailed = false;
+    let adjudication: ReportAdjudicationResult | null = null;
 
     const currentAgentDef = teamSheet.agents.find((a: any) => a.id === run.currentAgent);
       if (currentAgentDef?.role === 'Verifier') {
-        if (!finishEvent.payload?.verificationReport) {
+        if (attemptDeclaredFailure) {
+          // The Verifier itself failed: verification cannot pass. Use the
+          // declared open issues as the blocking issues for repair.
+          verificationReport = {
+            passed: false,
+            checks: [],
+            evidence: handoff.summary || 'Verifier attempt declared failure.',
+            blockingIssues: (handoff.openIssues || []).map(String).filter(Boolean).length > 0
+              ? (handoff.openIssues || []).map(String)
+              : [handoff.summary || 'Verifier attempt declared failure.'],
+            recommendedFixes: (handoff.recommendedNextActions || []).map(String)
+          };
+          isVerificationFailed = true;
+        } else if (!finishEvent.payload?.verificationReport) {
           console.warn("[TeamRunner] Verifier finished without VerificationReport! Assuming failure.");
           verificationReport = {
             passed: false,
@@ -312,7 +470,34 @@ export class TeamRunner {
           try {
             const rawReport = typeof finishEvent.payload.verificationReport === 'string' ? JSON.parse(finishEvent.payload.verificationReport) : finishEvent.payload.verificationReport;
             verificationReport = VerificationReportSchema.parse(rawReport) as import('../../types.js').VerificationReport;
-            
+
+            // Objective adjudication: a self-reported pass is only accepted when
+            // every expected artifact exists and every path-based check matches
+            // the real bytes / SHA-256 on disk. LLM claims are never trusted.
+            adjudication = adjudicateVerificationReport(teamSheet, verificationReport, teamSheet.workspaceRoot || '');
+            if (adjudication.overridden) {
+              console.warn('[TeamRunner] Verification pass overridden — objective checks failed:', adjudication.blockingIssues);
+              verificationReport.passed = false;
+              verificationReport.blockingIssues = [...(verificationReport.blockingIssues || []), ...adjudication.blockingIssues];
+              verificationReport.recommendedFixes = [...(verificationReport.recommendedFixes || []), ...adjudication.recommendedFixes];
+            }
+
+            // Persist the adjudicated outcome (with objective evidence) so report
+            // consumers always see the real result — pass or fail.
+            db.insert(verificationReports).values({
+              id: randomUUID(),
+              runId: runId,
+              teamId: run.teamId,
+              goalId: goalId,
+              verifierId: `${run.currentAgent}-adjudicated`,
+              passed: verificationReport.passed,
+              checks: verificationReport.checks || [],
+              evidence: JSON.stringify(adjudication.evidence),
+              blockingIssues: verificationReport.blockingIssues || [],
+              recommendedFixes: verificationReport.recommendedFixes || [],
+              createdAt: Date.now().toString()
+            }).run();
+
             if (!verificationReport.passed) {
               isVerificationFailed = true;
             }
@@ -332,16 +517,23 @@ export class TeamRunner {
 
     let nextStep = run.currentStep + 1;
     let nextAgentId = nextStep < sequence.length ? sequence[nextStep] : null;
+    let repairRoutingFailure: string | null = null;
 
-    if (isVerificationFailed) {
+    // An attempt needs repair when verification failed OR the attempt itself
+    // declared failure (e.g. Builder could not create its artifact).
+    const attemptNeedsRepair = isVerificationFailed || attemptDeclaredFailure;
+
+    if (attemptNeedsRepair) {
       if (run.repairCount < 1) {
-        // Find builder step index
-        const builderIndex = sequence.findIndex(s => s.toLowerCase() === 'builder');
-        if (builderIndex !== -1) {
-          nextStep = builderIndex;
-          nextAgentId = sequence[nextStep];
+        // Role-based repair routing: never depend on generated agent IDs.
+        const target = findRepairTarget(teamSheet, adjudication?.missingArtifacts || []);
+        if (target && target.index !== -1) {
+          nextStep = target.index;
+          nextAgentId = sequence[target.index];
+          console.log(`[TeamRunner] Repair routed to agent '${nextAgentId}' (${target.reason}).`);
         } else {
-          nextAgentId = null; // No builder found, can't repair
+          repairRoutingFailure = 'Repair routing failed: no Builder/Implementer/Developer role and no agent declaring the failed artifacts exists in the team sheet.';
+          nextAgentId = null;
         }
       } else {
         // Exceeded repair limit, pause safely
@@ -355,6 +547,14 @@ export class TeamRunner {
     // Determine completed agents (for simplicity, we assume previous agents in sequence are completed)
     const completedAgents = sequence.slice(0, run.currentStep + 1);
 
+    // The checkpoint carries the run's accumulated verified artifacts — not
+    // just the completing agent's (a Verifier finishes with none, and must not
+    // erase the artifact evidence the Builder produced).
+    const accumulatedArtifacts = db.select().from(agentTeamArtifacts).where(eq(agentTeamArtifacts.runId, runId)).all();
+    const checkpointArtifacts = (handoff.artifacts && handoff.artifacts.length > 0)
+      ? handoff.artifacts
+      : accumulatedArtifacts.map(a => ({ path: a.path, checksum: a.checksum, checksumAlgorithm: 'sha256', size: a.size, producedBy: a.agentId }));
+
     const checkpointObj = {
       checkpointVersion: 1,
       teamId: run.teamId,
@@ -362,10 +562,10 @@ export class TeamRunner {
       currentStep: nextStep !== null ? nextStep : run.currentStep,
       activeAgentId: nextAgentId,
       completedAgentIds: completedAgents,
-      artifactMetadata: handoff.artifacts || [],
+      artifactMetadata: checkpointArtifacts,
       lastEventSequence: goal.history[goal.history.length - 1]?.sequence || 0,
       databaseRevision: dbRevision,
-      repairCount: isVerificationFailed && nextAgentId ? run.repairCount + 1 : run.repairCount,
+      repairCount: attemptNeedsRepair && nextAgentId ? run.repairCount + 1 : run.repairCount,
       createdAt: new Date().toISOString()
     };
     
@@ -390,22 +590,10 @@ export class TeamRunner {
       return;
     }
 
-    // Execute SQLite state transition in one database transaction
+    // Execute SQLite state transition in one database transaction.
+    // NOTE: the handoff row itself is written once by codexLoop at finish time
+    // (with verified artifacts); TeamRunner must not insert a duplicate.
     db.transaction((tx) => {
-      tx.insert(agentTeamHandoffs).values({
-        id: randomUUID(),
-        teamId: run.teamId,
-        goalId: goalId,
-        agentId: handoff.agentId,
-        status: handoff.status,
-        summary: handoff.summary,
-        decisions: handoff.decisions as any,
-        artifacts: handoff.artifacts as any,
-        openIssues: handoff.openIssues as any,
-        recommendedNextActions: handoff.recommendedNextActions as any,
-        createdAt: new Date().toISOString()
-      }).run();
-
       const runUpdate: any = {
         updatedAt: Date.now().toString(),
         databaseRevision: dbRevision,
@@ -417,15 +605,17 @@ export class TeamRunner {
         runUpdate.verificationReport = JSON.stringify(verificationReport);
       }
 
-      if (isVerificationFailed && nextAgentId) {
+      if (attemptNeedsRepair && nextAgentId) {
         runUpdate.repairCount = run.repairCount + 1;
       }
 
       if (!nextAgentId) {
-        if (isVerificationFailed) {
-           runUpdate.status = 'paused'; // Need user review
+        if (repairRoutingFailure) {
+          runUpdate.status = 'failed';
+        } else if (attemptNeedsRepair) {
+          runUpdate.status = 'paused'; // Need user review
         } else {
-           runUpdate.status = 'completed';
+          runUpdate.status = 'completed';
         }
       } else {
         runUpdate.currentAgent = nextAgentId;
@@ -434,6 +624,11 @@ export class TeamRunner {
       }
 
       tx.update(teamRuns).set(runUpdate).where(eq(teamRuns.id, runId)).run();
+
+      // Keep the team's status truthful and in sync with its run.
+      if (runUpdate.status) {
+        tx.update(teams).set({ status: runUpdate.status, updatedAt: Date.now().toString() }).where(eq(teams.id, run.teamId)).run();
+      }
     });
 
     const writer = goalStore.createEventWriter({ goalId, teamId: run.teamId, agentId: run.currentAgent || undefined });
@@ -446,10 +641,20 @@ export class TeamRunner {
     });
 
     if (!nextAgentId) {
-      if (isVerificationFailed) {
+      if (repairRoutingFailure) {
+        writer.push({
+          state: 'failed',
+          message: `Team failed: ${repairRoutingFailure}`,
+          eventType: 'task_failed',
+          normalizedStatus: 'failed',
+          lifecycleState: 'failed',
+          error: repairRoutingFailure
+        });
+      } else if (attemptNeedsRepair) {
+        const reason = (verificationReport?.blockingIssues || []).join('; ') || 'verification did not pass';
         writer.push({
           state: 'team_paused',
-          message: 'Team paused due to verification failure and repair limit.',
+          message: `Team paused for review: verification failed after ${run.repairCount} repair attempt(s). Blocking issues: ${reason}`,
           eventType: 'team_paused',
           normalizedStatus: 'attention',
           lifecycleState: 'paused'
@@ -467,7 +672,7 @@ export class TeamRunner {
       return;
     }
     
-    if (isVerificationFailed && nextAgentId) {
+    if (attemptNeedsRepair && nextAgentId) {
       writer.push({
         state: 'repair_requested',
         message: 'Verification failed. Repair requested.',
@@ -487,6 +692,19 @@ export class TeamRunner {
 
     const nextAgent = teamSheet.agents.find((a: any) => a.id === nextAgentId);
     const context = await createContext(run.teamId, teamSheet, nextAgentId, teamSheet.objective, runId, goalId);
+
+    // Repair executions carry the actual blocking issues to the repair target,
+    // with workspace, providers, sandbox context, and approval policy preserved
+    // through the same createContext pipeline as the original run.
+    if (attemptNeedsRepair) {
+      const handoffIssues = (handoff.openIssues || []).map(String).filter(Boolean);
+      const handoffFixes = (handoff.recommendedNextActions || []).map(String).filter(Boolean);
+      context.repairContext = {
+        blockingIssues: [...(verificationReport?.blockingIssues || []), ...handoffIssues],
+        recommendedFixes: [...(verificationReport?.recommendedFixes || []), ...handoffFixes],
+        attempt: run.repairCount + 1
+      };
+    }
     
     const nextWriter = goalStore.createEventWriter({ goalId, teamId: run.teamId, agentId: nextAgentId });
     nextWriter.push({

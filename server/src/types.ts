@@ -241,6 +241,11 @@ export interface AgentExecutionContext {
   handoffs?: AgentHandoff[];
   approvalPolicy?: string;
   isTeamExecution?: boolean;
+  repairContext?: {
+    blockingIssues: string[];
+    recommendedFixes: string[];
+    attempt: number;
+  };
 }
 
 export interface GoalEvent {
@@ -318,6 +323,9 @@ export interface RunSummary {
 
 export interface GoalRecord {
   id: string;
+  workspacePath?: string;
+  conversationId?: string;
+  workspaceId?: string;
   originalGoal: string;
   status: GoalState;
   history: GoalEvent[];

@@ -5,12 +5,20 @@ import { llmChat } from '../../services/llmGateway.js';
 import type { GoalRecord } from '../../types.js';
 
 export class CodexService {
-  async createGoal(prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', executionProvider?: string) {
+  async createGoal(prompt: string, workspacePath: string, approvalPolicy?: string, executionProvider?: string, conversationId?: string, workspaceId?: string) {
+    // Normalize the UI vocabulary ('auto' | 'strict') to backend values.
+    // Anything that is not an explicit 'auto' requires manual approval —
+    // actions needing review must never be silently auto-approved.
+    const policy: 'manual' | 'auto' = approvalPolicy === 'auto' ? 'auto' : 'manual';
+
     const goalId = `goal-${randomUUID().slice(0, 9)}`;
     const goalRecord: GoalRecord = {
       id: goalId,
+      workspacePath,
+      conversationId,
+      workspaceId,
       originalGoal: prompt,
-      status: approvalPolicy === 'manual' ? 'waiting_for_approval' : 'queued',
+      status: policy === 'manual' ? 'waiting_for_approval' : 'queued',
       history: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -20,7 +28,7 @@ export class CodexService {
 
     goalStore.create(goalRecord);
 
-    if (approvalPolicy === 'manual') {
+    if (policy === 'manual') {
       // Background planning
       this.generatePlan(goalId, prompt, workspacePath, executionProvider).catch(console.error);
     } else {
@@ -44,17 +52,17 @@ Do not execute the steps yet, just outline the plan.`;
       });
       const reply = result.reply;
 
-      goalStore.pushEvent({
-        runId: goalId, sequenceId: 1, timestamp: new Date().toISOString(),
-        state: 'waiting_for_approval', step: 1, message: reply,
+      const writer = goalStore.createEventWriter({ goalId });
+      writer.push({
+        state: 'waiting_for_approval', message: reply,
         provider: 'custom', model: 'custom', tool: 'plan'
-      } as any);
+      });
     } catch (err: any) {
-      goalStore.pushEvent({
-        runId: goalId, sequenceId: 1, timestamp: new Date().toISOString(),
-        state: 'failed', step: 1, message: 'Failed to generate plan: ' + err.message,
+      const writer = goalStore.createEventWriter({ goalId });
+      writer.push({
+        state: 'failed', message: 'Failed to generate plan: ' + err.message,
         provider: 'custom', model: 'custom', tool: 'plan'
-      } as any);
+      });
     }
   }
 
@@ -83,11 +91,11 @@ Do not execute the steps yet, just outline the plan.`;
       reply = result.reply;
     }
 
-    goalStore.pushEvent({
-      runId: goalId, sequenceId: goal.history.length + 1, timestamp: new Date().toISOString(),
-      state: 'waiting_for_approval', step: goal.history.length + 1, message: reply,
+    const writer = goalStore.createEventWriter({ goalId });
+    writer.push({
+      state: 'waiting_for_approval', message: reply,
       provider: 'custom', model: 'custom', tool: 'plan'
-    } as any);
+    });
 
     return true;
   }

@@ -1,11 +1,12 @@
-import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID, createHash } from 'crypto';
+import { parseToolCall } from './toolCallParser.js';
 import { customProviderChat, getCustomProviderConfig } from '../adapters/customProvider.js';
 import { llmChat } from '../services/llmGateway.js';
 import { goalStore } from '../services/goalStore.js';
 import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
+import { detectShellFileIo } from '../utils/nativeToolGuard.js';
 import type { GoalState, GoalEvent, AgentExecutionContext } from '../types.js';
 import { goalControllers } from '../routers/chat.js';
 import { db } from '../db/index.js';
@@ -27,12 +28,36 @@ Use JSON inside <tool_call> tags. Wait for the tool result before proceeding.
 
 Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.
 
+Native tool rules (mandatory):
+- To create or modify a file, ALWAYS use the writeFile tool.
+- To read or inspect a file, ALWAYS use the readFile tool.
+- Use runCommand only for commands that genuinely require a process (builds, tests, package managers, git).
+- NEVER use echo, printf, cat, type, Get-Content, PowerShell redirection, or shell redirection for normal file reads/writes. They are blocked by the sandbox.
+
 Tools:
 1. writeFile: { "tool": "writeFile", "path": "relative/path/to/file", "content": "file contents" }
 2. readFile: { "tool": "readFile", "path": "relative/path/to/file" }
 3. runCommand: { "tool": "runCommand", "cmd": "npm", "args": ["install", "express"] }
 4. reasoningQuery: { "tool": "reasoningQuery", "prompt": "ask OmniRoute for validation" }
 5. finish: { "tool": "finish", "message": "Goal completed." }
+`;
+
+const STRICT_JSON_SYSTEM_PROMPT_SUFFIX = `
+
+CRITICAL: You must return exactly one valid JSON object and nothing else.
+
+Required structure:
+{
+  "type": "tool_call",
+  "tool": "writeFile | readFile | runCommand | reasoningQuery | finish",
+  "arguments": {}
+}
+
+Do not use markdown.
+Do not use code fences.
+Do not include explanations before or after the JSON.
+Do not return plain conversational text.
+Use the finish tool only when the requested task has actually been completed.
 `;
 
 function buildAgentPrompt(agent: any, originalGoal: string): string {
@@ -49,7 +74,7 @@ function buildAgentPrompt(agent: any, originalGoal: string): string {
     }
     return '';
   }).filter(Boolean);
-  
+
   return `You are ${agent.name} (${agent.role}). Achieve the user's goal autonomously.
 Use JSON inside <tool_call> tags. Wait for the tool result before proceeding.
 Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.
@@ -151,10 +176,10 @@ function recordCircuitBreakerSuccess(id: string) {
   db.update(providerCircuitBreakers).set({ errorCount: 0, cooldownUntil: null, updatedAt: Date.now().toString() }).where(eq(providerCircuitBreakers.id, id)).run();
 }
 
-async function generateCheckpoint(goalId: string, phase: string, stepId?: string, stepIndex?: number) {
+async function generateCheckpoint(goalId: string, phase: string, stepId?: string, stepIndex?: number, workspaceRoot?: string) {
   const goal = goalStore.get(goalId);
   if (!goal) return undefined;
-  const snapshot = await captureWorkspaceSnapshot();
+  const snapshot = await captureWorkspaceSnapshot(workspaceRoot);
   const ckptId = `ckpt-${goalId}-${Date.now()}`;
   goalStore.createCheckpoint({
     id: ckptId,
@@ -171,19 +196,12 @@ async function generateCheckpoint(goalId: string, phase: string, stepId?: string
   return ckptId;
 }
 
-
-const ToolCallSchema = z.object({
-  type: z.literal('tool_call'),
-  tool: z.enum(['writeFile', 'readFile', 'runCommand', 'reasoningQuery', 'finish']),
-  arguments: z.record(z.string(), z.any())
-});
-
 export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecutionContext) { console.trace('Resuming loop for goal:', goalId);
   const workerId = randomUUID();
   const currentTeamId = context?.teamId;
   const currentAgentId = context?.agentId;
   const writer = goalStore.createEventWriter({ goalId, teamId: currentTeamId, agentId: currentAgentId });
-  
+
   if (!goalStore.acquireLease(goalId, workerId, 30000)) {
     console.log(`[GoalMode] Goal ${goalId} is already running elsewhere.`);
     return;
@@ -195,12 +213,22 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   let goal = goalStore.get(goalId);
   if (!goal) return;
 
+  // Resolve the workspace root for this run: an explicit team/execution context
+  // wins; otherwise fall back to the repository the goal was created with.
+  // Goals created before workspace persistence (or with the legacy 'default'
+  // placeholder) keep the old process.cwd() behavior.
+  const goalWorkspace = (goal as any).workspacePath;
+  const workspaceRoot = context?.workspaceRoot
+    || (typeof goalWorkspace === 'string' && goalWorkspace && goalWorkspace !== 'default' && fs.existsSync(goalWorkspace)
+      ? goalWorkspace
+      : undefined);
+
   if (['executing', 'planning', 'reasoning', 'retrying'].includes(goal.status)) {
     const lastStep = goalStore.getStep(goalId, goal.history.length);
     if (lastStep && lastStep.status === 'started' && lastStep.toolCall) {
       const toolCall = JSON.parse(lastStep.toolCall as string);
         if (toolCall.tool === 'writeFile' || toolCall.tool === 'write_file') {
-          const absolutePath = enforceWorkspacePath(toolCall.arguments?.path || toolCall.path);
+          const absolutePath = enforceWorkspacePath(toolCall.arguments?.path || toolCall.path, undefined, workspaceRoot);
         if (fs.existsSync(absolutePath)) {
           const content = fs.readFileSync(absolutePath, 'utf-8');
           if (content === toolCall.content) {
@@ -260,6 +288,17 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
       }
     }
     systemPrompt += `\nAllowed Read Scopes: ${context.readScopes?.join(', ')}\nAllowed Write Scopes: ${context.writeScopes?.join(', ')}`;
+    systemPrompt += `\n\nNative tool rules (mandatory):
+- To create or modify a file, ALWAYS use the writeFile tool — never echo, printf, or shell/PowerShell redirection.
+- To read or inspect a file, ALWAYS use the readFile tool — never cat, type, or Get-Content.
+- Use runCommand only for commands that genuinely require a process (builds, tests, package managers, git).
+- Shell file I/O is blocked by the sandbox and will fail.`;
+    if (context.role === 'Verifier') {
+      systemPrompt += `\n- When the goal requires exact file contents, verify by reading the real file with readFile and include one check per file in your verificationReport with "path" and "expectedContent" (the exact expected bytes). The runtime independently recomputes bytes and SHA-256 — do not claim a pass you cannot prove.`;
+    }
+    if (context.repairContext) {
+      systemPrompt += `\n\nREPAIR TASK (attempt ${context.repairContext.attempt}): The previous verification FAILED. Fix ONLY the following blocking issues using native tools, then finish normally.\nBlocking issues:\n${context.repairContext.blockingIssues.map(i => `- ${i}`).join('\n')}\nRecommended fixes:\n${context.repairContext.recommendedFixes.map(i => `- ${i}`).join('\n')}`;
+    }
     if (context.role?.toLowerCase().includes('planner')) {
       systemPrompt += `\nCRITICAL: You are a Planner. Do NOT attempt to read files that are supposed to be created by the Builder. Just create the plan in the handoff summary and use the 'finish' tool to hand off.`;
     }
@@ -273,7 +312,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   let startSequenceId = 0;
 
   if (latestCheckpoint) {
-    const currentSnapshot = await captureWorkspaceSnapshot();
+    const currentSnapshot = await captureWorkspaceSnapshot(workspaceRoot);
     if (currentSnapshot.hash !== latestCheckpoint.workspaceHash && latestCheckpoint.workspaceHash !== 'no-git-available') {
       goalStore.update(goalId, { status: 'waiting_for_approval' });
       pushEventToWriter(writer, 'waiting_for_approval', 'Workspace modified since last checkpoint. Recovery required.', undefined, undefined, { normalizedStatus: 'attention', lifecycleState: 'waiting_for_approval', userMessage: 'The files on disk have changed since I last ran. Please approve recovery.', eventType: 'approval_requested' });
@@ -308,7 +347,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   pushEventToWriter(writer, 'planning', 'Resuming goal loop...', undefined, undefined, { normalizedStatus: 'active', lifecycleState: 'running', userMessage: 'Continuing the task from the previous checkpoint.', eventType: 'task_resumed' });
   let stepCounter = goal.history.length;
 
-  
+
   let currentProvider = getCustomProviderConfig()?.providerName || 'custom';
   let currentModel = getCustomProviderConfig()?.defaultModel || 'unknown';
 
@@ -316,7 +355,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     if (controller.signal.aborted) {
       goalStore.upsertStep(goalId, stepCounter, 'paused', undefined, 'Goal paused explicitly.');
       goalStore.update(goalId, { status: 'paused' });
-      await generateCheckpoint(goalId, 'paused', `step-${stepCounter}`, stepCounter);
+      await generateCheckpoint(goalId, 'paused', `step-${stepCounter}`, stepCounter, workspaceRoot);
       goalStore.releaseLease(goalId, workerId);
       break;
     }
@@ -356,56 +395,129 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
         pushEventToWriter(writer, 'failed', 'CodeX Execution Circuit Breaker Open. Failing loop immediately.', undefined, undefined, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX stopped because the provider is unresponsive.', eventType: 'task_failed', provider: currentProvider, model: currentModel });
         break;
       }
-      
+
       const prompt = conversation.map(m => `${m.role.toUpperCase()}:
 ${m.content}`).join('\n\n');
-      
+
       let llmResult;
-      try {
-        const timeoutMs = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
-        const startLlm = Date.now();
-        llmResult = await llmChat({
-          prompt,
-          systemPrompt,
-          provider: 'ollama', // Force CodeX to use the intended local setup by default, though llmGateway handles routing.
-          timeoutMs
-        });
-        const durationLlm = Date.now() - startLlm;
-        console.log(`[codexLoop] LLM Generation took ${durationLlm}ms`);
-        
-        currentProvider = llmResult.provider;
-        currentModel = llmResult.model || 'unknown';
-
-        if (llmResult.offline) {
-          throw new Error(llmResult.error || 'All models unreachable');
-        }
-
-        if (cbState === 'half-open') {
-          recordCircuitBreakerSuccess('custom-codex');
-        }
-      } catch (providerErr: any) {
-        recordCircuitBreakerError('custom-codex');
-        pushEventToWriter(writer, 'failed', `CodeX provider failed: ${providerErr.message}`, undefined, providerErr.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX could not continue. Open the error details for more information.', eventType: 'step_failed', provider: currentProvider, model: currentModel });
-        break;
-      }
-
-      const response = llmResult.reply;
-      console.log(`[codexLoop] LLM Response: ${response}`);
-      conversation.push({ role: 'assistant', content: response });
-
       let toolCall: any = null;
       let parseError = '';
-      
-      let jsonMatch = response.match(/\`\`\`(?:json)?\n([\s\S]*?)\n\`\`\`/);
-      let rawJson = jsonMatch ? jsonMatch[1] : response.trim();
-      
-      try {
-        const parsed = JSON.parse(rawJson);
-        toolCall = ToolCallSchema.parse(parsed);
-      } catch (err: any) {
-        parseError = err.message;
+      let isRetry = false;
+      let effectiveSystemPrompt = systemPrompt;
+
+      // --- Retry loop: up to 2 attempts (original + 1 retry) ---
+      for (let attempt = 0; attempt < 2; attempt++) {
+        isRetry = attempt > 0;
+
+        if (isRetry) {
+          // Strengthen system prompt for retry
+          effectiveSystemPrompt = systemPrompt + STRICT_JSON_SYSTEM_PROMPT_SUFFIX;
+        }
+
+        try {
+          const timeoutMs = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
+          const llmOptions: any = {
+            prompt,
+            systemPrompt: effectiveSystemPrompt,
+            provider: 'ollama',
+            timeoutMs
+          };
+
+          // Use temperature 0 for retry if the API supports it
+          if (isRetry) {
+            llmOptions.temperature = 0;
+          }
+
+          const startLlm = Date.now();
+          llmResult = await llmChat(llmOptions);
+          const durationLlm = Date.now() - startLlm;
+          console.log(`[codexLoop] LLM Generation took ${durationLlm}ms`);
+
+          currentProvider = llmResult.provider;
+          currentModel = llmResult.model || 'unknown';
+
+          if (llmResult.offline) {
+            throw new Error(llmResult.error || 'All models unreachable');
+          }
+
+          if (cbState === 'half-open') {
+            recordCircuitBreakerSuccess('custom-codex');
+          }
+        } catch (providerErr: any) {
+          recordCircuitBreakerError('custom-codex');
+          pushEventToWriter(writer, 'failed', `CodeX provider failed: ${providerErr.message}`, undefined, providerErr.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX could not continue. Open the error details for more information.', eventType: 'step_failed', provider: currentProvider, model: currentModel });
+          throw providerErr; // Break out to fatal loop error handler
+        }
+
+        const response = llmResult.reply;
+        console.log(`[codexLoop] LLM Response (attempt ${attempt + 1}): ${response}`);
+        conversation.push({ role: 'assistant', content: response });
+
+        const parseResult = parseToolCall(response);
+        toolCall = parseResult.toolCall;
+        parseError = parseResult.parseError;
+
+        if (toolCall && toolCall.type === 'tool_call') {
+          break; // Valid tool call found — exit retry loop
+        }
+
+        // Parse failed on this attempt
+        if (!isRetry) {
+          // First attempt failed — emit retry event and continue to second attempt
+          console.error('[CodeX] Tool parsing failed on first attempt:', parseError);
+          console.error('[CodeX] Raw LLM response (first attempt):', response);
+
+          pushEventToWriter(
+            writer,
+            'retrying',
+            'LLM response could not be parsed. Retrying with strict JSON instructions.',
+            undefined,
+            parseError,
+            {
+              normalizedStatus: 'attention',
+              lifecycleState: 'retrying',
+              userMessage: 'LLM response could not be parsed. Retrying with strict JSON instructions.',
+              eventType: 'retry_started',
+              provider: currentProvider,
+              model: currentModel,
+              errorCode: 'CODEX_TOOL_PARSE_FAILED',
+              errorDetails: parseError,
+              payload: { responseLength: response.length }
+            }
+          );
+          // Continue to second attempt
+        } else {
+          // Second attempt also failed — fatal parse failure
+          console.error('[CodeX] Tool parsing failed on retry:', parseError);
+          console.error('[CodeX] Raw LLM response (retry):', response);
+
+          pushEventToWriter(
+            writer,
+            'failed',
+            `Tool parsing failed after retry: ${parseError}`,
+            undefined,
+            parseError,
+            {
+              normalizedStatus: 'failed',
+              lifecycleState: 'failed',
+              userMessage: 'CodeX received an invalid response from the model after retry. Open the backend logs for the raw response.',
+              eventType: 'task_failed',
+              provider: currentProvider,
+              model: currentModel,
+              errorCode: 'CODEX_TOOL_PARSE_FAILED',
+              errorDetails: parseError,
+              payload: { responseLength: response.length }
+            }
+          );
+
+          goalStore.update(goalId, { status: 'failed' });
+          // Break out of the while(true) loop via the outer catch or by returning
+          throw new Error('CODEX_TOOL_PARSE_FAILED');
+        }
       }
-      
+      // --- End retry loop ---
+
+      // At this point toolCall is guaranteed valid (we would have thrown otherwise)
       if (toolCall && toolCall.type === 'tool_call') {
         let toolResult = '';
         try {
@@ -418,14 +530,14 @@ ${m.content}`).join('\n\n');
             toolResult = `Error: Tool '${toolCall.tool}' is not allowed for this agent.`;
           }
           else if (toolCall.tool === 'writeFile' && args.path && args.content) {
-            const absolutePath = enforceWorkspacePath(args.path, writeScopes, context?.workspaceRoot);
+            const absolutePath = enforceWorkspacePath(args.path, writeScopes, workspaceRoot);
             fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
             fs.writeFileSync(absolutePath, args.content, 'utf-8');
-            validatePostWrite(absolutePath, writeScopes, context?.workspaceRoot);
+            validatePostWrite(absolutePath, writeScopes, workspaceRoot);
             toolResult = `Successfully wrote to ${args.path}`;
           }  
           else if (toolCall.tool === 'readFile' && args.path) {
-            const absolutePath = enforceWorkspacePath(args.path, readScopes, context?.workspaceRoot);
+            const absolutePath = enforceWorkspacePath(args.path, readScopes, workspaceRoot);
             if (fs.existsSync(absolutePath)) {
               toolResult = fs.readFileSync(absolutePath, 'utf-8').substring(0, 4096);
             } else {
@@ -433,7 +545,20 @@ ${m.content}`).join('\n\n');
             }
           }
           else if (toolCall.tool === 'runCommand' && args.cmd && args.args) {
-            const { stdout, stderr } = await runSandboxedCommand(args.cmd, args.args, controller.signal, context?.workspaceRoot);
+            // Shell file I/O (echo/cat/type/Get-Content/redirection) is blocked by
+            // sandbox policy — and unnecessary, because native tools exist.
+            // Stop it here with strict corrective instructions so the agent gets
+            // one immediate corrective retry with the right tool.
+            const shellIo = detectShellFileIo(args.cmd, args.args);
+            if (shellIo) {
+              throw new Error(
+                `${shellIo.detail}, which is blocked by sandbox policy because a safer native tool exists. ` +
+                `Use the ${shellIo.nativeTool} tool instead. Never use echo, printf, cat, type, Get-Content, ` +
+                `PowerShell redirection, or shell redirection for normal file reads/writes. ` +
+                `Retry now with ${shellIo.nativeTool}.`
+              );
+            }
+            const { stdout, stderr } = await runSandboxedCommand(args.cmd, args.args, controller.signal, workspaceRoot);
             toolResult = `STDOUT:\n${stdout}\nSTDERR:\n${stderr}`;
           }
           else if (toolCall.tool === 'reasoningQuery' && args.prompt) {
@@ -447,7 +572,7 @@ ${m.content}`).join('\n\n');
           }
           else if (toolCall.tool === 'finish') {
             toolResult = `Goal finished: ${args.message || 'completed'}`;
-            
+
             let handoffObj = args.handoff;
             if (context?.isTeamExecution && !handoffObj) {
               handoffObj = {
@@ -461,11 +586,11 @@ ${m.content}`).join('\n\n');
               };
               args.handoff = handoffObj;
             }
-            
+
             const verifiedArtifacts: any[] = [];
-            
+
             const verificationReport = args.verificationReport || args.handoff?.verificationReport;
-            
+
             db.transaction((tx) => {
               if (handoffObj && Array.isArray(handoffObj.artifacts)) {
                 if (context?.role?.toLowerCase().includes('planner')) {
@@ -473,18 +598,18 @@ ${m.content}`).join('\n\n');
                 }
                 for (const art of handoffObj.artifacts) {
                   if (!art.path) continue;
-                  
+
                   // Verification must use actual allowed output paths, we use outputArtifacts or writeScopes
                   const scopesToUse = writeScopes || [];
-                  const absolutePath = enforceWorkspacePath(art.path, scopesToUse, context?.workspaceRoot);
+                  const absolutePath = enforceWorkspacePath(art.path, scopesToUse, workspaceRoot);
                   if (!fs.existsSync(absolutePath)) throw new Error(`Artifact ${art.path} does not exist`);
-                  
+
                   const stat = fs.statSync(absolutePath);
                   if (stat.size === 0) throw new Error(`Artifact ${art.path} is empty`);
-                  
+
                   const content = fs.readFileSync(absolutePath);
                   const checksum = createHash('sha256').update(content).digest('hex');
-                  
+
                   if (!context?.runId || !context?.teamId) {
                     throw new Error("runId and teamId are strictly required to verify artifacts.");
                   }
@@ -512,7 +637,7 @@ ${m.content}`).join('\n\n');
                       eq(agentTeamArtifacts.path, art.path),
                       eq(agentTeamArtifacts.checksum, checksum)
                     )).get();
-                  
+
                   verifiedArtifacts.push({
                     id: existing!.id,
                     path: art.path,
@@ -545,12 +670,19 @@ ${m.content}`).join('\n\n');
 
               const handoffId = randomUUID();
               if (handoffObj) {
+                // Preserve the status the agent actually declared. An attempt
+                // that finished with status 'failed' must never be persisted
+                // as 'completed' — one attempt, one truthful terminal handoff.
+                const declaredStatus = args.handoff?.status === 'failed' || args.handoff?.status === 'blocked'
+                  ? args.handoff.status
+                  : 'completed';
+                handoffObj.status = declaredStatus;
                 tx.insert(agentTeamHandoffs).values({
                   id: handoffId,
                   teamId: context?.teamId || 'unknown',
                   goalId: goalId,
                   agentId: context?.agentId || 'codex',
-                  status: 'completed',
+                  status: declaredStatus,
                   summary: args.message || 'Completed',
                   artifacts: verifiedArtifacts,
                   createdAt: Date.now().toString()
@@ -581,14 +713,14 @@ ${m.content}`).join('\n\n');
               });
             }
 
-            await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter);
+            await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
             pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for final step`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
 
             const finishPayload: any = { handoff: handoffObj };
             if (context?.role === 'Verifier') finishPayload.verificationReport = verificationReport;
-            
+
             pushEventToWriter(writer, 'agent_completed', toolResult, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: `CodeX finished the task successfully.`, eventType: 'agent_completed', provider: currentProvider, model: currentModel, payload: finishPayload });
-            
+
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
             goalStore.update(goalId, { status: 'completed' });
             break;
@@ -601,7 +733,7 @@ ${m.content}`).join('\n\n');
           goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
           const durationMs = Date.now() - startTime;
           pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel, payload: { result: toolResult } });
-          await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter);
+          await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
 
         } catch (err: any) {
@@ -613,13 +745,14 @@ ${m.content}`).join('\n\n');
             pushEventToWriter(writer, 'retrying', `Tool error: ${err.message}`, undefined, err.message, { normalizedStatus: 'attention', lifecycleState: 'retrying', userMessage: 'The last tool failed. CodeX will attempt to retry.', eventType: 'step_failed', provider: currentProvider, model: currentModel, payload: { error: err.message } });
           }
         }
-      } else {
-        // No tools used - terminal state
-        pushEventToWriter(writer, 'agent_completed', 'CodeX stopped using tools.', undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: 'Task finished.', eventType: 'agent_completed', provider: currentProvider, model: currentModel });
-        goalStore.update(goalId, { status: 'completed' });
-        break;
       }
     } catch (err: any) {
+      // Distinguish between our own parse-failure throw and genuine fatal errors
+      if (err.message === 'CODEX_TOOL_PARSE_FAILED') {
+        // Already emitted event and set status to failed inside the retry loop.
+        // Just break cleanly.
+        break;
+      }
       pushEventToWriter(writer, 'failed', `Fatal loop error: ${err.message}`, undefined, err.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'A fatal error occurred. Task stopped.', eventType: 'task_failed', provider: currentProvider, model: currentModel, payload: { error: err.message } });
       goalStore.update(goalId, { status: 'failed' });
       break;

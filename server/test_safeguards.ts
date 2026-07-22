@@ -111,18 +111,11 @@ async function main() {
     workspaceRoot: 'B:/AgenticOS/server'
   };
 
-  // Mocking history where a tool tries to write
-  goalStore.pushEvent({
-    goalId: sandboxGoal,
-    sequence: 1,
-    timestamp: new Date().toISOString(),
+  goalStore.createEventWriter({ goalId: sandboxGoal }).push({
     state: 'reasoning',
-    step: 1,
     message: '',
-    provider: 'system',
-    model: 'system',
     tool: 'writeFile',
-    eventSchemaVersion: 1
+    payload: { path: 'bad.txt', content: 'test' }
   });
 
   goalStore.upsertStep(sandboxGoal, 1, 'started', JSON.stringify({ tool: 'writeFile', path: 'bad.txt', content: 'test' }));

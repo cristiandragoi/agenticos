@@ -223,8 +223,8 @@ export async function runSandboxedCommand(
   });
 }
 
-export async function captureWorkspaceSnapshot(): Promise<{ hash: string, status: string, branch: string }> {
-  const cwd = process.cwd();
+export async function captureWorkspaceSnapshot(workspaceRoot?: string): Promise<{ hash: string, status: string, branch: string }> {
+  const cwd = workspaceRoot || process.cwd();
   try {
     // Attempt git approach
     const hashCmd = await new Promise<{stdout: string}>((resolve, reject) => {

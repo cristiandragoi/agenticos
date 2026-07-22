@@ -141,3 +141,19 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# AgenticOS runtime/generated data
+.agentos/
+server/.agentos/
+server/data/runs.json
+
+# Temporary integration artifacts
+jarvis-integration-test*.txt
+server/jarvis-integration-test*.txt
+server/hello.txt
+plan.md
+scratch/
+landing-page-project/
+
+# Backups
+*.backup.ts

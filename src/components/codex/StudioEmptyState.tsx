@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Send, Zap, AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
+import { RunSettings } from './RunSettings';
+import { useCodexStore } from '../../store/codexStore';
 
 interface Props {
   onGoalCreated: (id: string) => void;
 }
 
 export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
+  const { setRunSettings } = useCodexStore();
   const [view, setView] = useState<'input' | 'preflight'>('input');
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -89,6 +92,9 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       });
       const data = await res.json();
       if (data.goalId) {
+        // Persist the chosen configuration so the execution view can
+        // show a compact summary while the run is active.
+        setRunSettings({ folderTree, workspacePath, execProvider, valProvider, approvalPolicy });
         onGoalCreated(data.goalId);
       } else {
         setError("Failed to create goal: " + (data.error || 'Unknown error'));
@@ -269,65 +275,23 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       </div>
 
       <div className="shrink-0 bg-[#252526] border-t border-[#333333] p-4 flex justify-center sticky bottom-0 z-10">
-        <div className="max-w-[1400px] w-full flex flex-col gap-4">
-          <div className="grid grid-cols-5 gap-4">
-            <div>
-              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Selected Folder Tree</label>
-              <input 
-                type="text" 
-                value={folderTree} 
-                onChange={e => setFolderTree(e.target.value)} 
-                className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 font-mono" 
-                placeholder={cwd || "Enter path..."} 
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Repository Root</label>
-              {isDetecting ? (
-                <div className="w-full bg-[#1e1e1e] border border-[#333333] text-[#858585] text-[12px] p-2 font-mono flex items-center gap-2 h-[34px]">
-                  <Loader2 size={12} className="animate-spin" /> Detecting...
-                </div>
-              ) : gitRoots.length === 0 ? (
-                <div className="w-full bg-[#3a1a1a] border border-[#552222] text-[#ff8888] text-[12px] p-2 font-mono truncate h-[34px]" title={workspaceError || "No git repo found"}>
-                  {workspaceError || "No repo found"}
-                </div>
-              ) : gitRoots.length === 1 ? (
-                <div className="w-full bg-[#1a2e22] border border-[#225533] text-[#88ffaa] text-[12px] p-2 font-mono truncate h-[34px]" title={gitRoots[0]}>
-                  {gitRoots[0]}
-                </div>
-              ) : (
-                <select 
-                  value={workspacePath} 
-                  onChange={e => setWorkspacePath(e.target.value)} 
-                  className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 font-mono h-[34px]"
-                >
-                  {gitRoots.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Execution Provider</label>
-              <select value={execProvider} onChange={e => setExecProvider(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 h-[34px]">
-                <option value="ollama">Ollama (Local)</option>
-                <option value="omniRoute">OmniRoute (Cloud)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Validation Provider</label>
-              <select value={valProvider} onChange={e => setValProvider(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-indigo-500 h-[34px]">
-                <option value="omniRoute">OmniRoute (Cloud)</option>
-                <option value="ollama">Ollama (Local)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5">Approval Policy</label>
-              <select value={approvalPolicy} onChange={e => setApprovalPolicy(e.target.value)} className="w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 h-[34px]">
-                <option value="auto">Auto-Approve Safe</option>
-                <option value="strict">Require Review</option>
-              </select>
-            </div>
-          </div>
-          
+        <div className="max-w-[1400px] w-full flex flex-col gap-3">
+          <RunSettings
+            values={{ folderTree, workspacePath, execProvider, valProvider, approvalPolicy }}
+            onChange={(patch) => {
+              if (patch.folderTree !== undefined) setFolderTree(patch.folderTree);
+              if (patch.workspacePath !== undefined) setWorkspacePath(patch.workspacePath);
+              if (patch.execProvider !== undefined) setExecProvider(patch.execProvider);
+              if (patch.valProvider !== undefined) setValProvider(patch.valProvider);
+              if (patch.approvalPolicy !== undefined) setApprovalPolicy(patch.approvalPolicy);
+            }}
+            gitRoots={gitRoots}
+            isDetecting={isDetecting}
+            workspaceError={workspaceError}
+            cwd={cwd}
+            defaultOpen={true}
+          />
+
           <div className="flex justify-end items-center gap-4">
             {!isRepoValid && !isDetecting && (
               <span className="text-rose-400 text-[12px] flex items-center gap-1"><AlertTriangle size={12}/> {workspaceError || "Waiting for valid repository..."}</span>

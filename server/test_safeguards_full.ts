@@ -62,14 +62,8 @@ async function main() {
     const payload: any = { handoff };
     if (report) payload.verificationReport = report;
     
-    goalStore.pushEvent({
-      goalId,
-      sequence: Date.now(),
-      timestamp: Date.now().toString(),
+    goalStore.createEventWriter({ goalId, teamId, agentId: agent }).push({
       state: 'queued',
-      step: 0,
-      agentId: agent,
-      teamId,
       tool: 'finish',
       message: 'Done',
       payload

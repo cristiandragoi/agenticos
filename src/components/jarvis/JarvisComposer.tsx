@@ -5,15 +5,22 @@ import styles from '../../pages/JarvisStudio.module.css';
 interface JarvisComposerProps {
   onSendMessage: (msg: string) => void;
   isProcessing: boolean;
+  /** When false, sending is blocked (e.g. no repository selected). */
+  workspaceReady?: boolean;
+  workspaceBlockReason?: string;
 }
 
-export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, isProcessing }) => {
+export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, isProcessing, workspaceReady = true, workspaceBlockReason }) => {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const sendBlocked = !workspaceReady;
+  const sendBlockedReason = workspaceBlockReason || 'Select a repository before starting execution work.';
+  const canSend = !!text.trim() && !isProcessing && !isTranscribing && !sendBlocked;
 
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
@@ -29,7 +36,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, i
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (text.trim() && !isProcessing) {
+      if (canSend) {
         onSendMessage(text);
         setText('');
       }
@@ -37,7 +44,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, i
   };
 
   const handleSend = () => {
-    if (text.trim() && !isProcessing) {
+    if (canSend) {
       onSendMessage(text);
       setText('');
     }
@@ -94,7 +101,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, i
   };
 
   return (
-    <div className={styles.composerContainer}>
+    <div className={styles.composerContainer} data-testid="jarvis-composer">
       <div className={styles.composerBox}>
         <button 
           className={`${styles.actionBtn} ${isRecording ? styles.activeVoice : ''}`}
@@ -108,7 +115,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, i
         <textarea
           ref={textareaRef}
           className={styles.composerInput}
-          placeholder="Ask Jarvis to orchestrate your workspace... (Shift+Enter for new line)"
+          placeholder={sendBlocked ? sendBlockedReason : "Ask Jarvis to orchestrate your workspace... (Shift+Enter for new line)"}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -120,10 +127,13 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({ onSendMessage, i
           <button 
             className={`${styles.actionBtn} ${styles.primary}`} 
             onClick={handleSend}
-            disabled={(!text.trim() && !isProcessing) || isTranscribing}
+            disabled={!canSend}
             aria-label="Send Message"
+            title={sendBlocked ? sendBlockedReason : 'Send message'}
+            style={{ padding: '6px 14px', gap: '6px', fontWeight: 600 }}
           >
             {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            <span>Send</span>
           </button>
         </div>
       </div>

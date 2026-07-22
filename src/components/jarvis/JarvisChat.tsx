@@ -1,17 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Server, User, Cpu, FileText, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Server, User, Cpu, AlertCircle } from 'lucide-react';
 import { JarvisComposer } from './JarvisComposer';
+import { JarvisTeamPreviewCard } from './JarvisTeamPreviewCard';
+import { JarvisTeamExecutionCard } from './JarvisTeamExecutionCard';
+import { JarvisGoalCard } from './JarvisGoalCard';
+import { useCodexStore } from '../../store/codexStore';
 import styles from '../../pages/JarvisStudio.module.css';
 
 interface JarvisChatProps {
   conversationId: string;
-  activeGoalId?: string | null;
 }
 
-export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGoalId }) => {
+interface SendErrorState {
+  message: string;
+  operationId: string;
+}
+
+const getMessageOperationId = (message: any): string | undefined => {
+  const operationId = message?.metadata?.operationId;
+  return typeof operationId === 'string' && operationId.length > 0 ? operationId : undefined;
+};
+
+const visibleMessagesForOperations = (messages: any[]) => {
+  const seenErrorOperations = new Set<string>();
+  return messages.filter(message => {
+    if (message.messageType !== 'error') return true;
+    const operationId = getMessageOperationId(message);
+    if (!operationId) return true;
+    if (seenErrorOperations.has(operationId)) return false;
+    seenErrorOperations.add(operationId);
+    return true;
+  });
+};
+
+export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId }) => {
+  const { runSettings } = useCodexStore();
   const [messages, setMessages] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [goalEvents, setGoalEvents] = useState<any[]>([]);
+  const [sendError, setSendError] = useState<SendErrorState | null>(null);
+  // The CodeX goal created from THIS chat session. Persisted in component
+  // state and re-derived from the message history, so re-renders, stream
+  // reconnects, and remounts never lose it.
+  const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = async () => {
@@ -30,7 +60,8 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGo
 
   useEffect(() => {
     fetchMessages();
-    setGoalEvents([]); // reset goal events on conv change
+    setCreatedGoalId(null); // reset session goal on conversation change
+    setSendError(null);
   }, [conversationId]);
 
   useEffect(() => {
@@ -53,48 +84,80 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGo
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, goalEvents, isProcessing]);
+  }, [messages, isProcessing]);
 
-  useEffect(() => {
-    if (!activeGoalId) return;
+  // The active CodeX goal: prefer the id returned by this session's POST,
+  // otherwise recover it from the persisted message history (goalId column).
+  const activeGoalId = useMemo(() => {
+    if (createdGoalId) return createdGoalId;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].goalId) return messages[i].goalId as string;
+    }
+    return null;
+  }, [createdGoalId, messages]);
 
-    // Connect to CodeX streaming
-    const es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
-    
-    es.addEventListener('goal_event', (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        setGoalEvents(prev => {
-          if (prev.find(p => p.sequenceId === data.sequenceId)) return prev;
-          return [...prev, data].sort((a, b) => a.sequenceId - b.sequenceId);
-        });
-      } catch (err) {}
-    });
+  // Only the LATEST team execution gets the full execution card — older
+  // executions stay as compact history notes so nothing is duplicated.
+  const latestTeamExecutionMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].messageType === 'team_execution' && messages[i].runId) return messages[i].id;
+    }
+    return null;
+  }, [messages]);
 
-    return () => {
-      es.close();
-    };
-  }, [activeGoalId]);
+  const workspaceReady = !!runSettings.workspacePath;
+
+  const visibleMessages = useMemo(() => visibleMessagesForOperations(messages), [messages]);
+  const sendErrorHiddenByMessage = useMemo(() => {
+    if (!sendError) return false;
+    return messages.some(message => (
+      message.messageType === 'error'
+      && getMessageOperationId(message) === sendError.operationId
+    ));
+  }, [messages, sendError]);
 
   const handleSendMessage = async (text: string) => {
+    const operationId = `jarvis-${conversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setIsProcessing(true);
+    setSendError(null);
     // Optimistically add user message
     setMessages(prev => [...prev, {
-      id: Date.now().toString(),
+      id: operationId,
       role: 'user',
       content: text,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      metadata: { operationId }
     }]);
 
     try {
-      await fetch(`/api/jarvis/conversations/${conversationId}/message`, {
+      const res = await fetch(`/api/jarvis/conversations/${conversationId}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: text })
+        body: JSON.stringify({
+          prompt: text,
+          workspacePath: runSettings.workspacePath || undefined,
+          approvalPolicy: runSettings.approvalPolicy,
+          operationId
+        })
       });
-      // The stream will add the agent messages
-    } catch (e) {
-      console.error(e);
+      const result = await res.json().catch(() => ({}));
+
+      if (!res.ok || result?.error) {
+        // Orchestrator-level failures are persisted as conversation messages.
+        // Refresh once so the error is visible even if the stream is late.
+        if (result?.route) {
+          await fetchMessages();
+        } else {
+          setSendError({ message: result?.error || `Request failed (${res.status})`, operationId });
+        }
+      } else if (result?.route === 'codex' && result?.goalId) {
+        // Preserve the real goalId so the execution card subscribes to the
+        // correct stream — never the team activeRunId.
+        setCreatedGoalId(result.goalId);
+      }
+      // The conversation stream adds the agent/system messages.
+    } catch (e: any) {
+      setSendError({ message: `Could not reach the backend: ${e.message || e}`, operationId });
     } finally {
       setIsProcessing(false);
     }
@@ -115,8 +178,8 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGo
 
   return (
     <>
-      <div className={styles.chatContainer}>
-        {messages.map(msg => {
+      <div className={styles.chatContainer} data-testid="jarvis-chat-scroll">
+        {visibleMessages.map(msg => {
           const isUser = msg.role === 'user';
           const isSystem = msg.role === 'system';
           const isError = msg.messageType === 'error';
@@ -163,6 +226,23 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGo
                   </div>
                 )}
 
+                {isSystem && msg.messageType === 'team_preview' && msg.metadata?.teamSheet && (
+                  <JarvisTeamPreviewCard 
+                    conversationId={conversationId}
+                    teamId={msg.metadata.teamId}
+                    teamSheet={msg.metadata.teamSheet}
+                  />
+                )}
+
+                {isSystem && msg.messageType === 'team_execution' && msg.runId && msg.id === latestTeamExecutionMessageId && (
+                  <div data-testid="jarvis-team-execution">
+                    <JarvisTeamExecutionCard 
+                      runId={msg.runId}
+                      teamId={msg.metadata?.teamId}
+                    />
+                  </div>
+                )}
+
                 {!isSystem && (
                   <div style={{ color: isError ? 'var(--color-error)' : 'inherit' }}>
                     {renderMessageContent(msg.content)}
@@ -172,30 +252,24 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGo
             </div>
           );
         })}
-        
-        {/* Render active CodeX Goal Events if any */}
-        {goalEvents.length > 0 && (
+
+        {/* Active CodeX goal: live status, approval controls, real event stream */}
+        {activeGoalId && (
           <div className={`${styles.messageRow} ${styles.system}`}>
-            <div className={styles.messageContent} style={{ border: '1px solid var(--color-jarvis)', background: 'rgba(56, 189, 248, 0.05)', textAlign: 'left', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontWeight: 600, color: 'var(--color-jarvis)' }}>
-                <FileText size={16} />
-                CodeX Execution Stream
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {goalEvents.map(evt => (
-                  <div key={evt.sequenceId} style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                    <span style={{ color: 'var(--text-primary)', marginRight: '8px' }}>[{evt.state}]</span>
-                    {evt.tool ? <span style={{ color: 'var(--color-jarvis)', marginRight: '8px' }}>Tool: {evt.tool}</span> : ''} 
-                    {evt.message}
-                    {evt.state === 'interrupted_requires_review' && (
-                      <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                        <button className={`${styles.actionBtn} ${styles.primary}`} style={{ padding: '4px 12px' }} onClick={() => fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'resume' })})}>Approve</button>
-                        <button className={styles.actionBtn} style={{ padding: '4px 12px', color: 'var(--color-error)' }} onClick={() => fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'abort' })})}>Cancel</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className={styles.messageContent} style={{ background: 'transparent', border: 'none', width: '100%', padding: 0 }}>
+              <JarvisGoalCard goalId={activeGoalId} />
+            </div>
+          </div>
+        )}
+
+        {sendError && !sendErrorHiddenByMessage && (
+          <div
+            data-testid="jarvis-send-error"
+            className={`${styles.messageRow} ${styles.system}`}
+          >
+            <div className={styles.messageContent} style={{ borderColor: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-error)' }}>
+              <AlertCircle size={14} />
+              {sendError.message}
             </div>
           </div>
         )}
@@ -203,7 +277,11 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, activeGo
         <div ref={chatEndRef} />
       </div>
 
-      <JarvisComposer onSendMessage={handleSendMessage} isProcessing={isProcessing} />
+      <JarvisComposer
+        onSendMessage={handleSendMessage}
+        isProcessing={isProcessing}
+        workspaceReady={workspaceReady}
+      />
     </>
   );
 };

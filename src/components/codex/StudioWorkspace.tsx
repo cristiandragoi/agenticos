@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useCodexStore } from '../../store/codexStore';
+import { TERMINAL_GOAL_STATES } from '../../presenters/executionStatus';
 import { StudioChat } from './StudioChat';
 import { StudioBoard } from './StudioBoard';
 import { StudioRecovery } from './StudioRecovery';
@@ -16,15 +17,25 @@ interface Props {
   onGoalCreated?: (id: string) => void;
 }
 
+/** No events for this long while a run is active => treat stream as disconnected. */
+const HEARTBEAT_TIMEOUT_MS = 45000;
+
 export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, activeTab, setActiveTab, onGoalCreated }) => {
 
-  const { setEvents } = useCodexStore();
+  const { setEvents, setGoalStatus, setConnectionState, streamNonce } = useCodexStore();
+  const lastEventAtRef = useRef<number>(Date.now());
+  const statusRef = useRef<string | null>(goalStatus);
+  statusRef.current = goalStatus;
 
   useEffect(() => {
     if (!activeGoalId) {
       setEvents([]);
+      setConnectionState('disconnected');
       return;
     }
+
+    let es: EventSource | null = null;
+    let closed = false;
 
     const fetchHistory = async () => {
       try {
@@ -33,23 +44,64 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
         if (data.history) {
           setEvents(data.history);
         }
+        if (data.status) {
+          setGoalStatus(data.status);
+        }
       } catch (e) {}
     };
     fetchHistory();
-    
-    const es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
+
+    lastEventAtRef.current = Date.now();
+    setConnectionState('reconnecting');
+
+    es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
+
+    es.onopen = () => {
+      setConnectionState('connected');
+    };
+
     es.addEventListener('goal_event', (e: any) => {
       try {
         const data = JSON.parse(e.data);
+        lastEventAtRef.current = Date.now();
+        setConnectionState('connected');
+        if (data.state) setGoalStatus(data.state);
         setEvents(prev => {
-          if (prev.find(p => p.sequenceId === data.sequenceId)) return prev;
-          return [...prev, data].sort((a, b) => a.sequenceId - b.sequenceId);
+          // Events are uniquely identified by their sequence number.
+          if (data.sequence !== undefined && prev.find(p => p.sequence === data.sequence)) return prev;
+          return [...prev, data].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
         });
+        // The server ends the stream at terminal states; close cleanly so
+        // EventSource does not flap into reconnect loops after completion.
+        if (data.state && TERMINAL_GOAL_STATES.includes(String(data.state).toLowerCase())) {
+          closed = true;
+          es?.close();
+        }
       } catch (err) {}
     });
 
-    return () => es.close();
-  }, [activeGoalId]);
+    es.onerror = () => {
+      if (closed) return;
+      // EventSource auto-retries: reflect that as "reconnecting".
+      setConnectionState(es?.readyState === EventSource.CLOSED ? 'disconnected' : 'reconnecting');
+    };
+
+    // Watchdog: a silent stream during an active run is surfaced as disconnected.
+    const watchdog = setInterval(() => {
+      if (closed) return;
+      const currentStatus = (statusRef.current || '').toLowerCase();
+      const runActive = statusRef.current && !TERMINAL_GOAL_STATES.includes(currentStatus) && currentStatus !== 'paused';
+      if (runActive && Date.now() - lastEventAtRef.current > HEARTBEAT_TIMEOUT_MS) {
+        setConnectionState('disconnected');
+      }
+    }, 5000);
+
+    return () => {
+      closed = true;
+      clearInterval(watchdog);
+      es?.close();
+    };
+  }, [activeGoalId, streamNonce]);
 
   const tabs = [
     { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },

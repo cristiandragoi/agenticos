@@ -194,18 +194,20 @@ router.post('/agents/run', async (req, res) => {
    Starts a new durable Goal Mode loop                 */
 router.post('/agents/goal', async (req, res) => {
   try {
-    const { goal: prompt, executionProvider, validationProvider, workspacePath, approvalPolicy } = req.body;
+    const { goal: prompt, executionProvider, validationProvider, workspacePath, approvalPolicy, conversationId, workspaceId } = req.body;
     
     console.log('[DEBUG] Received POST /api/chat/agents/goal payload:', {
       executionProvider,
       validationProvider,
       repositoryRoot: workspacePath,
-      approvalPolicy
+      approvalPolicy,
+      conversationId,
+      workspaceId
     });
 
     if (!prompt) return res.status(400).json({ error: 'goal is required' });
 
-    const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, executionProvider);
+    const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, executionProvider, conversationId, workspaceId);
     res.json({ goalId });
   } catch (err) {
     console.error('ERROR IN POST /agents/goal:', err);

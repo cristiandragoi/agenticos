@@ -84,4 +84,31 @@ describe('IntentRouter — required routing cases', () => {
     const direct = await router.routeIntent('How does OAuth work?');
     expect(codex.confidence).toBeGreaterThan(direct.confidence);
   });
+
+  // --- Agent Teams Tests ---
+  it('does NOT route ordinary use of team to agent_teams', async () => {
+    const result = await router.routeIntent('Write a message to my team.');
+    expect(result.route).not.toBe('agent_teams');
+  });
+
+  it('does NOT route ordinary questions about agents to agent_teams', async () => {
+    const result1 = await router.routeIntent('What is an AI agent?');
+    expect(result1.route).not.toBe('agent_teams');
+
+    const result2 = await router.routeIntent('Explain multi-agent systems.');
+    expect(result2.route).not.toBe('agent_teams');
+  });
+
+  it('does NOT route arbitrary questions about teams', async () => {
+    const result = await router.routeIntent('Which football team won?');
+    expect(result.route).not.toBe('agent_teams');
+  });
+
+  it('routes explicit multi-agent execution request to agent_teams', async () => {
+    const result1 = await router.routeIntent('Assemble an agent team to investigate this issue');
+    expect(result1.route).toBe('agent_teams');
+    
+    const result2 = await router.routeIntent('Build a team to analyze this code');
+    expect(result2.route).toBe('agent_teams');
+  });
 });

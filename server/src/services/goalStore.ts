@@ -14,6 +14,9 @@ class GoalStore extends EventEmitter {
       providerFallbackCount: goal.providerFallbackCount,
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
+      workspacePath: goal.workspacePath,
+      conversationId: goal.conversationId,
+      workspaceId: goal.workspaceId,
     }).run();
     this.emit('goal:created', goal);
     return goal;
@@ -47,6 +50,9 @@ class GoalStore extends EventEmitter {
       checkpointId: row.activeCheckpointId || undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      workspacePath: row.workspacePath || undefined,
+      conversationId: row.conversationId || undefined,
+      workspaceId: row.workspaceId || undefined,
       history: events as unknown as GoalEvent[],
       runSummary: row.runSummary as any
     };
@@ -142,46 +148,7 @@ class GoalStore extends EventEmitter {
     };
   }
 
-  pushEvent(event: GoalEvent) {
-    db.insert(goalEvents).values({
-      id: `${event.goalId}-${event.sequence}`,
-      goalId: event.goalId,
-      sequence: event.sequence,
-      timestamp: event.timestamp,
-      state: event.state,
-      step: event.step,
-      message: event.message,
-      provider: event.provider,
-      model: event.model,
-      tool: event.tool || null,
-      checkpointId: event.checkpointId || null,
-      error: event.error || null,
-      eventType: event.eventType || null,
-      normalizedStatus: event.normalizedStatus || null,
-      lifecycleState: event.lifecycleState || null,
-      userMessage: event.userMessage || null,
-      technicalMessage: event.technicalMessage || null,
-      durationMs: event.durationMs || null,
-      filePath: event.filePath || null,
-      command: event.command || null,
-      nextAction: event.nextAction || null,
-      retryCount: event.retryCount || null,
-      requiresUserAction: event.requiresUserAction || null,
-      errorCode: event.errorCode || null,
-      errorDetails: event.errorDetails || null,
-      teamId: event.teamId || null,
-      agentId: event.agentId || null,
-      payload: event.payload || null
-    }).onConflictDoNothing().run();
 
-    db.update(goals).set({
-      status: event.state,
-      updatedAt: Date.now().toString()
-    }).where(eq(goals.id, event.goalId)).run();
-
-    const updated = this.get(event.goalId);
-    if (updated) this.emit('goal:updated', updated);
-  }
 
   acquireLease(goalId: string, workerId: string, durationMs: number = 30000): boolean {
     const now = Date.now();

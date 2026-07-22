@@ -35,6 +35,7 @@ export const teamSheetBaseSchema = z.object({
   acceptanceCriteria: z.array(z.string()).default([]),
   estimatedParallelism: z.number().int().min(1).max(2).default(1),
   approvalRequired: z.boolean().default(true),
+  approvalPolicy: z.enum(['manual', 'auto']).optional(),
 });
 
 export const teamSheetSchema = teamSheetBaseSchema.superRefine((data, ctx) => {

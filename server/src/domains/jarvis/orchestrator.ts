@@ -2,15 +2,41 @@ import { conversationService } from '../conversations/service.js';
 import { intentRouter } from './intentRouter.js';
 import { codexService } from '../codex/service.js';
 import { llmChat } from '../../services/llmGateway.js';
+import { coordinatorService } from '../teams/coordinatorService.js';
+import { detectGitRepository } from '../../utils/workspaceValidation.js';
+
+import { z } from 'zod';
+
+const TeamPreviewMetadataSchema = z.object({
+  teamId: z.string(),
+  conversationId: z.string(),
+  previewStatus: z.string(),
+  teamSheet: z.any(),
+  createdAt: z.string()
+});
+
+const NO_WORKSPACE_ERROR = 'No repository selected. Choose a valid workspace in the workspace bar before starting CodeX or Agent Team work.';
+
+export interface OrchestratorResult {
+  route: string;
+  goalId?: string;
+  teamId?: string;
+  status?: string;
+  error?: string;
+  operationId?: string;
+}
 
 export class JarvisOrchestrator {
   
-  async handleMessage(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto') {
+  async handleMessage(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string): Promise<OrchestratorResult> {
+    const requestMetadata = operationId ? { operationId } : undefined;
+
     // 1. Append user message
     await conversationService.appendMessage({
       conversationId,
       role: 'user',
-      content: prompt
+      content: prompt,
+      metadata: requestMetadata
     });
 
     // 2. Route intent
@@ -22,70 +48,166 @@ export class JarvisOrchestrator {
       role: 'system',
       messageType: 'routing_event',
       content: `Intent routed to ${intent.route.toUpperCase()} (Confidence: ${(intent.confidence * 100).toFixed(0)}%) - ${intent.reason}`,
-      metadata: { intent }
+      metadata: { intent, ...(requestMetadata || {}) }
     });
 
     // 3. Dispatch
     switch (intent.route) {
       case 'codex':
-        return this.handleCodex(conversationId, prompt, workspacePath, approvalPolicy);
+        return this.handleCodex(conversationId, prompt, workspacePath, approvalPolicy, operationId);
+      case 'agent_teams':
+        return this.handleAgentTeams(conversationId, prompt, workspacePath, approvalPolicy, operationId);
       case 'hermes':
-        return this.handleHermes(conversationId, prompt);
+        return this.handleHermes(conversationId, prompt, operationId);
       case 'memory':
-        return this.handleMemory(conversationId, prompt);
+        return this.handleMemory(conversationId, prompt, operationId);
       case 'clarification_required':
-        return this.handleClarification(conversationId, prompt);
+        return this.handleClarification(conversationId, prompt, operationId);
       case 'direct':
       default:
-        return this.handleDirect(conversationId, prompt);
+        return this.handleDirect(conversationId, prompt, operationId);
     }
   }
 
-  private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto') {
-    try {
-      const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy);
-      
-      await conversationService.appendMessage({
-        conversationId,
-        role: 'system',
-        messageType: 'system_status',
-        content: `CodeX Goal initialized: ${goalId}. Generating plan...`,
-        goalId
-      });
+  /**
+   * Validate the workspace for routes that create real work.
+   * Returns an error string when invalid, or null when the workspace is usable.
+   */
+  private validateWorkspace(workspacePath: string): string | null {
+    if (!workspacePath || workspacePath === 'default') {
+      return NO_WORKSPACE_ERROR;
+    }
+    const { isValid, errorMessage } = detectGitRepository(workspacePath);
+    if (!isValid) {
+      return `Invalid workspace root: ${errorMessage || 'not a git repository'}. Select a valid repository in the workspace bar.`;
+    }
+    return null;
+  }
 
-      return { goalId, route: 'codex' };
-    } catch (err: any) {
+  private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string) {
+    const requestMetadata = operationId ? { operationId } : undefined;
+    const workspaceError = this.validateWorkspace(workspacePath);
+    if (workspaceError) {
       await conversationService.appendMessage({
         conversationId,
         role: 'system',
         messageType: 'error',
-        content: `Failed to initialize CodeX Goal: ${err.message}`
+        content: workspaceError,
+        metadata: requestMetadata
       });
+      return { route: 'codex', error: workspaceError, operationId };
+    }
+
+    try {
+      const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, undefined, conversationId);
+      const status = approvalPolicy === 'manual' ? 'waiting_for_approval' : 'queued';
+
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'system_status',
+        content: approvalPolicy === 'manual'
+          ? `CodeX Goal initialized: ${goalId}. Generating plan for your approval...`
+          : `CodeX Goal initialized: ${goalId}. Execution started.`,
+        goalId,
+        metadata: requestMetadata
+      });
+
+      return { goalId, route: 'codex', status, operationId };
+    } catch (err: any) {
+      const content = `Failed to initialize CodeX Goal: ${err.message}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content,
+        metadata: requestMetadata
+      });
+      return { route: 'codex', error: content, operationId };
     }
   }
 
-  private async handleHermes(conversationId: string, prompt: string) {
+  private async handleAgentTeams(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string) {
+    const requestMetadata = operationId ? { operationId } : undefined;
+    const workspaceError = this.validateWorkspace(workspacePath);
+    if (workspaceError) {
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content: workspaceError,
+        metadata: requestMetadata
+      });
+      return { route: 'agent_teams', error: workspaceError, operationId };
+    }
+
+    try {
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'system_status',
+        content: `Analyzing task and assembling Agent Team. Generating Team Sheet...`,
+        metadata: requestMetadata
+      });
+
+      const { teamId, teamSheet } = await coordinatorService.createTeam(prompt, workspacePath, approvalPolicy);
+      
+      const metadata = TeamPreviewMetadataSchema.parse({
+        teamId,
+        conversationId,
+        previewStatus: 'awaiting_approval',
+        teamSheet,
+        createdAt: new Date().toISOString()
+      });
+
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'team_preview',
+        content: `Team successfully designed. Awaiting your approval.`,
+        metadata: { ...metadata, ...(requestMetadata || {}) }
+      });
+
+      return { teamId, route: 'agent_teams', status: 'awaiting_approval', operationId };
+    } catch (err: any) {
+      const content = `Failed to initialize Agent Team: ${err.message}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content,
+        metadata: requestMetadata
+      });
+      return { route: 'agent_teams', error: content, operationId };
+    }
+  }
+
+  private async handleHermes(conversationId: string, prompt: string, operationId?: string) {
     // Block: Hermes does not have a canonical backend execution engine yet.
+    const content = 'Hermes execution engine is currently offline/unavailable in this environment.';
     await conversationService.appendMessage({
       conversationId,
       role: 'system',
       messageType: 'error',
-      content: 'Hermes execution engine is currently offline/unavailable in this environment.'
+      content,
+      metadata: operationId ? { operationId } : undefined
     });
-    return { route: 'hermes', status: 'unavailable' };
+    return { route: 'hermes', status: 'unavailable', error: content, operationId };
   }
 
-  private async handleMemory(conversationId: string, prompt: string) {
+  private async handleMemory(conversationId: string, prompt: string, operationId?: string) {
+    const content = 'Memory indexing service is currently offline.';
     await conversationService.appendMessage({
       conversationId,
       role: 'system',
       messageType: 'error',
-      content: 'Memory indexing service is currently offline.'
+      content,
+      metadata: operationId ? { operationId } : undefined
     });
-    return { route: 'memory', status: 'unavailable' };
+    return { route: 'memory', status: 'unavailable', error: content, operationId };
   }
 
-  private async handleDirect(conversationId: string, prompt: string) {
+  private async handleDirect(conversationId: string, prompt: string, operationId?: string) {
     try {
       const systemPrompt = `You are Jarvis, the core orchestration agent of Agentic OS. Keep answers short, direct, and conversational.`;
       const result = await llmChat({ systemPrompt, prompt });
@@ -94,26 +216,31 @@ export class JarvisOrchestrator {
         conversationId,
         role: 'agent',
         content: result.reply,
-        routedAgent: 'jarvis'
+        routedAgent: 'jarvis',
+        metadata: operationId ? { operationId } : undefined
       });
-      return { route: 'direct' };
+      return { route: 'direct', operationId };
     } catch (err: any) {
+      const content = `Direct chat failed: ${err.message}`;
       await conversationService.appendMessage({
         conversationId,
         role: 'system',
         messageType: 'error',
-        content: `Direct chat failed: ${err.message}`
+        content,
+        metadata: operationId ? { operationId } : undefined
       });
+      return { route: 'direct', error: content, operationId };
     }
   }
-  private async handleClarification(conversationId: string, prompt: string) {
+  private async handleClarification(conversationId: string, prompt: string, operationId?: string) {
     await conversationService.appendMessage({
       conversationId,
       role: 'agent',
       content: 'Could you please clarify your request? I want to make sure I route it to the correct subsystem (CodeX for engineering, Hermes for project tracking, or just a direct chat).',
-      routedAgent: 'jarvis'
+      routedAgent: 'jarvis',
+      metadata: operationId ? { operationId } : undefined
     });
-    return { route: 'clarification_required' };
+    return { route: 'clarification_required', operationId };
   }
 }
 

@@ -1,7 +1,7 @@
 .jarvisViewport {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: 'Inter', sans-serif;
@@ -14,11 +14,6 @@
   flex-direction: column;
   position: relative;
   min-width: 0;
-  transition: margin-right var(--transition-slow);
-}
-
-.mainColumnWithInspector {
-  margin-right: var(--drawer-width);
 }
 
 .topBar {
@@ -61,20 +56,17 @@
   flex: 1;
   overflow-y: auto;
   padding: 24px;
-  padding-bottom: 160px; /* Space for composer */
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
 }
 
 .composerContainer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px 24px;
-  background: linear-gradient(transparent, var(--bg-base) 20%);
-  pointer-events: none;
+  flex-shrink: 0;
+  padding: 12px 24px 16px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .composerBox {
@@ -87,7 +79,6 @@
   gap: 12px;
   max-width: 800px;
   margin: 0 auto;
-  pointer-events: auto;
   box-shadow: var(--shadow-lg);
   transition: border-color var(--transition-fast);
 }
@@ -212,6 +203,9 @@
   font-size: 0.9375rem;
   line-height: 1.6;
   max-width: calc(100% - 48px);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .messageRow.agent .messageContent {
@@ -279,7 +273,7 @@
 }
 
 .sidebar {
-  width: var(--rail-width);
+  width: 280px;
   background-color: var(--bg-surface);
   border-right: 1px solid var(--border-subtle);
   display: flex;
@@ -287,6 +281,14 @@
   flex-shrink: 0;
   z-index: 10;
   height: 100%;
+  transition: width var(--transition-slow), opacity var(--transition-slow);
+}
+
+.sidebarCollapsed {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-right: none;
 }
 
 .sidebarHeader {
@@ -342,17 +344,21 @@
 }
 
 .inspector {
-  width: var(--drawer-width);
+  width: 320px;
   background-color: var(--bg-surface);
   border-left: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   height: 100%;
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  transition: width var(--transition-slow), opacity var(--transition-slow);
+}
+
+.inspectorCollapsed {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-left: none;
 }
 
 .inspectorHeader {
