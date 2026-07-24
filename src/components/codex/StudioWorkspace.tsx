@@ -6,7 +6,6 @@ import { StudioBoard } from './StudioBoard';
 import { StudioRecovery } from './StudioRecovery';
 import { StudioPlan } from './StudioPlan';
 import { StudioFiles } from './StudioFiles';
-import { StudioEmptyState } from './StudioEmptyState';
 import { MessageSquare, LayoutList, Kanban, FolderCode, GitCompare, TerminalSquare, ShieldCheck, Activity, Save } from 'lucide-react';
 
 interface Props {
@@ -30,7 +29,7 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
   useEffect(() => {
     if (!activeGoalId) {
       setEvents([]);
-      setConnectionState('disconnected');
+      setConnectionState('idle_connected');
       return;
     }
 
@@ -52,6 +51,11 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
     fetchHistory();
 
     lastEventAtRef.current = Date.now();
+    const currentStatus = (statusRef.current || '').toLowerCase();
+    if (TERMINAL_GOAL_STATES.includes(currentStatus) || ['paused', 'waiting_for_approval'].includes(currentStatus)) {
+      setConnectionState('idle_connected');
+      return () => {};
+    }
     setConnectionState('reconnecting');
 
     es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
@@ -101,7 +105,7 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
       clearInterval(watchdog);
       es?.close();
     };
-  }, [activeGoalId, streamNonce]);
+  }, [activeGoalId, goalStatus, streamNonce]);
 
   const tabs = [
     { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
@@ -134,11 +138,8 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
       </div>
       
       <div className="flex-1 relative overflow-hidden bg-[#1e1e1e]">
-        {!activeGoalId && activeTab === 'chat' ? (
-          <StudioEmptyState onGoalCreated={onGoalCreated!} />
-        ) : (
-          <>
-            {activeTab === 'chat' && <StudioChat activeGoalId={activeGoalId} />}
+        <>
+            {activeTab === 'chat' && <StudioChat activeGoalId={activeGoalId} onGoalCreated={onGoalCreated} />}
             {activeTab === 'plan' && <StudioPlan activeGoalId={activeGoalId} />}
             {activeTab === 'board' && <StudioBoard activeGoalId={activeGoalId} />}
             {activeTab === 'files' && <StudioFiles activeGoalId={activeGoalId} />}
@@ -161,8 +162,7 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
                 )}
               </div>
             )}
-          </>
-        )}
+        </>
       </div>
 
       {goalStatus === 'interrupted_requires_review' && (

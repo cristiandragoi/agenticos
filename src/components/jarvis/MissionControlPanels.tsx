@@ -171,7 +171,7 @@ export const OverviewTab = ({ runs }: { runs: RunData[] }) => {
         </div>
         
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>J.A.R.V.I.S. - MISSION CONTROL</div>
+          <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>JARVIS - MISSION CONTROL</div>
           <h2 style={{ fontSize: 36, fontWeight: 800, color: '#e2e8f0', letterSpacing: -1, marginBottom: 12 }}>Jarvis Mission Control</h2>
           <p style={{ fontSize: 13, color: '#94a3b8', maxWidth: 600, marginBottom: 24, lineHeight: 1.5 }}>Jarvis Mission Control: voice + command center for my Agentic OS.</p>
           

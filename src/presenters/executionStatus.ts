@@ -1,5 +1,6 @@
 import type { GoalEvent } from '../../server/src/types';
 import { getToolLabel } from './EventPresenter';
+import { CODEX_MODEL, CODEX_PROVIDER } from '../config/codexRuntime';
 
 /**
  * Normalized run-status colors used across CodeX Studio:
@@ -12,7 +13,7 @@ import { getToolLabel } from './EventPresenter';
  */
 export type RunStatusColor = 'green' | 'blue' | 'yellow' | 'purple' | 'red' | 'grey';
 
-export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
+export type ConnectionState = 'idle_connected' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'backend_unreachable';
 
 export interface CurrentActionInfo {
   color: RunStatusColor;
@@ -29,7 +30,7 @@ export interface CurrentActionInfo {
   error?: string;
 }
 
-export const TERMINAL_GOAL_STATES = ['completed', 'failed', 'stopped', 'cancelled'];
+export const TERMINAL_GOAL_STATES = ['completed', 'failed', 'stopped', 'cancelled', 'timed_out'];
 
 export const RUN_STATUS_STYLES: Record<RunStatusColor, { dot: string; text: string; border: string; bg: string; ring: string }> = {
   green:  { dot: 'bg-emerald-500', text: 'text-emerald-400', border: 'border-emerald-500/40', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/30' },
@@ -87,17 +88,58 @@ export function deriveCurrentAction(
     message: 'No active execution. Describe a goal to begin.',
     isActive: false,
     agent: 'CodeX Agent',
-    provider: lastRuntimeEvent?.provider,
-    model: lastRuntimeEvent?.model,
+    provider: lastRuntimeEvent?.provider === 'custom' ? CODEX_PROVIDER : (lastRuntimeEvent?.provider || CODEX_PROVIDER),
+    model: lastRuntimeEvent?.model === 'qwen2.5-coder:7b' ? CODEX_MODEL : (lastRuntimeEvent?.model || CODEX_MODEL),
     tool: lastToolEvent?.tool,
     filePath: lastToolEvent?.filePath,
     command: lastToolEvent?.command,
     nextAction: 'Waiting for a goal.'
   };
 
-  if (!goalStatus) return base;
+  if (!goalStatus) {
+    if (connectionState === 'backend_unreachable') {
+      return {
+        ...base,
+        color: 'red',
+        statusLabel: 'Backend unavailable',
+        message: 'CodeX backend is not reachable.',
+        nextAction: 'Retry connection.'
+      };
+    }
+    if (connectionState === 'connecting') {
+      return {
+        ...base,
+        color: 'yellow',
+        statusLabel: 'Connecting',
+        message: 'Checking CodeX backend.',
+        nextAction: 'Wait for backend health check.'
+      };
+    }
+    if (connectionState === 'idle_connected' || connectionState === 'connected') {
+      return {
+        ...base,
+        color: 'green',
+        statusLabel: 'Ready',
+        message: 'No active execution. Describe a goal to begin.',
+        nextAction: 'Waiting for a goal.'
+      };
+    }
+    return base;
+  }
 
   // Connection loss never hides the run: show the last known action, flagged.
+  if (connectionState === 'backend_unreachable') {
+    return {
+      ...base,
+      color: 'red',
+      statusLabel: 'Backend unavailable',
+      message: last ? `${toolOrStatusPhrase(last)} (backend unreachable)` : 'CodeX backend is not reachable.',
+      isActive: false,
+      nextAction: 'Retry connection.',
+      error: last?.error
+    };
+  }
+
   if (connectionState === 'disconnected') {
     return {
       ...base,
@@ -140,7 +182,7 @@ export function deriveCurrentAction(
       color: 'red',
       statusLabel: 'Stopped',
       message: 'Execution stopped.',
-      nextAction: 'Start a new run or resume from the last checkpoint.'
+      nextAction: 'New Task, Resume when a checkpoint exists, or View logs.'
     };
   }
 
@@ -151,6 +193,16 @@ export function deriveCurrentAction(
       statusLabel: 'Paused',
       message: status === 'pause_requested' ? 'Pausing after the current step…' : 'Execution paused.',
       nextAction: 'Resume to continue from the last checkpoint.'
+    };
+  }
+
+  if (status === 'stopping') {
+    return {
+      ...base,
+      color: 'yellow',
+      statusLabel: 'Stopping',
+      message: 'Stopping execution...',
+      nextAction: 'Wait for the backend to persist the stopped state.'
     };
   }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Target, Send, Zap, AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
 import { RunSettings } from './RunSettings';
 import { useCodexStore } from '../../store/codexStore';
+import { CODEX_BASE_URL, CODEX_MODEL } from '../../config/codexRuntime';
 
 interface Props {
   onGoalCreated: (id: string) => void;
@@ -94,7 +95,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       if (data.goalId) {
         // Persist the chosen configuration so the execution view can
         // show a compact summary while the run is active.
-        setRunSettings({ folderTree, workspacePath, execProvider, valProvider, approvalPolicy });
+        setRunSettings({ folderTree, workspacePath, execProvider, execModel: CODEX_MODEL, baseUrl: CODEX_BASE_URL, valProvider, approvalPolicy });
         onGoalCreated(data.goalId);
       } else {
         setError("Failed to create goal: " + (data.error || 'Unknown error'));

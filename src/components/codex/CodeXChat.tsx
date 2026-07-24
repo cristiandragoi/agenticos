@@ -60,6 +60,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
     localChat, setLocalChat,
     input, setInput,
     workspacePath, setWorkspacePath,
+    runSettings,
     showSettings, setShowSettings,
     isPlanning, setIsPlanning,
     isStarting, setIsStarting,
@@ -124,7 +125,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
           goal: userPrompt,
           executionProvider: 'ollama',
           validationProvider: 'omniRoute',
-          workspacePath,
+          workspacePath: runSettings.workspacePath || workspacePath,
           approvalPolicy: 'manual'
         };
         console.log('Sending fetch with payload:', JSON.stringify(payload));

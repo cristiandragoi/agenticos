@@ -43,20 +43,18 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
                   systemPrompt?.toLowerCase().includes('reasoning') ||
                   systemPrompt?.toLowerCase().includes('pipeline');
 
-  // OmniRoute is prepended first — it acts as the universal AI gateway.
-  // The 'auto' combo selects the best available provider (confirmed: uses 'auggie' provider).
-  // All traffic is logged in ~/.omniroute/call_logs/ and visible in the dashboard.
-  const omniRouteKey = process.env.OMNIROUTE_API_KEY;
-  const omniRouteBase = process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1';
-  const omniRouteProvider = omniRouteKey ? [{
-    name: 'OmniRoute',
-    url: omniRouteBase + '/chat/completions',
-    model: 'auto',
-    key: omniRouteKey,
+  const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.OMNIROUTE_API_KEY;
+  const openRouterBase = process.env.OPENROUTER_BASE_URL || process.env.OMNIROUTE_BASE_URL || 'https://openrouter.ai/api/v1';
+  const openRouterModel = process.env.OPENROUTER_MODEL || process.env.OMNIROUTE_MODEL || 'poolside/laguna-s-2.1:free';
+  const openRouterProvider = openRouterKey ? [{
+    name: 'OpenRouter',
+    url: openRouterBase + '/chat/completions',
+    model: openRouterModel,
+    key: openRouterKey,
   }] : [];
 
   let realProviders = [
-    ...omniRouteProvider,
+    ...openRouterProvider,
     { name: 'Fugu Ultra', url: 'https://api.sakana.ai/v1/chat/completions', model: 'fugu-ultra-20260615', key: process.env.FUGU_API_KEY },
     { name: 'Fusion', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openrouter/fusion-large', key: process.env.FUSION_API_KEY },
     { name: 'Qwable 27B Coder', url: 'http://localhost:8642/v1/chat/completions', model: 'qwable-27b-coder', key: process.env.QWABLE_API_KEY || 'qwable' },
@@ -67,17 +65,17 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
     { name: 'Qwythos 9B', url: 'http://localhost:11434/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
     { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/v1/chat/completions', model: 'qwen3.5:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
     // ── Remote Providers ────────────────────────────────────────────────────
-    { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4o-mini', key: process.env.OPENROUTER_API_KEY },
+    { name: 'OpenRouter Fallback', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4o-mini', key: process.env.OPENROUTER_API_KEY },
     { name: 'DeepSeek', url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat', key: process.env.DEEPSEEK_API_KEY },
     { name: 'Groq', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', key: process.env.GROQ_API_KEY },
   ].filter(p => !!p.key);
 
 
   if (!isHeavy) {
-    // For light tasks, prefer Groq after OmniRoute — but OmniRoute always stays first
+    // For light tasks, prefer Groq after OpenRouter — but OpenRouter always stays first
     realProviders = realProviders.sort((a, b) => {
-      if (a.name === 'OmniRoute') return -1;
-      if (b.name === 'OmniRoute') return 1;
+      if (a.name === 'OpenRouter') return -1;
+      if (b.name === 'OpenRouter') return 1;
       if (a.name === 'Groq') return -1;
       if (b.name === 'Groq') return 1;
       return 0;
@@ -86,8 +84,8 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
 
   const isHermesStudio = systemPrompt?.includes('CONTEXT: hermes-studio');
   if (isHermesStudio && !isHeavy) {
-    // Fast config questions: use OmniRoute, Groq and OpenRouter
-    realProviders = realProviders.filter(p => p.name === 'OmniRoute' || p.name === 'Groq' || p.name === 'OpenRouter');
+    // Fast config questions: use OpenRouter and Groq.
+    realProviders = realProviders.filter(p => p.name === 'OpenRouter' || p.name === 'Groq' || p.name === 'OpenRouter Fallback');
   }
 
   // Sort based on explicit agent selection (prioritize them, but keep fallbacks)

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { 
   AgentDefinition, Runtime, ProviderDefinition, RunRecord, 
   MemoryScope, MemoryEntry, Artifact, Board, ToolDefinition, ResearchBrief, ServiceLead
@@ -58,11 +58,15 @@ const initialState: DataState = {
 };
 
 const DataContext = createContext<DataState>(initialState);
+const DATA_REFRESH_INTERVAL_MS = 60_000;
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DataState>(initialState);
+  const inFlightRef = useRef(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
       const [
         agents, providers, runs, runtimes, 
@@ -90,16 +94,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
     } catch (err) {
       setState(prev => ({ ...prev, isLoading: false, error: err instanceof Error ? err.message : 'Failed to fetch' }));
+    } finally {
+      inFlightRef.current = false;
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(() => {
-      fetchData();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+      if (document.visibilityState === 'visible') fetchData();
+    }, DATA_REFRESH_INTERVAL_MS);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchData();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [fetchData]);
 
   return <DataContext.Provider value={state}>{children}</DataContext.Provider>;
 }

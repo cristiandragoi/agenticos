@@ -18,13 +18,14 @@ export const JarvisWorkspaceBar: React.FC = () => {
   const firstRun = useRef(true);
 
   const detect = async (basePath?: string) => {
+    const requestedPath = basePath?.trim();
     setIsDetecting(true);
     setWorkspaceError(null);
     try {
       const res = await fetch('/api/workspace/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ basePath: basePath || undefined })
+        body: JSON.stringify({ basePath: requestedPath || undefined })
       });
       const data = await res.json();
       if (!data.isValid) {
@@ -35,10 +36,11 @@ export const JarvisWorkspaceBar: React.FC = () => {
         const roots: string[] = data.gitRoots || [];
         setGitRoots(roots);
         if (roots.length === 1) {
-          setRunSettings(prev => ({ ...prev, workspacePath: roots[0] }));
+          setRunSettings(prev => ({ ...prev, folderTree: requestedPath || roots[0], workspacePath: roots[0] }));
         } else if (roots.length > 1) {
           setRunSettings(prev => ({
             ...prev,
+            folderTree: requestedPath || prev.folderTree,
             workspacePath: roots.includes(prev.workspacePath) ? prev.workspacePath : roots[0]
           }));
         }
@@ -93,6 +95,13 @@ export const JarvisWorkspaceBar: React.FC = () => {
         aria-label="Workspace path"
         value={runSettings.folderTree}
         placeholder="Enter repository path…"
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            detect((e.currentTarget as HTMLInputElement).value);
+          }
+        }}
+        onBlur={e => detect(e.currentTarget.value)}
         onChange={e => {
           setTouched(true);
           setRunSettings(prev => ({ ...prev, folderTree: e.target.value }));
@@ -115,7 +124,7 @@ export const JarvisWorkspaceBar: React.FC = () => {
         <select
           aria-label="Repository root"
           value={runSettings.workspacePath}
-          onChange={e => setRunSettings(prev => ({ ...prev, workspacePath: e.target.value }))}
+          onChange={e => setRunSettings(prev => ({ ...prev, folderTree: prev.folderTree || e.target.value, workspacePath: e.target.value }))}
           style={{
             background: 'rgba(0,0,0,0.25)',
             border: '1px solid var(--border-color)',

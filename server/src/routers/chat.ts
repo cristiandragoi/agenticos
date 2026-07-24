@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { runStore } from '../services/runStore.js';
 import { runtimeRegistry } from '../services/runtimeRegistry.js';
 import { mockAgents } from '../data.js';
-import { llmChat, llmProbe } from '../services/llmGateway.js';
+import { llmChat, llmProbe, OLLAMA_BASE } from '../services/llmGateway.js';
 import { resumeCodexGoalLoop } from '../loops/codexLoop.js';
 import { goalStore } from '../services/goalStore.js';
 import { codexService } from '../domains/codex/service.js';
@@ -205,13 +205,13 @@ router.post('/agents/goal', async (req, res) => {
       workspaceId
     });
 
-    if (!prompt) return res.status(400).json({ error: 'goal is required' });
+    if (!prompt) return res.status(400).json({ error: 'Describe what you want CodeX to do.' });
 
     const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, executionProvider, conversationId, workspaceId);
     res.json({ goalId });
-  } catch (err) {
+  } catch (err: any) {
     console.error('ERROR IN POST /agents/goal:', err);
-    res.status(500).json({ error: String(err) });
+    res.status(err?.status || 500).json({ error: err?.message || String(err) });
   }
 });
 
@@ -306,7 +306,7 @@ router.post('/agents/goal/:id/pause', (req, res) => {
 });
 
 /* ── POST /api/chat/agents/goal/:id/resume ────────────── */
-router.post('/agents/goal/:id/resume', (req, res) => {
+router.post('/agents/goal/:id/resume', async (req, res) => {
   const goalId = req.params.id;
   const goal = goalStore.get(goalId);
   if (!goal) return res.status(404).json({ error: 'Goal not found' });
@@ -315,7 +315,27 @@ router.post('/agents/goal/:id/resume', (req, res) => {
     return res.status(409).json({ error: 'Goal is currently tearing down. Please wait until fully paused.' });
   }
 
-  if (goal.status === 'paused' || goal.status === 'failed' || goal.status === 'interrupted' || goal.status === 'waiting_for_approval') {
+  const checkpoint = goalStore.getLatestCheckpoint(goalId);
+  const eligible = ['paused', 'failed', 'interrupted', 'stopped'].includes(goal.status);
+  if (!eligible) {
+    return res.status(409).json({ error: `Goal status '${goal.status}' cannot be resumed.` });
+  }
+  if (!goal.originalGoal?.trim()) {
+    return res.status(400).json({ error: 'Cannot resume without an original task.' });
+  }
+  if (!checkpoint) {
+    return res.status(409).json({ error: 'Cannot resume without a persisted checkpoint.' });
+  }
+  try {
+    const providerRes = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    if (!providerRes.ok) {
+      return res.status(503).json({ error: `Provider is not reachable: Ollama HTTP ${providerRes.status}` });
+    }
+  } catch (err: any) {
+    return res.status(503).json({ error: err?.message || 'Provider is not reachable.' });
+  }
+
+  {
     goalStore.update(goalId, { status: 'queued' });
     resumeCodexGoalLoop(goalId).catch(console.error);
   }
@@ -402,17 +422,17 @@ router.get('/agents/goal/:id/checkpoints', (req, res) => {
 /* ── POST /api/chat/agents/goal/:id/approve ────────────── */
 router.post('/agents/goal/:id/approve', async (req, res) => {
   const goalId = req.params.id;
-  const { action } = req.body; // 'resume' | 'abort'
+  const { action } = req.body; // 'approve' | 'reject' | legacy 'resume' | 'abort'
 
-  if (action === 'resume') {
+  if (action === 'approve' || action === 'resume') {
     const success = await codexService.approveAndResume(goalId);
     if (!success) return res.status(400).json({ error: 'Failed to resume goal' });
-    res.json({ success: true, status: 'resumed' });
-  } else if (action === 'abort') {
+    res.json({ success: true, status: 'queued' });
+  } else if (action === 'reject' || action === 'abort') {
     await codexService.abortGoal(goalId);
     res.json({ success: true, status: 'stopped' });
   } else {
-    res.status(400).json({ error: 'Invalid action. Expected resume or abort.' });
+    res.status(400).json({ error: 'Invalid action. Expected approve or reject.' });
   }
 });
 

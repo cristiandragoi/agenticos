@@ -77,7 +77,7 @@ const DesktopBoard: React.FC = () => {
           />
           <AgentTile 
             id="athena"
-            name="Athena"
+            name="Unavailable agent"
             description="Specialized in data analysis, vector search, and long-term memory aggregation."
             icon={Cpu}
             colorVar="var(--color-athena)"

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JarvisChat } from '../components/jarvis/JarvisChat';
+import { JarvisComposer } from '../components/jarvis/JarvisComposer';
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import TeamTimeline from '../components/teams/TeamTimeline';
 import JarvisStudio from '../pages/JarvisStudio';
@@ -26,9 +27,28 @@ const fetchMock = vi.fn();
 let messagesForTest: any[] = [];
 let goalStatus = 'completed';
 let detectValid = true;
+const encoder = new TextEncoder();
 
 function jsonResponse(body: any, ok = true, status = 200) {
   return { ok, status, statusText: ok ? 'OK' : 'ERROR', json: async () => body };
+}
+
+function sse(event: string, data: any) {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function directStreamResponse() {
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(sse('chunk', { delta: 'Direct answer.' })));
+        controller.enqueue(encoder.encode(sse('done', { route: 'direct', firstTokenMs: 10 })));
+        controller.close();
+      }
+    })
+  };
 }
 
 const BUILDER_HANDOFF = {
@@ -55,6 +75,7 @@ const TEAM = {
 
 function routeFetch(url: string, options?: any) {
   if (url.endsWith('/api/jarvis/conversations/conv-1/messages')) return jsonResponse(messagesForTest);
+  if (url.endsWith('/api/jarvis/conversations/conv-1/message/stream') && options?.method === 'POST') return directStreamResponse();
   if (url.endsWith('/api/jarvis/conversations/conv-1/message') && options?.method === 'POST') return jsonResponse({ goalId: 'goal-abc', route: 'codex', status: 'completed' });
   if (url.endsWith('/api/chat/agents/goal/goal-abc')) return jsonResponse({ id: 'goal-abc', status: goalStatus, originalGoal: 'Build a thing', history: [], createdAt: new Date().toISOString() });
   if (url.endsWith('/api/chat/agents/goal/goal-abc/approve')) return jsonResponse({ success: true });
@@ -63,7 +84,7 @@ function routeFetch(url: string, options?: any) {
       ? jsonResponse({ isValid: true, cwd: 'B:\\AgenticOS\\server', gitRoots: ['B:\\Repo'] })
       : jsonResponse({ isValid: false, errorMessage: 'No Git repository found in this folder tree.' });
   }
-  if (url.endsWith('/api/jarvis/conversations') && !options) return jsonResponse([]);
+  if (url.endsWith('/api/jarvis/conversations') && !options) return jsonResponse([{ id: 'conv-1', title: 'Main' }]);
   if (url.endsWith('/api/jarvis/conversations') && options?.method === 'POST') return jsonResponse({ id: 'conv-new' });
   if (url.endsWith('/api/jarvis/diagnostics')) return jsonResponse({ summary: { connectedProviders: 1, totalProviders: 1, healthyRuntimes: 1, totalRuntimes: 1 }, services: {} });
   if (url.endsWith('/api/teams/team-xyz')) return jsonResponse(TEAM);
@@ -83,6 +104,7 @@ const SeedSettings: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 };
 
 beforeEach(() => {
+  window.localStorage.clear();
   MockEventSource.instances = [];
   messagesForTest = [];
   goalStatus = 'completed';
@@ -90,6 +112,10 @@ beforeEach(() => {
   fetchMock.mockImplementation((url: string, options?: any) => Promise.resolve(routeFetch(url, options)));
   vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('EventSource', MockEventSource);
+  globalThis.fetch = fetchMock as any;
+  window.fetch = fetchMock as any;
+  (globalThis as any).EventSource = MockEventSource;
+  (window as any).EventSource = MockEventSource;
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
@@ -100,6 +126,15 @@ afterEach(() => {
 
 /* ── 1 & 2: Composer placement and Send button ────────────── */
 describe('Composer layout', () => {
+  it('keeps the Jarvis composer singular with inactive experimental voice', () => {
+    render(<JarvisComposer onSendMessage={vi.fn()} isProcessing={false} />);
+
+    expect(screen.getAllByTestId('jarvis-composer')).toHaveLength(1);
+    expect(screen.getByLabelText('Voice input experimental')).toBeDisabled();
+    expect(screen.getByText('Voice experimental')).toBeInTheDocument();
+    expect(screen.queryByText(/Listening/i)).not.toBeInTheDocument();
+  });
+
   it('renders the composer outside (never inside) the scrollable timeline container', async () => {
     render(<CodexProvider><JarvisChat conversationId="conv-1" /></CodexProvider>);
 
@@ -228,14 +263,20 @@ describe('Execution cards and composer state', () => {
 
 /* ── 8: Repository gating ─────────────────────────────────── */
 describe('Repository gating', () => {
-  it('disables repository-required actions when no repository is selected', async () => {
+  it('keeps ordinary typed Jarvis chat usable when no repository is selected', async () => {
     detectValid = false;
     render(<CodexProvider><JarvisChat conversationId="conv-1" /></CodexProvider>);
 
-    fireEvent.change(screen.getByLabelText('Message Input'), { target: { value: 'build something' } });
+    const input = screen.getByLabelText('Message Input');
+    fireEvent.change(input, { target: { value: 'What can you do?' } });
     const sendBtn = screen.getByRole('button', { name: /send message/i });
-    expect(sendBtn).toBeDisabled();
-    expect(screen.getByLabelText('Message Input').getAttribute('placeholder')).toMatch(/select a repository/i);
+    expect(sendBtn).not.toBeDisabled();
+    expect(input.getAttribute('placeholder')).toBe('Ask Jarvis anything...');
+
+    fireEvent.click(sendBtn);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api/jarvis/conversations/conv-1/message/stream'))).toBe(true);
+    });
   });
 
   it('shows an explicit "Select repository" state in the workspace bar', async () => {

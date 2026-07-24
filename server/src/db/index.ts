@@ -2,16 +2,16 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
 import path from 'path';
-import os from 'os';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
-// Determine the database path
-// If running in production (spawned by Electron), it should provide USER_DATA_PATH.
-// Otherwise, fallback to a local .data folder or os temp dir.
-const userDataPath = process.env.USER_DATA_PATH || path.join(os.homedir(), '.agentic-os');
-const dbPath = process.env.AGENT_TEAMS_DB_PATH || path.join(userDataPath, 'agentic-os.db');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoServerRoot = path.resolve(__dirname, '..', '..');
+const defaultDataDir = path.join(repoServerRoot, 'data');
+const dbPath = process.env.AGENT_TEAMS_DB_PATH || path.join(defaultDataDir, 'agentic-os.db');
 
 // Ensure the directory exists
-import fs from 'fs';
 const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
@@ -24,3 +24,4 @@ sqlite.pragma('foreign_keys = ON'); // Enforce FKs
 
 // Export the drizzle instance
 export const db = drizzle(sqlite, { schema });
+export const sqliteDbPath = dbPath;

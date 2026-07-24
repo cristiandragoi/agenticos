@@ -37,7 +37,7 @@ export const mockAgents: AgentDefinition[] = [
   /* ─── Command Core ─── */
   {
     id: "agent-jarvis-core",
-    name: "J.A.R.V.I.S.",
+    name: "JARVIS",
     slug: "jarvis-core",
     avatar: "J",
     color: "#38bdf8",
@@ -419,7 +419,7 @@ export const mockAgents: AgentDefinition[] = [
   },
   {
     id: "agent-athena",
-    name: "Athena",
+    name: "Unavailable agent",
     slug: "athena",
     avatar: "A",
     color: "#c084fc",
@@ -481,7 +481,7 @@ export const mockTools: ToolDefinition[] = [
 export const mockProviders: ProviderDefinition[] = [
   {
     id: "prov-openai",
-    name: "OpenAI GPT-4o",
+    name: "OpenAI",
     kind: "llm", category: "remote",
     adapter: "openai-adapter",
     authScheme: "key",

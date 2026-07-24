@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Activity, HardDrive, Database,
   Package, Radio, BookOpen, Settings, Cpu, Layers, Box,
   GitBranch, Clapperboard, Mic, Terminal, Wrench,
-  Eye, MonitorPlay
+  Eye, MonitorPlay, Folder
 } from 'lucide-react';
 
 const LeftRail: React.FC = () => {
@@ -39,83 +39,67 @@ const LeftRail: React.FC = () => {
 
       {/* Navigation */}
       <div className="left-rail__nav">
-        <div className="nav-section-label">AI Agents</div>
+        <div className="nav-section-label">AI AGENTS</div>
         <NavLink to="/jarvis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-indigo-500/30 bg-indigo-500/20">
             <Eye size={12} className="text-indigo-400" />
           </div>
-          <span className="font-medium tracking-wide">J.A.R.V.I.S.</span>
+          <span className="font-medium tracking-wide">JARVIS</span>
         </NavLink>
         <NavLink to="/hermes-studio" className={() => `nav-link ${isHermes ? 'active' : ''}`}>
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-amber-500/30 bg-amber-500/20">
             <MonitorPlay size={12} className="text-amber-400" />
           </div>
-          <span className="font-medium text-amber-500/90 tracking-wide">Hermes</span>
+          <span className="font-medium text-amber-500/90 tracking-wide">HERMES</span>
         </NavLink>
         <NavLink to="/codex" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-emerald-500/30 bg-emerald-500/20">
             <Terminal size={12} className="text-emerald-400" />
           </div>
-          <span className="font-medium text-emerald-500/90 tracking-wide">CodeX</span>
+          <span className="font-medium text-emerald-500/90 tracking-wide">CODEX</span>
         </NavLink>
         <NavLink to="/teams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-purple-500/30 bg-purple-500/20">
             <Users size={12} className="text-purple-400" />
           </div>
-          <span className="font-medium text-purple-500/90 tracking-wide">Agent Teams</span>
+          <span className="font-medium text-purple-500/90 tracking-wide">AGENT TEAMS</span>
         </NavLink>
 
-        <div className="nav-section-label">Workspace</div>
+        <div className="nav-section-label">WORKSPACE</div>
         <NavLink to="/mission-control" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <LayoutDashboard size={16} /> Dashboard
+          <LayoutDashboard size={16} /> MISSION CONTROL
         </NavLink>
         <NavLink to="/boards" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Layers size={16} /> Boards
+          <Layers size={16} /> BOARDS
         </NavLink>
         <NavLink to="/research" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <BookOpen size={16} /> Research
+          <BookOpen size={16} /> RESEARCH
+        </NavLink>
+        <NavLink to="/files" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Folder size={16} /> FILES
         </NavLink>
 
-        <div className="nav-section-label">Intelligence</div>
+        <div className="nav-section-label">SYSTEM</div>
         <NavLink to="/memory" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Database size={16} /> Memory
+          <Database size={16} /> MEMORY
         </NavLink>
         <NavLink to="/models" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Cpu size={16} /> Models
+          <Cpu size={16} /> MODELS & PROVIDERS
         </NavLink>
-        <NavLink to="/skills" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Wrench size={16} /> Skills
+        <NavLink to="/automations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <GitBranch size={16} /> AUTOMATIONS
         </NavLink>
-
-        <div className="nav-section-label">Execution</div>
-        <NavLink to="/runs" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Activity size={16} /> Runs
-          {(runningCount + queuedCount) > 0 && (
-            <span className="nav-badge" style={{ background: 'var(--color-info-bg)', color: 'var(--color-info)' }}>
-              {runningCount + queuedCount}
-            </span>
-          )}
-        </NavLink>
-        <NavLink to="/pipeline" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <GitBranch size={16} /> Pipeline
-        </NavLink>
-
-        <div className="nav-section-label">Development</div>
-        <NavLink to="/prompt-lab" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Terminal size={16} /> Prompt Lab
+        <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <Settings size={16} /> SETTINGS
         </NavLink>
       </div>
 
       {/* Footer */}
       <div className="left-rail__footer">
-        <NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Settings size={16} /> Settings
-        </NavLink>
+        <span className="text-xxs text-dim">Live registry navigation</span>
       </div>
     </div>
   );
 };
 
 export default LeftRail;
-
-

@@ -14,9 +14,12 @@ import { getToolLabel } from '../../presenters/EventPresenter';
 import { normalizeExecutionEvent } from '../../utils/normalize';
 
 const CONNECTION_STYLE: Record<ConnectionState, { dot: string; text: string; label: string }> = {
+  idle_connected: { dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'Ready' },
+  connecting: { dot: 'bg-amber-500 animate-pulse', text: 'text-amber-400', label: 'Connecting' },
   connected: { dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'Connected' },
   reconnecting: { dot: 'bg-amber-500 animate-pulse', text: 'text-amber-400', label: 'Reconnecting' },
-  disconnected: { dot: 'bg-rose-500', text: 'text-rose-400', label: 'Disconnected' }
+  disconnected: { dot: 'bg-rose-500', text: 'text-rose-400', label: 'Disconnected' },
+  backend_unreachable: { dot: 'bg-rose-500', text: 'text-rose-400', label: 'Backend unavailable' }
 };
 
 function formatElapsed(createdAt?: string, running?: boolean): string {
@@ -64,6 +67,7 @@ export const CurrentActionCard: React.FC<Props> = ({ goal }) => {
 
   const isTerminal = TERMINAL_GOAL_STATES.includes((goalStatus || '').toLowerCase());
   const isActive = !!goalStatus && !isTerminal && goalStatus !== 'paused';
+  const status = (goalStatus || '').toLowerCase();
 
   useEffect(() => {
     if (!isActive) return;
@@ -72,7 +76,10 @@ export const CurrentActionCard: React.FC<Props> = ({ goal }) => {
   }, [isActive]);
 
   const styles = RUN_STATUS_STYLES[action.color];
-  const conn = CONNECTION_STYLE[connectionState];
+  const effectiveConnectionState = isTerminal || ['paused', 'waiting_for_approval'].includes(status)
+    ? 'idle_connected'
+    : connectionState;
+  const conn = CONNECTION_STYLE[effectiveConnectionState];
 
   const callControl = async (kind: 'pause' | 'resume' | 'stop') => {
     if (!activeGoalId || controlBusy) return;
@@ -99,10 +106,9 @@ export const CurrentActionCard: React.FC<Props> = ({ goal }) => {
     }
   };
 
-  const status = (goalStatus || '').toLowerCase();
-  const canPause = !!activeGoalId && !!goalStatus && !isTerminal && !['paused', 'pause_requested', 'interrupted_requires_review'].includes(status);
-  const canResume = !!activeGoalId && ['paused', 'failed', 'interrupted', 'waiting_for_approval'].includes(status);
-  const canStop = !!activeGoalId && !!goalStatus && !['completed', 'cancelled', 'stopped'].includes(status);
+  const canPause = false;
+  const canResume = false;
+  const canStop = false;
 
   const startedAt = goal?.createdAt;
   const elapsed = formatElapsed(startedAt, isActive);
@@ -128,11 +134,19 @@ export const CurrentActionCard: React.FC<Props> = ({ goal }) => {
           <div className="flex items-center gap-2 shrink-0">
             {/* Connection badge */}
             <span className={`flex items-center gap-1.5 text-[11px] ${conn.text}`} title="Event stream connection">
-              {connectionState === 'disconnected' ? <WifiOff size={12} /> : <Wifi size={12} />}
+              {['disconnected', 'backend_unreachable'].includes(effectiveConnectionState) ? <WifiOff size={12} /> : <Wifi size={12} />}
               <span className={`w-1.5 h-1.5 rounded-full ${conn.dot}`} />
               {conn.label}
             </span>
-            {connectionState === 'disconnected' && (
+            {effectiveConnectionState === 'backend_unreachable' && (
+              <button
+                onClick={reconnectStream}
+                className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-500/10 transition-colors"
+              >
+                <RefreshCw size={11} /> Retry connection
+              </button>
+            )}
+            {effectiveConnectionState === 'disconnected' && !!activeGoalId && !!goalStatus && !isTerminal && !['paused', 'waiting_for_approval'].includes(status) && (
               <button
                 onClick={reconnectStream}
                 className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-500/10 transition-colors"

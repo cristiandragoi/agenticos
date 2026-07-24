@@ -98,7 +98,7 @@ const JarvisControlBoard: React.FC = () => {
             J
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#f9fafb' }}>J.A.R.V.I.S. Control Board</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#f9fafb' }}>JARVIS Control Board</div>
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>Fleet status — click any agent to inspect</div>
           </div>
         </div>

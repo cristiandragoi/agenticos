@@ -1,515 +1,189 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import QuickChat from '../components/QuickChat';
-import { ReactFlow, Background, Controls, Handle, Position, applyNodeChanges, applyEdgeChanges, ConnectionLineType } from '@xyflow/react';
-import type { NodeProps, NodeChange, EdgeChange, Node, Edge } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { getPipelineState, subscribe } from '../command/jarvisPipeline';
-import type { StageLogEntry } from '../command/jarvisPipeline';
+// @ts-nocheck
+import React, { useMemo } from 'react';
+import { Activity, AlertTriangle, Bot, CheckCircle2, Clock, Cpu, Database, GitBranch, Radio, Server, Settings } from 'lucide-react';
+import { useData } from '../store/dataStore';
 
-interface RunData { agentId: string; status: string; createdAt: string; }
-
-const ALL_AGENTS = [
-  { id: 'agent-qwythos', name: 'Qwythos 9B', role: 'Local Orchestrator', color: '#a78bfa', avatarClass: 'qwythos' },
-  { id: 'agent-jarvis-core', name: 'JARVIS', role: 'Default Orchestrator', color: '#06b6d4', avatarClass: 'jarvis' },
-  { id: 'agent-architect', name: 'Architect', role: 'System Design', color: '#8b5cf6', avatarClass: 'architect' },
-  { id: 'agent-scout', name: 'Scout', role: 'Research', color: '#f59e0b', avatarClass: 'scout' },
-  { id: 'agent-closer', name: 'Closer', role: 'Sales', color: '#10b981', avatarClass: 'closer' },
-  { id: 'agent-hype', name: 'Hype', role: 'Marketing', color: '#ec4899', avatarClass: 'hype' },
-  { id: 'agent-forge', name: 'Forge', role: 'Development', color: '#f97316', avatarClass: 'siege' },
-  { id: 'agent-reviewer', name: 'Reviewer', role: 'QA', color: '#8b5cf6', avatarClass: 'architect' },
-  { id: 'agent-keeper', name: 'Keeper', role: 'Knowledge', color: '#06b6d4', avatarClass: 'jarvis' },
-  { id: 'agent-ghost', name: 'Ghost', role: 'Security', color: '#64748b', avatarClass: 'ghost' },
-  { id: 'agent-steel', name: 'Steel', role: 'DevOps', color: '#ef4444', avatarClass: 'steel' },
-  { id: 'agent-creative', name: 'Creative', role: 'Design', color: '#ec4899', avatarClass: 'hype' },
-  { id: 'agent-mechanic', name: 'Mechanic', role: 'Infra', color: '#84cc16', avatarClass: 'ghost' },
-  { id: 'agent-siege', name: 'Siege', role: 'Testing', color: '#f97316', avatarClass: 'siege' },
-  { id: 'agent-vision', name: 'Vision', role: 'Strategy', color: '#a78bfa', avatarClass: 'architect' },
-];
-
-// Activity log is now managed by jarvisPipeline
-
-const AgentGrid = ({ runs }: { runs: RunData[] }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-    {ALL_AGENTS.map((agent) => {
-      const isOnline = agent.name !== 'Ghost';
-      const isActive = ['JARVIS', 'Architect'].includes(agent.name);
-      return (
-      <div key={agent.id} style={{
-        background: isActive ? 'rgba(6,182,212,0.05)' : '#111827', 
-        border: `1px solid ${isActive ? '#06b6d4' : '#1e293b'}`, 
-        borderRadius: 8, padding: 16, width: 220, position: 'relative', 
-        boxShadow: isActive ? '0 0 16px rgba(6,182,212,0.2)' : 'none',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff',
-              background: `linear-gradient(135deg, ${agent.color}, ${agent.color}aa)`,
-            }}>{agent.name[0]}</div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: isActive ? '#06b6d4' : '#e2e8f0', textTransform: 'uppercase', letterSpacing: 1 }}>{agent.name}</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#10b981' : '#64748b' }} />
-            <span style={{ fontSize: 9, color: isOnline ? '#10b981' : '#64748b', fontWeight: 700, letterSpacing: 1 }}>{isOnline ? 'ACTIVE' : 'IDLE'}</span>
-          </div>
-        </div>
-        <div style={{ fontSize: 11, color: '#e2e8f0', marginBottom: 16, lineHeight: 1.4 }}>
-          {isActive ? 'Starting agent fleet health check and polling' : agent.role}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12 }}>
-          <div style={{ width: 20, height: 20, background: 'rgba(255,255,255,0.1)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#06b6d4', fontSize: 10 }}>◧</span>
-          </div>
-        </div>
-      </div>
-    )})}
-  </div>
-);
-
-const AgentNode = ({ data }: NodeProps) => {
-  const isOnline = data.name !== 'Ghost';
-  const isActive = ['JARVIS', 'Architect'].includes(data.name as string);
-  
-  return (
-    <div style={{
-      background: '#111827',
-      border: `1px solid ${isActive ? '#06b6d4' : '#1e293b'}`,
-      borderRadius: 8,
-      padding: '12px 16px',
-      width: 200,
-      boxShadow: isActive ? '0 0 16px rgba(6,182,212,0.2)' : '0 4px 6px rgba(0,0,0,0.3)',
-    }}>
-      <Handle type="target" position={Position.Top} style={{ background: '#334155' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 20, height: 20, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff',
-            background: `linear-gradient(135deg, ${data.color}, ${data.color}aa)`,
-          }}>{(data.name as string)[0]}</div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: isActive ? '#06b6d4' : '#e2e8f0', textTransform: 'uppercase', letterSpacing: 1 }}>{data.name as string}</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? '#10b981' : '#64748b' }} />
-          <span style={{ fontSize: 9, color: isOnline ? '#10b981' : '#64748b', fontWeight: 700, letterSpacing: 1 }}>{isOnline ? 'ACTIVE' : 'IDLE'}</span>
-        </div>
-      </div>
-      <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.4 }}>
-        {data.role as string}
-      </div>
-      <Handle type="source" position={Position.Bottom} style={{ background: '#334155' }} />
-    </div>
-  );
-};
-
-const nodeTypes = { agentNode: AgentNode };
-
-const initialNodes: Node[] = [
-  { id: 'jarvis', type: 'agentNode', position: { x: 400, y: 50 }, data: { name: 'JARVIS', role: 'Orchestrator', color: '#06b6d4' } },
-  
-  { id: 'architect', type: 'agentNode', position: { x: 150, y: 150 }, data: { name: 'Architect', role: 'System Design', color: '#8b5cf6' } },
-  { id: 'scout', type: 'agentNode', position: { x: 400, y: 150 }, data: { name: 'Scout', role: 'Research', color: '#f59e0b' } },
-  { id: 'forge', type: 'agentNode', position: { x: 650, y: 150 }, data: { name: 'Forge', role: 'Development', color: '#f97316' } },
-
-  { id: 'vision', type: 'agentNode', position: { x: 0, y: 250 }, data: { name: 'Vision', role: 'Strategy', color: '#a78bfa' } },
-  { id: 'hype', type: 'agentNode', position: { x: 220, y: 250 }, data: { name: 'Hype', role: 'Marketing', color: '#ec4899' } },
-  
-  { id: 'closer', type: 'agentNode', position: { x: 400, y: 250 }, data: { name: 'Closer', role: 'Sales', color: '#10b981' } },
-  
-  { id: 'keeper', type: 'agentNode', position: { x: 600, y: 250 }, data: { name: 'Keeper', role: 'Knowledge', color: '#06b6d4' } },
-  { id: 'steel', type: 'agentNode', position: { x: 820, y: 250 }, data: { name: 'Steel', role: 'DevOps', color: '#ef4444' } },
-];
-
-const initialEdges: Edge[] = [
-  { id: 'e-j-a', source: 'jarvis', target: 'architect', type: 'smoothstep', animated: true, style: { stroke: '#06b6d4' } },
-  { id: 'e-j-s', source: 'jarvis', target: 'scout', type: 'smoothstep', style: { stroke: '#334155' } },
-  { id: 'e-j-f', source: 'jarvis', target: 'forge', type: 'smoothstep', style: { stroke: '#334155' } },
-  
-  { id: 'e-a-v', source: 'architect', target: 'vision', type: 'smoothstep', style: { stroke: '#334155' } },
-  { id: 'e-a-h', source: 'architect', target: 'hype', type: 'smoothstep', style: { stroke: '#334155' } },
-  
-  { id: 'e-s-c', source: 'scout', target: 'closer', type: 'smoothstep', style: { stroke: '#334155' } },
-  
-  { id: 'e-f-k', source: 'forge', target: 'keeper', type: 'smoothstep', style: { stroke: '#334155' } },
-  { id: 'e-f-st', source: 'forge', target: 'steel', type: 'smoothstep', style: { stroke: '#334155' } },
-];
-
-const NodeMapSVG = () => {
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
-  );
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
-  );
-
-  return (
-    <div style={{ background: '#0a0e17', border: '1px solid #1e293b', borderRadius: 12, height: 500, position: 'relative', overflow: 'hidden' }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        fitView
-        connectionLineType={ConnectionLineType.SmoothStep}
-        defaultEdgeOptions={{ type: 'smoothstep' }}
-        minZoom={0.2}
-      >
-        <Background color="#1e293b" gap={16} />
-        <Controls style={{ background: '#111827', border: '1px solid #1e293b', fill: '#e2e8f0', borderRadius: 4 }} showInteractive={false} />
-      </ReactFlow>
-    </div>
-  );
-};
-
-// TABS
-const OverviewTab = ({ runs }: { runs: RunData[] }) => {
-  return (
-    <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 32, padding: '32px' }}>
-      <div>
-        <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>OPERATIONS DASHBOARD</div>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', letterSpacing: 0.5, marginBottom: 4 }}>Overview - Command center summary</h2>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 40, paddingBottom: 24, borderBottom: '1px solid #1e293b' }}>
-        {/* Orbital JARVIS */}
-        <div className="jarvis-radar-orb">
-          <div className="jarvis-orb-core"></div>
-        </div>
-        
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>J.A.R.V.I.S. - MISSION CONTROL</div>
-          <h2 style={{ fontSize: 36, fontWeight: 800, color: '#e2e8f0', letterSpacing: -1, marginBottom: 12 }}>Jarvis Mission Control</h2>
-          <p style={{ fontSize: 13, color: '#94a3b8', maxWidth: 600, marginBottom: 24, lineHeight: 1.5 }}>Jarvis Mission Control: voice + command center for my Agentic OS.</p>
-          
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ border: '1px solid #06b6d4', borderRadius: 4, padding: '4px 10px', fontSize: 10, color: '#06b6d4', fontWeight: 700, letterSpacing: 1 }}>SYSTEMS NOMINAL</div>
-            <div style={{ border: '1px solid #1e293b', background: '#111827', borderRadius: 4, padding: '4px 10px', fontSize: 10, color: '#e2e8f0', fontWeight: 700, letterSpacing: 1 }}>14 NODES</div>
-            <div style={{ border: '1px solid #1e293b', background: '#111827', borderRadius: 4, padding: '4px 10px', fontSize: 10, color: '#10b981', fontWeight: 700, letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} /> ACTIVE
-            </div>
-            <div style={{ border: '1px solid #1e293b', background: '#111827', borderRadius: 4, padding: '4px 10px', fontSize: 10, color: '#f59e0b', fontWeight: 700, letterSpacing: 1 }}>12 RUNNING</div>
-          </div>
-        </div>
-      </div>
-
-      <AgentGrid runs={runs} />
-    </div>
-  );
-};
-
-const ActivityTab = ({ logs }: { logs: StageLogEntry[] }) => (
-  <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '32px' }}>
-    <div style={{ paddingBottom: 16 }}>
-      <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>ACTIVITY</div>
-      <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', letterSpacing: 0.5, marginBottom: 4 }}>Live command stream</h2>
-      <p style={{ fontSize: 12, color: '#94a3b8' }}>This keeps the existing real-time feed, but now under the relaunch navigation.</p>
-    </div>
-    
-    <div style={{ flex: 1, background: '#111827', border: '1px solid #1e293b', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', background: '#0f1623', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#06b6d4', boxShadow: '0 0 8px rgba(6,182,212,0.5)' }} />
-        </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace" }}>LIVE ACTIVITY FEED</span>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {logs.map((item) => {
-          const timeStr = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          const isError = item.status === 'failed';
-          const isSuccess = item.status === 'completed';
-          const isRunning = item.status === 'running';
-          const iconColor = isError ? '#ef4444' : isSuccess ? '#06b6d4' : isRunning ? '#8b5cf6' : '#f59e0b';
-          const agentName = item.stageId.includes('welders') ? 'Scout' : item.stageId.includes('copy') ? 'Closer' : 'Jarvis';
-
-          return (
-          <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '80px 140px 1fr', padding: '16px 20px', borderBottom: '1px solid rgba(30,41,59,0.5)', alignItems: 'center', gap: 16, transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = '#151d2e'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-            <div style={{ fontSize: 11, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
-              {timeStr}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 24, height: 24, borderRadius: 4, background: `rgba(6, 182, 212, 0.1)`, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
-                {agentName[0]}
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: iconColor }}>{agentName}</span>
-            </div>
-            <div>
-              <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600, marginBottom: 4 }}>{item.status === 'running' ? `Running ${item.stageId}...` : item.summary?.split('.')[0]}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>{item.summary}</div>
-            </div>
-          </div>
-        )})}
-        {logs.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 12 }}>No recent activity.</div>
-        )}
-      </div>
-      <div style={{ padding: '16px 20px', background: '#0a0e17', borderTop: '1px solid #1e293b' }}>
-        <div style={{ fontSize: 10, color: '#64748b', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>RECENT EVENTS</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: '#e2e8f0', marginTop: 4, lineHeight: 1 }}>{logs.length}</div>
-        <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>Newest events highlighted for quick review</div>
-      </div>
-    </div>
-  </div>
-);
-
-const OrgMapTab = ({ runs }: { runs: RunData[] }) => (
-  <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '32px' }}>
-    <div style={{ paddingBottom: 16 }}>
-      <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>ORG MAP</div>
-      <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', letterSpacing: 0.5, marginBottom: 4 }}>Agent topology and hierarchy</h2>
-    </div>
-    
-    <div style={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 12, padding: '2px', height: 'calc(100vh - 400px)' }}>
-      <NodeMapSVG />
-    </div>
-    
-    <div style={{ background: '#111827', border: '1px solid #1e293b', borderRadius: 12, padding: 24 }}>
-      <div style={{ marginBottom: 16 }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 }}>Node card view</h3>
-        <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Operator-friendly card scan for the current fleet.</p>
-      </div>
-      <AgentGrid runs={runs} />
-    </div>
-  </div>
-);
-
-const ConsoleTab = () => {
-  const presenceLists = {
-    active: ALL_AGENTS.filter(a => ['JARVIS', 'Architect', 'Scout', 'Closer', 'Forge', 'Keeper'].includes(a.name)),
-    idle: ALL_AGENTS.filter(a => ['Hype'].includes(a.name)),
-    state: ALL_AGENTS.filter(a => !['JARVIS', 'Architect', 'Scout', 'Closer', 'Forge', 'Keeper', 'Hype'].includes(a.name))
-  };
-
-  return (
-    <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '32px' }}>
-      <div style={{ paddingBottom: 16 }}>
-        <div style={{ fontSize: 10, color: '#06b6d4', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>PRESENCE</div>
-        <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', letterSpacing: 0.5, marginBottom: 4 }}>Live presence board</h2>
-        <p style={{ fontSize: 12, color: '#94a3b8' }}>Heartbeat and reported state across the fleet.</p>
-      </div>
-      
-      <div style={{ flex: 1, background: '#111827', border: '1px solid #1e293b', borderRadius: 8, padding: '24px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ marginBottom: 24, padding: '16px', background: '#0a0e17', borderRadius: 8, border: '1px solid #1e293b' }}>
-          <h3 style={{ fontSize: 12, fontWeight: 700, color: '#06b6d4', letterSpacing: 1, textTransform: 'uppercase' }}>Presence Board</h3>
-          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Live operational visibility by derived presence state.</p>
-        </div>
-
-        <div style={{ display: 'flex', gap: 24, height: '100%' }}>
-          
-          {/* Active Column */}
-          <div style={{ flex: 1, background: '#0a0e17', borderRadius: 8, border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>
-                <span style={{ color: '#10b981' }}>⚡</span> Active
-              </div>
-              <div style={{ fontSize: 11, background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>{presenceLists.active.length}</div>
-            </div>
-            <div style={{ padding: '12px 16px', fontSize: 10, color: '#64748b', background: '#0f1623', borderBottom: '1px solid #1e293b', fontWeight: 600 }}>
-              healthy heartbeat + active status
-            </div>
-            <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {presenceLists.active.map(a => (
-                <div key={a.id} style={{ background: '#151d2e', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 6, padding: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 4, background: `linear-gradient(135deg, ${a.color}, ${a.color}aa)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>{a.name[0]}</div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', letterSpacing: 0.5 }}>{a.name}</div>
-                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{a.role.toLowerCase()}</div>
-                        <div style={{ fontSize: 11, color: '#e2e8f0', marginTop: 12, lineHeight: 1.4 }}>processing task stream</div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 9, color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>just now</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Idle Column */}
-          <div style={{ flex: 1, background: '#0a0e17', borderRadius: 8, border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>
-                <span style={{ color: '#f59e0b' }}>◐</span> Idle
-              </div>
-              <div style={{ fontSize: 11, background: '#f59e0b', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>{presenceLists.idle.length}</div>
-            </div>
-            <div style={{ padding: '12px 16px', fontSize: 10, color: '#64748b', background: '#0f1623', borderBottom: '1px solid #1e293b', fontWeight: 600 }}>
-              connected but not actively running
-            </div>
-            <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {presenceLists.idle.map(a => (
-                <div key={a.id} style={{ background: '#151d2e', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, padding: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 4, background: `linear-gradient(135deg, ${a.color}, ${a.color}aa)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>{a.name[0]}</div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', letterSpacing: 0.5 }}>{a.name}</div>
-                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{a.role.toLowerCase()}</div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 9, color: '#f59e0b', fontWeight: 700, textTransform: 'uppercase' }}>2m ago</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Offline Column */}
-          <div style={{ flex: 1, background: '#0a0e17', borderRadius: 8, border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '16px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>
-                <span style={{ color: '#64748b' }}>☾</span> Offline
-              </div>
-              <div style={{ fontSize: 11, background: '#64748b', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>{presenceLists.state.length}</div>
-            </div>
-            <div style={{ padding: '12px 16px', fontSize: 10, color: '#64748b', background: '#0f1623', borderBottom: '1px solid #1e293b', fontWeight: 600 }}>
-              heartbeat missing or node disconnect
-            </div>
-            <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {presenceLists.state.map(a => (
-                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid #1e293b' }}>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 4, background: `#1e293b`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#64748b' }}>{a.name[0]}</div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', letterSpacing: 0.5 }}>{a.name}</div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>engineer</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>1h ago</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
+function statusLabel(value?: string | null) {
+  return value || 'Unknown';
 }
 
-const MissionControlPage: React.FC = () => {
-  const [runs, setRuns] = useState<RunData[]>([]);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [logs, setLogs] = useState<StageLogEntry[]>([]);
+function providerModel(provider: any) {
+  if (!provider) return 'Unknown';
+  if (!provider.defaultModel) return 'Not configured';
+  const configuredModel = provider.models?.find((model: any) => model.id === provider.defaultModel);
+  return configuredModel?.displayName || provider.defaultModel;
+}
 
-  useEffect(() => {
-    fetch('/api/runs').then((r) => r.ok && r.json()).then((r) => { if (r) setRuns(r.slice(-200)); }).catch(() => {});
-    
-    // Subscribe to jarvis pipeline logs
-    setLogs(getPipelineState().stageLogs);
-    const unsub = subscribe(() => {
-      setLogs(getPipelineState().stageLogs);
-    });
-    return unsub;
-  }, []);
+function cleanError(message?: string | null) {
+  if (!message) return 'No details available.';
+  const firstLine = String(message).split('\n')[0];
+  return firstLine.replace(/\s+at\s+.*/i, '').slice(0, 180);
+}
+
+const MetricCard = ({ icon, title, value, detail, tone = 'neutral' }: any) => {
+  const color = tone === 'bad' ? '#f87171' : tone === 'warn' ? '#f59e0b' : tone === 'good' ? '#34d399' : '#94a3b8';
+  return (
+    <div className="rounded-md border border-slate-800 bg-slate-950/70 p-4" data-testid={`mission-metric-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{title}</div>
+        <div style={{ color }}>{icon}</div>
+      </div>
+      <div className="mt-3 text-2xl font-semibold text-slate-100">{value}</div>
+      <div className="mt-1 text-xs text-slate-500">{detail}</div>
+    </div>
+  );
+};
+
+const ListPanel = ({ title, empty, children }: any) => (
+  <section className="rounded-md border border-slate-800 bg-slate-950/60">
+    <div className="border-b border-slate-800 px-4 py-3">
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">{title}</h2>
+    </div>
+    <div className="divide-y divide-slate-800">
+      {children || <div className="px-4 py-5 text-sm text-slate-500">{empty}</div>}
+    </div>
+  </section>
+);
+
+const Row = ({ title, subtitle, meta, tone = 'neutral' }: any) => {
+  const color = tone === 'bad' ? 'text-rose-300' : tone === 'warn' ? 'text-amber-300' : tone === 'good' ? 'text-emerald-300' : 'text-slate-300';
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className={`truncate text-sm font-medium ${color}`}>{title}</div>
+          {subtitle && <div className="mt-1 line-clamp-2 text-xs text-slate-500">{subtitle}</div>}
+        </div>
+        {meta && <div className="shrink-0 text-[11px] uppercase tracking-wider text-slate-500">{meta}</div>}
+      </div>
+    </div>
+  );
+};
+
+const MissionControlPage: React.FC = () => {
+  const { agents, providers, runs, runtimes, schedules, isLoading, error, refresh } = useData();
+
+  const agentById = useMemo(() => new Map(agents.map((agent: any) => [agent.id, agent])), [agents]);
+  const runningRuns = runs.filter((run: any) => ['running', 'queued', 'executing'].includes(run.status));
+  const pendingApprovals = runs.filter((run: any) => ['waiting', 'waiting_for_approval', 'approval_required'].includes(run.status));
+  const failedRuns = runs.filter((run: any) => run.status === 'failed');
+  const completedRuns = runs.filter((run: any) => run.status === 'completed').slice(0, 5);
+  const connectedProviders = providers.filter((provider: any) => ['connected', 'healthy', 'active'].includes(provider.status));
+  const unhealthyProviders = providers.filter((provider: any) => ['error', 'unavailable', 'disconnected', 'needs-auth'].includes(provider.status));
+  const agentTeamsRuns = runs.filter((run: any) => String(run.mode || '').includes('team') || String(run.agentId || '').includes('team'));
+  const codexRuns = runs.filter((run: any) => String(run.agentId || '').toLowerCase().includes('codex') || String(run.runtimeId || '').toLowerCase().includes('codex'));
+  const pipelines = runs.filter((run: any) => ['workflow', 'pipeline'].includes(run.mode));
+
+  if (isLoading) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', fontFamily: "'Inter', -apple-system, sans-serif", background: '#0a0e17' }}>
-      <style>{`
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-in { animation: fadeIn 0.4s ease forwards; }
-        .jarvis-radar-orb {
-          width: 130px; height: 130px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(6,182,212,0.2) 0%, rgba(15,23,42,0.8) 70%);
-          border: 2px solid rgba(6,182,212,0.5); display: flex; align-items: center; justify-content: center;
-          position: relative; box-shadow: 0 0 40px rgba(6,182,212,0.4), inset 0 0 20px rgba(6,182,212,0.2);
-        }
-        .jarvis-radar-orb::before {
-          content: ''; position: absolute; inset: -14px; border-radius: 50%; border: 1px dashed rgba(6,182,212,0.4);
-          animation: rotate 10s linear infinite;
-        }
-        .jarvis-radar-orb::after {
-          content: ''; position: absolute; inset: 18px; border-radius: 50%;
-          background: linear-gradient(135deg, #06b6d4, #3b82f6); opacity: 0.8;
-          box-shadow: 0 0 30px rgba(6,182,212,0.8);
-        }
-        .jarvis-orb-core {
-          width: 46px; height: 46px; background: #fff; border-radius: 50%; position: relative; z-index: 10;
-          box-shadow: 0 0 25px #fff;
-        }
-      `}</style>
-
-      {/* GLOBAL TOP TABS */}
-      <div style={{ height: 48, background: '#0a0e17', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', padding: '0 24px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 40 }}>
-          <div style={{ width: 20, height: 20, border: '2px solid #06b6d4', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: 2 }} />
+    <div className="h-full overflow-auto bg-[#0a0f16] text-slate-100" data-testid="mission-control-cockpit">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-6">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-cyan-400">Workspace</div>
+            <h1 className="mt-1 text-2xl font-semibold">Mission Control</h1>
+            <p className="mt-1 text-sm text-slate-500">Operational cockpit for health, providers, agents, executions, approvals, and alerts.</p>
           </div>
-          <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: 14, letterSpacing: 0.5, fontStyle: 'italic' }}>MISSION CONTROL</span>
-        </div>
-        <div style={{ display: 'flex', gap: 24 }}>
-          {['DASHBOARD', 'MEMORY', 'ANALYTICS', 'CONTENT', 'PORTAL'].map((tab) => (
-            <div key={tab} style={{
-              fontSize: 11, fontWeight: 700, color: tab === 'DASHBOARD' ? '#06b6d4' : '#64748b',
-              cursor: 'pointer', letterSpacing: 1, paddingBottom: 14, paddingTop: 14,
-              borderBottom: tab === 'DASHBOARD' ? '2px solid #06b6d4' : '2px solid transparent',
-            }}>
-              {tab}
-            </div>
-          ))}
-        </div>
-      </div>
+          <button
+            type="button"
+            onClick={refresh}
+            className="rounded border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800"
+          >
+            Retry
+          </button>
+        </header>
 
-      {/* SUB NAV */}
-      <div style={{ height: 40, background: '#0f1623', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 32, flexShrink: 0 }}>
-        {['OVERVIEW', 'SESSIONS', 'ACTIVITY', 'ORG MAP', 'CONSOLE', 'DIAGNOSTICS'].map((tab) => {
-          const isActive = activeTab === tab.toLowerCase();
-          return (
-            <div key={tab} onClick={() => setActiveTab(tab.toLowerCase())} style={{
-              display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-              color: isActive ? '#06b6d4' : '#64748b', fontSize: 10, fontWeight: 700, letterSpacing: 1,
-              borderBottom: isActive ? '2px solid #06b6d4' : '2px solid transparent',
-              padding: '12px 0',
-              textShadow: isActive ? '0 0 8px rgba(6,182,212,0.5)' : 'none'
-            }}>
-              <span style={{ fontSize: 12 }}>
-                {tab === 'OVERVIEW' ? '◈' : tab === 'ACTIVITY' ? '⚡' : tab === 'ORG MAP' ? '◎' : '▸'}
-              </span>
-              {tab}
+        {error && (
+          <div className="rounded-md border border-rose-500/40 bg-rose-500/10 p-4" data-testid="mission-error-card">
+            <div className="flex items-center gap-2 text-sm font-semibold text-rose-200">
+              <AlertTriangle size={16} /> Backend unavailable
             </div>
-          );
-        })}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 20, fontSize: 10, fontWeight: 700, color: '#10b981', letterSpacing: 1 }}>
-            <span style={{ width: 6, height: 6, background: '#10b981', borderRadius: '50%', boxShadow: '0 0 6px rgba(16,185,129,0.5)' }} />
-            SYSTEM ONLINE <span style={{ color: '#64748b' }}>v1.2</span>
+            <p className="mt-2 text-sm text-rose-100">{cleanError(error)}</p>
+            <div className="mt-3 flex gap-2">
+              <button onClick={refresh} className="rounded border border-rose-400/50 px-3 py-1.5 text-xs text-rose-100">Retry</button>
+              <button type="button" className="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-400">Open diagnostics</button>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* MAIN */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* CONTENT AREA */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeTab === 'overview' && <OverviewTab runs={runs} />}
-          {activeTab === 'activity' && <ActivityTab logs={logs} />}
-          {activeTab === 'org map' && <OrgMapTab runs={runs} />}
-          {activeTab === 'console' && <ConsoleTab />}
-          
-          {/* Fallback for un-implemented tabs */}
-          {['sessions', 'diagnostics'].includes(activeTab) && (
-            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>🚧</div>
-              <h3>Module Offline</h3>
-              <p style={{ fontSize: 12, marginTop: 8 }}>The {activeTab} module is currently down for maintenance.</p>
-            </div>
-          )}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={<Server size={18} />} title="Backend Health" value={error ? 'Unavailable' : 'Available'} detail={`${runtimes.length || 0} runtime${runtimes.length === 1 ? '' : 's'} registered`} tone={error ? 'bad' : 'good'} />
+          <MetricCard icon={<Cpu size={18} />} title="Providers" value={`${connectedProviders.length}/${providers.length}`} detail={providers.length ? 'connected providers' : 'No provider registry data'} tone={unhealthyProviders.length ? 'warn' : 'good'} />
+          <MetricCard icon={<Bot size={18} />} title="Agents Online" value={agents.filter((agent: any) => agent.status === 'active').length} detail={`${agents.length || 0} registered agent${agents.length === 1 ? '' : 's'}`} tone="neutral" />
+          <MetricCard icon={<Activity size={18} />} title="Active Executions" value={runningRuns.length} detail={`${pendingApprovals.length} pending approval${pendingApprovals.length === 1 ? '' : 's'}`} tone={pendingApprovals.length ? 'warn' : 'neutral'} />
         </div>
 
-        {/* QUICK CHAT PANEL */}
-        <div style={{ width: 360, flexShrink: 0, borderLeft: '1px solid #1e293b', display: 'flex', flexDirection: 'column' }}>
-          <QuickChat />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <ListPanel title="Providers and Models" empty="No provider registry data.">
+            {providers.slice(0, 6).map((provider: any) => (
+              <Row
+                key={provider.id}
+                title={provider.name || provider.id || 'Unknown provider'}
+                subtitle={`Model: ${providerModel(provider)}`}
+                meta={statusLabel(provider.status)}
+                tone={['connected', 'healthy', 'active'].includes(provider.status) ? 'good' : provider.status ? 'warn' : 'neutral'}
+              />
+            ))}
+          </ListPanel>
+
+          <ListPanel title="Registered Agents" empty="No registered agents returned by the backend.">
+            {agents.slice(0, 8).map((agent: any) => (
+              <Row
+                key={agent.id}
+                title={agent.name || agent.id || 'Unknown agent'}
+                subtitle={agent.description || agent.kind || 'No description available.'}
+                meta={statusLabel(agent.status)}
+                tone={agent.status === 'active' ? 'good' : 'neutral'}
+              />
+            ))}
+          </ListPanel>
+
+          <ListPanel title="Pending Approvals" empty="No pending approvals.">
+            {pendingApprovals.slice(0, 6).map((run: any) => (
+              <Row
+                key={run.id}
+                title={run.input || `Run ${run.id}`}
+                subtitle={agentById.get(run.agentId)?.name || run.agentId || 'Unknown agent'}
+                meta={statusLabel(run.status)}
+                tone="warn"
+              />
+            ))}
+          </ListPanel>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <ListPanel title="Active Executions" empty="No active executions.">
+            {runningRuns.slice(0, 6).map((run: any) => (
+              <Row key={run.id} title={run.input || `Run ${run.id}`} subtitle={agentById.get(run.agentId)?.name || run.agentId || 'Unknown agent'} meta={statusLabel(run.status)} tone="good" />
+            ))}
+          </ListPanel>
+
+          <ListPanel title="Failed Runs and Alerts" empty="No failed runs or provider alerts.">
+            {[...failedRuns.map((run: any) => ({ id: run.id, title: run.input || `Run ${run.id}`, subtitle: cleanError(run.errorMessage || run.output), meta: statusLabel(run.status) })),
+              ...unhealthyProviders.map((provider: any) => ({ id: provider.id, title: provider.name || provider.id, subtitle: cleanError(provider.errorMessage || 'Provider unavailable or not configured.'), meta: statusLabel(provider.status) }))]
+              .slice(0, 6)
+              .map((item: any) => <Row key={item.id} title={item.title} subtitle={item.subtitle} meta={item.meta} tone="bad" />)}
+          </ListPanel>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+          <MetricCard icon={<CheckCircle2 size={18} />} title="Recent Completed" value={completedRuns.length} detail={completedRuns[0]?.input || 'No completed runs'} />
+          <MetricCard icon={<Radio size={18} />} title="Agent Teams Activity" value={agentTeamsRuns.length} detail={agentTeamsRuns[0]?.status || 'No team activity'} />
+          <MetricCard icon={<GitBranch size={18} />} title="CodeX Activity" value={codexRuns.length} detail={codexRuns[0]?.status || 'No CodeX runs'} />
+          <MetricCard icon={<Clock size={18} />} title="Schedules" value={schedules.length || 0} detail={schedules.length ? 'registered schedules' : 'No schedules configured'} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <ListPanel title="Pipelines" empty="No active pipeline runs.">
+            {pipelines.slice(0, 5).map((run: any) => <Row key={run.id} title={run.input || `Pipeline ${run.id}`} subtitle={agentById.get(run.agentId)?.name || run.agentId || 'Unknown agent'} meta={statusLabel(run.status)} />)}
+          </ListPanel>
+          <ListPanel title="System Registry" empty="No registry data.">
+            <Row title="Memory" subtitle="Workspace memory scopes returned by backend." meta="Live" />
+            <Row title="Models & Providers" subtitle={providers.length ? `${providers.length} provider records` : 'No provider data'} meta={providers.length ? 'Live' : 'Unknown'} />
+            <Row title="Automations" subtitle={schedules.length ? `${schedules.length} schedules` : 'No schedules configured'} meta={schedules.length ? 'Live' : 'Not configured'} />
+            <Row title="Settings" subtitle="System settings page available from navigation." meta="Available" />
+          </ListPanel>
         </div>
       </div>
     </div>

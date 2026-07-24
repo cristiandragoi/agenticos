@@ -39,9 +39,11 @@ export interface LlmChatOptions {
   /**
    * Specific Ollama model to use when provider='ollama'.
    * Defaults to OLLAMA_DEFAULT_CODING_MODEL when not set.
-   * Examples: 'qwen2.5-coder:14b' | 'deepseek-coder-v2:16b'
+   * Examples: 'laguna-xs-2.1' | 'deepseek-coder-v2:16b'
    */
   ollamaModel?: string;
+  /** Optional caller-managed abort signal. */
+  signal?: AbortSignal;
 }
 
 export interface LlmChatResult {
@@ -70,6 +72,13 @@ export interface OllamaProbeResult {
   error?: string;
 }
 
+export interface LlmChatStreamChunk {
+  type: 'token' | 'done';
+  content?: string;
+  provider: 'omniRoute' | 'ollama';
+  model?: string;
+}
+
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -77,13 +86,15 @@ const OFFLINE_MESSAGE =
   'I am running in offline mode. No external model is reachable. ' +
   'Please start OmniRoute (`omniroute` in a terminal) or check your API keys in server/.env.';
 
-export const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+export const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+export const OPENROUTER_BASE = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+export const OPENROUTER_DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'poolside/laguna-s-2.1:free';
 
 /** Heartbeat / general-purpose fallback model */
-const OLLAMA_FALLBACK_MODEL = 'qwen2.5-coder:14b';
+export const OLLAMA_FALLBACK_MODEL = 'laguna-xs-2.1';
 
 /** Default local coding model — primary choice for CodeX and coding agents */
-export const OLLAMA_DEFAULT_CODING_MODEL = 'qwen2.5-coder:7b';
+export const OLLAMA_DEFAULT_CODING_MODEL = 'laguna-xs-2.1';
 
 /** Heavier local coding model — for complex implementation tasks */
 export const OLLAMA_HEAVY_CODING_MODEL = 'deepseek-coder-v2:16b';
@@ -92,8 +103,10 @@ export const OLLAMA_HEAVY_CODING_MODEL = 'deepseek-coder-v2:16b';
 
 function getOmniConfig() {
   return {
-    base: process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1',
-    key: process.env.OMNIROUTE_API_KEY || '',
+    base: process.env.OPENROUTER_BASE_URL || process.env.OMNIROUTE_BASE_URL || OPENROUTER_BASE,
+    key: process.env.OPENROUTER_API_KEY || process.env.OMNIROUTE_API_KEY || '',
+    model: process.env.OPENROUTER_MODEL || process.env.OMNIROUTE_MODEL || OPENROUTER_DEFAULT_MODEL,
+    providerName: process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_BASE_URL ? 'OpenRouter' : 'OpenAI-compatible',
   };
 }
 
@@ -124,6 +137,156 @@ function parseOmniResponse(raw: string): string {
   }
 
   return reply;
+}
+
+function parseOpenAiSseDelta(payload: string): string {
+  if (!payload || payload === '[DONE]') return '';
+  try {
+    const chunk = JSON.parse(payload);
+    return chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || '';
+  } catch {
+    return '';
+  }
+}
+
+async function* streamOmniResponse(res: Response): AsyncGenerator<string> {
+  if (!res.body) {
+    const raw = await res.text();
+    const parsed = parseOmniResponse(raw);
+    if (parsed) yield parsed;
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  const reader = res.body.getReader();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
+      if (delta) yield delta;
+    }
+  }
+
+  buffer += decoder.decode();
+  for (const line of buffer.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
+    if (delta) yield delta;
+  }
+}
+
+async function* streamOllamaResponse(res: Response): AsyncGenerator<string> {
+  if (!res.body) {
+    const data: any = await res.json();
+    const reply = (data.response || '').trim();
+    if (reply) yield reply;
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  const reader = res.body.getReader();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const chunk: any = JSON.parse(trimmed);
+      if (chunk.error) throw new Error(`Ollama stream error: ${chunk.error}`);
+      if (typeof chunk.response === 'string' && chunk.response) yield chunk.response;
+    }
+  }
+
+  buffer += decoder.decode();
+  const finalLine = buffer.trim();
+  if (finalLine) {
+    const chunk: any = JSON.parse(finalLine);
+    if (chunk.error) throw new Error(`Ollama stream error: ${chunk.error}`);
+    if (typeof chunk.response === 'string' && chunk.response) yield chunk.response;
+  }
+}
+
+export async function* llmChatStream(opts: LlmChatOptions): AsyncGenerator<LlmChatStreamChunk> {
+  const {
+    systemPrompt,
+    prompt,
+    maxTokens = 1024,
+    ollamaTimeoutMs = 120_000,
+    signal,
+  } = opts;
+
+  const { base, key, model, providerName } = getOmniConfig();
+  const messages: { role: string; content: string }[] = [];
+  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+  messages.push({ role: 'user', content: prompt });
+
+  let omniError: any;
+  try {
+    const res = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+      },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, stream: true }),
+      signal,
+    });
+
+    if (!res.ok) throw new Error(`OmniRoute HTTP ${res.status}`);
+    let sawToken = false;
+    for await (const delta of streamOmniResponse(res)) {
+      sawToken = true;
+      yield { type: 'token', content: delta, provider: 'omniRoute', model };
+    }
+    if (!sawToken) throw new Error('OmniRoute returned empty response');
+    yield { type: 'done', provider: 'omniRoute', model };
+    return;
+  } catch (err: any) {
+    omniError = err;
+    if (signal?.aborted) throw err;
+    console.warn(`[llmGateway] ${providerName} stream failed: ${err.message}. Trying Ollama fallback...`);
+  }
+
+  const ollamaPrompt = systemPrompt
+    ? `${systemPrompt}\n\nUser: ${prompt}\nAssistant:`
+    : prompt;
+  const ollamaSignal = signal || AbortSignal.timeout(ollamaTimeoutMs);
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: OLLAMA_FALLBACK_MODEL, prompt: ollamaPrompt, stream: true }),
+      signal: ollamaSignal,
+    });
+
+    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+    let sawToken = false;
+    for await (const delta of streamOllamaResponse(res)) {
+      sawToken = true;
+      yield { type: 'token', content: delta, provider: 'ollama', model: OLLAMA_FALLBACK_MODEL };
+    }
+    if (!sawToken) throw new Error('Ollama returned empty response');
+    yield { type: 'done', provider: 'ollama', model: OLLAMA_FALLBACK_MODEL };
+  } catch (ollamaErr: any) {
+    throw new Error(`Provider/model unavailable. OmniRoute: ${omniError?.message || omniError}; Ollama: ${ollamaErr.message}`);
+  }
 }
 
 // ── Direct Ollama call ───────────────────────────────────────────────
@@ -359,7 +522,7 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
   }
 
   // ── Path B: OmniRoute → Ollama fallback → offline ────────────────────
-  const { base, key } = getOmniConfig();
+  const { base, key, model, providerName } = getOmniConfig();
   const messages: { role: string; content: string }[] = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
   messages.push({ role: 'user', content: prompt });
@@ -371,7 +534,7 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
         'Content-Type': 'application/json',
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       },
-      body: JSON.stringify({ model: 'auto', messages, max_tokens: maxTokens }),
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
       signal: AbortSignal.timeout(timeoutMs),
     });
 
@@ -381,12 +544,12 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
     const reply = parseOmniResponse(raw);
 
     if (reply) {
-      finalResult = { reply, provider: 'omniRoute', offline: false };
+      finalResult = { reply, provider: 'omniRoute', offline: false, model };
     } else {
       throw new Error('OmniRoute returned empty response');
     }
   } catch (omniErr: any) {
-    console.warn(`[llmGateway] OmniRoute failed: ${omniErr.message}. Trying Ollama fallback…`);
+    console.warn(`[llmGateway] ${providerName} failed: ${omniErr.message}. Trying Ollama fallback…`);
 
     try {
       const ollamaPrompt = systemPrompt
@@ -406,7 +569,7 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
       const reply = (data.response || '').trim();
 
       if (reply) {
-        finalResult = { reply, provider: 'ollama', offline: false, model: OLLAMA_FALLBACK_MODEL, error: `OmniRoute unavailable: ${omniErr.message}` };
+        finalResult = { reply, provider: 'ollama', offline: false, model: OLLAMA_FALLBACK_MODEL, error: `${providerName} unavailable: ${omniErr.message}` };
       } else {
         throw new Error('Ollama returned empty response');
       }
@@ -416,7 +579,7 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
         reply: OFFLINE_MESSAGE,
         provider: 'offline',
         offline: true,
-        error: `OmniRoute: ${omniErr.message}; Ollama: ${ollamaErr.message}`,
+        error: `${providerName}: ${omniErr.message}; Ollama: ${ollamaErr.message}`,
       };
     }
   }

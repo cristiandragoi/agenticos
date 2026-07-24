@@ -18,6 +18,30 @@ export type ParsedToolCall = z.infer<typeof ToolCallSchema>;
  */
 export function normalizeToolCallCandidate(candidate: any): any {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
+  if (Array.isArray(candidate.tool_calls) && candidate.tool_calls.length > 0) {
+    return normalizeToolCallCandidate(candidate.tool_calls[0]);
+  }
+  if (candidate.function && typeof candidate.function === 'object') {
+    const rawArgs = candidate.function.arguments;
+    let args = rawArgs;
+    if (typeof rawArgs === 'string') {
+      try {
+        args = JSON.parse(rawArgs);
+      } catch {
+        args = {};
+      }
+    }
+    return normalizeToolCallCandidate({
+      tool: candidate.function.name,
+      arguments: args
+    });
+  }
+  if (typeof candidate.name === 'string' && candidate.arguments && typeof candidate.arguments === 'object') {
+    return normalizeToolCallCandidate({
+      tool: candidate.name,
+      arguments: candidate.arguments
+    });
+  }
   if (candidate.type === 'tool_call') return candidate;
   if (typeof candidate.tool !== 'string') return candidate;
   const { tool, arguments: args, ...rest } = candidate;
@@ -49,12 +73,59 @@ export function validateToolCallJson(jsonText: string): { toolCall: ParsedToolCa
   return { toolCall: null, error: `Schema validation error: ${result.error.message}` };
 }
 
+function extractBalancedJsonCandidates(text: string): string[] {
+  const candidates: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+      continue;
+    }
+
+    if (ch === '}') {
+      if (depth === 0) continue;
+      depth--;
+      if (depth === 0 && start >= 0) {
+        candidates.push(text.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return candidates;
+}
+
 /**
  * Robustly parse a tool_call from an LLM response.
  * Tries multiple extraction strategies in order:
  * 1. Plain JSON (response trimmed)
  * 2. JSON inside markdown code fences (```json ... ``` or ``` ... ```)
- * 3. JSON inside <tool_call> tags
+ * 3. Embedded balanced JSON
+ * 4. JSON inside <tool_call> tags
+ * 5. OpenAI-compatible tool-call structures
  * Returns { toolCall, parseError } where toolCall is null if all strategies fail.
  */
 export function parseToolCall(response: string): { toolCall: ParsedToolCall | null; parseError: string } {
@@ -74,7 +145,15 @@ export function parseToolCall(response: string): { toolCall: ParsedToolCall | nu
     errors.push(`code fence: ${fenced.error}`);
   }
 
-  // Strategy 3: <tool_call> tags
+  // Strategy 3: Embedded balanced JSON
+  for (const candidate of extractBalancedJsonCandidates(trimmed)) {
+    if (candidate === trimmed || candidate === fenceMatch?.[1]?.trim()) continue;
+    const embedded = validateToolCallJson(candidate);
+    if (embedded.toolCall) return { toolCall: embedded.toolCall, parseError: '' };
+    errors.push(`embedded JSON: ${embedded.error}`);
+  }
+
+  // Strategy 4: <tool_call> tags
   const tagMatch = trimmed.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
   if (tagMatch) {
     const tagged = validateToolCallJson(tagMatch[1].trim());

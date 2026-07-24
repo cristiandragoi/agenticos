@@ -29,7 +29,7 @@ const Overview: React.FC = () => {
           <div className="orbital-label">NORMALIZED MISSION CONTROL AGENT METADATA</div>
         </div>
         <div className="jarvis-overview__title-block">
-          <div className="jarvis-overview__badge">J.A.R.V.I.S. - MISSION CONTROL</div>
+          <div className="jarvis-overview__badge">JARVIS - MISSION CONTROL</div>
           <h1 className="jarvis-overview__title">Jarvis Mission Control</h1>
           <p className="jarvis-overview__subtitle">
             Jarvis Mission Control: voice + command center for my Agentic OS.

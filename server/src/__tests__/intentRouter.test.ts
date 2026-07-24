@@ -16,18 +16,24 @@ describe('IntentRouter — required routing cases', () => {
   it('routes direct conversation (casual question)', async () => {
     const result = await router.routeIntent('What is the capital of France?');
     expect(result.route).toBe('direct');
+    expect(result.category).toBe('conversation');
+    expect(result.mode).toBe('direct_conversation');
     expect(result.confidence).toBeGreaterThanOrEqual(0.5);
   });
 
   it('routes clear CodeX request (build)', async () => {
     const result = await router.routeIntent('Build a React dashboard component');
     expect(result.route).toBe('codex');
+    expect(result.category).toBe('repository_change');
+    expect(result.mode).toBe('operational_execution');
+    expect(result.requiresApproval).toBe(true);
     expect(result.confidence).toBeGreaterThanOrEqual(0.9);
   });
 
   it('routes clear CodeX request (refactor)', async () => {
     const result = await router.routeIntent('Refactor the authentication module');
     expect(result.route).toBe('codex');
+    expect(result.category).toBe('repository_change');
     expect(result.confidence).toBeGreaterThanOrEqual(0.9);
   });
 
@@ -52,6 +58,7 @@ describe('IntentRouter — required routing cases', () => {
   it('routes clear Memory request', async () => {
     const result = await router.routeIntent('Remember my preferences for dark mode');
     expect(result.route).toBe('memory');
+    expect(result.mode).toBe('operational_execution');
     expect(result.confidence).toBeGreaterThanOrEqual(0.8);
   });
 
@@ -107,8 +114,53 @@ describe('IntentRouter — required routing cases', () => {
   it('routes explicit multi-agent execution request to agent_teams', async () => {
     const result1 = await router.routeIntent('Assemble an agent team to investigate this issue');
     expect(result1.route).toBe('agent_teams');
+    expect(result1.category).toBe('agent_team_execution');
     
     const result2 = await router.routeIntent('Build a team to analyze this code');
     expect(result2.route).toBe('agent_teams');
+  });
+
+  it('classifies read-only repository inspection as repository_analysis without approval', async () => {
+    const result = await router.routeIntent('Inspect the Jarvis streaming implementation');
+    expect(result.route).toBe('codex');
+    expect(result.category).toBe('repository_analysis');
+    expect(result.requiresWorkspace).toBe(true);
+    expect(result.requiresApproval).toBe(false);
+    expect(result.selectedAgent).toBe('CodeX');
+  });
+
+  it('classifies explicit CodeX delegation', async () => {
+    const result = await router.routeIntent('Ask CodeX to inspect the backend');
+    expect(result.route).toBe('codex');
+    expect(result.category).toBe('repository_analysis');
+    expect(result.selectedAgent).toBe('CodeX');
+    expect(result.requiresApproval).toBe(false);
+  });
+
+  it('does not require approval for explicit read-only CodeX inspection constraints', async () => {
+    const result = await router.routeIntent('Ask CodeX to inspect the Jarvis router. Do not modify files.');
+    expect(result.route).toBe('codex');
+    expect(result.category).toBe('repository_analysis');
+    expect(result.requiresWorkspace).toBe(true);
+    expect(result.requiresApproval).toBe(false);
+  });
+
+  it('requires approval for explicit CodeX repository changes', async () => {
+    const result = await router.routeIntent('Ask CodeX to patch the Jarvis router');
+    expect(result.route).toBe('codex');
+    expect(result.requiresApproval).toBe(true);
+  });
+
+  it('classifies destructive file operations as approval_required', async () => {
+    const result = await router.routeIntent('Delete this component file');
+    expect(result.route).toBe('codex');
+    expect(result.category).toBe('approval_required');
+    expect(result.requiresApproval).toBe(true);
+  });
+
+  it('classifies live capability questions as system_status', async () => {
+    const result = await router.routeIntent('What can you do right now?');
+    expect(result.route).toBe('direct');
+    expect(result.category).toBe('system_status');
   });
 });

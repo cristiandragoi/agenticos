@@ -21,7 +21,7 @@ interface Edge {
 
 /* ─── Fixed Layout ─── */
 const AGENTS: AgentNode[] = [
-  { id: 'agent-jarvis-core', name: 'J.A.R.V.I.S.', color: '#38bdf8', status: 'idle', runsToday: 0, lastRunAt: null, x: 400, y: 40, description: 'Orbital command — fleet telemetry & orchestration' },
+  { id: 'agent-jarvis-core', name: 'JARVIS', color: '#38bdf8', status: 'idle', runsToday: 0, lastRunAt: null, x: 400, y: 40, description: 'Orbital command — fleet telemetry & orchestration' },
   { id: 'agent-architect', name: 'ARCHITECT', color: '#7c3aed', status: 'idle', runsToday: 0, lastRunAt: null, x: 100, y: 160, description: 'System design & architecture' },
   { id: 'agent-forge', name: 'FORGE', color: '#f97316', status: 'idle', runsToday: 0, lastRunAt: null, x: 250, y: 160, description: 'High-output code generation' },
   { id: 'agent-closer', name: 'CLOSER', color: '#ec4899', status: 'idle', runsToday: 0, lastRunAt: null, x: 400, y: 160, description: 'Sales & deal closing' },
@@ -34,7 +34,6 @@ const AGENTS: AgentNode[] = [
   { id: 'agent-spark', name: 'SPARK', color: '#fbbf24', status: 'idle', runsToday: 0, lastRunAt: null, x: 700, y: 290, description: 'Quick idea prototyping' },
   { id: 'agent-hermes', name: 'Hermes', color: '#6366f1', status: 'idle', runsToday: 0, lastRunAt: null, x: 100, y: 420, description: 'General assistant & chat' },
   { id: 'agent-jarvis', name: 'Jarvis', color: '#38bdf8', status: 'idle', runsToday: 0, lastRunAt: null, x: 250, y: 420, description: 'Voice-first assistant' },
-  { id: 'agent-athena', name: 'Athena', color: '#d946ef', status: 'idle', runsToday: 0, lastRunAt: null, x: 400, y: 420, description: 'Strategy & analytics' },
   { id: 'agent-sentinel', name: 'Sentinel', color: '#ef4444', status: 'idle', runsToday: 0, lastRunAt: null, x: 550, y: 420, description: 'Monitoring & alerting' },
   { id: 'agent-video', name: 'VideoAgent', color: '#22c55e', status: 'idle', runsToday: 0, lastRunAt: null, x: 700, y: 420, description: 'Video generation pipeline' },
   { id: 'agent-gemini-welders-research', name: 'Welders Researcher', color: '#8b5cf6', status: 'idle', runsToday: 0, lastRunAt: null, x: 100, y: 550, description: 'DE/NL welders market research' },
@@ -59,7 +58,6 @@ const EDGES: Edge[] = [
   // Secondary agents
   { from: 'agent-jarvis-core', to: 'agent-hermes' },
   { from: 'agent-jarvis-core', to: 'agent-jarvis' },
-  { from: 'agent-jarvis-core', to: 'agent-athena' },
   { from: 'agent-jarvis-core', to: 'agent-sentinel' },
   { from: 'agent-jarvis-core', to: 'agent-video' },
   // Pipeline flows

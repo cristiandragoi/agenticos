@@ -287,7 +287,7 @@ const OrnithDashboard: React.FC = () => {
           {activeProcess && (
             <div className="flex-row items-center gap-2 text-sm p-2 rounded" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
               <Activity className="animate-pulse" size={14} />
-              <strong>SYSTEM OVERRIDE:</strong> {activeProcess}. Check the J.A.R.V.I.S. ORB COMMAND tab to view live execution logs.
+              <strong>SYSTEM OVERRIDE:</strong> {activeProcess}. Check the JARVIS ORB COMMAND tab to view live execution logs.
             </div>
           )}
         </div>

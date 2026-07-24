@@ -157,3 +157,14 @@ landing-page-project/
 
 # Backups
 *.backup.ts
+
+# Local Ollama models
+ollama-models/
+
+# SQLite runtime files
+*.db-shm
+*.db-wal
+
+# AgenticOS runtime state
+server/data/agentic-os.db
+server/data/runs.json

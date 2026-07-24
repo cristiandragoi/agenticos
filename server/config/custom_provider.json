@@ -1,8 +1,8 @@
 {
-  "providerName": "custom",
-  "baseUrl": "http://localhost:11434/v1",
-  "apiKey": "sk-custom-key",
-  "defaultModel": "qwen2.5-coder:7b",
+  "providerName": "ollama",
+  "baseUrl": "http://127.0.0.1:11434",
+  "apiKey": "",
+  "defaultModel": "laguna-xs-2.1",
   "maxTokens": 4096,
   "temperature": 0.2
 }

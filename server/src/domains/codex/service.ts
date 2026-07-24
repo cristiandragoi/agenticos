@@ -1,15 +1,41 @@
 import { randomUUID } from 'crypto';
 import { goalStore } from '../../services/goalStore.js';
 import { resumeCodexGoalLoop } from '../../loops/codexLoop.js';
-import { llmChat } from '../../services/llmGateway.js';
+import { llmChat, OLLAMA_BASE, OLLAMA_DEFAULT_CODING_MODEL, OLLAMA_FALLBACK_MODEL } from '../../services/llmGateway.js';
 import type { GoalRecord } from '../../types.js';
+
+function isRepositoryOnlyTask(prompt: string, workspacePath?: string): boolean {
+  if (!workspacePath) return false;
+  const task = prompt.trim().replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  const repo = workspacePath.trim().replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  return task === repo;
+}
+
+const MUTATING_INTENT_RE = /\b(write|modify|edit|update|change|create|delete|remove|patch|replace|append|insert|install|deploy|configure|execute|run)\b/i;
+const READ_ONLY_INTENT_RE = /\b(inspect|analy[sz]e|explain|read|search|list|review|summari[sz]e|describe|look at)\b/i;
+
+function stripProtectiveReadOnlyClauses(prompt: string): string {
+  return prompt
+    .replace(/\bdo not\s+(?:modify|write|edit|change|create|delete|remove|patch|replace|append|insert|run|execute|deploy|configure)\b[^.?!]*/gi, '')
+    .replace(/\bwithout\s+(?:modifying|writing|editing|changing|creating|deleting|removing|patching|replacing|appending|inserting|running|executing|deploying|configuring)\b[^.?!]*/gi, '');
+}
+
+export function isReadOnlyCodexTask(prompt: string): boolean {
+  const trimmed = prompt.trim();
+  if (!trimmed) return false;
+  const intentText = stripProtectiveReadOnlyClauses(trimmed);
+  return READ_ONLY_INTENT_RE.test(trimmed) && !MUTATING_INTENT_RE.test(intentText);
+}
 
 export class CodexService {
   async createGoal(prompt: string, workspacePath: string, approvalPolicy?: string, executionProvider?: string, conversationId?: string, workspaceId?: string) {
+    if (!prompt?.trim() || isRepositoryOnlyTask(prompt, workspacePath)) {
+      throw Object.assign(new Error('Describe what you want CodeX to do.'), { status: 400 });
+    }
     // Normalize the UI vocabulary ('auto' | 'strict') to backend values.
     // Anything that is not an explicit 'auto' requires manual approval —
     // actions needing review must never be silently auto-approved.
-    const policy: 'manual' | 'auto' = approvalPolicy === 'auto' ? 'auto' : 'manual';
+    const policy: 'manual' | 'auto' = approvalPolicy === 'auto' || isReadOnlyCodexTask(prompt) ? 'auto' : 'manual';
 
     const goalId = `goal-${randomUUID().slice(0, 9)}`;
     const goalRecord: GoalRecord = {
@@ -50,18 +76,47 @@ Do not execute the steps yet, just outline the plan.`;
         provider: executionProvider === 'ollama' ? 'ollama' : undefined,
         timeoutMs: 3000
       });
+      if (result.offline) {
+        throw new Error(
+          `Provider/model unavailable. Primary provider: ${executionProvider === 'ollama' ? 'ollama' : 'omniRoute'}; ` +
+          `model: ${result.model || (executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto')}; ` +
+          `fallback provider/model: ollama/${executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : OLLAMA_FALLBACK_MODEL} at ${OLLAMA_BASE}; ` +
+          `reason: ${result.error || result.reply}`
+        );
+      }
       const reply = result.reply;
 
       const writer = goalStore.createEventWriter({ goalId });
       writer.push({
         state: 'waiting_for_approval', message: reply,
-        provider: 'custom', model: 'custom', tool: 'plan'
+        provider: result.provider, model: result.model || 'auto', tool: 'plan'
       });
     } catch (err: any) {
       const writer = goalStore.createEventWriter({ goalId });
+      const message = `CodeX provider/model unavailable before planning could complete. ` +
+        `Primary provider/model: ${executionProvider === 'ollama' ? `ollama/${OLLAMA_DEFAULT_CODING_MODEL}` : 'omniRoute/auto'}; ` +
+        `fallback provider/model: ollama/${executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : OLLAMA_FALLBACK_MODEL} at ${OLLAMA_BASE}; ` +
+        `reason: ${err.message}`;
       writer.push({
-        state: 'failed', message: 'Failed to generate plan: ' + err.message,
-        provider: 'custom', model: 'custom', tool: 'plan'
+        state: 'failed',
+        message,
+        provider: executionProvider === 'ollama' ? 'ollama' : 'omniRoute',
+        model: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto',
+        tool: 'plan',
+        error: err.message,
+        eventType: 'task_failed',
+        normalizedStatus: 'failed',
+        lifecycleState: 'failed',
+        userMessage: message,
+        errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+        errorDetails: err.message,
+        payload: {
+          provider: executionProvider === 'ollama' ? 'ollama' : 'omniRoute',
+          model: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto',
+          fallbackProvider: 'ollama',
+          fallbackModel: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : OLLAMA_FALLBACK_MODEL,
+          ollamaBaseUrl: OLLAMA_BASE
+        }
       });
     }
   }
@@ -94,7 +149,7 @@ Do not execute the steps yet, just outline the plan.`;
     const writer = goalStore.createEventWriter({ goalId });
     writer.push({
       state: 'waiting_for_approval', message: reply,
-      provider: 'custom', model: 'custom', tool: 'plan'
+      provider: resultProviderFromExecution(executionProvider), model: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto', tool: 'plan'
     });
 
     return true;
@@ -115,3 +170,7 @@ Do not execute the steps yet, just outline the plan.`;
 }
 
 export const codexService = new CodexService();
+
+function resultProviderFromExecution(executionProvider?: string) {
+  return executionProvider === 'ollama' ? 'ollama' : 'omniRoute';
+}

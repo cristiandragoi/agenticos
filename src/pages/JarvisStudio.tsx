@@ -105,7 +105,7 @@ export default function JarvisStudio() {
               {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
             </button>
             <div className={styles.headerTitle}>
-              <h1>Jarvis Operational Workspace</h1>
+              <h1>JARVIS Operational Workspace</h1>
             </div>
           </div>
           <div className={styles.topBarRight}>
@@ -131,7 +131,7 @@ export default function JarvisStudio() {
             <div className={styles.emptyStateIcon}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             </div>
-            <h2 className={styles.emptyStateTitle}>Jarvis Ordnance</h2>
+            <h2 className={styles.emptyStateTitle}>JARVIS Ordnance</h2>
             <p className={styles.emptyStateDesc}>Create a new conversation to coordinate Agentic OS.</p>
             <button className={`${styles.actionBtn} ${styles.primary}`} style={{ marginTop: '20px', padding: '10px 20px' }} onClick={handleCreateConversation}>
               Start Conversation

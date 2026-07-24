@@ -5,12 +5,14 @@ export interface RunSettingsValues {
   folderTree: string;
   workspacePath: string;
   execProvider: string;
+  execModel?: string;
+  baseUrl?: string;
   valProvider: string;
   approvalPolicy: string;
 }
 
 export function providerLabel(value: string): string {
-  if (value === 'ollama') return 'Ollama Local';
+  if (value === 'ollama') return 'Ollama';
   if (value === 'omniRoute') return 'OmniRoute Cloud';
   return value || '—';
 }
@@ -68,6 +70,8 @@ export const RunSettings: React.FC<Props> = ({
             <span className="text-[#858585]">Repository:</span> <span className="font-mono">{truncatePath(values.workspacePath)}</span>
             <span className="mx-2 text-[#555]">·</span>
             <span className="text-[#858585]">Execution:</span> {providerLabel(values.execProvider)}
+            <span className="mx-2 text-[#555]">·</span>
+            <span className="text-[#858585]">Model:</span> <span className="font-mono">{values.execModel || 'laguna-xs-2.1'}</span>
             <span className="mx-2 text-[#555]">·</span>
             <span className="text-[#858585]">Validation:</span> {providerLabel(values.valProvider)}
             <span className="mx-2 text-[#555]">·</span>
@@ -142,6 +146,15 @@ export const RunSettings: React.FC<Props> = ({
               <option value="omniRoute">OmniRoute (Cloud)</option>
               <option value="ollama">Ollama (Local)</option>
             </select>
+          </div>
+          <div>
+            <label className={labelCls}>Model</label>
+            <input
+              type="text"
+              value={values.execModel || 'laguna-xs-2.1'}
+              disabled
+              className={`${inputCls} font-mono`}
+            />
           </div>
           <div>
             <label className={labelCls}>Approval Policy</label>

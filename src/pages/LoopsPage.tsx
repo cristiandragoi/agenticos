@@ -48,7 +48,7 @@ const AGENT_COLORS: Record<string, string> = {
 const AGENT_NAMES: Record<string, string> = {
   'agent-hermes': 'Hermes',
   'agent-jarvis': 'Jarvis',
-  'agent-athena': 'Athena',
+  'agent-athena': 'Unavailable agent',
   'agent-sentinel': 'Sentinel',
   'agent-video': 'VideoAgent',
 };

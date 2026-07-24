@@ -18,7 +18,7 @@ export interface StageLogEntry {
 }
 
 export const STAGE_CONFIG: Record<StageId, StageConfig> = {
-  input:            { agentId: 'agent-jarvis-core', agentName: 'J.A.R.V.I.S.', actionType: 'routing', description: 'Route commands to the right agent. Speaks to the fleet.', color: '#38bdf8' },
+  input:            { agentId: 'agent-jarvis-core', agentName: 'JARVIS', actionType: 'routing', description: 'Route commands to the right agent. Speaks to the fleet.', color: '#38bdf8' },
   job_discovery:    { agentId: 'agent-scout', agentName: 'SCOUT', actionType: 'job_discovery', description: 'Apify-powered job search. Scrapes DE/NL job boards for welders/electricians.', color: '#10b981' },
   welders_researcher: { agentId: 'agent-gemini-welders-research', agentName: 'Welders Researcher', actionType: 'market_research', description: 'Deep market research on DE/NL welders demand. Generates structured reports.', color: '#8b5cf6' },
   email_copywriter: { agentId: 'agent-gemini-email-copy', agentName: 'Email Copywriter', actionType: 'email_template', description: 'Drafts personalized cold email templates from lead data.', color: '#a78bfa' },

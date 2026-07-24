@@ -16,6 +16,12 @@ const AppShell: React.FC = () => {
   const { isLoading, error } = useData();
 
   const drawer = useDrawer();
+  const hideGlobalChatDock =
+    location.pathname === '/hermes-studio' ||
+    location.pathname === '/jarvis' ||
+    location.pathname === '/hermes' ||
+    location.pathname === '/codex' ||
+    location.pathname === '/mission-control';
 
 
 
@@ -52,10 +58,13 @@ const AppShell: React.FC = () => {
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, background: 'var(--bg-base)' }}>
         <div style={{ color: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span style={{ fontSize: '1.5rem', fontWeight: 600 }}>Backend Disconnected</span>
+          <span style={{ fontSize: '1.5rem', fontWeight: 600 }}>Backend unavailable</span>
         </div>
-        <div className="text-muted">Failed to fetch data from backend ({error})</div>
-        <div className="text-xs text-dim font-mono">{error}</div>
+        <div className="text-muted">AgenticOS could not load live registry data.</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Retry</button>
+          <button className="btn">Open diagnostics</button>
+        </div>
       </div>
     );
   }
@@ -79,7 +88,7 @@ const AppShell: React.FC = () => {
           </div>
         </div>
 
-        {location.pathname !== '/hermes-studio' && location.pathname !== '/jarvis' && location.pathname !== '/hermes' && location.pathname !== '/codex' && <UniversalChatDock />}
+        {!hideGlobalChatDock && <UniversalChatDock />}
         {location.pathname !== '/jarvis' && <InspectorDrawer />}
         {commandPaletteOpen && <CommandPalette />}
       </div>

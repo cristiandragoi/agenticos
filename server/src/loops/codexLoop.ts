@@ -1,9 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { randomUUID, createHash } from 'crypto';
-import { parseToolCall } from './toolCallParser.js';
-import { customProviderChat, getCustomProviderConfig } from '../adapters/customProvider.js';
-import { llmChat } from '../services/llmGateway.js';
+import { parseToolCall, type ParsedToolCall } from './toolCallParser.js';
+import { llmChat, OLLAMA_BASE, OLLAMA_DEFAULT_CODING_MODEL } from '../services/llmGateway.js';
 import { goalStore } from '../services/goalStore.js';
 import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
 import { detectShellFileIo } from '../utils/nativeToolGuard.js';
@@ -21,6 +20,96 @@ interface ToolCall {
   args?: string[];
   prompt?: string;
   message?: string;
+}
+
+type ResponseExpectation = 'tool_decision' | 'final_answer';
+
+const WRITE_INTENT_RE = /\b(write|modify|edit|update|change|create|delete|remove|patch|replace|append|insert|install|execute|run)\b/i;
+const READ_INTENT_RE = /\b(inspect|explain|read|review|analy[sz]e|summari[sz]e|describe|look at|show|tell me how)\b/i;
+const FILE_PATH_RE = /\b(?:[A-Za-z]:[\\/])?(?:[A-Za-z0-9_.-]+[\\/])+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+\b/g;
+
+function removeProtectiveNegations(text: string): string {
+  return text
+    .replace(/\bdo not\s+(?:modify|write|edit|change|create|delete|remove|patch|replace|append|insert|run|execute)\b[^.?!]*/gi, '')
+    .replace(/\bwithout\s+(?:modifying|writing|editing|changing|creating|deleting|removing|patching|replacing|appending|inserting|running|executing)\b[^.?!]*/gi, '');
+}
+
+function isReadOnlyGoal(goalText: string): boolean {
+  const intentText = removeProtectiveNegations(goalText);
+  return READ_INTENT_RE.test(goalText) && !WRITE_INTENT_RE.test(intentText);
+}
+
+function extractExplicitReadPath(goalText: string, workspaceRoot?: string): string | null {
+  const matches = goalText.match(FILE_PATH_RE) || [];
+  for (const raw of matches) {
+    const normalized = raw.replace(/\\/g, '/').replace(/[),.;:'"]+$/g, '');
+    if (/^[A-Za-z]:\//.test(normalized)) {
+      if (!workspaceRoot) continue;
+      const relative = path.relative(workspaceRoot, normalized);
+      if (!relative.startsWith('..') && !path.isAbsolute(relative)) return relative.replace(/\\/g, '/');
+      continue;
+    }
+    return normalized;
+  }
+  return null;
+}
+
+function responseRequestsFileInspection(response: string): boolean {
+  return /\b(need|needs|must|should|would|first|before|unable|cannot|can't)\b[\s\S]{0,120}\b(read|inspect|open|see|access|look at)\b/i.test(response);
+}
+
+function isUsefulPlainTextAnalysis(response: string): boolean {
+  const trimmed = response.trim();
+  if (trimmed.length < 20) return false;
+  return !/\b(need|needs|must|should|would|first|before|unable|cannot|can't)\b[\s\S]{0,120}\b(read|inspect|open|see|access|look at)\b/i.test(trimmed);
+}
+
+function fallbackToolCallAfterParseFailure(goalText: string, response: string, allowedTools: string[], usedReadFallbacks: Set<string>, workspaceRoot?: string): ParsedToolCall | null {
+  const normalizedAllowedTools = allowedTools.map((t: string) => t === 'write_file' ? 'writeFile' : t === 'read_file' ? 'readFile' : t === 'terminal' ? 'runCommand' : t);
+  if (!isReadOnlyGoal(goalText)) return null;
+
+  const explicitPath = extractExplicitReadPath(goalText, workspaceRoot);
+  if (explicitPath && responseRequestsFileInspection(response) && normalizedAllowedTools.includes('readFile') && !usedReadFallbacks.has(explicitPath)) {
+    usedReadFallbacks.add(explicitPath);
+    return {
+      type: 'tool_call',
+      tool: 'readFile',
+      arguments: { path: explicitPath }
+    };
+  }
+
+  if (isUsefulPlainTextAnalysis(response) && normalizedAllowedTools.includes('finish')) {
+    return {
+      type: 'tool_call',
+      tool: 'finish',
+      arguments: { message: response.trim() }
+    };
+  }
+
+  return null;
+}
+
+function shouldRequestFinalAnswerAfterTool(goalText: string, tool: string): boolean {
+  return isReadOnlyGoal(goalText) && ['readFile', 'searchFiles', 'search_files'].includes(tool);
+}
+
+function looksLikeExplicitToolCall(response: string): boolean {
+  const trimmed = response.trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('```') || trimmed.startsWith('<tool_call>');
+}
+
+function isAllowedReadOnlyToolCall(toolCall: ParsedToolCall): boolean {
+  return ['readFile', 'searchFiles', 'search_files', 'finish'].includes(toolCall.tool);
+}
+
+function buildFinalAnswerPrompt(toolResult: string): string {
+  return `Using the tool result below, provide the final answer to the user.
+Return normal explanatory text.
+Do not return a tool call.
+Do not return JSON unless the user explicitly requested JSON.
+
+Tool result:
+${toolResult}`;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are CodeX, a Restricted Process Runner. Achieve the user's goal autonomously.
@@ -202,6 +291,31 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const currentAgentId = context?.agentId;
   const writer = goalStore.createEventWriter({ goalId, teamId: currentTeamId, agentId: currentAgentId });
 
+  const initialGoal = goalStore.get(goalId);
+  if (!initialGoal) return;
+  if (['stopped', 'completed', 'cancelled', 'failed'].includes(initialGoal.status)) {
+    console.log(`[GoalMode] Goal ${goalId} is ${initialGoal.status}; resume skipped until an explicit eligible resume is requested.`);
+    return;
+  }
+  if (!initialGoal.originalGoal?.trim()) {
+    goalStore.update(goalId, { status: 'failed' });
+    writer.push({
+      state: 'failed',
+      message: 'CodeX cannot start without a task description.',
+      provider: 'ollama',
+      model: OLLAMA_DEFAULT_CODING_MODEL,
+      eventType: 'task_failed',
+      normalizedStatus: 'failed',
+      lifecycleState: 'failed',
+      errorCode: 'CODEX_EMPTY_TASK'
+    });
+    return;
+  }
+  if (initialGoal.status === 'waiting_for_approval') {
+    console.log(`[GoalMode] Goal ${goalId} is waiting for approval; resume skipped until approval is received.`);
+    return;
+  }
+
   if (!goalStore.acquireLease(goalId, workerId, 30000)) {
     console.log(`[GoalMode] Goal ${goalId} is already running elsewhere.`);
     return;
@@ -210,8 +324,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const controller = new AbortController();
   goalControllers.set(goalId, controller);
 
-  let goal = goalStore.get(goalId);
-  if (!goal) return;
+  let goal: ReturnType<typeof goalStore.get> = initialGoal;
 
   // Resolve the workspace root for this run: an explicit team/execution context
   // wins; otherwise fall back to the repository the goal was created with.
@@ -311,6 +424,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const latestCheckpoint = goalStore.getLatestCheckpoint(goalId);
   let startSequenceId = 0;
 
+  const resumedFromCheckpoint = !!latestCheckpoint;
   if (latestCheckpoint) {
     const currentSnapshot = await captureWorkspaceSnapshot(workspaceRoot);
     if (currentSnapshot.hash !== latestCheckpoint.workspaceHash && latestCheckpoint.workspaceHash !== 'no-git-available') {
@@ -344,12 +458,28 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     }
   }
 
-  pushEventToWriter(writer, 'planning', 'Resuming goal loop...', undefined, undefined, { normalizedStatus: 'active', lifecycleState: 'running', userMessage: 'Continuing the task from the previous checkpoint.', eventType: 'task_resumed' });
+  pushEventToWriter(
+    writer,
+    'planning',
+    resumedFromCheckpoint ? 'Resuming from checkpoint...' : 'Starting CodeX task...',
+    undefined,
+    undefined,
+    {
+      normalizedStatus: 'active',
+      lifecycleState: 'planning',
+      userMessage: resumedFromCheckpoint ? 'Continuing the task from the previous checkpoint.' : 'Starting the task.',
+      eventType: resumedFromCheckpoint ? 'task_resumed' : 'task_started',
+      provider: 'ollama',
+      model: OLLAMA_DEFAULT_CODING_MODEL
+    }
+  );
   let stepCounter = goal.history.length;
 
 
-  let currentProvider = getCustomProviderConfig()?.providerName || 'custom';
-  let currentModel = getCustomProviderConfig()?.defaultModel || 'unknown';
+  let currentProvider = 'ollama';
+  let currentModel = OLLAMA_DEFAULT_CODING_MODEL;
+  const usedReadFallbacks = new Set<string>();
+  let responseExpectation: ResponseExpectation = 'tool_decision';
 
   while (true) {
     if (controller.signal.aborted) {
@@ -401,6 +531,7 @@ ${m.content}`).join('\n\n');
 
       let llmResult;
       let toolCall: any = null;
+      let finalAnswerText: string | null = null;
       let parseError = '';
       let isRetry = false;
       let effectiveSystemPrompt = systemPrompt;
@@ -408,6 +539,8 @@ ${m.content}`).join('\n\n');
       // --- Retry loop: up to 2 attempts (original + 1 retry) ---
       for (let attempt = 0; attempt < 2; attempt++) {
         isRetry = attempt > 0;
+
+        if (responseExpectation === 'final_answer' && isRetry) break;
 
         if (isRetry) {
           // Strengthen system prompt for retry
@@ -445,13 +578,68 @@ ${m.content}`).join('\n\n');
           }
         } catch (providerErr: any) {
           recordCircuitBreakerError('custom-codex');
-          pushEventToWriter(writer, 'failed', `CodeX provider failed: ${providerErr.message}`, undefined, providerErr.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX could not continue. Open the error details for more information.', eventType: 'step_failed', provider: currentProvider, model: currentModel });
+          const providerFailureMessage =
+            `CodeX provider/model unavailable. ` +
+            `Primary provider/model: ollama/${currentModel || 'unknown'}; ` +
+            `fallback provider/model: none for direct CodeX execution; ` +
+            `reason: ${providerErr.message}`;
+          pushEventToWriter(writer, 'failed', providerFailureMessage, undefined, providerErr.message, {
+            normalizedStatus: 'failed',
+            lifecycleState: 'failed',
+            userMessage: providerFailureMessage,
+            eventType: 'step_failed',
+            provider: currentProvider,
+            model: currentModel,
+            errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+            errorDetails: providerErr.message,
+            payload: {
+              provider: currentProvider,
+              model: currentModel,
+              fallbackProvider: null,
+              fallbackModel: null
+            }
+          });
           throw providerErr; // Break out to fatal loop error handler
         }
 
         const response = llmResult.reply;
         console.log(`[codexLoop] LLM Response (attempt ${attempt + 1}): ${response}`);
         conversation.push({ role: 'assistant', content: response });
+
+        if (responseExpectation === 'final_answer') {
+          if (looksLikeExplicitToolCall(response)) {
+            const parseResult = parseToolCall(response);
+            toolCall = parseResult.toolCall;
+            parseError = parseResult.parseError;
+            if (toolCall && toolCall.type === 'tool_call' && isAllowedReadOnlyToolCall(toolCall)) {
+              responseExpectation = 'tool_decision';
+              break;
+            }
+          }
+
+          finalAnswerText = response.trim();
+          if (!finalAnswerText) {
+            pushEventToWriter(
+              writer,
+              'failed',
+              'Final answer was empty.',
+              undefined,
+              'Final answer was empty.',
+              {
+                normalizedStatus: 'failed',
+                lifecycleState: 'failed',
+                userMessage: 'CodeX received an empty final answer from the model.',
+                eventType: 'task_failed',
+                provider: currentProvider,
+                model: currentModel,
+                errorCode: 'CODEX_EMPTY_FINAL_ANSWER'
+              }
+            );
+            goalStore.update(goalId, { status: 'failed' });
+            throw new Error('CODEX_EMPTY_FINAL_ANSWER');
+          }
+          break;
+        }
 
         const parseResult = parseToolCall(response);
         toolCall = parseResult.toolCall;
@@ -491,6 +679,32 @@ ${m.content}`).join('\n\n');
           console.error('[CodeX] Tool parsing failed on retry:', parseError);
           console.error('[CodeX] Raw LLM response (retry):', response);
 
+          const fallbackToolCall = fallbackToolCallAfterParseFailure(goal.originalGoal, response, allowedTools, usedReadFallbacks, workspaceRoot);
+          if (fallbackToolCall) {
+            toolCall = fallbackToolCall;
+            pushEventToWriter(
+              writer,
+              'planning',
+              fallbackToolCall.tool === 'readFile'
+                ? `Using safe readFile fallback for ${fallbackToolCall.arguments.path}.`
+                : 'Using plain-text read-only analysis as the final result.',
+              fallbackToolCall.tool,
+              undefined,
+              {
+                normalizedStatus: 'planning',
+                lifecycleState: 'planning',
+                userMessage: fallbackToolCall.tool === 'readFile'
+                  ? `The model did not emit tool JSON, so CodeX is safely reading ${fallbackToolCall.arguments.path}.`
+                  : 'The model returned a read-only analysis instead of tool JSON; CodeX is completing with that analysis.',
+                eventType: 'planning_started',
+                provider: currentProvider,
+                model: currentModel,
+                payload: { fallback: true, fallbackTool: fallbackToolCall.tool }
+              }
+            );
+            break;
+          }
+
           pushEventToWriter(
             writer,
             'failed',
@@ -500,7 +714,7 @@ ${m.content}`).join('\n\n');
             {
               normalizedStatus: 'failed',
               lifecycleState: 'failed',
-              userMessage: 'CodeX received an invalid response from the model after retry. Open the backend logs for the raw response.',
+              userMessage: 'CodeX received an invalid response from the model after one retry. Start again with a clearer task or run without the generated plan.',
               eventType: 'task_failed',
               provider: currentProvider,
               model: currentModel,
@@ -516,6 +730,24 @@ ${m.content}`).join('\n\n');
         }
       }
       // --- End retry loop ---
+
+      if (finalAnswerText) {
+        const toolResult = `Goal finished: ${finalAnswerText}`;
+        await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
+        pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for final answer`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
+        pushEventToWriter(writer, 'agent_completed', toolResult, 'finish', undefined, {
+          normalizedStatus: 'completed',
+          lifecycleState: 'completed',
+          userMessage: 'CodeX finished the task successfully.',
+          eventType: 'agent_completed',
+          provider: currentProvider,
+          model: currentModel,
+          payload: { finalAnswer: finalAnswerText, responseExpectation: 'final_answer' }
+        });
+        goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
+        goalStore.update(goalId, { status: 'completed' });
+        break;
+      }
 
       // At this point toolCall is guaranteed valid (we would have thrown otherwise)
       if (toolCall && toolCall.type === 'tool_call') {
@@ -735,6 +967,10 @@ ${m.content}`).join('\n\n');
           pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel, payload: { result: toolResult } });
           await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
+          if (shouldRequestFinalAnswerAfterTool(goal.originalGoal, toolCall.tool)) {
+            conversation.push({ role: 'user', content: buildFinalAnswerPrompt(toolResult) });
+            responseExpectation = 'final_answer';
+          }
 
         } catch (err: any) {
           conversation.push({ role: 'system', content: `Tool Error: ${err.message}` });

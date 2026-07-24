@@ -47,7 +47,8 @@ function App() {
               <Routes>
                 {/* Main Desktop OS Routes (with AppShell) */}
               <Route path="/" element={<AppShell />}>
-                <Route index element={<DesktopBoard />} />
+                <Route index element={<Navigate to="/mission-control" replace />} />
+                <Route path="dashboard" element={<Navigate to="/mission-control" replace />} />
                 <Route path="mission-control" element={<MissionControl />} />
                 <Route path="jarvis" element={<JarvisStudio />} />
                 <Route path="agents" element={<AgentsGallery />} />
@@ -61,7 +62,9 @@ function App() {
                 <Route path="control-room" element={<ControlRoom />} />
                 <Route path="boards" element={<BoardsGallery />} />
                 <Route path="research" element={<ResearchBoard />} />
+                <Route path="files" element={<BuildsGallery />} />
                 <Route path="pipeline" element={<PipelineBoard />} />
+                <Route path="automations" element={<LoopsPage />} />
                 <Route path="models" element={<ModelsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 {/* Phase 9 */}
@@ -89,4 +92,3 @@ function App() {
 }
 
 export default App;
-

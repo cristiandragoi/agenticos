@@ -1,7 +1,7 @@
 import { conversationService } from '../conversations/service.js';
 import { intentRouter } from './intentRouter.js';
 import { codexService } from '../codex/service.js';
-import { llmChat } from '../../services/llmGateway.js';
+import { llmChat, OLLAMA_DEFAULT_CODING_MODEL } from '../../services/llmGateway.js';
 import { coordinatorService } from '../teams/coordinatorService.js';
 import { detectGitRepository } from '../../utils/workspaceValidation.js';
 
@@ -24,6 +24,10 @@ export interface OrchestratorResult {
   status?: string;
   error?: string;
   operationId?: string;
+  provider?: string;
+  model?: string;
+  fallbackProvider?: string;
+  fallbackModel?: string;
 }
 
 export class JarvisOrchestrator {
@@ -54,7 +58,14 @@ export class JarvisOrchestrator {
     // 3. Dispatch
     switch (intent.route) {
       case 'codex':
-        return this.handleCodex(conversationId, prompt, workspacePath, approvalPolicy, operationId);
+        return this.handleCodex(
+          conversationId,
+          prompt,
+          workspacePath,
+          intent.requiresApproval === false ? 'auto' : approvalPolicy,
+          operationId,
+          intent.requiresApproval === false
+        );
       case 'agent_teams':
         return this.handleAgentTeams(conversationId, prompt, workspacePath, approvalPolicy, operationId);
       case 'hermes':
@@ -84,7 +95,7 @@ export class JarvisOrchestrator {
     return null;
   }
 
-  private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string) {
+  private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string, readOnly = false) {
     const requestMetadata = operationId ? { operationId } : undefined;
     const workspaceError = this.validateWorkspace(workspacePath);
     if (workspaceError) {
@@ -99,7 +110,16 @@ export class JarvisOrchestrator {
     }
 
     try {
-      const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, undefined, conversationId);
+      const codexPrompt = readOnly
+        ? [
+          'READ-ONLY CODEX TASK.',
+          'Inspect, analyze, read, and report only.',
+          'Do not write, patch, delete, run side-effect commands, deploy, or change configuration.',
+          '',
+          prompt
+        ].join('\n')
+        : prompt;
+      const goalId = await codexService.createGoal(codexPrompt, workspacePath, approvalPolicy, undefined, conversationId);
       const status = approvalPolicy === 'manual' ? 'waiting_for_approval' : 'queued';
 
       await conversationService.appendMessage({
@@ -108,12 +128,21 @@ export class JarvisOrchestrator {
         messageType: 'system_status',
         content: approvalPolicy === 'manual'
           ? `CodeX Goal initialized: ${goalId}. Generating plan for your approval...`
-          : `CodeX Goal initialized: ${goalId}. Execution started.`,
+          : `CodeX Goal initialized: ${goalId}. ${readOnly ? 'Read-only inspection started.' : 'Execution started.'}`,
         goalId,
         metadata: requestMetadata
       });
 
-      return { goalId, route: 'codex', status, operationId };
+      return {
+        goalId,
+        route: 'codex',
+        status,
+        operationId,
+        provider: 'ollama',
+        model: OLLAMA_DEFAULT_CODING_MODEL,
+        fallbackProvider: 'ollama',
+        fallbackModel: OLLAMA_DEFAULT_CODING_MODEL
+      };
     } catch (err: any) {
       const content = `Failed to initialize CodeX Goal: ${err.message}`;
       await conversationService.appendMessage({
@@ -123,7 +152,16 @@ export class JarvisOrchestrator {
         content,
         metadata: requestMetadata
       });
-      return { route: 'codex', error: content, operationId };
+      return {
+        route: 'codex',
+        status: 'failed',
+        error: content,
+        operationId,
+        provider: 'ollama',
+        model: OLLAMA_DEFAULT_CODING_MODEL,
+        fallbackProvider: 'ollama',
+        fallbackModel: OLLAMA_DEFAULT_CODING_MODEL
+      };
     }
   }
 

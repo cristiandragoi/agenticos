@@ -103,10 +103,10 @@ const PipelineBoard: React.FC = () => {
               {getCount(['researching', 'scored', 'awaiting_approval'])} evaluating
             </div>
             <EntityCard
-              title="Athena"
+              title="Unavailable agent"
               preview="Evidence Gathering"
               tags={['Research']}
-              meta={[{ icon: <Search size={14} />, label: 'Perplexity' }]}
+              meta={[{ icon: <Search size={14} />, label: 'Unavailable' }]}
               status="connected"
               accent="#8b5cf6"
             />

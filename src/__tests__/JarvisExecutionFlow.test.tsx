@@ -33,6 +33,24 @@ function jsonResponse(body: any, ok = true, status = 200) {
   return { ok, status, statusText: ok ? 'OK' : 'ERROR', json: async () => body };
 }
 
+function sse(event: string, data: any) {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function streamResponse(events: string[]) {
+  const encoder = new TextEncoder();
+  return {
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        events.forEach(event => controller.enqueue(encoder.encode(event)));
+        controller.close();
+      }
+    })
+  };
+}
+
 function routeFetch(url: string, options?: any) {
   if (url.endsWith('/api/jarvis/conversations/conv-1/messages')) {
     return jsonResponse([]);
@@ -109,6 +127,7 @@ async function sendMessage(text: string) {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   MockEventSource.instances = [];
   lastMessageBody = null;
   reportsResponse = { reports: [] };
@@ -132,6 +151,7 @@ describe('Jarvis → CodeX wiring', () => {
 
     await waitFor(() => expect(lastMessageBody).not.toBeNull());
     expect(lastMessageBody.workspacePath).toBe('B:\\Repo');
+    expect(lastMessageBody.repositoryPath).toBe('B:\\Repo');
     expect(lastMessageBody.approvalPolicy).toBe('strict');
 
     // Let the goal card mount and its effects settle before teardown.
@@ -184,6 +204,7 @@ describe('Jarvis → Agent Teams wiring', () => {
 
     await waitFor(() => expect(lastMessageBody).not.toBeNull());
     expect(lastMessageBody.workspacePath).toBe('B:\\Repo');
+    expect(lastMessageBody.repositoryPath).toBe('B:\\Repo');
     expect(lastMessageBody.approvalPolicy).toBe('strict');
   });
 
@@ -250,17 +271,110 @@ describe('Verification outcome rendering', () => {
 });
 
 describe('Workspace validation', () => {
-  it('never falls back to "default": sending is blocked when no repository is selected', async () => {
+  it('entering B:\\AgenticOS and pressing Enter updates the active workspace used by Jarvis', async () => {
+    fetchMock.mockImplementation((url: string, options?: any) => {
+      if (url.endsWith('/api/workspace/detect')) {
+        return Promise.resolve(jsonResponse({
+          isValid: true,
+          cwd: 'B:\\AgenticOS\\server',
+          targetPath: 'B:\\AgenticOS',
+          gitRoots: ['B:\\AgenticOS']
+        }));
+      }
+      if (url.endsWith('/api/jarvis/conversations/conv-1/messages')) return Promise.resolve(jsonResponse([]));
+      if (url.endsWith('/api/jarvis/conversations/conv-1/message/stream') && options?.method === 'POST') {
+        lastMessageBody = JSON.parse(options.body);
+        return Promise.resolve(streamResponse([
+          sse('intent', { type: 'repository_analysis', route: 'codex', mode: 'operational_execution' }),
+          sse('done', { route: 'codex', status: 'waiting_for_approval' })
+        ]));
+      }
+      return Promise.resolve(routeFetch(url, options));
+    });
+
+    render(
+      <CodexProvider>
+        <JarvisWorkspaceBar />
+        <JarvisChat conversationId="conv-1" />
+      </CodexProvider>
+    );
+
+    const workspaceInput = await screen.findByLabelText('Workspace path');
+    fireEvent.change(workspaceInput, { target: { value: 'B:\\AgenticOS' } });
+    fireEvent.keyDown(workspaceInput, { key: 'Enter' });
+
+    const valid = await screen.findByTestId('jarvis-workspace-valid');
+    expect(valid).toHaveTextContent('B:\\AgenticOS');
+
+    await sendMessage('Inspect the Jarvis router');
+
+    await waitFor(() => expect(lastMessageBody).not.toBeNull());
+    expect(lastMessageBody.workspacePath).toBe('B:\\AgenticOS');
+    expect(lastMessageBody.repositoryPath).toBe('B:\\AgenticOS');
+  });
+
+  it('persisted active workspace survives remount/navigation and stays authoritative', async () => {
+    window.localStorage.setItem('agenticos:codex-run-settings', JSON.stringify({
+      folderTree: 'B:\\AgenticOS',
+      workspacePath: 'B:\\AgenticOS',
+      execProvider: 'ollama',
+      valProvider: 'omniRoute',
+      approvalPolicy: 'strict'
+    }));
+
+    fetchMock.mockImplementation((url: string, options?: any) => {
+      if (url.endsWith('/api/workspace/detect')) {
+        return Promise.resolve(jsonResponse({
+          isValid: true,
+          cwd: 'B:\\AgenticOS\\server',
+          targetPath: 'B:\\AgenticOS',
+          gitRoots: ['B:\\AgenticOS']
+        }));
+      }
+      if (url.endsWith('/api/jarvis/conversations/conv-1/messages')) return Promise.resolve(jsonResponse([]));
+      if (url.endsWith('/api/jarvis/conversations/conv-1/message/stream') && options?.method === 'POST') {
+        lastMessageBody = JSON.parse(options.body);
+        return Promise.resolve(streamResponse([sse('done', { route: 'codex' })]));
+      }
+      return Promise.resolve(routeFetch(url, options));
+    });
+
+    const first = render(<CodexProvider><JarvisWorkspaceBar /></CodexProvider>);
+    expect(await screen.findByTestId('jarvis-workspace-valid')).toHaveTextContent('B:\\AgenticOS');
+    first.unmount();
+
+    render(<CodexProvider><JarvisChat conversationId="conv-1" /></CodexProvider>);
+    await sendMessage('Inspect the Jarvis router');
+
+    await waitFor(() => expect(lastMessageBody).not.toBeNull());
+    expect(lastMessageBody.workspacePath).toBe('B:\\AgenticOS');
+    expect(lastMessageBody.repositoryPath).toBe('B:\\AgenticOS');
+  });
+
+  it('never falls back to "default": ordinary direct chat sends without a repository', async () => {
+    fetchMock.mockImplementation((url: string, options?: any) => {
+      if (url.endsWith('/api/jarvis/conversations/conv-1/messages')) return Promise.resolve(jsonResponse([]));
+      if (url.endsWith('/api/jarvis/conversations/conv-1/message/stream') && options?.method === 'POST') {
+        lastMessageBody = JSON.parse(options.body);
+        return Promise.resolve(streamResponse([
+          sse('chunk', { delta: 'Direct answer.' }),
+          sse('done', { route: 'direct' })
+        ]));
+      }
+      return Promise.resolve(routeFetch(url, options));
+    });
+
     renderChat(false); // no workspace selected
-    fireEvent.change(screen.getByLabelText('Message Input'), { target: { value: 'Build a landing page' } });
+    fireEvent.change(screen.getByLabelText('Message Input'), { target: { value: 'What can you do?' } });
 
     const sendBtn = screen.getByRole('button', { name: /send message/i });
-    expect(sendBtn).toBeDisabled();
+    expect(sendBtn).not.toBeDisabled();
     fireEvent.click(sendBtn);
 
-    // No request ever leaves the UI, so nothing can silently become 'default'.
-    await new Promise(r => setTimeout(r, 100));
-    expect(lastMessageBody).toBeNull();
+    await waitFor(() => expect(lastMessageBody).not.toBeNull());
+    expect(lastMessageBody.prompt).toBe('What can you do?');
+    expect(lastMessageBody.workspacePath).toBeUndefined();
+    expect(lastMessageBody.workspacePath).not.toBe('default');
     expect(screen.queryByTestId('jarvis-goal-card')).not.toBeInTheDocument();
   });
 

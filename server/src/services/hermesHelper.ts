@@ -1,23 +1,24 @@
 export async function runHermesTask(prompt: string, contextMessage: string): Promise<{ reply: string, metadata: any }> {
-  const omniBase = process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1';
-  const omniKey  = process.env.OMNIROUTE_API_KEY  || '';
+  const openAiCompatibleBase = process.env.OPENROUTER_BASE_URL || process.env.OMNIROUTE_BASE_URL || 'https://openrouter.ai/api/v1';
+  const openAiCompatibleKey = process.env.OPENROUTER_API_KEY || process.env.OMNIROUTE_API_KEY || '';
+  const openAiCompatibleModel = process.env.OPENROUTER_MODEL || process.env.OMNIROUTE_MODEL || 'poolside/laguna-s-2.1:free';
   
   let reply = '';
   let metadata = {
-    modelUsed: 'OmniRoute',
+    modelUsed: `OpenRouter / ${openAiCompatibleModel}`,
     fallbackApplied: false,
     fallbackReason: ''
   };
 
   try {
-    const llmRes = await fetch(`${omniBase}/chat/completions`, {
+    const llmRes = await fetch(`${openAiCompatibleBase}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(omniKey ? { Authorization: `Bearer ${omniKey}` } : {}),
+        ...(openAiCompatibleKey ? { Authorization: `Bearer ${openAiCompatibleKey}` } : {}),
       },
       body: JSON.stringify({
-        model: 'auto',
+        model: openAiCompatibleModel,
         messages: [
           { role: 'system', content: contextMessage },
           { role: 'user', content: prompt }
@@ -28,7 +29,7 @@ export async function runHermesTask(prompt: string, contextMessage: string): Pro
     });
 
     if (!llmRes.ok) {
-      throw new Error(`OmniRoute ${llmRes.status}`);
+      throw new Error(`OpenRouter ${llmRes.status}`);
     }
 
     // Parse OmniRoute SSE stream
@@ -51,7 +52,7 @@ export async function runHermesTask(prompt: string, contextMessage: string): Pro
       } catch { /* no-op */ }
     }
   } catch (err: any) {
-    console.warn(`[runHermesTask] OmniRoute failed: ${err.message}. Initiating fallback to Ollama qwythos:9b.`);
+    console.warn(`[runHermesTask] OpenRouter failed: ${err.message}. Initiating fallback to Ollama qwythos:9b.`);
     metadata.fallbackApplied = true;
     metadata.fallbackReason = err.message;
     metadata.modelUsed = 'qwythos:9b (Ollama)';
@@ -77,7 +78,7 @@ export async function runHermesTask(prompt: string, contextMessage: string): Pro
       console.error(`[runHermesTask] Fallback also failed: ${fallbackErr.message}`);
       metadata.modelUsed = 'None (offline)';
       metadata.fallbackReason = `Primary: ${err.message}. Fallback: ${fallbackErr.message}`;
-      reply = 'I am running in offline mode. No external model is reachable. Please check your API keys in server/.env or start OmniRoute (`omniroute` in a terminal).';
+      reply = 'I am running in offline mode. No external model is reachable. Please check OPENROUTER_API_KEY in server/.env or start a configured local fallback.';
     }
   }
 

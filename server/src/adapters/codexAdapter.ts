@@ -5,9 +5,12 @@ import type {
 import { runStore } from '../services/runStore.js';
 import { mockAgents, mockTools, mockMemoryScopes } from '../data.js';
 
+const CODEX_OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const CODEX_OLLAMA_MODEL = process.env.OLLAMA_CODEX_MODEL || 'laguna-xs-2.1';
+
 /**
- * CodexAdapter — Runtime adapter for OpenAI Codex / GPT models.
- * Uses the OpenAI API directly (via the OPENAI_API_KEY env var).
+ * CodexAdapter — Runtime adapter for CodeX models.
+ * Uses local Ollama by default, with OpenAI-compatible routing when configured.
  * Supports chat completions with streaming.
  */
 export class CodexAdapter implements RuntimeAdapter {
@@ -19,13 +22,10 @@ export class CodexAdapter implements RuntimeAdapter {
   }
 
   private get baseUrl(): string {
-    return process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    return process.env.OPENAI_BASE_URL || CODEX_OLLAMA_BASE_URL;
   }
 
   async health(): Promise<RuntimeHealth> {
-    if (!this.apiKey) {
-      return { status: 'unhealthy', lastCheck: new Date().toISOString(), latencyMs: 0 };
-    }
     return { status: 'healthy', lastCheck: new Date().toISOString(), latencyMs: 15 };
   }
 
@@ -59,14 +59,8 @@ export class CodexAdapter implements RuntimeAdapter {
   async *stream(input: AgentInvocation): AsyncIterable<RuntimeEvent> {
     yield { type: 'status', payload: { status: 'running' }, timestamp: new Date().toISOString() };
 
-    if (!this.apiKey) {
-      yield { type: 'chat_chunk', payload: { chunk: 'Error: OPENAI_API_KEY not configured.' }, timestamp: new Date().toISOString() };
-      yield { type: 'run_status', payload: { status: 'failed' }, timestamp: new Date().toISOString() };
-      runStore.update(input.runId, { status: 'failed', errorMessage: 'OPENAI_API_KEY not configured' });
-      return;
-    }
-
-    const model = (input.uiContext as any)?.model || 'gpt-4o';
+    const model = (input.uiContext as any)?.model || CODEX_OLLAMA_MODEL;
+    const useOllama = !this.apiKey;
 
     try {
       const messages = [
@@ -80,13 +74,17 @@ export class CodexAdapter implements RuntimeAdapter {
         },
       ];
 
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      const response = await fetch(`${useOllama ? CODEX_OLLAMA_BASE_URL + '/api/generate' : this.baseUrl + '/chat/completions'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          ...(useOllama ? {} : { 'Authorization': `Bearer ${this.apiKey}` }),
         },
-        body: JSON.stringify({
+        body: JSON.stringify(useOllama ? {
+          model,
+          prompt: input.prompt,
+          stream: true,
+        } : {
           model,
           messages,
           max_tokens: 4096,
@@ -97,7 +95,7 @@ export class CodexAdapter implements RuntimeAdapter {
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`OpenAI API error (${response.status}): ${errText.slice(0, 200)}`);
+        throw new Error(`CodeX provider error (${response.status}): ${errText.slice(0, 200)}`);
       }
 
       const reader = response.body?.getReader();
@@ -116,18 +114,17 @@ export class CodexAdapter implements RuntimeAdapter {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6).trim();
-          if (payload === '[DONE]') break;
+          const payload = useOllama ? line.trim() : line.startsWith('data: ') ? line.slice(6).trim() : '';
+          if (!payload || payload === '[DONE]') continue;
 
           try {
             const chunk = JSON.parse(payload);
-            const delta = chunk.choices?.[0]?.delta;
-            if (delta?.content) {
-              accumulated += delta.content;
+            const content = useOllama ? chunk.response : chunk.choices?.[0]?.delta?.content;
+            if (content) {
+              accumulated += content;
               yield {
                 type: 'chat_chunk',
-                payload: { chunk: delta.content },
+                payload: { chunk: content },
                 timestamp: new Date().toISOString(),
               };
             }
@@ -181,23 +178,23 @@ export class CodexAdapter implements RuntimeAdapter {
 
 function runCodexProcess(input: AgentInvocation, run: RunRecord): void {
   const apiKey = process.env.OPENAI_API_KEY;
-  const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-  const model = (input.uiContext as any)?.model || 'gpt-4o';
+  const baseUrl = process.env.OPENAI_BASE_URL || CODEX_OLLAMA_BASE_URL;
+  const model = (input.uiContext as any)?.model || CODEX_OLLAMA_MODEL;
+  const useOllama = !apiKey;
 
   (async () => {
     try {
-      if (!apiKey) {
-        runStore.update(input.runId, { status: 'failed', errorMessage: 'OPENAI_API_KEY not configured' });
-        return;
-      }
-
-      const res = await fetch(`${baseUrl}/chat/completions`, {
+      const res = await fetch(`${useOllama ? CODEX_OLLAMA_BASE_URL + '/api/generate' : baseUrl + '/chat/completions'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          ...(useOllama ? {} : { 'Authorization': `Bearer ${apiKey}` }),
         },
-        body: JSON.stringify({
+        body: JSON.stringify(useOllama ? {
+          model,
+          prompt: input.prompt,
+          stream: false,
+        } : {
           model,
           messages: [
             { role: 'system', content: 'You are Codex, an expert coding assistant inside Agentic OS.' },
@@ -210,11 +207,11 @@ function runCodexProcess(input: AgentInvocation, run: RunRecord): void {
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`OpenAI API error (${res.status}): ${errText.slice(0, 200)}`);
+        throw new Error(`CodeX provider error (${res.status}): ${errText.slice(0, 200)}`);
       }
 
       const data = await res.json();
-      const output = data.choices?.[0]?.message?.content || 'No response from Codex.';
+      const output = (useOllama ? data.response : data.choices?.[0]?.message?.content) || 'No response from Codex.';
 
       runStore.update(input.runId, {
         status: 'completed',
