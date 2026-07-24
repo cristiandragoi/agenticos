@@ -39,7 +39,9 @@ const LeftRail: React.FC = () => {
 
       {/* Navigation */}
       <div className="left-rail__nav">
-        <div className="nav-section-label">AI AGENTS</div>
+        <NavLink to="/agents" className={({ isActive }) => `nav-section-label ${isActive ? 'active' : ''}`}>
+          AI AGENTS
+        </NavLink>
         <NavLink to="/jarvis" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-indigo-500/30 bg-indigo-500/20">
             <Eye size={12} className="text-indigo-400" />
