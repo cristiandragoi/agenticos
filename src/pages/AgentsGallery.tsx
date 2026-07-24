@@ -1,167 +1,202 @@
-// @ts-nocheck
+import { AlertTriangle, RefreshCw, Shield } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import AgentCard from '../components/agents/AgentCard';
+import AgentDetails from '../components/agents/AgentDetails';
+import type {
+  AgentOverviewCardData,
+  AgentOverviewEntry,
+  NormalizedAgentStatus,
+} from '../components/agents/agentOverviewTypes';
+import '../components/agents/AgentsOverview.css';
 import { useData } from '../store/dataStore';
-import React, { useState } from 'react';
-import { useDrawer } from '../store/appStore';
-import EntityCard from '../components/ui/EntityCard';
-import AgentAvatar from '../components/ui/AgentAvatar';
-import CreateAgentDrawer from '../components/drawers/CreateAgentDrawer';
-import { Activity, Database, PenTool, Plus, HardDrive } from 'lucide-react';
+import type { AgentDefinition, ProviderDefinition, RunRecord } from '../types';
 
-const OVERVIEW_AGENTS = [
-  { id: 'agent-jarvis', name: 'JARVIS', drawerType: 'agent' },
-  { id: 'agent-hermes', name: 'HERMES', drawerType: 'hermes' },
-  { id: 'agent-codex', name: 'CODEX', drawerType: 'agent' },
-  { id: 'agent-teams', name: 'AGENT TEAMS', drawerType: 'agent' },
+const OVERVIEW_AGENTS: AgentOverviewEntry[] = [
+  { id: 'agent-jarvis', name: 'JARVIS', route: '/jarvis' },
+  { id: 'agent-hermes', name: 'HERMES', route: '/hermes' },
+  { id: 'agent-codex', name: 'CODEX', route: '/codex' },
+  { id: 'agent-teams', name: 'AGENT TEAMS', route: '/agent-teams' },
 ];
 
-const ACTIVE_RUN_STATUSES = new Set(['running', 'queued', 'waiting', 'paused']);
+const ACTIVE_RUN_STATUSES = new Set(['running', 'queued', 'waiting', 'paused', 'planning', 'thinking', 'busy']);
 
-const AgentsGallery: React.FC = () => {
-  const { agents, runs, providers, isLoading } = useData();
-  const drawer = useDrawer();
-  const [showCreate, setShowCreate] = useState(false);
+function normalizeStatus(status?: string): NormalizedAgentStatus {
+  const value = (status || '').toLowerCase();
+  if (['active', 'running', 'online'].includes(value)) return 'Active';
+  if (['idle', 'ready'].includes(value)) return 'Ready';
+  if (['busy', 'planning', 'thinking'].includes(value)) return 'Busy';
+  if (['failed', 'unavailable', 'disconnected'].includes(value)) return 'Unavailable';
+  return 'Unknown';
+}
 
-  if (isLoading) return null;
+function findOverviewAgent(agents: AgentDefinition[], entry: AgentOverviewEntry) {
+  return agents.find((agent) => {
+    const agentName = (agent.name || '').toUpperCase();
+    return agent.id === entry.id || agentName === entry.name;
+  });
+}
 
-  const getAgentProviders = (agent: any) => {
-    return (agent.providerIds || [])
-      .map((pid: string) => providers.find((p) => p.id === pid))
-      .filter(Boolean);
+function getAgentProviders(agent: AgentDefinition | undefined, providers: ProviderDefinition[]) {
+  if (!agent) return [];
+  return (agent.providerIds || [])
+    .map((providerId) => providers.find((provider) => provider.id === providerId))
+    .filter(Boolean) as ProviderDefinition[];
+}
+
+function getProviderLabel(agentProviders: ProviderDefinition[]) {
+  if (agentProviders.length === 0) return 'Not configured';
+  return agentProviders.map((provider) => provider.name || 'Unknown').join(', ');
+}
+
+function getModelLabel(agentProviders: ProviderDefinition[]) {
+  const modelNames = agentProviders
+    .map((provider) => provider.defaultModel || provider.models?.[0]?.displayName || provider.models?.[0]?.name || provider.models?.[0]?.id)
+    .filter(Boolean);
+  if (modelNames.length === 0) return 'Not configured';
+  return modelNames.join(', ');
+}
+
+function getActiveRun(agent: AgentDefinition | undefined, runs: RunRecord[]) {
+  if (!agent) return undefined;
+  return runs
+    .filter((run) => run.agentId === agent.id && ACTIVE_RUN_STATUSES.has(run.status))
+    .sort((a, b) => {
+      const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    })[0];
+}
+
+function buildCardData(
+  entry: AgentOverviewEntry,
+  agents: AgentDefinition[],
+  providers: ProviderDefinition[],
+  runs: RunRecord[],
+): AgentOverviewCardData {
+  const agent = findOverviewAgent(agents, entry);
+  const agentProviders = getAgentProviders(agent, providers);
+  const activeRun = getActiveRun(agent, runs);
+
+  return {
+    entry,
+    agent,
+    providers: agentProviders,
+    activeRun,
+    status: normalizeStatus(activeRun?.status || agent?.status),
+    providerLabel: getProviderLabel(agentProviders),
+    modelLabel: getModelLabel(agentProviders),
+    activityLabel: activeRun?.input || agent?.recentActivity || 'No active run',
+    capabilities: agent?.capabilities || [],
+    role: agent?.description || 'Unavailable',
+  };
+}
+
+export default function AgentsGallery() {
+  const { agents, providers, runs, isLoading, error, refresh } = useData();
+  const navigate = useNavigate();
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  const overviewAgents = useMemo(
+    () => OVERVIEW_AGENTS.map((entry) => buildCardData(entry, agents, providers, runs)),
+    [agents, providers, runs],
+  );
+  const selectedAgent = overviewAgents.find((agent) => agent.entry.id === selectedAgentId);
+  const activeCount = overviewAgents.filter((agent) => agent.status === 'Active').length;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedAgentId(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const selectAgent = (agentId: string) => {
+    setSelectedAgentId((current) => (current === agentId ? null : agentId));
   };
 
-  const getOverviewAgent = (entry: any) => {
-    return agents.find((agent) => {
-      const name = (agent.name || '').toUpperCase();
-      return agent.id === entry.id || name === entry.name;
-    });
-  };
+  if (isLoading) {
+    return (
+      <main className="agents-overview-page" aria-busy="true">
+        <PageHeader activeCount={0} />
+        <section className="agents-stage agents-stage--loading" aria-label="Loading primary agents">
+          {OVERVIEW_AGENTS.map((agent) => (
+            <div className="agent-overview-skeleton" key={agent.id} data-testid="agent-skeleton-card">
+              <span />
+              <strong />
+              <p />
+            </div>
+          ))}
+        </section>
+      </main>
+    );
+  }
 
-  const getProviderLabel = (agent: any) => {
-    if (!agent) return 'Unknown';
-    const agentProviders = getAgentProviders(agent);
-    if (agentProviders.length === 0) return 'Unknown';
-    return agentProviders.map((provider: any) => provider.name || 'Unknown').join(', ');
-  };
-
-  const getModelLabel = (agent: any) => {
-    if (!agent) return 'Not configured';
-    const agentProviders = getAgentProviders(agent);
-    const modelNames = agentProviders
-      .map((provider: any) => provider.defaultModel || provider.models?.[0]?.name || provider.models?.[0]?.id)
-      .filter(Boolean);
-    if (modelNames.length === 0) return 'Not configured';
-    return modelNames.join(', ');
-  };
-
-  const getActiveRun = (agent: any) => {
-    if (!agent) return null;
-    return runs
-      .filter((run) => run.agentId === agent.id && ACTIVE_RUN_STATUSES.has(run.status))
-      .sort((a, b) => {
-        const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
-        const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
-        return bTime - aTime;
-      })[0] || null;
-  };
+  if (error) {
+    return (
+      <main className="agents-overview-page">
+        <PageHeader activeCount={activeCount} />
+        <section className="agents-overview-error" role="alert" aria-label="Agents overview error">
+          <AlertTriangle size={20} aria-hidden="true" />
+          <div>
+            <h2>Live registry unavailable</h2>
+            <p>Agent data could not be loaded. Retry the registry request or open diagnostics.</p>
+          </div>
+          <div className="agents-overview-error__actions">
+            <button type="button" onClick={refresh} aria-label="Retry agents overview data">
+              <RefreshCw size={16} aria-hidden="true" />
+              Retry
+            </button>
+            <button type="button" onClick={() => navigate('/control-room')} aria-label="Open diagnostics">
+              <Shield size={16} aria-hidden="true" />
+              Open diagnostics
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
-    <div className="flex-col h-full" style={{
-      backgroundImage: "linear-gradient(to bottom, rgba(10, 10, 12, 0.8), rgba(10, 10, 12, 0.95)), url('/bg/bg_agents.png')",
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed'
-    }}>
-      <div className="page-header">
-        <div className="page-header__title">
-          <h1>Agents Registry</h1>
-          <p>Visual roster of all agents, runtimes, and capabilities.</p>
-        </div>
-        <div className="page-header__actions">
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowCreate(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'var(--color-hermes)',
-              color: '#000',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontWeight: 600,
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={14} />
-            New Agent
-          </button>
-        </div>
-      </div>
+    <main className="agents-overview-page">
+      <PageHeader activeCount={activeCount} />
 
-      <div className="gallery-grid">
-        {OVERVIEW_AGENTS.map((entry) => {
-          const agent = getOverviewAgent(entry);
-          const activeRun = getActiveRun(agent);
-          const status = agent?.status || 'Unknown';
-          const toolCount = agent?.toolIds?.length || 0;
+      <section className="agents-stage" aria-label="Primary agent selector">
+        {overviewAgents.map((agent, index) => (
+          <AgentCard
+            key={agent.entry.id}
+            agent={agent}
+            index={index}
+            isSelected={selectedAgentId === agent.entry.id}
+            isInactive={selectedAgentId !== null && selectedAgentId !== agent.entry.id}
+            onSelect={() => selectAgent(agent.entry.id)}
+          />
+        ))}
+      </section>
 
-          return (
-            <EntityCard
-              key={entry.id}
-              title={entry.name}
-              subtitle={`${getProviderLabel(agent)} - ${getModelLabel(agent)}`}
-              preview={
-                activeRun?.input ||
-                agent?.recentActivity ||
-                agent?.description ||
-                'No active run'
-              }
-              status={status}
-              accent={agent?.color}
-              tags={agent?.capabilities || []}
-              meta={[
-                {
-                  icon: <HardDrive size={14} />,
-                  label: getProviderLabel(agent),
-                },
-                {
-                  icon: <Database size={14} />,
-                  label: getModelLabel(agent),
-                },
-                {
-                  icon: <Activity size={14} />,
-                  label: activeRun?.status || 'No active run',
-                },
-                {
-                  icon: <PenTool size={14} />,
-                  label: `${toolCount} tool${toolCount !== 1 ? 's' : ''}`,
-                },
-              ]}
-              onClick={() =>
-                agent && drawer.open(entry.drawerType, agent.id)
-              }
-            >
-              <AgentAvatar
-                avatar={agent?.avatar}
-                color={agent?.color}
-                size="lg"
-                status={status}
-              />
-            </EntityCard>
-          );
-        })}
-      </div>
-
-      {showCreate && (
-        <CreateAgentDrawer
-          onClose={() => setShowCreate(false)}
-          onPin={() => {}}
-          isPinned={false}
-          onCreated={() => setShowCreate(false)}
+      {selectedAgent && (
+        <AgentDetails
+          agent={selectedAgent}
+          onClose={() => setSelectedAgentId(null)}
+          onOpen={() => navigate(selectedAgent.entry.route)}
         />
       )}
-    </div>
+    </main>
   );
-};
+}
 
-export default AgentsGallery;
+function PageHeader({ activeCount }: { activeCount: number }) {
+  return (
+    <header className="agents-overview-header">
+      <div>
+        <p className="agents-overview-header__eyebrow">AI AGENTS</p>
+        <h1>Agents Overview</h1>
+        <p>Live primary agent registry and launcher.</p>
+      </div>
+      <div className="agents-overview-header__count" aria-label={`${activeCount} of 4 active agents`}>
+        {activeCount} of 4 active
+      </div>
+    </header>
+  );
+}

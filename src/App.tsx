@@ -77,6 +77,7 @@ function App() {
                 <Route path="evolution" element={<EvolutionDashboard />} />
                 <Route path="prompt-lab" element={<PromptLab />} />
                 <Route path="teams" element={<AgentTeamsDashboard />} />
+                <Route path="agent-teams" element={<AgentTeamsDashboard />} />
                 <Route path="teams/:id" element={<TeamDetailView />} />
                 <Route path="hermes" element={<Navigate to="/hermes-studio?view=kanban" replace />} />
                 <Route path="codex" element={<CodeXStudio />} />
