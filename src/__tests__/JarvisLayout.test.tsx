@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JarvisChat } from '../components/jarvis/JarvisChat';
 import { JarvisComposer } from '../components/jarvis/JarvisComposer';
@@ -97,9 +98,12 @@ function routeFetch(url: string, options?: any) {
 
 const SeedSettings: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { setRunSettings } = useCodexStore();
+  const runOnce = React.useRef(false);
   useEffect(() => {
+    if (runOnce.current) return;
+    runOnce.current = true;
     setRunSettings(prev => ({ ...prev, workspacePath: 'B:\\Repo', approvalPolicy: 'strict' }));
-  }, [setRunSettings]);
+  }, []);
   return <>{children}</>;
 };
 
@@ -130,8 +134,8 @@ describe('Composer layout', () => {
     render(<JarvisComposer onSendMessage={vi.fn()} isProcessing={false} />);
 
     expect(screen.getAllByTestId('jarvis-composer')).toHaveLength(1);
-    expect(screen.getByLabelText('Voice input experimental')).toBeDisabled();
-    expect(screen.getByText('Voice experimental')).toBeInTheDocument();
+    expect(screen.getByLabelText('Kill Voice')).toBeDisabled();
+    expect(screen.getByText('Kill Voice — coming in Phase 3')).toBeInTheDocument();
     expect(screen.queryByText(/Listening/i)).not.toBeInTheDocument();
   });
 
@@ -284,5 +288,194 @@ describe('Repository gating', () => {
     render(<CodexProvider><JarvisWorkspaceBar /></CodexProvider>);
     await screen.findByTestId('jarvis-workspace-error');
     expect(screen.getByTestId('jarvis-workspace-error').textContent).toMatch(/select repository/i);
+  });
+});
+
+/* ── 9: Phase 1 Dashboard and Telemetry ───────────────────── */
+describe('Phase 1 Dashboard and Telemetry', () => {
+  it('jarvis-dashboard renders on /jarvis', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(
+      <CodexProvider>
+        <MemoryRouter initialEntries={['/jarvis']}>
+          <Routes>
+            <Route path="/jarvis" element={<JarvisStudio />} />
+          </Routes>
+        </MemoryRouter>
+      </CodexProvider>
+    );
+    expect(await screen.findByTestId('jarvis-dashboard')).toBeInTheDocument();
+  });
+
+  it('large orb renders with no status text inside the core', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    messagesForTest = [{ id: 'm1', role: 'user', content: 'hello', createdAt: new Date().toISOString() }];
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    const orb = await screen.findByTestId('jarvis-reactor-orb');
+    expect(orb).toBeInTheDocument();
+    const core = screen.getByTestId('jarvis-orb-core');
+    expect(core.textContent).not.toMatch(/IDLE|LISTENING|TRANSCRIBING|THINKING|SPEAKING|ERROR/i);
+    expect(screen.getByTestId('jarvis-orb-status-label')).toHaveTextContent(/idle/i);
+  });
+
+  it('command button updates composer text through React state', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+    const goalBtn = screen.getByRole('button', { name: /^\/goal/i });
+    fireEvent.click(goalBtn);
+    const composerTextarea = screen.getByLabelText('Message Input') as HTMLTextAreaElement;
+    expect(composerTextarea.value).toBe('/goal ');
+  });
+
+  it('/new triggers new conversation behaviour', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    fetchMock.mockClear();
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+    const newBtn = screen.getByRole('button', { name: /^\/new/i });
+    fireEvent.click(newBtn);
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls;
+      const postCall = calls.find(([url, opt]) => String(url).endsWith('/api/jarvis/conversations') && opt?.method === 'POST');
+      expect(postCall).toBeDefined();
+    });
+  });
+
+  it('Pending Uplink mirrors composer input in real-time', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+    const input = screen.getByLabelText('Message Input') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'Executing database repair' } });
+    const uplink = screen.getByTestId('pending-uplink');
+    expect(uplink.textContent).toBe('Executing database repair');
+  });
+
+  it('Action Log empty state renders when no telemetry exists', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    messagesForTest = [];
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+    const emptyState = screen.getByTestId('action-log-empty');
+    expect(emptyState).toBeInTheDocument();
+    expect(emptyState.textContent).toContain('No telemetry data available');
+  });
+
+  it('does not render an empty conversation sidebar wrapper', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+    expect(screen.queryByText('Conversations')).not.toBeInTheDocument();
+    expect(screen.queryByText('No recent conversations.')).not.toBeInTheDocument();
+  });
+
+  it('renders only one Jarvis composer in the dashboard shell', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+    expect(screen.getAllByTestId('jarvis-composer')).toHaveLength(1);
+  });
+
+  it('renders cockpit and chat as separate vertical sections', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    const layout = await screen.findByTestId('jarvis-active-layout');
+    const cockpit = screen.getByTestId('jarvis-dashboard');
+    const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
+
+    expect(layout.children[0]).toBe(cockpit);
+    expect(layout.children[1]).toBe(chatWorkspace);
+    expect(cockpit.contains(chatWorkspace)).toBe(false);
+    expect(chatWorkspace.contains(cockpit)).toBe(false);
+  });
+
+  it('keeps chat history in the chat workspace, not inside the cockpit', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    messagesForTest = [{ id: 'm1', role: 'agent', content: 'Visible response body', createdAt: new Date().toISOString() }];
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+
+    const cockpit = await screen.findByTestId('jarvis-dashboard');
+    const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
+    const history = screen.getByTestId('jarvis-chat-scroll');
+
+    expect(await screen.findByText('Visible response body')).toBeInTheDocument();
+    expect(chatWorkspace.contains(history)).toBe(true);
+    expect(cockpit.contains(history)).toBe(false);
+  });
+
+  it('renders only one scrollable conversation history', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+
+    const histories = screen.getAllByTestId('jarvis-chat-scroll');
+    expect(histories).toHaveLength(1);
+    expect(histories[0].className).toContain('chatContainer');
+  });
+
+  it('places the composer inside the chat workspace after the message history', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+
+    const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
+    const history = screen.getByTestId('jarvis-chat-scroll');
+    const composer = screen.getByTestId('jarvis-composer');
+
+    expect(chatWorkspace.contains(history)).toBe(true);
+    expect(chatWorkspace.contains(composer)).toBe(true);
+    expect(history.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('keeps chat workspace and message history out of fixed or absolute positioning', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+
+    const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
+    const history = screen.getByTestId('jarvis-chat-scroll');
+    const composer = screen.getByTestId('jarvis-composer');
+
+    expect(chatWorkspace.className).toContain('bottomTimelineArea');
+    expect(history.className).toContain('chatContainer');
+    expect(composer.className).toContain('composerContainer');
+    expect(getComputedStyle(chatWorkspace).position).not.toMatch(/fixed|absolute/);
+    expect(getComputedStyle(history).position).not.toMatch(/fixed|absolute/);
+    expect(getComputedStyle(composer).position).not.toMatch(/fixed|absolute/);
+  });
+
+  it('keeps the large orb inside the cockpit section', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+
+    const cockpit = await screen.findByTestId('jarvis-dashboard');
+    const orbPanel = screen.getByTestId('jarvis-reactor-orb');
+    const orbCore = screen.getByTestId('jarvis-orb-core');
+
+    expect(cockpit.contains(orbPanel)).toBe(true);
+    expect(cockpit.contains(orbCore)).toBe(true);
+    expect(screen.getByTestId('jarvis-chat-workspace').contains(orbCore)).toBe(false);
+    expect(getComputedStyle(cockpit).overflow).not.toBe('visible');
+  });
+
+  it('does not render an obsolete chat overlay wrapper', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    await screen.findByTestId('jarvis-dashboard');
+
+    expect(document.querySelector('[data-testid="jarvis-chat-overlay"]')).toBeNull();
+    expect(document.querySelector('[data-testid="jarvis-background-chat"]')).toBeNull();
+    expect(document.querySelector('[data-testid="jarvis-obsolete-chat-wrapper"]')).toBeNull();
+  });
+
+  it('uses the strict two-row active Jarvis layout for cockpit and chat', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    const layout = await screen.findByTestId('jarvis-active-layout');
+
+    expect(layout.className).toContain('jarvisActiveLayout');
+    expect(screen.getByTestId('jarvis-dashboard').className).toContain('dashboardDashboard');
+    expect(screen.getByTestId('jarvis-chat-workspace').className).toContain('bottomTimelineArea');
   });
 });
