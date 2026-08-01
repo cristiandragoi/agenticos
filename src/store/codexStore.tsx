@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { ConnectionState } from '../presenters/executionStatus';
-import { CODEX_BASE_URL, CODEX_MODEL, CODEX_PROVIDER, CODEX_REPOSITORY } from '../config/codexRuntime';
+import { CODEX_BASE_URL, CODEX_PROVIDER, CODEX_REPOSITORY } from '../config/codexRuntime';
 
 export interface CodexRunSettings {
   folderTree: string;
   workspacePath: string;
-  execProvider: string;
-  execModel: string;
   baseUrl: string;
   valProvider: string;
   approvalPolicy: string;
+  routing?: {
+    mode: 'automatic' | 'preferred' | 'forced';
+    providerId: string;
+    modelId: string | null;
+  };
 }
 
 interface CodexState {
@@ -56,10 +59,8 @@ const RUN_SETTINGS_STORAGE_KEY = 'agenticos:codex-run-settings';
 const defaultRunSettings: CodexRunSettings = {
   folderTree: '',
   workspacePath: CODEX_REPOSITORY,
-  execProvider: CODEX_PROVIDER,
-  execModel: CODEX_MODEL,
   baseUrl: CODEX_BASE_URL,
-  valProvider: 'omniRoute',
+  valProvider: 'auto',
   approvalPolicy: 'strict'
 };
 
@@ -74,8 +75,6 @@ function readPersistedRunSettings(): CodexRunSettings {
       ...parsed,
       folderTree: typeof parsed.folderTree === 'string' ? parsed.folderTree : '',
       workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : CODEX_REPOSITORY,
-      execProvider: CODEX_PROVIDER,
-      execModel: CODEX_MODEL,
       baseUrl: CODEX_BASE_URL
     };
   } catch {

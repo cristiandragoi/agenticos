@@ -20,6 +20,13 @@ import DrawerShell from './DrawerShell';
 import ThinkingOrb from '../ui/ThinkingOrb';
 import { useVoiceIO } from '../../hooks/useVoiceIO';
 
+export interface AgentResponseReadyDetail {
+  messageId: string;
+  agentId: string;
+  conversationId?: string | null;
+  text: string;
+}
+
 /* ─── Persistence Keys ─── */
 const STORAGE_KEY = 'agenticos:jarvis:transcript';
 const SAVED_KEY = 'agenticos:jarvis:saved';
@@ -79,9 +86,10 @@ const JarvisDrawer: React.FC = () => {
 
   const [textInput, setTextInput] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
+  const [jarvisMode, setJarvisMode] = useState<'voice'|'board'>('voice');
   const [toast, setToast] = useState<string | null>(null);
 
+  const playedMessageIds = useRef(new Set<string>());
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   const jarvisAgent = agents.find((a) => a.id === 'agent-jarvis');
@@ -322,23 +330,48 @@ const JarvisDrawer: React.FC = () => {
         }
       }
     };
-    const handleResponseReady = (e: CustomEvent) => {
-      if (e.detail.agentId === 'agent-jarvis' && drawer.isOpen && drawer.entityType === 'jarvis') {
-        const textToSpeak = e.detail.text;
-        voice.speak(textToSpeak).then(() => {
-          fetch('/api/conversations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${textToSpeak.slice(0, 60)}"`, source: 'jarvis' })
-          }).catch(() => {});
-        }).catch((err) => {
-          fetch('/api/conversations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })
-          }).catch(() => {});
-        });
+    const handleResponseReady = (e: Event) => {
+      const customEvent = e as CustomEvent<AgentResponseReadyDetail>;
+      const { agentId, text, messageId, conversationId } = customEvent.detail;
+      
+      if (!agentId || !text || !messageId) {
+        console.warn('[TTSPlayback] Invalid payload', customEvent.detail);
+        return;
       }
+      
+      if (agentId !== 'agent-jarvis') {
+        console.log('[TTSPlayback]', { messageId, agentId, conversationId, ownerComponent: 'JarvisDrawer', action: 'wrong-agent' });
+        return;
+      }
+
+      if (messageId) {
+        if (playedMessageIds.current.has(messageId)) {
+          console.log('[TTSPlayback]', { messageId, agentId, conversationId, ownerComponent: 'JarvisDrawer', action: 'skip-duplicate' });
+          return;
+        }
+        playedMessageIds.current.add(messageId);
+        if (playedMessageIds.current.size > 50) {
+          const first = playedMessageIds.current.values().next().value;
+          if (first) playedMessageIds.current.delete(first);
+        }
+      }
+      
+      console.log('[TTSPlayback]', { messageId, agentId, conversationId, ownerComponent: 'JarvisDrawer', action: 'start' });
+
+      const textToSpeak = text;
+      voice.speak(textToSpeak).then(() => {
+        fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${textToSpeak.slice(0, 60)}"`, source: 'jarvis' })
+        }).catch(() => {});
+      }).catch((err) => {
+        fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })
+        }).catch(() => {});
+      });
     };
 
     window.addEventListener('agent-tts-started', handleTTSStart as EventListener);
@@ -349,6 +382,9 @@ const JarvisDrawer: React.FC = () => {
       window.removeEventListener('agent-tts-started', handleTTSStart as EventListener);
       window.removeEventListener('agent-tts-ended', handleTTSEnd as EventListener);
       window.removeEventListener('agent-response-ready', handleResponseReady as EventListener);
+      console.log('[TTSPlayback]', { ownerComponent: 'JarvisDrawer', action: 'stop', reason: 'unmount' });
+      voice.stopAudio?.();
+      window.speechSynthesis?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawer.isOpen, drawer.entityType, voice]);

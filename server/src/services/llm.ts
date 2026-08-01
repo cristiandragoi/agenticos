@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 export async function executeWithFailover(systemPrompt: string, userPrompt: string, contextName: string, runId?: string): Promise<{ text: string, provider: string }> {
   const isHeavy = systemPrompt.toLowerCase().includes('code') || 
                   systemPrompt.toLowerCase().includes('fugu') || 
@@ -32,7 +33,7 @@ export async function executeWithFailover(systemPrompt: string, userPrompt: stri
     if (!p.key) continue;
     
     try {
-      if (runId) console.log(`[${contextName}] Trying provider: ${p.name}`);
+      if (runId) logger.info(`[${contextName}] Trying provider: ${p.name}`);
       
       const res = await fetch(p.url, {
         method: 'POST',
@@ -55,11 +56,11 @@ export async function executeWithFailover(systemPrompt: string, userPrompt: stri
         return { text, provider: `${p.name} (${p.model})` };
       } else {
         const errText = await res.text();
-        console.warn(`[${contextName}] Provider ${p.name} failed with status ${res.status}: ${errText}`);
+        logger.warn(`[${contextName}] Provider ${p.name} failed with status ${res.status}: ${errText}`);
         lastError = errText;
       }
     } catch (err: any) {
-      console.warn(`[${contextName}] Provider ${p.name} network error: ${err.message}`);
+      logger.warn(`[${contextName}] Provider ${p.name} network error: ${err.message}`);
       lastError = err.message;
     }
   }
@@ -99,7 +100,7 @@ You can deduce the project name and brief from the user's prompt.`;
     const result = await executeWithFailover(systemPrompt, prompt, 'LLM Service');
     return result.text;
   } catch (err: any) {
-    console.error('[LLM Service] Failover exhausted:', err);
+    logger.error('[LLM Service] Failover exhausted:', err);
     return err.message || `(Local Fallback Mode) Error connecting to AI provider.`;
   }
 }

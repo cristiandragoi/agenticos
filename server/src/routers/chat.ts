@@ -5,6 +5,9 @@ import { runtimeRegistry } from '../services/runtimeRegistry.js';
 import { mockAgents } from '../data.js';
 import { llmChat, llmProbe, OLLAMA_BASE } from '../services/llmGateway.js';
 import { resumeCodexGoalLoop } from '../loops/codexLoop.js';
+import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
+import { conversationService } from '../domains/conversations/service.js';
+import { logger } from '../utils/logger.js';
 import { goalStore } from '../services/goalStore.js';
 import { codexService } from '../domains/codex/service.js';
 import type { GoalRecord, GoalEvent } from '../types.js';
@@ -12,6 +15,7 @@ import type { GoalRecord, GoalEvent } from '../types.js';
 import { db } from '../db/index.js';
 import { goalSteps, goalCheckpoints, providerCircuitBreakers } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../services/agent/assignments.js';
 
 const router = Router();
 
@@ -45,7 +49,7 @@ router.post('/message', (req, res) => {
 
   if (adapter) {
     const invocation = { runId, agentId, sessionId, workspaceId: 'default', mode: 'chat' as const, prompt: message, uiContext: req.body.uiContext };
-    adapter.invoke(invocation).catch(console.error);
+    adapter.invoke(invocation).catch((err) => logger.error('[Chat] Invocation error:', err));
 
     // Drive SSE stream asynchronously
     (async () => {
@@ -62,7 +66,7 @@ router.post('/message', (req, res) => {
           if (event.type === 'run_status') break;
         }
       } catch (err) {
-        console.error('[Chat] Stream error:', err);
+        logger.error('[Chat] Stream error:', err);
       } finally {
         setTimeout(() => {
           const cs = streamClients.get(runId) || [];
@@ -194,23 +198,56 @@ router.post('/agents/run', async (req, res) => {
    Starts a new durable Goal Mode loop                 */
 router.post('/agents/goal', async (req, res) => {
   try {
-    const { goal: prompt, executionProvider, validationProvider, workspacePath, approvalPolicy, conversationId, workspaceId } = req.body;
+    const { 
+      goal: prompt, 
+      validationProvider, 
+      workspacePath, 
+      repositoryRoot, 
+      approvalPolicy, 
+      conversationId, 
+      workspaceId, 
+      executionOptions, 
+      routing, 
+      agentId = 'agent-codex' 
+    } = req.body;
+
+    // Ensure we use repositoryRoot or workspacePath interchangeably
+    const targetWorkspace = repositoryRoot || workspacePath;
+
+    // Validate routing intent
+    let traceAssignment = routing;
+    let routingSource = 'explicit-override';
     
-    console.log('[DEBUG] Received POST /api/chat/agents/goal payload:', {
-      executionProvider,
-      validationProvider,
-      repositoryRoot: workspacePath,
-      approvalPolicy,
-      conversationId,
-      workspaceId
+    if (!routing || typeof routing !== 'object' || !['automatic', 'preferred', 'forced'].includes(routing.mode)) {
+      routingSource = 'persisted-assignment';
+      traceAssignment = await AgentProviderAssignmentService.getAssignment(agentId);
+    } else {
+      // Basic validation of explicitly supplied routing
+      if (routing.mode !== 'automatic' && (!routing.providerId || typeof routing.providerId !== 'string')) {
+        return res.status(400).json({ error: 'providerId is required for preferred/forced routing' });
+      }
+    }
+
+    const disableFallback = routingSource === 'explicit-override' 
+      ? (executionOptions?.disableFallback === true || routing?.mode === 'forced')
+      : traceAssignment?.routingMode === 'forced';
+
+    logger.info('[DEBUG] CodeX Task Routing Trace:', {
+      agentId,
+      routingSource,
+      routingMode: traceAssignment?.routingMode || traceAssignment?.mode || 'automatic',
+      catalogProviderId: traceAssignment?.providerId || 'none',
+      gatewayProviderId: mapCatalogToGatewayId(traceAssignment?.providerId || ''),
+      modelId: traceAssignment?.modelId || 'default',
+      disableFallback: !!disableFallback
     });
 
     if (!prompt) return res.status(400).json({ error: 'Describe what you want CodeX to do.' });
 
-    const goalId = await codexService.createGoal(prompt, workspacePath, approvalPolicy, executionProvider, conversationId, workspaceId);
+    const goalId = await codexService.createGoal(prompt, targetWorkspace, approvalPolicy, undefined, conversationId, workspaceId);
     res.json({ goalId });
   } catch (err: any) {
-    console.error('ERROR IN POST /agents/goal:', err);
+    logger.error('ERROR IN POST /agents/goal', err);
     res.status(err?.status || 500).json({ error: err?.message || String(err) });
   }
 });
@@ -218,8 +255,8 @@ router.post('/agents/goal', async (req, res) => {
 /* ── POST /api/chat/agents/goal/:id/revise ────────────── */
 router.post('/agents/goal/:id/revise', async (req, res) => {
   const goalId = req.params.id;
-  const { feedback, executionProvider } = req.body;
-  const success = await codexService.reviseGoal(goalId, feedback, executionProvider);
+  const { feedback } = req.body;
+  const success = await codexService.reviseGoal(goalId, feedback);
   if (!success) return res.status(400).json({ error: 'Failed to revise goal' });
   res.json({ success: true });
 });
@@ -337,7 +374,7 @@ router.post('/agents/goal/:id/resume', async (req, res) => {
 
   {
     goalStore.update(goalId, { status: 'queued' });
-    resumeCodexGoalLoop(goalId).catch(console.error);
+    resumeCodexGoalLoop(goalId).catch((err) => logger.error('Error resuming goal loop:', err));
   }
   res.json({ success: true, status: 'resumed' });
 });

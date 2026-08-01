@@ -144,6 +144,8 @@ vite.config.ts.timestamp-*
 
 # AgenticOS runtime/generated data
 .agentos/
+.agentos/dev-processes.json
+.agentos/logs/
 server/.agentos/
 server/data/runs.json
 

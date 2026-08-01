@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -5,7 +6,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (!token || process.env.NODE_ENV !== 'production') {
     // Dev bypass — log warning once
     if (process.env.NODE_ENV === 'production') {
-      console.warn('[AUTH] AGENTOS_API_TOKEN is not set — all requests are unauthenticated');
+      logger.warn('[AUTH] AGENTOS_API_TOKEN is not set — all requests are unauthenticated');
     }
     return next();
   }

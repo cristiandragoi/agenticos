@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger.js';
 /**
  * Speak Tool — allows the agent to respond with voice (TTS via Deepgram).
  * The agent calls this tool with the text it wants spoken aloud.
@@ -37,7 +38,7 @@ export const speakTool = {
     }
 
     try {
-      console.log(`[SpeakTool] TTS: Deepgram ${voice} — "${text.slice(0, 60)}..."`);
+      logger.info(`[SpeakTool] TTS: Deepgram ${voice} — "${text.slice(0, 60)}..."`);
       const ttsResponse = await fetch(`https://api.deepgram.com/v1/speak?model=${voice}`, {
         method: 'POST',
         headers: {
@@ -50,7 +51,7 @@ export const speakTool = {
 
       if (!ttsResponse.ok) {
         const errText = await ttsResponse.text();
-        console.warn(`[SpeakTool] Deepgram TTS failed (${ttsResponse.status}): ${errText}`);
+        logger.warn(`[SpeakTool] Deepgram TTS failed (${ttsResponse.status}): ${errText}`);
         return JSON.stringify({
           success: true,
           text: text.trim(),
@@ -61,7 +62,7 @@ export const speakTool = {
 
       const buffer = await ttsResponse.arrayBuffer();
       const audioData = Buffer.from(buffer).toString('base64');
-      console.log(`[SpeakTool] TTS generated: ${buffer.byteLength} bytes`);
+      logger.info(`[SpeakTool] TTS generated: ${buffer.byteLength} bytes`);
 
       return JSON.stringify({
         success: true,
@@ -72,7 +73,7 @@ export const speakTool = {
         sizeBytes: buffer.byteLength,
       });
     } catch (err: any) {
-      console.warn('[SpeakTool] Deepgram TTS connection error:', err);
+      logger.warn('[SpeakTool] Deepgram TTS connection error:', err);
       return JSON.stringify({
         success: true,
         text: text.trim(),

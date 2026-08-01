@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { BaseConnector } from '../BaseConnector.js';
 import { SystemEventPayload, SystemEventType } from '../../core/eventBus.js';
 
@@ -40,7 +41,7 @@ export class MockTikTokConnector extends BaseConnector {
         eventType = 'affiliate_commission';
         break;
       default:
-        console.log(`[MockTikTokConnector] Unrecognized event type: ${rawPayload.type}`);
+        logger.info(`[MockTikTokConnector] Unrecognized event type: ${rawPayload.type}`);
         return null; // Ignore unknown events
     }
 

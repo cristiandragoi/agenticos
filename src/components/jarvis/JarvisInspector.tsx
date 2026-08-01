@@ -96,7 +96,7 @@ export const JarvisInspector: React.FC<JarvisInspectorProps> = ({ activeConversa
             )}
             <div style={{ ...rowStyle, marginTop: '8px' }}>
               <span>Execution provider</span>
-              <span style={valueStyle}>{providerLabel(runSettings.execProvider)}</span>
+              <span style={valueStyle}>{providerLabel(runSettings.routing?.providerId || 'auto')}</span>
             </div>
             <div style={rowStyle}>
               <span>Validation provider</span>

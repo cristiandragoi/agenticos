@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { runStore } from './runStore.js';
 import { executeWithFailover } from './llm.js';
 
@@ -7,7 +8,7 @@ import { executeWithFailover } from './llm.js';
  * that Hermes/Jarvis can use as steering prompts.
  */
 export async function supervisorLoop(intervalMs: number = 60000) {
-  console.log(`[Supervisor] Starting background loop (Interval: ${intervalMs}ms)`);
+  logger.info(`[Supervisor] Starting background loop (Interval: ${intervalMs}ms)`);
 
   while (true) {
     try {
@@ -27,7 +28,7 @@ export async function supervisorLoop(intervalMs: number = 60000) {
           continue; // Run is making progress
         }
 
-        console.log(`[Supervisor] Detected stalled run: ${run.id} (Agent: ${run.agentId})`);
+        logger.info(`[Supervisor] Detected stalled run: ${run.id} (Agent: ${run.agentId})`);
 
         const summary = run.summary || `Run is stalled. Last input: "${run.input.substring(0, 50)}..."`;
 
@@ -56,13 +57,13 @@ Write a short steering instruction:`;
           // Un-flag stall
           runStore.update(run.id, { stalled: false });
           
-          console.log(`[Supervisor] Injected nudge for run ${run.id}: ${nudge}`);
+          logger.info(`[Supervisor] Injected nudge for run ${run.id}: ${nudge}`);
         } catch (err: any) {
-          console.error(`[Supervisor] Failed to generate nudge for run ${run.id}: ${err.message}`);
+          logger.error(`[Supervisor] Failed to generate nudge for run ${run.id}: ${err.message}`);
         }
       }
     } catch (err: any) {
-      console.error(`[Supervisor] Error in supervisor loop: ${err.message}`);
+      logger.error(`[Supervisor] Error in supervisor loop: ${err.message}`);
     }
 
     // 6. Sleep until the next supervision cycle

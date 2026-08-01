@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from "express";
 import { localDataPort } from "../adapters/localDataPort.js";
 import { getLane } from "../core/lanes/index.js";
@@ -56,12 +57,12 @@ laneRouter.post("/dispatch", async (req, res) => {
       input,
       run: () => dispatcher({ input, config: body.laneConfig }),
     }).catch((err) => {
-      console.error("pipeline failed", err);
+      logger.error("pipeline failed", err);
     });
 
     res.status(202).json({ ok: true });
   } catch (error) {
-    console.error("Error dispatching card", error);
+    logger.error("Error dispatching card", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -5,7 +6,7 @@ const VAULT_PATH = 'C:\\Users\\Cris\\obsidian-vault';
 
 // Lightweight LLM client to replace the mock
 async function executeAgent(role: string, prompt: string): Promise<{ output: string }> {
-  console.log(`[Agent] Spawning ${role}...`);
+  logger.info(`[Agent] Spawning ${role}...`);
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return { output: `[Mock output for ${role} because OPENAI_API_KEY is not set]\n\nProcessed: ${prompt.substring(0, 50)}...` };
@@ -35,7 +36,7 @@ async function executeAgent(role: string, prompt: string): Promise<{ output: str
 }
 
 export async function runSeoPipeline(topic: string, domain: string) {
-  console.log(`Starting SEO pipeline for ${topic} on ${domain}`);
+  logger.info(`Starting SEO pipeline for ${topic} on ${domain}`);
   
   // Parallel Sub-agents (Keyword Research & Outlining concurrently)
   const [research, outline] = await Promise.all([
@@ -57,6 +58,6 @@ export async function runSeoPipeline(topic: string, domain: string) {
   const content = `# SEO Draft: ${topic}\n\n## Research\n${research.output}\n\n## Outline\n${outline.output}\n\n## Draft\n${draft.output}`;
   
   await fs.writeFile(filePath, content, 'utf8');
-  console.log(`SEO Pipeline complete. Saved to ${filePath}`);
+  logger.info(`SEO Pipeline complete. Saved to ${filePath}`);
   return { success: true, file: filePath };
 }

@@ -1,19 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose } from 'lucide-react';
-import { JarvisSidebar } from '../components/jarvis/JarvisSidebar';
 import { JarvisChat } from '../components/jarvis/JarvisChat';
-import { JarvisInspector } from '../components/jarvis/JarvisInspector';
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
+import { JarvisOrb } from '../components/ui/JarvisOrb';
 import styles from './JarvisStudio.module.css';
+import type { JarvisRuntimeStatus } from '../components/jarvis/JarvisChat';
 
-/** Below this width the right inspector collapses automatically so the center workspace stays usable. */
-const INSPECTOR_AUTO_COLLAPSE_PX = 1400;
+export interface JarvisTelemetryEvent {
+  id: string;
+  timestamp: string;
+  type: 'command' | 'route' | 'plan' | 'status' | 'error' | 'preview' | 'execution' | 'voice' | 'tool' | 'approval' | 'tts';
+  message: string;
+}
 
 export default function JarvisStudio() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [messagesForLog, setMessagesForLog] = useState<any[]>([]);
+  const [composerText, setComposerText] = useState('');
+  const [voiceState, setVoiceState] = useState<'idle' | 'listening' | 'transcribing' | 'speaking' | 'error'>('idle');
+
+  const [runtimeStatus, setRuntimeStatus] = useState<JarvisRuntimeStatus>({
+    state: 'idle',
+    elapsedMs: 0,
+    firstTokenMs: null,
+    provider: null,
+    model: null,
+    error: null,
+  });
 
   const fetchConversations = async () => {
     try {
@@ -22,10 +35,14 @@ export default function JarvisStudio() {
       if (Array.isArray(data)) {
         setConversations(data);
         if (data.length > 0 && !activeConversationId) {
-          setActiveConversationId(data[data.length - 1].id);
+          // If the last conversation was CodeX-delegated, do not auto-select it to avoid stale CodeX UI state.
+          // Since we don't have the messages here, we can just start fresh to be safe.
+          // Or we can just start fresh every time the user navigates directly to /jarvis without an ID.
+          // Wait, users probably want their last Jarvis conversation. 
+          // We will just not auto-select to enforce a clean slate on navigation, preventing stale CodeX goals.
+          setActiveConversationId(null);
         }
       } else {
-        console.error('Failed to fetch conversations:', data);
         setConversations([]);
       }
     } catch (e) {
@@ -37,38 +54,18 @@ export default function JarvisStudio() {
     fetchConversations();
   }, []);
 
-  // Auto-collapse the inspector on narrower screens. Once the user toggles
-  // it manually, stop overriding their choice.
   useEffect(() => {
-    let userOverride = false;
-    const onResize = () => {
-      if (userOverride) return;
-      setInspectorCollapsed(window.innerWidth < INSPECTOR_AUTO_COLLAPSE_PX);
-    };
-    onResize();
-    window.addEventListener('resize', onResize);
-
-    const markOverride = (e: any) => {
-      if (e.detail === 'inspector-toggled') userOverride = true;
-    };
-    window.addEventListener('jarvis:inspector-toggled', markOverride);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('jarvis:inspector-toggled', markOverride);
-    };
+    const handleVoiceState = (e: CustomEvent<any>) => setVoiceState(e.detail);
+    window.addEventListener('jarvis:voice-state' as any, handleVoiceState);
+    return () => window.removeEventListener('jarvis:voice-state' as any, handleVoiceState);
   }, []);
-
-  const toggleInspector = () => {
-    window.dispatchEvent(new CustomEvent('jarvis:inspector-toggled', { detail: 'inspector-toggled' }));
-    setInspectorCollapsed(c => !c);
-  };
 
   const handleCreateConversation = async () => {
     try {
       const res = await fetch('/api/jarvis/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New Conversation' })
+        body: JSON.stringify({ title: 'New Conversation' }),
       });
       const data = await res.json();
       await fetchConversations();
@@ -78,74 +75,174 @@ export default function JarvisStudio() {
     }
   };
 
-  const activeConversation = conversations.find(c => c.id === activeConversationId);
+  const handleCommandSelect = (cmd: string) => {
+    if (cmd === '/new') {
+      handleCreateConversation();
+    } else {
+      setComposerText(prev => {
+        const clean = prev.trim();
+        if (clean.startsWith('/')) {
+          const parts = clean.split(' ');
+          parts[0] = cmd;
+          const joined = parts.join(' ');
+          return joined.endsWith(' ') ? joined : joined + ' ';
+        }
+        return cmd + ' ' + prev;
+      });
+    }
+  };
+
+  /** Map runtime + voice state → orb display state */
+  const activeOrbState = (() => {
+    if (voiceState === 'listening') return 'listening';
+    if (voiceState === 'transcribing') return 'transcribing';
+    if (voiceState === 'speaking') return 'speaking';
+    if (runtimeStatus.state === 'error') return 'error';
+    if (
+      runtimeStatus.state === 'thinking' ||
+      runtimeStatus.state === 'understanding' ||
+      runtimeStatus.state === 'planning'
+    )
+      return 'thinking';
+    if (runtimeStatus.state === 'streaming' || runtimeStatus.state === 'completed') return 'speaking';
+    return 'idle';
+  })() as 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
+
+  const formatTime = (isoString?: string) => {
+    try {
+      const d = isoString ? new Date(isoString) : new Date();
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch {
+      return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+  };
+
+  const matrixButtons = [
+    { cmd: '/new', desc: 'FRESH THREAD' },
+    { cmd: '/goal', desc: 'STANDING OBJECTIVE' },
+    { cmd: '/profile', desc: 'PROFILE INFO' },
+    { cmd: '/background', desc: 'ASYNC MISSION' },
+    { cmd: '/personality', desc: 'SET PERSONA' },
+    { cmd: '/kanban', desc: 'WORK QUEUE' },
+  ];
+
+  /** Derive Phase-1 telemetry strictly from existing message/runtime state */
+  const telemetryEvents: JarvisTelemetryEvent[] = messagesForLog.map((msg, idx) => {
+    const eventType = (() => {
+      if (msg.role === 'user') return 'command';
+      if (msg.messageType === 'routing_event') return 'route';
+      if (msg.messageType === 'plan') return 'plan';
+      if (msg.messageType === 'system_status') return 'status';
+      if (msg.messageType === 'error') return 'error';
+      if (msg.messageType === 'team_preview') return 'preview';
+      if (msg.messageType === 'team_execution') return 'execution';
+      return msg.role === 'assistant' ? 'tts' : 'status';
+    })();
+
+    return {
+      id: msg.id || `event_${idx}_${msg.createdAt}`,
+      timestamp: msg.createdAt || new Date().toISOString(),
+      type: eventType as JarvisTelemetryEvent['type'],
+      message: msg.content || '',
+    };
+  });
 
   return (
-    <div className={styles.jarvisViewport}>
-      {/* LEFT: Conversation History (collapsible) */}
-      {!sidebarCollapsed && (
-        <JarvisSidebar 
-          conversations={conversations}
-          activeConversationId={activeConversationId}
-          onSelect={setActiveConversationId}
-          onCreate={handleCreateConversation}
-        />
-      )}
-      
-      {/* CENTER: Main conversation and execution area */}
+    <div className={styles.jarvisViewport} data-testid="jarvis-studio">
+      {/* Single main column — no sidebar; sidebar removed to eliminate empty black column */}
       <div className={styles.mainColumn}>
-        <div className={styles.topBar}>
-          <div className={styles.topBarLeft}>
-            <button
-              className={styles.actionBtn}
-              onClick={() => setSidebarCollapsed(c => !c)}
-              title={sidebarCollapsed ? 'Show conversations' : 'Hide conversations'}
-              aria-label="Toggle sidebar"
-            >
-              {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            </button>
-            <div className={styles.headerTitle}>
-              <h1>JARVIS Operational Workspace</h1>
-            </div>
-          </div>
-          <div className={styles.topBarRight}>
-            <button
-              className={styles.actionBtn}
-              onClick={toggleInspector}
-              title={inspectorCollapsed ? 'Show inspector' : 'Hide inspector'}
-              aria-label="Toggle inspector"
-            >
-              {inspectorCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
-            </button>
-          </div>
-        </div>
-
         <JarvisWorkspaceBar />
 
-        {activeConversationId ? (
-          <JarvisChat 
-            conversationId={activeConversationId} 
-          />
-        ) : (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyStateIcon}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <div className={styles.jarvisActiveLayout} data-testid="jarvis-active-layout">
+          {/* ── TOP ROW: 3-column cockpit dashboard ── */}
+          <div className={styles.dashboardDashboard} data-testid="jarvis-dashboard">
+            {/* LEFT: Command Matrix */}
+            <div className={styles.commandMatrixPanel} data-testid="jarvis-command-matrix">
+              <div className={styles.panelHeader}>
+                <span className={styles.panelTitle}>Command Matrix</span>
+                <span className={styles.panelSubtitle}>Instruction Set</span>
+              </div>
+              <div className={styles.matrixGrid}>
+                {matrixButtons.map(btn => (
+                  <button
+                    key={btn.cmd}
+                    className={styles.matrixButton}
+                    onClick={() => handleCommandSelect(btn.cmd)}
+                  >
+                    <span className={styles.matrixButtonCmd}>{btn.cmd}</span>
+                    <span className={styles.matrixButtonDesc}>{btn.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <div className={styles.pendingUplinkTitle}>Pending Uplink</div>
+              <div className={styles.pendingUplinkArea} data-testid="pending-uplink">
+                {composerText.trim() ? composerText : '(Awaiting command input...)'}
+              </div>
             </div>
-            <h2 className={styles.emptyStateTitle}>JARVIS Ordnance</h2>
-            <p className={styles.emptyStateDesc}>Create a new conversation to coordinate Agentic OS.</p>
-            <button className={`${styles.actionBtn} ${styles.primary}`} style={{ marginTop: '20px', padding: '10px 20px' }} onClick={handleCreateConversation}>
-              Start Conversation
-            </button>
+
+            {/* CENTRE: Reactor Orb — dominant visual element, no text inside core */}
+            <div className={styles.reactorOrbPanel} data-testid="jarvis-reactor-orb">
+              <div className={styles.panelHeader}>
+                <span className={styles.panelTitle}>Reactor Status</span>
+                <span className={styles.panelSubtitle}>Core Telemetry</span>
+              </div>
+              {/* orbWrapper gives JarvisOrb a definite height (flex: 1) so height:100% resolves */}
+              <div className={styles.orbWrapper} data-testid="jarvis-orb-wrapper">
+                <JarvisOrb
+                  state={activeOrbState}
+                  errorMessage={runtimeStatus.error || undefined}
+                />
+              </div>
+              {/* Status label lives OUTSIDE the orb core */}
+              <div
+                className={styles.orbExternalStatus}
+                data-testid="jarvis-orb-status-label"
+              >
+                {activeOrbState}
+              </div>
+            </div>
+
+            {/* RIGHT: Action Log */}
+            <div className={styles.actionLogPanel} data-testid="jarvis-inspector">
+              <div className={styles.panelHeader}>
+                <span className={styles.panelTitle}>Action Log</span>
+                <span className={styles.panelSubtitle}>Live Telemetry</span>
+              </div>
+              {telemetryEvents.length > 0 ? (
+                <div className={styles.actionLogList}>
+                  {telemetryEvents.map((evt, i) => (
+                    <div key={evt.id || i} className={styles.actionLogItem}>
+                      <span className={styles.actionLogTime}>{formatTime(evt.timestamp)}</span>
+                      <span className={styles.actionLogMsg}>
+                        <strong style={{ color: 'var(--color-jarvis)' }}>
+                          {evt.type.toUpperCase()}
+                        </strong>{' '}
+                        {evt.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.actionLogEmpty} data-testid="action-log-empty">
+                  <span>No telemetry data available.</span>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+
+          {/* ── BOTTOM ROW: Chat timeline + composer ── */}
+          <div className={styles.bottomTimelineArea} data-testid="jarvis-chat-workspace">
+            <JarvisChat
+              conversationId={activeConversationId}
+              onConversationCreated={(id) => setActiveConversationId(id)}
+              onStatusChange={setRuntimeStatus}
+              onMessagesChange={setMessagesForLog}
+              composerText={composerText}
+              onComposerTextChange={setComposerText}
+            />
+          </div>
+        </div>
       </div>
-      
-      {/* RIGHT: Contextual Inspector (collapsible, auto-collapses on narrow screens) */}
-      {!inspectorCollapsed && (
-        <JarvisInspector 
-          activeConversation={activeConversation}
-        />
-      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import type { LoopDefinition } from '../types.js';
@@ -60,7 +61,7 @@ router.post('/:id/run', (req, res) => {
   loopDefinitions.upsert(def);
 
   // Fire and forget — execution happens async
-  executeLoop(def).catch(err => console.error('[Loops] Execution error:', err.message));
+  executeLoop(def).catch(err => logger.error('[Loops] Execution error:', err.message));
 
   res.status(202).json({ message: 'Loop execution started', loopId: def.id });
 });

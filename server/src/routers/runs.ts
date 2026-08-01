@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { runs, runSteps, tasks } from '../db/schema.js';
@@ -36,7 +37,7 @@ router.post('/', async (req, res) => {
 
     res.status(202).json({ id: runId, status: 'queued' });
   } catch (err: any) {
-    console.error('[Runs API] Failed to enqueue run:', err);
+    logger.error('[Runs API] Failed to enqueue run:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });
@@ -54,7 +55,7 @@ router.get('/', async (req, res) => {
     const allRuns = await query.limit(50);
     res.json(allRuns);
   } catch (err: any) {
-    console.error('[Runs API] Failed to list runs:', err);
+    logger.error('[Runs API] Failed to list runs:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });
@@ -80,7 +81,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({ run, steps });
   } catch (err: any) {
-    console.error('[Runs API] Failed to get run:', err);
+    logger.error('[Runs API] Failed to get run:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });

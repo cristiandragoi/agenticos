@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { db } from '../services/db.js';
 import { runStore } from '../services/runStore.js';
@@ -55,7 +56,7 @@ router.post('/brief', (req, res) => {
   });
 
   // Asynchronously execute workflow
-  executeResearchBriefWorkflow(briefId, runId).catch(console.error);
+  executeResearchBriefWorkflow(briefId, runId).catch(logger.error);
 
   res.json({ success: true, brief: newBrief, runId });
 });

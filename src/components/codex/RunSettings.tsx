@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { Settings2, ChevronDown, ChevronRight, Loader2, FolderGit2 } from 'lucide-react';
+import { AgentRuntimeSelector } from '../agents/AgentRuntimeSelector';
 
 export interface RunSettingsValues {
   folderTree: string;
   workspacePath: string;
-  execProvider: string;
-  execModel?: string;
   baseUrl?: string;
   valProvider: string;
   approvalPolicy: string;
+  routing?: {
+    mode: 'automatic' | 'preferred' | 'forced';
+    providerId: string;
+    modelId: string | null;
+  };
 }
 
 export function providerLabel(value: string): string {
+  if (value === 'auto') return 'Automatic';
   if (value === 'ollama') return 'Ollama';
   if (value === 'omniRoute') return 'OmniRoute Cloud';
   return value || '—';
@@ -56,6 +61,28 @@ export const RunSettings: React.FC<Props> = ({
   const inputCls = "w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 h-[34px] disabled:opacity-60 disabled:cursor-not-allowed";
   const labelCls = "block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5";
 
+  const renderRoutingSummary = () => {
+    if (!values.routing) return <span className="text-[#888]">Loading...</span>;
+    const { mode, providerId, modelId } = values.routing;
+    
+    // Fallback logic matches user's rules
+    const fallbackStatus = mode === 'forced' ? 'Disabled' : 'Enabled';
+    
+    return (
+      <span className="flex items-center flex-wrap gap-x-2 gap-y-1">
+        <span className="text-[#858585]">Execution Provider:</span> {providerId || 'None'}
+        <span className="text-[#555]">·</span>
+        <span className="text-[#858585]">Execution Model:</span> {modelId || 'Default'}
+        <span className="text-[#555]">·</span>
+        <span className="text-[#858585]">Routing Mode:</span> <span className="capitalize">{mode}</span>
+        <span className="text-[#555]">·</span>
+        <span className="text-[#858585]">Validation Provider:</span> {providerLabel(values.valProvider)}
+        <span className="text-[#555]">·</span>
+        <span className="text-[#858585]">Fallback:</span> <span className={fallbackStatus === 'Enabled' ? 'text-emerald-400' : 'text-amber-400'}>{fallbackStatus}</span>
+      </span>
+    );
+  };
+
   return (
     <div className="bg-[#252526] border border-[#333333] rounded-md" data-testid="codex-run-settings">
       <button
@@ -66,16 +93,8 @@ export const RunSettings: React.FC<Props> = ({
         <Settings2 size={13} className="text-[#858585]" />
         <span className="text-[11px] font-bold text-[#858585] uppercase tracking-widest shrink-0">Run Settings</span>
         {!open && (
-          <span className="text-[12px] text-[#cccccc] truncate ml-2">
-            <span className="text-[#858585]">Repository:</span> <span className="font-mono">{truncatePath(values.workspacePath)}</span>
-            <span className="mx-2 text-[#555]">·</span>
-            <span className="text-[#858585]">Execution:</span> {providerLabel(values.execProvider)}
-            <span className="mx-2 text-[#555]">·</span>
-            <span className="text-[#858585]">Model:</span> <span className="font-mono">{values.execModel || 'laguna-xs-2.1'}</span>
-            <span className="mx-2 text-[#555]">·</span>
-            <span className="text-[#858585]">Validation:</span> {providerLabel(values.valProvider)}
-            <span className="mx-2 text-[#555]">·</span>
-            <span className="text-[#858585]">Approval:</span> {approvalLabel(values.approvalPolicy)}
+          <span className="text-[12px] text-[#cccccc] ml-2 flex items-center">
+            {renderRoutingSummary()}
           </span>
         )}
       </button>
@@ -123,17 +142,24 @@ export const RunSettings: React.FC<Props> = ({
               </select>
             )}
           </div>
-          <div>
-            <label className={labelCls}>Execution Provider</label>
-            <select
-              value={values.execProvider}
-              onChange={e => onChange?.({ execProvider: e.target.value })}
-              disabled={!editable}
-              className={inputCls}
-            >
-              <option value="ollama">Ollama (Local)</option>
-              <option value="omniRoute">OmniRoute (Cloud)</option>
-            </select>
+          <div className="col-span-2 md:col-span-2">
+            <label className={labelCls}>Execution Runtime</label>
+            <div className={disabled ? 'opacity-60 pointer-events-none' : ''}>
+              <AgentRuntimeSelector 
+                agentId="agent-codex" 
+                onAssignmentChange={(assignment) => {
+                  if (onChange) {
+                    onChange({
+                      routing: {
+                        mode: assignment.routingMode,
+                        providerId: assignment.providerId,
+                        modelId: assignment.modelId
+                      }
+                    });
+                  }
+                }}
+              />
+            </div>
           </div>
           <div>
             <label className={labelCls}>Validation Provider</label>
@@ -143,18 +169,10 @@ export const RunSettings: React.FC<Props> = ({
               disabled={!editable}
               className={inputCls}
             >
+              <option value="auto">Automatic (Execution Provider)</option>
               <option value="omniRoute">OmniRoute (Cloud)</option>
               <option value="ollama">Ollama (Local)</option>
             </select>
-          </div>
-          <div>
-            <label className={labelCls}>Model</label>
-            <input
-              type="text"
-              value={values.execModel || 'laguna-xs-2.1'}
-              disabled
-              className={`${inputCls} font-mono`}
-            />
           </div>
           <div>
             <label className={labelCls}>Approval Policy</label>

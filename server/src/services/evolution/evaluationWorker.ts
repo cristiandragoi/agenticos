@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { db } from '../../db/index.js';
 import { agentExecutions, runEvaluations } from '../../db/schema.js';
 import { eq, isNull, and, isNotNull } from 'drizzle-orm';
@@ -7,7 +8,7 @@ import crypto from 'crypto';
 const EVALUATION_VERSION = 'v1.0.0';
 
 export async function evaluateExecution(execution: any) {
-  console.log(`[EvaluationWorker] Evaluating execution ${execution.id}`);
+  logger.info(`[EvaluationWorker] Evaluating execution ${execution.id}`);
   
   // 1. Deterministic Evaluation
   let deterministicScore = 100;
@@ -83,7 +84,7 @@ Provide a JSON evaluation strictly matching this schema:
         recommendations: parsed.recommendations || []
       };
     } catch(err) {
-      console.warn(`[EvaluationWorker] Judge LLM failed for ${execution.id}`, err);
+      logger.warn(`[EvaluationWorker] Judge LLM failed for ${execution.id}`, err);
     }
   }
 
@@ -124,7 +125,7 @@ Provide a JSON evaluation strictly matching this schema:
 }
 
 export async function runEvaluationLoop() {
-  console.log('[EvaluationWorker] Started hybrid evaluation polling.');
+  logger.info('[EvaluationWorker] Started hybrid evaluation polling.');
   
   setInterval(async () => {
     try {
@@ -144,7 +145,7 @@ export async function runEvaluationLoop() {
         }
       }
     } catch(err) {
-      console.error('[EvaluationWorker] Error in loop:', err);
+      logger.error('[EvaluationWorker] Error in loop:', err);
     }
   }, 10000);
 }

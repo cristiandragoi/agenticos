@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import * as cron from 'node-cron';
 import { db } from '../../db/index.js';
 import { enqueueRun } from '../execution/runEngine.js';
@@ -8,7 +9,7 @@ import { eq, and } from 'drizzle-orm';
 const activeCronJobs = new Map<string, cron.ScheduledTask>();
 
 export async function initScheduler() {
-  console.log('[Scheduler] Initializing cron jobs from database...');
+  logger.info('[Scheduler] Initializing cron jobs from database...');
   
   // Clean up any existing jobs if re-initialized
   activeCronJobs.forEach(job => job.stop());
@@ -24,7 +25,7 @@ export async function initScheduler() {
     }
   });
 
-  console.log(`[Scheduler] Successfully registered ${activeCronJobs.size} active schedules.`);
+  logger.info(`[Scheduler] Successfully registered ${activeCronJobs.size} active schedules.`);
 
 
 }
@@ -37,7 +38,7 @@ export function registerCronJob(scheduleId: string, taskId: string, expression: 
   }
 
   const job = cron.schedule(expression, async () => {
-    console.log(`[Scheduler] Firing scheduled task ${taskId} (Schedule: ${scheduleId})`);
+    logger.info(`[Scheduler] Firing scheduled task ${taskId} (Schedule: ${scheduleId})`);
     
     // Check if task exists and get its skillId
     const taskRecord = await db.query.tasks.findFirst({
@@ -45,7 +46,7 @@ export function registerCronJob(scheduleId: string, taskId: string, expression: 
     });
     
     if (!taskRecord) {
-      console.warn(`[Scheduler] Task ${taskId} not found. Unregistering cron.`);
+      logger.warn(`[Scheduler] Task ${taskId} not found. Unregistering cron.`);
       unregisterCronJob(scheduleId);
       return;
     }
@@ -57,7 +58,7 @@ export function registerCronJob(scheduleId: string, taskId: string, expression: 
         input: { skillId: (taskRecord.skillIds as string[])?.[0] }
       });
     } catch (err: any) {
-      console.error(`[Scheduler] Failed to enqueue run for task ${taskId}:`, err.message);
+      logger.error(`[Scheduler] Failed to enqueue run for task ${taskId}:`, err.message);
     }
   }, {
     timezone: timezone

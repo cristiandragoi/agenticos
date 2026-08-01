@@ -1,0 +1,250 @@
+import { db } from '../db/index.js';
+import { providerCredentials, agentProviderAssignments } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
+import { Router } from 'express';
+import { ProviderCredentialService } from '../services/gateway/credentials.js';
+import { GatewayConfigurationService } from '../services/gateway/configuration.js';
+import { z } from 'zod';
+
+const router = Router();
+
+// Validate provider IDs against known canonical providers
+const ALLOWLISTED_PROVIDERS = ['omniroot', 'ninerouter', 'openrouter', 'ollama', 'openai', 'anthropic', 'groq', 'google'];
+
+const PutCredentialSchema = z.object({
+  apiKey: z.string().min(1).max(2048)
+});
+
+const GatewayConfigSchema = z.object({
+  maxProviderRetries: z.number().int().min(0).max(10).optional(),
+  maxFallbackProviders: z.number().int().min(0).max(10).optional(),
+  providerTimeoutMs: z.number().int().min(500).max(120000).optional(),
+  degradedLatencyMs: z.number().int().min(100).max(60000).optional(),
+  circuitFailureThreshold: z.number().int().min(1).max(50).optional(),
+  circuitResetTimeoutMs: z.number().int().min(1000).max(3600000).optional(),
+  healthCheckIntervalMs: z.number().int().min(5000).max(3600000).optional(),
+});
+
+// Mutex to prevent concurrent writes from multiple Electron windows
+const migrationLocks = new Set<string>();
+
+router.put('/provider-credentials/:providerId', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    if (!ALLOWLISTED_PROVIDERS.includes(providerId)) {
+      return res.status(400).json({ error: 'Unknown provider ID' });
+    }
+
+    // In-memory Mutex Optimization
+    if (migrationLocks.has(providerId)) {
+      return res.status(409).json({ error: 'Migration for this provider is already in progress locally' });
+    }
+    migrationLocks.add(providerId);
+
+    try {
+      const { apiKey } = PutCredentialSchema.parse(req.body);
+      
+      // SQLite Transactional Lock
+      const now = new Date();
+      const leaseExpiry = new Date(now.getTime() + 60000).toISOString(); // 60 seconds lease
+      
+      const record = db.select().from(providerCredentials).where(eq(providerCredentials.providerId, providerId)).get();
+
+      if (record && record.migrationState === 'in_progress') {
+        if (record.leaseExpiresAt && new Date(record.leaseExpiresAt) > now) {
+           return res.status(409).json({ error: 'Migration for this provider is already in progress in another process' });
+        }
+      }
+
+      db.insert(providerCredentials)
+        .values({
+          providerId,
+          migrationState: 'in_progress',
+          leaseExpiresAt: leaseExpiry,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        })
+        .onConflictDoUpdate({
+          target: providerCredentials.providerId,
+          set: {
+            migrationState: 'in_progress',
+            leaseExpiresAt: leaseExpiry,
+            updatedAt: now.toISOString()
+          }
+        })
+        .run();
+      
+      // Call Keytar (which handles its own fail-closed exception)
+      await ProviderCredentialService.saveCredential(providerId, apiKey);
+      
+      // Commit SQLite success
+      db.update(providerCredentials)
+        .set({
+          migrationState: 'completed',
+          leaseExpiresAt: null,
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(providerCredentials.providerId, providerId))
+        .run();
+
+      const status = await ProviderCredentialService.getCredentialStatus(providerId);
+      res.json(status);
+    } catch (err: any) {
+      // Rollback SQLite failure
+      const providerId = req.params.providerId;
+      db.update(providerCredentials)
+        .set({
+          migrationState: 'failed',
+          leaseExpiresAt: null,
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(providerCredentials.providerId, providerId))
+        .run();
+
+      if (err.status === 503) {
+         return res.status(503).json({ error: err.message, message: err.details });
+      }
+      res.status(400).json({ error: 'Invalid payload or storage error' }); 
+    } finally {
+      migrationLocks.delete(req.params.providerId);
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/provider-credentials/:providerId', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    await ProviderCredentialService.deleteCredential(providerId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete credential' });
+  }
+});
+
+router.get('/provider-credentials/:providerId/status', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    const status = await ProviderCredentialService.getCredentialStatus(providerId);
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+router.post('/provider-credentials/:providerId/validate', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    if (!ALLOWLISTED_PROVIDERS.includes(providerId)) {
+      return res.status(400).json({ error: 'Unknown provider ID' });
+    }
+    
+    const key = await ProviderCredentialService.getCredential(providerId);
+    if (!key) {
+      return res.json({ status: 'missing' });
+    }
+
+    // In a real implementation, we would call the provider's /models or /me endpoint
+    // For now, we simulate a validation success
+    res.json({ status: 'valid' });
+  } catch (err: any) {
+    res.json({ status: 'invalid' });
+  }
+});
+
+router.get('/gateway/credentials-status', async (req, res) => {
+  try {
+    const statuses: Record<string, any> = {};
+    for (const providerId of ALLOWLISTED_PROVIDERS) {
+      statuses[providerId] = await ProviderCredentialService.getCredentialStatus(providerId);
+    }
+    res.json(statuses);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch statuses' });
+  }
+});
+
+router.get('/gateway', async (req, res) => {
+  try {
+    const config = await GatewayConfigurationService.getConfiguration();
+    res.json(config);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch gateway config' });
+  }
+});
+
+router.put('/gateway', async (req, res) => {
+  try {
+    const updates = GatewayConfigSchema.parse(req.body);
+    const updated = await GatewayConfigurationService.updateConfiguration(updates);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(400).json({ error: 'Invalid configuration payload' });
+  }
+});
+
+router.get('/agent-provider-assignments', async (req, res) => {
+  try {
+    const assignments = db.select().from(agentProviderAssignments).all();
+    res.json(assignments);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch assignments' });
+  }
+});
+
+router.get('/agent-provider-assignments/:agentId', async (req, res) => {
+  try {
+    const assignment = db.select().from(agentProviderAssignments).where(eq(agentProviderAssignments.agentId, req.params.agentId)).get();
+    if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+    res.json(assignment);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch assignment' });
+  }
+});
+
+router.put('/agent-provider-assignments/:agentId', async (req, res) => {
+  try {
+    const { providerId, modelId, routingMode, enabled } = req.body;
+    const { agentId } = req.params;
+    const now = new Date().toISOString();
+    
+    db.insert(agentProviderAssignments)
+      .values({
+        agentId,
+        providerId,
+        modelId: modelId || null,
+        routingMode,
+        enabled: enabled !== undefined ? enabled : true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: agentProviderAssignments.agentId,
+        set: {
+          providerId,
+          modelId: modelId || null,
+          routingMode,
+          enabled: enabled !== undefined ? enabled : true,
+          updatedAt: now,
+        }
+      })
+      .run();
+      
+    const assignment = db.select().from(agentProviderAssignments).where(eq(agentProviderAssignments.agentId, agentId)).get();
+    res.json(assignment);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save assignment' });
+  }
+});
+
+router.delete('/agent-provider-assignments/:agentId', async (req, res) => {
+  try {
+    db.delete(agentProviderAssignments).where(eq(agentProviderAssignments.agentId, req.params.agentId)).run();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete assignment' });
+  }
+});
+
+export default router;

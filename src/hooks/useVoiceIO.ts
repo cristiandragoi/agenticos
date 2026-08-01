@@ -53,6 +53,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAbortControllerRef = useRef<AbortController | null>(null);
 
   const setVoiceState = useCallback((s: VoiceState) => {
     setVoiceStateInternal(s);
@@ -78,10 +79,21 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
+  const stopAudio = useCallback(() => {
+    ttsAbortControllerRef.current?.abort();
+    ttsAbortControllerRef.current = null;
+    window.speechSynthesis?.cancel();
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.src = '';
+    }
+  }, []);
+
   /** Play base64-encoded MP3 audio, strictly confirming playback start */
-  const playAudio = useCallback((base64Audio: string | null, fallbackText: string): Promise<void> => {
+  const playAudio = useCallback((base64Audio: string | null): Promise<void> => {
     return new Promise((resolve, reject) => {
-      // Stop any currently playing TTS
+      // Audio playback should not call stopAudio, since speak orchestrates it.
+      // Just pause existing audioElementRef without aborting the controller.
       window.speechSynthesis?.cancel();
       if (audioElementRef.current) {
         audioElementRef.current.pause();
@@ -124,7 +136,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         reject(new Error(err));
       }
     });
-  }, [agentId, setVoiceState]);
+  }, [setVoiceState]);
 
   /**
    * Start silence detection using Web Audio API.
@@ -272,26 +284,56 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, [voiceState, startListening, stopListening]);
 
+  const fallbackSpeak = useCallback((text: string) => {
+    window.speechSynthesis?.cancel();
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.src = '';
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setVoiceState('idle');
+    utterance.onerror = () => setVoiceState('error');
+    window.speechSynthesis?.speak(utterance);
+  }, [setVoiceState]);
+
   /** Speak a text string directly using pure TTS */
   const speak = useCallback(async (text: string): Promise<void> => {
+    stopAudio();
     setVoiceState('speaking');
+    
+    const controller = new AbortController();
+    ttsAbortControllerRef.current = controller;
+
     try {
       const voiceModel = AGENT_VOICE[agentId] || 'aura-helios-en';
       const res = await fetch(`${BACKEND}/voice/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, agentId, voice: voiceModel }),
+        signal: controller.signal
       });
       if (res.ok) {
-        const { audioData } = await res.json();
-        await playAudio(audioData, text);
+        const data = await res.json();
+        if (data.audioData) {
+          await playAudio(data.audioData);
+        } else {
+          throw new Error('No audio data in response');
+        }
       } else {
-        await playAudio(null, text);
+        throw new Error('TTS fetch failed');
       }
     } catch (e: any) {
-      await playAudio(null, text);
+      if (e.name !== 'AbortError') {
+        fallbackSpeak(text);
+      } else {
+        setVoiceState('idle');
+      }
+    } finally {
+      if (ttsAbortControllerRef.current === controller) {
+        ttsAbortControllerRef.current = null;
+      }
     }
-  }, [agentId, playAudio, setVoiceState]);
+  }, [agentId, playAudio, fallbackSpeak, stopAudio, setVoiceState]);
 
   return {
     voiceState,
@@ -300,6 +342,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     startListening,
     stopListening,
     toggleListening,
+    stopAudio,
     speak,
     isListening: voiceState === 'listening',
     isSpeaking: voiceState === 'speaking',

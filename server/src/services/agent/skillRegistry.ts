@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { db } from '../../db/index.js';
 import { skills } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -78,7 +79,7 @@ export async function seedDefaultSkills() {
       active: true,
       isPublic: true
     });
-    console.log('[SkillRegistry] Seeded default Daily Briefing skill.');
+    logger.info('[SkillRegistry] Seeded default Daily Briefing skill.');
   }
 
   const existingHealth = await getSkill('agent-health-check');
@@ -94,6 +95,6 @@ export async function seedDefaultSkills() {
       active: true,
       isPublic: false
     });
-    console.log('[SkillRegistry] Seeded default Agent Health Check skill.');
+    logger.info('[SkillRegistry] Seeded default Agent Health Check skill.');
   }
 }

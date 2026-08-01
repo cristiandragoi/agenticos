@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { runAgentLoop } from '../../services/agent/agentLoop.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -190,11 +191,11 @@ export async function runCoderOrchestrator(input: OrchestratorInput): Promise<an
   };
 
   const log = (msg: string) => {
-    console.log(`[Coder] ${msg}`);
+    logger.info(`[Coder] ${msg}`);
     result.logs.timeline.push(`[${new Date().toISOString()}] ${msg}`);
   };
   const logErr = (msg: string) => {
-    console.error(`[Coder Error] ${msg}`);
+    logger.error(`[Coder Error] ${msg}`);
     result.logs.errors.push(`[${new Date().toISOString()}] ${msg}`);
   };
 

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -63,7 +64,7 @@ export async function executeFuguProjectWorkflow(projectName: string, brief: str
 
     return { success: true, runId, outputFilePath };
   } catch (err: any) {
-    console.error('[Fugu Workflow Error]', err);
+    logger.error('[Fugu Workflow Error]', err);
     runStore.update(runId, {
       status: 'failed',
       errorMessage: err.message,

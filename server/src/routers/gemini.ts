@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { geminiInteractionsService } from '../services/geminiInteractionsService.js';
 import { llmChat } from '../services/llmGateway.js';
@@ -38,9 +39,9 @@ router.post('/chat', async (req, res) => {
         }
       }
       // Non-ok or empty reply — fall through to shared gateway
-      console.warn(`[Gemini API] Direct Google call failed or returned empty (HTTP ${response.status}). Falling through to OmniRoute.`);
+      logger.warn(`[Gemini API] Direct Google call failed or returned empty (HTTP ${response.status}). Falling through to OmniRoute.`);
     } catch (err: any) {
-      console.warn(`[Gemini API] Direct Google call error: ${err.message}. Falling through to OmniRoute.`);
+      logger.warn(`[Gemini API] Direct Google call error: ${err.message}. Falling through to OmniRoute.`);
     }
   }
 
@@ -59,7 +60,7 @@ router.post('/research', async (req, res) => {
     const result = await geminiInteractionsService.startWeldersResearch(!!background);
     res.json(result);
   } catch (err: any) {
-    console.error('[Gemini API] Research Error:', err);
+    logger.error('[Gemini API] Research Error:', err);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });
@@ -81,7 +82,7 @@ router.post('/email', async (req, res) => {
     const result = await geminiInteractionsService.generateEmailTemplates(interactivePrompt);
     res.json(result);
   } catch (err: any) {
-    console.error('[Gemini API] Email Error:', err);
+    logger.error('[Gemini API] Email Error:', err);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
   }
 });

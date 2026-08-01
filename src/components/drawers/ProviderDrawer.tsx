@@ -5,12 +5,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import DrawerShell from './DrawerShell';
 import StatusBadge from '../ui/StatusBadge';
 import ContextChip from '../ui/ContextChip';
-import {
-  providerKeyIsSet,
-  getMaskedKey,
-  getRawKey,
-  testProviderKey,
-} from '../../store/providerKeys';
 import { apiClient } from '../../api/client';
 import {
   Key, Eye, EyeOff, CheckCircle, XCircle, Users, RefreshCw,
@@ -100,8 +94,9 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
   // Load server-side key status on mount
   useEffect(() => {
     if (provider && provider.authScheme !== 'none') {
-      apiClient.getProviderKeyStatus(provider.id)
-        .then(setServerKeyStatus)
+      fetch(`/api/settings/provider-credentials/${provider.id}`)
+        .then(res => res.json())
+        .then(data => setServerKeyStatus({ hasKey: data.configured, maskedKey: data.maskedPreview, envVar: null }))
         .catch(() => {});
     }
   }, [provider?.id]);
@@ -118,9 +113,8 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
 
   if (!provider) return null;
 
-  const hasStoredKey = providerKeyIsSet(provider.id);
-  const maskedKey = getMaskedKey(provider.id);
-  const hasServerKey = serverKeyStatus?.hasKey || hasStoredKey;
+  const hasServerKey = serverKeyStatus?.hasKey;
+  const maskedKey = serverKeyStatus?.maskedKey;
   const needsKey = provider.authScheme !== 'none';
   const isLocal = provider.category === 'local';
 
@@ -129,20 +123,20 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
     if (!trimmed) return;
     setSavingToServer(true);
     try {
-      const result = await apiClient.saveProviderKey(provider.id, trimmed);
+      const res = await fetch(`/api/settings/provider-credentials/${provider.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: trimmed })
+      });
+      if (!res.ok) throw new Error('Failed to save key');
+      const result = await res.json();
       setKeyInput('');
       setSaved(true);
-      setServerKeyStatus({ hasKey: true, maskedKey: result.maskedKey, envVar: result.envVar });
+      setServerKeyStatus({ hasKey: true, maskedKey: result.maskedPreview, envVar: null });
       setTimeout(() => setSaved(false), 2000);
       refresh();
     } catch (err) {
       console.error('Failed to save key to server:', err);
-      // Fallback to localStorage
-      const { saveProviderKey } = await import('../../store/providerKeys');
-      saveProviderKey(provider.id, trimmed, provider.name);
-      setKeyInput('');
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
     } finally {
       setSavingToServer(false);
     }
@@ -150,15 +144,12 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
 
   const handleRemoveKey = async () => {
     try {
-      await apiClient.deleteProviderKey(provider.id);
-      setServerKeyStatus({ hasKey: false, maskedKey: null, envVar: null });
+      await fetch(`/api/settings/provider-credentials/${provider.id}`, { method: 'DELETE' });
+      setServerKeyStatus(null);
       setTestResult(null);
       refresh();
     } catch (err) {
-      console.error('Failed to remove key from server:', err);
-      // Fallback to localStorage
-      const { removeProviderKey } = await import('../../store/providerKeys');
-      removeProviderKey(provider.id);
+      console.error('Failed to delete key:', err);
     }
   };
 

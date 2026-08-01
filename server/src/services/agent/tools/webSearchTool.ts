@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger.js';
 /**
  * Web search tool — searches the web using the configured search provider.
  * Uses a simple fetch-based approach with Google Programmable Search or similar.
@@ -36,7 +37,7 @@ export const webSearchTool = {
           return JSON.stringify({ data: { web: results }, provider: 'Brave' });
         }
       } catch (err: any) {
-        console.warn('[WebSearch] Brave failed:', err.message);
+        logger.warn('[WebSearch] Brave failed:', err.message);
       }
     }
 
@@ -73,7 +74,7 @@ export const webSearchTool = {
         }
       }
     } catch (err: any) {
-      console.warn('[WebSearch] Google fallback failed:', err.message);
+      logger.warn('[WebSearch] Google fallback failed:', err.message);
     }
 
     return JSON.stringify({ error: 'No search provider available', data: { web: [] } });

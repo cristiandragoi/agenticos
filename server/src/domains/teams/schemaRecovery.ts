@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { ZodError } from 'zod';
 import { TeamSheet, teamSheetSchema } from '../../types/teamSheet.js';
 
@@ -243,7 +244,7 @@ export function processTeamSheetCandidate(jsonStr: string, attempts: number = 1,
       received: String((i as any).received ?? 'invalid value'),
       message: i.message
     }));
-    console.error('[schemaRecovery] TeamSheet validation issues:', JSON.stringify(issues));
+    logger.error('[schemaRecovery] TeamSheet validation issues:', JSON.stringify(issues));
     throw new LLMSchemaValidationError('The model could not produce a valid TeamSheet.', issues, attempts);
   }
   return result.data;

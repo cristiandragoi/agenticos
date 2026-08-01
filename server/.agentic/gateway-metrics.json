@@ -1,0 +1,35 @@
+{
+  "ollama": {
+    "totalCalls": 4,
+    "totalSuccesses": 0,
+    "totalFailures": 4,
+    "totalTimeouts": 4,
+    "totalFallbacks": 1,
+    "averageLatencyMs": 47516.25,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "mock-omni": {
+    "totalCalls": 0,
+    "totalSuccesses": 0,
+    "totalFailures": 0,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 0,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "mock-nine": {
+    "totalCalls": 0,
+    "totalSuccesses": 0,
+    "totalFailures": 0,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 0,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  }
+}

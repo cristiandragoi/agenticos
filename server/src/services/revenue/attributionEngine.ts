@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { eventBus, SystemEventPayload } from '../../core/eventBus.js';
 import { db } from '../../db/index.js';
 import { attribution, treasuryLedger } from '../../db/schema.js';
@@ -41,7 +42,7 @@ class AttributionEngine {
           .where(eq(attribution.id, record.id));
       }
     } catch (err) {
-      console.error('[AttributionEngine] Error handling engagement event', err);
+      logger.error('[AttributionEngine] Error handling engagement event', err);
     }
   }
 
@@ -81,9 +82,9 @@ class AttributionEngine {
         });
       }
 
-      console.log(`[AttributionEngine] Traced conversion for campaign ${campaignId}. Added $${revenueAmount} to treasury.`);
+      logger.info(`[AttributionEngine] Traced conversion for campaign ${campaignId}. Added $${revenueAmount} to treasury.`);
     } catch (err) {
-      console.error('[AttributionEngine] Error handling conversion event', err);
+      logger.error('[AttributionEngine] Error handling conversion event', err);
     }
   }
 }

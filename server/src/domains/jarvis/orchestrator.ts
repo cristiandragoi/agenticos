@@ -1,9 +1,10 @@
 import { conversationService } from '../conversations/service.js';
-import { intentRouter } from './intentRouter.js';
+import { intentRouter, type IntentResult } from './intentRouter.js';
 import { codexService } from '../codex/service.js';
 import { llmChat, OLLAMA_DEFAULT_CODING_MODEL } from '../../services/llmGateway.js';
 import { coordinatorService } from '../teams/coordinatorService.js';
 import { detectGitRepository } from '../../utils/workspaceValidation.js';
+import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
 
 import { z } from 'zod';
 
@@ -32,7 +33,14 @@ export interface OrchestratorResult {
 
 export class JarvisOrchestrator {
   
-  async handleMessage(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string): Promise<OrchestratorResult> {
+  async handleMessage(
+    conversationId: string,
+    prompt: string,
+    workspacePath: string,
+    approvalPolicy: 'manual' | 'auto',
+    operationId?: string,
+    preclassifiedIntent?: IntentResult
+  ): Promise<OrchestratorResult> {
     const requestMetadata = operationId ? { operationId } : undefined;
 
     // 1. Append user message
@@ -44,7 +52,7 @@ export class JarvisOrchestrator {
     });
 
     // 2. Route intent
-    const intent = await intentRouter.routeIntent(prompt);
+    const intent = preclassifiedIntent || await intentRouter.routeIntent(prompt);
 
     // Append routing event
     await conversationService.appendMessage({
@@ -119,7 +127,11 @@ export class JarvisOrchestrator {
           prompt
         ].join('\n')
         : prompt;
-      const goalId = await codexService.createGoal(codexPrompt, workspacePath, approvalPolicy, undefined, conversationId);
+
+      const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
+      const executionProvider = assignment?.providerId;
+
+      const goalId = await codexService.createGoal(codexPrompt, workspacePath, approvalPolicy, executionProvider, conversationId);
       const status = approvalPolicy === 'manual' ? 'waiting_for_approval' : 'queued';
 
       await conversationService.appendMessage({
@@ -138,8 +150,8 @@ export class JarvisOrchestrator {
         route: 'codex',
         status,
         operationId,
-        provider: 'ollama',
-        model: OLLAMA_DEFAULT_CODING_MODEL,
+        provider: assignment?.providerId || 'ollama',
+        model: assignment?.modelId || OLLAMA_DEFAULT_CODING_MODEL,
         fallbackProvider: 'ollama',
         fallbackModel: OLLAMA_DEFAULT_CODING_MODEL
       };
@@ -157,7 +169,7 @@ export class JarvisOrchestrator {
         status: 'failed',
         error: content,
         operationId,
-        provider: 'ollama',
+        provider: 'ollama', // Unknown at this point if it threw earlier, default
         model: OLLAMA_DEFAULT_CODING_MODEL,
         fallbackProvider: 'ollama',
         fallbackModel: OLLAMA_DEFAULT_CODING_MODEL

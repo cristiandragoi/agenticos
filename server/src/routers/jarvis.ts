@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { conversationService } from '../domains/conversations/service.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
@@ -20,7 +21,7 @@ function getDirectChatTotalTimeoutMs() {
 }
 
 function logStreamStage(operationId: string | undefined, stage: string, details: Record<string, any> = {}) {
-  console.log('[JarvisStream]', stage, {
+  logger.info('[JarvisStream]', stage, {
     operationId,
     ...details
   });
@@ -260,6 +261,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     bodyKeys: Object.keys(req.body || {})
   });
 
+  logger.info('[JarvisTrace] request-received', JSON.stringify({
+    requestId: normalizedOperationId,
+    conversationId: req.params.id,
+    route: req.headers.referer,
+    rawUserText: prompt
+  }, null, 2));
+
   if (!prompt || typeof prompt !== 'string') {
     logStreamStage(normalizedOperationId, 'prompt validation failed', { reason: 'prompt is required' });
     return res.status(400).json({ error: 'prompt is required' });
@@ -321,6 +329,28 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       mode: intent.mode,
       confidence: intent.confidence
     });
+
+    logger.info('[JarvisTrace] intent-result', JSON.stringify({
+      requestId: normalizedOperationId,
+      intent: intent.route,
+      confidence: intent.confidence,
+      executionMode: intent.mode || 'direct_conversation'
+    }, null, 2));
+
+    const referer = req.headers.referer || '';
+    let uiRoute = 'unknown';
+    if (referer.includes('/jarvis')) uiRoute = '/jarvis';
+    else if (referer.includes('/codex')) uiRoute = '/codex';
+    else if (referer.includes('/hermes')) uiRoute = '/hermes';
+
+    logger.info('[RequestOwnership]', JSON.stringify({
+      route: uiRoute,
+      selectedAgentId: 'agent-jarvis',
+      requestAgentId: 'agent-jarvis',
+      intent: intent.route,
+      executionMode: intent.mode || 'direct_conversation',
+      goalCreated: intent.route === 'codex'
+    }));
 
     writeSse(res, 'intent', {
       type: intent.category || intent.route,
@@ -455,12 +485,23 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       fallbackProvider,
       fallbackModel
     });
+
+    logger.info('[JarvisTrace] prompt-built', JSON.stringify({
+      requestId: normalizedOperationId,
+      provider: selectedProvider,
+      model: selectedModel,
+      systemPromptLength: systemPrompt.length,
+      userPromptExact: prompt,
+      messageCount: 2
+    }, null, 2));
     const stream = llmChatStream({
       systemPrompt,
       prompt,
+      agentId: 'agent-jarvis',
       timeoutMs: getDirectChatFirstTokenTimeoutMs(),
       ollamaTimeoutMs: getDirectChatTotalTimeoutMs(),
-      signal: abortController.signal
+      signal: abortController.signal,
+      requestId: normalizedOperationId
     });
     logStreamStage(normalizedOperationId, 'provider call started', {
       provider: selectedProvider,
@@ -516,11 +557,29 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         }
         reply += chunk.content;
         writeSse(res, 'chunk', { delta: chunk.content, provider, model, operationId: normalizedOperationId });
+      } else if (chunk.type !== 'done' && chunk.type !== 'error') {
+        // Forward gateway events exactly as received
+        writeSse(res, chunk.type, { ...chunk, operationId: normalizedOperationId, id: `assistant-${normalizedOperationId}` });
       }
     }
 
     const finalReply = reply.trim();
     if (!finalReply) throw new Error('Jarvis returned an empty response.');
+
+    logger.info('[JarvisTrace] provider-response', JSON.stringify({
+      requestId: normalizedOperationId,
+      provider,
+      model,
+      status: 'completed',
+      responsePreview: finalReply.slice(0, 150)
+    }, null, 2));
+
+    logger.info('[JarvisTrace] response-rendered', JSON.stringify({
+      requestId: normalizedOperationId,
+      messageId: `assistant-${normalizedOperationId}`,
+      agentId: 'agent-jarvis',
+      renderedText: process.env.NODE_ENV === 'development' ? finalReply : '<redacted in production>'
+    }, null, 2));
 
     await conversationService.appendMessage({
       conversationId: req.params.id,

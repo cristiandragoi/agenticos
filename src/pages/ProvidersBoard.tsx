@@ -5,7 +5,7 @@ import { useDrawer } from '../store/appStore';
 import EntityCard from '../components/ui/EntityCard';
 import StatusBadge from '../components/ui/StatusBadge';
 import ContextChip from '../components/ui/ContextChip';
-import { providerKeyIsSet, getMaskedKey } from '../store/providerKeys';
+import { loadProviderKeys, removeProviderKey } from '../store/providerKeys';
 import {
   HardDrive, Cloud, Server, Key, CheckCircle, XCircle,
   AlertTriangle, Cpu, Globe, Shield, Activity, Wifi,
@@ -64,13 +64,13 @@ function computeAgentActiveModel(agent, providers) {
     return { label: `${local.name}: ${model}`, color: 'var(--color-provider-local)', warning: false };
   }
   // First connected remote
-  const connected = assigned.find(p => p.authScheme === 'none' || providerKeyIsSet(p.id));
+  const connected = assigned.find(p => p.authScheme === 'none' || p.isConfigured);
   if (connected) {
     const model = connected.models?.find(m => m.id === connected.defaultModel)?.displayName || connected.defaultModel || 'default';
     return { label: `${connected.name}: ${model}`, color: 'var(--color-provider-remote)', warning: false };
   }
   // Assigned but no key
-  const missingKey = assigned.find(p => p.authScheme !== 'none' && !providerKeyIsSet(p.id));
+  const missingKey = assigned.find(p => p.authScheme !== 'none' && !p.isConfigured);
   if (missingKey) {
     return { label: `${missingKey.name} (no key)`, color: 'var(--color-warning)', warning: true };
   }
@@ -78,14 +78,85 @@ function computeAgentActiveModel(agent, providers) {
 }
 
 const ProvidersBoard: React.FC = () => {
-  const { providers, agents, isLoading } = useData();
+  const { providers, agents, providerCredentials, isLoading, refresh } = useData();
   const drawer = useDrawer();
+  const [migrationError, setMigrationError] = React.useState<string | null>(null);
+
+  
+  const [legacyKeys, setLegacyKeys] = React.useState<Record<string, any>>({});
+  
+  React.useEffect(() => {
+    setLegacyKeys(loadProviderKeys());
+  }, []);
+
+  const handleRetryMigration = async () => {
+    setMigrationError(null);
+    let hasFailure = false;
+    let needsRefresh = false;
+    const mapLegacyIdToCanonical = (id: string) => {
+      if (id === 'prov-openrouter') return 'omniroot';
+      if (id === 'prov-anthropic') return 'ninerouter';
+      if (id === 'prov-ollama') return 'ollama';
+      if (id === 'prov-openai') return 'openai';
+      return id.replace('prov-', '');
+    };
+
+    const promises = Object.entries(legacyKeys).map(async ([id, entry]) => {
+      if (entry.keyValue) {
+        const canonicalId = mapLegacyIdToCanonical(id);
+        try {
+          const res = await fetch(`/api/settings/provider-credentials/${canonicalId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: entry.keyValue })
+          });
+          if (!res.ok) throw new Error('Backend refused migration');
+          removeProviderKey(id);
+          needsRefresh = true;
+        } catch (err) {
+          hasFailure = true;
+        }
+      }
+    });
+
+    await Promise.all(promises);
+    setLegacyKeys(loadProviderKeys());
+    if (hasFailure) {
+      setMigrationError('Secure backend migration failed. Some keys remain unencrypted in your browser storage. Please try again or check backend logs.');
+    } else {
+      setMigrationError(null);
+    }
+    if (needsRefresh) refresh();
+  };
+
+  const handleClearLegacy = () => {
+    for (const id of Object.keys(legacyKeys)) {
+      removeProviderKey(id);
+    }
+    setLegacyKeys({});
+    setMigrationError(null);
+  };
+
 
   if (isLoading) return null;
 
+  const providersWithStatus = useMemo(() => {
+    return providers.map(p => {
+      const canonicalId = p.id === 'prov-openrouter' ? 'omniroot' : 
+                         p.id === 'prov-anthropic' ? 'ninerouter' : 
+                         p.id.replace('prov-', '');
+      const cred = providerCredentials?.[canonicalId];
+      return {
+        ...p,
+        isConfigured: cred?.configured || false,
+        maskedKeyPreview: cred?.maskedPreview || null
+      };
+    });
+  }, [providers, providerCredentials]);
+
   const grouped = useMemo(() => {
-    const groups: Record<string, typeof providers> = { local: [], remote: [], infra: [] };
-    for (const p of providers) {
+    const groups: Record<string, typeof providersWithStatus> = { local: [], remote: [], infra: [] };
+    for (const p of providersWithStatus) {
       const cat = p.category || 'remote';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(p);
@@ -95,12 +166,12 @@ const ProvidersBoard: React.FC = () => {
       groups[key].sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99));
     }
     return groups;
-  }, [providers]);
+  }, [providersWithStatus]);
 
   const renderProviderCard = (p: any) => {
-    const hasKey = providerKeyIsSet(p.id);
+    const hasKey = p.isConfigured;
     const needsKey = p.authScheme !== 'none';
-    const maskedKey = hasKey ? getMaskedKey(p.id) : null;
+    const maskedKey = hasKey ? p.maskedKeyPreview : null;
     const usedBy = (p.usedByAgentDefaults || []).map((aid: string) => agents.find((a: any) => a.id === aid)).filter(Boolean);
     const accentVar = `var(--color-prov-${p.id.replace('prov-', '')})`;
     
@@ -169,7 +240,7 @@ const ProvidersBoard: React.FC = () => {
         backgroundAttachment: 'fixed',
       }}
     >
-      <div className="page-header">
+        <div className="page-header">
         <div className="page-header__title">
           <h1>Providers & API Keys</h1>
           <p>
@@ -185,6 +256,23 @@ const ProvidersBoard: React.FC = () => {
         </div>
       </div>
 
+      
+      {Object.keys(legacyKeys).length > 0 && (
+        <div style={{ padding: 16, background: 'rgba(255, 60, 60, 0.1)', border: '1px solid var(--color-error)', borderRadius: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-error)', fontWeight: 'bold', marginBottom: 8 }}>
+            <AlertTriangle size={16} /> Legacy insecure keys detected
+          </div>
+          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            Some provider keys are still stored in plain-text local storage. They must be migrated to the backend OS vault for security.
+          </p>
+          {migrationError && <p style={{ color: 'var(--color-error)', fontSize: '0.8rem', marginTop: 4 }}>{migrationError}</p>}
+          <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+            <button className="btn btn-primary" onClick={handleRetryMigration}>Retry secure migration</button>
+            <button className="btn btn-danger" onClick={handleClearLegacy}>Remove insecure local keys</button>
+          </div>
+        </div>
+      )}
+
       {/* ─── AGENT STATUS BAR ─── */}
       <div
         style={{
@@ -195,7 +283,7 @@ const ProvidersBoard: React.FC = () => {
         }}
       >
         {agents.filter(a => a.status === 'active').map(agent => {
-          const modelInfo = computeAgentActiveModel(agent, providers);
+          const modelInfo = computeAgentActiveModel(agent, providersWithStatus);
           return (
             <div
               key={agent.id}

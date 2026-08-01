@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,7 +22,7 @@ export function getCustomProviderConfig(): CustomProviderConfig | null {
       return JSON.parse(data) as CustomProviderConfig;
     }
   } catch (err) {
-    console.error('[CustomProvider] Error reading config:', err);
+    logger.error('[CustomProvider] Error reading config:', err);
   }
   return null;
 }

@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { db } from '../../db/index.js';
 import { teams, teamRuns, agentTeamHandoffs, verificationReports, agentTeamArtifacts } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -343,7 +344,7 @@ export class TeamRunner {
       if (goal.id !== goalId) return;
 
       if (goal.status === 'completed') {
-        this.handleAgentCompletion(runId, goalId).catch(console.error);
+        this.handleAgentCompletion(runId, goalId).catch(logger.error);
       } else if (goal.status === 'failed') {
         db.update(teamRuns).set({ status: 'failed', updatedAt: Date.now().toString() }).where(eq(teamRuns.id, runId)).run();
         this.detachGoalListener(runId);
@@ -366,7 +367,7 @@ export class TeamRunner {
     try {
       await this.processAgentCompletion(runId, goalId);
     } catch (err: any) {
-      console.error(`[TeamRunner] Agent completion handling failed for run ${runId}:`, err);
+      logger.error(`[TeamRunner] Agent completion handling failed for run ${runId}:`, err);
       await this.failRun(runId, goalId, err?.message || 'Agent completion handling failed');
     }
   }
@@ -457,7 +458,7 @@ export class TeamRunner {
           };
           isVerificationFailed = true;
         } else if (!finishEvent.payload?.verificationReport) {
-          console.warn("[TeamRunner] Verifier finished without VerificationReport! Assuming failure.");
+          logger.warn("[TeamRunner] Verifier finished without VerificationReport! Assuming failure.");
           verificationReport = {
             passed: false,
             checks: ['Check if the verification report was provided.'],
@@ -476,7 +477,7 @@ export class TeamRunner {
             // the real bytes / SHA-256 on disk. LLM claims are never trusted.
             adjudication = adjudicateVerificationReport(teamSheet, verificationReport, teamSheet.workspaceRoot || '');
             if (adjudication.overridden) {
-              console.warn('[TeamRunner] Verification pass overridden — objective checks failed:', adjudication.blockingIssues);
+              logger.warn('[TeamRunner] Verification pass overridden — objective checks failed:', adjudication.blockingIssues);
               verificationReport.passed = false;
               verificationReport.blockingIssues = [...(verificationReport.blockingIssues || []), ...adjudication.blockingIssues];
               verificationReport.recommendedFixes = [...(verificationReport.recommendedFixes || []), ...adjudication.recommendedFixes];
@@ -502,7 +503,7 @@ export class TeamRunner {
               isVerificationFailed = true;
             }
           } catch (e) {
-            console.error("[TeamRunner] Failed to parse VerificationReport:", e);
+            logger.error("[TeamRunner] Failed to parse VerificationReport:", e);
             verificationReport = {
               passed: false,
               checks: ['Parse VerificationReport'],
@@ -530,7 +531,7 @@ export class TeamRunner {
         if (target && target.index !== -1) {
           nextStep = target.index;
           nextAgentId = sequence[target.index];
-          console.log(`[TeamRunner] Repair routed to agent '${nextAgentId}' (${target.reason}).`);
+          logger.info(`[TeamRunner] Repair routed to agent '${nextAgentId}' (${target.reason}).`);
         } else {
           repairRoutingFailure = 'Repair routing failed: no Builder/Implementer/Developer role and no agent declaring the failed artifacts exists in the team sheet.';
           nextAgentId = null;

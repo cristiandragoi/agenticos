@@ -28,6 +28,7 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env'), override: true });
 
 import express from 'express';
 import cors from 'cors';
+import { logger } from './utils/logger.js';
 import { attachRequestId } from './utils/requestId.js';
 import { authMiddleware } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
@@ -83,6 +84,8 @@ import heavyGenRouter from './routers/heavyGen.js';
 import geminiRouter from './routers/gemini.js';
 import weldersPipelineRouter from './routers/weldersPipeline.js';
 import jarvisRouter from './routers/jarvis.js';
+import settingsRouter from './routers/settings.js';
+import diagnosticsRouter from './routers/diagnostics.js';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4001;
@@ -108,7 +111,7 @@ import { videoJobStore, progressVideoJob } from './adapters/videoAdapter.js';
 import { loopRuns } from './services/loopEngine.js';
 
 // Startup Recovery Routine
-console.log(`\n[Recovery] Scanning for stuck jobs...`);
+logger.info(`\n[Recovery] Scanning for stuck jobs...`);
 let recoveredCount = 0;
 loopRuns.list().filter(lr => lr.status === 'running').forEach(lr => {
   lr.status = 'failed';
@@ -117,14 +120,14 @@ loopRuns.list().filter(lr => lr.status === 'running').forEach(lr => {
   recoveredCount++;
 });
 videoJobStore.list().filter(vj => vj.status === 'running').forEach(vj => {
-  console.log(`[Recovery] Resuming video job ${vj.id} from stage ${vj.stage}`);
+  logger.info(`[Recovery] Resuming video job ${vj.id} from stage ${vj.stage}`);
   setTimeout(() => progressVideoJob(vj.id), 1000);
   recoveredCount++;
 });
 if (recoveredCount > 0) {
-  console.log(`[Recovery] Handled ${recoveredCount} jobs during boot.`);
+  logger.info(`[Recovery] Handled ${recoveredCount} jobs during boot.`);
 } else {
-  console.log(`[Recovery] No stuck jobs found.`);
+  logger.info(`[Recovery] No stuck jobs found.`);
 }
 
 // Auto-fail any runs still 'running' or 'queued' older than 30 minutes (stale from server restarts)
@@ -142,7 +145,7 @@ const failStaleRuns = () => {
     }
   }
   if (failedCount > 0) {
-    console.log(`[Recovery] Auto-failed ${failedCount} stale run(s) older than 30min.`);
+    logger.info(`[Recovery] Auto-failed ${failedCount} stale run(s) older than 30min.`);
   }
 };
 failStaleRuns();
@@ -153,9 +156,9 @@ import { runNewsRadar } from './workflows/newsRadar.js';
 
 // Run News Radar once on boot, then every 4 hours
 setTimeout(() => {
-  runNewsRadar().catch(err => console.error('[News Radar Boot] Error:', err));
+  runNewsRadar().catch(err => logger.error('[News Radar Boot] Error:', err));
   setInterval(() => {
-    runNewsRadar().catch(err => console.error('[News Radar Cron] Error:', err));
+    runNewsRadar().catch(err => logger.error('[News Radar Cron] Error:', err));
   }, 4 * 60 * 60 * 1000);
 }, 5000); // Wait 5s for boot
 
@@ -164,13 +167,13 @@ import { runSyntheticAttribution } from './services/syntheticAttribution.js';
 
 // Start the supervisor loop
 setTimeout(() => {
-  supervisorLoop(60000).catch(err => console.error('[Supervisor Boot] Error:', err));
+  supervisorLoop(60000).catch(err => logger.error('[Supervisor Boot] Error:', err));
 }, 2000); // Wait 2s for boot
 
 // Start synthetic telemetry loop
 setTimeout(() => {
   setInterval(() => {
-    runSyntheticAttribution().catch(err => console.error('[Synthetic Attribution Cron] Error:', err));
+    runSyntheticAttribution().catch(err => logger.error('[Synthetic Attribution Cron] Error:', err));
   }, 60000); // Every 60 seconds
 }, 5000); // Wait 5s for boot
 
@@ -184,9 +187,21 @@ app.use('/api/stripe', stripeRouter);
 
 app.use(express.json({ limit: '2mb' }));
 
+// Phase 4: Strictly reject legacy configuration headers
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
+  const legacyHeaders = ['x-provider-keys', 'x-max-retries', 'x-degraded-timeout'];
+  const found = legacyHeaders.filter(h => req.headers[h]);
+  if (found.length > 0) {
+    logger.warn(`Rejected request with legacy configuration headers: ${found.join(', ')}`);
+    return res.status(400).json({ error: `Legacy headers not allowed: ${found.join(', ')}` });
+  }
+  next();
+});
+
 // Auth is bypassed in dev, enforced in production
 app.use('/api', (req, res, next) => {
-  console.log(`[BACKEND] INCOMING: ${req.method} ${req.url}`);
+  logger.info(`[BACKEND] INCOMING: ${req.method} ${req.url}`);
   if (req.path === '/health' || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline')) return next(); // public for now
   return authMiddleware(req, res, next);
 });
@@ -221,6 +236,8 @@ import { connectorRouter } from './routers/connectorRouter.js';
 app.use('/api/connectors', connectorRouter);
 app.use('/api/pipeline/welders', weldersPipelineRouter);
 app.use('/api/jarvis', jarvisRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/diagnostics', diagnosticsRouter);
 
 app.use('/api/agentic', agenticRouter);
 
@@ -242,7 +259,7 @@ app.use('/api/revenue', revenueIntelligenceRouter);
 import { runEvaluationLoop } from './services/evolution/evaluationWorker.js';
 // Start Evaluation Loop (background worker)
 setTimeout(() => {
-  runEvaluationLoop().catch(err => console.error('[EvaluationEngine Boot] Error:', err));
+  runEvaluationLoop().catch(err => logger.error('[EvaluationEngine Boot] Error:', err));
 }, 10000); // 10s boot delay
 
 // Conversations / Activity log compatibility endpoint
@@ -251,7 +268,7 @@ app.post('/api/conversations', (req, res) => {
   const { title, message, source } = req.body;
   const entry = { id: `conv-${Date.now()}`, title, message, source, createdAt: new Date().toISOString() };
   conversations.push(entry);
-  console.log(`[Conversations Log] ${source?.toUpperCase()}: ${title} — ${message}`);
+  logger.info(`[Conversations Log] ${source?.toUpperCase()}: ${title} — ${message}`);
   res.json({ success: true, entry });
 });
 app.get('/api/conversations', (req, res) => {
@@ -280,13 +297,13 @@ app.use(errorHandler);
 // Only listen if not running in a serverless environment like Vercel
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n  ┌─────────────────────────────────────────┐`);
-    console.log(`  │  Agentic OS Backend  v9.0              │`);
-    console.log(`  │  http://localhost:${PORT}${' '.repeat(20 - PORT.toString().length)}│`);
-    console.log(`  │  ENV: ${process.env.NODE_ENV || 'development'}${' '.repeat(30 - (process.env.NODE_ENV || 'development').length)}│`);
-    console.log(`  └─────────────────────────────────────────┘\n`);
-    console.log(`  Adapters: Hermes ✓  Jarvis ✓  VideoAgent ✓`);
-    console.log(`  Routes:   13 registered\n`);
+    logger.info(`\n  ┌─────────────────────────────────────────┐`);
+    logger.info(`  │  Agentic OS Backend  v9.0              │`);
+    logger.info(`  │  http://localhost:${PORT}${' '.repeat(20 - PORT.toString().length)}│`);
+    logger.info(`  │  ENV: ${process.env.NODE_ENV || 'development'}${' '.repeat(30 - (process.env.NODE_ENV || 'development').length)}│`);
+    logger.info(`  └─────────────────────────────────────────┘\n`);
+    logger.info(`  Adapters: Hermes ✓  Jarvis ✓  VideoAgent ✓`);
+    logger.info(`  Routes:   13 registered\n`);
   });
 }
 

@@ -12,6 +12,7 @@ class GoalStore extends EventEmitter {
       status: goal.status,
       retryCount: goal.retryCount,
       providerFallbackCount: goal.providerFallbackCount,
+      executionOptions: goal.executionOptions ? JSON.stringify(goal.executionOptions) : null,
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
       workspacePath: goal.workspacePath,
@@ -23,10 +24,16 @@ class GoalStore extends EventEmitter {
   }
 
   update(id: string, patch: Partial<GoalRecord>): GoalRecord | undefined {
-    db.update(goals).set({
+    const updatePayload: any = {
       ...patch,
       updatedAt: Date.now().toString()
-    }).where(eq(goals.id, id)).run();
+    };
+    
+    if (patch.executionOptions !== undefined) {
+      updatePayload.executionOptions = patch.executionOptions ? JSON.stringify(patch.executionOptions) : null;
+    }
+
+    db.update(goals).set(updatePayload).where(eq(goals.id, id)).run();
 
     const updated = this.get(id);
     if (updated) {
@@ -47,6 +54,7 @@ class GoalStore extends EventEmitter {
       status: row.status as GoalState,
       retryCount: row.retryCount,
       providerFallbackCount: row.providerFallbackCount,
+      executionOptions: row.executionOptions ? JSON.parse(row.executionOptions) : undefined,
       checkpointId: row.activeCheckpointId || undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

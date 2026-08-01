@@ -12,7 +12,7 @@
 .mainColumn {
   flex: 1;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -480,14 +480,27 @@
 
 .reactorOrbPanel {
   grid-area: orb;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--bg-surface-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  position: relative;
+}
+
+.orbWrapper {
+  flex: 1 1 auto;
+  min-height: 240px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
 
 .reactorOrbPanel :global([data-testid="jarvis-orb-core"]) {
-  width: clamp(280px, 30vw, 410px) !important;
-  height: clamp(280px, 30vw, 410px) !important;
+  width: clamp(200px, 28vw, 380px) !important;
+  height: clamp(200px, 28vw, 380px) !important;
 }
 
 .actionLogPanel {

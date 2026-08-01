@@ -21,6 +21,14 @@ interface Schedule {
   updatedAt: string;
 }
 
+interface ProviderCredentialStatus {
+  providerId: string;
+  configured: boolean;
+  maskedPreview: string;
+  validationStatus: string | null;
+  lastValidatedAt: string | null;
+}
+
 interface DataState {
   agents: AgentDefinition[];
   providers: ProviderDefinition[];
@@ -34,6 +42,7 @@ interface DataState {
   researchBriefs: ResearchBrief[];
   leads: ServiceLead[];
   schedules: Schedule[];
+  providerCredentials: Record<string, ProviderCredentialStatus>;
   isLoading: boolean;
   error: string | null;
   refresh: () => void;
@@ -52,6 +61,7 @@ const initialState: DataState = {
   researchBriefs: [],
   leads: [],
   schedules: [],
+  providerCredentials: {},
   isLoading: true,
   error: null,
   refresh: () => {},
@@ -70,7 +80,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const [
         agents, providers, runs, runtimes, 
-        memoryScopes, memoryEntries, artifacts, boards, tools, researchBriefs, leadData, schedules
+        memoryScopes, memoryEntries, artifacts, boards, tools, researchBriefs, leadData, schedules, providerCredentials
       ] = await Promise.all([
         apiClient.getAgents(),
         apiClient.getProviders(),
@@ -83,13 +93,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         apiClient.getTools(),
         apiClient.getResearchBriefs(),
         apiClient.getLeads(),
-        apiClient.getSchedules()
+        apiClient.getSchedules(),
+        fetch('/api/settings/gateway/credentials-status').then(res => res.ok ? res.json() : {})
       ]);
 
       setState(prev => ({
         ...prev,
         agents, providers, runs, runtimes,
         memoryScopes, memoryEntries, artifacts, boards, tools, researchBriefs, leads: leadData.leads || [], schedules,
+        providerCredentials,
         isLoading: false, error: null, refresh: fetchData
       }));
     } catch (err) {

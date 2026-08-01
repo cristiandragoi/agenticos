@@ -196,6 +196,7 @@ describe('CodeX approval state handling', () => {
 
     const { llmChat } = await import('../services/llmGateway.js');
     const { parseToolCall } = await import('../loops/toolCallParser.js');
+    const { goalStore } = await import('../services/goalStore.js');
     vi.mocked(llmChat).mockResolvedValue({ reply: 'I would update the router implementation.', provider: 'ollama', offline: false, model: 'laguna-xs-2.1' } as any);
     vi.mocked(parseToolCall).mockReturnValue({ toolCall: null, parseError: 'Expected type/tool/arguments JSON object' } as any);
 
@@ -208,7 +209,12 @@ describe('CodeX approval state handling', () => {
     expect(mocks.writerPush).toHaveBeenCalledWith(expect.objectContaining({
       state: 'failed',
       errorCode: 'CODEX_TOOL_PARSE_FAILED',
-      errorDetails: 'Expected type/tool/arguments JSON object'
+      errorDetails: 'Expected type/tool/arguments JSON object',
+      payload: expect.objectContaining({
+        rawResponsePreview: 'I would update the router implementation.'
+      })
     }));
+    expect(goalStore.update).toHaveBeenCalledWith('goal-waiting', { status: 'failed' });
+    expect(goalStore.releaseLease).toHaveBeenCalledWith('goal-waiting', expect.any(String));
   });
 });

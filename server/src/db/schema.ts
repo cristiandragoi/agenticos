@@ -77,6 +77,7 @@ export const goals = sqliteTable('goals', {
   status: text('status').notNull().default('queued'),
   retryCount: integer('retry_count').notNull().default(0),
   providerFallbackCount: integer('provider_fallback_count').notNull().default(0),
+  executionOptions: text('execution_options'),
   activeCheckpointId: text('active_checkpoint_id'),
   workerId: text('worker_id'), // For atomic worker leases
   leaseExpiresAt: text('lease_expires_at'),
@@ -193,7 +194,11 @@ export const providerCircuitBreakers = sqliteTable('provider_circuit_breakers', 
   model: text('model').notNull(),
   errorCount: integer('error_count').notNull().default(0),
   cooldownUntil: text('cooldown_until'), // ISO date string
-  updatedAt: text('updated_at').notNull()
+  updatedAt: text('updated_at').notNull(),
+  migrationState: text('migration_state').default('none'),
+  migrationOwner: text('migration_owner'),
+  leaseExpiresAt: text('lease_expires_at'),
+  migrationVersion: integer('migration_version').default(1)
 });
 
 
@@ -641,4 +646,51 @@ export const verificationReports = sqliteTable('verification_reports', {
   blockingIssues: text('blocking_issues', { mode: 'json' }),
   recommendedFixes: text('recommended_fixes', { mode: 'json' }),
   createdAt: text('created_at').notNull()
+});
+
+/* Gateway & Security Architecture */
+
+export const providerCredentials = sqliteTable('provider_credentials', {
+  providerId: text('provider_id').primaryKey(), // canonical id (e.g. 'omniroot')
+  configured: integer('configured', { mode: 'boolean' }).notNull().default(false),
+  maskedPreview: text('masked_preview'),
+  validationStatus: text('validation_status'), // valid, invalid, etc.
+  lastValidatedAt: text('last_validated_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  migrationState: text('migration_state').default('none'),
+  migrationOwner: text('migration_owner'),
+  leaseExpiresAt: text('lease_expires_at'),
+  migrationVersion: integer('migration_version').default(1)
+});
+
+export const agentProviderAssignments = sqliteTable('agent_provider_assignments', {
+  agentId: text('agent_id').primaryKey(),
+  providerId: text('provider_id').notNull(),
+  modelId: text('model_id'),
+  routingMode: text('routing_mode').notNull(), // 'automatic' | 'preferred' | 'forced'
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  migrationState: text('migration_state').default('none'),
+  migrationOwner: text('migration_owner'),
+  leaseExpiresAt: text('lease_expires_at'),
+  migrationVersion: integer('migration_version').default(1)
+});
+
+export const gatewayConfiguration = sqliteTable('gateway_configuration', {
+  id: integer('id').primaryKey(), // single row
+  maxProviderRetries: integer('max_provider_retries').notNull().default(3),
+  maxFallbackProviders: integer('max_fallback_providers').notNull().default(3),
+  providerTimeoutMs: integer('provider_timeout_ms').notNull().default(30000),
+  degradedLatencyMs: integer('degraded_latency_ms').notNull().default(2000),
+  circuitFailureThreshold: integer('circuit_failure_threshold').notNull().default(5),
+  circuitResetTimeoutMs: integer('circuit_reset_timeout_ms').notNull().default(60000),
+  healthCheckIntervalMs: integer('health_check_interval_ms').notNull().default(300000),
+  version: integer('version').notNull().default(1),
+  updatedAt: text('updated_at').notNull(),
+  migrationState: text('migration_state').default('none'),
+  migrationOwner: text('migration_owner'),
+  leaseExpiresAt: text('lease_expires_at'),
+  migrationVersion: integer('migration_version').default(1)
 });

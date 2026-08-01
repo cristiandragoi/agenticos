@@ -44,40 +44,44 @@ router.get('/', (_req, res) => {
   res.json(enriched);
 });
 
-/* ─── LIST installed Ollama models (dynamic discovery) ─── */
-// MUST be before /:id routes so it isn't caught by the wildcard
-router.get('/prov-ollama/installed-models', async (_req, res) => {
-  const ollamaBase = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-  try {
-    const resp = await fetch(`${ollamaBase}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!resp.ok) {
-      res.status(200).json({ reachable: false, models: [], codingModels: [], error: `Ollama returned HTTP ${resp.status}` });
-      return;
+/* ─── LIST models for a provider (dynamic discovery) ─── */
+router.get('/:id/models', async (req, res) => {
+  const provider = db.providers.get(req.params.id);
+  if (!provider) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
+    return;
+  }
+  
+  if (provider.id === 'prov-ollama') {
+    const ollamaBase = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    try {
+      const resp = await fetch(`${ollamaBase}/api/tags`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) {
+        res.status(200).json({ reachable: false, models: [], error: `Ollama returned HTTP ${resp.status}` });
+        return;
+      }
+      const data: any = await resp.json();
+      const models = (data.models || []).map((m: any) => ({
+        id: m.name || m.model,
+        name: m.name || m.model,
+        size: m.size,
+        modifiedAt: m.modified_at,
+        contextLength: m.details?.context_length,
+        quantization: m.details?.quantization_level,
+        family: m.details?.family,
+      }));
+      res.json({ reachable: true, models });
+    } catch (err: any) {
+      res.json({ reachable: false, models: [], error: err.message });
     }
-    const data: any = await resp.json();
-    const models = (data.models || []).map((m: any) => ({
-      id: m.name || m.model,
-      name: m.name || m.model,
-      size: m.size,
-      modifiedAt: m.modified_at,
-      contextLength: m.details?.context_length,
-      quantization: m.details?.quantization_level,
-      family: m.details?.family,
-    }));
-    const codingModelIds = ['qwen2.5-coder:14b', 'deepseek-coder-v2:16b'];
-    const installedIds: string[] = models.map((m: any) => m.id);
-    const codingModels = codingModelIds.map(id => ({
-      id,
-      displayName: id === 'qwen2.5-coder:14b' ? 'Qwen2.5-Coder 14B (Local)' : 'DeepSeek-Coder-V2 16B (Local)',
-      installed: installedIds.some((iid: string) => iid === id || iid.startsWith(id.split(':')[0])),
-    }));
-    res.json({ reachable: true, models, codingModels });
-  } catch (err: any) {
-    res.json({ reachable: false, models: [], codingModels: [], error: err.message });
+  } else {
+    // Return statically configured models for this provider
+    res.json({ reachable: true, models: provider.models || [] });
   }
 });
+
 
 /* ─── GET /runtime-status (Unified Health) ─── */
 router.get('/runtime-status', async (_req, res) => {

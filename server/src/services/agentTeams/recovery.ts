@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { db } from '../../db/index.js';
 import { teamRuns, goalEvents } from '../../db/schema.js';
 import { eq, inArray, desc } from 'drizzle-orm';
@@ -42,24 +43,24 @@ export function checkTeamRecovery() {
           if (checkpoint.lastEventSequence === lastEventSequence && checkpoint.databaseRevision === run.databaseRevision) {
              // Mutually valid, allow resume
           } else if (checkpoint.lastEventSequence > lastEventSequence) {
-             console.error(`[Recovery] TeamRun ${run.id}: Checkpoint is ahead of DB. Reconciling to last mutually valid state.`);
+             logger.error(`[Recovery] TeamRun ${run.id}: Checkpoint is ahead of DB. Reconciling to last mutually valid state.`);
              requiresRecovery = true;
           } else if (checkpoint.lastEventSequence < lastEventSequence) {
-             console.error(`[Recovery] TeamRun ${run.id}: Database is ahead of Checkpoint. Regenerating checkpoint required.`);
+             logger.error(`[Recovery] TeamRun ${run.id}: Database is ahead of Checkpoint. Regenerating checkpoint required.`);
              requiresRecovery = true;
           } else if (checkpoint.checkpointVersion !== run.checkpointVersion) {
-             console.error(`[Recovery] TeamRun ${run.id} ambiguous reconciliation (Version mismatch).`);
+             logger.error(`[Recovery] TeamRun ${run.id} ambiguous reconciliation (Version mismatch).`);
              conflict = true;
              requiresRecovery = true;
              pauseReason = 'recovery_conflict';
           }
         } catch (e) {
-          console.error(`[Recovery] TeamRun ${run.id} has malformed checkpoint.`);
+          logger.error(`[Recovery] TeamRun ${run.id} has malformed checkpoint.`);
           requiresRecovery = true;
         }
       } else {
         if (lastEventSequence > 0 || run.databaseRevision > 1) {
-          console.error(`[Recovery] TeamRun ${run.id} missing checkpoint file but has DB events.`);
+          logger.error(`[Recovery] TeamRun ${run.id} missing checkpoint file but has DB events.`);
           requiresRecovery = true;
         }
       }
@@ -67,7 +68,7 @@ export function checkTeamRecovery() {
 
     if (requiresRecovery) {
       db.update(teamRuns).set({ status: 'recovery_required' as any, updatedAt: Date.now().toString() }).where(eq(teamRuns.id, run.id)).run();
-      console.log(`[Recovery] Paused team run ${run.id} and set to recovery_required.`);
+      logger.info(`[Recovery] Paused team run ${run.id} and set to recovery_required.`);
       const safeGoalId = run.goalId;
       if (safeGoalId) {
         import('../goalStore.js').then(({ goalStore }) => {

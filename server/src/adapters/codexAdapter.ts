@@ -6,7 +6,7 @@ import { runStore } from '../services/runStore.js';
 import { mockAgents, mockTools, mockMemoryScopes } from '../data.js';
 
 const CODEX_OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-const CODEX_OLLAMA_MODEL = process.env.OLLAMA_CODEX_MODEL || 'laguna-xs-2.1';
+const CODEX_OLLAMA_MODEL = process.env.OLLAMA_CODEX_MODEL || 'auto';
 
 /**
  * CodexAdapter — Runtime adapter for CodeX models.

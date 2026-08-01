@@ -1,7 +1,8 @@
+import { logger } from '../utils/logger.js';
 export async function runHermesTask(prompt: string, contextMessage: string): Promise<{ reply: string, metadata: any }> {
   const openAiCompatibleBase = process.env.OPENROUTER_BASE_URL || process.env.OMNIROUTE_BASE_URL || 'https://openrouter.ai/api/v1';
   const openAiCompatibleKey = process.env.OPENROUTER_API_KEY || process.env.OMNIROUTE_API_KEY || '';
-  const openAiCompatibleModel = process.env.OPENROUTER_MODEL || process.env.OMNIROUTE_MODEL || 'poolside/laguna-s-2.1:free';
+  const openAiCompatibleModel = process.env.OPENROUTER_MODEL || process.env.OMNIROUTE_MODEL || 'auto';
   
   let reply = '';
   let metadata = {
@@ -52,7 +53,7 @@ export async function runHermesTask(prompt: string, contextMessage: string): Pro
       } catch { /* no-op */ }
     }
   } catch (err: any) {
-    console.warn(`[runHermesTask] OpenRouter failed: ${err.message}. Initiating fallback to Ollama qwythos:9b.`);
+    logger.warn(`[runHermesTask] OpenRouter failed: ${err.message}. Initiating fallback to Ollama qwythos:9b.`);
     metadata.fallbackApplied = true;
     metadata.fallbackReason = err.message;
     metadata.modelUsed = 'qwythos:9b (Ollama)';
@@ -75,7 +76,7 @@ export async function runHermesTask(prompt: string, contextMessage: string): Pro
       const ollamaData = await ollamaRes.json();
       reply = ollamaData.response;
     } catch (fallbackErr: any) {
-      console.error(`[runHermesTask] Fallback also failed: ${fallbackErr.message}`);
+      logger.error(`[runHermesTask] Fallback also failed: ${fallbackErr.message}`);
       metadata.modelUsed = 'None (offline)';
       metadata.fallbackReason = `Primary: ${err.message}. Fallback: ${fallbackErr.message}`;
       reply = 'I am running in offline mode. No external model is reachable. Please check OPENROUTER_API_KEY in server/.env or start a configured local fallback.';

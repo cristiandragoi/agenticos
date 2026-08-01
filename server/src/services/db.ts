@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { JsonStore } from './store.js';
@@ -40,7 +41,7 @@ class AsyncJsonStoreAdapter<T extends { id: string }> implements AsyncStore<T> {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.resolve(__dirname, '../../data');
-console.log('[DB Path Debug] Resolving dataDir to:', dataDir);
+logger.info('[DB Path Debug] Resolving dataDir to:', dataDir);
 
 import type { 
   AgentDefinition, 
@@ -101,7 +102,7 @@ class DatabaseRegistry {
     // Skip synchronous artifact seeding since artifacts is now AsyncStore. Production doesn't need mock artifacts.
     if (this.boards.list().length === 0) mockBoards.forEach(b => this.boards.upsert(b));
     if (this.tools.list().length === 0) mockTools.forEach(t => this.tools.upsert(t));
-    console.log('[DB] Persistent stores initialized and seeded (if empty).');
+    logger.info('[DB] Persistent stores initialized and seeded (if empty).');
   }
 }
 

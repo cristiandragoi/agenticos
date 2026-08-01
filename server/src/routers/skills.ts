@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { listSkills, getSkill, createSkill, updateSkill, deleteSkill } from '../services/agent/skillRegistry.js';
 
@@ -9,7 +10,7 @@ router.get('/', async (req, res) => {
     const publicSkills = allSkills.filter(s => s.active && s.isPublic !== false);
     res.json(publicSkills);
   } catch (err: any) {
-    console.error('[Skills API] Failed to list skills:', err);
+    logger.error('[Skills API] Failed to list skills:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import * as cheerio from 'cheerio';
 
 export type ScrapedCompanyContact = {
@@ -39,7 +40,7 @@ async function discoverJobsApify(): Promise<{ title: string; url: string }[]> {
   const token = process.env.APIFY_API_KEY;
   if (!token) throw new Error("APIFY_API_KEY is not configured.");
   
-  console.log('[Scraper] Triggering Apify apify/google-search-scraper...');
+  logger.info('[Scraper] Triggering Apify apify/google-search-scraper...');
   const runRes = await fetch(`https://api.apify.com/v2/acts/apify~google-search-scraper/runs?token=${token}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -54,7 +55,7 @@ async function discoverJobsApify(): Promise<{ title: string; url: string }[]> {
   if (!runRes.ok) throw new Error(`Apify start failed: ${runRes.status}`);
   const runData = await runRes.json();
   const runId = runData.data.id;
-  console.log(`[Scraper] Apify run started: ${runId}. Polling for completion...`);
+  logger.info(`[Scraper] Apify run started: ${runId}. Polling for completion...`);
   
   let runInfo;
   while(true) {
@@ -86,12 +87,12 @@ async function discoverJobsApify(): Promise<{ title: string; url: string }[]> {
 
 export async function runJobDiscovery(): Promise<{ apifyActor: string, totalFound: number, rawJobs: any[] }> {
   const apifyActor = "apify/google-search-scraper";
-  console.log('[Scraper] Searching for job postings via Apify...');
+  logger.info('[Scraper] Searching for job postings via Apify...');
   let rawResults: { title: string; url: string }[] = [];
   try {
     rawResults = await discoverJobsApify();
   } catch (err: any) {
-    console.error('[Scraper] Apify Job Discovery failed:', err);
+    logger.error('[Scraper] Apify Job Discovery failed:', err);
     throw new Error(`Apify Actor Error: ${err.message}`);
   }
 
@@ -122,13 +123,13 @@ export async function runJobDiscovery(): Promise<{ apifyActor: string, totalFoun
   }
 
   if (companyMap.size === 0) {
-     console.log('[Scraper] Fallback to default companies due to no search results.');
+     logger.info('[Scraper] Fallback to default companies due to no search results.');
      companyMap.set('Meyer Werft GmbH', { companyName: 'Meyer Werft GmbH', websiteUrl: 'https://www.meyerwerft.de', role: 'Schweißer', country: 'DE', jobUrl: 'https://www.meyerwerft.de/jobs', source: 'meyerwerft.de' });
      companyMap.set('Damen Shipyards', { companyName: 'Damen Shipyards', websiteUrl: 'https://www.damen.com', role: 'Welder', country: 'NL', jobUrl: 'https://www.damen.com/jobs', source: 'damen.com' });
   }
 
   const companiesToScrape = Array.from(companyMap.values()).slice(0, 100);
-  console.log(`[Scraper] Found ${companiesToScrape.length} companies from Apify.`);
+  logger.info(`[Scraper] Found ${companiesToScrape.length} companies from Apify.`);
 
   return {
     apifyActor,
@@ -139,7 +140,7 @@ export async function runJobDiscovery(): Promise<{ apifyActor: string, totalFoun
 
 export async function enrichLeads(companiesToScrape: any[]): Promise<ScrapedCompanyContact[]> {
   const results: ScrapedCompanyContact[] = [];
-  console.log(`[Scraper] Enriching ${companiesToScrape.length} leads...`);
+  logger.info(`[Scraper] Enriching ${companiesToScrape.length} leads...`);
 
   for (const comp of companiesToScrape) {
     const scraped: ScrapedCompanyContact = {
@@ -152,7 +153,7 @@ export async function enrichLeads(companiesToScrape: any[]): Promise<ScrapedComp
     };
 
     try {
-      console.log(`[Scraper] Scraping ${comp.companyName}...`);
+      logger.info(`[Scraper] Scraping ${comp.companyName}...`);
       
       const extractInfo = (html: string) => {
         const text = cheerio.load(html)('body').text().replace(/\s+/g, ' ');
@@ -206,7 +207,7 @@ export async function enrichLeads(companiesToScrape: any[]): Promise<ScrapedComp
         if (pageUrl === comp.websiteUrl) continue;
         visitedCount++;
 
-        console.log(`[Scraper]   -> Fetching subpage ${pageUrl}`);
+        logger.info(`[Scraper]   -> Fetching subpage ${pageUrl}`);
         try {
           const subHtml = await fetchHtml(pageUrl);
           extractInfo(subHtml);

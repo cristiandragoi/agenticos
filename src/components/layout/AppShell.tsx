@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import LeftRail from './LeftRail';
 import TopContextBar from './TopContextBar';
@@ -6,24 +6,38 @@ import UniversalChatDock from './UniversalChatDock';
 import InspectorDrawer from './InspectorDrawer';
 import CommandPalette from '../ui/CommandPalette';
 import CustomTitlebar from './CustomTitlebar';
-import { useCommandPalette, useDrawer } from '../../store/appStore';
+import { useCommandPalette, useDrawer, useAppDispatch } from '../../store/appStore';
 import { useData } from '../../store/dataStore';
+import { useCodexStore } from '../../store/codexStore';
 
 const AppShell: React.FC = () => {
   const { isOpen: commandPaletteOpen, toggle: toggleCommandPalette } = useCommandPalette();
   const location = useLocation();
+  const dispatch = useAppDispatch();
 
   const { isLoading, error } = useData();
 
   const drawer = useDrawer();
   const hideGlobalChatDock =
-    location.pathname === '/hermes-studio' ||
     location.pathname === '/jarvis' ||
-    location.pathname === '/hermes' ||
     location.pathname === '/codex' ||
     location.pathname === '/mission-control';
 
+  const { setActiveGoalId } = useCodexStore();
 
+  useLayoutEffect(() => {
+    let targetAgentId = 'agent-jarvis';
+    if (location.pathname.startsWith('/hermes')) targetAgentId = 'agent-hermes';
+    else if (location.pathname.startsWith('/codex')) targetAgentId = 'agent-codex';
+    else if (location.pathname.startsWith('/jarvis')) targetAgentId = 'agent-jarvis';
+    
+    console.log('[ChatRoute]', { route: location.pathname, routeOwnedAgentId: targetAgentId, selectedAgentId: targetAgentId });
+    dispatch({ type: 'SET_CHAT_TARGET', agentId: targetAgentId });
+
+    if (targetAgentId !== 'agent-codex') {
+      setActiveGoalId(null);
+    }
+  }, [location.pathname, dispatch, setActiveGoalId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

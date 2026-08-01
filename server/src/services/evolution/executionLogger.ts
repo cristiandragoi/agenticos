@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { db } from '../../db/index.js';
 import { agentExecutions } from '../../db/schema.js';
 import crypto from 'crypto';
@@ -99,9 +100,9 @@ export async function logExecution(params: ExecutionLogParams): Promise<string> 
     });
   } catch (err: any) {
     if (err.message && err.message.includes('UNIQUE constraint failed')) {
-      console.warn(`[ExecutionLogger] Idempotency key ${params.idempotencyKey} already logged. Skipping.`);
+      logger.warn(`[ExecutionLogger] Idempotency key ${params.idempotencyKey} already logged. Skipping.`);
     } else {
-      console.error('[ExecutionLogger] Failed to log execution:', err);
+      logger.error('[ExecutionLogger] Failed to log execution:', err);
     }
   }
 

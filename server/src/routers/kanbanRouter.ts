@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from "express";
 import { localDataPort } from "../adapters/localDataPort.js";
 import { runtimeRegistry } from "../services/runtimeRegistry.js";
@@ -121,7 +122,7 @@ kanbanRouter.post("/cards/:id/execute", async (req, res) => {
       adapter.invoke({
         runId: globalRunId, agentId, sessionId: `sess-${kanbanRun.id}`,
         workspaceId: "hermes-studio", mode: "task", prompt: cardPrompt,
-      }).catch((err: any) => console.error("[Kanban] Execute adapter error:", err.message));
+      }).catch((err: any) => logger.error("[Kanban] Execute adapter error:", err.message));
     } else {
       simulateKanbanRun(kanbanRun.id, cardId);
     }

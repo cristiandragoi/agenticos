@@ -7,11 +7,9 @@ import { useHermesStore } from '../store/hermesStore';
 import type { HermesTask, HermesTaskStatus } from '../store/hermesStore';
 import type { AgentSkill } from '../../shared/types/skill';
 
-interface HermesKanbanBoardProps {
-  selectedModel?: string;
-}
+interface HermesKanbanBoardProps {}
 
-const HermesKanbanBoard: React.FC<HermesKanbanBoardProps> = ({ selectedModel }) => {
+const HermesKanbanBoard: React.FC<HermesKanbanBoardProps> = () => {
   const { moveTask, setAllTasks } = useHermesStore();
   const [skills, setSkills] = useState<AgentSkill[]>([]);
   const [selectedTask, setSelectedTask] = useState<HermesTask | null>(null);

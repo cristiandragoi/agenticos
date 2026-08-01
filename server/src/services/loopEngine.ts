@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
 import type { LoopDefinition, LoopRun, LoopStep, AgentInvocation } from '../types.js';
 import { runtimeRegistry } from './runtimeRegistry.js';
@@ -43,7 +44,7 @@ async function executeStep(
   const adapter = runtimeRegistry.getAdapter(runtimeId);
 
   if (!adapter) {
-    console.warn(`[LoopEngine] No adapter for runtime ${runtimeId}, using simulation`);
+    logger.warn(`[LoopEngine] No adapter for runtime ${runtimeId}, using simulation`);
     const runId = `run-${randomUUID().slice(0, 9)}`;
     const now = new Date().toISOString();
     runStore.create({
@@ -99,7 +100,7 @@ export async function executeLoop(def: LoopDefinition): Promise<LoopRun> {
   loopRuns.upsert(loopRun);
   loopDefinitions.upsert({ ...def, status: 'running' });
 
-  console.log(`[LoopEngine] Starting loop "${def.name}" (${def.id}) with ${def.steps.length} steps`);
+  logger.info(`[LoopEngine] Starting loop "${def.name}" (${def.id}) with ${def.steps.length} steps`);
 
   try {
     const waves = topoSort(def.steps);
@@ -128,7 +129,7 @@ export async function executeLoop(def: LoopDefinition): Promise<LoopRun> {
 
     // Simulate iterative feedback cycle if configured
     if (def.maxIterations && def.maxIterations > 1) {
-      console.log(`[LoopEngine] Running feedback cycle for loop "${def.name}"...`);
+      logger.info(`[LoopEngine] Running feedback cycle for loop "${def.name}"...`);
       for (let i = 2; i <= def.maxIterations; i++) {
         loopRun.iteration = i;
         loopRun.score = Math.floor(Math.random() * 50) + 50; // Simulate improving score
@@ -147,12 +148,12 @@ export async function executeLoop(def: LoopDefinition): Promise<LoopRun> {
     loopRun.status = 'completed';
     loopRun.completedAt = new Date().toISOString();
     loopDefinitions.upsert({ ...def, status: 'completed' });
-    console.log(`[LoopEngine] Loop "${def.name}" completed successfully`);
+    logger.info(`[LoopEngine] Loop "${def.name}" completed successfully`);
   } catch (err: any) {
     loopRun.status = 'failed';
     loopRun.errorMessage = err.message;
     loopDefinitions.upsert({ ...def, status: 'failed' });
-    console.error(`[LoopEngine] Loop "${def.name}" failed:`, err.message);
+    logger.error(`[LoopEngine] Loop "${def.name}" failed:`, err.message);
   }
 
   loopRuns.upsert(loopRun);

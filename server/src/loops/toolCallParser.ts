@@ -45,11 +45,27 @@ export function normalizeToolCallCandidate(candidate: any): any {
   if (candidate.type === 'tool_call') return candidate;
   if (typeof candidate.tool !== 'string') return candidate;
   const { tool, arguments: args, ...rest } = candidate;
+  let normalizedArgs = args;
+  if (typeof normalizedArgs === 'string') {
+    try {
+      normalizedArgs = JSON.parse(normalizedArgs);
+    } catch {
+      normalizedArgs = {};
+    }
+  }
+  const toolAliases: Record<string, ParsedToolCall['tool']> = {
+    read_file: 'readFile',
+    write_file: 'writeFile',
+    run_command: 'runCommand',
+    reasoning_query: 'reasoningQuery',
+    final: 'finish'
+  };
+  const normalizedTool = toolAliases[tool] || tool;
   return {
     type: 'tool_call',
-    tool,
+    tool: normalizedTool,
     arguments: {
-      ...(args && typeof args === 'object' && !Array.isArray(args) ? args : {}),
+      ...(normalizedArgs && typeof normalizedArgs === 'object' && !Array.isArray(normalizedArgs) ? normalizedArgs : {}),
       ...rest
     }
   };
@@ -138,7 +154,7 @@ export function parseToolCall(response: string): { toolCall: ParsedToolCall | nu
   errors.push(`plain JSON: ${plain.error}`);
 
   // Strategy 2: Markdown code fence
-  const fenceMatch = trimmed.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+  const fenceMatch = trimmed.match(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/);
   if (fenceMatch) {
     const fenced = validateToolCallJson(fenceMatch[1].trim());
     if (fenced.toolCall) return { toolCall: fenced.toolCall, parseError: '' };

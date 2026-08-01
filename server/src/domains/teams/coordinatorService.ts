@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -22,7 +23,7 @@ function persistRawResponse(workspaceRoot: string, teamId: string | undefined, a
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `team-sheet-${teamId || 'unknown'}-attempt${attempt}.log`), sanitizeForDiagnostics(reply), 'utf-8');
   } catch (e) {
-    console.warn('[CoordinatorService] Could not persist raw model response for diagnostics:', (e as Error).message);
+    logger.warn('[CoordinatorService] Could not persist raw model response for diagnostics:', (e as Error).message);
   }
 }
 

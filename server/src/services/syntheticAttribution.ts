@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { db } from '../db/index.js';
 import { campaigns, attribution } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
@@ -16,7 +17,7 @@ export async function runSyntheticAttribution() {
       return; // Nothing to do
     }
 
-    console.log(`[Synthetic Attribution] Processing ${activeStagingCampaigns.length} staging campaigns...`);
+    logger.info(`[Synthetic Attribution] Processing ${activeStagingCampaigns.length} staging campaigns...`);
 
     for (const campaign of activeStagingCampaigns) {
       // Generate synthetic metrics for this tick
@@ -79,8 +80,8 @@ export async function runSyntheticAttribution() {
         .where(eq(campaigns.id, campaign.id));
     }
     
-    console.log(`[Synthetic Attribution] Successfully injected telemetry for ${activeStagingCampaigns.length} campaigns.`);
+    logger.info(`[Synthetic Attribution] Successfully injected telemetry for ${activeStagingCampaigns.length} campaigns.`);
   } catch (err: any) {
-    console.error('[Synthetic Attribution] Error:', err.message);
+    logger.error('[Synthetic Attribution] Error:', err.message);
   }
 }

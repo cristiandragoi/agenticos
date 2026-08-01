@@ -325,12 +325,40 @@ export interface DrawerState {
   isPinned: boolean;
 }
 
+export interface GatewayUiEvent {
+  type: string;
+  timestamp: string;
+  provider?: string;
+  model?: string;
+  durationMs?: number;
+  reason?: string;
+  target?: string;
+  operationId?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent" | "system";
   agentId?: string;
   content: string;
   timestamp: string;
+  gateway?: {
+    provider?: string;
+    model?: string;
+    taskProfile?: string;
+    status?: 'routing' | 'streaming' | 'completed' | 'fallback' | 'interrupted' | 'failed';
+    fallbackFrom?: string;
+    fallbackCount?: number;
+    streamInterrupted?: boolean;
+    latencyMs?: number;
+    durationMs?: number;
+    promptTokens?: number | null;
+    completionTokens?: number | null;
+    totalTokens?: number | null;
+    estimatedCost?: number | null;
+    tokensPerSecond?: number | null;
+    events?: GatewayUiEvent[];
+  };
 }
 
 export interface ChatState {

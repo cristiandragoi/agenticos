@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { mockTikTokConnector } from '../connectors/mock/MockTikTokConnector.js';
 
@@ -17,7 +18,7 @@ connectorRouter.post('/webhook/:source', async (req, res) => {
     // Fallback/Unknown
     return res.status(400).json({ success: false, message: `Unknown connector source: ${source}` });
   } catch (error: any) {
-    console.error(`[ConnectorRouter] Error processing webhook for ${source}:`, error);
+    logger.error(`[ConnectorRouter] Error processing webhook for ${source}:`, error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });

@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { EventEmitter } from 'events';
 import { db } from '../db/index.js';
 import { systemEvents } from '../db/schema.js';
@@ -69,7 +70,7 @@ class EventBus extends EventEmitter {
 
       return eventId;
     } catch (err) {
-      console.error(`[EventBus] Failed to publish event ${eventId}`, err);
+      logger.error(`[EventBus] Failed to publish event ${eventId}`, err);
       throw err;
     }
   }
@@ -83,7 +84,7 @@ class EventBus extends EventEmitter {
         .set({ processed: true })
         .where(eq(systemEvents.id, eventId));
     } catch (err) {
-      console.error(`[EventBus] Failed to mark event ${eventId} as processed`, err);
+      logger.error(`[EventBus] Failed to mark event ${eventId} as processed`, err);
     }
   }
 }

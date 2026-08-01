@@ -13,8 +13,9 @@ const mocks = vi.hoisted(() => ({
   selectedAgent: 'Jarvis' as any,
   plan: [] as string[],
   orchestratorResult: null as any,
-  streamMode: 'success' as 'success' | 'never' | 'throw',
-  streamCalls: 0
+  streamMode: 'success' as 'success' | 'never' | 'throw' | 'slowFirst' | 'idleAfterFirst',
+  streamCalls: 0,
+  streamOptions: [] as any[]
 }));
 
 vi.mock('../domains/conversations/service.js', () => ({
@@ -33,6 +34,17 @@ vi.mock('../domains/conversations/service.js', () => ({
 }));
 
 vi.mock('../domains/jarvis/intentRouter.js', () => ({
+  detectDelegationSignals: (prompt: string) => {
+    const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+    return {
+      explicitDelegationRequested: /\b(?:use|ask|have|delegate to)\s+codex\b/.test(p),
+      explicitNonDelegationRequested: /\bdo not use\s+codex\b/.test(p) ||
+        /\banswer directly\b/.test(p) ||
+        /\bdo not delegate\b/.test(p) ||
+        /\bno\s+codex\s+goal\b/.test(p) ||
+        /\bno\s+agent\b/.test(p)
+    };
+  },
   intentRouter: {
     routeIntent: vi.fn(async () => ({
       route: mocks.route,
@@ -61,11 +73,16 @@ vi.mock('../domains/jarvis/orchestrator.js', () => ({
 }));
 
 vi.mock('../services/llmGateway.js', () => ({
-  llmChatStream: vi.fn(async function* () {
+  OPENROUTER_DEFAULT_MODEL: 'test-openrouter-model',
+  OLLAMA_FALLBACK_MODEL: 'test-ollama-fallback-model',
+  llmChatStream: vi.fn(async function* (opts: any) {
     mocks.streamCalls++;
+    mocks.streamOptions.push(opts);
     if (mocks.streamMode === 'never') await new Promise(() => {});
     if (mocks.streamMode === 'throw') throw new Error('Provider connection refused');
+    if (mocks.streamMode === 'slowFirst') await new Promise(resolve => setTimeout(resolve, 35));
     yield { type: 'token', content: 'Hello ', provider: 'omniRoute' };
+    if (mocks.streamMode === 'idleAfterFirst') await new Promise(() => {});
     yield { type: 'token', content: 'there.', provider: 'omniRoute' };
     yield { type: 'done', provider: 'omniRoute' };
   })
@@ -108,8 +125,11 @@ describe('Jarvis direct streaming', () => {
     mocks.orchestratorResult = null;
     mocks.streamMode = 'success';
     mocks.streamCalls = 0;
+    mocks.streamOptions = [];
+    delete process.env.JARVIS_CONNECT_TIMEOUT_MS;
     delete process.env.JARVIS_FIRST_TOKEN_TIMEOUT_MS;
-    delete process.env.JARVIS_TOTAL_RESPONSE_TIMEOUT_MS;
+    delete process.env.JARVIS_STREAM_IDLE_TIMEOUT_MS;
+    delete process.env.JARVIS_OVERALL_TIMEOUT_MS;
   });
 
   it('streams direct chat chunks and persists user plus final assistant', async () => {
@@ -138,6 +158,94 @@ describe('Jarvis direct streaming', () => {
     expect(assistantMessages[0].metadata.operationId).toBe('op-1');
   }, 15_000);
 
+  it('tags voice-transcribed direct input without changing the visible user message', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({
+        prompt: 'Jarvis, is your microphone working?',
+        operationId: 'op-voice',
+        inputChannel: 'voice'
+      })
+      .expect(200);
+
+    expect(res.text).toContain('event: chunk');
+    expect(res.text).toContain('Hello ');
+    expect(res.text).not.toContain('inputChannel');
+
+    const userMessages = mocks.appended.filter(m => m.role === 'user');
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].content).toBe('Jarvis, is your microphone working?');
+    expect(userMessages[0].metadata.inputChannel).toBe('voice');
+
+    expect(mocks.streamOptions[0].prompt).toBe('Jarvis, is your microphone working?');
+    expect(mocks.streamOptions[0].systemPrompt).toContain('Input channel: microphone transcript');
+    expect(mocks.streamOptions[0].systemPrompt).toContain('microphone capture and transcription are working');
+    expect(mocks.streamOptions[0].systemPrompt).toContain('Microphone input and voice output are separate capabilities');
+  });
+
+  it('direct prompt forbids internal narration and distinguishes voice output from microphone input', async () => {
+    const app = await buildApp();
+    await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Jarvis, is your microphone working?', operationId: 'op-prompt-style', inputChannel: 'voice' })
+      .expect(200);
+
+    const systemPrompt = mocks.streamOptions[0].systemPrompt;
+    expect(systemPrompt).toContain('Never narrate your internal reasoning');
+    expect(systemPrompt).toContain('Do not write phrases such as "the user is asking"');
+    expect(systemPrompt).toContain('Do not claim voice playback is working unless the runtime confirms audio playback started');
+  });
+
+  it('four sequential direct turns work in the same conversation', async () => {
+    const app = await buildApp();
+    for (const [index, prompt] of ['Hello Jarvis', 'Are you there?', 'Please reply with one sentence.', 'What did I just ask you?'].entries()) {
+      const res = await request(app)
+        .post('/api/jarvis/conversations/conv-test/message/stream')
+        .send({ prompt, operationId: `op-seq-${index}` })
+        .expect(200);
+
+      expect(res.text).toContain('event: intent');
+      expect(res.text).toContain('"route":"direct"');
+      expect(res.text).toContain('event: chunk');
+      expect(res.text).toContain('event: done');
+    }
+
+    expect(mocks.streamCalls).toBe(4);
+    expect(mocks.appended.filter(m => m.role === 'user')).toHaveLength(4);
+    expect(mocks.appended.filter(m => m.role === 'agent')).toHaveLength(4);
+    expect(new Set(mocks.streamOptions.map(o => o.signal)).size).toBe(4);
+  });
+
+  it('clears timeout timers after successful direct streaming', async () => {
+    const clearSpy = vi.spyOn(global, 'clearTimeout');
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'hello jarvis', operationId: 'op-clear-timers' })
+      .expect(200);
+
+    expect(res.text).toContain('event: done');
+    expect(clearSpy).toHaveBeenCalled();
+    clearSpy.mockRestore();
+  });
+
+  it('slow first token inside configured allowance succeeds', async () => {
+    process.env.JARVIS_FIRST_TOKEN_TIMEOUT_MS = '100';
+    process.env.JARVIS_OVERALL_TIMEOUT_MS = '1000';
+    mocks.streamMode = 'slowFirst';
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'hello jarvis', operationId: 'op-slow-first' })
+      .expect(200);
+
+    expect(res.text).toContain('event: timing');
+    expect(res.text).toContain('event: chunk');
+    expect(res.text).toContain('event: done');
+    expect(res.text).not.toContain('timed out before first token');
+  });
+
   it('delegates non-direct routes without entering direct streaming generation', async () => {
     mocks.route = 'agent_teams';
     mocks.category = 'agent_team_execution';
@@ -163,6 +271,64 @@ describe('Jarvis direct streaming', () => {
     expect(mocks.orchestratorCalls[0][4]).toBe('op-2');
     expect(mocks.orchestratorCalls[0][2]).toBe('B:\\Repo');
     expect(mocks.streamCalls).toBe(0);
+  });
+
+  it('explicit do not use CodeX never delegates even when classification says CodeX', async () => {
+    mocks.route = 'codex';
+    mocks.category = 'repository_analysis';
+    mocks.mode = 'operational_execution';
+    mocks.selectedAgent = 'CodeX';
+    mocks.requiresWorkspace = true;
+    mocks.plan = ['Inspect repository'];
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Do not use CodeX. What model are you?', operationId: 'op-no-codex', workspacePath: 'B:\\AgenticOS' })
+      .expect(200);
+
+    expect(res.text).toContain('event: intent');
+    expect(res.text).toContain('"route":"direct"');
+    expect(res.text).toContain('event: chunk');
+    expect(mocks.orchestratorCalls).toHaveLength(0);
+    expect(mocks.streamCalls).toBe(1);
+  });
+
+  it('DIRECT classification is never overridden into a goal', async () => {
+    mocks.route = 'direct';
+    mocks.category = 'repository_analysis';
+    mocks.mode = 'direct_conversation';
+    mocks.selectedAgent = 'Jarvis';
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Answer directly. Inspect the Jarvis router.', operationId: 'op-direct-lock', workspacePath: 'B:\\AgenticOS' })
+      .expect(200);
+
+    expect(res.text).toContain('"route":"direct"');
+    expect(mocks.orchestratorCalls).toHaveLength(0);
+    expect(mocks.streamCalls).toBe(1);
+  });
+
+  it('routing event matches the route actually used for non-delegation overrides', async () => {
+    mocks.route = 'codex';
+    mocks.category = 'repository_analysis';
+    mocks.mode = 'operational_execution';
+    mocks.selectedAgent = 'CodeX';
+    mocks.requiresWorkspace = true;
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Do not delegate. Answer directly. Which branch is active?', operationId: 'op-route-match', workspacePath: 'B:\\AgenticOS' })
+      .expect(200);
+
+    expect(res.text).toContain('event: intent');
+    expect(res.text).toContain('"route":"direct"');
+    expect(res.text).toContain('event: done');
+    expect(res.text).toContain('"route":"direct"');
+    expect(mocks.orchestratorCalls).toHaveLength(0);
   });
 
   it('accepts repositoryPath as the selected workspace alias for operational delegation', async () => {
@@ -250,6 +416,62 @@ describe('Jarvis direct streaming', () => {
     expect(res.text).not.toContain('event: execution_completed');
   });
 
+  it('explicit use CodeX creates exactly one delegated goal request', async () => {
+    mocks.route = 'codex';
+    mocks.category = 'repository_analysis';
+    mocks.mode = 'operational_execution';
+    mocks.selectedAgent = 'CodeX';
+    mocks.requiresWorkspace = true;
+    mocks.requiresApproval = false;
+    mocks.plan = ['Inspect files', 'Report findings'];
+    mocks.orchestratorResult = { route: 'codex', status: 'queued', goalId: 'goal-one' };
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Use CodeX to inspect the Jarvis router.', operationId: 'op-use-codex', workspacePath: 'B:\\AgenticOS' })
+      .expect(200);
+
+    expect(res.text).toContain('"goalId":"goal-one"');
+    expect(mocks.orchestratorCalls).toHaveLength(1);
+    expect(mocks.streamCalls).toBe(0);
+  });
+
+  it('a direct message works after a failed CodeX goal', async () => {
+    mocks.route = 'codex';
+    mocks.category = 'repository_analysis';
+    mocks.mode = 'operational_execution';
+    mocks.selectedAgent = 'CodeX';
+    mocks.requiresWorkspace = true;
+    mocks.orchestratorResult = { route: 'codex', status: 'failed', error: 'CodeX received an invalid response from the model after one retry.' };
+
+    const app = await buildApp();
+    const first = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Use CodeX to inspect the Jarvis router.', operationId: 'op-codex-failed', workspacePath: 'B:\\AgenticOS' })
+      .expect(200);
+
+    expect(first.text).toContain('event: execution_failed');
+    expect(mocks.orchestratorCalls).toHaveLength(1);
+
+    mocks.route = 'direct';
+    mocks.category = 'conversation';
+    mocks.mode = 'direct_conversation';
+    mocks.selectedAgent = 'Jarvis';
+    mocks.requiresWorkspace = false;
+    mocks.orchestratorResult = null;
+
+    const second = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'Are you still there?', operationId: 'op-after-failed-goal' })
+      .expect(200);
+
+    expect(second.text).toContain('"route":"direct"');
+    expect(second.text).toContain('event: chunk');
+    expect(mocks.orchestratorCalls).toHaveLength(1);
+    expect(mocks.streamCalls).toBe(1);
+  });
+
   it('unavailable delegated provider produces precise execution_failed details', async () => {
     mocks.route = 'codex';
     mocks.category = 'repository_analysis';
@@ -313,6 +535,43 @@ describe('Jarvis direct streaming', () => {
     expect(res.text.indexOf('event: status')).toBeLessThan(res.text.indexOf('event: error'));
   });
 
+  it('stream-idle timeout emits a structured SSE error after the first token', async () => {
+    process.env.JARVIS_FIRST_TOKEN_TIMEOUT_MS = '1000';
+    process.env.JARVIS_STREAM_IDLE_TIMEOUT_MS = '25';
+    process.env.JARVIS_OVERALL_TIMEOUT_MS = '1000';
+    mocks.streamMode = 'idleAfterFirst';
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'hello jarvis', operationId: 'op-idle-timeout' })
+      .expect(200);
+
+    expect(res.text).toContain('event: chunk');
+    expect(res.text).toContain('event: error');
+    expect(res.text).toContain('stream was idle');
+    expect(res.text).toContain('"operationId":"op-idle-timeout"');
+  });
+
+  it('passes separate timeout values and a fresh AbortController signal per direct request', async () => {
+    process.env.JARVIS_CONNECT_TIMEOUT_MS = '111';
+    process.env.JARVIS_FIRST_TOKEN_TIMEOUT_MS = '222';
+    process.env.JARVIS_STREAM_IDLE_TIMEOUT_MS = '333';
+    process.env.JARVIS_OVERALL_TIMEOUT_MS = '444';
+    const app = await buildApp();
+    await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'hello jarvis', operationId: 'op-timeout-config-1' })
+      .expect(200);
+    await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'are you there', operationId: 'op-timeout-config-2' })
+      .expect(200);
+
+    expect(mocks.streamOptions[0].timeoutMs).toBe(111);
+    expect(mocks.streamOptions[0].ollamaTimeoutMs).toBe(444);
+    expect(mocks.streamOptions[0].signal).not.toBe(mocks.streamOptions[1].signal);
+  });
+
   it('unavailable provider produces an SSE error and closes', async () => {
     mocks.streamMode = 'throw';
     const app = await buildApp();
@@ -324,7 +583,9 @@ describe('Jarvis direct streaming', () => {
     expect(res.text).toContain('event: status');
     expect(res.text).toContain('event: error');
     expect(res.text).toContain('Provider connection refused');
-    expect(res.text).toContain('"provider":"omniRoute"');
+    // When the provider throws before yielding any token the server falls back
+    // to the configured selectedProvider in the error SSE frame.
+    expect(res.text).toContain('"provider":"OpenRouter"');
     expect(res.text).not.toContain('event: done');
   });
 });

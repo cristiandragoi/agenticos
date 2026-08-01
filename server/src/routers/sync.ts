@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -79,9 +80,9 @@ async function processSync(config: ObsidianConfig): Promise<SyncJob> {
 
       if (fs.existsSync(targetDir)) {
         await fs.promises.writeFile(path.join(targetDir, `${sanitizedTitle}.md`), mdContent, 'utf-8');
-        console.log(`[Sync] Written: ${sanitizedTitle}.md → ${targetDir}`);
+        logger.info(`[Sync] Written: ${sanitizedTitle}.md → ${targetDir}`);
       } else {
-        console.log(`[Sync Mock] Directory not found: ${targetDir} — skipping write`);
+        logger.info(`[Sync Mock] Directory not found: ${targetDir} — skipping write`);
       }
 
       const dbEntry = db.memoryEntries.get(entry.id);
@@ -94,7 +95,7 @@ async function processSync(config: ObsidianConfig): Promise<SyncJob> {
   } catch (error: any) {
     job.status = 'failed';
     job.error = error.message;
-    console.error('[Sync Error]', error);
+    logger.error('[Sync Error]', error);
   }
 
   job.lastAttempt = new Date().toISOString();

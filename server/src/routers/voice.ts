@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'node:path';
@@ -10,6 +11,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// GET /api/voice/tts/status - Safe diagnostics for renderer voice UI
+router.get('/tts/status', async (_req, res) => {
+  res.json({
+    configured: Boolean(process.env.DEEPGRAM_API_KEY),
+    provider: 'deepgram',
+    endpoint: '/api/voice/tts'
+  });
+});
 
 // POST /api/voice/transcribe - Transcribe audio using Deepgram
 router.post('/transcribe', upload.single('audio'), async (req, res) => {
@@ -35,7 +45,7 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Voice] Deepgram Transcription error:', response.status, errorText);
+      logger.error('[Voice] Deepgram Transcription error:', response.status, errorText);
       return res.status(502).json({ error: `Deepgram Transcription failed: ${response.status}` });
     }
     
@@ -48,7 +58,7 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 
     return res.json({ text });
   } catch (error) {
-    console.error('[Voice] Transcription error:', error);
+    logger.error('[Voice] Transcription error:', error);
     return res.status(500).json({ error: 'Transcription failed.' });
   }
 });
@@ -84,7 +94,7 @@ router.post('/speak', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Voice] Deepgram TTS error:', response.status, errorText);
+      logger.error('[Voice] Deepgram TTS error:', response.status, errorText);
       return res.status(502).json({ error: `TTS failed: ${response.status}` });
     }
 
@@ -96,7 +106,7 @@ router.post('/speak', async (req, res) => {
     });
     res.send(Buffer.from(audioBuffer));
   } catch (error: any) {
-    console.error('[Voice] Speak error:', error);
+    logger.error('[Voice] Speak error:', error);
     return res.status(500).json({ error: 'Text-to-speech failed.', details: error.message });
   }
 });
@@ -132,12 +142,23 @@ router.post('/tts', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Voice] Deepgram TTS error:', response.status, errorText);
+      logger.error('[Voice] Deepgram TTS error:', response.status, errorText);
       return res.status(502).json({ error: `TTS failed: ${response.status}` });
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const base64 = Buffer.from(audioBuffer).toString('base64');
+    const audio = Buffer.from(audioBuffer);
+    const wantsAudio = String(req.headers.accept || '').includes('audio/');
+
+    if (wantsAudio) {
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': audio.byteLength.toString(),
+      });
+      return res.send(audio);
+    }
+
+    const base64 = audio.toString('base64');
     
     res.json({
       success: true,
@@ -145,10 +166,10 @@ router.post('/tts', async (req, res) => {
       audioData: base64,
       format: 'audio/mpeg',
       voice: voiceModel,
-      sizeBytes: audioBuffer.byteLength,
+      sizeBytes: audio.byteLength,
     });
   } catch (error: any) {
-    console.error('[Voice] TTS error:', error);
+    logger.error('[Voice] TTS error:', error);
     return res.status(500).json({ error: 'Text-to-speech failed.', details: error.message });
   }
 });
@@ -182,7 +203,7 @@ Keep responses concise and actionable. When you're done, explain what you did.
 CRITICAL INSTRUCTION FOR VOICE/CHAT:
 Treat all prompts as plain chat. Do NOT attempt to output direct XML/HTML function markup like "<function=terminal ...>". If you need to use a tool, use the standard JSON tool-calling format provided by the API.`;
 
-    console.log(`[Voice/Execute] ${agentName} received: "${text.slice(0, 80)}${text.length > 80 ? '...' : ''}"`);
+    logger.info(`[Voice/Execute] ${agentName} received: "${text.slice(0, 80)}${text.length > 80 ? '...' : ''}"`);
 
     const result = await runAgentLoop(systemPrompt, text.trim());
 
@@ -194,7 +215,7 @@ Treat all prompts as plain chat. Do NOT attempt to output direct XML/HTML functi
       toolCalls: result.toolCalls,
     });
   } catch (err: any) {
-    console.error('[Voice/Execute] Error:', err.message);
+    logger.error('[Voice/Execute] Error:', err.message);
     return res.status(500).json({
       error: 'Agent execution failed.',
       details: err.message,
@@ -203,4 +224,3 @@ Treat all prompts as plain chat. Do NOT attempt to output direct XML/HTML functi
 });
 
 export default router;
-

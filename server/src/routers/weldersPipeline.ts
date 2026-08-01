@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Welders Lead Pipeline - Real 3-Step Runner
  * Steps: research -> leads_and_templates -> briefing_and_log
@@ -84,7 +85,7 @@ async function runStageJobDiscovery(loopRunId: string, ss: StepStatus[], loopRun
   const s = ss.find(x => x.stepId === 'jobDiscovery');
   if (s) { s.status = 'running'; s.startedAt = new Date().toISOString(); }
   syncStatus(loopRunId, ss, loopRun);
-  console.log(`[WeldersPipeline] Stage A: Job Discovery - RUNNING`);
+  logger.info(`[WeldersPipeline] Stage A: Job Discovery - RUNNING`);
 
   try {
     const res = await runJobDiscovery();
@@ -95,20 +96,20 @@ async function runStageJobDiscovery(loopRunId: string, ss: StepStatus[], loopRun
     writeVault('research-report.md', content);
     writeVault('status.md', buildStatusMd('running', ss, loopRunId));
   } catch (err: any) {
-    console.error(`[WeldersPipeline] Stage A Failed: ${err.message}`);
+    logger.error(`[WeldersPipeline] Stage A Failed: ${err.message}`);
     throw err;
   }
 
   if (s) { s.status = 'completed'; s.completedAt = new Date().toISOString(); }
   syncStatus(loopRunId, ss, loopRun);
-  console.log(`[WeldersPipeline] Stage A: Job Discovery - COMPLETED`);
+  logger.info(`[WeldersPipeline] Stage A: Job Discovery - COMPLETED`);
 }
 
 async function runStageLeadEnrichment(loopRunId: string, ss: StepStatus[], loopRun: LoopRun): Promise<void> {
   const s = ss.find(x => x.stepId === 'leadEnrichment');
   if (s) { s.status = 'running'; s.startedAt = new Date().toISOString(); }
   syncStatus(loopRunId, ss, loopRun);
-  console.log(`[WeldersPipeline] Stage B: Lead Enrichment - RUNNING`);
+  logger.info(`[WeldersPipeline] Stage B: Lead Enrichment - RUNNING`);
 
   try {
     const rawJobsPath = path.join(VAULT_PATH, 'raw_jobs.json');
@@ -130,20 +131,20 @@ async function runStageLeadEnrichment(loopRunId: string, ss: StepStatus[], loopR
     writeVault('leads.md', leadsMd);
     writeVault('status.md', buildStatusMd('running', ss, loopRunId));
   } catch (err: any) {
-    console.error(`[WeldersPipeline] Stage B Failed: ${err.message}`);
+    logger.error(`[WeldersPipeline] Stage B Failed: ${err.message}`);
     throw err;
   }
 
   if (s) { s.status = 'completed'; s.completedAt = new Date().toISOString(); }
   syncStatus(loopRunId, ss, loopRun);
-  console.log(`[WeldersPipeline] Stage B: Lead Enrichment - COMPLETED`);
+  logger.info(`[WeldersPipeline] Stage B: Lead Enrichment - COMPLETED`);
 }
 
 async function runStageOutreachPreparation(loopRunId: string, ss: StepStatus[], loopRun: LoopRun): Promise<void> {
   const s = ss.find(x => x.stepId === 'outreachPreparation');
   if (s) { s.status = 'running'; s.startedAt = new Date().toISOString(); }
   syncStatus(loopRunId, ss, loopRun);
-  console.log(`[WeldersPipeline] Stage C: Outreach Preparation - RUNNING`);
+  logger.info(`[WeldersPipeline] Stage C: Outreach Preparation - RUNNING`);
 
   try {
     const prompt = 'Draft 3 cold email templates in German and English for welders staffing outreach. Fee EUR 2000 per placement. Format as Markdown.';
@@ -155,18 +156,18 @@ async function runStageOutreachPreparation(loopRunId: string, ss: StepStatus[], 
         body: JSON.stringify({ model: 'ornith:9b', messages: [{ role: 'system', content: 'You are an agentic orchestrator.' }, { role: 'user', content: prompt }], stream: false })
       });
       if (ornRes.ok) { const d = await ornRes.json(); rStr = d.message?.content || d.response || mockTemplates(); }
-    } catch (e) { console.warn('Ornith unreachable, using mock templates.'); }
+    } catch (e) { logger.warn('Ornith unreachable, using mock templates.'); }
     
     writeVault('email-templates.md', rStr);
     writeVault('status.md', buildStatusMd('completed', ss, loopRunId));
   } catch (err: any) {
-    console.error(`[WeldersPipeline] Stage C Failed: ${err.message}`);
+    logger.error(`[WeldersPipeline] Stage C Failed: ${err.message}`);
     throw err;
   }
 
   if (s) { s.status = 'completed'; s.completedAt = new Date().toISOString(); }
   syncStatus(loopRunId, ss, loopRun);
-  console.log(`[WeldersPipeline] Stage C: Outreach Preparation - COMPLETED`);
+  logger.info(`[WeldersPipeline] Stage C: Outreach Preparation - COMPLETED`);
 }
 
 async function executePipeline(loopRunId: string, def: LoopDefinition) {
@@ -187,12 +188,12 @@ async function executePipeline(loopRunId: string, def: LoopDefinition) {
     // Note: outreachExecution remains 'pending' because it is manual via UI
     loopRun.status = 'completed'; loopRun.completedAt = new Date().toISOString();
     loopDefinitions.upsert({ ...def, status: 'completed' });
-    console.log(`[WeldersPipeline] Run ${loopRunId} COMPLETED (A, B, C)`);
+    logger.info(`[WeldersPipeline] Run ${loopRunId} COMPLETED (A, B, C)`);
   } catch (err: any) {
     loopRun.status = 'failed'; loopRun.errorMessage = err.message;
     ss.forEach(s => { if (s.status === 'running' || s.status === 'pending') s.status = 'failed'; });
     loopDefinitions.upsert({ ...def, status: 'failed' });
-    console.error(`[WeldersPipeline] Run ${loopRunId} FAILED:`, err.message);
+    logger.error(`[WeldersPipeline] Run ${loopRunId} FAILED:`, err.message);
   }
   loopRuns.upsert({ ...loopRun, stepStatuses: ss });
   activeRuns.delete(loopRunId);
@@ -235,7 +236,7 @@ router.post('/run', (req, res) => {
   if (def.status === 'running') loopDefinitions.upsert({ ...def, status: 'draft' });
 
   const loopRunId = `lrun-${randomUUID().slice(0, 9)}`;
-  executePipeline(loopRunId, { ...def, status: 'running' }).catch(console.error);
+  executePipeline(loopRunId, { ...def, status: 'running' }).catch(logger.error);
   res.status(202).json({
     message: 'Welders Lead Pipeline started.', loopId: LOOP_ID, runId: loopRunId,
     steps: def.steps.map(s => ({ id: s.id, name: s.name, status: 'pending' })),
@@ -265,7 +266,7 @@ router.post('/reply', async (req, res) => {
         body: JSON.stringify({ model: 'ornith:9b', messages: [{ role: 'system', content: 'You are an agentic orchestrator.' }, { role: 'user', content: prompt }], stream: false })
       });
       if (ornRes.ok) { const d = await ornRes.json(); rStr = d.message?.content || d.response || rStr; }
-    } catch (e) { console.warn('Ornith unreachable.'); }
+    } catch (e) { logger.warn('Ornith unreachable.'); }
     appendVault('outreach-log.md', `| ${NOW()} | ${fromName||'-'} | ${fromCompany||'-'} | - | reply-received | Reply received |`);
     res.json({ templates: rStr });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -283,7 +284,7 @@ router.post('/email-draft', async (req, res) => {
         body: JSON.stringify({ model: 'ornith:9b', messages: [{ role: 'system', content: 'You are an agentic orchestrator.' }, { role: 'user', content: prompt }], stream: false })
       });
       if (ornRes.ok) { const d = await ornRes.json(); rStr = d.message?.content || d.response || rStr; }
-    } catch (e) { console.warn('Ornith unreachable.'); }
+    } catch (e) { logger.warn('Ornith unreachable.'); }
     writeVault('email-templates.md', `# Email Templates\n\n_Generated: ${NOW()}_\n\n${rStr}`);
     res.json({ templates: rStr });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -327,7 +328,7 @@ router.post('/send-email', async (req, res) => {
 
     res.json({ ok: true, timestamp: new Date().toISOString() });
   } catch (err: any) {
-    console.error(`[WeldersPipeline] Failed to send email: ${err.message}`);
+    logger.error(`[WeldersPipeline] Failed to send email: ${err.message}`);
     const logEntry = `\n## Email Sent - ${NOW()}\nCompany: ${companyName || 'Unknown'}\n\nTo: ${to}\n\nSubject: ${subject}\n\nTemplate: ${templateId || 'None'}\n\nError: ${err.message}\n\nStatus: FAILED\n`;
     appendVault('outreach-log.md', logEntry);
     res.status(500).json({ ok: false, error: err.message });

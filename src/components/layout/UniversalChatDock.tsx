@@ -10,8 +10,8 @@ import { appendLog, runStage, getPipelineState } from '../../command/jarvisPipel
 
 const UniversalChatDock: React.FC = () => {
   const location = useLocation();
-  // Never render the global dock on Hermes workspace or Jarvis dashboard
-  if (location.pathname.startsWith('/hermes') || location.pathname.startsWith('/jarvis')) return null;
+  // Never render the global dock on Jarvis dashboard
+  if (location.pathname.startsWith('/jarvis')) return null;
 
   const { agents: mockAgents, providers: mockProviders, runs: mockRuns, memoryScopes: mockMemoryScopes, memoryEntries: mockMemoryEntries, artifacts: mockArtifacts, runtimes: mockRuntimes, boards: mockBoards, tools: mockTools, isLoading } = useData();
   if (isLoading) return null;
@@ -19,7 +19,6 @@ const UniversalChatDock: React.FC = () => {
   const chat = useChat();
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // New local state for direct agent calls over OmniRoute
   const [agentLoading, setAgentLoading] = useState(false);
@@ -32,37 +31,6 @@ const UniversalChatDock: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat.messages.length, chat.messages[chat.messages.length - 1]?.content]);
-
-  useEffect(() => {
-    const handleAgentResponse = async (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const { agentId, text } = customEvent.detail;
-      
-      // Auto-play TTS for Jarvis and Hermes if response comes through
-      if (agentId === 'agent-jarvis' || agentId === 'agent-hermes') {
-        try {
-          const res = await fetch('/api/voice/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, agentId }),
-          });
-          if (res.ok) {
-            const { audioData } = await res.json();
-            if (audioData) {
-              if (!audioRef.current) audioRef.current = new Audio();
-              audioRef.current.src = `data:audio/mp3;base64,${audioData}`;
-              audioRef.current.play().catch(() => console.warn('Autoplay prevented by browser'));
-            }
-          }
-        } catch (err) {
-          console.error('TTS Playback error', err);
-        }
-      }
-    };
-
-    window.addEventListener('agent-response-ready', handleAgentResponse);
-    return () => window.removeEventListener('agent-response-ready', handleAgentResponse);
-  }, []);
 
   const [micState, setMicState] = useState<'idle'|'listening'|'processing'|'error'>('idle');
   const [micError, setMicError] = useState<string>('');
@@ -249,6 +217,7 @@ const UniversalChatDock: React.FC = () => {
           <select
             value={chat.targetAgentId || ''}
             onChange={(e) => chat.setTarget(e.target.value || null)}
+            disabled={location.pathname.startsWith('/hermes') || location.pathname.startsWith('/jarvis') || location.pathname.startsWith('/codex')}
             style={{
               background: 'var(--bg-base)',
               border: '1px solid var(--border-subtle)',
@@ -282,7 +251,7 @@ const UniversalChatDock: React.FC = () => {
       {/* Message Thread (visible when expanded) */}
       {chat.isExpanded && (
         <div className="chat-dock__messages">
-          {chat.messages.map(msg => {
+          {chat.messages.filter(msg => msg.role === 'system' || msg.agentId === chat.targetAgentId || (!msg.agentId && !chat.targetAgentId)).map(msg => {
             const msgAgent = msg.agentId ? mockAgents.find(a => a.id === msg.agentId) : null;
             return (
               <div key={msg.id} className={`chat-message chat-message--${msg.role}`}>

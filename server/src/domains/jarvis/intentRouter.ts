@@ -20,6 +20,26 @@ export interface IntentResult {
   plan?: string[];
 }
 
+export interface DelegationSignals {
+  explicitDelegationRequested: boolean;
+  explicitNonDelegationRequested: boolean;
+}
+
+export function detectDelegationSignals(prompt: string): DelegationSignals {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  return {
+    explicitDelegationRequested: /\b(?:use|ask|have|delegate to)\s+codex\b/.test(p) ||
+      /\bcodex\b/.test(p) && /\b(?:inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build)\b/.test(p),
+    explicitNonDelegationRequested: /\bdo not use\s+codex\b/.test(p) ||
+      /\bdon't use\s+codex\b/.test(p) ||
+      /\banswer directly\b/.test(p) ||
+      /\bdo not delegate\b/.test(p) ||
+      /\bdon't delegate\b/.test(p) ||
+      /\bno\s+codex\s+goal\b/.test(p) ||
+      /\bno\s+agent\b/.test(p)
+  };
+}
+
 export class IntentRouter {
   /**
    * Fast, heuristic-based intent routing.
@@ -64,6 +84,7 @@ export class IntentRouter {
 
     const hasAny = (...terms: string[]) => terms.some(term => p.includes(term));
     const hasWord = (...terms: string[]) => terms.some(term => new RegExp(`\\b${term}\\b`).test(p));
+    const delegationSignals = detectDelegationSignals(prompt);
     const hasFileTarget = hasAny('.ts', '.tsx', '.js', '.json', '.md', 'file', 'component', 'router', 'implementation', 'workspace', 'repository', 'repo');
     const hasReadOnlyConstraint = hasAny(
       'do not modify',
@@ -80,6 +101,16 @@ export class IntentRouter {
     const effectiveHasWriteVerb = hasWriteVerb && !hasReadOnlyConstraint;
     const hasReadVerb = hasAny('inspect', 'find', 'trace', 'read', 'search in', 'look through', 'why', 'analyze', 'analyse', 'review');
     const isReadOnlyRepositoryRequest = hasReadOnlyConstraint || (hasReadVerb && !effectiveHasWriteVerb);
+
+    if (delegationSignals.explicitNonDelegationRequested) {
+      return direct(
+        hasFileTarget || hasAny('branch', 'commit', 'repository', 'repo')
+          ? 'repository_analysis'
+          : 'conversation',
+        0.99,
+        'Explicit non-delegation instruction requires Jarvis direct handling'
+      );
+    }
 
     // 1. Memory checks
     if (p.includes('remember') || p.includes('what did i say') || p.includes('my preferences')) {
@@ -168,19 +199,9 @@ export class IntentRouter {
     }
 
     // 5. Ambiguous intent handling
-    // If the prompt is very short or vague, ask for clarification
-    if (words.length <= 2 && !p.includes('hi') && !p.includes('hello')) {
-      return {
-        route: 'clarification_required',
-        category: 'conversation',
-        mode: 'direct_conversation',
-        confidence: 0.4,
-        reason: 'Prompt is too brief to confidently route',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Ask for clarification']
-      };
+    // Short or vague prompts are conversation by default. They must not create a goal.
+    if (words.length <= 3) {
+      return direct('conversation', 0.5, 'Uncertain prompt defaults to direct conversation');
     }
 
     // Fallback direct chat

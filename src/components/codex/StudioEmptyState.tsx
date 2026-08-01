@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Target, Send, Zap, AlertTriangle, CheckCircle2, ChevronLeft, Loader2 } from 'lucide-react';
 import { RunSettings } from './RunSettings';
 import { useCodexStore } from '../../store/codexStore';
-import { CODEX_BASE_URL, CODEX_MODEL } from '../../config/codexRuntime';
+import { CODEX_BASE_URL } from '../../config/codexRuntime';
+import { buildCodexGoalPayload } from '../../features/codex/buildCodexGoalPayload';
 
 interface Props {
   onGoalCreated: (id: string) => void;
@@ -14,9 +15,9 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [isStartingGoal, setIsStartingGoal] = useState(false);
-  const [execProvider, setExecProvider] = useState('ollama');
-  const [valProvider, setValProvider] = useState('omniRoute');
+  const [valProvider, setValProvider] = useState('auto');
   const [approvalPolicy, setApprovalPolicy] = useState('auto');
+  const [routing, setRouting] = useState<any>(undefined);
   const [error, setError] = useState<string | null>(null);
   
   // Workspace Auto-detection state
@@ -77,13 +78,14 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
     setIsStartingGoal(true);
     setError(null);
     try {
-      const payload = { 
+      const payload = buildCodexGoalPayload({
         goal: prompt,
-        executionProvider: execProvider,
+        repositoryRoot: workspacePath,
+        approvalPolicy,
         validationProvider: valProvider,
-        workspacePath,
-        approvalPolicy
-      };
+        assignment: routing,
+        explicitRoutingOverride: true
+      });
       console.log('[DEBUG] startGoal pressed. Sending payload:', payload);
 
       const res = await fetch('http://localhost:4001/api/chat/agents/goal', {
@@ -95,7 +97,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       if (data.goalId) {
         // Persist the chosen configuration so the execution view can
         // show a compact summary while the run is active.
-        setRunSettings({ folderTree, workspacePath, execProvider, execModel: CODEX_MODEL, baseUrl: CODEX_BASE_URL, valProvider, approvalPolicy });
+        setRunSettings({ folderTree, workspacePath, baseUrl: CODEX_BASE_URL, valProvider, approvalPolicy });
         onGoalCreated(data.goalId);
       } else {
         setError("Failed to create goal: " + (data.error || 'Unknown error'));
@@ -124,10 +126,10 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
     setLoading(true);
 
     console.log('[DEBUG] Review Goal pressed. Payload to be executed:', {
-      executionProvider: execProvider,
       validationProvider: valProvider,
       repositoryRoot: workspacePath,
-      approvalPolicy
+      approvalPolicy,
+      routing
     });
     
     let generatedPlan = "";
@@ -136,8 +138,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: `Analyze this goal and return a very concise 3-step plan and a list of expected files/directories to inspect. Format with bullet points.\nGoal: ${prompt}`,
-          provider: execProvider
+          message: `Analyze this goal and return a very concise 3-step plan and a list of expected files/directories to inspect. Format with bullet points.\nGoal: ${prompt}`
         })
       });
       const data = await res.json();
@@ -182,7 +183,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
               <div><span className="text-[#858585]">Repository Root:</span> <span className="text-emerald-400 font-mono" title={workspacePath}>{workspacePath.length > 40 ? '...' + workspacePath.slice(-37) : workspacePath}</span></div>
               <div><span className="text-[#858585]">Prompt Size:</span> <span className="text-[#cccccc]">~{tokenCount} tokens</span></div>
               <div><span className="text-[#858585]">Current Working Dir:</span> <span className="text-[#cccccc] font-mono" title={cwd}>{cwd.length > 40 ? '...' + cwd.slice(-37) : cwd}</span></div>
-              <div><span className="text-[#858585]">Exec Provider:</span> <span className="text-[#cccccc]">{execProvider}</span></div>
+
               <div><span className="text-[#858585]">Approval Policy:</span> <span className="text-[#cccccc]">{approvalPolicy}</span></div>
               <div><span className="text-[#858585]">Val Provider:</span> <span className="text-[#cccccc]">{valProvider}</span></div>
             </div>
@@ -278,13 +279,13 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       <div className="shrink-0 bg-[#252526] border-t border-[#333333] p-4 flex justify-center sticky bottom-0 z-10">
         <div className="max-w-[1400px] w-full flex flex-col gap-3">
           <RunSettings
-            values={{ folderTree, workspacePath, execProvider, valProvider, approvalPolicy }}
+            values={{ folderTree, workspacePath, valProvider, approvalPolicy, routing }}
             onChange={(patch) => {
               if (patch.folderTree !== undefined) setFolderTree(patch.folderTree);
               if (patch.workspacePath !== undefined) setWorkspacePath(patch.workspacePath);
-              if (patch.execProvider !== undefined) setExecProvider(patch.execProvider);
               if (patch.valProvider !== undefined) setValProvider(patch.valProvider);
               if (patch.approvalPolicy !== undefined) setApprovalPolicy(patch.approvalPolicy);
+              if (patch.routing !== undefined) setRouting(patch.routing);
             }}
             gitRoots={gitRoots}
             isDetecting={isDetecting}

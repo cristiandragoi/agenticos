@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 /**
  * Tool Loader — imports all tool modules and registers them with the tool registry.
  * Must be called at startup.
@@ -23,5 +24,5 @@ export function registerAllTools(): void {
   toolRegistry.register(runPipelineTool);
   toolRegistry.register(readObsidianFileTool);
   toolRegistry.register(speakTool);
-  console.log(`[ToolRegistry] Registered ${toolRegistry.list().length} tools: ${toolRegistry.list().join(', ')}`);
+  logger.info(`[ToolRegistry] Registered ${toolRegistry.list().length} tools: ${toolRegistry.list().join(', ')}`);
 }

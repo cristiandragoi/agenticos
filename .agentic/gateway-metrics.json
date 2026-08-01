@@ -1,0 +1,13 @@
+{
+  "ollama": {
+    "totalCalls": 5,
+    "totalSuccesses": 0,
+    "totalFailures": 5,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 0.8,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  }
+}

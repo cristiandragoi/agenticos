@@ -1,15 +1,15 @@
+import { logger } from '../../utils/logger.js';
+import { toolRegistry } from './toolRegistry.js';
+import { runStore } from '../runStore.js';
+import { ExecutionOptions } from '../../types.js';
+import { AgentProviderAssignmentService } from './assignments.js';
+
 /**
  * Agent Loop — the core function-calling agent loop.
- *
- * Takes a system prompt + user message, runs the LLM with tool schemas,
- * executes any tool calls, feeds results back, and repeats until
- * the LLM produces a final answer or the iteration limit is reached.
  *
  * Uses a multi-provider failover chain (same as executeWithFailover
  * but extended for function-calling).
  */
-import { toolRegistry } from './toolRegistry.js';
-import { runStore } from '../runStore.js';
 
 /* ─── Message Types ─── */
 
@@ -116,7 +116,7 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
   // always progress through their lifecycle (queued → running → completed)
   // instead of failing with "No configured AI providers found."
   if (realProviders.length === 0) {
-    console.warn('[AgentLoop] No API keys found — using simulated provider for run lifecycle');
+    logger.warn('[AgentLoop] No API keys found — using simulated provider for run lifecycle');
     return [{
       name: 'Simulated',
       url: 'http://localhost:9999/simulated',
@@ -135,9 +135,54 @@ async function callLLM(
   toolsAvailable: boolean,
   providerIndex: number = 0,
   systemPrompt?: string,
-  agentName?: string
+  agentName?: string,
+  executionOptions?: ExecutionOptions
 ): Promise<{ message: ChatMessage; provider: string; model: string }> {
-  const providers = getProviders(systemPrompt, agentName);
+  let providers: ProviderConfig[] = [];
+  const resolvedAgentId = agentName === 'codex' ? 'agent-codex' : agentName;
+
+  if (resolvedAgentId) {
+    const assignment =
+      await AgentProviderAssignmentService.getAssignment(resolvedAgentId);
+
+    if (
+      assignment &&
+      assignment.enabled &&
+      assignment.routingMode !== 'automatic'
+    ) {
+      const availableProviders = getProviders(systemPrompt, agentName);
+
+      const canonicalProviderId =
+        assignment.providerId === 'prov-ollama'
+          ? 'ollama'
+          : assignment.providerId.replace(/^prov-/, '').toLowerCase();
+
+      const matchedProvider = availableProviders.find((provider) => {
+        const providerName = provider.name.toLowerCase();
+        const providerUrl = provider.url.toLowerCase();
+
+        if (canonicalProviderId === 'ollama') {
+          return providerUrl.includes('localhost:11434');
+        }
+
+        return providerName.includes(canonicalProviderId);
+      });
+
+      if (matchedProvider) {
+        providers = [
+          {
+            ...matchedProvider,
+            model: assignment.modelId || matchedProvider.model,
+          },
+        ];
+      }
+    }
+  }
+
+  if (providers.length === 0) {
+    providers = getProviders(systemPrompt, agentName);
+  }
+
   if (providers.length === 0) throw new Error('No configured AI providers found. Check your API keys.');
 
   let lastError = '';
@@ -160,7 +205,7 @@ async function callLLM(
 
     // Simulated provider — return a canned response without making an HTTP call
     if (p.name === 'Simulated') {
-      console.log('[AgentLoop] Using simulated response');
+      logger.info('[AgentLoop] Using simulated response');
       const simContent = `I've processed your request. Since no external API keys are configured, I'm running in simulation mode.\n\nYour input: "${messages.find(m => m.role === 'user')?.content || ''}"\n\nTo get real AI responses, add API keys (OPENROUTER_API_KEY, DEEPSEEK_API_KEY, or GROQ_API_KEY) to server/.env and restart the server.`;
       return {
         message: { role: 'assistant' as const, content: simContent },
@@ -192,7 +237,12 @@ async function callLLM(
 
       if (!res.ok) {
         const errText = await res.text();
-        console.warn(`[AgentLoop] ${p.name} failed (${res.status}): ${errText.slice(0, 200)}`);
+        logger.warn(`[AgentLoop] ${p.name} failed (${res.status}): ${errText.slice(0, 200)}`);
+        
+        if (executionOptions?.modelOverride === 'qwen3.5:cloud' && (res.status === 402 || res.status === 403 || res.status === 429)) {
+          throw new Error(`Provider Error (${res.status}): Ollama Cloud account limit reached or unauthorized.`);
+        }
+
         lastError = `${p.name} failed (HTTP ${res.status}: Invalid request or rate limit)`;
         continue; // Try next provider
       }
@@ -251,7 +301,7 @@ async function callLLM(
           }],
           model: actualModel,
         };
-        console.log(`[AgentLoop] Parsed SSE stream from ${p.name} — model=${actualModel}, content=${content.length} chars, tools=${toolCallsFiltered.length}`);
+        logger.info(`[AgentLoop] Parsed SSE stream from ${p.name} — model=${actualModel}, content=${content.length} chars, tools=${toolCallsFiltered.length}`);
       } else {
         data = await res.json();
       }
@@ -281,13 +331,13 @@ async function callLLM(
 
       if (p.name === 'OmniRoute') {
         const routedModel = data.model || p.model;
-        console.log(`[AgentLoop] Gateway: OmniRoute | launcher=chat | profile=auto | port=20128 | routed_to=${routedModel}`);
+        logger.info(`[AgentLoop] Gateway: OmniRoute | launcher=chat | profile=auto | port=20128 | routed_to=${routedModel}`);
       } else {
-        console.log(`[AgentLoop] Using ${p.name} (${p.model}) — ${msg.tool_calls ? msg.tool_calls.length + ' tool calls' : 'final response'}`);
+        logger.info(`[AgentLoop] Using ${p.name} (${p.model}) — ${msg.tool_calls ? msg.tool_calls.length + ' tool calls' : 'final response'}`);
       }
       return { message: msg, provider: p.name, model: data.model || p.model };
     } catch (err: any) {
-      console.warn(`[AgentLoop] ${p.name} error: ${err.message}`);
+      logger.warn(`[AgentLoop] ${p.name} error: ${err.message}`);
       if (err.name === 'TimeoutError' || err.message.includes('timeout') || err.message.includes('aborted')) {
         lastError = `${p.name} failed due to Timeout`;
       } else if (err.message.includes('fetch') || err.message.includes('network')) {
@@ -323,7 +373,8 @@ export async function runAgentLoop(
   userMessage: string,
   maxIterations: number = 25,
   agentName?: string,
-  runId?: string
+  runId?: string,
+  executionOptions?: ExecutionOptions
 ): Promise<AgentRunResult> {
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -354,7 +405,7 @@ export async function runAgentLoop(
             role: 'user',
             content: `Supervisor suggestions:\n${nudgeText}`
           });
-          console.log(`[AgentLoop] Injected ${newNudges.length} supervisor nudge(s) into context.`);
+          logger.info(`[AgentLoop] Injected ${newNudges.length} supervisor nudge(s) into context.`);
         }
       }
     }
@@ -364,10 +415,15 @@ export async function runAgentLoop(
 
     let response: { message: ChatMessage; provider: string; model: string };
     try {
-      response = await callLLM(messages, hasTools, providerIndex, systemPrompt, agentName);
+      response = await callLLM(messages, hasTools, providerIndex, systemPrompt, agentName, executionOptions);
       providerIndex = 0; // Reset for subsequent calls (first successful provider)
     } catch (err: any) {
-      console.error(`[AgentLoop] Fatal error at iteration ${iterations}:`, err.message);
+      logger.error(`[AgentLoop] Fatal error at iteration ${iterations}:`, err.message);
+
+      // Bubble up specific provider errors so they are visible in the chat UI
+      if (executionOptions?.modelOverride === 'qwen3.5:cloud' && err.message.includes('Provider Error')) {
+        throw err;
+      }
 
       // Catch malformed tool use errors from the provider
       if (err.message.includes('tool_use_failed')) {
@@ -423,7 +479,7 @@ export async function runAgentLoop(
           args = {};
         }
 
-        console.log(`[AgentLoop] Executing ${tc.function.name}(${JSON.stringify(args).slice(0, 100)})`);
+        logger.info(`[AgentLoop] Executing ${tc.function.name}(${JSON.stringify(args).slice(0, 100)})`);
 
         let result: string;
         try {

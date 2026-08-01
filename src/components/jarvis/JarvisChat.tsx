@@ -5,11 +5,23 @@ import { JarvisTeamPreviewCard } from './JarvisTeamPreviewCard';
 import { JarvisTeamExecutionCard } from './JarvisTeamExecutionCard';
 import { JarvisGoalCard } from './JarvisGoalCard';
 import { useCodexStore } from '../../store/codexStore';
+import { useGatewayStream } from '../../hooks/useGatewayStream';
+import { ProviderBadge } from '../gateway/ProviderBadge';
+import { GatewayNotice } from '../gateway/GatewayNotice';
+import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
+import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
+import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
 import styles from '../../pages/JarvisStudio.module.css';
 
-interface JarvisChatProps {
-  conversationId: string;
+export interface JarvisChatProps {
+  conversationId: string | null;
   onStatusChange?: (status: JarvisRuntimeStatus) => void;
+  onMessagesChange?: (messages: any[]) => void;
+  onConversationCreated?: (id: string) => void;
+  composerText?: string;
+  onComposerTextChange?: (text: string) => void;
+  /** When provided, the next message send will include this channel tag. */
+  pendingInputChannel?: 'typed' | 'voice';
 }
 
 export type JarvisRuntimeState = 'idle' | 'understanding' | 'planning' | 'delegating' | 'executing' | 'reviewing' | 'thinking' | 'streaming' | 'approval_required' | 'paused' | 'completed' | 'error' | 'cancelled';
@@ -28,8 +40,9 @@ interface SendErrorState {
   operationId: string;
 }
 
-const FIRST_TOKEN_TIMEOUT_MS = 20_000;
+const FIRST_TOKEN_TIMEOUT_MS = 45_000;  // starts AFTER fetch() headers are received
 const TOTAL_RESPONSE_TIMEOUT_MS = 120_000;
+const DEV_TIMING = import.meta.env.DEV;
 
 const getMessageOperationId = (message: any): string | undefined => {
   const operationId = message?.metadata?.operationId;
@@ -96,12 +109,21 @@ const runtimeStateForDelegatedStatus = (status?: string): JarvisRuntimeState => 
   return 'executing';
 };
 
-export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatusChange }) => {
+export const JarvisChat: React.FC<JarvisChatProps> = ({
+  conversationId,
+  onStatusChange,
+  onMessagesChange,
+  onConversationCreated,
+  composerText,
+  onComposerTextChange,
+  pendingInputChannel,
+}) => {
   const { runSettings } = useCodexStore();
   const [messages, setMessages] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sendError, setSendError] = useState<SendErrorState | null>(null);
   const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
+  const [detailsMessage, setDetailsMessage] = useState<any | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const firstTokenTimerRef = useRef<number | null>(null);
@@ -109,6 +131,12 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
   const responseTimedOutRef = useRef(false);
   const requestStartedAtRef = useRef<number | null>(null);
   const statusIntervalRef = useRef<number | null>(null);
+  const isProcessingRef = useRef(false);
+
+  // Sync isProcessing to ref
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
   const runtimeStateRef = useRef<JarvisRuntimeState>('idle');
   const firstTokenMsRef = useRef<number | null>(null);
 
@@ -128,6 +156,11 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
   };
 
   const fetchMessages = async (merge = false) => {
+    if (!conversationId) {
+      setMessages([]);
+      onMessagesChange?.([]);
+      return;
+    }
     try {
       const res = await fetch(`/api/jarvis/conversations/${conversationId}/messages`);
       const data = await res.json();
@@ -150,28 +183,54 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
 
   useEffect(() => {
     fetchMessages();
-    setCreatedGoalId(null);
-    setSendError(null);
-    requestStartedAtRef.current = null;
-    emitStatus(idleStatus);
+    if (!isProcessingRef.current) {
+      setCreatedGoalId(null);
+      setSendError(null);
+      requestStartedAtRef.current = null;
+      emitStatus(idleStatus);
+    }
   }, [conversationId]);
 
-  useEffect(() => {
-    const convEs = new EventSource(`/api/jarvis/stream/${conversationId}`);
-    convEs.addEventListener('message', (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        setMessages(prev => {
-          if (prev.find(p => p.id === data.id)) return prev;
-          return [...prev, data];
-        });
-      } catch {}
-    });
-
-    return () => {
-      convEs.close();
-    };
-  }, [conversationId]);
+  useGatewayStream({
+    conversationId,
+    onMessage: (data) => {
+      setMessages(prev => {
+        if (prev.find(p => p.id === data.id)) return prev;
+        return [...prev, data];
+      });
+    },
+    onGatewayEvent: (messageId, event, metadataUpdate) => {
+      // Find the message by ID or fallback to the latest active operation
+      setMessages(prev => {
+        const next = [...prev];
+        let targetIndex = -1;
+        
+        if (messageId) {
+          targetIndex = next.findIndex(m => m.id === messageId);
+        } else {
+          // Find the last agent message
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].role === 'agent') {
+              targetIndex = i;
+              break;
+            }
+          }
+        }
+        
+        if (targetIndex >= 0) {
+          const m = next[targetIndex];
+          const prevGateway = m.gateway || {};
+          const newGateway = { ...prevGateway, ...metadataUpdate };
+          if (event) {
+            const prevEvents = prevGateway.events || [];
+            newGateway.events = [...prevEvents, event].slice(-20);
+          }
+          next[targetIndex] = { ...m, gateway: newGateway };
+        }
+        return next;
+      });
+    }
+  });
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -179,11 +238,22 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
 
   useEffect(() => {
     return () => {
-      abortControllerRef.current?.abort();
+      if (abortControllerRef.current) {
+        logAbort('component_unmount', abortControllerRef.current, requestStartedAtRef.current);
+        abortControllerRef.current.abort();
+      }
       clearResponseTimers();
       if (statusIntervalRef.current !== null) window.clearInterval(statusIntervalRef.current);
     };
   }, []);
+
+  const logAbort = (reason: string, controller: AbortController, startTime: number | null, extraOpId?: string) => {
+    // If the controller is already aborted, don't double log
+    if (controller.signal.aborted) return;
+    const elapsed = startTime ? Date.now() - startTime : -1;
+    // We try to extract operationId from the currently tracked one if we know it
+    console.debug(`[JarvisChat:abort] reason=${reason} operationId=${extraOpId || 'unknown'} conversationId=${conversationId} elapsed=${elapsed}ms`);
+  };
 
   const activeGoalId = useMemo(() => {
     if (createdGoalId) return createdGoalId;
@@ -282,7 +352,10 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
 
   const cancelResponse = () => {
     responseTimedOutRef.current = false;
-    abortControllerRef.current?.abort();
+    if (abortControllerRef.current) {
+      logAbort('user_cancel', abortControllerRef.current, requestStartedAtRef.current);
+      abortControllerRef.current.abort();
+    }
     clearResponseTimers();
     stopStatusClock();
     emitStatus({ state: 'cancelled' });
@@ -292,14 +365,15 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
     setIsProcessing(false);
   };
 
-  const buildMessageRequestBody = (text: string, operationId: string) => {
+  const buildMessageRequestBody = (text: string, operationId: string, inputChannel: 'typed' | 'voice' = 'typed') => {
     const body: {
       prompt: string;
       operationId: string;
+      inputChannel: 'typed' | 'voice';
       workspacePath?: string;
       repositoryPath?: string;
       approvalPolicy?: string;
-    } = { prompt: text, operationId };
+    } = { prompt: text, operationId, inputChannel };
 
     if (runSettings.workspacePath) {
       body.workspacePath = runSettings.workspacePath;
@@ -310,28 +384,58 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
     return body;
   };
 
-  const handleSendMessage = async (text: string) => {
-    const operationId = `jarvis-${conversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    abortControllerRef.current?.abort();
+  const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = pendingInputChannel ?? 'typed') => {
+    // ── Dev timing telemetry ──────────────────────────────────────────
+    const t0 = Date.now();
+    if (DEV_TIMING) console.debug('[JarvisChat:timing] submit', { text: text.slice(0, 40), inputChannel, t: t0 });
+
+    let targetConversationId = conversationId;
+    if (!targetConversationId) {
+      try {
+        const createRes = await fetch('/api/jarvis/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: text.slice(0, 40) || 'New Conversation' }),
+        });
+        const createData = await createRes.json();
+        if (createData?.id) {
+          targetConversationId = createData.id;
+          onConversationCreated?.(createData.id);
+        } else {
+          throw new Error('Failed to create a new conversation');
+        }
+      } catch (err: any) {
+        setSendError({ message: err.message || 'Failed to create conversation', operationId: `err-${Date.now()}` });
+        setIsProcessing(false);
+        return;
+      }
+    }
+
+    const operationId = `jarvis-${targetConversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if (abortControllerRef.current) {
+      logAbort('new_request', abortControllerRef.current, requestStartedAtRef.current, operationId);
+      abortControllerRef.current.abort();
+    }
     const controller = new AbortController();
     abortControllerRef.current = controller;
     responseTimedOutRef.current = false;
     requestStartedAtRef.current = Date.now();
     firstTokenMsRef.current = null;
+    setCreatedGoalId(null);
     setIsProcessing(true);
     setSendError(null);
     clearResponseTimers();
     startStatusClock('thinking');
-    firstTokenTimerRef.current = window.setTimeout(() => {
-      responseTimedOutRef.current = true;
-      controller.abort();
-      setSendError({ message: 'Jarvis provider timed out before first token.', operationId });
-      stopStatusClock();
-      emitStatus({ state: 'error', error: 'Jarvis provider timed out before first token.' });
-      setIsProcessing(false);
-    }, FIRST_TOKEN_TIMEOUT_MS);
+
+    // NOTE: First-token timer is NOT started here.
+    // It is started AFTER fetch() resolves with HTTP headers so that
+    // conversation-creation overhead and network round-trip do NOT eat
+    // into the budget.  See the 'fetch-start' telemetry point below.
+
     totalResponseTimerRef.current = window.setTimeout(() => {
+      if (abortControllerRef.current !== controller) return;
       responseTimedOutRef.current = true;
+      logAbort('overall_timeout', controller, requestStartedAtRef.current, operationId);
       controller.abort();
       setSendError({ message: 'Jarvis response timed out before completion.', operationId });
       stopStatusClock();
@@ -344,21 +448,39 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
       role: 'user',
       content: text,
       createdAt: new Date().toISOString(),
-      metadata: { operationId }
+      metadata: { operationId, inputChannel }
     }]);
 
     try {
-      const res = await fetch(`/api/jarvis/conversations/${conversationId}/message/stream`, {
+      const fetchStartAt = Date.now();
+      if (DEV_TIMING) console.debug('[JarvisChat:timing] fetch-start', { operationId, inputChannel, ms: fetchStartAt - t0 });
+
+      const res = await fetch(`/api/jarvis/conversations/${targetConversationId}/message/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify(buildMessageRequestBody(text, operationId))
+        body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel))
       });
+
+      // ── First-token timer starts HERE — after headers are received ──
+      const headersReceivedAt = Date.now();
+      if (DEV_TIMING) console.debug('[JarvisChat:timing] headers-received', { operationId, status: res.status, ms: headersReceivedAt - fetchStartAt });
+
+      firstTokenTimerRef.current = window.setTimeout(() => {
+        if (abortControllerRef.current !== controller) return;
+        responseTimedOutRef.current = true;
+        logAbort('first_token_timeout', controller, fetchStartAt, operationId);
+        controller.abort();
+        setSendError({ message: 'Jarvis provider timed out before first token.', operationId });
+        stopStatusClock();
+        emitStatus({ state: 'error', error: 'Jarvis provider timed out before first token.' });
+        setIsProcessing(false);
+      }, FIRST_TOKEN_TIMEOUT_MS);
 
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
 
       if (!res.body) {
-        await sendLegacyMessage(text, operationId, controller);
+        await sendLegacyMessage(text, operationId, controller, inputChannel);
         return;
       }
 
@@ -366,6 +488,9 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
       const decoder = new TextDecoder();
       let buffer = '';
       let sawTextChunk = false;
+      let sawTerminalEvent = false;
+      let sawFirstChunk = false;
+      let firstChunkAt = 0;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -373,13 +498,34 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
         buffer += decoder.decode(value, { stream: true });
         const parsed = parseSseFrames(buffer);
         buffer = parsed.rest;
+        sawTerminalEvent = sawTerminalEvent || parsed.events.some(event => ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event));
+        if (!sawFirstChunk && parsed.events.some(e => e.event === 'chunk')) {
+          sawFirstChunk = true;
+          firstChunkAt = Date.now();
+          if (firstTokenTimerRef.current !== null) {
+            window.clearTimeout(firstTokenTimerRef.current);
+            firstTokenTimerRef.current = null;
+          }
+          if (DEV_TIMING) console.debug('[JarvisChat:timing] first-chunk', { operationId, ms: firstChunkAt - headersReceivedAt });
+        }
         sawTextChunk = await handleStreamEvents(parsed.events, operationId, sawTextChunk);
       }
 
       buffer += decoder.decode();
       const parsed = parseSseFrames(`${buffer}\n\n`);
+      sawTerminalEvent = sawTerminalEvent || parsed.events.some(event => ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event));
       await handleStreamEvents(parsed.events, operationId, sawTextChunk);
+
+      if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-done', { operationId, sawTerminalEvent, ms: Date.now() - (sawFirstChunk ? firstChunkAt : headersReceivedAt) });
+
+      if (!sawTerminalEvent && !controller.signal.aborted) {
+        const message = 'Jarvis stream closed before sending a completion or error event.';
+        setSendError({ message, operationId });
+        emitStatus({ state: 'error', error: message });
+        await fetchMessages(true);
+      }
     } catch (e: any) {
+      if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-error', { operationId, error: e?.message, ms: Date.now() - t0 });
       if (controller.signal.aborted && !responseTimedOutRef.current) {
         appendStreamingAssistantText(operationId, '\n\n[Response cancelled]', true);
         emitStatus({ state: 'cancelled' });
@@ -396,12 +542,12 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
     }
   };
 
-  const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController) => {
+  const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {
     const fallbackRes = await fetch(`/api/jarvis/conversations/${conversationId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify(buildMessageRequestBody(text, operationId))
+      body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel))
     });
     const result = await fallbackRes.json().catch(() => ({}));
 
@@ -547,10 +693,13 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
               <div className={styles.messageContent} style={isError ? { borderColor: 'var(--color-error)' } : {}}>
                 {!isSystem && (
                   <div className={styles.messageMeta}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {isUser ? 'You' : 'Jarvis'}
-                      {msg.routedAgent && msg.routedAgent !== 'jarvis' && ` (via ${msg.routedAgent})`}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {isUser ? 'You' : 'Jarvis'}
+                        {msg.routedAgent && msg.routedAgent !== 'jarvis' && ` (via ${msg.routedAgent})`}
+                      </span>
+                      {!isUser && <ProviderBadge message={msg} onClick={() => setDetailsMessage(msg)} />}
+                    </div>
                     <span>
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -597,7 +746,7 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
 
                 {isSystem && msg.messageType === 'team_preview' && msg.metadata?.teamSheet && (
                   <JarvisTeamPreviewCard
-                    conversationId={conversationId}
+                    conversationId={conversationId || ''}
                     teamId={msg.metadata.teamId}
                     teamSheet={msg.metadata.teamSheet}
                   />
@@ -621,6 +770,19 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
                 {!isSystem && (
                   <div style={{ color: isError ? 'var(--color-error)' : 'inherit' }}>
                     {renderMessageContent(msg.content)}
+                  </div>
+                )}
+                
+                {!isUser && msg.gateway && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <GatewayNotice message={msg} />
+                    <GatewayEventTimeline events={msg.gateway.events || []} />
+                    {(msg.gateway.status === 'failed' || msg.gateway.status === 'interrupted') && (
+                      <GatewayRetryControls 
+                        isProcessing={isProcessing} 
+                        onRetry={(provider) => handleSendMessage(msg.content, 'typed')} 
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -652,7 +814,16 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({ conversationId, onStatus
         onSendMessage={handleSendMessage}
         isProcessing={isProcessing}
         onCancelResponse={cancelResponse}
+        composerText={composerText}
+        onComposerTextChange={onComposerTextChange}
       />
+      
+      {detailsMessage && (
+        <ProviderDetailsPanel 
+          message={detailsMessage} 
+          onClose={() => setDetailsMessage(null)} 
+        />
+      )}
     </>
   );
 };

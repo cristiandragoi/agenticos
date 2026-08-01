@@ -1,0 +1,15 @@
+{
+  "projectId": "bench-project",
+  "projectPath": "B:\\AgenticOS\\server",
+  "projectSummary": "",
+  "preferredProvider": "omniroot",
+  "gatewayHistory": [
+    {
+      "taskId": "bench-2",
+      "provider": "omniroot",
+      "success": true
+    }
+  ],
+  "importantSnippets": [],
+  "generatedArtifacts": []
+}

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { AgentRuntimeSelector } from './agents/AgentRuntimeSelector';
 
-interface HermesContextPanelProps {
-  selectedModel: string;
-  setSelectedModel: (val: string) => void;
-}
+interface HermesContextPanelProps {}
 
 interface MemoryEntry {
   id: string;
@@ -12,7 +10,7 @@ interface MemoryEntry {
   scopeId: string;
 }
 
-const HermesContextPanel: React.FC<HermesContextPanelProps> = ({ selectedModel, setSelectedModel }) => {
+const HermesContextPanel: React.FC<HermesContextPanelProps> = () => {
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
 
   useEffect(() => {
@@ -39,19 +37,9 @@ const HermesContextPanel: React.FC<HermesContextPanelProps> = ({ selectedModel, 
     <div className="bg-[#111827]/80 backdrop-blur-sm rounded-2xl p-5 shadow-2xl border border-slate-800 flex flex-col h-full overflow-hidden">
       <div className="mb-6">
         <h3 className="text-xs font-black tracking-widest text-slate-400 uppercase mb-3">Model Selector</h3>
-        <div className="relative">
-          <select 
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full appearance-none bg-[#0F172A] border border-slate-700 text-slate-200 text-sm rounded-xl px-4 py-3 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all cursor-pointer"
-          >
-            <option value="qwythos:9b">Qwythos 9B</option>
-            <option value="qwen3.5">Local Qwen 3.5</option>
-          </select>
-          <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-400">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+          <div className="pt-2">
+            <AgentRuntimeSelector agentId="agent-hermes" />
           </div>
-        </div>
       </div>
       
       <div className="mb-6">

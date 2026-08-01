@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { execFile, spawn } from 'child_process';
@@ -108,7 +109,7 @@ export function validatePostWrite(targetPath: string, scopes?: string[], workspa
         fs.rmdirSync(targetPath);
       }
     } catch (e) {
-      console.error('Failed safe cleanup of containment violation:', e);
+      logger.error('Failed safe cleanup of containment violation:', e);
     }
     throw new Error('Sandbox violation: File raced outside workspace after creation. Containment violation logged.');
   }

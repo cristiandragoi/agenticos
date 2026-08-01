@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
 import type {
   RuntimeAdapter, RuntimeHealth, AgentDefinition, AgentInvocation,
@@ -105,7 +106,7 @@ export class HeavyGenAdapter implements RuntimeAdapter {
             logs: [...initialLogs, `[00:02] Connected to provider.`, `[${new Date().toISOString()}] Generation completed successfully via ${targetModel}.`]
           });
         } catch (err: any) {
-          console.error('[HeavyGen] API Error:', err);
+          logger.error('[HeavyGen] API Error:', err);
           runStore.update(input.runId, {
             status: 'failed',
             errorMessage: err.message || 'API request failed',

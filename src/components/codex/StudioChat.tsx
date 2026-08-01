@@ -6,7 +6,8 @@ import { TERMINAL_GOAL_STATES, pairToolExecutions } from '../../presenters/execu
 import { CurrentActionCard } from './CurrentActionCard';
 import { ExecutionTimeline } from './ExecutionTimeline';
 import { RunSettings } from './RunSettings';
-import { CODEX_MODEL, CODEX_PROVIDER, CODEX_PROVIDER_LABEL, CODEX_REPOSITORY, isRepositoryOnlyTask } from '../../config/codexRuntime';
+import { CODEX_REPOSITORY, isRepositoryOnlyTask } from '../../config/codexRuntime';
+import { buildCodexGoalPayload } from '../../features/codex/buildCodexGoalPayload';
 
 function formatElapsed(createdAt?: string): string {
   if (!createdAt) return '-';
@@ -215,13 +216,16 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify({
+        body: JSON.stringify(buildCodexGoalPayload({
           goal: task,
-          executionProvider: CODEX_PROVIDER,
-          validationProvider: runSettings.valProvider || 'omniRoute',
-          workspacePath: runSettings.workspacePath || CODEX_REPOSITORY,
-          approvalPolicy: runSettings.approvalPolicy || 'strict'
-        })
+          repositoryRoot: runSettings.workspacePath || CODEX_REPOSITORY,
+          approvalPolicy: runSettings.approvalPolicy || 'strict',
+          validationProvider: runSettings.valProvider,
+          assignment: runSettings.routing
+            ? { routingMode: runSettings.routing.mode, providerId: runSettings.routing.providerId, modelId: runSettings.routing.modelId, enabled: true }
+            : null,
+          explicitRoutingOverride: true
+        }))
       });
       const data = await res.json();
       if (!res.ok || !data.goalId) throw new Error(data.error || 'Failed to create CodeX task.');
@@ -311,10 +315,8 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
         <CurrentActionCard goal={goal} />
 
         <div className="mx-auto max-w-4xl px-4 pt-4 pb-24 flex flex-col gap-4">
-          <div className="bg-[#111823] border border-slate-700/50 rounded-lg p-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-[12px]">
+          <div className="bg-[#111823] border border-slate-700/50 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-[12px]">
             <div><span className="text-slate-500 uppercase tracking-wider">Repository:</span> <span className="font-mono text-emerald-300">{runSettings.workspacePath || CODEX_REPOSITORY}</span></div>
-            <div><span className="text-slate-500 uppercase tracking-wider">Provider:</span> <span className="text-slate-200">{CODEX_PROVIDER_LABEL}</span></div>
-            <div><span className="text-slate-500 uppercase tracking-wider">Model:</span> <span className="font-mono text-slate-200">{CODEX_MODEL}</span></div>
           </div>
 
           {activeGoalId ? (

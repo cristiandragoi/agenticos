@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -264,14 +265,14 @@ router.get('/workspace/inspect', (req, res) => {
 
 /* ─── POST /api/agentic/build/trigger ─── */
 router.post('/build/trigger', (req, res) => {
-  console.log(`[AgenticAPI] Build triggered...`);
+  logger.info(`[AgenticAPI] Build triggered...`);
   exec('npm run build', { cwd: PROJECT_ROOT }, (error, stdout, stderr) => {
     if (error) {
-      console.error(`[AgenticAPI] Build failed:`, error);
+      logger.error(`[AgenticAPI] Build failed:`, error);
       res.status(500).json({ error: error.message, stdout, stderr });
       return;
     }
-    console.log(`[AgenticAPI] Build completed successfully.`);
+    logger.info(`[AgenticAPI] Build completed successfully.`);
     res.json({ success: true, message: 'Build completed successfully.', stdout, stderr });
   });
 });
@@ -408,7 +409,7 @@ router.post('/pipelines/:id/run', async (req, res) => {
     res.json({ message: 'Jarvis Voice Pipeline acknowledged. Stages are processed in real-time.', pipelineId: id });
   } else if (id === 'qwable-build-pipeline') {
     const { command, stageId } = req.body || {};
-    console.log(`[AgenticAPI] Running Qwable Build Pipeline stage [${stageId || 'all'}] with command: "${command}"`);
+    logger.info(`[AgenticAPI] Running Qwable Build Pipeline stage [${stageId || 'all'}] with command: "${command}"`);
     try {
       if (!stageId || stageId === 'code_generation') {
         // Step 1: Query local Qwable engine at http://localhost:8642/v1/chat/completions to generate code
@@ -473,7 +474,7 @@ router.post('/pipelines/:id/stages/:stageId/update', (req, res) => {
 
   const key = `${id}:${stageId}`;
   stageOverrides[key] = { stageId, agentId };
-  console.log(`[AgenticAPI] Pipeline '${id}' stage '${stageId}' → reassigned to agent '${agentId}'`);
+  logger.info(`[AgenticAPI] Pipeline '${id}' stage '${stageId}' → reassigned to agent '${agentId}'`);
 
   res.json({
     ok: true,

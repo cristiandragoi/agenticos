@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -29,7 +30,7 @@ export class JsonStore<T extends { id: string }> {
         this.flush(); // Create empty file
       }
     } catch (err) {
-      console.error(`[JsonStore] Failed to load ${this.filepath}:`, err);
+      logger.error(`[JsonStore] Failed to load ${this.filepath}:`, err);
     }
   }
 
@@ -38,7 +39,7 @@ export class JsonStore<T extends { id: string }> {
       const items = Array.from(this.data.values());
       fs.writeFileSync(this.filepath, JSON.stringify(items, null, 2), 'utf-8');
     } catch (err) {
-      console.error(`[JsonStore] Failed to flush ${this.filepath}:`, err);
+      logger.error(`[JsonStore] Failed to flush ${this.filepath}:`, err);
     }
   }
 

@@ -36,6 +36,7 @@ import EvolutionDashboard from './pages/evolution/EvolutionDashboard';
 import PromptLab from './pages/evolution/PromptLab';
 import AgentTeamsDashboard from './pages/AgentTeamsDashboard';
 import TeamDetailView from './pages/TeamDetailView';
+import SystemDoctorPage from './pages/SystemDoctorPage';
 
 function App() {
   return (
@@ -82,6 +83,7 @@ function App() {
                 <Route path="hermes" element={<Navigate to="/hermes-studio?view=kanban" replace />} />
                 <Route path="codex" element={<CodeXStudio />} />
                 <Route path="apollo" element={<Navigate to="/hermes-studio?view=apollo" replace />} />
+                <Route path="doctor" element={<SystemDoctorPage />} />
               </Route>
             </Routes>
             </HashRouter>

@@ -62,6 +62,7 @@ type AppAction =
   | { type: "SEND_MESSAGE"; message: ChatMessage }
   | { type: "UPDATE_MESSAGE_CONTENT"; payload: { id: string; content: string } }
   | { type: "APPEND_MESSAGE_CHUNK"; payload: { id: string; chunk: string } }
+  | { type: "UPDATE_MESSAGE_GATEWAY_STATE"; payload: { id: string; gateway: Partial<ChatMessage['gateway']> } }
   | { type: "SET_JARVIS_STATE"; status: JarvisVoiceState["status"] }
   | { type: "ADD_JARVIS_TRANSCRIPT"; entry: JarvisTranscriptEntry }
   | { type: "CLEAR_JARVIS_TRANSCRIPT" }
@@ -139,6 +140,37 @@ function appReducer(state: AppState, action: AppAction): AppState {
               ? { ...m, content: m.content + action.payload.chunk }
               : m
           ),
+        },
+      };
+    case "UPDATE_MESSAGE_GATEWAY_STATE":
+      return {
+        ...state,
+        chat: {
+          ...state.chat,
+          messages: state.chat.messages.map(m => {
+            if (m.id !== action.payload.id) return m;
+            
+            const prevGateway = m.gateway || {};
+            const newGateway = { ...prevGateway, ...action.payload.gateway };
+            
+            // Append events safely and deduplicate by operationId+type+provider+target+timestamp
+            if (action.payload.gateway?.events) {
+              const prevEvents = prevGateway.events || [];
+              const getEventKey = (e: any) => `${e.operationId || 'unknown'}:${e.type}:${e.provider || ''}:${e.target || ''}:${e.timestamp || ''}`;
+              const eventSet = new Set(prevEvents.map(getEventKey));
+              
+              const dedupedNew = action.payload.gateway.events.filter(e => {
+                const key = getEventKey(e);
+                if (eventSet.has(key)) return false;
+                eventSet.add(key);
+                return true;
+              });
+              
+              newGateway.events = [...prevEvents, ...dedupedNew].slice(-20); // bounded to 20 events
+            }
+            
+            return { ...m, gateway: newGateway };
+          }),
         },
       };
     case "TOGGLE_CHAT_EXPANDED":
@@ -225,6 +257,8 @@ export function useChat() {
       dispatch({ type: "SET_ROUTING_MODE", mode }),
     sendMessage: (message: ChatMessage) =>
       dispatch({ type: "SEND_MESSAGE", message }),
+    updateMessageGatewayState: (id: string, gateway: Partial<ChatMessage['gateway']>) =>
+      dispatch({ type: "UPDATE_MESSAGE_GATEWAY_STATE", payload: { id, gateway } }),
     toggleExpanded: () => dispatch({ type: "TOGGLE_CHAT_EXPANDED" }),
   };
 }

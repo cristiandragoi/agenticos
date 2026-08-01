@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { schedules, tasks } from '../db/schema.js';
@@ -20,7 +21,7 @@ router.get('/', async (req, res) => {
     const allSchedules = await query;
     res.json(allSchedules);
   } catch (err: any) {
-    console.error('[Schedules API] Failed to list schedules:', err);
+    logger.error('[Schedules API] Failed to list schedules:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });
@@ -64,7 +65,7 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ id: scheduleId, status: 'created' });
   } catch (err: any) {
-    console.error('[Schedules API] Failed to create schedule:', err);
+    logger.error('[Schedules API] Failed to create schedule:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });
@@ -100,7 +101,7 @@ router.patch('/:id', async (req, res) => {
 
     res.json({ id, status: 'updated' });
   } catch (err: any) {
-    console.error('[Schedules API] Failed to update schedule:', err);
+    logger.error('[Schedules API] Failed to update schedule:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });
@@ -115,7 +116,7 @@ router.delete('/:id', async (req, res) => {
 
     res.json({ id, status: 'deleted' });
   } catch (err: any) {
-    console.error('[Schedules API] Failed to delete schedule:', err);
+    logger.error('[Schedules API] Failed to delete schedule:', err);
     res.status(500).json({ error: { message: err.message } });
   }
 });

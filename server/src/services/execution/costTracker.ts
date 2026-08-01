@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { eventBus, SystemEventPayload } from '../../core/eventBus.js';
 import { db } from '../../db/index.js';
 import { treasuryLedger, attribution } from '../../db/schema.js';
@@ -50,9 +51,9 @@ class CostTracker {
         }
       }
 
-      console.log(`[CostTracker] Incurred cost $${cost.toFixed(4)} from ${event.source} (Run: ${runId})`);
+      logger.info(`[CostTracker] Incurred cost $${cost.toFixed(4)} from ${event.source} (Run: ${runId})`);
     } catch (err) {
-      console.error('[CostTracker] Error handling cost event', err);
+      logger.error('[CostTracker] Error handling cost event', err);
     }
   }
 }

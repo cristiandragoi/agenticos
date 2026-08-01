@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import express from 'express';
 import Stripe from 'stripe';
@@ -20,12 +21,12 @@ const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key');
 
 // Mock asynchronous fulfillment worker
 async function enqueueFulfillment(leadId: string) {
-  console.log(`[Worker] Started async fulfillment for lead: ${leadId}`);
+  logger.info(`[Worker] Started async fulfillment for lead: ${leadId}`);
   
   const leads = await db.leads.list();
   const lead = leads.find(l => l.id === leadId);
   if (!lead) {
-    console.error(`[Worker] Failed: Lead ${leadId} not found.`);
+    logger.error(`[Worker] Failed: Lead ${leadId} not found.`);
     return;
   }
 
@@ -111,7 +112,7 @@ ${parsed.clientReadyExecutiveSummary}
       throw new Error('No parsed output returned from OpenAI.');
     }
   } catch (err: any) {
-    console.error(`[Worker] OpenAI Generation Failed: ${err.message}`);
+    logger.error(`[Worker] OpenAI Generation Failed: ${err.message}`);
     finalBriefContent = `# Generation Failed\n\nThere was an error generating this brief using the LLM: ${err.message}`;
     rawJsonContent = JSON.stringify({ error: err.message });
   }
@@ -138,13 +139,13 @@ ${parsed.clientReadyExecutiveSummary}
   };
   
   await db.artifacts.upsert(newArtifact);
-  console.log(`[Worker] Finished generating full brief: ${newArtifact.id}`);
+  logger.info(`[Worker] Finished generating full brief: ${newArtifact.id}`);
 
   // Check if we already successfully sent this email (if worker was retried)
   const artifacts = await db.artifacts.list();
   const existingArtifactCheck = artifacts.find(a => a.id === `artifact-${leadId}`);
   if (existingArtifactCheck && existingArtifactCheck.emailStatus === 'sent') {
-    console.log(`[Worker] Email already marked as sent for lead ${leadId}. Skipping email dispatch.`);
+    logger.info(`[Worker] Email already marked as sent for lead ${leadId}. Skipping email dispatch.`);
     return;
   }
 
@@ -154,7 +155,7 @@ ${parsed.clientReadyExecutiveSummary}
   let emailFrom = process.env.EMAIL_FROM || 'onboarding@resend.dev';
   
   if (process.env.NODE_ENV === 'production' && emailFrom === 'onboarding@resend.dev') {
-    console.error(`[Worker] ERROR: Cannot use onboarding@resend.dev in production. Delivery will fail.`);
+    logger.error(`[Worker] ERROR: Cannot use onboarding@resend.dev in production. Delivery will fail.`);
     // We let it attempt anyway, but it will fail.
   }
 
@@ -184,7 +185,7 @@ ${parsed.clientReadyExecutiveSummary}
       `
     });
     
-    console.log(`[Worker] Email sent to ${recipientEmail} with id: ${emailResult.data?.id}`);
+    logger.info(`[Worker] Email sent to ${recipientEmail} with id: ${emailResult.data?.id}`);
     
     // Update artifact with success status
     newArtifact.emailStatus = 'sent';
@@ -192,7 +193,7 @@ ${parsed.clientReadyExecutiveSummary}
     await db.artifacts.upsert(newArtifact);
 
   } catch (emailErr: any) {
-    console.error(`[Worker] Failed to send email to ${recipientEmail}: ${emailErr.message}`);
+    logger.error(`[Worker] Failed to send email to ${recipientEmail}: ${emailErr.message}`);
     // Update artifact with failed status
     newArtifact.emailStatus = 'failed';
     newArtifact.emailTimestamp = new Date().toISOString();
@@ -212,13 +213,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       if (process.env.NODE_ENV === 'production') {
         throw new Error('STRIPE_WEBHOOK_SECRET is completely required in production. Aborting.');
       }
-      console.warn('⚠️ STRIPE_WEBHOOK_SECRET is not configured. Bypassing signature verification (local dev).');
+      logger.warn('⚠️ STRIPE_WEBHOOK_SECRET is not configured. Bypassing signature verification (local dev).');
       event = JSON.parse(req.body.toString());
     } else {
       event = stripe.webhooks.constructEvent(req.body, sig as string, endpointSecret);
     }
   } catch (err: any) {
-    console.error(`⚠️ Webhook signature verification failed.`, err.message);
+    logger.error(`⚠️ Webhook signature verification failed.`, err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -226,7 +227,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   const stripeEvents = await db.stripeEvents.list();
   const existingEvent = stripeEvents.find(e => e.id === event.id);
   if (existingEvent) {
-    console.log(`[Stripe Webhook] Idempotency catch: Stripe event ${event.id} already processed. Skipping.`);
+    logger.info(`[Stripe Webhook] Idempotency catch: Stripe event ${event.id} already processed. Skipping.`);
     return res.send(); // Fast acknowledgment for duplicates
   }
   
@@ -239,17 +240,17 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       const session = event.data.object as Stripe.Checkout.Session;
       const leadId = session.client_reference_id;
       
-      console.log(`[Stripe Webhook] Received payment for lead: ${leadId} via event: ${event.id}`);
+      logger.info(`[Stripe Webhook] Received payment for lead: ${leadId} via event: ${event.id}`);
       
       if (leadId) {
         // Fast acknowledgment, queue fulfillment
-        console.log(`[Stripe Webhook] Marking lead ${leadId} as paid and queuing fulfillment.`);
+        logger.info(`[Stripe Webhook] Marking lead ${leadId} as paid and queuing fulfillment.`);
         setTimeout(() => enqueueFulfillment(leadId), 0);
       }
       break;
       
     default:
-      console.log(`[Stripe Webhook] Unhandled event type ${event.type}`);
+      logger.info(`[Stripe Webhook] Unhandled event type ${event.type}`);
   }
 
   // Return a 200 response IMMEDIATELY to acknowledge receipt of the event
@@ -261,7 +262,7 @@ router.post('/mock-pay', express.json(), async (req, res) => {
   const { leadId } = req.body;
   if (!leadId) return res.status(400).json({ success: false, error: 'Missing leadId' });
 
-  console.log(`[Mock Stripe] Processing mock payment for lead: ${leadId}`);
+  logger.info(`[Mock Stripe] Processing mock payment for lead: ${leadId}`);
   
   // Idempotency check
   const artifacts = await db.artifacts.list();

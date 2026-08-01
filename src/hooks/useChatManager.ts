@@ -8,23 +8,24 @@ export function useChatManager() {
   const [isTyping, setIsTyping] = useState(false);
 
   const sendMessage = useCallback(async (text: string, preferredTarget: string) => {
+    let targetAgentId = preferredTarget === 'auto' ? null : preferredTarget;
+      
+    if (!targetAgentId) {
+       const resolved = await apiClient.resolveIntent(text);
+       targetAgentId = resolved.agentId || 'agent-hermes';
+    }
+
     const userMsg = {
       id: `msg-${Date.now()}`,
       role: 'user' as const,
       content: text,
+      agentId: targetAgentId,
       timestamp: new Date().toISOString()
     };
     dispatch({ type: 'SEND_MESSAGE', message: userMsg });
     setIsTyping(true);
 
     try {
-      let targetAgentId = preferredTarget === 'auto' ? null : preferredTarget;
-      
-      if (!targetAgentId) {
-         const resolved = await apiClient.resolveIntent(text);
-         targetAgentId = resolved.agentId || 'agent-hermes';
-      }
-      
       let payloadText = text;
       if (targetAgentId === 'agent-hermes') {
         payloadText += '\n\n[SYSTEM INSTRUCTION: You are the primary orchestrator for the Agentic OS. When asked to plan, break down tasks, or delegate work, respond with a JSON block in the format: {"action": "create_kanban_tasks", "tasks": [{"title": "...", "description": "...", "agent": "...", "model": "..."}]} along with your text explanation.]';
@@ -139,7 +140,7 @@ export function useChatManager() {
                   .trim();
                 if (cleanText) {
                   window.dispatchEvent(new CustomEvent('agent-response-ready', { 
-                    detail: { agentId: targetAgentId, text: cleanText } 
+                    detail: { agentId: targetAgentId, text: cleanText, messageId: agentMsgId, conversationId: null } 
                   }));
                 }
               }
@@ -161,7 +162,9 @@ export function useChatManager() {
         timestamp: new Date().toISOString()
       };
       dispatch({ type: 'SEND_MESSAGE', message: errorMsg });
+      return false;
     }
+    return true;
   }, [dispatch]);
 
   return { sendMessage, isTyping };

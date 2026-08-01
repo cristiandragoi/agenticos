@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import type {
   RuntimeAdapter, RuntimeHealth, AgentDefinition, AgentInvocation,
   InvocationAck, RuntimeEvent, RunRecord, ToolDefinition, MemoryScope
@@ -60,9 +61,11 @@ Your working directory is the project root. You can write code, run builds, sear
 Keep responses concise and actionable. When you're done, explain what you did.
 ${input.uiContext?.currentRoute === '/hermes-studio' ? '\nCONTEXT: hermes-studio' : ''}`;
 
+    const executionOptions = input.executionOptions;
+
     let result: AgentRunResult;
     try {
-      result = await runAgentLoop(systemPrompt, input.prompt, 25, agentName, input.runId);
+      result = await runAgentLoop(systemPrompt, input.prompt, 25, agentName, input.runId, executionOptions);
 
       // Stream the result word by word
       const words = result.text.split(' ');
@@ -70,6 +73,15 @@ ${input.uiContext?.currentRoute === '/hermes-studio' ? '\nCONTEXT: hermes-studio
         yield { type: 'chat_chunk', payload: { chunk: word + ' ' }, timestamp: new Date().toISOString() };
         await new Promise(r => setTimeout(r, 10));
       }
+
+      logger.info(`[HermesProvider] {
+  requestId: "${input.runId}",
+  agentId: "${input.agentId}",
+  provider: "${result.provider}",
+  model: "${result.model}",
+  endpoint: "${result.provider === 'OmniRoute' ? 'openrouter.ai' : '127.0.0.1:11434'}",
+  fallbackEnabled: ${!(executionOptions?.disableFallback)}
+}`);
 
       // Log what happened
       const logs = [
@@ -126,12 +138,24 @@ function runAgentProcess(input: AgentInvocation, run: RunRecord): void {
   const systemPrompt = `You are ${agentName}, an AI agent in Agentic OS. You have access to tools.
 ${input.uiContext?.currentRoute === '/hermes-studio' ? '\nCONTEXT: hermes-studio' : ''}`;
 
+  const executionOptions = input.executionOptions;
+
   (async () => {
     try {
-      const result = await runAgentLoop(systemPrompt, input.prompt, 25, agentName, input.runId);
+      const result = await runAgentLoop(systemPrompt, input.prompt, 25, agentName, input.runId, executionOptions);
       const gatewayLog = result.provider === 'OmniRoute'
         ? `[Gateway: OmniRoute | launcher=chat | profile=auto | port=20128]`
         : `[${agentName}] Provider: ${result.provider} (${result.model})`;
+
+      logger.info(`[HermesProvider] {
+  requestId: "${input.runId}",
+  agentId: "${input.agentId}",
+  provider: "${result.provider}",
+  model: "${result.model}",
+  endpoint: "${result.provider === 'OmniRoute' ? 'openrouter.ai' : '127.0.0.1:11434'}",
+  fallbackEnabled: ${!(executionOptions?.disableFallback)}
+}`);
+
       runStore.update(input.runId, {
         status: 'completed',
         output: result.text,

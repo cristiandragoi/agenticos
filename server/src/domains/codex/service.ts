@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { goalStore } from '../../services/goalStore.js';
 import { resumeCodexGoalLoop } from '../../loops/codexLoop.js';
-import { llmChat, OLLAMA_BASE, OLLAMA_DEFAULT_CODING_MODEL, OLLAMA_FALLBACK_MODEL } from '../../services/llmGateway.js';
+import { llmChat } from '../../services/llmGateway.js';
+import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
 import type { GoalRecord } from '../../types.js';
 
 function isRepositoryOnlyTask(prompt: string, workspacePath?: string): boolean {
@@ -56,7 +57,7 @@ export class CodexService {
 
     if (policy === 'manual') {
       // Background planning
-      this.generatePlan(goalId, prompt, workspacePath, executionProvider).catch(console.error);
+      this.generatePlan(goalId, prompt, workspacePath).catch(console.error);
     } else {
       resumeCodexGoalLoop(goalId).catch(console.error);
     }
@@ -64,8 +65,17 @@ export class CodexService {
     return goalId;
   }
 
-  private async generatePlan(goalId: string, prompt: string, workspacePath: string, executionProvider?: string) {
+  private async generatePlan(goalId: string, prompt: string, workspacePath: string) {
+    let currentProvider = 'unassigned';
+    let currentModel = 'unassigned';
+    const startTime = Date.now();
     try {
+      const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
+      if (assignment) {
+        currentProvider = assignment.providerId;
+        currentModel = assignment.modelId || 'auto';
+      }
+
       const systemPrompt = `You are a CodeX agent. Keep plans, explanations, reports, and execution summaries strictly in English unless the user explicitly requests another language.
 Your task is to plan the user's request. Return a plan detailing the steps to accomplish the goal.
 Do not execute the steps yet, just outline the plan.`;
@@ -73,55 +83,65 @@ Do not execute the steps yet, just outline the plan.`;
       const result = await llmChat({ 
         systemPrompt, 
         prompt: `User Request: ${prompt}\nWorkspace: ${workspacePath}`, 
-        provider: executionProvider === 'ollama' ? 'ollama' : undefined,
-        timeoutMs: 3000
+        agentId: 'agent-codex',
+        timeoutMs: 120000
       });
+      
+      const durationMs = Date.now() - startTime;
+
       if (result.offline) {
-        throw new Error(
-          `Provider/model unavailable. Primary provider: ${executionProvider === 'ollama' ? 'ollama' : 'omniRoute'}; ` +
-          `model: ${result.model || (executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto')}; ` +
-          `fallback provider/model: ollama/${executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : OLLAMA_FALLBACK_MODEL} at ${OLLAMA_BASE}; ` +
-          `reason: ${result.error || result.reply}`
-        );
+        throw new Error(result.error || result.reply || 'Provider/model unavailable');
       }
+
+      currentProvider = result.provider;
+      currentModel = result.model || currentModel;
+      
       const reply = result.reply;
 
       const writer = goalStore.createEventWriter({ goalId });
       writer.push({
         state: 'waiting_for_approval', message: reply,
-        provider: result.provider, model: result.model || 'auto', tool: 'plan'
+        provider: currentProvider, model: currentModel, tool: 'plan',
+        durationMs
       });
     } catch (err: any) {
+      const durationMs = Date.now() - startTime;
       const writer = goalStore.createEventWriter({ goalId });
-      const message = `CodeX provider/model unavailable before planning could complete. ` +
-        `Primary provider/model: ${executionProvider === 'ollama' ? `ollama/${OLLAMA_DEFAULT_CODING_MODEL}` : 'omniRoute/auto'}; ` +
-        `fallback provider/model: ollama/${executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : OLLAMA_FALLBACK_MODEL} at ${OLLAMA_BASE}; ` +
-        `reason: ${err.message}`;
+      let errorCode = 'CODEX_PROVIDER_UNAVAILABLE';
+      let msg = err.message.toLowerCase();
+      if (msg.includes('timeout') || msg.includes('aborted')) errorCode = 'timeout';
+      else if (msg.includes('not found')) errorCode = 'model-not-found';
+      else if (msg.includes('fetch') || msg.includes('econnrefused')) errorCode = 'ollama-unreachable';
+      else if (msg.includes('circuit')) errorCode = 'circuit-open';
+      else if (msg.includes('parse')) errorCode = 'malformed-response';
+      else if (msg.includes('capability')) errorCode = 'capability-mismatch';
+
+      const userMessage = `${currentProvider} failed after ${Math.round(durationMs / 1000)} seconds. Reason: ${err.message}`;
+
       writer.push({
         state: 'failed',
-        message,
-        provider: executionProvider === 'ollama' ? 'ollama' : 'omniRoute',
-        model: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto',
+        message: err.message,
+        provider: currentProvider,
+        model: currentModel,
         tool: 'plan',
         error: err.message,
         eventType: 'task_failed',
         normalizedStatus: 'failed',
         lifecycleState: 'failed',
-        userMessage: message,
-        errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+        userMessage,
+        errorCode,
         errorDetails: err.message,
+        durationMs,
         payload: {
-          provider: executionProvider === 'ollama' ? 'ollama' : 'omniRoute',
-          model: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto',
-          fallbackProvider: 'ollama',
-          fallbackModel: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : OLLAMA_FALLBACK_MODEL,
-          ollamaBaseUrl: OLLAMA_BASE
+          provider: currentProvider,
+          model: currentModel,
+          durationMs
         }
       });
     }
   }
 
-  async reviseGoal(goalId: string, feedback: string, executionProvider?: string) {
+  async reviseGoal(goalId: string, feedback: string) {
     const goal = goalStore.get(goalId);
     if (!goal || goal.status !== 'waiting_for_approval') return false;
 
@@ -130,26 +150,24 @@ Do not execute the steps yet, just outline the plan.`;
 
     const systemPrompt = `You are CodeX. Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.`;
     
+    let currentProvider = 'unassigned';
+    let currentModel = 'unassigned';
+
     let reply = '';
-    // Mock logic carried over from chat.ts
-    if (feedback.includes('python3')) {
-      reply = '- Step 1: Create hello.py with python3 shebang\n- Step 2: Add print statement\n- Step 3: Verify execution';
-    } else if (goal.originalGoal.includes('Create a new python script hello.py')) {
-      reply = '- Step 1: Create hello.py\n- Step 2: Add print statement\n- Step 3: Verify execution\n- Step 4: Revised based on feedback.';
-    } else {
-      const result = await llmChat({ 
-        systemPrompt, 
-        prompt: `Revise the previous plan based on this feedback:\nFeedback: ${feedback}\nOriginal Goal: ${goal.originalGoal}`, 
-        provider: executionProvider === 'ollama' ? 'ollama' : undefined,
-        timeoutMs: 3000
-      });
-      reply = result.reply;
-    }
+    const result = await llmChat({ 
+      systemPrompt, 
+      prompt: `Revise the previous plan based on this feedback:\nFeedback: ${feedback}\nOriginal Goal: ${goal.originalGoal}`, 
+      agentId: 'agent-codex',
+      timeoutMs: 120000
+    });
+    reply = result.reply;
+    currentProvider = result.provider;
+    currentModel = result.model || currentModel;
 
     const writer = goalStore.createEventWriter({ goalId });
     writer.push({
       state: 'waiting_for_approval', message: reply,
-      provider: resultProviderFromExecution(executionProvider), model: executionProvider === 'ollama' ? OLLAMA_DEFAULT_CODING_MODEL : 'auto', tool: 'plan'
+      provider: currentProvider, model: currentModel, tool: 'plan'
     });
 
     return true;
@@ -172,5 +190,5 @@ Do not execute the steps yet, just outline the plan.`;
 export const codexService = new CodexService();
 
 function resultProviderFromExecution(executionProvider?: string) {
-  return executionProvider === 'ollama' ? 'ollama' : 'omniRoute';
+  return executionProvider || 'ollama';
 }

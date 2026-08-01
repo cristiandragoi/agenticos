@@ -1,3 +1,4 @@
+import { logger } from '../../../utils/logger.js';
 /**
  * Terminal tool — execute shell commands on the host machine.
  *
@@ -89,7 +90,7 @@ export const terminalTool = {
     // Apply Unix→Windows command translation
     const command = translateCommand(rawCommand);
     if (command !== rawCommand) {
-      console.log(`[Terminal] Translated: "${rawCommand}" → "${command.slice(0, 100)}"`);
+      logger.info(`[Terminal] Translated: "${rawCommand}" → "${command.slice(0, 100)}"`);
     }
 
     try {

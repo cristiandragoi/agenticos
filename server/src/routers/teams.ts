@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { coordinatorService } from '../domains/teams/coordinatorService.js';
 import { db } from '../db/index.js';
@@ -22,7 +23,7 @@ router.post('/preview', async (req, res) => {
     res.json({ teamId, teamSheet, markdown });
   } catch (err: any) {
     if (err.name === 'LLMSchemaValidationError') {
-      console.error('LLM_SCHEMA_VALIDATION_FAILED:', err.message, err.issues);
+      logger.error('LLM_SCHEMA_VALIDATION_FAILED:', err.message, err.issues);
       return res.status(422).json({
         error: 'LLM_SCHEMA_VALIDATION_FAILED',
         message: err.message,
@@ -30,7 +31,7 @@ router.post('/preview', async (req, res) => {
         issues: err.issues
       });
     }
-    console.error('ERROR IN /api/teams/preview:', err);
+    logger.error('ERROR IN /api/teams/preview:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -58,7 +59,7 @@ router.post('/:id/start', async (req, res) => {
     const runId = await TeamRunner.startTeam(teamId);
     res.json({ runId });
   } catch (err: any) {
-    console.error(`ERROR starting team ${req.params.id}:`, err);
+    logger.error(`ERROR starting team ${req.params.id}:`, err);
     res.status(500).json({ error: err.message });
   }
 });

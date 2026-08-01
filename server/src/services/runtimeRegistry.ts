@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import type { RuntimeAdapter } from '../types.js';
 
 class RuntimeRegistry {
@@ -5,7 +6,7 @@ class RuntimeRegistry {
 
   register(adapter: RuntimeAdapter): void {
     this.adapters.set(adapter.id, adapter);
-    console.log(`[Registry] Registered runtime adapter: ${adapter.id}`);
+    logger.info(`[Registry] Registered runtime adapter: ${adapter.id}`);
   }
 
   getAdapter(runtimeId: string): RuntimeAdapter | undefined {

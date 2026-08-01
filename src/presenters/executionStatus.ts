@@ -1,6 +1,6 @@
 import type { GoalEvent } from '../../server/src/types';
 import { getToolLabel } from './EventPresenter';
-import { CODEX_MODEL, CODEX_PROVIDER } from '../config/codexRuntime';
+import { CODEX_PROVIDER } from '../config/codexRuntime';
 
 /**
  * Normalized run-status colors used across CodeX Studio:
@@ -88,8 +88,8 @@ export function deriveCurrentAction(
     message: 'No active execution. Describe a goal to begin.',
     isActive: false,
     agent: 'CodeX Agent',
-    provider: lastRuntimeEvent?.provider === 'custom' ? CODEX_PROVIDER : (lastRuntimeEvent?.provider || CODEX_PROVIDER),
-    model: lastRuntimeEvent?.model === 'qwen2.5-coder:7b' ? CODEX_MODEL : (lastRuntimeEvent?.model || CODEX_MODEL),
+    provider: lastRuntimeEvent?.provider || CODEX_PROVIDER,
+    model: lastRuntimeEvent?.model || 'Unassigned',
     tool: lastToolEvent?.tool,
     filePath: lastToolEvent?.filePath,
     command: lastToolEvent?.command,

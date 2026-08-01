@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { db } from './db.js';
@@ -33,7 +34,7 @@ export class GeminiInteractionsService {
 
     if (!apiKey) throw new Error(`${isOpenRouter ? 'OPENROUTER_API_KEY' : 'GOOGLE_API_KEY'} is not configured on the server.`);
 
-    console.log(`[LLM Service] Sending request to ${url} with model ${model}`);
+    logger.info(`[LLM Service] Sending request to ${url} with model ${model}`);
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -131,7 +132,7 @@ export class GeminiInteractionsService {
 
       this.saveToMemoryGalaxy('Background Welders Research', `Completed background research job ${jobId}. Saved to Obsidian.`);
     } catch (err: any) {
-      console.error(`[Gemini Service] Job ${jobId} failed:`, err);
+      logger.error(`[Gemini Service] Job ${jobId} failed:`, err);
       job.status = 'failed';
       job.error = err.message;
     }
@@ -170,7 +171,7 @@ export class GeminiInteractionsService {
       };
       db.memoryEntries.upsert(entry);
     } catch (err) {
-      console.error('[Gemini Service] Memory Galaxy log failed:', err);
+      logger.error('[Gemini Service] Memory Galaxy log failed:', err);
     }
   }
 }

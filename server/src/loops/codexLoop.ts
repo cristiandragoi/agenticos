@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID, createHash } from 'crypto';
@@ -294,7 +295,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const initialGoal = goalStore.get(goalId);
   if (!initialGoal) return;
   if (['stopped', 'completed', 'cancelled', 'failed'].includes(initialGoal.status)) {
-    console.log(`[GoalMode] Goal ${goalId} is ${initialGoal.status}; resume skipped until an explicit eligible resume is requested.`);
+    logger.info(`[GoalMode] Goal ${goalId} is ${initialGoal.status}; resume skipped until an explicit eligible resume is requested.`);
     return;
   }
   if (!initialGoal.originalGoal?.trim()) {
@@ -312,12 +313,12 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     return;
   }
   if (initialGoal.status === 'waiting_for_approval') {
-    console.log(`[GoalMode] Goal ${goalId} is waiting for approval; resume skipped until approval is received.`);
+    logger.info(`[GoalMode] Goal ${goalId} is waiting for approval; resume skipped until approval is received.`);
     return;
   }
 
   if (!goalStore.acquireLease(goalId, workerId, 30000)) {
-    console.log(`[GoalMode] Goal ${goalId} is already running elsewhere.`);
+    logger.info(`[GoalMode] Goal ${goalId} is already running elsewhere.`);
     return;
   }
 
@@ -362,7 +363,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   }
 
   if (context?.isTeamExecution && (!context.instructions || !context.allowedTools || !context.readScopes || !context.writeScopes)) {
-    console.error(`[GoalMode] Goal ${goalId} is a team execution but missing required context boundaries. Controlled failure initiated.`);
+    logger.error(`[GoalMode] Goal ${goalId} is a team execution but missing required context boundaries. Controlled failure initiated.`);
     goal.status = 'failed';
     goalStore.update(goalId, { status: 'failed' });
     const errorWriter = goalStore.createEventWriter({ goalId, teamId: context.teamId, agentId: context.agentId });
@@ -458,6 +459,19 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     }
   }
 
+  let currentProvider = 'unassigned';
+  let currentModel = 'unassigned';
+  try {
+    const { AgentProviderAssignmentService } = await import('../services/agent/assignments.js');
+    const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
+    if (assignment) {
+      currentProvider = assignment.providerId;
+      currentModel = assignment.modelId || 'auto';
+    }
+  } catch (e) {
+    logger.warn('[codexLoop] Failed to fetch assignment for agent-codex', e);
+  }
+
   pushEventToWriter(
     writer,
     'planning',
@@ -469,15 +483,12 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
       lifecycleState: 'planning',
       userMessage: resumedFromCheckpoint ? 'Continuing the task from the previous checkpoint.' : 'Starting the task.',
       eventType: resumedFromCheckpoint ? 'task_resumed' : 'task_started',
-      provider: 'ollama',
-      model: OLLAMA_DEFAULT_CODING_MODEL
+      provider: currentProvider,
+      model: currentModel
     }
   );
   let stepCounter = goal.history.length;
 
-
-  let currentProvider = 'ollama';
-  let currentModel = OLLAMA_DEFAULT_CODING_MODEL;
   const usedReadFallbacks = new Set<string>();
   let responseExpectation: ResponseExpectation = 'tool_decision';
 
@@ -549,10 +560,13 @@ ${m.content}`).join('\n\n');
 
         try {
           const timeoutMs = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
+          const disableFallback = goal.executionOptions?.disableFallback === true;
+
           const llmOptions: any = {
             prompt,
             systemPrompt: effectiveSystemPrompt,
-            provider: 'ollama',
+            agentId: 'agent-codex',
+            disableFallback,
             timeoutMs
           };
 
@@ -561,10 +575,16 @@ ${m.content}`).join('\n\n');
             llmOptions.temperature = 0;
           }
 
+          logger.info('[CodeXProvider]', JSON.stringify({
+            requestId: `${goalId}-${attempt}`,
+            agentId: 'agent-codex',
+            fallbackEnabled: !disableFallback
+          }));
+
           const startLlm = Date.now();
           llmResult = await llmChat(llmOptions);
           const durationLlm = Date.now() - startLlm;
-          console.log(`[codexLoop] LLM Generation took ${durationLlm}ms`);
+          logger.info(`[codexLoop] LLM Generation took ${durationLlm}ms`);
 
           currentProvider = llmResult.provider;
           currentModel = llmResult.model || 'unknown';
@@ -602,8 +622,8 @@ ${m.content}`).join('\n\n');
           throw providerErr; // Break out to fatal loop error handler
         }
 
-        const response = llmResult.reply;
-        console.log(`[codexLoop] LLM Response (attempt ${attempt + 1}): ${response}`);
+const response = llmResult.reply;
+        logger.info(`[codexLoop] LLM Response (attempt ${attempt + 1}): ${response}`);
         conversation.push({ role: 'assistant', content: response });
 
         if (responseExpectation === 'final_answer') {
@@ -652,8 +672,8 @@ ${m.content}`).join('\n\n');
         // Parse failed on this attempt
         if (!isRetry) {
           // First attempt failed — emit retry event and continue to second attempt
-          console.error('[CodeX] Tool parsing failed on first attempt:', parseError);
-          console.error('[CodeX] Raw LLM response (first attempt):', response);
+          logger.error('[CodeX] Tool parsing failed on first attempt:', parseError);
+          logger.error('[CodeX] Raw LLM response (first attempt):', response);
 
           pushEventToWriter(
             writer,
@@ -676,8 +696,8 @@ ${m.content}`).join('\n\n');
           // Continue to second attempt
         } else {
           // Second attempt also failed — fatal parse failure
-          console.error('[CodeX] Tool parsing failed on retry:', parseError);
-          console.error('[CodeX] Raw LLM response (retry):', response);
+          logger.error('[CodeX] Tool parsing failed on retry:', parseError);
+          logger.error('[CodeX] Raw LLM response (retry):', response);
 
           const fallbackToolCall = fallbackToolCallAfterParseFailure(goal.originalGoal, response, allowedTools, usedReadFallbacks, workspaceRoot);
           if (fallbackToolCall) {
@@ -708,7 +728,7 @@ ${m.content}`).join('\n\n');
           pushEventToWriter(
             writer,
             'failed',
-            `Tool parsing failed after retry: ${parseError}`,
+            'CodeX received an invalid structured response from the model after one retry.',
             undefined,
             parseError,
             {
@@ -720,7 +740,10 @@ ${m.content}`).join('\n\n');
               model: currentModel,
               errorCode: 'CODEX_TOOL_PARSE_FAILED',
               errorDetails: parseError,
-              payload: { responseLength: response.length }
+              payload: {
+                responseLength: response.length,
+                rawResponsePreview: response.replace(/\s+/g, ' ').trim().slice(0, 1000)
+              }
             }
           );
 

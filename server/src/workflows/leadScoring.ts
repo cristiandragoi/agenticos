@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import { db } from '../services/db.js';
 import { runStore } from '../services/runStore.js';
 import { randomUUID as uuidv4 } from 'crypto';
@@ -92,7 +93,7 @@ Once you submit the payment via the secure link, the research workflow will begi
     runStore.appendLog(runId, `Proposal generated. Redirecting to checkout: /public/checkout/${leadId}`);
 
   } catch (err: any) {
-    console.error('Lead scoring workflow error:', err);
+    logger.error('Lead scoring workflow error:', err);
     runStore.update(runId, { status: 'failed' });
     runStore.appendLog(runId, `Workflow failed: ${err.message}`);
     const lead = await db.leads.get(leadId);

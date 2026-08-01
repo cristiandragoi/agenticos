@@ -1,10 +1,11 @@
+import { logger } from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 
 const VAULT_PATH = 'C:\\Users\\Cris\\obsidian-vault';
 
 export async function runNewsRadar() {
-  console.log('[News Radar] Starting scheduled news fetch...');
+  logger.info('[News Radar] Starting scheduled news fetch...');
   let summary = '';
 
   try {
@@ -23,12 +24,12 @@ export async function runNewsRadar() {
     );
 
     const headlines = stories.map((s: any) => `- [${s.title}](${s.url || `https://news.ycombinator.com/item?id=${s.id}`}) (Score: ${s.score})`).join('\n');
-    console.log('[News Radar] Fetched headlines:\n', headlines);
+    logger.info('[News Radar] Fetched headlines:\n', headlines);
 
     // 2. Synthesize Briefing
     const apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
-      console.log('[News Radar] Summarizing with LLM...');
+      logger.info('[News Radar] Summarizing with LLM...');
       const completion = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -69,11 +70,11 @@ export async function runNewsRadar() {
     await fs.writeFile(todayPath, fileContent, 'utf8');
     await fs.writeFile(archivePath, fileContent, 'utf8');
 
-    console.log(`[News Radar] Saved daily briefing to ${todayPath}`);
+    logger.info(`[News Radar] Saved daily briefing to ${todayPath}`);
     return { success: true, path: todayPath };
 
   } catch (err) {
-    console.error('[News Radar] Failed to run news radar:', err);
+    logger.error('[News Radar] Failed to run news radar:', err);
     return { success: false, error: String(err) };
   }
 }

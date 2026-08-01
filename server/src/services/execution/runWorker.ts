@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { db } from '../../db/index.js';
 import { runs, tasks, generatedAssets, productionBriefs } from '../../db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -68,7 +69,7 @@ export function startRunWorker() {
         await db.update(tasks).set({ status: 'running' }).where(eq(tasks.id, task.id));
 
         try {
-          console.log(`[Worker] Starting run ${queuedRun.id} for task ${task.id}`);
+          logger.info(`[Worker] Starting run ${queuedRun.id} for task ${task.id}`);
           
           // Simulated Budget check (simplified)
           const runCost = 0.02; // Simulate a cost
@@ -133,9 +134,9 @@ export function startRunWorker() {
              }
           }
 
-          console.log(`[Worker] Completed run ${queuedRun.id}`);
+          logger.info(`[Worker] Completed run ${queuedRun.id}`);
         } catch (err: any) {
-          console.error(`[Worker] Failed run ${queuedRun.id}`, err);
+          logger.error(`[Worker] Failed run ${queuedRun.id}`, err);
           
           // Retry Logic
           let retryPolicy: any = { maxAttempts: 3 };
@@ -171,7 +172,7 @@ export function startRunWorker() {
         }
       }
     } catch (e) {
-      console.error('Run worker error:', e);
+      logger.error('Run worker error:', e);
     }
   }, 3000);
 }

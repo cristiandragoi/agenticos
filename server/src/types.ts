@@ -333,6 +333,7 @@ export interface GoalRecord {
   updatedAt: string;
   retryCount: number;
   providerFallbackCount: number;
+  executionOptions?: ExecutionOptions;
   checkpointId?: string;
   runSummary?: RunSummary;
 }
@@ -440,6 +441,12 @@ export interface RuntimeEvent {
   timestamp: string;
 }
 
+export interface ExecutionOptions {
+  modelOverride?: string;
+  providerOverride?: string;
+  disableFallback?: boolean;
+}
+
 export interface AgentInvocation {
   runId: string;
   agentId: string;
@@ -451,6 +458,7 @@ export interface AgentInvocation {
   toolContext?: ToolContext;
   memoryContext?: MemoryContext;
   uiContext?: UIContext;
+  executionOptions?: ExecutionOptions;
   requestedOutput?: "text" | "json" | "artifact" | "plan";
 }
 

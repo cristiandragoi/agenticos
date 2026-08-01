@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { resumeCodexGoalLoop } from '../../loops/codexLoop.js';
 import { goalStore } from '../goalStore.js';
 import type { AgentExecutionContext } from '../../types.js';
@@ -13,14 +14,14 @@ export class AgentRunner {
     goalStore.update(goalId, { status: 'executing' });
     
     resumeCodexGoalLoop(goalId, context).catch(err => {
-      console.error(`Error in codexLoop for goal ${goalId} (Agent ${context.agentId}):`, err);
+      logger.error(`Error in codexLoop for goal ${goalId} (Agent ${context.agentId}):`, err);
     });
   }
 
   static async resumeAgent(goalId: string, context: AgentExecutionContext) {
     goalStore.update(goalId, { status: 'executing' });
     resumeCodexGoalLoop(goalId, context).catch(err => {
-      console.error(`Error in codexLoop for goal ${goalId} (resume):`, err);
+      logger.error(`Error in codexLoop for goal ${goalId} (resume):`, err);
     });
   }
 
