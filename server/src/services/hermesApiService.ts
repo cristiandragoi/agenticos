@@ -1,0 +1,442 @@
+/**
+ * Hermes Live-Run Adapter — the SINGLE AgenticOS backend bridge to the
+ * installed Hermes API server (gateway api_server platform).
+ *
+ * Verified against Hermes Agent v0.20.0 (gateway/platforms/api_server.py):
+ *   POST /v1/runs                    — start a run (202 {run_id,...})
+ *   GET  /v1/runs/{run_id}           — run status
+ *   GET  /v1/runs/{run_id}/events    — SSE lifecycle events
+ *   POST /v1/runs/{run_id}/approval  — {choice: once|session|always|deny}
+ *   POST /v1/runs/{run_id}/stop      — interrupt
+ *
+ * Auth: Bearer API_SERVER_KEY, resolved at runtime (never hardcoded, never
+ * logged): env HERMES_API_KEY wins, else the Hermes profile .env file.
+ *
+ * No second server, no new port — this runs inside the existing backend
+ * on port 4600 and is mounted by routers/hermesApi.ts.
+ */
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { localDataPort } from '../adapters/localDataPort.js';
+import { logger } from '../utils/logger.js';
+
+export type HermesRunStatus =
+  | 'queued' | 'running' | 'waiting_for_approval' | 'stopping'
+  | 'completed' | 'failed' | 'cancelled' | 'unknown';
+
+export interface HermesActivityEvent {
+  id: string;
+  runId: string;
+  ts: number;
+  /** Normalized AgenticOS event kind (UI contract). */
+  kind:
+    | 'run.created' | 'run.started' | 'status.changed'
+    | 'tool.started' | 'tool.completed' | 'tool.failed'
+    | 'approval.request' | 'approval.responded'
+    | 'file.changed' | 'terminal.command'
+    | 'assistant.delta' | 'assistant.completed'
+    | 'run.completed' | 'error' | 'done';
+  summary: string;
+  detail?: Record<string, unknown>;
+}
+
+export interface HermesRunRecord {
+  id: string;                 // AgenticOS run id (kanban-linked)
+  hermesRunId: string;        // upstream /v1/runs id
+  cardId: string | null;      // linked Board card
+  prompt: string;
+  status: HermesRunStatus;
+  provider: string;
+  model: string;
+  events: HermesActivityEvent[];
+  pendingApproval: { action?: string; reason?: string; command?: string; files?: string[]; choices?: string[] } | null;
+  finalText: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+const HERMES_PROFILE = process.env.HERMES_PROFILE || 'backend-engineer';
+const MAX_EVENTS_PER_RUN = 200;
+
+/**
+ * Run model routing. The profile's DEFAULT model resolves to an expired
+ * cloud key (DashScope 401), so every run carries an explicit
+ * provider+model override. Verified working against the installed gateway:
+ * provider 'qwen3-coder-plus' + model 'qwen3.8-max-preview' (the same
+ * key/model the profile's main agent session uses). Override via env.
+ */
+const HERMES_RUN_PROVIDER = process.env.HERMES_RUN_PROVIDER || 'qwen3-coder-plus';
+const HERMES_RUN_MODEL = process.env.HERMES_RUN_MODEL || 'qwen3.8-max-preview';
+
+/**
+ * Resolve the live Hermes API base URL. Preference: explicit HERMES_API_URL
+ * env → configured 8642 → observed 8643 (profile api_server platforms may
+ * override the machine default). Probed once with the real key; cached.
+ */
+let resolvedUrlCache: string | null = null;
+const CANDIDATE_PORTS = [8642, 8643];
+
+async function resolveHermesUrl(): Promise<string> {
+  if (process.env.HERMES_API_URL) return process.env.HERMES_API_URL;
+  if (resolvedUrlCache) return resolvedUrlCache;
+  const key = resolveHermesApiKey();
+  for (const port of CANDIDATE_PORTS) {
+    const url = `http://127.0.0.1:${port}`;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`${url}/v1/models`, {
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      // Any HTTP answer (even 401) proves the api_server platform lives here.
+      resolvedUrlCache = url;
+      return url;
+    } catch { /* try next candidate */ }
+  }
+  // Nothing answered — fall back to the documented default.
+  resolvedUrlCache = 'http://127.0.0.1:8642';
+  return resolvedUrlCache;
+}
+
+/** Resolve API_SERVER_KEY without ever persisting or logging it. */
+function resolveHermesApiKey(): string {
+  if (process.env.HERMES_API_KEY) return process.env.HERMES_API_KEY;
+  try {
+    const localAppData = process.env.LOCALAPPDATA || '';
+    if (!localAppData) return '';
+    const envPath = path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, '.env');
+    if (!fs.existsSync(envPath)) return '';
+    const content = fs.readFileSync(envPath, 'utf8');
+    const match = content.match(/^API_SERVER_KEY=(.+)$/m);
+    return match ? match[1].trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+class HermesApiService extends EventEmitter {
+  private runs = new Map<string, HermesRunRecord>();
+  private seq = 0;
+
+  /** Truthful gateway status probe — never hardcoded healthy. */
+  async getStatus(): Promise<{ reachable: boolean; detail: string }> {
+    const key = resolveHermesApiKey();
+    const baseUrl = await resolveHermesUrl();
+    if (!key) return { reachable: false, detail: 'API_SERVER_KEY not configured' };
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${baseUrl}/v1/models`, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) return { reachable: true, detail: `Hermes API online (${baseUrl})` };
+      if (res.status === 401) return { reachable: false, detail: 'Hermes API key rejected (401)' };
+      return { reachable: false, detail: `Hermes API HTTP ${res.status}` };
+    } catch (err: any) {
+      return { reachable: false, detail: `Hermes API unreachable: ${err?.cause?.code || err?.message || err}` };
+    }
+  }
+
+  getProfile() { return HERMES_PROFILE; }
+  async getUrl() { return resolveHermesUrl(); }
+
+  listRuns(): HermesRunRecord[] {
+    return [...this.runs.values()].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  getRun(id: string): HermesRunRecord | undefined {
+    return this.runs.get(id);
+  }
+
+  /** Recent meaningful activity across all runs (collapsible activity stream). */
+  recentActivity(limit = 30): HermesActivityEvent[] {
+    const all: HermesActivityEvent[] = [];
+    for (const run of this.runs.values()) all.push(...run.events);
+    return all.sort((a, b) => b.ts - a.ts).slice(0, limit);
+  }
+
+  /**
+   * Create a Hermes run, link it to a Board card (existing Boards system —
+   * b-hermes "Hermes Workspace", In Progress lane), and attach the SSE
+   * event consumer. Returns the AgenticOS run record.
+   */
+  async createRun(opts: { prompt: string; cardId?: string; instructions?: string }): Promise<HermesRunRecord> {
+    const key = resolveHermesApiKey();
+    if (!key) throw new Error('HERMES_API_KEY / API_SERVER_KEY not configured');
+    const baseUrl = await resolveHermesUrl();
+    const prompt = (opts.prompt || '').trim();
+    if (!prompt) throw new Error('prompt is required');
+
+    const body: Record<string, unknown> = {
+      input: prompt,
+      // Explicit provider+model: the profile default routes to an expired
+      // cloud key; this combination is verified live against this gateway.
+      provider: HERMES_RUN_PROVIDER,
+      model: HERMES_RUN_MODEL,
+    };
+    if (opts.instructions) body.instructions = opts.instructions;
+
+    const res = await fetch(`${baseUrl}/v1/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify(body),
+    });
+    const data: any = await res.json().catch(() => ({}));
+    const hermesRunId: string | undefined = data?.run_id || data?.id;
+    if (!res.ok || !hermesRunId) {
+      const msg = data?.error?.message || `Hermes run creation failed (HTTP ${res.status})`;
+      throw new Error(msg);
+    }
+
+    // ── Board linkage (existing kanban dataport — no new Kanban system) ──
+    let cardId = opts.cardId || null;
+    try {
+      if (!cardId) {
+        const card = await localDataPort.createCard({
+          laneId: 'l-hermes-inprogress-hermes',
+          title: prompt.slice(0, 80),
+          body: `Hermes live run — created from Jarvis.\nRun: ${hermesRunId}`,
+          order: Date.now(),
+          agent: 'Hermes',
+          model: 'api_server',
+        });
+        cardId = card.id;
+      }
+      await localDataPort.setCardState(cardId, 'running');
+      const kanbanRun = await localDataPort.createRun({
+        cardId,
+        laneId: 'l-hermes-inprogress-hermes',
+        workerKind: 'hermes-api',
+        input: { hermesRunId, prompt },
+      });
+      await localDataPort.setCardRun(cardId, kanbanRun.id);
+    } catch (err) {
+      logger.warn(`[hermesApi] Board linkage failed (run continues): ${err}`);
+    }
+
+    const record: HermesRunRecord = {
+      id: `hapi-${Date.now().toString(36)}-${(++this.seq).toString(36)}`,
+      hermesRunId,
+      cardId,
+      prompt,
+      status: 'queued',
+      provider: HERMES_RUN_PROVIDER,
+      model: data.model || HERMES_RUN_MODEL,
+      events: [],
+      pendingApproval: null,
+      finalText: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.runs.set(record.id, record);
+    this.appendEvent(record, 'run.created', `Hermes run ${hermesRunId} created`, { hermesRunId });
+    this.attachEventStream(record);
+    return record;
+  }
+
+  /** Forward an approval decision — Allow maps to 'once', Deny to 'deny'. */
+  async resolveApproval(id: string, choice: 'allow' | 'deny'): Promise<any> {
+    const record = this.requireRun(id);
+    const key = resolveHermesApiKey();
+    const baseUrl = await resolveHermesUrl();
+    const upstreamChoice = choice === 'allow' ? 'once' : 'deny';
+    const res = await fetch(`${baseUrl}/v1/runs/${record.hermesRunId}/approval`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ choice: upstreamChoice }),
+    });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error?.message || `Approval failed (HTTP ${res.status})`);
+    record.pendingApproval = null;
+    this.appendEvent(record, 'approval.responded', `Approval ${upstreamChoice === 'once' ? 'allowed' : 'denied'}`, { choice: upstreamChoice });
+    record.status = 'running';
+    this.touch(record);
+    return data;
+  }
+
+  async stopRun(id: string): Promise<void> {
+    const record = this.requireRun(id);
+    const key = resolveHermesApiKey();
+    const baseUrl = await resolveHermesUrl();
+    const res = await fetch(`${baseUrl}/v1/runs/${record.hermesRunId}/stop`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) {
+      const data: any = await res.json().catch(() => ({}));
+      throw new Error(data?.error?.message || `Stop failed (HTTP ${res.status})`);
+    }
+    record.status = 'stopping';
+    this.appendEvent(record, 'status.changed', 'Stop requested');
+  }
+
+  private requireRun(id: string): HermesRunRecord {
+    const record = this.runs.get(id);
+    if (!record) throw new Error(`Unknown AgenticOS hermes run: ${id}`);
+    return record;
+  }
+
+  /** Consume the upstream SSE lifecycle stream for one run. */
+  private async attachEventStream(record: HermesRunRecord): Promise<void> {
+    const key = resolveHermesApiKey();
+    const baseUrl = await resolveHermesUrl();
+    try {
+      const res = await fetch(`${baseUrl}/v1/runs/${record.hermesRunId}/events`, {
+        headers: { Authorization: `Bearer ${key}`, Accept: 'text/event-stream' },
+      });
+      if (!res.ok || !res.body) {
+        this.appendEvent(record, 'error', `Event stream unavailable (HTTP ${res.status})`);
+        return;
+      }
+      const reader = (res.body as any).getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf('\n\n')) >= 0) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          const dataLines = frame.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim());
+          if (!dataLines.length) continue;
+          try {
+            this.handleUpstreamEvent(record, JSON.parse(dataLines.join('')));
+          } catch { /* non-JSON frame (keepalive comment already filtered) */ }
+        }
+      }
+    } catch (err: any) {
+      this.appendEvent(record, 'error', `Event stream failed: ${err?.message || err}`);
+      record.status = record.status === 'completed' ? record.status : 'failed';
+      this.touch(record);
+    }
+  }
+
+  /** Normalize upstream events into the UI activity contract. */
+  private handleUpstreamEvent(record: HermesRunRecord, ev: any): void {
+    const event: string = ev?.event || '';
+    switch (event) {
+      case 'run.started':
+        record.status = 'running';
+        this.appendEvent(record, 'run.started', 'Hermes agent started');
+        break;
+      case 'message.started':
+        this.appendEvent(record, 'status.changed', 'Assistant message started');
+        break;
+      case 'assistant.delta':
+      case 'message.delta':
+        // Visible final-response text accumulation — progressive TTS source.
+        record.finalText += ev?.delta || '';
+        this.appendEvent(record, 'assistant.delta', ev?.delta || '', { streaming: true });
+        break;
+      case 'assistant.completed':
+        this.appendEvent(record, 'assistant.completed', 'Assistant reply completed');
+        break;
+      case 'tool.started': {
+        const tool = ev?.tool_name || 'tool';
+        const args = ev?.args || {};
+        const summary = this.summarizeTool(tool, args);
+        const kind = this.toolKind(tool, args);
+        this.appendEvent(record, kind, summary, { tool, args });
+        break;
+      }
+      case 'tool.completed': {
+        const tool = ev?.tool_name || 'tool';
+        const kind = this.toolKind(tool, ev?.args || {});
+        this.appendEvent(record, kind === 'file.changed' ? 'file.changed' : 'tool.completed', `${tool} completed`, { tool, preview: ev?.preview });
+        break;
+      }
+      case 'tool.failed':
+        this.appendEvent(record, 'tool.failed', `${ev?.tool_name || 'tool'} failed`, { tool: ev?.tool_name });
+        break;
+      case 'approval.request': {
+        record.status = 'waiting_for_approval';
+        record.pendingApproval = {
+          action: ev?.tool_name || ev?.action || 'Unknown action',
+          reason: ev?.reason || ev?.preview || '',
+          command: ev?.command || '',
+          files: Array.isArray(ev?.files) ? ev.files : undefined,
+          choices: Array.isArray(ev?.choices) ? ev.choices : undefined,
+        };
+        this.appendEvent(record, 'approval.request', `Approval required: ${record.pendingApproval.action}`, ev);
+        break;
+      }
+      case 'approval.responded':
+        record.pendingApproval = null;
+        record.status = 'running';
+        this.appendEvent(record, 'approval.responded', `Approval resolved (${ev?.choice})`);
+        break;
+      case 'run.completed':
+        record.status = 'completed';
+        // Runs without streamed deltas carry the full output on completion.
+        if (!record.finalText && typeof ev?.output === 'string') record.finalText = ev.output;
+        this.appendEvent(record, 'run.completed', 'Hermes run completed', { stats: ev?.usage });
+        this.finishBoardLinkage(record, 'done');
+        break;
+      case 'error':
+        record.status = 'failed';
+        this.appendEvent(record, 'error', ev?.message || 'Run error');
+        this.finishBoardLinkage(record, 'error');
+        break;
+      case 'done':
+        this.appendEvent(record, 'done', 'Event stream closed');
+        break;
+      default:
+        if (event) this.appendEvent(record, 'status.changed', event, ev);
+    }
+    this.touch(record);
+  }
+
+  private toolKind(tool: string, args: any): HermesActivityEvent['kind'] {
+    if (/write|edit|patch|file/i.test(tool)) return 'file.changed';
+    if (/terminal|shell|command|exec/i.test(tool) || typeof args?.command === 'string') return 'terminal.command';
+    return 'tool.started';
+  }
+
+  private summarizeTool(tool: string, args: any): string {
+    if (typeof args?.command === 'string') return `${tool}: ${args.command.slice(0, 120)}`;
+    if (typeof args?.path === 'string') return `${tool}: ${args.path}`;
+    if (typeof args?.file_path === 'string') return `${tool}: ${args.file_path}`;
+    return `${tool} started`;
+  }
+
+  private async finishBoardLinkage(record: HermesRunRecord, state: 'done' | 'error'): Promise<void> {
+    if (!record.cardId) return;
+    try {
+      await localDataPort.setCardState(record.cardId, state);
+      // Completed runs move to the Review column for human verification.
+      const targetLane = state === 'done' ? 'l-hermes-review' : 'l-hermes-blocked';
+      await localDataPort.moveCard({ cardId: record.cardId, toLaneId: targetLane, toOrder: Date.now() });
+    } catch (err) {
+      logger.warn(`[hermesApi] Board finish update failed: ${err}`);
+    }
+  }
+
+  private appendEvent(record: HermesRunRecord, kind: HermesActivityEvent['kind'], summary: string, detail?: Record<string, unknown>): void {
+    const evt: HermesActivityEvent = {
+      id: `he-${Date.now().toString(36)}-${(++this.seq).toString(36)}`,
+      runId: record.id,
+      ts: Date.now(),
+      kind,
+      summary,
+      detail,
+    };
+    record.events.push(evt);
+    if (record.events.length > MAX_EVENTS_PER_RUN) record.events.shift();
+    this.emit('hermes:event', evt, record);
+  }
+
+  private touch(record: HermesRunRecord): void {
+    record.updatedAt = Date.now();
+    this.emit('hermes:update', record);
+  }
+}
+
+export const hermesApiService = new HermesApiService();

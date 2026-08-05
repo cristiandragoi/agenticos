@@ -32,6 +32,7 @@ import { logger } from './utils/logger.js';
 import { attachRequestId } from './utils/requestId.js';
 import { authMiddleware } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
+import { legacyHeadersMiddleware } from './middleware/legacyHeaders.js';
 import { runStore } from './services/runStore.js';
 import { runtimeRegistry } from './services/runtimeRegistry.js';
 import { HermesAdapter } from './adapters/hermesAdapter.js';
@@ -73,6 +74,7 @@ import syncRouter from './routers/sync.js';
 import loopsRouter from './routers/loops.js';
 import videoRouter from './routers/video.js';
 import voiceRouter from './routers/voice.js';
+import { hermesApiRouter } from './routers/hermesApi.js';
 import { researchRouter } from './routers/research.js';
 import { salesRouter } from './routers/sales.js';
 import { artifactsRouter } from './routers/artifacts.js';
@@ -188,16 +190,7 @@ app.use('/api/stripe', stripeRouter);
 app.use(express.json({ limit: '2mb' }));
 
 // Phase 4: Strictly reject legacy configuration headers
-app.use((req, res, next) => {
-  if (req.method === 'OPTIONS') return next();
-  const legacyHeaders = ['x-provider-keys', 'x-max-retries', 'x-degraded-timeout'];
-  const found = legacyHeaders.filter(h => req.headers[h]);
-  if (found.length > 0) {
-    logger.warn(`Rejected request with legacy configuration headers: ${found.join(', ')}`);
-    return res.status(400).json({ error: `Legacy headers not allowed: ${found.join(', ')}` });
-  }
-  next();
-});
+app.use(legacyHeadersMiddleware);
 
 // Auth is bypassed in dev, enforced in production
 app.use('/api', (req, res, next) => {
@@ -223,6 +216,7 @@ app.use('/api/sync', syncRouter);
 app.use('/api/loops', loopsRouter);
 app.use('/api/video', videoRouter);
 app.use('/api/voice', voiceRouter);
+app.use('/api/hermes-api', hermesApiRouter);
 app.use('/api/research', researchRouter);
 app.use('/api/sales', salesRouter);
 app.use('/api/artifacts', artifactsRouter);
