@@ -233,16 +233,61 @@ export class JarvisOrchestrator {
   }
 
   private async handleHermes(conversationId: string, prompt: string, operationId?: string) {
-    // Block: Hermes does not have a canonical backend execution engine yet.
-    const content = 'Hermes execution engine is currently offline/unavailable in this environment.';
-    await conversationService.appendMessage({
-      conversationId,
-      role: 'system',
-      messageType: 'error',
-      content,
-      metadata: operationId ? { operationId } : undefined
-    });
-    return { route: 'hermes', status: 'unavailable', error: content, operationId };
+    // Hermes is a live internal AgenticOS worker — delegate through the
+    // Background Task Manager so the run persists independently of this
+    // conversation turn and streams real events.
+    try {
+      const { backgroundTaskManager } = await import('../../services/backgroundTasks/manager.js');
+      const { dispatchTask } = await import('../../services/backgroundTasks/adapters.js');
+      const { taskShortId } = await import('../../services/backgroundTasks/types.js');
+
+      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      const { task, error } = backgroundTaskManager.createTask({
+        title,
+        objective: prompt,
+        originalRequest: prompt,
+        route: 'hermes',
+        selectedAgent: 'Hermes',
+        worker: 'hermes',
+        conversationId,
+        resumable: false,
+        metadata: { operationId },
+      });
+      if (!task) {
+        await conversationService.appendMessage({
+          conversationId,
+          role: 'system',
+          messageType: 'error',
+          content: error || 'Could not create the background task.',
+          metadata: operationId ? { operationId } : undefined
+        });
+        return { route: 'hermes', status: 'failed', error, operationId };
+      }
+
+      // Fire-and-forget dispatch — the task now owns the run, not this turn.
+      dispatchTask(task).catch(() => { /* adapter records its own failure */ });
+
+      const shortId = taskShortId(task.taskId);
+      const reply = `I started task ${shortId}. Hermes is working on it in the background — you can keep talking to me, and ask "show task ${shortId}" for progress.`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { taskId: task.taskId, ...(operationId ? { operationId } : {}) }
+      });
+      return { route: 'hermes', status: 'queued', goalId: task.taskId, operationId };
+    } catch (err: any) {
+      const content = `Hermes task creation failed: ${err?.message}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content,
+        metadata: operationId ? { operationId } : undefined
+      });
+      return { route: 'hermes', status: 'failed', error: content, operationId };
+    }
   }
 
   private async handleMemory(conversationId: string, prompt: string, operationId?: string) {

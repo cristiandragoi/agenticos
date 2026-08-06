@@ -1,0 +1,561 @@
+/**
+ * BackgroundTaskManager — single orchestration layer behind Jarvis.
+ *
+ * Separation contract (Milestone requirement 1):
+ *   - Conversation messages NEVER cancel or replace tasks.
+ *   - Only explicit task-control commands (pause/resume/stop/cancel/retry)
+ *     mutate task state.
+ *   - Tasks persist in SQLite (server/src/services/backgroundTasks/store.ts)
+ *     and survive renderer refresh, route changes, and backend restarts.
+ *
+ * Worker adapters own worker-specific execution; the manager owns
+ * orchestration state, limits, event normalization, and Board linkage.
+ */
+import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { backgroundTaskRepo } from './store.js';
+import {
+  TERMINAL_STATUSES,
+  TASK_LIMITS,
+  isActiveStatus,
+  taskShortId,
+  type BackgroundTaskEvent,
+  type BackgroundTaskRecord,
+  type TaskApprovalRequest,
+  type TaskEventKind,
+  type TaskStatus,
+  type WorkerKind,
+} from './types.js';
+import { localDataPort } from '../../adapters/localDataPort.js';
+import { logger } from '../../utils/logger.js';
+
+export interface CreateTaskInput {
+  title: string;
+  objective: string;
+  originalRequest: string;
+  route: string;
+  selectedAgent: string;
+  worker: WorkerKind;
+  priority?: 'low' | 'medium' | 'high';
+  projectId?: string | null;
+  conversationId?: string | null;
+  conversationSessionId?: string | null;
+  resumable?: boolean;
+  metadata?: Record<string, unknown>;
+  /** Retry rule (req. 10): reuse an existing Board card instead of creating one. */
+  boardCardId?: string | null;
+}
+
+const MAX_EVENTS_MEMORY_PER_TASK = 400;
+
+/** Task → Board lane mapping (existing b-hermes board, requirement 10). */
+const STATUS_TO_LANE: Record<TaskStatus, string> = {
+  queued: 'l-hermes-backlog',
+  planning: 'l-hermes-inprogress-hermes',
+  running: 'l-hermes-inprogress-hermes',
+  waiting_approval: 'l-hermes-blocked',
+  paused: 'l-hermes-blocked',
+  review: 'l-hermes-review',
+  completed: 'l-hermes-done',
+  blocked: 'l-hermes-blocked',
+  failed: 'l-hermes-blocked',
+  cancelled: 'l-hermes-blocked',
+};
+
+export class BackgroundTaskManager extends EventEmitter {
+  private seqCounter = 0;
+  /** Per-task in-memory event ring (persisted to SQLite as source of truth). */
+  private eventBuffers = new Map<string, BackgroundTaskEvent[]>();
+  private approvalRequests = new Map<string, TaskApprovalRequest>();
+  /** Registered worker stop callbacks — adapters register at dispatch time. */
+  private stopHandlers = new Map<string, () => Promise<void> | void>();
+  /** Registered worker pause callbacks (only when genuinely resumable). */
+  private pauseHandlers = new Map<string, () => Promise<void> | void>();
+  private resumeHandlers = new Map<string, () => Promise<void> | void>();
+  private restored = false;
+
+  constructor() {
+    super();
+    this.setMaxListeners(50);
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
+
+  /** Restore interrupted tasks after backend restart (requirement 3). */
+  restoreAfterRestart(): void {
+    if (this.restored) return;
+    this.restored = true;
+    try {
+      const interrupted = backgroundTaskRepo.listTasks({ activeOnly: true });
+      for (const task of interrupted) {
+        if (task.worker === 'codex' && task.resumable && (task.status === 'running' || task.status === 'paused')) {
+          // CodeX checkpoints survive restart; leave paused/running as-is —
+          // the worker adapter reattaches on demand (no silent auto-restart).
+          this.appendEvent(task.taskId, 'task.progress',
+            `Task restored after backend restart — ${task.status}, resumable via checkpoint.`);
+          continue;
+        }
+        if (task.status === 'running' || task.status === 'planning') {
+          // Non-resumable workers (Hermes live run, research) cannot prove
+          // continuity across a backend restart — mark blocked truthfully.
+          this.transition(task.taskId, 'blocked', {
+            blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+          });
+        }
+      }
+    } catch (err: any) {
+      logger.warn(`[bg-task] restoreAfterRestart failed: ${err?.message}`);
+    }
+  }
+
+  /** Create + persist a task. Enforces concurrency limits (requirement 15). */
+  createTask(input: CreateTaskInput): { task?: BackgroundTaskRecord; error?: string } {
+    const active = backgroundTaskRepo.listTasks({ activeOnly: true });
+    const activeCount = active.filter(t => isActiveStatus(t.status) && t.status !== 'queued').length;
+    const queuedCount = active.filter(t => t.status === 'queued').length;
+
+    if (activeCount >= TASK_LIMITS.maxActiveGlobal) {
+      return { error: `Concurrency limit reached (${TASK_LIMITS.maxActiveGlobal} active tasks). Stop or finish a task first.` };
+    }
+    if (queuedCount >= TASK_LIMITS.maxQueued) {
+      return { error: `Queue is full (${TASK_LIMITS.maxQueued} queued tasks).` };
+    }
+    const perWorkerActive = active.filter(t => t.worker === input.worker && isActiveStatus(t.status)).length;
+    const workerLimit =
+      input.worker === 'hermes' ? TASK_LIMITS.maxActiveHermes
+      : input.worker === 'codex' ? TASK_LIMITS.maxActiveCodex
+      : input.worker === 'team' ? TASK_LIMITS.maxActiveTeam
+      : TASK_LIMITS.maxActiveGlobal;
+    if (perWorkerActive >= workerLimit) {
+      return { error: `${input.worker} is already at its active-task limit (${workerLimit}).` };
+    }
+
+    const now = new Date().toISOString();
+    const task: BackgroundTaskRecord = {
+      taskId: `bgtask-${randomUUID().replace(/-/g, '').slice(0, 9)}`,
+      title: input.title,
+      objective: input.objective,
+      originalRequest: input.originalRequest,
+      route: input.route,
+      selectedAgent: input.selectedAgent,
+      status: 'queued',
+      priority: input.priority || 'medium',
+      projectId: input.projectId || null,
+      createdAt: now,
+      startedAt: null,
+      updatedAt: now,
+      completedAt: null,
+      conversationId: input.conversationId || null,
+      conversationSessionId: input.conversationSessionId || null,
+      worker: input.worker,
+      linkedRunId: null,
+      linkedBoardCardId: input.boardCardId || null,
+      parentTaskId: null,
+      childTaskIds: [],
+      currentStage: 'queued',
+      progressMessage: 'Task created and queued.',
+      filesChanged: [],
+      buildState: 'idle',
+      testState: 'idle',
+      verificationState: 'pending',
+      approvalState: 'none',
+      blocker: null,
+      lastError: null,
+      cancellationRequested: false,
+      resumable: input.resumable || false,
+      resultText: null,
+      attempt: 1,
+      metadata: input.metadata || {},
+    };
+
+    backgroundTaskRepo.insertTask(task);
+    this.appendEvent(task.taskId, 'task.created', `Task ${taskShortId(task.taskId)} created — ${task.title}`, { worker: task.worker });
+    this.appendEvent(task.taskId, 'task.queued', 'Task queued for execution.');
+    this.linkBoardCard(task);
+    return { task };
+  }
+
+  // ── State transitions (the ONLY mutators) ────────────────────────────────
+
+  /**
+   * Guarded status transition. Terminal states are immutable — a late worker
+   * event can never move a cancelled task back to completed (Test F).
+   */
+  transition(taskId: string, status: TaskStatus, patch: Partial<BackgroundTaskRecord> = {}): BackgroundTaskRecord | null {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return null;
+    if (TERMINAL_STATUSES.has(task.status)) {
+      logger.info(`[bg-task] Ignored transition ${task.status}→${status} for terminal task ${taskId}`);
+      return task;
+    }
+    const now = new Date().toISOString();
+    const merged: Partial<BackgroundTaskRecord> = { ...patch, status };
+    if (status === 'running' && !task.startedAt) merged.startedAt = now;
+    if (TERMINAL_STATUSES.has(status)) merged.completedAt = now;
+    const updated = backgroundTaskRepo.updateTask(taskId, merged);
+    if (updated) {
+      const kindMap: Partial<Record<TaskStatus, TaskEventKind>> = {
+        running: 'task.started',
+        paused: 'task.paused',
+        cancelled: 'task.cancelled',
+        completed: 'task.completed',
+        failed: 'task.failed',
+        blocked: 'task.blocked',
+        review: 'task.review_started',
+        waiting_approval: 'task.approval_requested',
+      };
+      const kind = kindMap[status];
+      if (kind && status !== task.status) {
+        this.appendEvent(taskId, kind, `Status → ${status}${patch.blocker ? `: ${patch.blocker}` : ''}`);
+      }
+      this.syncBoardCard(updated);
+      this.writeHandoff(updated); // requirement 14 — compact handoff on terminal/blocked states
+      this.emit('task:updated', updated);
+    }
+    return updated;
+  }
+
+  /**
+   * Requirement 14: save a compact handoff for completed/blocked/failed tasks
+   * into the EXISTING memory system (memoryEntries JsonStore — the same store
+   * behind /api/memory/entries). One entry per task (metadata.handoffWritten
+   * guard) — no duplicate memory system, no duplicates on re-transitions.
+   */
+  private writeHandoff(task: BackgroundTaskRecord): void {
+    if (!['completed', 'blocked', 'failed'].includes(task.status)) return;
+    if (task.metadata?.handoffWritten) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { db: jsonDb } = require('../db.js');
+      const events = backgroundTaskRepo.getEvents(task.taskId);
+      const decisions = events
+        .filter(e => e.kind === 'task.approval_resolved' || e.kind === 'task.approval_requested')
+        .map(e => e.summary)
+        .slice(-3);
+      const checks: string[] = [];
+      if (task.buildState !== 'idle') checks.push(`build ${task.buildState}`);
+      if (task.testState !== 'idle') checks.push(`tests ${task.testState}`);
+      checks.push(`verification ${task.verificationState}`);
+      const nextStep =
+        task.status === 'completed' ? 'None — task finished and verified.'
+        : task.status === 'blocked' ? 'Resolve the blocker, then resume or retry the task.'
+        : 'Inspect the last error, fix the cause, and retry the task.';
+      const content = [
+        `Objective: ${task.objective}`,
+        `Agents: ${task.selectedAgent} (worker: ${task.worker})`,
+        `Run: ${task.linkedRunId || '—'}`,
+        `Files changed: ${task.filesChanged.length ? task.filesChanged.join(', ') : 'none'}`,
+        `Checks run: ${checks.join('; ')}`,
+        `Result: ${(task.resultText || task.blocker || task.lastError || task.progressMessage || '—').slice(0, 600)}`,
+        `Verification: ${task.verificationState}`,
+        `Board card: ${task.linkedBoardCardId || '—'}`,
+        decisions.length ? `Decisions: ${decisions.join(' | ')}` : '',
+        task.blocker ? `Blocker: ${task.blocker}` : '',
+        `Recommended next step: ${nextStep}`,
+      ].filter(Boolean).join('\n');
+      const now = new Date().toISOString();
+      jsonDb.memoryEntries.upsert({
+        id: `mem-task-${task.taskId}`,
+        scopeId: 'mem-jarvis-agent',
+        kind: task.status === 'completed' ? 'summary' : 'decision',
+        title: `Task handoff: ${task.title} (${task.status})`,
+        content,
+        links: task.linkedBoardCardId ? [`board:${task.linkedBoardCardId}`] : [],
+        sourceRunId: task.linkedRunId || undefined,
+        sourceType: 'background-task',
+        sourceId: task.taskId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      backgroundTaskRepo.updateTask(task.taskId, { metadata: { ...task.metadata, handoffWritten: true } });
+      logger.info(`[bg-task] handoff saved for ${task.taskId} (${task.status})`);
+    } catch (err: any) {
+      logger.warn(`[bg-task] handoff write failed for ${task.taskId}: ${err?.message}`);
+    }
+  }
+
+  /** Append progress/stage/file events without changing status. */
+  progress(taskId: string, kind: TaskEventKind, summary: string, patch: Partial<BackgroundTaskRecord> = {}, detail: Record<string, unknown> = {}): BackgroundTaskRecord | null {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task || TERMINAL_STATUSES.has(task.status)) return task;
+    const updated = Object.keys(patch).length
+      ? backgroundTaskRepo.updateTask(taskId, patch)
+      : task;
+    this.appendEvent(taskId, kind, summary, detail);
+    if (updated && updated.progressMessage !== task.progressMessage) {
+      this.emit('task:updated', updated);
+    }
+    return updated;
+  }
+
+  appendEvent(taskId: string, kind: TaskEventKind, summary: string, detail: Record<string, unknown> = {}): BackgroundTaskEvent {
+    const seq = backgroundTaskRepo.lastSequence(taskId) + 1;
+    const evt: BackgroundTaskEvent = {
+      id: `bgevt-${Date.now().toString(36)}-${(++this.seqCounter).toString(36)}`,
+      taskId,
+      ts: new Date().toISOString(),
+      kind,
+      summary,
+      detail,
+      sequence: seq,
+    };
+    try {
+      backgroundTaskRepo.insertEvent(evt);
+    } catch (err: any) {
+      logger.warn(`[bg-task] event persist failed: ${err?.message}`);
+    }
+    const buf = this.eventBuffers.get(taskId) || [];
+    buf.push(evt);
+    if (buf.length > MAX_EVENTS_MEMORY_PER_TASK) buf.shift();
+    this.eventBuffers.set(taskId, buf);
+    this.emit('task:event', evt);
+    return evt;
+  }
+
+  // ── Worker handler registration (adapters call these) ───────────────────
+
+  registerWorkerHandlers(taskId: string, handlers: {
+    stop?: () => Promise<void> | void;
+    pause?: () => Promise<void> | void;
+    resume?: () => Promise<void> | void;
+  }): void {
+    if (handlers.stop) this.stopHandlers.set(taskId, handlers.stop);
+    if (handlers.pause) this.pauseHandlers.set(taskId, handlers.pause);
+    if (handlers.resume) this.resumeHandlers.set(taskId, handlers.resume);
+  }
+
+  // ── Explicit task-control commands (the ONLY way conversation touches tasks)
+
+  async stopTask(taskId: string, reason = 'Stopped by user command.'): Promise<{ ok: boolean; error?: string; task?: BackgroundTaskRecord }> {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Task is already ${task.status}.`, task };
+    this.appendEvent(taskId, 'task.stop_requested', `Stop requested — ${reason}`);
+    const handler = this.stopHandlers.get(taskId);
+    try {
+      if (handler) await handler();
+      // Worker's own terminal event should land; enforce truthful state if silent.
+      setTimeout(() => {
+        const current = backgroundTaskRepo.getTask(taskId);
+        if (current && !TERMINAL_STATUSES.has(current.status) && current.cancellationRequested) {
+          this.transition(taskId, 'cancelled', { blocker: reason });
+        }
+      }, 4000);
+      const updated = backgroundTaskRepo.updateTask(taskId, { cancellationRequested: true });
+      return { ok: true, task: updated || task };
+    } catch (err: any) {
+      this.transition(taskId, 'blocked', { blocker: `Stop failed: ${err?.message}` });
+      return { ok: false, error: `Stop failed: ${err?.message}` };
+    }
+  }
+
+  async pauseTask(taskId: string): Promise<{ ok: boolean; error?: string; task?: BackgroundTaskRecord }> {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Task is already ${task.status}.`, task };
+    if (!task.resumable) {
+      // Requirement 12: never pretend. Explain and offer stop.
+      return { ok: false, error: `Pause is not supported for ${task.worker} tasks — this worker cannot checkpoint and resume. Use Stop instead.` };
+    }
+    const handler = this.pauseHandlers.get(taskId);
+    if (!handler) return { ok: false, error: 'No pause handler registered for this task.' };
+    try {
+      await handler();
+      const updated = this.transition(taskId, 'paused', { currentStage: 'paused' });
+      return { ok: true, task: updated || task };
+    } catch (err: any) {
+      return { ok: false, error: `Pause failed: ${err?.message}` };
+    }
+  }
+
+  async resumeTask(taskId: string): Promise<{ ok: boolean; error?: string; task?: BackgroundTaskRecord }> {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (task.status !== 'paused' && task.status !== 'blocked') {
+      return { ok: false, error: `Only paused or blocked tasks can resume (current: ${task.status}).` };
+    }
+    const handler = this.resumeHandlers.get(taskId);
+    if (!handler) return { ok: false, error: 'No resume handler registered for this task.' };
+    try {
+      await handler();
+      const updated = this.transition(taskId, 'running', { blocker: null, currentStage: 'resumed' });
+      this.appendEvent(taskId, 'task.resumed', 'Task resumed from checkpoint.');
+      return { ok: true, task: updated || task };
+    } catch (err: any) {
+      return { ok: false, error: `Resume failed: ${err?.message}` };
+    }
+  }
+
+  cancelTask(taskId: string, reason = 'Cancelled by user command.'): { ok: boolean; error?: string; task?: BackgroundTaskRecord } {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Task is already ${task.status}.`, task };
+    const updated = this.transition(taskId, 'cancelled', { cancellationRequested: true, blocker: reason });
+    this.stopHandlers.get(taskId)?.();
+    return { ok: true, task: updated || task };
+  }
+
+  // ── Approvals (belong to the task, not the chat turn — requirement 11) ───
+
+  requestApproval(taskId: string, request: Omit<TaskApprovalRequest, 'taskId'>): void {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task || TERMINAL_STATUSES.has(task.status)) return;
+    this.approvalRequests.set(taskId, { taskId, ...request });
+    this.transition(taskId, 'waiting_approval', { approvalState: 'pending' });
+    this.appendEvent(taskId, 'task.approval_requested',
+      `Approval required: ${request.action}${request.command ? ` — ${request.command}` : ''}`,
+      { reason: request.reason, files: request.files });
+  }
+
+  getPendingApproval(taskId: string): TaskApprovalRequest | null {
+    return this.approvalRequests.get(taskId) || null;
+  }
+
+  listPendingApprovals(): TaskApprovalRequest[] {
+    return Array.from(this.approvalRequests.values());
+  }
+
+  async resolveApproval(taskId: string, choice: 'allow' | 'deny', resolver: (choice: 'allow' | 'deny') => Promise<void>): Promise<{ ok: boolean; error?: string }> {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (task.status !== 'waiting_approval') return { ok: false, error: `Task is not waiting for approval (current: ${task.status}).` };
+    try {
+      await resolver(choice);
+      this.approvalRequests.delete(taskId);
+      const nextStatus = choice === 'allow' ? 'running' : 'blocked';
+      this.transition(taskId, nextStatus, {
+        approvalState: choice === 'allow' ? 'allowed' : 'denied',
+        blocker: choice === 'deny' ? 'Action denied by user — affected operation will not execute.' : null,
+      });
+      this.appendEvent(taskId, 'task.approval_resolved', `Approval ${choice === 'allow' ? 'allowed' : 'denied'} by user.`);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: `Approval resolution failed: ${err?.message}` };
+    }
+  }
+
+  // ── Verification & completion (requirement 13) ──────────────────────────
+
+  /**
+   * A worker saying "done" is NOT completion. verifyCompletion gates the
+   * completed status on real evidence:
+   *   - result text exists (worker produced output)
+   *   - no unresolved approvals
+   *   - build/test state not failed (when the worker ran builds/tests)
+   *   - verificationState is passed or skipped (read-only work)
+   * On failure the task moves to review/blocked with a truthful explanation.
+   */
+  verifyCompletion(taskId: string, evidence: {
+    resultText: string;
+    buildState?: BackgroundTaskRecord['buildState'];
+    testState?: BackgroundTaskRecord['testState'];
+    readOnly?: boolean;
+    verificationNote?: string;
+  }): BackgroundTaskRecord | null {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task || TERMINAL_STATUSES.has(task.status)) return task;
+
+    const problems: string[] = [];
+    if (!evidence.resultText?.trim()) problems.push('No result text produced by the worker.');
+    if (task.approvalState === 'pending') problems.push('An approval request is still unresolved.');
+    if (evidence.buildState === 'failed') problems.push('Build failed.');
+    if (evidence.testState === 'failed') problems.push('Tests failed.');
+
+    if (problems.length) {
+      const updated = this.transition(taskId, 'review', {
+        resultText: evidence.resultText || null,
+        verificationState: 'failed',
+        blocker: `Verification failed — ${problems.join(' ')}`,
+      });
+      this.appendEvent(taskId, 'task.progress', `Verification blocked completion: ${problems.join(' ')}`);
+      return updated;
+    }
+
+    const updated = this.transition(taskId, 'completed', {
+      resultText: evidence.resultText,
+      buildState: evidence.buildState || task.buildState,
+      testState: evidence.testState || task.testState,
+      verificationState: 'passed',
+      currentStage: 'completed',
+      progressMessage: evidence.verificationNote || 'Task completed and verified.',
+    });
+    this.appendEvent(taskId, 'task.verified', evidence.verificationNote || 'Verification passed — result accepted.', {
+      readOnly: evidence.readOnly || false,
+    });
+    return updated;
+  }
+
+  // ── Board linkage (existing Boards system — requirement 10) ─────────────
+
+  private async linkBoardCard(task: BackgroundTaskRecord): Promise<void> {
+    if (task.linkedBoardCardId) return; // never duplicate cards on restore/retry
+    try {
+      const laneId = STATUS_TO_LANE[task.status] || 'l-hermes-backlog';
+      const card = await localDataPort.createCard({
+        laneId,
+        title: `${taskShortId(task.taskId)} — ${task.title}`.slice(0, 90),
+        body: `${task.objective}\nWorker: ${task.worker} · Agent: ${task.selectedAgent}`,
+        order: Date.now(),
+        agent: task.selectedAgent,
+        model: task.worker,
+      });
+      backgroundTaskRepo.updateTask(task.taskId, { linkedBoardCardId: card.id });
+      this.appendEvent(task.taskId, 'task.board_linked', `Board card linked (${card.id}).`, { cardId: card.id });
+    } catch (err: any) {
+      logger.warn(`[bg-task] Board linkage failed for ${task.taskId}: ${err?.message}`);
+    }
+  }
+
+  private async syncBoardCard(task: BackgroundTaskRecord): Promise<void> {
+    if (!task.linkedBoardCardId) return;
+    try {
+      const laneId = STATUS_TO_LANE[task.status];
+      const cardState =
+        task.status === 'completed' ? 'done'
+        : task.status === 'failed' || task.status === 'blocked' || task.status === 'cancelled' ? 'error'
+        : task.status === 'running' || task.status === 'planning' ? 'running'
+        : 'idle';
+      await localDataPort.setCardState(task.linkedBoardCardId, cardState as any);
+      await localDataPort.moveCard({ cardId: task.linkedBoardCardId, toLaneId: laneId, toOrder: Date.now() });
+    } catch (err: any) {
+      logger.warn(`[bg-task] Board sync failed for ${task.taskId}: ${err?.message}`);
+    }
+  }
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+
+  getTask(taskId: string): BackgroundTaskRecord | null {
+    return backgroundTaskRepo.getTask(taskId);
+  }
+
+  listTasks(opts?: { activeOnly?: boolean; status?: TaskStatus[]; limit?: number }): BackgroundTaskRecord[] {
+    return backgroundTaskRepo.listTasks(opts);
+  }
+
+  getEvents(taskId: string, afterSequence = 0): BackgroundTaskEvent[] {
+    return backgroundTaskRepo.getEvents(taskId, afterSequence);
+  }
+
+  /** Resolve a user-facing reference like "T-104", "T-ABC123", or a full id. */
+  resolveTaskRef(ref: string): BackgroundTaskRecord | null {
+    const direct = backgroundTaskRepo.getTask(ref);
+    if (direct) return direct;
+    const short = ref.replace(/^t-?/i, '').toUpperCase();
+    if (!short) return null;
+    const candidates = this.listTasks({ limit: 100 });
+    return candidates.find(t => taskShortId(t.taskId).toUpperCase() === `T-${short}`) || null;
+  }
+
+  summary(): { active: number; queued: number; waitingApproval: number; failedOrBlocked: number; tasks: BackgroundTaskRecord[] } {
+    const tasks = this.listTasks({ limit: 50 });
+    return {
+      active: tasks.filter(t => isActiveStatus(t.status) && t.status !== 'queued').length,
+      queued: tasks.filter(t => t.status === 'queued').length,
+      waitingApproval: tasks.filter(t => t.status === 'waiting_approval').length,
+      failedOrBlocked: tasks.filter(t => t.status === 'failed' || t.status === 'blocked').length,
+      tasks,
+    };
+  }
+}
+
+export const backgroundTaskManager = new BackgroundTaskManager();

@@ -358,6 +358,30 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   });
 
   try {
+    // ── Task-control intercept (Milestone: explicit commands override routing) ──
+    // A normal conversation message NEVER touches task state. Only these
+    // explicit task-control intents do. Check BEFORE intent routing.
+    const { classifyTaskControl, executeTaskControl } = await import('../services/backgroundTasks/taskControl.js');
+    const taskIntent = classifyTaskControl(prompt);
+    if (taskIntent) {
+      logStreamStage(normalizedOperationId, 'task-control intercept', { type: taskIntent.type });
+      writeSse(res, 'intent', { type: 'task_control', route: 'task_control', mode: 'task_control', confidence: 1, operationId: normalizedOperationId });
+      const reply = await executeTaskControl(taskIntent);
+      if (reply) {
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'task-manager', taskControl: taskIntent.type }
+        });
+      }
+      writeSse(res, 'done', { route: 'task_control', category: 'task_control', operationId: normalizedOperationId, provider: 'agentic-os', model: 'task-manager', firstTokenMs: 0, totalMs: 0 });
+      completed = true;
+      return res.end();
+    }
+
     logStreamStage(normalizedOperationId, 'intent routing started');
     const classified = await intentRouter.routeIntent(prompt);
     logStreamStage(normalizedOperationId, 'intent routing completed', {

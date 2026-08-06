@@ -27,6 +27,31 @@ import cc from './JarvisCommandCenter.module.css';
  */
 
 const MODE_KEY = 'jarvis-canonical-mode';
+
+/* ── Background-task panel helpers ── */
+function statusColor(status: string): string {
+  switch (status) {
+    case 'running': case 'planning': return '#38bdf8';
+    case 'queued': return '#94a3b8';
+    case 'waiting_approval': return '#fbbf24';
+    case 'paused': return '#a78bfa';
+    case 'review': return '#facc15';
+    case 'completed': return '#86efac';
+    case 'blocked': case 'failed': return '#fca5a5';
+    case 'cancelled': return '#64748b';
+    default: return '#94a3b8';
+  }
+}
+function elapsedLabel(task: { startedAt: string | null; completedAt: string | null }): string {
+  if (!task.startedAt) return '—';
+  const start = new Date(task.startedAt).getTime();
+  const end = task.completedAt ? new Date(task.completedAt).getTime() : Date.now();
+  const s = Math.max(0, Math.floor((end - start) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 const VOICE_KEY = 'jarvis-canonical-voice';
 const ACTIVE_CONV_KEY = 'jarvis-active-conversation';
 
@@ -63,6 +88,25 @@ interface HermesStatus {
   gateway: { reachable: boolean; detail: string };
   stt: { configured: boolean; provider: string };
   tts: { configured: boolean; provider: string };
+}
+/* ── Background Task contract (mirrors server/src/services/backgroundTasks/types.ts) ── */
+interface BackgroundTask {
+  taskId: string; title: string; objective: string;
+  route: string; selectedAgent: string; status: string;
+  worker: string; priority: string;
+  createdAt: string; startedAt: string | null; updatedAt: string; completedAt: string | null;
+  linkedRunId: string | null; linkedBoardCardId: string | null;
+  currentStage: string; progressMessage: string;
+  filesChanged: string[]; buildState: string; testState: string;
+  verificationState: string; approvalState: string;
+  blocker: string | null; lastError: string | null; resumable: boolean;
+}
+interface BackgroundTaskSummary {
+  active: number; queued: number; waitingApproval: number; failedOrBlocked: number;
+  tasks: BackgroundTask[];
+}
+interface BackgroundTaskEvent {
+  id: string; taskId: string; ts: string; kind: string; summary: string; sequence: number;
 }
 /* Real host telemetry (GET /api/health/system) — null = unreadable → "—". */
 interface SystemStats {
@@ -301,6 +345,81 @@ export default function JarvisStudio() {
   }, [activeRun?.id]);
 
   const [approvalChoiceBusy, setApprovalChoiceBusy] = useState(false);
+
+  // ── Background Tasks (persistent task manager — real events via SSE) ──
+  const [taskSummary, setTaskSummary] = useState<BackgroundTaskSummary | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskEvents, setTaskEvents] = useState<BackgroundTaskEvent[]>([]);
+  const [tasksOpen, setTasksOpen] = useState(true);
+
+  const pollTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/background-tasks/summary');
+      if (res.ok) setTaskSummary(await res.json());
+    } catch { /* panel keeps last good state */ }
+  }, []);
+
+  useEffect(() => {
+    pollTasks();
+    const id = window.setInterval(pollTasks, 3000);
+    return () => window.clearInterval(id);
+  }, [pollTasks]);
+
+  // Auto-select the most recently updated non-terminal task.
+  useEffect(() => {
+    const tasks = taskSummary?.tasks || [];
+    if (!tasks.length) { setSelectedTaskId(null); return; }
+    if (selectedTaskId && tasks.some(t => t.taskId === selectedTaskId)) return;
+    const live = tasks.find(t => !['completed', 'failed', 'cancelled'].includes(t.status));
+    setSelectedTaskId((live || tasks[0]).taskId);
+  }, [taskSummary, selectedTaskId]);
+
+  // SSE subscription for the selected task (real events, catch-up included).
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    let cancelled = false;
+    const es = new EventSource(`/api/background-tasks/${encodeURIComponent(selectedTaskId)}/events`);
+    const handler = (ev: MessageEvent) => {
+      if (cancelled) return;
+      try {
+        const evt = JSON.parse(ev.data) as BackgroundTaskEvent;
+        setTaskEvents(prev => {
+          if (prev.some(e => e.id === evt.id)) return prev;
+          return [...prev.slice(-199), evt];
+        });
+        // Task may have transitioned — refresh the summary promptly.
+        pollTasks();
+      } catch { /* ignore malformed frames */ }
+    };
+    // All task event kinds arrive as named events; subscribe broadly.
+    const kinds = ['task.created', 'task.queued', 'task.started', 'task.stage_changed', 'task.progress',
+      'task.agent_selected', 'task.run_linked', 'task.board_linked', 'task.file_changed',
+      'task.build_started', 'task.build_completed', 'task.test_started', 'task.test_completed',
+      'task.approval_requested', 'task.approval_resolved', 'task.paused', 'task.resumed',
+      'task.stop_requested', 'task.cancelled', 'task.review_started', 'task.verified',
+      'task.completed', 'task.blocked', 'task.failed'];
+    kinds.forEach(k => es.addEventListener(k, handler as EventListener));
+    es.onerror = () => { /* EventSource auto-reconnects */ };
+    setTaskEvents([]);
+    return () => { cancelled = true; es.close(); };
+  }, [selectedTaskId, pollTasks]);
+
+  const selectedTask = (taskSummary?.tasks || []).find(t => t.taskId === selectedTaskId) || null;
+  const [taskControlBusy, setTaskControlBusy] = useState(false);
+  const handleTaskControl = useCallback(async (action: 'pause' | 'resume' | 'stop' | 'cancel') => {
+    if (!selectedTaskId || taskControlBusy) return;
+    setTaskControlBusy(true);
+    try {
+      await fetch(`/api/background-tasks/${encodeURIComponent(selectedTaskId)}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      await pollTasks();
+    } catch { /* button re-enables; state poll corrects the panel */ }
+    setTaskControlBusy(false);
+  }, [selectedTaskId, taskControlBusy, pollTasks]);
+
   const handleApproval = useCallback(async (choice: 'allow' | 'deny') => {
     if (!activeRun || approvalChoiceBusy) return;
     setApprovalChoiceBusy(true);
@@ -313,6 +432,37 @@ export default function JarvisStudio() {
     } catch { /* modal stays until the run state changes */ }
     setApprovalChoiceBusy(false);
   }, [activeRun, approvalChoiceBusy]);
+
+  // ── Task-owned approvals (belong to the background task, not the chat turn) ──
+  const [taskApprovals, setTaskApprovals] = useState<Array<{ taskId: string; action: string; reason: string; command?: string; files?: string[]; choices?: string[] }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/background-tasks/approvals');
+        if (res.ok && !cancelled) setTaskApprovals(await res.json());
+      } catch { /* keep last known list */ }
+    };
+    poll();
+    const id = window.setInterval(poll, 2500);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+  const pendingTaskApproval = taskApprovals[0] || null;
+  const handleTaskApproval = useCallback(async (choice: 'allow' | 'deny') => {
+    if (!pendingTaskApproval || approvalChoiceBusy) return;
+    setApprovalChoiceBusy(true);
+    try {
+      await fetch(`/api/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice }),
+      });
+      // Refresh immediately so the modal clears when resolved.
+      const res = await fetch('/api/background-tasks/approvals');
+      if (res.ok) setTaskApprovals(await res.json());
+    } catch { /* modal stays until the approval state changes */ }
+    setApprovalChoiceBusy(false);
+  }, [pendingTaskApproval, approvalChoiceBusy]);
 
   // ── Orb state: canonical event-driven contract (real signals only) ──
   const [playbackActive, setPlaybackActive] = useState(false);
@@ -688,6 +838,84 @@ export default function JarvisStudio() {
               ))}
             </div>
           )}
+
+          {/* ── BACKGROUND TASKS (persistent task manager — real SSE events) ── */}
+          <button
+            data-testid="jarvis-tasks-toggle"
+            onClick={() => setTasksOpen((v) => !v)}
+            style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', fontSize: 9.5, letterSpacing: 1.5, color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer' }}
+          >
+            <span>
+              TASKS {tasksOpen ? '▴' : '▾'}
+              {taskSummary ? ` · ${taskSummary.active} RUN · ${taskSummary.queued} QUEUE · ${taskSummary.waitingApproval} APPR · ${taskSummary.failedOrBlocked} BLOCK` : ''}
+            </span>
+          </button>
+          {tasksOpen && (
+            <div data-testid="jarvis-tasks-panel" style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Task switcher — click to select a different task */}
+              {(taskSummary?.tasks?.length ? taskSummary.tasks.slice(0, 6) : []).map((t) => (
+                <button
+                  key={t.taskId}
+                  data-testid={`jarvis-task-row-${t.taskId}`}
+                  onClick={() => setSelectedTaskId(t.taskId)}
+                  style={{
+                    display: 'flex', gap: 6, alignItems: 'center', padding: '3px 6px', fontSize: 10,
+                    background: t.taskId === selectedTaskId ? 'rgba(56,189,248,0.10)' : 'rgba(15,23,42,0.4)',
+                    border: `1px solid ${t.taskId === selectedTaskId ? 'rgba(56,189,248,0.35)' : 'rgba(30,41,59,0.6)'}`,
+                    borderRadius: 4, cursor: 'pointer', textAlign: 'left', color: '#94a3b8', width: '100%',
+                  }}
+                >
+                  <span style={{ color: statusColor(t.status), fontWeight: 600, flexShrink: 0, minWidth: 54 }}>{t.status.replace(/_/g, ' ').toUpperCase()}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                  <span style={{ marginLeft: 'auto', color: '#475569', flexShrink: 0 }}>{t.worker}</span>
+                </button>
+              ))}
+              {!taskSummary?.tasks?.length && (
+                <div style={{ fontSize: 10.5, color: '#475569' }}>No background tasks.</div>
+              )}
+              {/* Selected task detail */}
+              {selectedTask && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 0' }}>
+                  <div className={cc.kv}><span className={cc.kvLabel}>AGENT</span><span className={cc.kvValue}>{selectedTask.selectedAgent || selectedTask.worker}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>STAGE</span><span className={cc.kvValue}>{(selectedTask.currentStage || selectedTask.status).replace(/_/g, ' ').toUpperCase()}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>PROGRESS</span><span className={cc.kvValue} style={{ maxWidth: 200 }}>{selectedTask.progressMessage || '—'}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>ELAPSED</span><span className={cc.kvValue}>{elapsedLabel(selectedTask)}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>FILES</span><span className={cc.kvValue}>{selectedTask.filesChanged.length ? `${selectedTask.filesChanged.length} changed` : '—'}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>BUILD/TEST</span><span className={cc.kvValue}>{selectedTask.buildState.toUpperCase()} / {selectedTask.testState.toUpperCase()}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>CARD</span><span className={cc.kvValue}>{selectedTask.linkedBoardCardId || '—'}</span></div>
+                  {selectedTask.blocker && (
+                    <div style={{ fontSize: 10.5, color: '#fca5a5', marginTop: 2 }}>⚠ {selectedTask.blocker}</div>
+                  )}
+                  {/* Task events (real SSE stream) */}
+                  {taskEvents.length > 0 && (
+                    <div data-testid="jarvis-task-events" style={{ maxHeight: 90, overflowY: 'auto', marginTop: 2 }}>
+                      {taskEvents.slice(-12).map((e) => (
+                        <div key={e.id} style={{ display: 'flex', gap: 6, padding: '1px 0', fontSize: 10, borderBottom: '1px solid rgba(30,41,59,0.4)' }}>
+                          <span style={{ color: '#475569', flexShrink: 0 }}>{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                          <span style={{ color: e.kind.includes('failed') || e.kind.includes('blocked') ? '#fca5a5' : e.kind.includes('completed') || e.kind.includes('verified') ? '#86efac' : '#94a3b8', overflowWrap: 'anywhere' }}>{e.summary}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Controls — pause/resume only when the worker supports it */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                    {selectedTask.linkedBoardCardId && (
+                      <button data-testid="jarvis-task-open-board" className={cc.ctl} onClick={() => navigate('/kanban/b-hermes')} style={{ padding: '3px 8px', fontSize: 9.5 }}>OPEN BOARD</button>
+                    )}
+                    {selectedTask.resumable && selectedTask.status === 'running' && (
+                      <button data-testid="jarvis-task-pause" className={cc.ctl} disabled={taskControlBusy} onClick={() => handleTaskControl('pause')} style={{ padding: '3px 8px', fontSize: 9.5 }}>PAUSE</button>
+                    )}
+                    {selectedTask.resumable && (selectedTask.status === 'paused' || selectedTask.status === 'blocked') && (
+                      <button data-testid="jarvis-task-resume" className={cc.ctl} disabled={taskControlBusy} onClick={() => handleTaskControl('resume')} style={{ padding: '3px 8px', fontSize: 9.5 }}>RESUME</button>
+                    )}
+                    {!['completed', 'failed', 'cancelled'].includes(selectedTask.status) && (
+                      <button data-testid="jarvis-task-stop" className={cc.ctl} disabled={taskControlBusy} onClick={() => handleTaskControl('stop')} style={{ padding: '3px 8px', fontSize: 9.5, color: '#fca5a5' }}>STOP</button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </motion.div>
 
         {/* ── Command transcript dock (collapsible, labeled lines) ── */}
@@ -720,33 +948,40 @@ export default function JarvisStudio() {
         </div>
       </div>
 
-      {/* ── APPROVAL MODAL — real Hermes approval.request, never auto-approved ── */}
-      {activeRun?.pendingApproval && (
+      {/* ── APPROVAL MODAL — real Hermes approval.request OR task-owned approval, never auto-approved ── */}
+      {(activeRun?.pendingApproval || pendingTaskApproval) && (
         <div data-testid="jarvis-approval-modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: 520, maxWidth: '92vw', background: '#0f172a', border: '1px solid #f59e0b', borderRadius: 12, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', letterSpacing: 1 }}>HERMES APPROVAL REQUIRED</div>
-            <div style={{ marginTop: 10, fontSize: 13, color: '#e2e8f0' }}>
-              <b>Action:</b> {activeRun.pendingApproval.action || 'Unknown action'}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', letterSpacing: 1 }}>
+              {pendingTaskApproval ? 'BACKGROUND TASK APPROVAL REQUIRED' : 'HERMES APPROVAL REQUIRED'}
             </div>
-            {activeRun.pendingApproval.reason && (
-              <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8' }}>
-                <b>Reason:</b> {activeRun.pendingApproval.reason}
+            {pendingTaskApproval && (
+              <div style={{ marginTop: 4, fontSize: 10.5, color: '#64748b' }} data-testid="jarvis-approval-task-id">
+                Task {pendingTaskApproval.taskId} — this approval belongs to the background task and stays pending while you talk.
               </div>
             )}
-            {activeRun.pendingApproval.command && (
+            <div style={{ marginTop: 10, fontSize: 13, color: '#e2e8f0' }}>
+              <b>Action:</b> {(pendingTaskApproval || activeRun?.pendingApproval)?.action || 'Unknown action'}
+            </div>
+            {(pendingTaskApproval || activeRun?.pendingApproval)?.reason && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8' }}>
+                <b>Reason:</b> {(pendingTaskApproval || activeRun?.pendingApproval)?.reason}
+              </div>
+            )}
+            {(pendingTaskApproval || activeRun?.pendingApproval)?.command && (
               <pre style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1', background: '#020617', border: '1px solid #1e293b', borderRadius: 6, padding: 8, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-                {activeRun.pendingApproval.command}
+                {(pendingTaskApproval || activeRun?.pendingApproval)?.command}
               </pre>
             )}
-            {Array.isArray(activeRun.pendingApproval.files) && activeRun.pendingApproval.files.length > 0 && (
+            {Array.isArray((pendingTaskApproval || activeRun?.pendingApproval)?.files) && (((pendingTaskApproval || activeRun?.pendingApproval)?.files) as string[]).length > 0 && (
               <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
-                <b>Files:</b> {activeRun.pendingApproval.files.join(', ')}
+                <b>Files:</b> {((pendingTaskApproval || activeRun?.pendingApproval)?.files as string[]).join(', ')}
               </div>
             )}
             <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
                 data-testid="jarvis-approval-deny"
-                onClick={() => void handleApproval('deny')}
+                onClick={() => void (pendingTaskApproval ? handleTaskApproval('deny') : handleApproval('deny'))}
                 disabled={approvalChoiceBusy}
                 style={{ padding: '7px 18px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: '1px solid #7f1d1d', background: 'transparent', color: '#fca5a5', cursor: 'pointer' }}
               >
@@ -754,7 +989,7 @@ export default function JarvisStudio() {
               </button>
               <button
                 data-testid="jarvis-approval-allow"
-                onClick={() => void handleApproval('allow')}
+                onClick={() => void (pendingTaskApproval ? handleTaskApproval('allow') : handleApproval('allow'))}
                 disabled={approvalChoiceBusy}
                 style={{ padding: '7px 18px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: '1px solid #166534', background: '#14532d', color: '#dcfce7', cursor: 'pointer' }}
               >

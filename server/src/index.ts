@@ -224,6 +224,8 @@ app.use('/api/kanban', kanbanRouter);
 app.use('/api/dispatch', laneRouter);
 import tasksRouter from './routers/tasks.js';
 app.use('/api/tasks', tasksRouter);
+import backgroundTasksRouter from './routers/backgroundTasks.js';
+app.use('/api/background-tasks', backgroundTasksRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/heavy-gen', heavyGenRouter);
 import { connectorRouter } from './routers/connectorRouter.js';
@@ -274,6 +276,10 @@ import { seedDefaultSkills } from './services/agent/skillRegistry.js';
 // Seed default schedules and skills on boot
 seedDefaultSchedules();
 seedDefaultSkills();
+
+// Background Task Manager: restore interrupted tasks after backend restart.
+import { backgroundTaskManager } from './services/backgroundTasks/manager.js';
+backgroundTaskManager.restoreAfterRestart();
 
 // Legacy compatibility redirects (keep old paths working)
 app.get('/api/memory-scopes', (_req, res) => res.redirect('/api/memory/scopes'));

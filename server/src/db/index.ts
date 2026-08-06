@@ -25,3 +25,5 @@ sqlite.pragma('foreign_keys = ON'); // Enforce FKs
 // Export the drizzle instance
 export const db = drizzle(sqlite, { schema });
 export const sqliteDbPath = dbPath;
+/** Raw connection for idempotent DDL (background task manager tables). */
+export const rawDb = sqlite;
