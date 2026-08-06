@@ -15,20 +15,25 @@ import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
 import styles from '../../pages/JarvisStudio.module.css';
 
 /**
- * Navigation targets JARVIS is allowed to open. Mirrors the capability
- * registry routes on the server; anything not listed here is rejected so a
- * backend event can never navigate the app somewhere unexpected.
+ * Navigation targets JARVIS is allowed to open. Mirrors the existing
+ * application route registry (src/App.tsx) plus the capability-registry
+ * routes on the server; anything not listed here is rejected so a backend
+ * event can never navigate the app somewhere unexpected.
  */
 export const JARVIS_NAVIGATION_TARGETS = new Set<string>([
   '/jarvis',
+  '/hermes',
   '/hermes-studio',
   '/codex',
-  '/research',
+  '/agent-teams',
   '/teams',
-  '/boards',
-  '/memory',
-  '/automations',
   '/mission-control',
+  '/boards',
+  '/research',
+  '/files',
+  '/memory',
+  '/models',
+  '/automations',
   '/settings',
 ]);
 
@@ -198,6 +203,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const requestStartedAtRef = useRef<number | null>(null);
   const statusIntervalRef = useRef<number | null>(null);
   const isProcessingRef = useRef(false);
+  // Exactly-once guard for navigation events: keyed by operationId+target so
+  // the same navigation event is never forwarded twice (the stream loop can
+  // flush the same SSE frame list in two passes).
+  const firedNavigationRef = useRef<Set<string>>(new Set());
   // ── TTS trigger bookkeeping ─────────────────────────────────────────────
   // Input channel of the in-flight request ('voice' → reply may be spoken).
   const pendingChannelRef = useRef<'typed' | 'voice'>('typed');
@@ -684,11 +693,17 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       } else if (event.event === 'navigation') {
         // Only forward supported internal targets; reject everything else so a
         // backend event can never navigate somewhere unexpected. Navigation is
-        // a pure UI action — it never touches background-task state.
+        // a pure UI action — it never touches background-task state. The
+        // exactly-once guard prevents a duplicate forward when the stream
+        // loop processes the same frame list twice.
         const target = typeof data.target === 'string' ? data.target : '';
         if (JARVIS_NAVIGATION_TARGETS.has(target)) {
-          appendOperationalEvent(operationId, 'navigation', `Opening ${target}`, data);
-          onNavigate?.(target);
+          const navKey = `${operationId}:${target}`;
+          if (!firedNavigationRef.current.has(navKey)) {
+            firedNavigationRef.current.add(navKey);
+            appendOperationalEvent(operationId, 'navigation', `Opening ${target}`, data);
+            onNavigate?.(target);
+          }
         } else {
           appendOperationalEvent(operationId, 'navigation', `Navigation rejected: unsupported target "${target || data.capability || 'unknown'}"`, data);
         }

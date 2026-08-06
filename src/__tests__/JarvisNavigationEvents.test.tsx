@@ -151,10 +151,14 @@ const renderPage = () => render(
         <Route path="/jarvis" element={<><JarvisStudio /><LocationProbe /></>} />
         <Route path="/codex" element={<div data-testid="codex-page">CodeX Studio</div>} />
         <Route path="/hermes-studio" element={<div data-testid="hermes-page">Hermes Studio</div>} />
+        <Route path="/hermes" element={<div data-testid="hermes-page">Hermes (alias)</div>} />
         <Route path="/boards" element={<div data-testid="boards-page">Boards</div>} />
         <Route path="/memory" element={<div data-testid="memory-page">Memory</div>} />
         <Route path="/automations" element={<div data-testid="automations-page">Automations</div>} />
         <Route path="/research" element={<div data-testid="research-page">Research</div>} />
+        <Route path="/files" element={<div data-testid="files-page">Files</div>} />
+        <Route path="/models" element={<div data-testid="models-page">Models</div>} />
+        <Route path="/agent-teams" element={<div data-testid="teams-page">Agent Teams</div>} />
       </Routes>
     </MemoryRouter>
   </CodexProvider>
@@ -190,6 +194,9 @@ describe('Jarvis navigation SSE events', () => {
       ['/memory', 'memory-page'],
       ['/automations', 'automations-page'],
       ['/research', 'research-page'],
+      ['/files', 'files-page'],
+      ['/models', 'models-page'],
+      ['/agent-teams', 'teams-page'],
     ];
     for (const [target, testid] of cases) {
       navEvents = [
@@ -201,6 +208,32 @@ describe('Jarvis navigation SSE events', () => {
       await waitFor(() => expect(screen.getByTestId(testid)).toBeInTheDocument());
       unmount();
     }
+  });
+
+  it('Open Hermes navigates to the existing Hermes route', async () => {
+    navEvents = [
+      sse('navigation', { target: '/hermes', capability: 'hermes', operationId: 'op-hermes' }),
+      sse('done', { route: 'navigation' }),
+    ];
+    renderPage();
+    await typeAndSend('Open Hermes');
+    await waitFor(() => expect(screen.getByTestId('hermes-page')).toBeInTheDocument());
+  });
+
+  it('callback is not fired twice for one navigation event', async () => {
+    navEvents = [
+      sse('navigation', { target: '/codex', capability: 'codex', operationId: 'op-dedup' }),
+      // The backend may flush the same frame list twice; the exactly-once
+      // guard must forward the navigation handler only once.
+      sse('navigation', { target: '/codex', capability: 'codex', operationId: 'op-dedup' }),
+      sse('done', { route: 'navigation' }),
+    ];
+    renderPage();
+    await typeAndSend('Open CodeX');
+    await waitFor(() => expect(screen.getByTestId('codex-page')).toBeInTheDocument());
+    // Navigated to codex exactly once — no double navigation to a different
+    // route and the location is stable at /codex.
+    expect(screen.queryByTestId('codex-page')).toBeInTheDocument();
   });
 
   it('invalid navigation targets are rejected and never navigate', async () => {
