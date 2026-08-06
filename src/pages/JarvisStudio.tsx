@@ -940,6 +940,12 @@ export default function JarvisStudio() {
                 onMicStateChange={setMicState}
                 onStreamDelta={handleStreamDelta}
                 onAssistantResponse={handleAssistantDone}
+                onNavigate={(target) => {
+                  // Navigation is a pure UI action — the conversation and
+                  // background tasks are session-owned and survive the route
+                  // change (JarvisStudio unmount/remount restores them).
+                  navigate(target);
+                }}
                 hideComposerMic
                 transcriptVariant="command"
               />

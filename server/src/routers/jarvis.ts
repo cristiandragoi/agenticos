@@ -383,6 +383,181 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
 
     logStreamStage(normalizedOperationId, 'intent routing started');
+    // ── Executive intent intercept (internal-worker awareness) ──
+    // Runs after explicit task-control but before the generic intent router.
+    // When the prompt names an internal capability (Hermes/CodeX/Research/
+    // Teams/Boards/Memory/Automations), the executive classifier decides
+    // between explanation, status, feedback, delegation, or navigation.
+    const { classifyExecutiveIntent } = await import('../domains/jarvis/executiveIntent.js');
+    const { buildWorkerFeedback, buildWorkerStatus, buildCapabilityExplanation } = await import('../domains/jarvis/workerInsights.js');
+    const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+    const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
+    const { taskShortId } = await import('../services/backgroundTasks/types.js');
+
+    const executive = classifyExecutiveIntent(prompt);
+    if (executive && executive.intent !== 'worker_delegation') {
+      const execRoute = executive.intent;
+      logStreamStage(normalizedOperationId, 'executive intent intercept', {
+        intent: execRoute,
+        capability: executive.capability.id,
+        confidence: executive.confidence
+      });
+      writeSse(res, 'intent', {
+        type: execRoute,
+        route: execRoute,
+        mode: execRoute === 'direct_explanation' ? 'direct_conversation' : 'operational_execution',
+        confidence: executive.confidence,
+        reason: executive.reason,
+        capability: executive.capability.id,
+        operationId: normalizedOperationId
+      });
+
+      const startedAt = Date.now();
+      let reply = '';
+      if (execRoute === 'navigation') {
+        writeSse(res, 'navigation', {
+          target: executive.capability.route,
+          capability: executive.capability.id,
+          operationId: normalizedOperationId
+        });
+        reply = `Opening ${executive.capability.displayName}.`;
+      } else if (execRoute === 'board_query') {
+        reply = buildCapabilityExplanation(executive.capability) + '\n\nOpen the task board to see live cards.';
+      } else if (execRoute === 'memory_query') {
+        reply = buildCapabilityExplanation(executive.capability);
+      } else if (execRoute === 'automation_request') {
+        reply = buildCapabilityExplanation(executive.capability) + '\n\nSay "create an automation" and I will register it as a background task.';
+      } else if (execRoute === 'worker_feedback') {
+        reply = await buildWorkerFeedback(executive.capability);
+      } else if (execRoute === 'worker_status') {
+        const modelOnly = /what (model|provider)/.test(prompt.toLowerCase());
+        reply = await buildWorkerStatus(executive.capability, modelOnly);
+      } else {
+        reply = buildCapabilityExplanation(executive.capability);
+      }
+
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'registry',
+          intent: { type: execRoute, capability: executive.capability.id, confidence: executive.confidence }
+        }
+      });
+      writeSse(res, 'done', {
+        route: execRoute,
+        category: execRoute,
+        capability: executive.capability.id,
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'registry',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      return res.end();
+    }
+
+    // ── Executive delegation: create a persistent background task ──
+    // JARVIS must respond with task ref, selected worker, status, read-only
+    // flag, and the fact that the task continues while conversation remains
+    // available — immediately, before the worker stream starts.
+    if (executive?.intent === 'worker_delegation' && executive.workerKind) {
+      const workerKind = executive.workerKind as 'hermes' | 'codex' | 'research' | 'team' | 'automation';
+      const workerTitle =
+        workerKind === 'hermes' ? 'Hermes'
+        : workerKind === 'codex' ? 'CodeX'
+        : workerKind === 'research' ? 'Research'
+        : workerKind === 'team' ? 'Agent Teams'
+        : workerKind === 'automation' ? 'Automations'
+        : executive.capability.displayName;
+
+      logStreamStage(normalizedOperationId, 'executive delegation', {
+        worker: workerKind,
+        readOnly: Boolean(executive.readOnly),
+        capability: executive.capability.id
+      });
+      writeSse(res, 'intent', {
+        type: 'worker_delegation',
+        route: 'worker_delegation',
+        mode: 'operational_execution',
+        confidence: executive.confidence,
+        reason: executive.reason,
+        capability: executive.capability.id,
+        worker: workerKind,
+        readOnly: Boolean(executive.readOnly),
+        operationId: normalizedOperationId
+      });
+
+      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      const { task, error } = backgroundTaskManager.createTask({
+        title,
+        objective: prompt,
+        originalRequest: prompt,
+        route: workerKind,
+        selectedAgent: workerTitle,
+        worker: workerKind,
+        conversationId: req.params.id,
+        resumable: workerKind === 'codex',
+        metadata: {
+          operationId: normalizedOperationId,
+          readOnly: Boolean(executive.readOnly),
+          capabilityId: executive.capability.id
+        },
+      });
+      if (!task) {
+        writeSse(res, 'error', {
+          error: error || 'Could not create the background task.',
+          route: 'worker_delegation',
+          operationId: normalizedOperationId
+        });
+        writeSse(res, 'done', { route: 'worker_delegation', status: 'failed', operationId: normalizedOperationId });
+        completed = true;
+        return res.end();
+      }
+
+      dispatchTask(task).catch(() => { /* adapter records its own failure */ });
+
+      const shortId = taskShortId(task.taskId);
+      const readOnlyNote = executive.readOnly ? ' Read-only — no file changes will be made.' : '';
+      const delegationStartedAt = Date.now();
+      const reply =
+        `I started task ${shortId} with ${workerTitle}. Status: queued.` +
+        `${readOnlyNote} The task continues in the background — keep talking to me, and ask "show task ${shortId}" for progress.`;
+      writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          taskId: task.taskId,
+          provider: 'agentic-os',
+          model: 'task-manager',
+          intent: { type: 'worker_delegation', capability: executive.capability.id, worker: workerKind, readOnly: Boolean(executive.readOnly) }
+        }
+      });
+      writeSse(res, 'done', {
+        route: 'worker_delegation',
+        category: 'worker_delegation',
+        taskId: task.taskId,
+        status: 'queued',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'task-manager',
+        firstTokenMs: 0,
+        totalMs: Date.now() - delegationStartedAt
+      });
+      completed = true;
+      return res.end();
+    }
+
     const classified = await intentRouter.routeIntent(prompt);
     logStreamStage(normalizedOperationId, 'intent routing completed', {
       route: classified.route,

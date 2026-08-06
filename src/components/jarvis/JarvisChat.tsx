@@ -14,6 +14,24 @@ import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
 import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
 import styles from '../../pages/JarvisStudio.module.css';
 
+/**
+ * Navigation targets JARVIS is allowed to open. Mirrors the capability
+ * registry routes on the server; anything not listed here is rejected so a
+ * backend event can never navigate the app somewhere unexpected.
+ */
+export const JARVIS_NAVIGATION_TARGETS = new Set<string>([
+  '/jarvis',
+  '/hermes-studio',
+  '/codex',
+  '/research',
+  '/teams',
+  '/boards',
+  '/memory',
+  '/automations',
+  '/mission-control',
+  '/settings',
+]);
+
 export interface JarvisChatProps {
   conversationId: string | null;
   onStatusChange?: (status: JarvisRuntimeStatus) => void;
@@ -38,6 +56,13 @@ export interface JarvisChatProps {
    * that turn — exactly one TTS path per reply, never both.
    */
   onStreamDelta?: (delta: string, inputChannel: 'typed' | 'voice') => void;
+  /**
+   * Navigation hook: fires when the backend emits a validated `navigation`
+   * SSE event (e.g. "Open CodeX" → target `/codex`). Only supported internal
+   * targets are forwarded; invalid/unknown targets are rejected here and
+   * never reach the consumer. The navigation itself never touches task state.
+   */
+  onNavigate?: (target: string) => void;
   /**
    * Canonical-voice integration: when true the composer's OWN microphone
    * button is hidden — the page-level useVoiceIO engine is the single mic
@@ -155,6 +180,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   onMicStateChange,
   onAssistantResponse,
   onStreamDelta,
+  onNavigate,
   hideComposerMic,
   transcriptVariant = 'chat',
 }, ref) => {
@@ -655,6 +681,17 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       } else if (event.event === 'agent_selected') {
         emitStatus({ state: 'delegating' });
         appendOperationalEvent(operationId, 'agent_selected', `Selected agent: ${data.agent}${data.reason ? ` - ${data.reason}` : ''}`, data);
+      } else if (event.event === 'navigation') {
+        // Only forward supported internal targets; reject everything else so a
+        // backend event can never navigate somewhere unexpected. Navigation is
+        // a pure UI action — it never touches background-task state.
+        const target = typeof data.target === 'string' ? data.target : '';
+        if (JARVIS_NAVIGATION_TARGETS.has(target)) {
+          appendOperationalEvent(operationId, 'navigation', `Opening ${target}`, data);
+          onNavigate?.(target);
+        } else {
+          appendOperationalEvent(operationId, 'navigation', `Navigation rejected: unsupported target "${target || data.capability || 'unknown'}"`, data);
+        }
       } else if (event.event === 'approval_required') {
         emitStatus({ state: 'approval_required' });
         appendOperationalEvent(

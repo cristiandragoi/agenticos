@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   orchestratorResult: null as any,
   streamMode: 'success' as 'success' | 'never' | 'throw' | 'slowFirst' | 'idleAfterFirst',
   streamCalls: 0,
-  streamOptions: [] as any[]
+  streamOptions: [] as any[],
+  delegationTaskId: 'abc123de'
 }));
 
 vi.mock('../domains/conversations/service.js', () => ({
@@ -90,6 +91,34 @@ vi.mock('../services/llmGateway.js', () => ({
 
 vi.mock('../services/agentTeams/teamRunner.js', () => ({
   TeamRunner: { startTeam: vi.fn(async () => 'run-1') }
+}));
+
+// Background-task manager + adapters: the executive delegation path creates a
+// persistent task through the task manager. Mock it so the streaming contract
+// is tested without a real sqlite dependency in this suite.
+vi.mock('../services/backgroundTasks/manager.js', () => ({
+  backgroundTaskManager: {
+    createTask: vi.fn((input: any) => ({
+      task: {
+        taskId: `bgtask-${mocks.delegationTaskId || 'mock0001'}`,
+        title: input.title,
+        worker: input.worker,
+        metadata: input.metadata || {}
+      },
+      error: undefined
+    })),
+    listTasks: vi.fn(() => []),
+    appendEvent: vi.fn(),
+    transition: vi.fn()
+  }
+}));
+
+vi.mock('../services/backgroundTasks/adapters.js', () => ({
+  dispatchTask: vi.fn(async () => ({ ok: true }))
+}));
+
+vi.mock('../services/backgroundTasks/types.js', () => ({
+  taskShortId: (taskId: string) => `T-${taskId.slice(-6).toUpperCase()}`
 }));
 
 vi.mock('../db/index.js', () => ({
@@ -393,25 +422,21 @@ describe('Jarvis direct streaming', () => {
     expect(res.text).not.toContain('event: execution_completed');
   });
 
-  it('read-only CodeX delegation starts without approval-required SSE', async () => {
-    mocks.route = 'codex';
-    mocks.category = 'repository_analysis';
-    mocks.mode = 'operational_execution';
-    mocks.selectedAgent = 'CodeX';
-    mocks.requiresWorkspace = true;
-    mocks.requiresApproval = false;
-    mocks.plan = ['Inspect files', 'Report findings'];
-    mocks.orchestratorResult = { route: 'codex', status: 'queued', goalId: 'goal-readonly', provider: 'ollama', model: 'qwen2.5-coder:7b' };
+  it('read-only CodeX delegation starts a background task without approval-required SSE', async () => {
+    mocks.delegationTaskId = 'abc123de';
 
     const app = await buildApp();
     const res = await request(app)
       .post('/api/jarvis/conversations/conv-test/message/stream')
-      .send({ prompt: 'Ask CodeX to inspect the Jarvis router. Do not modify files.', operationId: 'op-readonly', workspacePath: 'B:\\AgenticOS' })
+      .send({ prompt: 'Ask CodeX to inspect the Jarvis router. Do not modify files.', operationId: 'op-readonly', workspacePath: 'B:\\\\AgenticOS' })
       .expect(200);
 
-    expect(res.text).toContain('"type":"repository_analysis"');
-    expect(res.text).toContain('event: execution_started');
-    expect(res.text).toContain('"goalId":"goal-readonly"');
+    expect(res.text).toContain('"type":"worker_delegation"');
+    expect(res.text).toContain('"worker":"codex"');
+    expect(res.text).toContain('"readOnly":true');
+    expect(res.text).toContain('event: chunk');
+    expect(res.text).toContain('T-C123DE');
+    expect(res.text).toContain('Read-only — no file changes will be made.');
     expect(res.text).not.toContain('event: approval_required');
     expect(res.text).not.toContain('event: execution_completed');
   });
@@ -472,34 +497,24 @@ describe('Jarvis direct streaming', () => {
     expect(mocks.streamCalls).toBe(1);
   });
 
-  it('unavailable delegated provider produces precise execution_failed details', async () => {
-    mocks.route = 'codex';
-    mocks.category = 'repository_analysis';
-    mocks.mode = 'operational_execution';
-    mocks.selectedAgent = 'CodeX';
-    mocks.requiresWorkspace = true;
-    mocks.requiresApproval = false;
-    mocks.plan = ['Inspect repository'];
-    mocks.orchestratorResult = {
-      route: 'codex',
-      status: 'failed',
-      error: 'Provider/model unavailable. Primary provider/model: ollama/qwen2.5-coder:7b; fallback provider/model: none for direct CodeX execution; reason: Ollama connection failed',
-      provider: 'ollama',
-      model: 'qwen2.5-coder:7b',
-      fallbackProvider: 'ollama',
-      fallbackModel: 'qwen2.5-coder:7b'
-    };
+  it('Ask CodeX delegation creates a background task (delegation replaces orchestrator error path)', async () => {
+    mocks.delegationTaskId = 'abc123de';
 
     const app = await buildApp();
     const res = await request(app)
       .post('/api/jarvis/conversations/conv-test/message/stream')
-      .send({ prompt: 'Ask CodeX to inspect the Jarvis router', operationId: 'op-provider-fail', workspacePath: 'B:\\AgenticOS' })
+      .send({ prompt: 'Ask CodeX to inspect the Jarvis router', operationId: 'op-provider-fail', workspacePath: 'B:\\\\AgenticOS' })
       .expect(200);
 
-    expect(res.text).toContain('event: execution_failed');
-    expect(res.text).toContain('Primary provider/model');
-    expect(res.text).toContain('"provider":"ollama"');
+    // The executive delegation path creates a persistent background task and
+    // replies immediately; the worker adapter reports failures asynchronously
+    // on the task itself, so no orchestrator-level execution_failed is emitted.
+    expect(res.text).toContain('"type":"worker_delegation"');
+    expect(res.text).toContain('"worker":"codex"');
+    expect(res.text).toContain('event: chunk');
+    expect(res.text).toContain('I started task');
     expect(res.text).not.toContain('event: execution_completed');
+    expect(res.text).not.toContain('event: execution_failed');
   });
 
   it('live capability answer uses registries and avoids generic assistant boilerplate', async () => {
