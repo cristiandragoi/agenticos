@@ -28,6 +28,9 @@ export interface CurrentActionInfo {
   command?: string;
   nextAction: string;
   error?: string;
+  executionProvider?: string;
+  toolsRun?: number;
+  filesChanged?: number;
 }
 
 export const TERMINAL_GOAL_STATES = ['completed', 'failed', 'stopped', 'cancelled', 'timed_out'];
@@ -154,6 +157,30 @@ export function deriveCurrentAction(
 
   const status = goalStatus.toLowerCase();
 
+  if (status === 'waiting_for_approval' || status === 'waiting') {
+    const localPlanEvent = [...events].reverse().find(
+      e => e.eventType === 'planning_completed' && e.payload?.reasonCode === 'EXECUTION_PROVIDER_REQUIRED'
+    );
+    if (localPlanEvent) {
+      return {
+        ...base,
+        color: 'blue',
+        statusLabel: 'Plan Ready',
+        message: 'Planning completed. Tool execution requires a capable provider.',
+        nextAction: 'Choose an execution provider',
+        provider:
+          localPlanEvent.payload?.planningProvider ??
+          localPlanEvent.provider,
+        model:
+          localPlanEvent.payload?.planningModel ??
+          localPlanEvent.model,
+        executionProvider: 'Not configured',
+        toolsRun: localPlanEvent.payload?.toolsRun ?? 0,
+        filesChanged: localPlanEvent.payload?.filesChanged ?? 0
+      };
+    }
+  }
+
   if (status === 'completed') {
     return {
       ...base,
@@ -163,6 +190,7 @@ export function deriveCurrentAction(
       nextAction: 'Review the result summary below.'
     };
   }
+
 
   if (status === 'failed') {
     const lastError = [...events].reverse().find(e => e.error)?.error;

@@ -28,6 +28,13 @@ async function collectGatewayText(opts: any = {}) {
   return chunks;
 }
 
+// The configured Ollama fallback model: config.ts uses
+// process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b'. The tests below do not
+// set OLLAMA_FALLBACK_MODEL, so the configured model is 'llama3.2:3b' and it
+// is installed here as the tagged variant 'llama3.2:3b:latest'.
+const CONFIGURED_MODEL = 'llama3.2:3b';
+const INSTALLED_MODEL = 'llama3.2:3b:latest';
+
 describe('llmGateway Ollama fallback', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -58,7 +65,7 @@ describe('llmGateway Ollama fallback', () => {
         return jsonResponse({ error: 'rate limited' }, 429, { 'retry-after': '12' });
       }
       if (url === 'http://ollama.test/api/tags') {
-        return jsonResponse({ models: [{ name: 'laguna-xs-2.1:latest' }] });
+        return jsonResponse({ models: [{ name: INSTALLED_MODEL }] });
       }
       if (url === 'http://ollama.test/api/generate') {
         return sseResponse([
@@ -73,7 +80,7 @@ describe('llmGateway Ollama fallback', () => {
     const chunks = await collectGatewayText({ onDiagnostic: event => diagnostics.push(event) });
 
     expect(chunks.filter(chunk => chunk.type === 'token').map(chunk => chunk.content).join('')).toBe('OK');
-    expect(chunks.at(-1)).toMatchObject({ type: 'done', provider: 'ollama', model: 'laguna-xs-2.1:latest' });
+    expect(chunks.at(-1)).toMatchObject({ type: 'done', provider: 'ollama', model: INSTALLED_MODEL });
     expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
       'http://openrouter.test/v1/chat/completions',
       'http://ollama.test/api/tags',
@@ -97,7 +104,15 @@ describe('llmGateway Ollama fallback', () => {
       throw new Error(`Unexpected URL ${url}`);
     }));
 
-    await expect(collectGatewayText()).rejects.toThrow(/Ollama model missing: configured 'laguna-xs-2.1'/);
+    // llmChatStream never rejects: router failures surface as a Stream Error
+    // token chunk followed by the final done chunk.
+    const chunks = await collectGatewayText();
+    const errorChunk = chunks.find(
+      chunk => chunk.type === 'token' && typeof chunk.content === 'string' && chunk.content.includes('[Stream Error:')
+    );
+    expect(errorChunk).toBeDefined();
+    expect(errorChunk.content).toContain(`Ollama model missing: configured '${CONFIGURED_MODEL}'`);
+    expect(chunks.at(-1)).toMatchObject({ type: 'done', provider: 'offline' });
   });
 
   it('slow local model headers within allowance succeed', async () => {
@@ -106,7 +121,7 @@ describe('llmGateway Ollama fallback', () => {
         return jsonResponse({ error: 'rate limited' }, 429);
       }
       if (url === 'http://ollama.test/api/tags') {
-        return jsonResponse({ models: [{ name: 'laguna-xs-2.1:latest' }] });
+        return jsonResponse({ models: [{ name: INSTALLED_MODEL }] });
       }
       if (url === 'http://ollama.test/api/generate') {
         await new Promise(resolve => setTimeout(resolve, 40));
@@ -127,16 +142,22 @@ describe('llmGateway Ollama fallback', () => {
         return Promise.resolve(jsonResponse({ error: 'rate limited' }, 429));
       }
       if (url === 'http://ollama.test/api/tags') {
-        return Promise.resolve(jsonResponse({ models: [{ name: 'laguna-xs-2.1:latest' }] }));
+        return Promise.resolve(jsonResponse({ models: [{ name: INSTALLED_MODEL }] }));
       }
       if (url === 'http://ollama.test/api/generate') {
         return new Promise((_resolve, reject) => {
-          options.signal.addEventListener('abort', () => reject(new Error('laguna-xs-2.1:latest Ollama headers timed out after 25 ms.')));
+          options.signal.addEventListener('abort', () => reject(new Error(`${INSTALLED_MODEL} Ollama headers timed out after 25 ms.`)));
         });
       }
       return Promise.reject(new Error(`Unexpected URL ${url}`));
     }));
 
-    await expect(collectGatewayText()).rejects.toThrow(/Ollama headers timed out after 25 ms/);
+    // llmChatStream surfaces the timeout as a Stream Error token chunk, not a rejection.
+    const chunks = await collectGatewayText();
+    const errorChunk = chunks.find(
+      chunk => chunk.type === 'token' && typeof chunk.content === 'string' && chunk.content.includes('[Stream Error:')
+    );
+    expect(errorChunk).toBeDefined();
+    expect(errorChunk.content).toMatch(/Ollama headers timed out after 25 ms/);
   });
 });

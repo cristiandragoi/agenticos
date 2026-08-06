@@ -7,6 +7,11 @@ export const ToolCallSchema = z.object({
 });
 
 export type ParsedToolCall = z.infer<typeof ToolCallSchema>;
+interface ToolCallParseResult {
+  toolCall: ParsedToolCall | null;
+  parseError?: string;
+  rawResponsePreview?: string;
+}
 
 /**
  * Normalize a parsed JSON candidate into the canonical wrapped ToolCall shape.
@@ -75,18 +80,23 @@ export function normalizeToolCallCandidate(candidate: any): any {
  * Parse a JSON string and validate it against ToolCallSchema.
  * Returns { toolCall, error } where toolCall is null on failure.
  */
-export function validateToolCallJson(jsonText: string): { toolCall: ParsedToolCall | null; error: string } {
+export function validateToolCallJson(jsonText: string): ToolCallParseResult {
   let parsed: any;
   try {
     parsed = JSON.parse(jsonText);
+    // Remove any top-level 'thinking' field which is not part of the tool call schema
+    if (typeof parsed === 'object' && parsed !== null && 'thinking' in parsed) {
+      const { thinking, ...rest } = parsed;
+      parsed = rest;
+    }
   } catch (err: any) {
-    return { toolCall: null, error: `JSON parse error: ${err.message}` };
+    return { toolCall: null, parseError: `JSON parse error: ${err.message}` };
   }
   const result = ToolCallSchema.safeParse(normalizeToolCallCandidate(parsed));
   if (result.success) {
-    return { toolCall: result.data, error: '' };
+    return { toolCall: result.data, parseError: '' };
   }
-  return { toolCall: null, error: `Schema validation error: ${result.error.message}` };
+  return { toolCall: null, parseError: `Schema validation error: ${result.error.message}` };
 }
 
 function extractBalancedJsonCandidates(text: string): string[] {
@@ -144,38 +154,39 @@ function extractBalancedJsonCandidates(text: string): string[] {
  * 5. OpenAI-compatible tool-call structures
  * Returns { toolCall, parseError } where toolCall is null if all strategies fail.
  */
-export function parseToolCall(response: string): { toolCall: ParsedToolCall | null; parseError: string } {
+export function parseToolCall(response: string): ToolCallParseResult {
   const trimmed = response.trim();
   const errors: string[] = [];
+  const preview = trimmed.slice(0, 200);
 
   // Strategy 1: Plain JSON
   const plain = validateToolCallJson(trimmed);
-  if (plain.toolCall) return { toolCall: plain.toolCall, parseError: '' };
-  errors.push(`plain JSON: ${plain.error}`);
+  if (plain.toolCall) return { toolCall: plain.toolCall, parseError: '', rawResponsePreview: preview };
+  errors.push(`plain JSON: ${plain.parseError}`);
 
   // Strategy 2: Markdown code fence
   const fenceMatch = trimmed.match(/```(?:json|JSON)?\s*([\s\S]*?)\s*```/);
   if (fenceMatch) {
     const fenced = validateToolCallJson(fenceMatch[1].trim());
-    if (fenced.toolCall) return { toolCall: fenced.toolCall, parseError: '' };
-    errors.push(`code fence: ${fenced.error}`);
+    if (fenced.toolCall) return { toolCall: fenced.toolCall, parseError: '', rawResponsePreview: preview };
+    errors.push(`code fence: ${fenced.parseError}`);
   }
 
   // Strategy 3: Embedded balanced JSON
   for (const candidate of extractBalancedJsonCandidates(trimmed)) {
     if (candidate === trimmed || candidate === fenceMatch?.[1]?.trim()) continue;
     const embedded = validateToolCallJson(candidate);
-    if (embedded.toolCall) return { toolCall: embedded.toolCall, parseError: '' };
-    errors.push(`embedded JSON: ${embedded.error}`);
+    if (embedded.toolCall) return { toolCall: embedded.toolCall, parseError: '', rawResponsePreview: preview };
+    errors.push(`embedded JSON: ${embedded.parseError}`);
   }
 
   // Strategy 4: <tool_call> tags
   const tagMatch = trimmed.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
   if (tagMatch) {
     const tagged = validateToolCallJson(tagMatch[1].trim());
-    if (tagged.toolCall) return { toolCall: tagged.toolCall, parseError: '' };
-    errors.push(`tool_call tags: ${tagged.error}`);
+    if (tagged.toolCall) return { toolCall: tagged.toolCall, parseError: '', rawResponsePreview: preview };
+    errors.push(`tool_call tags: ${tagged.parseError}`);
   }
 
-  return { toolCall: null, parseError: errors.join(' | ') || 'No JSON tool call found in response' };
+  return { toolCall: null, parseError: errors.join(' | ') || 'No JSON tool call found in response', rawResponsePreview: preview };
 }

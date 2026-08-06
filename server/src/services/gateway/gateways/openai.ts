@@ -11,6 +11,22 @@ function parseOpenAiSseDelta(payload: string): string {
   }
 }
 
+/**
+ * Structured error for provider HTTP 429 responses. Retains the status code
+ * and the Retry-After header value so the router can emit a rate-limit
+ * diagnostic and continue fallback routing.
+ */
+export class ProviderRateLimitError extends Error {
+  public readonly status = 429;
+  public readonly retryAfter?: string;
+
+  constructor(message: string, retryAfter?: string) {
+    super(message);
+    this.name = 'ProviderRateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
 export class OpenAICompatibleGateway implements ModelGateway {
   name: string;
   definition: ProviderDefinition;
@@ -52,6 +68,9 @@ export class OpenAICompatibleGateway implements ModelGateway {
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
+      if (res.status === 429) {
+        throw new ProviderRateLimitError(`HTTP 429: ${body}`, res.headers.get('retry-after') ?? undefined);
+      }
       throw new Error(`HTTP ${res.status}: ${body}`);
     }
 
@@ -96,36 +115,63 @@ export class OpenAICompatibleGateway implements ModelGateway {
       signal: req.signal || AbortSignal.timeout(req.timeoutMs || 30000)
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      if (res.status === 429) {
+        throw new ProviderRateLimitError(`HTTP 429`, res.headers.get('retry-after') ?? undefined);
+      }
+      throw new Error(`HTTP ${res.status}`);
+    }
     if (!res.body) throw new Error(`No response body`);
 
     const decoder = new TextDecoder();
     const reader = res.body.getReader();
     let buffer = '';
+    let rawBody = '';
+    let sawSseData = false;
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      const text = decoder.decode(value, { stream: true });
+      if (!sawSseData) rawBody += text;
+      buffer += text;
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
-
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
+        sawSseData = true;
         const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
         if (delta) yield { type: 'token', content: delta, provider: this.name, model: this.definition.model };
       }
     }
 
-    buffer += decoder.decode();
+    const tail = decoder.decode();
+    if (!sawSseData) rawBody += tail;
+    buffer += tail;
     for (const line of buffer.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed.startsWith('data:')) continue;
+      sawSseData = true;
       const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
       if (delta) yield { type: 'token', content: delta, provider: this.name, model: this.definition.model };
     }
-    
+
+    // Non-streaming OpenAI-style JSON body (no SSE `data:` lines seen): emit
+    // the final message content as a single token. Reads only `content`, so
+    // `reasoning_content` never reaches user-visible output.
+    if (!sawSseData) {
+      try {
+        const parsed = JSON.parse(rawBody);
+        const content = parsed?.choices?.[0]?.message?.content;
+        if (typeof content === 'string' && content.length > 0) {
+          yield { type: 'token', content, provider: this.name, model: this.definition.model };
+        }
+      } catch {
+        // Not JSON either; downstream empty-stream handling applies.
+      }
+    }
+
     yield { type: 'done', provider: this.name, model: this.definition.model };
   }
 

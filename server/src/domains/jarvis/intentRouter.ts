@@ -199,9 +199,39 @@ export class IntentRouter {
     }
 
     // 5. Ambiguous intent handling
-    // Short or vague prompts are conversation by default. They must not create a goal.
+    // Greetings are always direct conversation, never clarification
+    const isGreeting = /^(hi|hello|hey|yo|sup|howdy|greetings|good\s+(morning|afternoon|evening))\b/.test(p);
+    if (isGreeting) {
+      return direct('conversation', 0.6, 'Greeting detected — direct conversation');
+    }
+
+    // Bare agent-name invocations ("Jarvis", "Hermes", ...) are direct conversation
+    const agentNames = ['jarvis', 'hermes', 'codex', 'athena', 'sentinel', 'qwable', 'qwythos'];
+    if (words.length === 1 && agentNames.includes(words[0])) {
+      return direct('conversation', 0.6, 'Agent invocation — direct conversation');
+    }
+
+    // Questions (wh- words or auxiliary + subject) are direct conversation
+    const isQuestion = /^(what|who|how|why|where|when|which)\b/.test(p) ||
+      /^(do|does|did|can|could|will|would|is|are|am)\s+(you|i|we|they)\b/.test(p) ||
+      p.endsWith('?');
+    if (isQuestion) {
+      return direct('conversation', 0.55, 'Question detected — direct conversation');
+    }
+
+    // Short or vague prompts that aren't greetings, invocations, or questions need
+    // clarification. They must not create a goal or silently default to conversation.
     if (words.length <= 3) {
-      return direct('conversation', 0.5, 'Uncertain prompt defaults to direct conversation');
+      return {
+        route: 'clarification_required',
+        category: 'conversation',
+        mode: 'direct_conversation',
+        confidence: 0.3,
+        reason: 'Ambiguous short prompt requires clarification',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis'
+      };
     }
 
     // Fallback direct chat

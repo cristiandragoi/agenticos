@@ -445,6 +445,7 @@ export interface ExecutionOptions {
   modelOverride?: string;
   providerOverride?: string;
   disableFallback?: boolean;
+  executionProviderId?: 'auto' | 'none' | string;
 }
 
 export interface AgentInvocation {

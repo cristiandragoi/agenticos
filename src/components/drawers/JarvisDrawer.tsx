@@ -74,6 +74,7 @@ function toggleSaved(entry: JarvisTranscriptEntry): boolean {
 import { useChatManager } from '../../hooks/useChatManager';
 import type { ChatMessage } from '../../types';
 import JarvisControlBoard from '../jarvis/JarvisControlBoard';
+import { JARVIS_ORB_EVENTS } from '../jarvis/jarvisOrbState';
 
 /* ─── Component ─── */
 const JarvisDrawer: React.FC = () => {
@@ -88,6 +89,92 @@ const JarvisDrawer: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [jarvisMode, setJarvisMode] = useState<'voice'|'board'>('voice');
   const [toast, setToast] = useState<string | null>(null);
+
+  // ── Real-time conversation mode (V1) ──
+  // Manual mode stays the default: record → edit transcript → Send.
+  // Conversation mode: VAD turn loop auto-submits, Jarvis executes and
+  // speaks, listening resumes after playback. All mutable flags live in
+  // refs so event handlers / rAF loops never act on stale render state.
+  const [conversationMode, setConversationMode] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [voiceOutEnabled, setVoiceOutEnabled] = useState(true);
+  const conversationModeRef = useRef(false);
+  const micEnabledRef = useRef(true);
+  const voiceOutEnabledRef = useRef(true);
+  const voiceRef = useRef<any>(null); // assigned right after useVoiceIO()
+  const convProcessingRef = useRef(false);   // one in-flight conversation turn
+  const convSubmitSeqRef = useRef(0);        // staleness guard for async turns
+  const convExecAbortRef = useRef<AbortController | null>(null);
+
+  /** Execute one Jarvis turn for the conversation pipeline (single
+   *  /api/voice/execute POST — the existing verified route). Exactly one
+   *  response is spoken per turn; barge-in can abort mid-playback via
+   *  stopSpeaking(); visible text is never erased. */
+  const executeJarvisTurn = useCallback(async (text: string, source: 'voice' | 'text') => {
+    if (convProcessingRef.current) return; // duplicate-submission safeguard
+    convProcessingRef.current = true;
+    const turnId = ++convSubmitSeqRef.current;
+    const controller = new AbortController();
+    convExecAbortRef.current = controller;
+    jarvis.setStatus('thinking');
+    try {
+      const res = await fetch('/api/voice/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`execute HTTP ${res.status}`);
+      const data = await res.json();
+      const responseText = data.text || 'No response.';
+      if (!conversationModeRef.current || turnId !== convSubmitSeqRef.current) return; // mode ended / stale
+      jarvis.addTranscript({
+        id: `c-jrv-${turnId}-${Date.now()}`,
+        role: 'jarvis',
+        text: responseText,
+        timestamp: new Date().toISOString(),
+      });
+      refreshData();
+      if (voiceOutEnabledRef.current) {
+        // 'speaking' state is confirmed by the hook ONLY after real playback
+        // start; playback-ended re-arms listening inside the hook. Do NOT
+        // force 'idle' here — the hook's real lifecycle events drive the
+        // state (speaking → listening) while audio actually plays.
+        await voiceRef.current?.speak(responseText);
+      } else {
+        voiceRef.current?.startListening(); // conversation re-arm, no audio
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      console.error('[Jarvis] Conversation turn failed:', err);
+      if (conversationModeRef.current) {
+        // Error recovery: one clear error state, then back to listening —
+        // never a duplicate submission.
+        jarvis.setStatus('error');
+        setTimeout(() => {
+          if (conversationModeRef.current && turnId === convSubmitSeqRef.current) {
+            jarvis.setStatus('idle');
+            voiceRef.current?.startListening();
+          }
+        }, 1500);
+      }
+    } finally {
+      if (convExecAbortRef.current === controller) convExecAbortRef.current = null;
+      if (turnId === convSubmitSeqRef.current) convProcessingRef.current = false;
+    }
+  }, [jarvis, refreshData]);
+
+  /** Conversation auto-submit: fires exactly once per valid end-of-speech
+   *  transcript (the hook deduplicates identical text + per-blob flags). */
+  const handleConversationSubmit = useCallback((text: string) => {
+    jarvis.addTranscript({
+      id: `c-usr-${convSubmitSeqRef.current + 1}-${Date.now()}`,
+      role: 'user',
+      text,
+      timestamp: new Date().toISOString(),
+    });
+    executeJarvisTurn(text, 'voice');
+  }, [jarvis, executeJarvisTurn]);
 
   const playedMessageIds = useRef(new Set<string>());
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -165,7 +252,64 @@ const JarvisDrawer: React.FC = () => {
     onStateChange: (s) => {
       jarvis.setStatus(s);
     },
+    // ── Conversation mode: auto-submit exactly once per valid end-of-speech
+    // transcript. The hook dedupes identical text and flags each blob. ──
+    onAutoSubmit: (text) => handleConversationSubmit(text),
+    endSpeechSilenceMs: 900, // measured-silence turn end (spec: 700–1200 ms)
   });
+  voiceRef.current = voice; // handlers/rAF loops read the latest instance via ref
+
+  // ── Conversation-mode controls ──
+  const handleModeToggle = useCallback(async (mode: 'manual' | 'conversation') => {
+    if (mode === 'conversation') {
+      if (conversationModeRef.current) return;
+      if (!micEnabledRef.current) {
+        setToast('Enable the microphone first');
+        setTimeout(() => setToast(null), 2000);
+        return;
+      }
+      conversationModeRef.current = true;
+      setConversationMode(true);
+      setShowBoard(false); // conversation happens in the Chat view
+      const ok = await voiceRef.current?.startConversation();
+      if (!ok) {
+        conversationModeRef.current = false;
+        setConversationMode(false);
+        setToast('Microphone unavailable — check permissions');
+        setTimeout(() => setToast(null), 2500);
+      }
+    } else {
+      if (!conversationModeRef.current) return;
+      conversationModeRef.current = false;
+      setConversationMode(false);
+      convSubmitSeqRef.current++; // invalidate any in-flight conversation turn
+      convExecAbortRef.current?.abort();
+      convProcessingRef.current = false;
+      voiceRef.current?.endConversation();
+      jarvis.setStatus('idle');
+    }
+  }, [jarvis]);
+
+  const handleMicToggle = useCallback(() => {
+    const next = !micEnabledRef.current;
+    micEnabledRef.current = next;
+    setMicEnabled(next);
+    if (!next && conversationModeRef.current) {
+      // Disabling the mic ends conversation mode (no capture without mic).
+      handleModeToggle('manual');
+    }
+  }, [handleModeToggle]);
+
+  const handleVoiceOutToggle = useCallback(() => {
+    const next = !voiceOutEnabledRef.current;
+    voiceOutEnabledRef.current = next;
+    setVoiceOutEnabled(next);
+    voiceRef.current?.setVoiceEnabled(next);
+  }, []);
+
+  const handleStopSpeaking = useCallback(() => {
+    voiceRef.current?.stopSpeaking();
+  }, []);
 
   // ── Persistence: restore on mount, save on every change ──
   useEffect(() => {
@@ -297,6 +441,7 @@ const JarvisDrawer: React.FC = () => {
 
   // ── Mic: delegate fully to useVoiceIO ──
   const handleMicClick = () => {
+    if (!micEnabledRef.current) return; // microphone disabled via controls
     micAttemptedRef.current = false;  // Allow retry on manual click
     voice.toggleListening();
   };
@@ -305,31 +450,45 @@ const JarvisDrawer: React.FC = () => {
   // Track whether we've already tried mic to avoid infinite retry loops
   const micAttemptedRef = useRef(false);
 
+  // The `voice` object from useVoiceIO has a NEW identity on every render.
+  // It must NOT appear in the effect deps below: the previous version did,
+  // so EVERY re-render ran the effect cleanup, which called voice.stopAudio()
+  // and aborted the in-flight TTS fetch/playback. That made audible speech on
+  // the Mission Control Jarvis surface impossible: speak() started, the next
+  // status/transcript re-render fired, cleanup aborted the TTS request, and
+  // the AbortError path resolved silently. All voice access goes through the
+  // voiceRef (declared once near the top, refreshed every render) so the
+  // effect only re-runs on real drawer open/close transitions.
+
   useEffect(() => {
-    if (drawer.isOpen && drawer.entityType === 'jarvis') {
-      if (voice.voiceState === 'idle' && jarvis.status !== 'speaking' && !micAttemptedRef.current) {
+    const drawerOpenForJarvis = drawer.isOpen && drawer.entityType === 'jarvis';
+
+    if (drawerOpenForJarvis) {
+      // Manual-mode convenience: auto-arm the mic once when the drawer opens
+      // (existing behaviour — preserved). Honors the microphone toggle.
+      if (micEnabledRef.current && voiceRef.current.voiceState === 'idle' && jarvis.status !== 'speaking' && !micAttemptedRef.current) {
         micAttemptedRef.current = true;
-        voice.startListening();
+        voiceRef.current.startListening();
       }
     } else {
       micAttemptedRef.current = false;
-      voice.stopListening();
+      voiceRef.current.stopListening();
     }
 
-    const handleTTSStart = (e: CustomEvent) => {
-      if (e.detail.agentId === 'agent-jarvis') {
-        voice.setVoiceState('speaking');
+    // Real playback-ended event (dispatched by useVoiceIO only after actual
+    // playback finished) → re-arm listening for the interactive voice loop.
+    // In conversation mode the hook itself owns the resume (afterPlaybackEnd),
+    // so this handler defers to it to avoid double management.
+    const handlePlaybackEnded = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.agentId !== 'agent-jarvis') return;
+      if (conversationModeRef.current) return; // hook re-arms automatically
+      if (drawerOpenForJarvis) {
+        micAttemptedRef.current = false;
+        voiceRef.current.startListening();
       }
     };
-    const handleTTSEnd = (e: CustomEvent) => {
-      if (e.detail.agentId === 'agent-jarvis') {
-        voice.setVoiceState('idle');
-        // RE-START LISTENING AUTOMATICALLY for truly interactive loops
-        if (drawer.isOpen && drawer.entityType === 'jarvis') {
-          voice.startListening();
-        }
-      }
-    };
+
     const handleResponseReady = (e: Event) => {
       const customEvent = e as CustomEvent<AgentResponseReadyDetail>;
       const { agentId, text, messageId, conversationId } = customEvent.detail;
@@ -359,7 +518,7 @@ const JarvisDrawer: React.FC = () => {
       console.log('[TTSPlayback]', { messageId, agentId, conversationId, ownerComponent: 'JarvisDrawer', action: 'start' });
 
       const textToSpeak = text;
-      voice.speak(textToSpeak).then(() => {
+      voiceRef.current.speak(textToSpeak).then(() => {
         fetch('/api/conversations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -374,20 +533,22 @@ const JarvisDrawer: React.FC = () => {
       });
     };
 
-    window.addEventListener('agent-tts-started', handleTTSStart as EventListener);
-    window.addEventListener('agent-tts-ended', handleTTSEnd as EventListener);
+    window.addEventListener(JARVIS_ORB_EVENTS.playbackEnded, handlePlaybackEnded as EventListener);
     window.addEventListener('agent-response-ready', handleResponseReady as EventListener);
 
     return () => {
-      window.removeEventListener('agent-tts-started', handleTTSStart as EventListener);
-      window.removeEventListener('agent-tts-ended', handleTTSEnd as EventListener);
+      window.removeEventListener(JARVIS_ORB_EVENTS.playbackEnded, handlePlaybackEnded as EventListener);
       window.removeEventListener('agent-response-ready', handleResponseReady as EventListener);
-      console.log('[TTSPlayback]', { ownerComponent: 'JarvisDrawer', action: 'stop', reason: 'unmount' });
-      voice.stopAudio?.();
+      // Cleanup runs ONLY on a real drawer transition (deps: isOpen/entityType)
+      // or on unmount — never on ordinary re-renders, because `voice` is
+      // deliberately kept out of the deps (that was the abort bug: every
+      // re-render aborted the in-flight TTS request, killing all speech).
+      console.log('[TTSPlayback]', { ownerComponent: 'JarvisDrawer', action: 'stop', reason: 'transition-or-unmount' });
+      voiceRef.current.stopAudio?.();
       window.speechSynthesis?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawer.isOpen, drawer.entityType, voice]);
+  }, [drawer.isOpen, drawer.entityType]);
 
   // ── Save / memory toggle ──
   const handleSaveToggle = (entry: JarvisTranscriptEntry) => {
@@ -410,6 +571,10 @@ const JarvisDrawer: React.FC = () => {
   };
 
   const [showBoard, setShowBoard] = useState(true);
+  // Saved-entries popover visibility. NOTE: this state was referenced by the
+  // Chat view JSX but never declared — a pre-existing ReferenceError that
+  // crashed the drawer the moment the Chat tab rendered. Declared here.
+  const [showSaved, setShowSaved] = useState(false);
   const savedEntries = loadSaved();
   const queryCount = jarvis.transcript.filter((t) => t.role === 'user').length;
 
@@ -449,6 +614,118 @@ const JarvisDrawer: React.FC = () => {
         }}>
           💬 Chat
         </button>
+      </div>
+
+      {/* ── Voice Conversation Controls (V1) ──
+          Manual: record → edit transcript → Send (unchanged).
+          Conversation: continuous VAD turn loop — speak, pause, Jarvis answers
+          aloud, listening resumes automatically. */}
+      <div
+        data-testid="jarvis-conversation-bar"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+          borderBottom: '1px solid var(--border-subtle)', flexShrink: 0,
+          background: conversationMode ? 'rgba(56, 189, 248, 0.06)' : 'transparent',
+        }}
+      >
+        {/* Mode selector */}
+        <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+          <button
+            data-testid="jarvis-mode-manual"
+            onClick={() => handleModeToggle('manual')}
+            style={{
+              padding: '4px 10px', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+              background: !conversationMode ? 'var(--bg-elevated)' : 'transparent',
+              color: !conversationMode ? 'var(--text-primary)' : 'var(--text-tertiary)',
+            }}
+          >
+            Manual
+          </button>
+          <button
+            data-testid="jarvis-mode-conversation"
+            onClick={() => handleModeToggle('conversation')}
+            style={{
+              padding: '4px 10px', border: 'none', borderLeft: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+              background: conversationMode ? 'var(--color-hermes)' : 'transparent',
+              color: conversationMode ? '#fff' : 'var(--text-tertiary)',
+            }}
+          >
+            Conversation
+          </button>
+        </div>
+
+        {/* State indicator (real voiceState only — never faked) */}
+        <span
+          data-testid="jarvis-conv-state"
+          style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+        >
+          {conversationMode ? voice.voiceState : 'manual'}
+        </span>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Microphone enable/disable */}
+        <button
+          data-testid="jarvis-conv-mic-toggle"
+          onClick={handleMicToggle}
+          title={micEnabled ? 'Disable microphone' : 'Enable microphone'}
+          style={{
+            width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border-subtle)',
+            background: micEnabled ? 'var(--bg-elevated)' : 'rgba(239, 68, 68, 0.15)',
+            color: micEnabled ? 'var(--text-secondary)' : '#ef4444',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {micEnabled ? <Mic size={14} /> : <MicOff size={14} />}
+        </button>
+
+        {/* Voice output enable/disable */}
+        <button
+          data-testid="jarvis-conv-voiceout-toggle"
+          onClick={handleVoiceOutToggle}
+          title={voiceOutEnabled ? 'Disable voice output' : 'Enable voice output'}
+          style={{
+            width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border-subtle)',
+            background: voiceOutEnabled ? 'var(--bg-elevated)' : 'rgba(239, 68, 68, 0.15)',
+            color: voiceOutEnabled ? 'var(--text-secondary)' : '#ef4444',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            opacity: voiceOutEnabled ? 1 : 0.7,
+          }}
+        >
+          <Volume2 size={14} />
+        </button>
+
+        {/* Stop speaking (visible only while Jarvis is audibly speaking) */}
+        {voice.isSpeaking && (
+          <button
+            data-testid="jarvis-conv-stop-speaking"
+            onClick={handleStopSpeaking}
+            title="Stop speaking"
+            style={{
+              padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(239, 68, 68, 0.4)',
+              background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Stop
+          </button>
+        )}
+
+        {/* End conversation mode */}
+        {conversationMode && (
+          <button
+            data-testid="jarvis-conv-end"
+            onClick={() => handleModeToggle('manual')}
+            title="End conversation mode"
+            style={{
+              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            End
+          </button>
+        )}
       </div>
 
       {showBoard ? (

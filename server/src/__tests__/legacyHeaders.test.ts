@@ -1,18 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import { legacyHeadersMiddleware } from '../middleware/legacyHeaders.js';
 
 // Minimal setup to test the middleware
 const app = express();
 app.use(express.json());
-app.use((req, res, next) => {
-  const legacyHeaders = ['x-provider-keys', 'x-max-retries', 'x-degraded-timeout'];
-  const found = legacyHeaders.filter(h => req.headers[h]);
-  if (found.length > 0) {
-    return res.status(400).json({ error: `Legacy headers not allowed: ${found.join(', ')}` });
-  }
-  next();
-});
+app.use(legacyHeadersMiddleware);
 app.post('/api/chat', (req, res) => res.json({ success: true }));
 
 describe('Legacy Headers Middleware', () => {

@@ -1,4 +1,5 @@
 import { ModelGateway, ChatRequest, ChatResponse, GatewayConfig, ChatStreamChunk, ProviderAttemptError } from './types.js';
+import { ProviderRateLimitError } from './gateways/openai.js';
 import { ProviderScorer } from './scorer.js';
 import { GatewayRunLedger } from './ledger.js';
 import { ProviderRegistry } from './registry.js';
@@ -182,7 +183,10 @@ export class GatewayRouter {
       return [provider];
     }
 
-    order = this.scorer.rankProviders(available, { ...req, preferredProvider: targetProvider }, this.config.providerOrder);
+    // 'preferred' mode must keep the full fallback list; only reorder the target first.
+    // Passing preferredProvider to the scorer would collapse the order to a single provider.
+    const scorerPreferred = routingMode === 'preferred' ? undefined : targetProvider;
+    order = this.scorer.rankProviders(available, { ...req, preferredProvider: scorerPreferred }, this.config.providerOrder);
 
     if (routingMode === 'preferred' && targetProvider) {
       const preferred = order.find(p => p.name.toLowerCase() === targetProvider!.toLowerCase());
@@ -413,7 +417,23 @@ export class GatewayRouter {
         streamFailed = true;
         const durationMs = Date.now() - attemptStart;
         const msg = (error.message || '').toLowerCase();
-        
+
+        // Structured HTTP 429 from the gateway: emit and yield exactly one
+        // rate-limit diagnostic, then continue normal fallback routing below.
+        // The diagnostic chunk is an event, never a token.
+        if (error instanceof ProviderRateLimitError) {
+          const rateLimitEvent: ChatStreamChunk = {
+            type: 'gateway.rate_limited',
+            stage: 'provider_rate_limited',
+            provider: providerName,
+            status: error.status,
+            retryAfter: error.retryAfter,
+            requestId: req.requestId
+          };
+          this.emit(rateLimitEvent);
+          yield rateLimitEvent;
+        }
+
         let isProviderFault = true;
         if (msg.includes('http 400') || msg.includes('http 401') || msg.includes('http 403') || msg.includes('http 413') || msg.includes('http 422')) {
           isProviderFault = false;

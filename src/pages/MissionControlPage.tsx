@@ -1,18 +1,10 @@
 // @ts-nocheck
-import React, { useMemo } from 'react';
-import { Activity, AlertTriangle, Bot, CheckCircle2, Clock, Cpu, Database, GitBranch, Radio, Server, Settings } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { useData } from '../store/dataStore';
-
-function statusLabel(value?: string | null) {
-  return value || 'Unknown';
-}
-
-function providerModel(provider: any) {
-  if (!provider) return 'Unknown';
-  if (!provider.defaultModel) return 'Not configured';
-  const configuredModel = provider.models?.find((model: any) => model.id === provider.defaultModel);
-  return configuredModel?.displayName || provider.defaultModel;
-}
+import { JarvisOrb } from '../components/jarvis/JarvisOrb';
+import { JarvisConversationPanel } from '../components/jarvis/JarvisConversationPanel';
+import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 
 function cleanError(message?: string | null) {
   if (!message) return 'No details available.';
@@ -20,59 +12,108 @@ function cleanError(message?: string | null) {
   return firstLine.replace(/\s+at\s+.*/i, '').slice(0, 180);
 }
 
-const MetricCard = ({ icon, title, value, detail, tone = 'neutral' }: any) => {
-  const color = tone === 'bad' ? '#f87171' : tone === 'warn' ? '#f59e0b' : tone === 'good' ? '#34d399' : '#94a3b8';
-  return (
-    <div className="rounded-md border border-slate-800 bg-slate-950/70 p-4" data-testid={`mission-metric-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{title}</div>
-        <div style={{ color }}>{icon}</div>
-      </div>
-      <div className="mt-3 text-2xl font-semibold text-slate-100">{value}</div>
-      <div className="mt-1 text-xs text-slate-500">{detail}</div>
-    </div>
-  );
-};
-
-const ListPanel = ({ title, empty, children }: any) => (
-  <section className="rounded-md border border-slate-800 bg-slate-950/60">
-    <div className="border-b border-slate-800 px-4 py-3">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">{title}</h2>
-    </div>
-    <div className="divide-y divide-slate-800">
-      {children || <div className="px-4 py-5 text-sm text-slate-500">{empty}</div>}
-    </div>
-  </section>
-);
-
-const Row = ({ title, subtitle, meta, tone = 'neutral' }: any) => {
-  const color = tone === 'bad' ? 'text-rose-300' : tone === 'warn' ? 'text-amber-300' : tone === 'good' ? 'text-emerald-300' : 'text-slate-300';
-  return (
-    <div className="px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className={`truncate text-sm font-medium ${color}`}>{title}</div>
-          {subtitle && <div className="mt-1 line-clamp-2 text-xs text-slate-500">{subtitle}</div>}
-        </div>
-        {meta && <div className="shrink-0 text-[11px] uppercase tracking-wider text-slate-500">{meta}</div>}
-      </div>
-    </div>
-  );
-};
-
+/**
+ * MissionControlPage — the /mission-control route (product Milestone 1).
+ *
+ * Jarvis IS the main focus of this page:
+ *   - large organic reactive orb (the existing JarvisOrb, size 180, driven
+ *     by real voice/playback/run/backend-health signals — no fake states),
+ *   - the live conversation surface (JarvisConversationPanel) beside it:
+ *     streaming transcript, Manual/Conversation modes, voice selector,
+ *     compact status strip, command menu, delegated strip, and a
+ *     COLLAPSIBLE diagnostics drawer holding all technical telemetry.
+ *
+ * Removed from the permanent view (per the Milestone 1 layout contract):
+ *   - the metric card grid (Backend Health / Providers / Agents / Executions),
+ *   - the Providers & Models / Registered Agents / Pending Approvals lists,
+ *   - the Active Executions / Failed Runs list panels,
+ *   - the Recent Completed / Teams / CodeX / Schedules metric row,
+ *   - the Pipelines / System Registry panels.
+ * None of that data is lost — it is served by the collapsible diagnostics
+ * drawer inside the conversation panel. There is NO permanent Action Log
+ * panel on this route (that panel exists only in JarvisStudio at /jarvis).
+ */
 const MissionControlPage: React.FC = () => {
-  const { agents, providers, runs, runtimes, schedules, isLoading, error, refresh } = useData();
+  const { runs, isLoading, error, refresh } = useData();
 
-  const agentById = useMemo(() => new Map(agents.map((agent: any) => [agent.id, agent])), [agents]);
-  const runningRuns = runs.filter((run: any) => ['running', 'queued', 'executing'].includes(run.status));
-  const pendingApprovals = runs.filter((run: any) => ['waiting', 'waiting_for_approval', 'approval_required'].includes(run.status));
-  const failedRuns = runs.filter((run: any) => run.status === 'failed');
-  const completedRuns = runs.filter((run: any) => run.status === 'completed').slice(0, 5);
-  const connectedProviders = providers.filter((provider: any) => ['connected', 'healthy', 'active'].includes(provider.status));
-  const unhealthyProviders = providers.filter((provider: any) => ['error', 'unavailable', 'disconnected', 'needs-auth'].includes(provider.status));
-  const agentTeamsRuns = runs.filter((run: any) => String(run.mode || '').includes('team') || String(run.agentId || '').includes('team'));
-  const codexRuns = runs.filter((run: any) => String(run.agentId || '').toLowerCase().includes('codex') || String(run.runtimeId || '').toLowerCase().includes('codex'));
-  const pipelines = runs.filter((run: any) => ['workflow', 'pipeline'].includes(run.mode));
+  // ── Jarvis orb wiring ─────────────────────────────────────────────────────
+  // Reuses the EXISTING JarvisOrb component and its real-signal contract
+  // (same events + health probe as JarvisStudio). No fake states: every input
+  // is a real window event, the truthful backend health probe, or live run data.
+  const [playbackActive, setPlaybackActive] = useState(false);
+  const [inputLevel, setInputLevel] = useState(0);
+  const [outputLevel, setOutputLevel] = useState(0);
+  const [backendOffline, setBackendOffline] = useState(false);
+  const [micState, setMicState] = useState('idle');
+
+  // Real playback lifecycle: speaking only after confirmed playback start.
+  useEffect(() => {
+    const onPlaybackStarted = () => setPlaybackActive(true);
+    const onPlaybackEnded = () => setPlaybackActive(false);
+    window.addEventListener(JARVIS_ORB_EVENTS.playbackStarted, onPlaybackStarted);
+    window.addEventListener(JARVIS_ORB_EVENTS.playbackEnded, onPlaybackEnded);
+    return () => {
+      window.removeEventListener(JARVIS_ORB_EVENTS.playbackStarted, onPlaybackStarted);
+      window.removeEventListener(JARVIS_ORB_EVENTS.playbackEnded, onPlaybackEnded);
+    };
+  }, []);
+
+  // Real audio levels (mic while listening, playback while speaking).
+  useEffect(() => {
+    const onInput = (e: any) => setInputLevel(e.detail?.level ?? 0);
+    const onOutput = (e: any) => setOutputLevel(e.detail?.level ?? 0);
+    window.addEventListener(JARVIS_ORB_EVENTS.inputLevel, onInput);
+    window.addEventListener(JARVIS_ORB_EVENTS.outputLevel, onOutput);
+    return () => {
+      window.removeEventListener(JARVIS_ORB_EVENTS.inputLevel, onInput);
+      window.removeEventListener(JARVIS_ORB_EVENTS.outputLevel, onOutput);
+    };
+  }, []);
+
+  // Voice capture state broadcast by the conversation pipeline.
+  useEffect(() => {
+    const onVoiceState = (e: any) => {
+      const next = typeof e.detail === 'string' ? e.detail : 'idle';
+      setMicState(next);
+    };
+    window.addEventListener(JARVIS_ORB_EVENTS.voiceState, onVoiceState);
+    return () => window.removeEventListener(JARVIS_ORB_EVENTS.voiceState, onVoiceState);
+  }, []);
+
+  // Truthful backend health probe (same cadence + semantics as JarvisStudio).
+  useEffect(() => {
+    if (typeof fetch !== 'function') return;
+    let cancelled = false;
+    const checkHealth = async () => {
+      try {
+        const res = await fetch('/api/health/gateway');
+        if (!res.ok) {
+          if (!cancelled) setBackendOffline(true);
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) setBackendOffline(data?.status === 'offline');
+      } catch {
+        if (!cancelled) setBackendOffline(true);
+      }
+    };
+    checkHealth();
+    const id = window.setInterval(checkHealth, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  // Runtime state derived from LIVE Jarvis run activity (never faked). Only
+  // genuinely in-flight work maps to "thinking".
+  const jarvisRuns = runs.filter((run: any) => run.agentId === 'agent-jarvis');
+  const jarvisInFlight = jarvisRuns.some((run: any) =>
+    ['running', 'queued', 'executing', 'waiting', 'waiting_for_approval', 'approval_required'].includes(run.status)
+  );
+  const runtimeState: any = jarvisInFlight ? 'thinking' : 'idle';
+
+  const orbState = deriveJarvisOrbState({ micState, playbackActive, runtimeState, backendOffline });
 
   if (isLoading) return null;
 
@@ -83,7 +124,7 @@ const MissionControlPage: React.FC = () => {
           <div>
             <div className="text-[11px] font-bold uppercase tracking-widest text-cyan-400">Workspace</div>
             <h1 className="mt-1 text-2xl font-semibold">Mission Control</h1>
-            <p className="mt-1 text-sm text-slate-500">Operational cockpit for health, providers, agents, executions, approvals, and alerts.</p>
+            <p className="mt-1 text-sm text-slate-500">Talk to Jarvis — by voice or text. Everything else stays out of the way.</p>
           </div>
           <button
             type="button"
@@ -107,84 +148,31 @@ const MissionControlPage: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={<Server size={18} />} title="Backend Health" value={error ? 'Unavailable' : 'Available'} detail={`${runtimes.length || 0} runtime${runtimes.length === 1 ? '' : 's'} registered`} tone={error ? 'bad' : 'good'} />
-          <MetricCard icon={<Cpu size={18} />} title="Providers" value={`${connectedProviders.length}/${providers.length}`} detail={providers.length ? 'connected providers' : 'No provider registry data'} tone={unhealthyProviders.length ? 'warn' : 'good'} />
-          <MetricCard icon={<Bot size={18} />} title="Agents Online" value={agents.filter((agent: any) => agent.status === 'active').length} detail={`${agents.length || 0} registered agent${agents.length === 1 ? '' : 's'}`} tone="neutral" />
-          <MetricCard icon={<Activity size={18} />} title="Active Executions" value={runningRuns.length} detail={`${pendingApprovals.length} pending approval${pendingApprovals.length === 1 ? '' : 's'}`} tone={pendingApprovals.length ? 'warn' : 'neutral'} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <ListPanel title="Providers and Models" empty="No provider registry data.">
-            {providers.slice(0, 6).map((provider: any) => (
-              <Row
-                key={provider.id}
-                title={provider.name || provider.id || 'Unknown provider'}
-                subtitle={`Model: ${providerModel(provider)}`}
-                meta={statusLabel(provider.status)}
-                tone={['connected', 'healthy', 'active'].includes(provider.status) ? 'good' : provider.status ? 'warn' : 'neutral'}
-              />
-            ))}
-          </ListPanel>
-
-          <ListPanel title="Registered Agents" empty="No registered agents returned by the backend.">
-            {agents.slice(0, 8).map((agent: any) => (
-              <Row
-                key={agent.id}
-                title={agent.name || agent.id || 'Unknown agent'}
-                subtitle={agent.description || agent.kind || 'No description available.'}
-                meta={statusLabel(agent.status)}
-                tone={agent.status === 'active' ? 'good' : 'neutral'}
-              />
-            ))}
-          </ListPanel>
-
-          <ListPanel title="Pending Approvals" empty="No pending approvals.">
-            {pendingApprovals.slice(0, 6).map((run: any) => (
-              <Row
-                key={run.id}
-                title={run.input || `Run ${run.id}`}
-                subtitle={agentById.get(run.agentId)?.name || run.agentId || 'Unknown agent'}
-                meta={statusLabel(run.status)}
-                tone="warn"
-              />
-            ))}
-          </ListPanel>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <ListPanel title="Active Executions" empty="No active executions.">
-            {runningRuns.slice(0, 6).map((run: any) => (
-              <Row key={run.id} title={run.input || `Run ${run.id}`} subtitle={agentById.get(run.agentId)?.name || run.agentId || 'Unknown agent'} meta={statusLabel(run.status)} tone="good" />
-            ))}
-          </ListPanel>
-
-          <ListPanel title="Failed Runs and Alerts" empty="No failed runs or provider alerts.">
-            {[...failedRuns.map((run: any) => ({ id: run.id, title: run.input || `Run ${run.id}`, subtitle: cleanError(run.errorMessage || run.output), meta: statusLabel(run.status) })),
-              ...unhealthyProviders.map((provider: any) => ({ id: provider.id, title: provider.name || provider.id, subtitle: cleanError(provider.errorMessage || 'Provider unavailable or not configured.'), meta: statusLabel(provider.status) }))]
-              .slice(0, 6)
-              .map((item: any) => <Row key={item.id} title={item.title} subtitle={item.subtitle} meta={item.meta} tone="bad" />)}
-          </ListPanel>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-          <MetricCard icon={<CheckCircle2 size={18} />} title="Recent Completed" value={completedRuns.length} detail={completedRuns[0]?.input || 'No completed runs'} />
-          <MetricCard icon={<Radio size={18} />} title="Agent Teams Activity" value={agentTeamsRuns.length} detail={agentTeamsRuns[0]?.status || 'No team activity'} />
-          <MetricCard icon={<GitBranch size={18} />} title="CodeX Activity" value={codexRuns.length} detail={codexRuns[0]?.status || 'No CodeX runs'} />
-          <MetricCard icon={<Clock size={18} />} title="Schedules" value={schedules.length || 0} detail={schedules.length ? 'registered schedules' : 'No schedules configured'} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <ListPanel title="Pipelines" empty="No active pipeline runs.">
-            {pipelines.slice(0, 5).map((run: any) => <Row key={run.id} title={run.input || `Pipeline ${run.id}`} subtitle={agentById.get(run.agentId)?.name || run.agentId || 'Unknown agent'} meta={statusLabel(run.status)} />)}
-          </ListPanel>
-          <ListPanel title="System Registry" empty="No registry data.">
-            <Row title="Memory" subtitle="Workspace memory scopes returned by backend." meta="Live" />
-            <Row title="Models & Providers" subtitle={providers.length ? `${providers.length} provider records` : 'No provider data'} meta={providers.length ? 'Live' : 'Unknown'} />
-            <Row title="Automations" subtitle={schedules.length ? `${schedules.length} schedules` : 'No schedules configured'} meta={schedules.length ? 'Live' : 'Not configured'} />
-            <Row title="Settings" subtitle="System settings page available from navigation." meta="Available" />
-          </ListPanel>
-        </div>
+        {/* ── JARVIS IS THE MAIN FOCUS ─────────────────────────────────────
+            Large organic reactive orb + the full conversational surface in
+            one hero section. All technical telemetry moved into the
+            collapsible diagnostics drawer inside the panel. ── */}
+        <section
+          className="rounded-md border border-slate-800 bg-slate-950/60 p-5"
+          data-testid="mission-jarvis-orb"
+        >
+          <div className="flex flex-col items-start gap-6 lg:flex-row">
+            <div className="flex shrink-0 flex-col items-center gap-3" style={{ width: 220 }}>
+              <div style={{ width: 200, height: 236 }}>
+                <JarvisOrb state={orbState} inputLevel={inputLevel} outputLevel={outputLevel} size={180} />
+              </div>
+              <div className="text-center">
+                <div className="text-[11px] font-bold uppercase tracking-widest text-cyan-400">Jarvis</div>
+                <div data-testid="mission-orb-state-label" className="mt-0.5 text-xs font-semibold text-slate-300">
+                  {orbState.charAt(0).toUpperCase() + orbState.slice(1)}
+                </div>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <JarvisConversationPanel backendOffline={backendOffline} />
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

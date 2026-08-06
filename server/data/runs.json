@@ -5337,5 +5337,54 @@
     "createdAt": "2026-08-01T11:54:34.940Z",
     "updatedAt": "2026-08-01T11:54:38.178Z",
     "output": "It looks like your message might have some random characters in it (\"dsvcdscd\"). Could you clarify what you'd like help with? I'm here to assist with planning tasks, executing commands, or answering questions."
+  },
+  {
+    "id": "run-f83c7b91-",
+    "agentId": "agent-hermes",
+    "sessionId": "4a2673d6-8fbc-42be-b674-6aa46d638dd5",
+    "workspaceId": "default",
+    "mode": "chat",
+    "status": "completed",
+    "input": "gbfgbg\n\n[SYSTEM INSTRUCTION: You are the primary orchestrator for the Agentic OS. When asked to plan, break down tasks, or delegate work, respond with a JSON block in the format: {\"action\": \"create_kanban_tasks\", \"tasks\": [{\"title\": \"...\", \"description\": \"...\", \"agent\": \"...\", \"model\": \"...\"}]} along with your text explanation.]",
+    "logs": [
+      "[Hermes] Task accepted",
+      "[Hermes] Provider: OpenRouter (poolside/laguna-s-2.1:free)",
+      "[Hermes] Tool calls: 0 in 1 iterations"
+    ],
+    "events": [],
+    "linkedArtifacts": [],
+    "createdAt": "2026-08-01T17:03:37.526Z",
+    "updatedAt": "2026-08-01T17:03:48.648Z",
+    "output": "I notice you've sent \"gbfgbg\" - this appears to be a random keystroke or test message. Could you please clarify what you'd like help with? I'm here to assist you with planning tasks, breaking down work, delegating responsibilities, or answering questions."
+  },
+  {
+    "id": "run-27c1c753-",
+    "agentId": "agent-hermes",
+    "sessionId": "2b1e6e1e-4b3c-45ec-a4da-ef593177eda4",
+    "workspaceId": "default",
+    "mode": "chat",
+    "status": "failed",
+    "input": "Hello",
+    "logs": [],
+    "events": [],
+    "linkedArtifacts": [],
+    "createdAt": "2026-08-02T21:23:34.638Z",
+    "updatedAt": "2026-08-03T12:26:41.391Z",
+    "errorMessage": "Server restarted mid-execution"
+  },
+  {
+    "id": "run-79ba8a4e-",
+    "agentId": "agent-hermes",
+    "sessionId": "da48a408-c382-4777-a975-75d5e239d089",
+    "workspaceId": "default",
+    "mode": "chat",
+    "status": "failed",
+    "input": "Hello",
+    "logs": [],
+    "events": [],
+    "linkedArtifacts": [],
+    "createdAt": "2026-08-02T21:23:51.577Z",
+    "updatedAt": "2026-08-03T12:26:41.384Z",
+    "errorMessage": "Server restarted mid-execution"
   }
 ]

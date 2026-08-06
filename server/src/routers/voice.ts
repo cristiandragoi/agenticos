@@ -53,7 +53,10 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
     const text = data.results?.channels[0]?.alternatives[0]?.transcript || '';
     
     if (!text.trim()) {
-       return res.status(400).json({ error: 'No speech detected.' });
+      // Benign condition: the audio was valid but contained no speech.
+      // Callers should treat this as a retriable notice, NOT a hard error.
+      // The flag makes the condition machine-detectable without message parsing.
+      return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
     }
 
     return res.json({ text });

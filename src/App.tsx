@@ -48,7 +48,7 @@ function App() {
               <Routes>
                 {/* Main Desktop OS Routes (with AppShell) */}
               <Route path="/" element={<AppShell />}>
-                <Route index element={<Navigate to="/mission-control" replace />} />
+                <Route index element={<Navigate to="/jarvis" replace />} />
                 <Route path="dashboard" element={<Navigate to="/mission-control" replace />} />
                 <Route path="mission-control" element={<MissionControl />} />
                 <Route path="jarvis" element={<JarvisStudio />} />

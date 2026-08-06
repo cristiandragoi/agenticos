@@ -10,6 +10,7 @@ export interface BuildCodexGoalPayloadInput {
     enabled: boolean;
   } | null;
   explicitRoutingOverride?: boolean;
+  executionProviderId?: string;
 }
 
 export function buildCodexGoalPayload(input: BuildCodexGoalPayloadInput): any {
@@ -36,6 +37,11 @@ export function buildCodexGoalPayload(input: BuildCodexGoalPayloadInput): any {
         disableFallback: true
       };
     }
+  }
+
+  if (input.executionProviderId) {
+    payload.executionOptions = payload.executionOptions || {};
+    payload.executionOptions.executionProviderId = input.executionProviderId;
   }
 
   return payload;

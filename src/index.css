@@ -169,6 +169,41 @@ h1, h2, h3, h4, h5, h6 { color: var(--text-primary); }
   flex-shrink: 0;
   z-index: 10;
   overflow: hidden;
+  transition: width var(--transition-fast);
+}
+
+/* Collapsed icon-only mode — minimal width, no labels */
+.left-rail--collapsed {
+  width: 56px;
+}
+
+.left-rail--collapsed .left-rail__header {
+  padding: 14px 12px 12px;
+  display: flex;
+  justify-content: center;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.left-rail--collapsed .left-rail__nav {
+  padding: 10px 6px;
+}
+
+.left-rail--collapsed .nav-link {
+  justify-content: center;
+  padding: 8px 6px;
+  gap: 0;
+}
+
+.left-rail--collapsed .nav-section-label {
+  display: flex;
+  justify-content: center;
+  padding: 14px 4px 6px;
+}
+
+.left-rail--collapsed .left-rail__footer {
+  padding: 10px 6px;
+  display: flex;
+  justify-content: center;
 }
 
 .left-rail__header {

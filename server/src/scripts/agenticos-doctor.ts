@@ -223,45 +223,49 @@ async function runDoctor() {
     });
   }
 
-  // 6. Test LLM Gateway Chat
-  try {
-    const { llmChat } = await import('../services/llmGateway.js');
-    const res = await llmChat({
-      prompt: 'Reply with exactly CODEX_DIAGNOSTIC_OK',
-      agentId: 'agent-codex',
-      timeoutMs: 120000
-    });
-    
-    console.log(`\n[LLM_GATEWAY_CHAT] returned object shape:`, Object.keys(res));
-    console.log(`  provider: ${res.provider}`);
-    console.log(`  model: ${res.model}`);
-    console.log(`  offline: ${res.offline}`);
-    console.log(`  reply length: ${res.reply?.length || 0}`);
-    console.log(`  error: ${res.error}`);
-    console.log(`  reply snippet: ${res.reply?.substring(0, 100)}\n`);
-    
-    if (res.offline) {
-      recordCheck('LLM_GATEWAY_CHAT', 'failed', `llmChat returned offline: true. Error: ${res.error}`, res);
-      return saveReport({
-        overallStatus: 'Broken',
-        timestamp: new Date().toISOString(),
-        checks,
-        firstFailingBoundary: 'GatewayRouter -> llmGateway',
-        originalError: res.error
+// 6. Test LLM Gateway Chat
+try {
+  const { llmChat } = await import('../services/llmGateway.js');
+  const start = Date.now();
+  const res = await llmChat({
+    prompt: 'Reply with exactly LLM_GATEWAY_OK',
+    agentId: 'agent-codex',
+    timeoutMs: 120000
+  });
+  const durationMs = Date.now() - start;
+
+  console.log(`\n[LLM_GATEWAY_CHAT] reply: ${res.reply}`);
+  console.log(`  provider: ${res.provider}`);
+  console.log(`  model: ${res.model}`);
+  console.log(`  offline: ${res.offline}`);
+  console.log(`  error: ${res.error}`);
+  console.log(`  durationMs: ${durationMs}`);
+
+  if (res.offline) {
+    recordCheck('LLM_GATEWAY_CHAT', 'failed',
+      `llmChat returned offline: true. Error: ${res.error}`, {
+        reply: res.reply,
+        provider: res.provider,
+        model: res.model,
+        offline: res.offline,
+        error: res.error,
+        durationMs
       });
-    } else {
-      recordCheck('LLM_GATEWAY_CHAT', 'passed', `llmGateway succeeded via ${res.provider}`, res);
-    }
-  } catch (err: any) {
-    recordCheck('LLM_GATEWAY_CHAT', 'failed', `llmChat crashed: ${err.message}`, err.message);
-    return saveReport({
-      overallStatus: 'Broken',
-      timestamp: new Date().toISOString(),
-      checks,
-      firstFailingBoundary: 'GatewayRouter -> llmGateway',
-      originalError: err.message
-    });
+  } else {
+    recordCheck('LLM_GATEWAY_CHAT', 'passed',
+      `llmChat succeeded via ${res.provider}`, {
+        reply: res.reply,
+        provider: res.provider,
+        model: res.model,
+        offline: res.offline,
+        error: res.error,
+        durationMs
+      });
   }
+} catch (err: any) {
+  recordCheck('LLM_GATEWAY_CHAT', 'failed',
+    `llmChat crashed: ${err.message}`, err.message);
+}
 
   // 7. Test Codex Plan Request
   let testGoalId = '';
@@ -291,7 +295,7 @@ async function runDoctor() {
     }
     
     // Check if the plan generated an event
-    const events = goalStore.getEvents(testGoalId);
+    const events = goalStore.get(testGoalId)?.history ?? [];
     const lastEvent = events[events.length - 1];
     
     if (lastEvent?.state === 'failed') {

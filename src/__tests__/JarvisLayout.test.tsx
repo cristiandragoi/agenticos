@@ -88,6 +88,10 @@ function routeFetch(url: string, options?: any) {
   if (url.endsWith('/api/jarvis/conversations') && !options) return jsonResponse([{ id: 'conv-1', title: 'Main' }]);
   if (url.endsWith('/api/jarvis/conversations') && options?.method === 'POST') return jsonResponse({ id: 'conv-new' });
   if (url.endsWith('/api/jarvis/diagnostics')) return jsonResponse({ summary: { connectedProviders: 1, totalProviders: 1, healthyRuntimes: 1, totalRuntimes: 1 }, services: {} });
+  if (url.endsWith('/api/health/gateway')) return jsonResponse({ status: 'healthy' });
+  if (url.endsWith('/api/hermes-api/status')) return jsonResponse({ profile: 'backend-engineer', url: 'http://127.0.0.1:8643', gateway: { reachable: true, detail: 'ok' }, stt: { configured: true, provider: 'deepgram' }, tts: { configured: true, provider: 'deepgram' } });
+  if (url.endsWith('/api/hermes-api/runs')) return jsonResponse([]);
+  if (url.includes('/api/hermes-api/runs/')) return jsonResponse({});
   if (url.endsWith('/api/teams/team-xyz')) return jsonResponse(TEAM);
   if (url.endsWith('/api/teams/runs/run-1/reports')) return jsonResponse({ reports: [] });
   if (url.endsWith('/api/teams/runs/run-1/handoffs')) return jsonResponse([BUILDER_HANDOFF]);
@@ -198,26 +202,78 @@ describe('Execution timeline', () => {
   });
 });
 
-/* ── 4: Inspector / Action Log presence ──────────────────── */
-describe('Right inspector', () => {
-  it('always shows the Action Log panel inside the cockpit', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
-    const inspector = await screen.findByTestId('jarvis-inspector');
-    expect(inspector).toBeInTheDocument();
-    // Action Log is inside the cockpit, not in the chat workspace
-    const cockpit = screen.getByTestId('jarvis-dashboard');
-    expect(cockpit.contains(inspector)).toBe(true);
+/* ── 4: Canonical /jarvis page (MILESTONE 1–3) ───────────── */
+describe('Canonical Jarvis page', () => {
+  const renderPage = () => render(
+    <CodexProvider>
+      <MemoryRouter initialEntries={['/jarvis']}>
+        <JarvisStudio />
+      </MemoryRouter>
+    </CodexProvider>
+  );
+
+  it('renders the orb cockpit, status strip and chat workspace', async () => {
+    renderPage();
+    expect(await screen.findByTestId('jarvis-dashboard')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-status-strip')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-chat-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-orb-status-label')).toBeInTheDocument();
   });
 
-  it('Action Log shows empty state when no telemetry events exist', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    messagesForTest = [];
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+  it('removed the Command Matrix and permanent Action Log', async () => {
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
-    // At narrow viewport the layout still renders (no collapse in new design)
-    expect(screen.getByTestId('jarvis-inspector')).toBeInTheDocument();
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1024 });
+    expect(screen.queryByTestId('jarvis-command-matrix')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('jarvis-inspector')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-log-empty')).not.toBeInTheDocument();
+  });
+
+  it('shows Manual / Conversation selector, voice toggle and kill switch', async () => {
+    renderPage();
+    await screen.findByTestId('jarvis-dashboard');
+    expect(screen.getByTestId('jarvis-mode-manual')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-mode-conversation')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-voice-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-voice-select')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-stop-speaking')).toBeInTheDocument();
+  });
+
+  it('shows the engine-driven mic control (single owner) and keeps Send', async () => {
+    renderPage();
+    await screen.findByTestId('jarvis-dashboard');
+    // The microphone control is the page-level engine-driven button — one
+    // microphone owner. In manual mode it is idle and labelled MIC.
+    const mic = screen.getByTestId('jarvis-mic-button');
+    expect(mic).toBeInTheDocument();
+    expect(mic).toHaveTextContent('MIC');
+    // Send remains available for typed/manual submission.
+    expect(screen.getByRole('button', { name: /send message/i })).toBeInTheDocument();
+  });
+
+  it('exposes a compact working Actions menu', async () => {
+    renderPage();
+    await screen.findByTestId('jarvis-dashboard');
+    const menu = screen.getByTestId('jarvis-actions-menu');
+    fireEvent.click(menu);
+    expect(screen.getByText('Open board')).toBeInTheDocument();
+    expect(screen.getByText('Open Mission Control')).toBeInTheDocument();
+    expect(screen.getByText('Settings')).toBeInTheDocument();
+  });
+
+  it('shows a current Hermes run panel and collapsible activity', async () => {
+    renderPage();
+    await screen.findByTestId('jarvis-dashboard');
+    expect(screen.getByTestId('jarvis-current-run')).toBeInTheDocument();
+    expect(screen.getByTestId('jarvis-activity-toggle')).toBeInTheDocument();
+    expect(screen.queryByTestId('jarvis-activity-stream')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('jarvis-activity-toggle'));
+    expect(screen.getByTestId('jarvis-activity-stream')).toBeInTheDocument();
+  });
+
+  it('does not render an approval modal when no approval is pending', async () => {
+    renderPage();
+    await screen.findByTestId('jarvis-dashboard');
+    expect(screen.queryByTestId('jarvis-approval-modal')).not.toBeInTheDocument();
   });
 });
 
@@ -286,125 +342,82 @@ describe('Repository gating', () => {
   });
 });
 
-/* ── 9: Phase 1 Dashboard and Telemetry ───────────────────── */
+/* ── 9: Canonical cockpit layout ─────────────────────────── */
 describe('Phase 1 Dashboard and Telemetry', () => {
+  const renderPage = () => render(
+    <CodexProvider>
+      <MemoryRouter initialEntries={['/jarvis']}>
+        <JarvisStudio />
+      </MemoryRouter>
+    </CodexProvider>
+  );
+
   it('jarvis-dashboard renders on /jarvis', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(
-      <CodexProvider>
-        <MemoryRouter initialEntries={['/jarvis']}>
-          <Routes>
-            <Route path="/jarvis" element={<JarvisStudio />} />
-          </Routes>
-        </MemoryRouter>
-      </CodexProvider>
-    );
+    renderPage();
     expect(await screen.findByTestId('jarvis-dashboard')).toBeInTheDocument();
   });
 
-  it('large orb renders with no status text inside the core', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
+  it('large orb renders with status label outside the core', async () => {
     messagesForTest = [{ id: 'm1', role: 'user', content: 'hello', createdAt: new Date().toISOString() }];
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
-    const orb = await screen.findByTestId('jarvis-reactor-orb');
-    expect(orb).toBeInTheDocument();
-    const core = screen.getByTestId('jarvis-orb-core');
+    renderPage();
+    const core = await screen.findByTestId('jarvis-orb-core');
     expect(core.textContent).not.toMatch(/IDLE|LISTENING|TRANSCRIBING|THINKING|SPEAKING|ERROR/i);
-    expect(screen.getByTestId('jarvis-orb-status-label')).toHaveTextContent(/idle/i);
+    expect(screen.getByTestId('jarvis-orb-status-label')).toBeInTheDocument();
   });
 
-  it('command button updates composer text through React state', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
-    await screen.findByTestId('jarvis-dashboard');
-    const goalBtn = screen.getByRole('button', { name: /^\/goal/i });
-    fireEvent.click(goalBtn);
-    const composerTextarea = screen.getByLabelText('Message Input') as HTMLTextAreaElement;
-    expect(composerTextarea.value).toBe('/goal ');
-  });
-
-  it('/new triggers new conversation behaviour', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    // Intercept POST before conv-new renders (and tries to open EventSource)
+  it('Actions menu "New conversation" creates a conversation', async () => {
     const postCalls: any[] = [];
     fetchMock.mockImplementation((url: string, options?: any) => {
       if (String(url).endsWith('/api/jarvis/conversations') && options?.method === 'POST') {
         postCalls.push([url, options]);
-        // Return conv-new but also add messages route so JarvisChat won't crash
         return Promise.resolve(jsonResponse({ id: 'conv-new' }));
       }
       return Promise.resolve(routeFetch(url, options));
     });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
-    const newBtn = screen.getByRole('button', { name: /^\/new/i });
-    fireEvent.click(newBtn);
+    fireEvent.click(screen.getByTestId('jarvis-actions-menu'));
+    fireEvent.click(screen.getByText('New conversation'));
     await waitFor(() => {
       expect(postCalls.length).toBeGreaterThan(0);
     });
   });
 
-  it('Pending Uplink mirrors composer input in real-time', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
-    await screen.findByTestId('jarvis-dashboard');
-    const input = screen.getByLabelText('Message Input') as HTMLTextAreaElement;
-    fireEvent.change(input, { target: { value: 'Executing database repair' } });
-    const uplink = screen.getByTestId('pending-uplink');
-    expect(uplink.textContent).toBe('Executing database repair');
-  });
-
-  it('Action Log empty state renders when no telemetry exists', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    messagesForTest = [];
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
-    await screen.findByTestId('jarvis-dashboard');
-    const emptyState = screen.getByTestId('action-log-empty');
-    expect(emptyState).toBeInTheDocument();
-    expect(emptyState.textContent).toContain('No telemetry data available');
-  });
-
   it('does not render an empty conversation sidebar wrapper', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
     expect(screen.queryByText('Conversations')).not.toBeInTheDocument();
     expect(screen.queryByText('No recent conversations.')).not.toBeInTheDocument();
   });
 
   it('renders only one Jarvis composer in the dashboard shell', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
     expect(screen.getAllByTestId('jarvis-composer')).toHaveLength(1);
   });
 
-  it('renders cockpit and chat as separate vertical sections', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+  it('renders cockpit and chat as separate sections', async () => {
+    renderPage();
     const layout = await screen.findByTestId('jarvis-active-layout');
     const cockpit = screen.getByTestId('jarvis-dashboard');
     const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
 
-    expect(layout.children[0]).toBe(cockpit);
-    expect(layout.children[1]).toBe(chatWorkspace);
+    expect(layout.contains(cockpit)).toBe(true);
+    expect(layout.contains(chatWorkspace)).toBe(true);
     expect(cockpit.contains(chatWorkspace)).toBe(false);
     expect(chatWorkspace.contains(cockpit)).toBe(false);
   });
 
   it('keeps chat history in the chat workspace, not inside the cockpit', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
     messagesForTest = [{ id: 'm1', role: 'agent', content: 'Visible response body', createdAt: new Date().toISOString() }];
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
 
     const cockpit = await screen.findByTestId('jarvis-dashboard');
     const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
     const history = screen.getByTestId('jarvis-chat-scroll');
 
-    // Message appears in both Action Log and chat — use getAllByText
     const matches = await screen.findAllByText('Visible response body');
     expect(matches.length).toBeGreaterThanOrEqual(1);
-    // The chat scroll container must include the message span that is NOT inside the cockpit
     const chatMsg = matches.find(el => chatWorkspace.contains(el));
     expect(chatMsg).toBeDefined();
     expect(chatWorkspace.contains(history)).toBe(true);
@@ -412,8 +425,7 @@ describe('Phase 1 Dashboard and Telemetry', () => {
   });
 
   it('renders only one scrollable conversation history', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
 
     const histories = screen.getAllByTestId('jarvis-chat-scroll');
@@ -422,8 +434,7 @@ describe('Phase 1 Dashboard and Telemetry', () => {
   });
 
   it('places the composer inside the chat workspace after the message history', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
 
     const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
@@ -436,39 +447,28 @@ describe('Phase 1 Dashboard and Telemetry', () => {
   });
 
   it('keeps chat workspace and message history out of fixed or absolute positioning', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
 
     const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
     const history = screen.getByTestId('jarvis-chat-scroll');
-    const composer = screen.getByTestId('jarvis-composer');
 
-    expect(chatWorkspace.className).toContain('bottomTimelineArea');
-    expect(history.className).toContain('chatContainer');
-    expect(composer.className).toContain('composerContainer');
     expect(getComputedStyle(chatWorkspace).position).not.toMatch(/fixed|absolute/);
     expect(getComputedStyle(history).position).not.toMatch(/fixed|absolute/);
-    expect(getComputedStyle(composer).position).not.toMatch(/fixed|absolute/);
   });
 
   it('keeps the large orb inside the cockpit section', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
 
     const cockpit = await screen.findByTestId('jarvis-dashboard');
-    const orbPanel = screen.getByTestId('jarvis-reactor-orb');
     const orbCore = screen.getByTestId('jarvis-orb-core');
 
-    expect(cockpit.contains(orbPanel)).toBe(true);
     expect(cockpit.contains(orbCore)).toBe(true);
     expect(screen.getByTestId('jarvis-chat-workspace').contains(orbCore)).toBe(false);
-    expect(getComputedStyle(cockpit).overflow).not.toBe('visible');
   });
 
   it('does not render an obsolete chat overlay wrapper', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+    renderPage();
     await screen.findByTestId('jarvis-dashboard');
 
     expect(document.querySelector('[data-testid="jarvis-chat-overlay"]')).toBeNull();
@@ -476,88 +476,75 @@ describe('Phase 1 Dashboard and Telemetry', () => {
     expect(document.querySelector('[data-testid="jarvis-obsolete-chat-wrapper"]')).toBeNull();
   });
 
-  it('uses the strict two-row active Jarvis layout for cockpit and chat', async () => {
-    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1920 });
-    render(<CodexProvider><JarvisStudio /></CodexProvider>);
+  it('uses the canonical split layout for cockpit and chat', async () => {
+    renderPage();
     const layout = await screen.findByTestId('jarvis-active-layout');
 
-    expect(layout.className).toContain('jarvisActiveLayout');
-    expect(screen.getByTestId('jarvis-dashboard').className).toContain('dashboardDashboard');
-    expect(screen.getByTestId('jarvis-chat-workspace').className).toContain('bottomTimelineArea');
+    expect(layout.contains(screen.getByTestId('jarvis-dashboard'))).toBe(true);
+    expect(layout.contains(screen.getByTestId('jarvis-chat-workspace'))).toBe(true);
   });
 });
 
 /* ── 9: Orb persistence and layout ────────────────────────────── */
 describe('Orb persistence and layout', () => {
-  it('keeps JarvisOrb rendered after data updates and API errors', async () => {
-    const { container } = render(
+  const renderPage = (fetchImpl?: any) => {
+    if (fetchImpl) fetchMock.mockImplementation(fetchImpl);
+    return render(
       <CodexProvider>
-        <SeedSettings>
-          <JarvisStudio />
-        </SeedSettings>
+        <MemoryRouter initialEntries={['/jarvis']}>
+          <SeedSettings>
+            <JarvisStudio />
+          </SeedSettings>
+        </MemoryRouter>
       </CodexProvider>
     );
+  };
+
+  it('keeps JarvisOrb rendered after data updates and API errors', async () => {
+    const { container } = renderPage();
 
     const orbCore = await screen.findByTestId('jarvis-orb-core');
     expect(orbCore).toBeInTheDocument();
     expect(screen.getAllByTestId('jarvis-orb-core')).toHaveLength(1);
 
     const wrapper = await screen.findByTestId('jarvis-orb-wrapper');
-    expect(wrapper.className).toMatch(/orbWrapper/);
+    expect(wrapper).toBeInTheDocument();
 
     expect(screen.getAllByTestId('jarvis-chat-workspace')).toHaveLength(1);
   });
 
   it('cockpit and orb remain mounted when activeConversationId is null', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
+    renderPage(async (url: string) => {
       if (url.endsWith('/api/jarvis/conversations')) return jsonResponse([]);
-      return jsonResponse({});
+      return routeFetch(url);
     });
 
-    render(
-      <CodexProvider>
-        <JarvisStudio />
-      </CodexProvider>
-    );
-
-    expect(screen.getByTestId('jarvis-dashboard')).toBeInTheDocument();
-    expect(screen.getByTestId('jarvis-reactor-orb')).toBeInTheDocument();
+    expect(await screen.findByTestId('jarvis-dashboard')).toBeInTheDocument();
     expect(screen.getByTestId('jarvis-orb-core')).toBeInTheDocument();
-    expect(screen.getByTestId('jarvis-command-matrix')).toBeInTheDocument();
-    expect(screen.getByTestId('jarvis-inspector')).toBeInTheDocument();
     expect(screen.getByTestId('jarvis-chat-workspace')).toBeInTheDocument();
+    // Canonical page: no Command Matrix, no permanent inspector.
+    expect(screen.queryByTestId('jarvis-command-matrix')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('jarvis-inspector')).not.toBeInTheDocument();
   });
 
   it('orb remains mounted when conversation fetch fails', async () => {
-    fetchMock.mockImplementation(async (url: string) => {
+    renderPage(async (url: string) => {
       if (url.endsWith('/api/jarvis/conversations')) throw new Error('502 Bad Gateway');
-      return jsonResponse({});
+      return routeFetch(url);
     });
 
-    render(
-      <CodexProvider>
-        <JarvisStudio />
-      </CodexProvider>
-    );
-
-    expect(screen.getByTestId('jarvis-orb-core')).toBeInTheDocument();
+    expect(await screen.findByTestId('jarvis-orb-core')).toBeInTheDocument();
   });
 
   it('first typed message creates a real conversation when activeConversationId is null without sending fake default ID', async () => {
     const requestedUrls: string[] = [];
-    fetchMock.mockImplementation(async (url: string, options?: any) => {
+    renderPage(async (url: string, options?: any) => {
       requestedUrls.push(url);
       if (url.endsWith('/api/jarvis/conversations') && !options) return jsonResponse([]);
       if (url.endsWith('/api/jarvis/conversations') && options?.method === 'POST') return jsonResponse({ id: 'conv-real-123' });
       if (url.endsWith('/api/jarvis/conversations/conv-real-123/message/stream')) return directStreamResponse();
-      return jsonResponse({});
+      return routeFetch(url, options);
     });
-
-    render(
-      <CodexProvider>
-        <JarvisStudio />
-      </CodexProvider>
-    );
 
     const textarea = screen.getByLabelText('Message Input');
     fireEvent.change(textarea, { target: { value: 'Reply with hello' } });

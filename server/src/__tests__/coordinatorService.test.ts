@@ -1,15 +1,16 @@
 // coordinatorService.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { coordinatorService } from '../domains/teams/coordinatorService.js';
 import * as llmGateway from '../services/llmGateway.js';
 import * as eventBusModule from '../core/eventBus.js';
 
 // Mock dependencies
-jest.mock('../services/llmGateway.js');
-jest.mock('../core/eventBus.js');
+vi.mock('../services/llmGateway.js');
+vi.mock('../core/eventBus.js');
 
 describe('CoordinatorService repair logic', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('Performs exactly one repair attempt if validation fails', async () => {
@@ -65,7 +66,7 @@ describe('CoordinatorService repair logic', () => {
     }`;
 
     // First call returns invalid, second returns valid
-    (llmGateway.llmChat as jest.Mock)
+    (llmGateway.llmChat as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ reply: invalidJson })
       .mockResolvedValueOnce({ reply: validJson });
 
@@ -78,12 +79,12 @@ describe('CoordinatorService repair logic', () => {
   it('Throws LLMSchemaValidationError if repair fails again', async () => {
     const invalidJson = `{ "teamName": "Test Team" }`;
 
-    (llmGateway.llmChat as jest.Mock)
+    (llmGateway.llmChat as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ reply: invalidJson })
       .mockResolvedValueOnce({ reply: invalidJson }); // still invalid
 
     await expect(coordinatorService.generateTeamSheet('Do the thing', '/'))
-      .rejects.toThrow('The model could not produce a valid TeamSheet.');
+      .rejects.toThrow('The model could not produce a valid TeamSheet');
       
     expect(llmGateway.llmChat).toHaveBeenCalledTimes(2);
   });

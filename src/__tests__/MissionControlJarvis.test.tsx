@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MissionControlPage from '../pages/MissionControlPage';
@@ -65,49 +65,111 @@ function setData(overrides: Partial<typeof dataState.current> = {}) {
 }
 
 beforeEach(() => {
+  // jsdom lacks scrollIntoView (used by the mounted JarvisOrb internals).
+  (window as any).HTMLElement.prototype.scrollIntoView = vi.fn();
+  // Stub the gateway health probe (and any panel fetch) for deterministic runs.
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ status: 'online' }) })));
+  sessionStorage.clear();
   setData();
 });
 
+/** MissionControlPage now mounts the main-cockpit Jarvis conversation panel,
+ *  which uses the shared app store — renders must sit inside AppProvider. */
+function renderCockpit() {
+  return render(
+    <AppProvider>
+      <MissionControlPage />
+    </AppProvider>,
+  );
+}
+
 describe('Mission Control cockpit', () => {
-  it('does not render a duplicate full Jarvis chat or composer', () => {
-    render(<MissionControlPage />);
+  it('mounts the Jarvis conversation panel but not a duplicate full Jarvis chat/composer', () => {
+    renderCockpit();
 
     expect(screen.getByTestId('mission-control-cockpit')).toBeInTheDocument();
-    expect(screen.queryByTestId('mission-jarvis-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mission-jarvis-orb')).not.toBeInTheDocument();
+    // The main-cockpit conversation surface IS present (mode selector + input).
+    expect(screen.getByTestId('mission-jarvis-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('mission-mode-manual')).toBeInTheDocument();
+    expect(screen.getByTestId('mission-mode-conversation')).toBeInTheDocument();
+    // But no SECOND, separate Jarvis chat/composer is duplicated into the page.
     expect(screen.queryByTestId('jarvis-composer')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Message Input')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Quick Chat|OmniRoot|Listening/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Quick Chat|OmniRoot/i)).not.toBeInTheDocument();
   });
 
-  it('shows only registered agents from live data', () => {
-    render(<MissionControlPage />);
+  it('mounts the reactive Jarvis orb, driven by real signals (idle at rest)', () => {
+    renderCockpit();
 
-    expect(screen.getAllByText('JARVIS').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('HERMES').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('CODEX').length).toBeGreaterThan(0);
+    // The EXISTING JarvisOrb component is mounted inside Mission Control.
+    expect(screen.getByTestId('mission-jarvis-orb')).toBeInTheDocument();
+    const orb = screen.getByTestId('jarvis-orb');
+    expect(orb).toBeInTheDocument();
+    // No mic capture, no confirmed playback, no in-flight runs, backend reachable
+    // in the test environment → real-signal derivation resolves to idle.
+    expect(orb.getAttribute('data-orb-state')).toBe('idle');
+    expect(screen.getByTestId('jarvis-orb-label').textContent).toBe('Ready');
+  });
+
+  it('keeps technical telemetry OUT of the main view until diagnostics is opened', () => {
+    renderCockpit();
+
+    // Milestone 1: no permanent telemetry panels/metric cards in the main view.
+    expect(screen.queryByText('PROVIDERS AND MODELS')).not.toBeInTheDocument();
+    expect(screen.queryByText('REGISTERED AGENTS')).not.toBeInTheDocument();
+    expect(screen.queryByText('PENDING APPROVALS')).not.toBeInTheDocument();
+    expect(screen.queryByText('ACTIVE EXECUTIONS')).not.toBeInTheDocument();
+    expect(screen.queryByText('FAILED RUNS AND ALERTS')).not.toBeInTheDocument();
+    expect(screen.queryByText('SYSTEM REGISTRY')).not.toBeInTheDocument();
+    // No permanently visible Action Log panel on this route either.
+    expect(document.body.textContent).not.toContain('Action Log');
+
+    // Opening the collapsible diagnostics drawer reveals live registry data.
+    fireEvent.click(screen.getByTestId('mission-diagnostics-toggle'));
+    expect(screen.getByTestId('mission-diagnostics-content')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('Ollama');
+    expect(document.body.textContent).toContain('JARVIS');
+    expect(document.body.textContent).toContain('HERMES');
+    expect(document.body.textContent).toContain('CODEX');
     expect(screen.queryByText('Athena')).not.toBeInTheDocument();
     expect(screen.queryByText('Mnemosyne')).not.toBeInTheDocument();
   });
 
-  it('uses provider and model values from the live registry', () => {
-    render(<MissionControlPage />);
+  it('serves provider values from the live registry inside diagnostics', () => {
+    renderCockpit();
 
+    fireEvent.click(screen.getByTestId('mission-diagnostics-toggle'));
     expect(screen.getByText('Ollama')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('laguna-xs-2.1');
     expect(screen.queryByText(/GPT-4o|Claude 3\.5|o1-mini|Perplexity/i)).not.toBeInTheDocument();
   });
 
   it('does not render static temperature values without runtime configuration', () => {
-    render(<MissionControlPage />);
+    renderCockpit();
 
     expect(document.body.textContent).not.toMatch(/temperature/i);
     expect(document.body.textContent).not.toMatch(/0\.[0-9]/);
   });
 
+  it('shows the compact status strip with provider/model/connection/mic/voice', () => {
+    renderCockpit();
+
+    const strip = screen.getByTestId('mission-status-strip');
+    expect(strip).toBeInTheDocument();
+    expect(strip.textContent).toContain('MODE');
+    expect(strip.textContent).toContain('CONNECTED');
+    expect(strip.textContent).toContain('MIC');
+    expect(strip.textContent).toContain('VOICE');
+    // The visible voice selector exposes British + American choices.
+    const select = screen.getByTestId('mission-voice-select') as HTMLSelectElement;
+    expect(select).toBeInTheDocument();
+    const labels = Array.from(select.querySelectorAll('option')).map((o) => o.textContent || '');
+    expect(labels.some((l) => l.includes('British'))).toBe(true);
+    expect(labels.some((l) => l.includes('American'))).toBe(true);
+  });
+
   it('hides raw stack traces behind a compact error card', () => {
     setData({ error: 'TypeError: broken\n    at MissionControlPage (src/pages/MissionControlPage.tsx:10:1)' });
-    render(<MissionControlPage />);
+    renderCockpit();
 
     expect(screen.getByText('Backend unavailable')).toBeInTheDocument();
     expect(screen.getByText('TypeError: broken')).toBeInTheDocument();

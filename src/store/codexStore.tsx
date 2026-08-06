@@ -13,6 +13,7 @@ export interface CodexRunSettings {
     providerId: string;
     modelId: string | null;
   };
+  executionProviderId?: string;
 }
 
 interface CodexState {
@@ -61,7 +62,8 @@ const defaultRunSettings: CodexRunSettings = {
   workspacePath: CODEX_REPOSITORY,
   baseUrl: CODEX_BASE_URL,
   valProvider: 'auto',
-  approvalPolicy: 'strict'
+  approvalPolicy: 'strict',
+  executionProviderId: 'none'
 };
 
 function readPersistedRunSettings(): CodexRunSettings {

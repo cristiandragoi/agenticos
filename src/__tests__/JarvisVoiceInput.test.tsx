@@ -215,6 +215,74 @@ describe('JarvisComposer — microphone button', () => {
   });
 });
 
+describe('JarvisComposer — transcription failure classification', () => {
+  it('no-speech (400 + noSpeech:true) is a benign notice, NOT the red error state', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'No speech detected.', noSpeech: true }),
+    });
+
+    renderComposer();
+    fireEvent.click(screen.getByTestId('jarvis-mic-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('jarvis-mic-button').getAttribute('data-mic-state')).toBe('listening')
+    );
+    act(() => { MockMediaRecorder.instances.at(-1)!.stop(); });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('jarvis-mic-notice')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('jarvis-mic-notice').textContent).toContain('No speech detected');
+    // Must NOT be the error state, must NOT show the red banner, mic returns to idle.
+    expect(screen.getByTestId('jarvis-mic-button').getAttribute('data-mic-state')).toBe('idle');
+    expect(screen.queryByTestId('jarvis-mic-error')).not.toBeInTheDocument();
+  });
+
+  it('hard transcription failure (400, no noSpeech flag) still shows one clear red error', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'Bad audio payload' }),
+    });
+
+    renderComposer();
+    fireEvent.click(screen.getByTestId('jarvis-mic-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('jarvis-mic-button').getAttribute('data-mic-state')).toBe('listening')
+    );
+    act(() => { MockMediaRecorder.instances.at(-1)!.stop(); });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('jarvis-mic-error')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('jarvis-mic-error').textContent).toContain('Transcription HTTP 400');
+    expect(screen.getByTestId('jarvis-mic-button').getAttribute('data-mic-state')).toBe('error');
+  });
+
+  it('no-speech notice is cleared when the user retries capture', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: 'No speech detected.', noSpeech: true }),
+    });
+
+    renderComposer();
+    fireEvent.click(screen.getByTestId('jarvis-mic-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('jarvis-mic-button').getAttribute('data-mic-state')).toBe('listening')
+    );
+    act(() => { MockMediaRecorder.instances.at(-1)!.stop(); });
+    await waitFor(() => expect(screen.getByTestId('jarvis-mic-notice')).toBeInTheDocument());
+
+    // Retry: clicking mic again clears the notice immediately.
+    fireEvent.click(screen.getByTestId('jarvis-mic-button'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('jarvis-mic-notice')).not.toBeInTheDocument();
+    });
+  });
+});
+
 describe('JarvisComposer — error states', () => {
   it('shows visible error when getUserMedia is unavailable', async () => {
     // Remove mediaDevices entirely

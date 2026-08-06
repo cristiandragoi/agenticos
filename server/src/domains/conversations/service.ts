@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { db } from '../../db/index.js';
 import { conversations, conversationMessages } from '../../db/schema.js';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, desc } from 'drizzle-orm';
 import { Response } from 'express';
 
 export type MessageRole = 'user' | 'agent' | 'system';
@@ -46,7 +46,9 @@ export class ConversationService {
   }
 
   async listConversations() {
-    return db.select().from(conversations).all();
+    // Most-recently-updated first — clients restore data[0] as the active
+    // conversation, so ordering is the session-persistence contract.
+    return db.select().from(conversations).orderBy(desc(conversations.updatedAt)).all();
   }
 
   async getMessages(conversationId: string) {

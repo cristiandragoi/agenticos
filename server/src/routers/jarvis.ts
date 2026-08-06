@@ -2,12 +2,13 @@ import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { conversationService } from '../domains/conversations/service.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
-import { intentRouter } from '../domains/jarvis/intentRouter.js';
+import { intentRouter, detectDelegationSignals, type IntentResult } from '../domains/jarvis/intentRouter.js';
 import { TeamRunner } from '../services/agentTeams/teamRunner.js';
 import { db } from '../db/index.js';
 import { conversations, teams, teamRuns } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { llmChatStream, OPENROUTER_DEFAULT_MODEL } from '../services/llmGateway.js';
+import { llmChatStream } from '../services/llmGateway.js';
+import { AgentProviderAssignmentService } from '../services/agent/assignments.js';
 import { mockAgents, mockProviders, mockRuntimes, mockTools } from '../data.js';
 
 const router = Router();
@@ -18,6 +19,42 @@ function getDirectChatFirstTokenTimeoutMs() {
 
 function getDirectChatTotalTimeoutMs() {
   return Number(process.env.JARVIS_TOTAL_RESPONSE_TIMEOUT_MS || 120_000);
+}
+
+function getDirectChatStreamIdleTimeoutMs() {
+  return Number(process.env.JARVIS_STREAM_IDLE_TIMEOUT_MS || 30_000);
+}
+
+function getDirectChatConnectTimeoutMs() {
+  return Number(process.env.JARVIS_CONNECT_TIMEOUT_MS || 20_000);
+}
+
+function getDirectChatOverallTimeoutMs() {
+  return Number(process.env.JARVIS_OVERALL_TIMEOUT_MS || 120_000);
+}
+
+/**
+ * Metadata-only resolution for SSE status/trace labels. Must mirror the
+ * gateway's effective selection without influencing it:
+ * - fallback model: same expression the Ollama provider registration uses
+ *   (gateway/config.ts), so the label always matches the real fallback.
+ * - selected model: the runtime DB assignment model wins (the gateway
+ *   injects assignment.modelId into the request), otherwise the live
+ *   OPENROUTER_MODEL env default. Read at request time — never from
+ *   module-load constants, which can freeze before dotenv loads.
+ */
+async function resolveDirectChatMetadata(): Promise<{ selectedModel: string; fallbackModel: string }> {
+  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b';
+  let selectedModel = process.env.OPENROUTER_MODEL || 'auto';
+  try {
+    const assignment = await AgentProviderAssignmentService.getAssignment('agent-jarvis');
+    if (assignment?.enabled && assignment.modelId) {
+      selectedModel = assignment.modelId;
+    }
+  } catch (err) {
+    logger.warn('[JarvisStream] assignment lookup for metadata failed; using env model label', err);
+  }
+  return { selectedModel, fallbackModel };
 }
 
 function logStreamStage(operationId: string | undefined, stage: string, details: Record<string, any> = {}) {
@@ -253,6 +290,7 @@ router.post('/conversations/:id/message', async (req, res) => {
 /* ── POST /api/jarvis/conversations/:id/approve_team ──────── */
 router.post('/conversations/:id/message/stream', async (req, res) => {
   const { prompt, approvalPolicy, operationId } = req.body;
+  const inputChannel = typeof req.body.inputChannel === 'string' ? req.body.inputChannel : undefined;
   const workspacePath = resolveWorkspacePath(req.body);
   const normalizedOperationId = typeof operationId === 'string' ? operationId : undefined;
   logStreamStage(normalizedOperationId, 'stream request accepted', {
@@ -288,9 +326,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   logStreamStage(normalizedOperationId, 'response headers flushed');
 
   const selectedProvider = 'OpenRouter';
-  const selectedModel = OPENROUTER_DEFAULT_MODEL;
+  const { selectedModel, fallbackModel } = await resolveDirectChatMetadata();
   const fallbackProvider = 'ollama';
-  const fallbackModel = 'qwen2.5-coder:14b';
   writeSse(res, 'status', {
     state: 'thinking',
     provider: selectedProvider,
@@ -322,20 +359,42 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
   try {
     logStreamStage(normalizedOperationId, 'intent routing started');
-    const intent = await intentRouter.routeIntent(prompt);
+    const classified = await intentRouter.routeIntent(prompt);
     logStreamStage(normalizedOperationId, 'intent routing completed', {
-      route: intent.route,
-      category: intent.category,
-      mode: intent.mode,
-      confidence: intent.confidence
+      route: classified.route,
+      category: classified.category,
+      mode: classified.mode,
+      confidence: classified.confidence
     });
 
     logger.info('[JarvisTrace] intent-result', JSON.stringify({
       requestId: normalizedOperationId,
-      intent: intent.route,
-      confidence: intent.confidence,
-      executionMode: intent.mode || 'direct_conversation'
+      intent: classified.route,
+      confidence: classified.confidence,
+      executionMode: classified.mode || 'direct_conversation'
     }, null, 2));
+
+    // Determine the final effective route after explicit user-intent overrides so the
+    // routing event and the execution path always describe the route actually used.
+    const delegationSignals = detectDelegationSignals(prompt);
+    let intent: IntentResult = classified;
+    if (classified.route !== 'direct' && delegationSignals.explicitNonDelegationRequested) {
+      intent = {
+        ...classified,
+        route: 'direct',
+        mode: 'direct_conversation',
+        confidence: 0.99,
+        reason: 'Explicit non-delegation instruction requires Jarvis direct handling',
+        selectedAgent: 'Jarvis',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        plan: undefined
+      };
+      logStreamStage(normalizedOperationId, 'explicit non-delegation override applied', {
+        classifierRoute: classified.route,
+        effectiveRoute: intent.route
+      });
+    }
 
     const referer = req.headers.referer || '';
     let uiRoute = 'unknown';
@@ -433,7 +492,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       conversationId: req.params.id,
       role: 'user',
       content: prompt,
-      metadata: requestMetadata
+      metadata: inputChannel ? { ...(requestMetadata || {}), inputChannel } : requestMetadata
     });
 
     await conversationService.appendMessage({
@@ -477,7 +536,15 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'You are Jarvis, the operational commander of Agentic OS.',
       'For normal conversation, answer directly and briefly.',
       'Do not claim reminders, messaging, calendar actions, or external services unless the prompt or Agentic OS registry explicitly provides them.',
-      'If asked about system capabilities, describe Agentic OS capabilities: CodeX delegation, Agent Teams, workspace inspection/change through approval, runtime/tool/pipeline status, and research/search only when available.'
+      'If asked about system capabilities, describe Agentic OS capabilities: CodeX delegation, Agent Teams, workspace inspection/change through approval, runtime/tool/pipeline status, and research/search only when available.',
+      'Never narrate your internal reasoning; answer the user directly instead of describing your own thought process.',
+      'Do not write phrases such as "the user is asking" or otherwise refer to the user in the third person.',
+      'Do not claim voice playback is working unless the runtime confirms audio playback started.',
+      ...(inputChannel === 'voice' ? [
+        'Input channel: microphone transcript.',
+        'The fact that this text reached you means microphone capture and transcription are working.',
+        'Microphone input and voice output are separate capabilities; do not infer voice playback status from input being transcribed.'
+      ] : [])
     ].join('\n');
     logStreamStage(normalizedOperationId, 'provider/model selected', {
       provider: selectedProvider,
@@ -498,8 +565,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       systemPrompt,
       prompt,
       agentId: 'agent-jarvis',
-      timeoutMs: getDirectChatFirstTokenTimeoutMs(),
-      ollamaTimeoutMs: getDirectChatTotalTimeoutMs(),
+      // Gateway request budget: connection/first-response allowance for HTTP
+      // gateways and the overall request allowance for Ollama. First-token,
+      // stream-idle, and total-response enforcement stay local to this handler
+      // via nextWithTimeout and totalTimer below.
+      timeoutMs: getDirectChatConnectTimeoutMs(),
+      ollamaTimeoutMs: getDirectChatOverallTimeoutMs(),
       signal: abortController.signal,
       requestId: normalizedOperationId
     });
@@ -511,6 +582,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     const startedAt = Date.now();
     const firstTokenTimeoutMs = getDirectChatFirstTokenTimeoutMs();
     const totalTimeoutMs = getDirectChatTotalTimeoutMs();
+    const streamIdleTimeoutMs = getDirectChatStreamIdleTimeoutMs();
     let firstTokenAt: number | null = null;
     let reply = '';
     let provider: string | undefined;
@@ -522,17 +594,24 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
     while (true) {
       const remainingTotal = Math.max(1, totalTimeoutMs - (Date.now() - startedAt));
-      const timeoutMs = firstTokenAt === null
-        ? Math.min(firstTokenTimeoutMs, remainingTotal)
-        : remainingTotal;
-      const result = await nextWithTimeout(
-        stream,
-        timeoutMs,
-        abortController,
-        firstTokenAt === null
-          ? `Jarvis provider timed out before first token after ${firstTokenTimeoutMs} ms.`
-          : `Jarvis response timed out after ${totalTimeoutMs} ms.`
-      );
+      // Per-wait deadline: before the first token it is the first-token allowance;
+      // afterwards it is the stream-idle allowance. Both are capped by the remaining
+      // total budget. The timer is created per wait inside nextWithTimeout and cleared
+      // in its finally block, so every received chunk resets the idle window and no
+      // timer survives the current wait (normal completion, provider error, or abort).
+      let timeoutMs: number;
+      let timeoutMessage: string;
+      if (firstTokenAt === null) {
+        timeoutMs = Math.min(firstTokenTimeoutMs, remainingTotal);
+        timeoutMessage = `Jarvis provider timed out before first token after ${firstTokenTimeoutMs} ms.`;
+      } else if (streamIdleTimeoutMs <= remainingTotal) {
+        timeoutMs = streamIdleTimeoutMs;
+        timeoutMessage = `Jarvis stream was idle for ${streamIdleTimeoutMs} ms and the provider request was aborted.`;
+      } else {
+        timeoutMs = remainingTotal;
+        timeoutMessage = `Jarvis response timed out after ${totalTimeoutMs} ms.`;
+      }
+      const result = await nextWithTimeout(stream, timeoutMs, abortController, timeoutMessage);
 
       if (result.done) break;
       const chunk = result.value;

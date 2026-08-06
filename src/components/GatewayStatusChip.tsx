@@ -20,7 +20,10 @@ const GatewayStatusChip: React.FC = () => {
         const data = await res.json();
         
         let derivedStatus: GatewayStatus['status'] = 'online';
-        if (!data.reachable) derivedStatus = 'error';
+        // `reachable` is optional: the health endpoint may omit it entirely.
+        // Only an explicit reachable:false or an explicit error/offline status
+        // marks the gateway as failed — an absent field must not read as failure.
+        if (data.reachable === false || data.status === 'error' || data.status === 'offline') derivedStatus = 'error';
         else if (data.status === 'degraded') derivedStatus = 'degraded';
 
         setState({

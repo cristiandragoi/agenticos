@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { runStore } from '../services/runStore.js';
 import { runtimeRegistry } from '../services/runtimeRegistry.js';
-import { mockAgents } from '../data.js';
+import { mockAgents, mockProviders } from '../data.js';
 import { llmChat, llmProbe, OLLAMA_BASE } from '../services/llmGateway.js';
 import { resumeCodexGoalLoop } from '../loops/codexLoop.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
@@ -35,6 +35,17 @@ router.post('/message', (req, res) => {
 
   const agent = mockAgents.find(a => a.id === agentId);
   const adapter = agent ? runtimeRegistry.getAdapter(agent.runtimeId) : undefined;
+
+  // Validate model override against agent's configured providers
+  const { modelOverride } = req.body;
+  if (modelOverride && agent) {
+    const agentProviders = mockProviders.filter(p => agent.providerIds.includes(p.id));
+    const validModel = agentProviders.some(p => (p.models ?? []).some(m => m.id === modelOverride));
+    if (!validModel) {
+      res.status(400).json({ error: { code: 'INVALID_OVERRIDE', message: `Model '${modelOverride}' is not available for agent '${agentId}'` } });
+      return;
+    }
+  }
 
   // Intercept approval for run-004
   if (agentId === 'agent-hermes' && message.toLowerCase().includes('approve')) {
@@ -244,7 +255,7 @@ router.post('/agents/goal', async (req, res) => {
 
     if (!prompt) return res.status(400).json({ error: 'Describe what you want CodeX to do.' });
 
-    const goalId = await codexService.createGoal(prompt, targetWorkspace, approvalPolicy, undefined, conversationId, workspaceId);
+    const goalId = await codexService.createGoal(prompt, targetWorkspace, approvalPolicy, undefined, conversationId, workspaceId, executionOptions);
     res.json({ goalId });
   } catch (err: any) {
     logger.error('ERROR IN POST /agents/goal', err);
@@ -270,17 +281,31 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
   const goalId = req.params.id;
   const goal = goalStore.get(goalId);
   if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  let endedIntentionally = false;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
-  const lastEventId = parseInt(req.headers['last-event-id'] as string || '0', 10);
+  const queryLastEventId = req.query.lastEventId;
+  const requestedLastEventId = req.headers['last-event-id']
+    || (typeof queryLastEventId === 'string' ? queryLastEventId : Array.isArray(queryLastEventId) && typeof queryLastEventId[0] === 'string' ? queryLastEventId[0] : '0');
+  const lastEventId = parseInt(String(requestedLastEventId || '0'), 10);
   
   // 10. SSE Correctness: DB catch-up query (Authoritative Replay)
   const missedEvents = goalStore.getEventsAfter(goalId, lastEventId);
   let highestSequence = lastEventId;
+
+  logger.info('[CodeX SSE] connection opened', {
+    goalId,
+    subscriberCount: goalStore.listenerCount('goal:updated') + 1,
+    lastEventSequence: highestSequence,
+    httpStatus: res.statusCode,
+    goalExists: !!goalStore.get(goalId),
+    endedIntentionally
+  });
 
   for (const event of missedEvents) {
     if (event.sequence > highestSequence) {
@@ -290,7 +315,19 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
   }
 
   const heartbeat = setInterval(() => {
-    try { res.write(`: heartbeat\n\n`); } catch (_) {}
+    try {
+      res.write(`: heartbeat ${Date.now()} sequence=${highestSequence}\n\n`);
+    } catch (err: any) {
+      logger.info('[CodeX SSE] heartbeat write failed', {
+        goalId,
+        closeReason: err?.message || String(err),
+        subscriberCount: goalStore.listenerCount('goal:updated'),
+        lastEventSequence: highestSequence,
+        httpStatus: res.statusCode,
+        goalExists: !!goalStore.get(goalId),
+        endedIntentionally
+      });
+    }
   }, 15000);
 
   const listener = (updatedGoal: GoalRecord) => {
@@ -305,7 +342,17 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
       }
       
       if (['completed', 'failed', 'stopped', 'paused'].includes(updatedGoal.status)) {
+        endedIntentionally = true;
         clearInterval(heartbeat);
+        logger.info('[CodeX SSE] connection ending intentionally', {
+          goalId,
+          closeReason: `terminal:${updatedGoal.status}`,
+          subscriberCount: goalStore.listenerCount('goal:updated'),
+          lastEventSequence: highestSequence,
+          httpStatus: res.statusCode,
+          goalExists: !!goalStore.get(goalId),
+          endedIntentionally
+        });
         try { res.end(); } catch (_) {}
         goalStore.removeListener('goal:updated', listener);
       }
@@ -317,6 +364,15 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
   req.on('close', () => {
     clearInterval(heartbeat);
     goalStore.removeListener('goal:updated', listener);
+    logger.info('[CodeX SSE] connection closed', {
+      goalId,
+      closeReason: endedIntentionally ? 'intentional' : 'client_closed_or_network',
+      subscriberCount: goalStore.listenerCount('goal:updated'),
+      lastEventSequence: highestSequence,
+      httpStatus: res.statusCode,
+      goalExists: !!goalStore.get(goalId),
+      endedIntentionally
+    });
   });
 });
 

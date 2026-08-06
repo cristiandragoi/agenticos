@@ -219,12 +219,13 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
         body: JSON.stringify(buildCodexGoalPayload({
           goal: task,
           repositoryRoot: runSettings.workspacePath || CODEX_REPOSITORY,
-          approvalPolicy: runSettings.approvalPolicy || 'strict',
+          approvalPolicy: 'auto',
           validationProvider: runSettings.valProvider,
           assignment: runSettings.routing
             ? { routingMode: runSettings.routing.mode, providerId: runSettings.routing.providerId, modelId: runSettings.routing.modelId, enabled: true }
             : null,
-          explicitRoutingOverride: true
+          explicitRoutingOverride: true,
+          executionProviderId: runSettings.executionProviderId === 'none' ? 'auto' : runSettings.executionProviderId
         }))
       });
       const data = await res.json();

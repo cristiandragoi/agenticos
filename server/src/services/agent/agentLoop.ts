@@ -141,7 +141,30 @@ async function callLLM(
   let providers: ProviderConfig[] = [];
   const resolvedAgentId = agentName === 'codex' ? 'agent-codex' : agentName;
 
-  if (resolvedAgentId) {
+  // Explicit per-request provider/model override (e.g. Hermes Studio model
+  // picker) wins over stored assignments and the default provider chain.
+  // The pinned single-entry list inherently honours disableFallback — there
+  // are no failover candidates to fall back to.
+  if (executionOptions?.providerOverride) {
+    const requested = executionOptions.providerOverride.toLowerCase();
+    if (requested === 'ollama') {
+      providers = [{
+        name: 'Ollama',
+        url: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/v1/chat/completions',
+        model: executionOptions.modelOverride || 'qwen3.5:latest',
+        key: process.env.OLLAMA_API_KEY || 'ollama',
+      }];
+    } else {
+      const matched = getProviders(systemPrompt, agentName).find((p) =>
+        p.name.toLowerCase().includes(requested)
+      );
+      if (matched) {
+        providers = [{ ...matched, model: executionOptions.modelOverride || matched.model }];
+      }
+    }
+  }
+
+  if (providers.length === 0 && resolvedAgentId) {
     const assignment =
       await AgentProviderAssignmentService.getAssignment(resolvedAgentId);
 

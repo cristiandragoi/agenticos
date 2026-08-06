@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, MicOff, Loader2, Square, AlertCircle } from 'lucide-react';
 import styles from '../../pages/JarvisStudio.module.css';
+import { JARVIS_ORB_EVENTS } from './jarvisOrbState';
 
 // Microphone state visible to the user
 export type MicState = 'idle' | 'requesting-permission' | 'listening' | 'transcribing' | 'error';
@@ -15,6 +16,15 @@ interface JarvisComposerProps {
   composerText?: string;
   /** Lifted state: called whenever the textarea changes */
   onComposerTextChange?: (text: string) => void;
+  /** Called whenever the real microphone capture state changes. */
+  onMicStateChange?: (state: MicState) => void;
+  /**
+   * Canonical voice mode: when true the composer's own microphone button
+   * and status label are hidden — the page-level useVoiceIO engine is the
+   * single microphone owner (one mic, one transcription path). The input
+   * field and Send button remain fully functional (Manual mode contract).
+   */
+  hideMic?: boolean;
 }
 
 const SILENCE_TIMEOUT_MS = 1800; // ms of silence before auto-stopping
@@ -26,6 +36,8 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
   onCancelResponse,
   composerText,
   onComposerTextChange,
+  onMicStateChange,
+  hideMic,
 }) => {
   const [internalText, setInternalText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -36,6 +48,14 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
   // Microphone state
   const [micState, setMicState] = useState<MicState>('idle');
   const [micError, setMicError] = useState<string | null>(null);
+  // Benign one-shot notice (e.g. "no speech detected"). Shown in the neutral
+  // status label instead of the red error banner; cleared on the next attempt.
+  const [micNotice, setMicNotice] = useState<string | null>(null);
+
+  // Notify the parent (and any orb wiring) of real mic-state transitions.
+  useEffect(() => {
+    onMicStateChange?.(micState);
+  }, [micState, onMicStateChange]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -140,6 +160,16 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
         // ignore if response is not JSON
       }
 
+      // Benign "no speech" outcome: the request itself succeeded but the audio
+      // contained nothing to transcribe. This is NOT an error — surface one
+      // clear neutral notice and return the mic to idle, ready for retry.
+      if (!res.ok && (data?.noSpeech === true)) {
+        setMicNotice('No speech detected — please try again.');
+        setMicState('idle');
+        setMicError(null);
+        return;
+      }
+
       if (!res.ok) {
         const errMsg = data?.error ? `Transcription HTTP ${res.status}: ${data.error}` : `Transcription HTTP ${res.status}`;
         throw new Error(errMsg);
@@ -159,6 +189,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
       setText(trimmed ? `${trimmed} ${transcript.trim()}` : transcript.trim());
       setMicState('idle');
       setMicError(null);
+      setMicNotice(null);
     } catch (err: any) {
       console.warn('[JarvisComposer] Transcription error:', err);
       setMicError(`Transcription failed: ${err.message || err}`);
@@ -190,6 +221,13 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
         }
         const rms = Math.sqrt(sum / data.length);
         const isSilent = rms < 0.015;
+
+        // Broadcast REAL microphone amplitude (normalised 0..1) so the orb can
+        // react to live input. This is measured audio, never synthesised.
+        const normalized = Math.min(1, rms / 0.2);
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.inputLevel, {
+          detail: { level: normalized },
+        }));
 
         if (isSilent) {
           if (!silentSince) silentSince = Date.now();
@@ -223,6 +261,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
 
   const startListening = useCallback(async () => {
     setMicError(null);
+    setMicNotice(null);
     setMicState('requesting-permission');
 
     // Check basic API availability
@@ -322,7 +361,10 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
     <div className={styles.composerContainer} data-testid="jarvis-composer">
       <div className={styles.composerBox}>
 
-        {/* ── Microphone button ── */}
+        {/* Microphone button + label hidden in canonical voice mode — the
+            page engine is the single mic owner. */}
+        {!hideMic && (
+        <>
         <button
           className={styles.actionBtn}
           onClick={handleMicClick}
@@ -368,6 +410,8 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
         >
           {micState === 'idle' ? 'Voice input' : micLabel}
         </span>
+        </>
+        )}
 
         {/* ── Inline error banner ── */}
         {micState === 'error' && micError && (
@@ -387,6 +431,27 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
           >
             <AlertCircle size={12} aria-hidden />
             {micError}
+          </span>
+        )}
+
+        {/* ── Benign notice banner (e.g. "no speech detected") — one clear
+            neutral message, never the red error state ── */}
+        {micState === 'idle' && micNotice && (
+          <span
+            data-testid="jarvis-mic-notice"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 11,
+              color: 'var(--text-secondary, #8a94a6)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: 260,
+            }}
+          >
+            {micNotice}
           </span>
         )}
 

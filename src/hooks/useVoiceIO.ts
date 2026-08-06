@@ -2,17 +2,37 @@
 /**
  * useVoiceIO — Shared voice input/output hook for Jarvis and Hermes.
  *
- * Features:
- *  - MediaRecorder-based mic capture
- *  - Silence/pause detection: auto-stops after ~3.5s of audio below threshold
- *  - Sends audio to /api/voice/transcribe (Groq Whisper) → returns text
- *  - Plays TTS audio from /api/voice/execute (Deepgram aura-helios-en for Jarvis,
- *    aura-orion-en for Hermes — both natural male voices)
- *  - Falls back to browser SpeechSynthesis if no audioData returned
- *  - Exposes transcript line so UI can show what was heard before sending
+ * Two modes:
+ *
+ *  1. MANUAL (default, unchanged contract):
+ *     - startListening() records ONE segment; sustained silence below
+ *       threshold stops it; the transcript is surfaced via onTranscript and
+ *       the UI decides whether/when to send. Nothing auto-submits.
+ *
+ *  2. CONVERSATION (startConversation()):
+ *     - One persistent microphone stream stays open for the whole session
+ *       (echoCancellation + noiseSuppression + autoGainControl where
+ *       supported, so Jarvis' own output is not re-transcribed).
+ *     - A VAD ticker measures REAL microphone RMS amplitude:
+ *         listening  → speech start (rms > speechThreshold, minSpeechMs)
+ *                      → transcribing → thinking → speaking → listening
+ *     - End-of-speech = measured silence >= endSpeechSilenceMs (~900ms
+ *       default, configurable 700–1200). NOT a fixed fake timer.
+ *     - Valid transcript auto-submits EXACTLY ONCE via onAutoSubmit
+ *       (duplicate-text dedupe window + per-blob submit flag).
+ *     - Barge-in: while Jarvis is speaking, real user speech stops the
+ *       playback, cancels remaining TTS, keeps the visible text, and opens
+ *       a new user turn.
+ *     - Any error recovers to listening (conversation) or idle (manual).
+ *
+ * Playback contract (both modes): the 'speaking' voice state is set ONLY
+ * after the browser confirms real playback start (onplay / utterance start).
+ * Synthesis failure → speechSynthesis fallback. Playback failure → ONE
+ * understandable error, never a duplicate speechSynthesis fallback.
  */
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 
 export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
 
@@ -21,8 +41,21 @@ interface UseVoiceIOOptions {
   onTranscript?: (text: string) => void;
   onResponse?: (text: string) => void;
   onStateChange?: (state: VoiceState) => void;
+  /** Conversation mode: called exactly once per valid end-of-speech transcript. */
+  onAutoSubmit?: (text: string) => void;
   /** Silence duration in ms before auto-stopping recording (default 3500ms) */
   silenceTimeout?: number;
+  /** Conversation mode: measured silence (ms) that ends a speech turn. */
+  endSpeechSilenceMs?: number;
+  /** Conversation mode: RMS amplitude that counts as speech onset (0..1). */
+  speechThreshold?: number;
+  /** Conversation mode: min sustained speech (ms) before a turn is real. */
+  minSpeechMs?: number;
+  /** Conversation mode: safety cap for one recorded turn (ms). */
+  maxSegmentMs?: number;
+  /** Conversation mode: ignore mic input this long after playback starts
+   *  (echo-cancellation settle window for barge-in detection). */
+  bargeInGraceMs?: number;
 }
 
 const BACKEND = '/api';
@@ -39,12 +72,25 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     onTranscript,
     onResponse,
     onStateChange,
+    onAutoSubmit,
     silenceTimeout = 1500, // Faster, snappier conversation
+    endSpeechSilenceMs = 900,
+    speechThreshold = 0.02,
+    minSpeechMs = 120,
+    maxSegmentMs = 20000,
+    bargeInGraceMs = 250,
   } = options;
 
   const [voiceState, setVoiceStateInternal] = useState<VoiceState>('idle');
   const [lastTranscript, setLastTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState('');
+  const [conversationActive, setConversationActive] = useState(false);
+
+  // Ref mirrors — event handlers and rAF loops run in stale closures, so all
+  // mode decisions read refs, never the render-time values.
+  const conversationActiveRef = useRef(false);
+  const voiceEnabledRef = useRef(true);
+  const voiceStateRef = useRef<VoiceState>('idle');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -54,8 +100,49 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const streamRef = useRef<MediaStream | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
+  // Playback-amplitude analysis (real output level for the orb).
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const playbackSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const playbackAnalyserRef = useRef<AnalyserNode | null>(null);
+  const playbackLevelRafRef = useRef<number | null>(null);
+
+  // ── Conversation-mode machinery ──
+  const convCtxRef = useRef<AudioContext | null>(null);
+  const convAnalyserRef = useRef<AnalyserNode | null>(null);
+  const vadRafRef = useRef<number | null>(null);
+  const convRecorderRef = useRef<MediaRecorder | null>(null);
+  const convChunksRef = useRef<Blob[]>([]);
+  const turnActiveRef = useRef(false);
+  const speechStartedAtRef = useRef<number | null>(null);
+  const silenceSinceRef = useRef<number | null>(null);
+  const turnSubmittedRef = useRef(false);
+  const playbackStartedAtRef = useRef<number | null>(null);
+  const playbackActiveRef = useRef(false);
+  const speakingRef = useRef(false);
+  const recoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoSubmitRef = useRef<{ text: string; at: number } | null>(null);
+
+  // ── Turn validity: conversationSessionId + turnId (never mutable booleans
+  //    alone). A recorded blob is submittable ONLY while the session that
+  //    recorded it is still live AND no newer turn has started. Ending the
+  //    conversation clears the sessionId → every unfinished turn is
+  //    invalidated, even if its transcription is still in flight. ──
+  const conversationSessionIdRef = useRef<string | null>(null);
+  const turnSeqRef = useRef(0);
+  const [conversationSessionId, setConversationSessionId] = useState<string | null>(null);
+
+  // ── Visible voice selection (product milestone: British/American choices) ──
+  // `voiceOverrideRef` wins over the per-agent default in speak(); the state
+  // mirror exists so the voice selector UI can render the active choice.
+  const voiceOverrideRef = useRef<string | null>(null);
+  const [selectedVoice, setSelectedVoiceState] = useState<string | null>(null);
+  const setVoiceOverride = useCallback((voice: string | null) => {
+    voiceOverrideRef.current = voice;
+    setSelectedVoiceState(voice);
+  }, []);
 
   const setVoiceState = useCallback((s: VoiceState) => {
+    voiceStateRef.current = s;
     setVoiceStateInternal(s);
     onStateChange?.(s);
   }, [onStateChange]);
@@ -79,7 +166,16 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
-  const stopAudio = useCallback(() => {
+  const stopPlaybackLevelMonitor = useCallback(() => {
+    if (playbackLevelRafRef.current !== null) {
+      cancelAnimationFrame(playbackLevelRafRef.current);
+      playbackLevelRafRef.current = null;
+    }
+  }, []);
+
+  /** Stop playback WITHOUT dispatching playbackEnded. Internal primitive;
+   *  callers decide whether the orb/consumers must be notified. */
+  const haltPlayback = useCallback(() => {
     ttsAbortControllerRef.current?.abort();
     ttsAbortControllerRef.current = null;
     window.speechSynthesis?.cancel();
@@ -87,7 +183,88 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       audioElementRef.current.pause();
       audioElementRef.current.src = '';
     }
+    stopPlaybackLevelMonitor();
+    playbackActiveRef.current = false;
+    speakingRef.current = false;
+  }, [stopPlaybackLevelMonitor]);
+
+  /** Public stop: halt + notify listeners (orb, drawer resume handler). */
+  const stopAudio = useCallback(() => {
+    haltPlayback();
+    window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+      detail: { agentId },
+    }));
+  }, [agentId, haltPlayback]);
+
+  /** Conversation mode: silence Jarvis (barge-in / stop-speaking control).
+   *  The already-visible response text is never touched — playback only. */
+  const stopSpeaking = useCallback(() => {
+    if (!playbackActiveRef.current && !speakingRef.current) return;
+    haltPlayback();
+    window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+      detail: { agentId },
+    }));
+  }, [agentId, haltPlayback]);
+
+  /** Lazily attach an AnalyserNode to the real playback audio element.
+   *  createMediaElementSource may only be called once per element, so the
+   *  graph is created on first confirmation and reused afterwards. */
+  const ensurePlaybackAnalyser = useCallback(() => {
+    const audio = audioElementRef.current;
+    if (!audio || typeof AudioContext === 'undefined') return null;
+    try {
+      if (!playbackSourceRef.current) {
+        const ctx = new AudioContext();
+        playbackContextRef.current = ctx;
+        const source = ctx.createMediaElementSource(audio);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+        playbackSourceRef.current = source;
+        playbackAnalyserRef.current = analyser;
+      }
+      return playbackAnalyserRef.current;
+    } catch {
+      return null; // analysis is best-effort; playback still works without it
+    }
   }, []);
+
+  /** Broadcast REAL playback amplitude (normalised 0..1) while audio plays. */
+  const startPlaybackLevelMonitor = useCallback(() => {
+    const analyser = playbackAnalyserRef.current;
+    if (!analyser) return;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const tick = () => {
+      const a = playbackAnalyserRef.current;
+      if (!a) return;
+      a.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.outputLevel, {
+        detail: { level: Math.min(1, rms / 0.3), agentId },
+      }));
+      playbackLevelRafRef.current = requestAnimationFrame(tick);
+    };
+    playbackLevelRafRef.current = requestAnimationFrame(tick);
+  }, [agentId]);
+
+  /** After a playback end/failure: conversation mode re-arms the mic turn
+   *  loop; manual mode returns to idle. Never invents state — callers invoke
+   *  this only from REAL playback lifecycle events. */
+  const afterPlaybackEnd = useCallback(() => {
+    if (conversationActiveRef.current) {
+      if (recoverTimerRef.current) { clearTimeout(recoverTimerRef.current); recoverTimerRef.current = null; }
+      setVoiceState('listening');
+      startConversationListeningInternal();
+    } else {
+      setVoiceState('idle');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Play base64-encoded MP3 audio, strictly confirming playback start */
   const playAudio = useCallback((base64Audio: string | null): Promise<void> => {
@@ -107,27 +284,88 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         }
         const audio = audioElementRef.current;
         audio.src = `data:audio/mp3;base64,${base64Audio}`;
-        
+
         audio.onplay = () => {
+          // Playback ACTUALLY started — only now do we enter the speaking
+          // state. Real output amplitude is monitored for the orb.
+          // TEMP DIAGNOSTIC (remove once root cause confirmed)
+          console.log('[VoiceDiag] onplay FIRED (real playback started)', { agentId, volume: audio.volume, muted: audio.muted });
+          playbackActiveRef.current = true;
+          speakingRef.current = true;
+          playbackStartedAtRef.current = Date.now();
+          ensurePlaybackAnalyser();
+          startPlaybackLevelMonitor();
+          setVoiceState('speaking');
+          window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
+            detail: { agentId },
+          }));
+          // Conversation mode: keep the VAD loop armed DURING playback so a
+          // real user voice can barge in (stop audio, open a new turn).
+          if (conversationActiveRef.current) startConversationListeningInternal();
           resolve();
         };
 
         audio.onended = () => {
-          setVoiceState('idle');
+          stopPlaybackLevelMonitor();
+          playbackActiveRef.current = false;
+          speakingRef.current = false;
+          window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+            detail: { agentId },
+          }));
+          afterPlaybackEnd();
         };
 
         audio.onerror = () => {
+          stopPlaybackLevelMonitor();
+          playbackActiveRef.current = false;
+          speakingRef.current = false;
           const err = audio.error?.message || 'Audio element playback error';
           setPlaybackError(err);
           setVoiceState('error');
+          window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+            detail: { agentId },
+          }));
+          if (conversationActiveRef.current) {
+            // Error path: recover to listening, never duplicate the speech.
+            if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+            recoverTimerRef.current = setTimeout(() => {
+              recoverTimerRef.current = null;
+              if (conversationActiveRef.current) {
+                setVoiceState('listening');
+                startConversationListeningInternal();
+              }
+            }, 1500);
+          }
           reject(new Error(err));
         };
 
         audio.play().catch((err) => {
           const errMsg = err.message || 'Autoplay blocked or playback failed';
+          // TEMP DIAGNOSTIC (remove once root cause confirmed)
+          console.log('[VoiceDiag] play() REJECTED', {
+            agentId,
+            name: err.name,
+            message: errMsg,
+            src: audio.src ? `${audio.src.slice(0, 30)}... (${audio.src.length} chars)` : '(empty)',
+            muted: audio.muted,
+            volume: audio.volume,
+            readyState: audio.readyState,
+            networkState: audio.networkState,
+            paused: audio.paused,
+          });
           setPlaybackError(errMsg);
           setVoiceState('error');
           reject(new Error(errMsg));
+        }).then(() => {
+          // TEMP DIAGNOSTIC (remove once root cause confirmed)
+          console.log('[VoiceDiag] play() RESOLVED', {
+            agentId,
+            muted: audio.muted,
+            volume: audio.volume,
+            readyState: audio.readyState,
+            networkState: audio.networkState,
+            paused: audio.paused,
+          });
         });
       } else {
         const err = 'No audio data returned from backend';
@@ -136,7 +374,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         reject(new Error(err));
       }
     });
-  }, [setVoiceState]);
+  }, [agentId, setVoiceState, ensurePlaybackAnalyser, startPlaybackLevelMonitor, stopPlaybackLevelMonitor, afterPlaybackEnd]);
 
   /**
    * Start silence detection using Web Audio API.
@@ -195,8 +433,66 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, [silenceTimeout]);
 
-  /** Process the recorded audio blob → transcribe ONLY */
-  const processAudioBlob = useCallback(async (audioBlob: Blob) => {
+  /** Submit a validated conversation transcript exactly once. Returns true
+   *  when submitted; false when the turn is stale/invalid or deduplicated.
+   *  Validity = conversationSessionId + turnId captured at record time,
+   *  checked against the live session (never mutable booleans alone). */
+  const submitConversationTurn = useCallback((
+    text: string,
+    validity?: { sessionId: string | null; turnId: number },
+  ): boolean => {
+    // Session/turn validity first: a turn recorded by a dead session (user
+    // ended Conversation mid-transcription) or superseded by a newer turn
+    // never submits — no boolean can drift into accepting a stale turn.
+    if (validity) {
+      if (!validity.sessionId || validity.sessionId !== conversationSessionIdRef.current) {
+        // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
+        console.log('[ConvTrace] submit REJECTED: session invalidated', { recorded: validity.sessionId, live: conversationSessionIdRef.current });
+        return false;
+      }
+      if (validity.turnId !== turnSeqRef.current) {
+        // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
+        console.log('[ConvTrace] submit REJECTED: stale turnId', { recorded: validity.turnId, current: turnSeqRef.current });
+        return false;
+      }
+    }
+    // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
+    console.log('[ConvTrace] submitConversationTurn entered', {
+      text: text.slice(0, 60),
+      turnSubmitted: turnSubmittedRef.current,
+    });
+    if (turnSubmittedRef.current) return false;
+    turnSubmittedRef.current = true;
+    const now = Date.now();
+    const last = lastAutoSubmitRef.current;
+    const dup = !!(last && last.text === text && now - last.at < 4000);
+    if (dup) {
+      console.log('[ConvTrace] DEDUPE hit — not resubmitting identical text');
+      return false;
+    }
+    lastAutoSubmitRef.current = { text, at: now };
+    console.log('[ConvTrace] onAutoSubmit firing', { hasCallback: typeof onAutoSubmit === 'function' });
+    onAutoSubmit?.(text);
+    return true;
+  }, [onAutoSubmit]);
+
+  /** Process the recorded audio blob → transcribe ONLY.
+   *  Conversation mode: valid transcript auto-submits once, then the turn
+   *  loop re-arms. Manual mode: transcript is surfaced, UI decides.
+   *
+   *  ROOT-CAUSE FIX (live auto-submit failure): the auto-submit decision
+   *  previously required BOTH the recorded origin (fromConversation) AND the
+   *  live conversationActiveRef to still be true when the transcription
+   *  resolved. Any mid-turn state change (re-render teardown, mode ref reset,
+   *  barge-in race) flipped the ref and silently demoted the turn to the
+   *  MANUAL branch — the transcript landed in the input field and the user
+   *  had to click Send. The blob's origin is authoritative: it was recorded
+   *  by the conversation turn recorder or it wasn't. We trust it. */
+  const processAudioBlob = useCallback(async (
+    audioBlob: Blob,
+    fromConversation = false,
+    validity?: { sessionId: string | null; turnId: number },
+  ) => {
     setVoiceState('transcribing');
 
     try {
@@ -207,27 +503,341 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         method: 'POST',
         body: fd,
       });
+      let transcribeData: any = {};
+      try {
+        transcribeData = await transcribeRes.json();
+      } catch {
+        // non-JSON response body — fall through to error handling
+      }
+      // Benign "no speech" outcome: valid audio, nothing to transcribe.
+      // Not an error — conversation re-arms; manual returns to idle.
+      if (!transcribeRes.ok && transcribeData?.noSpeech === true) {
+        if (fromConversation || conversationActiveRef.current) {
+          setVoiceState('listening');
+          startConversationListeningInternal();
+        } else {
+          setVoiceState('idle');
+        }
+        return;
+      }
       if (!transcribeRes.ok) throw new Error('Transcription failed');
-      const { text: transcriptText } = await transcribeRes.json();
+      const transcriptText: string = transcribeData?.text;
 
       if (!transcriptText || transcriptText.trim() === '') {
-        setVoiceState('idle');
+        if (fromConversation || conversationActiveRef.current) {
+          setVoiceState('listening');
+          startConversationListeningInternal();
+        } else {
+          setVoiceState('idle');
+        }
         return;
       }
 
       setLastTranscript(transcriptText);
-      // Wait to set idle until transcription is fully dispatched
+      // TEMP DIAGNOSTIC — which branch decided auto-submit vs manual input.
+      console.log('[ConvTrace] transcript arrived', {
+        text: transcriptText.slice(0, 60),
+        fromConversation,
+        conversationActive: conversationActiveRef.current,
+        branch: (fromConversation || conversationActiveRef.current) ? 'AUTO-SUBMIT' : 'MANUAL-INPUT',
+      });
+      if (fromConversation || conversationActiveRef.current) {
+        // Auto-submit EXACTLY ONCE, then hand off to the agent pipeline.
+        const submitted = submitConversationTurn(transcriptText, validity);
+        if (submitted) {
+          setVoiceState('thinking');
+        } else {
+          // Duplicate — swallow silently, keep listening.
+          setVoiceState('listening');
+          startConversationListeningInternal();
+        }
+        return;
+      }
+      // Manual mode: surface transcript, wait for explicit user Send.
       onTranscript?.(transcriptText);
       setVoiceState('idle');
     } catch (err) {
       console.error(`[useVoiceIO:${agentId}] Pipeline error:`, err);
       setVoiceState('error');
-      setTimeout(() => setVoiceState('idle'), 3000);
+      if (conversationActiveRef.current) {
+        // Error recovery: back to listening, never a duplicate submission.
+        if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+        recoverTimerRef.current = setTimeout(() => {
+          recoverTimerRef.current = null;
+          if (conversationActiveRef.current) {
+            setVoiceState('listening');
+            startConversationListeningInternal();
+          }
+        }, 1500);
+      } else {
+        setTimeout(() => setVoiceState('idle'), 3000);
+      }
     }
-  }, [agentId, onTranscript, setVoiceState]);
+  }, [agentId, onTranscript, setVoiceState, submitConversationTurn]);
 
-  /** Start listening */
+  // ── Conversation-mode turn engine ──
+
+  /** Open (or reuse) the persistent conversation mic with echo cancellation,
+   *  noise suppression and auto gain where supported — so Jarvis' own audio
+   *  output is attenuated and not re-transcribed as user input. */
+  const openConversationMic = useCallback(async (): Promise<MediaStream | null> => {
+    if (streamRef.current) return streamRef.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+      if (!convCtxRef.current || convCtxRef.current.state === 'closed') {
+        convCtxRef.current = new AudioContext();
+      }
+      const source = convCtxRef.current.createMediaStreamSource(stream);
+      const analyser = convCtxRef.current.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      convAnalyserRef.current = analyser;
+      return stream;
+    } catch (err) {
+      console.warn(`[useVoiceIO:${agentId}] Conversation mic denied:`, err);
+      return null;
+    }
+  }, [agentId]);
+
+  /** Stop the current conversation turn recording (if any) without any
+   *  transcription — used when conversation mode ends mid-turn. */
+  const discardConversationTurn = useCallback(() => {
+    if (vadRafRef.current !== null) {
+      cancelAnimationFrame(vadRafRef.current);
+      vadRafRef.current = null;
+    }
+    turnActiveRef.current = false;
+    speechStartedAtRef.current = null;
+    silenceSinceRef.current = null;
+    const rec = convRecorderRef.current;
+    convRecorderRef.current = null;
+    convChunksRef.current = [];
+    if (rec && rec.state === 'recording') {
+      try { rec.stop(); } catch { /* already stopped */ }
+    }
+  }, []);
+
+  /** Tear down the whole conversation session: VAD loop, recorder, stream
+   *  tracks, analyser context, pending recovery timers. */
+  const closeConversationMic = useCallback(() => {
+    discardConversationTurn();
+    if (recoverTimerRef.current) { clearTimeout(recoverTimerRef.current); recoverTimerRef.current = null; }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    const ctx = convCtxRef.current;
+    if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+    convCtxRef.current = null;
+    convAnalyserRef.current = null;
+  }, [discardConversationTurn]);
+
+  const startTurnRecording = useCallback((stream: MediaStream) => {
+    if (turnActiveRef.current) return;
+    turnActiveRef.current = true;
+    turnSubmittedRef.current = false;
+    // Capture turn validity NOW (session + sequence at record time). The
+    // async transcription may resolve after the session ended or a newer
+    // turn started — submitConversationTurn re-checks both before firing.
+    const validity = { sessionId: conversationSessionIdRef.current, turnId: turnSeqRef.current };
+    convChunksRef.current = [];
+    try {
+      const rec = new MediaRecorder(stream);
+      convRecorderRef.current = rec;
+      rec.ondataavailable = (e: BlobEvent) => {
+        if (e.data && e.data.size > 0) convChunksRef.current.push(e.data);
+      };
+      rec.onstop = () => {
+        turnActiveRef.current = false;
+        const blob = new Blob(convChunksRef.current, { type: 'audio/webm' });
+        convChunksRef.current = [];
+        // TEMP DIAGNOSTIC — live chain trace (remove after confirmation).
+        window.dispatchEvent(new CustomEvent('jarvis:conv-trace', { detail: { stage: 'recorderStop', value: `blob ${blob.size}B turn ${validity.turnId}` } }));
+        // Recordings with no meaningful payload never reach transcription.
+        if (blob.size < 400) {
+          if (conversationActiveRef.current) {
+            setVoiceState('listening');
+            startConversationListeningInternal();
+          }
+          return;
+        }
+        processAudioBlob(blob, true, validity);
+      };
+      rec.start();
+    } catch (err) {
+      console.warn(`[useVoiceIO:${agentId}] Turn recorder failed:`, err);
+      turnActiveRef.current = false;
+    }
+  }, [agentId, processAudioBlob, setVoiceState]);
+
+  const stopTurnRecording = useCallback(() => {
+    const rec = convRecorderRef.current;
+    convRecorderRef.current = null;
+    if (rec && rec.state === 'recording') {
+      try { rec.stop(); } catch { /* already stopped */ }
+    }
+    speechStartedAtRef.current = null;
+    silenceSinceRef.current = null;
+  }, []);
+
+  /** Re-arm the VAD ticker (idempotent). Called whenever the conversation
+   *  loop must listen for the next user turn. */
+  const startConversationListeningInternal = useCallback(() => {
+    if (!conversationActiveRef.current) return;
+    if (vadRafRef.current !== null) return; // already ticking
+    const analyserForSize = convAnalyserRef.current;
+    if (!analyserForSize) return;
+    // Buffer MUST match frequencyBinCount: a larger buffer leaves zero-filled
+    // samples, which read as full-scale negative amplitude and would make
+    // every frame look like speech.
+    const data = new Uint8Array(analyserForSize.frequencyBinCount);
+    const tick = () => {
+      if (!conversationActiveRef.current) { vadRafRef.current = null; return; }
+      const analyser = convAnalyserRef.current;
+      if (!analyser) { vadRafRef.current = null; return; }
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      const now = Date.now();
+
+      // Real playback amplitude broadcast (orb) while a turn is recording.
+      if (turnActiveRef.current) {
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.inputLevel, {
+          detail: { level: Math.min(1, rms / 0.3) },
+        }));
+      }
+
+      const isSpeech = rms > speechThreshold;
+
+      // ── Barge-in: real user speech while Jarvis is speaking ──
+      if (!turnActiveRef.current && speakingRef.current) {
+        const started = playbackStartedAtRef.current ?? now;
+        if (now - started >= bargeInGraceMs && isSpeech) {
+          // Stop current audio + cancel remaining TTS; visible text stays.
+          stopSpeaking();
+          // Transition to listening and open the new user turn immediately.
+          setVoiceState('listening');
+          speechStartedAtRef.current = now;
+          silenceSinceRef.current = null;
+          if (streamRef.current) startTurnRecording(streamRef.current);
+        }
+      } else if (!turnActiveRef.current && isSpeech && voiceStateRef.current === 'listening') {
+        // ── Speech start (only while actually listening — never while a
+        // transcription/agent turn is in flight) ──
+        if (speechStartedAtRef.current === null) speechStartedAtRef.current = now;
+        if (now - speechStartedAtRef.current >= minSpeechMs) {
+          silenceSinceRef.current = null;
+          // TEMP DIAGNOSTIC — live chain trace (remove after confirmation).
+          window.dispatchEvent(new CustomEvent('jarvis:conv-trace', { detail: { stage: 'vadStart', value: `speech-start rms>${speechThreshold}` } }));
+          if (streamRef.current) startTurnRecording(streamRef.current);
+        }
+      } else if (!turnActiveRef.current && !isSpeech) {
+        // Reset partial speech detection — not sustained enough.
+        speechStartedAtRef.current = null;
+      }
+
+      // ── Speech end: measured silence >= endSpeechSilenceMs ──
+      if (turnActiveRef.current) {
+        if (isSpeech) {
+          silenceSinceRef.current = null;
+        } else if (silenceSinceRef.current === null) {
+          silenceSinceRef.current = now;
+        } else if (now - silenceSinceRef.current >= endSpeechSilenceMs) {
+          vadRafRef.current = null; // loop pauses until transcription re-arms
+          // TEMP DIAGNOSTIC — live chain trace (remove after confirmation).
+          window.dispatchEvent(new CustomEvent('jarvis:conv-trace', { detail: { stage: 'vadEnd', value: `silence≥${endSpeechSilenceMs}ms` } }));
+          stopTurnRecording();
+          return; // onstop → transcription → next state; no more ticking here
+        }
+        // Safety cap: never record one turn forever.
+        if (speechStartedAtRef.current && now - speechStartedAtRef.current > maxSegmentMs) {
+          vadRafRef.current = null;
+          stopTurnRecording();
+          return;
+        }
+      }
+
+      vadRafRef.current = requestAnimationFrame(tick);
+    };
+    vadRafRef.current = requestAnimationFrame(tick);
+  }, [speechThreshold, minSpeechMs, endSpeechSilenceMs, maxSegmentMs, bargeInGraceMs, startTurnRecording, stopTurnRecording, stopSpeaking, setVoiceState]);
+
+  /** Activate conversation mode. Returns true when the mic opened. */
+  const startConversation = useCallback(async (): Promise<boolean> => {
+    conversationActiveRef.current = true;
+    setConversationActive(true);
+    // New session identity: every turn recorded under this session carries
+    // the sessionId; ending Conversation clears it → in-flight transcripts
+    // become invalid by identity, not by boolean drift.
+    const sessionId = `conv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    conversationSessionIdRef.current = sessionId;
+    turnSeqRef.current += 1;
+    setConversationSessionId(sessionId);
+    // A leftover manual capture (if any) lacks the conversation constraints
+    // (echoCancellation/noiseSuppression) and runs its own silence detector —
+    // drop it completely (recorder, stream tracks, analyser context, timers)
+    // and open a dedicated conversation stream instead.
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.onstop = null; // suppress manual-blob pipeline
+      if (mediaRecorderRef.current.state === 'recording') {
+        try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+      }
+      mediaRecorderRef.current = null;
+    }
+    cleanupStream(); // stops manual stream tracks + closes its AudioContext
+    const stream = await openConversationMic();
+    if (!stream) {
+      conversationActiveRef.current = false;
+      setConversationActive(false);
+      setVoiceState('error');
+      setTimeout(() => { if (!conversationActiveRef.current) setVoiceState('idle'); }, 2000);
+      return false;
+    }
+    // Unlock the audio element for later playback (user-gesture context).
+    if (!audioElementRef.current) audioElementRef.current = new Audio();
+    audioElementRef.current.play().catch(() => {});
+    audioElementRef.current.pause();
+    setVoiceState('listening');
+    startConversationListeningInternal();
+    // TEMP DIAGNOSTIC — conversation session confirmed live (remove after confirmation)
+    console.log('[ConvTrace] startConversation OK — VAD armed');
+    return true;
+  }, [openConversationMic, setVoiceState, startConversationListeningInternal]);
+
+  /** End conversation mode: stop mic capture, VAD loop, timers, recorder. */
+  const endConversation = useCallback(() => {
+    // TEMP DIAGNOSTIC — who ended conversation mode? (remove after confirmation)
+    console.log('[ConvTrace] endConversation called', { stack: new Error().stack?.split('\n').slice(1, 4).join(' | ') });
+    conversationActiveRef.current = false;
+    // Invalidate every unfinished turn by identity.
+    conversationSessionIdRef.current = null;
+    setConversationSessionId(null);
+    setConversationActive(false);
+    closeConversationMic();
+    if (!playbackActiveRef.current && !speakingRef.current) {
+      setVoiceState('idle');
+    }
+  }, [closeConversationMic, setVoiceState]);
+
+  /** Start listening (manual single-segment capture; in conversation mode it
+   *  simply re-arms the continuous loop). */
   const startListening = useCallback(async () => {
+    if (conversationActiveRef.current) {
+      if (!streamRef.current) {
+        const stream = await openConversationMic();
+        if (!stream) return;
+      }
+      setVoiceState('listening');
+      startConversationListeningInternal();
+      return;
+    }
     if (voiceState === 'listening') return;
 
     // Unlock AudioContext on user gesture (Chrome requirement)
@@ -263,17 +873,23 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       setVoiceState('error');
       setTimeout(() => setVoiceState('idle'), 2000);
     }
-  }, [agentId, voiceState, cleanupStream, processAudioBlob, startSilenceDetection, setVoiceState]);
+  }, [agentId, voiceState, cleanupStream, processAudioBlob, startSilenceDetection, setVoiceState, openConversationMic, startConversationListeningInternal]);
 
-  /** Stop listening manually */
+  /** Stop listening manually (manual mode stops the segment; conversation
+   *  mode just pauses the VAD loop without closing the mic). */
   const stopListening = useCallback(() => {
+    if (conversationActiveRef.current) {
+      discardConversationTurn();
+      setVoiceState('idle');
+      return;
+    }
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     } else {
       cleanupStream();
       setVoiceState('idle');
     }
-  }, [cleanupStream, setVoiceState]);
+  }, [cleanupStream, setVoiceState, discardConversationTurn]);
 
   /** Toggle listen/stop */
   const toggleListening = useCallback(() => {
@@ -284,6 +900,12 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, [voiceState, startListening, stopListening]);
 
+  /** Voice output enable/disable. Disabling halts any current playback. */
+  const setVoiceEnabled = useCallback((enabled: boolean) => {
+    voiceEnabledRef.current = enabled;
+    if (!enabled) haltPlayback();
+  }, [haltPlayback]);
+
   const fallbackSpeak = useCallback((text: string) => {
     window.speechSynthesis?.cancel();
     if (audioElementRef.current) {
@@ -291,21 +913,81 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       audioElementRef.current.src = '';
     }
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onend = () => setVoiceState('idle');
-    utterance.onerror = () => setVoiceState('error');
+    // Speaking is confirmed by the real utterance start event, not eagerly.
+    (utterance as any).onstart = () => {
+      speakingRef.current = true;
+      playbackActiveRef.current = true;
+      playbackStartedAtRef.current = Date.now();
+      setVoiceState('speaking');
+      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
+        detail: { agentId },
+      }));
+    };
+    utterance.onend = () => {
+      speakingRef.current = false;
+      playbackActiveRef.current = false;
+      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+        detail: { agentId },
+      }));
+      afterPlaybackEnd();
+    };
+    utterance.onerror = () => {
+      speakingRef.current = false;
+      playbackActiveRef.current = false;
+      setVoiceState('error');
+      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+        detail: { agentId },
+      }));
+      if (conversationActiveRef.current) {
+        if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+        recoverTimerRef.current = setTimeout(() => {
+          recoverTimerRef.current = null;
+          if (conversationActiveRef.current) {
+            setVoiceState('listening');
+            startConversationListeningInternal();
+          }
+        }, 1500);
+      }
+    };
     window.speechSynthesis?.speak(utterance);
-  }, [setVoiceState]);
+  }, [agentId, setVoiceState, afterPlaybackEnd, startConversationListeningInternal]);
 
-  /** Speak a text string directly using pure TTS */
+  /** Speak a text string directly using pure TTS.
+   *  NOTE: the 'speaking' voice state is NOT set here — it is set only when
+   *  audio playback actually starts (onplay confirmation), or on
+   *  SpeechSynthesis onstart for the fallback path.
+   *
+   *  Failure classification:
+   *  - SYNTHESIS failure (network/HTTP/no audioData) → SpeechSynthesis
+   *    fallback, so voice output is still heard.
+   *  - PLAYBACK failure (audio element play() rejected, e.g. autoplay
+   *    policy) → surface ONE understandable playback error. We must NOT fall
+   *    back to speechSynthesis here: the audio was already synthesised, and
+   *    speaking it again would produce a DUPLICATE of the response. */
   const speak = useCallback(async (text: string): Promise<void> => {
+    // TEMP DIAGNOSTIC (remove once root cause confirmed)
+    console.log('[VoiceDiag] speak() entered', { agentId, textLen: text.length });
+
+    // Voice output disabled → skip TTS entirely, signal completion so the
+    // conversation loop can resume listening. No duplicate, no error.
+    if (!voiceEnabledRef.current) {
+      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+        detail: { agentId },
+      }));
+      return;
+    }
+
     stopAudio();
-    setVoiceState('speaking');
-    
+
     const controller = new AbortController();
     ttsAbortControllerRef.current = controller;
 
+    let audioData: string | null = null;
+    let synthesisFailed = false;
     try {
-      const voiceModel = AGENT_VOICE[agentId] || 'aura-helios-en';
+      // Visible voice selection wins over the per-agent default; the backend
+      // validates/falls back to its configured default when unsupported.
+      const voiceModel = voiceOverrideRef.current || AGENT_VOICE[agentId] || 'aura-helios-en';
       const res = await fetch(`${BACKEND}/voice/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -315,25 +997,128 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       if (res.ok) {
         const data = await res.json();
         if (data.audioData) {
-          await playAudio(data.audioData);
+          audioData = data.audioData;
         } else {
-          throw new Error('No audio data in response');
+          synthesisFailed = true;
         }
       } else {
-        throw new Error('TTS fetch failed');
+        synthesisFailed = true;
       }
     } catch (e: any) {
-      if (e.name !== 'AbortError') {
-        fallbackSpeak(text);
-      } else {
-        setVoiceState('idle');
+      if (e.name === 'AbortError') {
+        if (!conversationActiveRef.current) setVoiceState('idle');
+        return;
       }
+      synthesisFailed = true;
     } finally {
       if (ttsAbortControllerRef.current === controller) {
         ttsAbortControllerRef.current = null;
       }
     }
+
+    if (synthesisFailed) {
+      // Synthesis failed — fall back to the browser voice (best effort).
+      // TEMP DIAGNOSTIC (remove once root cause confirmed)
+      console.log('[VoiceDiag] synthesis failed → speechSynthesis fallback', { agentId });
+      fallbackSpeak(text);
+      return;
+    }
+
+    // TEMP DIAGNOSTIC (remove once root cause confirmed)
+    console.log('[VoiceDiag] synthesis OK → playAudio', { agentId, audioBytes: audioData ? audioData.length : 0 });
+    try {
+      // Play the synthesised audio. playAudio sets 'speaking' ONLY after the
+      // browser confirms playback actually started (onplay), and resolves
+      // only then; a rejection means playback failed (autoplay/policy/decode).
+      await playAudio(audioData);
+    } catch {
+      // Playback failure: playbackError already carries one understandable
+      // message; the text response remains untouched. No duplicate speech.
+    }
   }, [agentId, playAudio, fallbackSpeak, stopAudio, setVoiceState]);
+
+  // ── Progressive sequential speech queue (one audio at a time) ──
+  // Chunks are synthesised + played strictly in order; the next chunk is
+  // only fetched AFTER the previous chunk's playback ended (speak resolves
+  // on playback end). The kill switch clears the queue, aborts in-flight
+  // synthesis and suppresses further speech for the CURRENT run — visible
+  // text streaming is never touched.
+  const speechQueueRef = useRef<string[]>([]);
+  const speechPumpActiveRef = useRef(false);
+  const speechRunSuppressedRef = useRef(false);
+
+  const pumpSpeechQueue = useCallback(async () => {
+    if (speechPumpActiveRef.current) return;
+    speechPumpActiveRef.current = true;
+    try {
+      while (speechQueueRef.current.length > 0) {
+        if (speechRunSuppressedRef.current) {
+          speechQueueRef.current = [];
+          break;
+        }
+        const chunk = speechQueueRef.current.shift();
+        if (!chunk) break;
+        try {
+          await speak(chunk); // resolves only after playback ENDED
+        } catch {
+          // A failed chunk never blocks the rest of the queue.
+        }
+      }
+    } finally {
+      speechPumpActiveRef.current = false;
+    }
+  }, [speak]);
+
+  /** Enqueue one short phrase/sentence chunk for sequential TTS playback. */
+  const speakProgressive = useCallback((chunk: string) => {
+    const text = (chunk || '').trim();
+    if (!text || speechRunSuppressedRef.current) return;
+    speechQueueRef.current.push(text);
+    void pumpSpeechQueue();
+  }, [pumpSpeechQueue]);
+
+  /** VOICE KILL SWITCH: stop current playback, abort in-flight TTS
+   *  synthesis, clear queued speech, suppress all further speech for the
+   *  current run. Visible text is preserved by design (never touched). */
+  const killSpeech = useCallback(() => {
+    speechQueueRef.current = [];
+    speechRunSuppressedRef.current = true;
+    if (ttsAbortControllerRef.current) {
+      ttsAbortControllerRef.current.abort();
+      ttsAbortControllerRef.current = null;
+    }
+    haltPlayback();
+    window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+      detail: { agentId },
+    }));
+  }, [agentId, haltPlayback]);
+
+  /** Re-arm speech for a NEW run/turn (after a kill). */
+  const armSpeech = useCallback(() => {
+    speechRunSuppressedRef.current = false;
+  }, []);
+
+  // Release playback audio resources on unmount.
+  useEffect(() => {
+    return () => {
+      if (playbackLevelRafRef.current !== null) {
+        cancelAnimationFrame(playbackLevelRafRef.current);
+        playbackLevelRafRef.current = null;
+      }
+      const ctx = playbackContextRef.current;
+      if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+      playbackSourceRef.current = null;
+      playbackAnalyserRef.current = null;
+      // Conversation session teardown (stream tracks, VAD loop, contexts).
+      // TEMP DIAGNOSTIC — unmount teardown flips conversationActive (remove after confirmation)
+      if (conversationActiveRef.current) {
+        console.log('[ConvTrace] useVoiceIO UNMOUNT while conversation ACTIVE — flag forced false', { stack: new Error().stack?.split('\n').slice(1, 4).join(' | ') });
+      }
+      conversationActiveRef.current = false;
+      conversationSessionIdRef.current = null;
+      closeConversationMic();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     voiceState,
@@ -343,11 +1128,24 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     stopListening,
     toggleListening,
     stopAudio,
+    stopSpeaking,
     speak,
+    // Progressive sequential TTS + kill switch (never overlaps audio).
+    speakProgressive,
+    killSpeech,
+    armSpeech,
+    setVoiceEnabled,
+    conversationActive,
+    // Session/turn validity identity (never mutable booleans alone).
+    conversationSessionId,
+    startConversation,
+    endConversation,
     isListening: voiceState === 'listening',
     isSpeaking: voiceState === 'speaking',
     isProcessing: voiceState === 'transcribing' || voiceState === 'thinking',
     playbackError,
+    // Visible voice selection (product milestone) — override wins in speak().
+    selectedVoice,
+    setVoiceOverride,
   };
 }
-

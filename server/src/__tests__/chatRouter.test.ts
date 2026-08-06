@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { router } from '../routers/chat';
+import router from '../routers/chat';
 
 vi.mock('../runStore.js', () => ({
   runStore: {

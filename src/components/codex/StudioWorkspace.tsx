@@ -18,11 +18,13 @@ interface Props {
 
 /** No events for this long while a run is active => treat stream as disconnected. */
 const HEARTBEAT_TIMEOUT_MS = 45000;
+const activeGoalStreams = new Map<string, EventSource>();
 
 export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, activeTab, setActiveTab, onGoalCreated }) => {
 
   const { setEvents, setGoalStatus, setConnectionState, streamNonce } = useCodexStore();
   const lastEventAtRef = useRef<number>(Date.now());
+  const lastSequenceRef = useRef<number>(0);
   const statusRef = useRef<string | null>(goalStatus);
   statusRef.current = goalStatus;
 
@@ -30,11 +32,13 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
     if (!activeGoalId) {
       setEvents([]);
       setConnectionState('idle_connected');
+      lastSequenceRef.current = 0;
       return;
     }
 
     let es: EventSource | null = null;
     let closed = false;
+    let lastSequence = lastSequenceRef.current;
 
     const fetchHistory = async () => {
       try {
@@ -58,10 +62,25 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
     }
     setConnectionState('reconnecting');
 
-    es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
+    const existing = activeGoalStreams.get(activeGoalId);
+    if (existing) {
+      existing.close();
+      activeGoalStreams.delete(activeGoalId);
+    }
+
+    const streamUrl = lastSequence > 0
+      ? `/api/chat/agents/goal/stream/${activeGoalId}?lastEventId=${lastSequence}`
+      : `/api/chat/agents/goal/stream/${activeGoalId}`;
+    es = new EventSource(streamUrl);
+    activeGoalStreams.set(activeGoalId, es);
 
     es.onopen = () => {
       setConnectionState('connected');
+      console.debug('[CodeX SSE] open', {
+        goalId: activeGoalId,
+        readyState: es?.readyState,
+        lastEventSequence: lastSequence
+      });
     };
 
     es.addEventListener('goal_event', (e: any) => {
@@ -70,6 +89,10 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
         lastEventAtRef.current = Date.now();
         setConnectionState('connected');
         if (data.state) setGoalStatus(data.state);
+        if (typeof data.sequence === 'number') {
+          lastSequence = Math.max(lastSequence, data.sequence);
+          lastSequenceRef.current = lastSequence;
+        }
         setEvents(prev => {
           // Events are uniquely identified by their sequence number.
           if (data.sequence !== undefined && prev.find(p => p.sequence === data.sequence)) return prev;
@@ -87,6 +110,11 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
     es.onerror = () => {
       if (closed) return;
       // EventSource auto-retries: reflect that as "reconnecting".
+      console.debug('[CodeX SSE] error', {
+        goalId: activeGoalId,
+        readyState: es?.readyState,
+        lastEventSequence: lastSequence
+      });
       setConnectionState(es?.readyState === EventSource.CLOSED ? 'disconnected' : 'reconnecting');
     };
 
@@ -95,7 +123,7 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
       if (closed) return;
       const currentStatus = (statusRef.current || '').toLowerCase();
       const runActive = statusRef.current && !TERMINAL_GOAL_STATES.includes(currentStatus) && currentStatus !== 'paused';
-      if (runActive && Date.now() - lastEventAtRef.current > HEARTBEAT_TIMEOUT_MS) {
+      if (runActive && es?.readyState === EventSource.CLOSED && Date.now() - lastEventAtRef.current > HEARTBEAT_TIMEOUT_MS) {
         setConnectionState('disconnected');
       }
     }, 5000);
@@ -103,9 +131,12 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
     return () => {
       closed = true;
       clearInterval(watchdog);
+      if (activeGoalStreams.get(activeGoalId) === es) {
+        activeGoalStreams.delete(activeGoalId);
+      }
       es?.close();
     };
-  }, [activeGoalId, goalStatus, streamNonce]);
+  }, [activeGoalId, streamNonce]);
 
   const tabs = [
     { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },

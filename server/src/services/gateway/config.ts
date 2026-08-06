@@ -38,6 +38,20 @@ export function loadGatewayConfig(): GatewayConfig {
     });
   }
 
+  // OpenRouter is OpenAI-compatible: reuse the existing OpenAI gateway adapter.
+  if (process.env.OPENROUTER_BASE_URL || process.env.OPENROUTER_API_KEY) {
+    providers.push({
+      name: 'openrouter',
+      baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      model: process.env.OPENROUTER_MODEL || 'auto',
+      type: 'openai',
+      capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext'],
+      tags: ['cloud', 'long-context'],
+      maxContext: 128000
+    });
+  }
+
   if (process.env.OLLAMA_BASE_URL) {
     providers.push({
       name: 'ollama',
@@ -68,7 +82,7 @@ export function loadGatewayConfig(): GatewayConfig {
 
   // Load priorities
   const envOrder = process.env.GATEWAY_PROVIDER_ORDER;
-  let providerOrder = ['omniroot', 'ninerouter', 'ollama'];
+  let providerOrder = ['omniroot', 'openrouter', 'ninerouter', 'ollama'];
   if (envOrder) {
     providerOrder = envOrder.split(',').map(s => s.trim());
   }

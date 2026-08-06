@@ -3,8 +3,8 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "outDir": "B:/AgenticOS/server/dist",
+    "rootDir": "B:/AgenticOS/server/src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -12,9 +12,9 @@
     "resolveJsonModule": true,
     "downlevelIteration": true,
     "paths": {
-      "shared/*": ["../shared/*"]
+      "shared/*": ["B:/AgenticOS/shared/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/__tests__/**/*"]
+  "include": ["B:/AgenticOS/server/src/**/*"],
+  "exclude": ["B:/AgenticOS/server/src/__tests__/**/*"]
 }

@@ -19,6 +19,7 @@ export interface LlmChatOptions {
   requestId?: string;
   disableFallback?: boolean;
   signal?: AbortSignal;
+  onDiagnostic?: (event: LlmChatStreamChunk) => void;
 }
 
 export interface LlmChatResult {
@@ -146,8 +147,36 @@ export async function* llmChatStream(opts: LlmChatOptions): AsyncGenerator<LlmCh
     if (providerOverride) routingOpts.provider = providerOverride;
     if (opts.agentId) routingOpts.agentId = opts.agentId;
     
+    // Final chunk contract: public consumers must receive exactly one final
+    // `done` chunk, and it must be the LAST yielded chunk. The router yields
+    // the provider's `done` chunk before its trailing `gateway.completed`
+    // diagnostic, so buffer the done chunk here, keep forwarding every
+    // diagnostic event unchanged, and release the done chunk only after the
+    // router stream ends.
+    let bufferedDone: LlmChatStreamChunk | null = null;
+
     for await (const chunk of getGlobalRouter().stream(req, Object.keys(routingOpts).length ? routingOpts : undefined)) {
-      if (chunk.type !== 'token' && chunk.type !== 'done' && chunk.type !== 'error') {
+      if (chunk.type === 'done') {
+        bufferedDone = {
+          type: 'done',
+          content: chunk.content,
+          provider: chunk.provider,
+          model: chunk.model
+        };
+        continue;
+      }
+
+      if (chunk.type !== 'token' && chunk.type !== 'error') {
+        // Gateway diagnostic event (selected/fallback/failed/completed/
+        // rate_limited): forward to opts.onDiagnostic exactly once, then
+        // yield the event unchanged. Never treated as a token.
+        if (opts.onDiagnostic && typeof chunk.type === 'string' && chunk.type.startsWith('gateway.')) {
+          try {
+            opts.onDiagnostic(chunk as LlmChatStreamChunk);
+          } catch (diagErr) {
+            logger.warn('Error in llmChatStream onDiagnostic callback', diagErr);
+          }
+        }
         // Yield gateway events exactly as they are
         yield chunk as any;
         continue;
@@ -160,6 +189,11 @@ export async function* llmChatStream(opts: LlmChatOptions): AsyncGenerator<LlmCh
         model: chunk.model
       };
     }
+
+    // Router stream ended normally: release the buffered done chunk last.
+    // If the router terminated without a done chunk (mid-stream abort path),
+    // synthesize a single final done so consumers always see exactly one.
+    yield bufferedDone ?? { type: 'done', provider: 'offline' };
   } catch (err: any) {
     let message = err.message;
     try {

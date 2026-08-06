@@ -5,7 +5,7 @@ $ServerRoot = Join-Path $RepoRoot 'server'
 $AgentDir = Join-Path $RepoRoot '.agentos'
 $LogDir = Join-Path $AgentDir 'logs'
 $ProcessFile = Join-Path $AgentDir 'dev-processes.json'
-$BackendPort = 4001
+$BackendPort = 4600
 $FrontendPort = 5173
 $BackendUrl = "http://127.0.0.1:$BackendPort"
 $FrontendUrl = "http://127.0.0.1:$FrontendPort"
@@ -271,7 +271,7 @@ try {
 
 Write-Stage 'Starting backend'
 $backendCommand = @"
-`$env:PORT='4001'
+`$env:PORT='4600'
 `$env:NODE_ENV='development'
 `$env:AGENTICOS_REPO_ROOT='$($RepoRoot.Replace("'", "''"))'
 npm.cmd run dev

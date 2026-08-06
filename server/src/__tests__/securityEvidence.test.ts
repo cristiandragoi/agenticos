@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GatewayRouter } from '../services/gateway/router.js';
 import { redactSensitiveData } from '../utils/logger.js';
-import { legacyHeadersMiddleware } from '../index.js';
+import { legacyHeadersMiddleware } from '../middleware/legacyHeaders.js';
 
 describe('Phase 4: Deprecated-Header Rejection', () => {
   it('allows preflight OPTIONS requests without inspecting actual headers', () => {

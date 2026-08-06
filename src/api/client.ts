@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://localhost:4001/api' : '/api');
+const BASE_URL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api');
 
 import type { RunRecord } from '../types';
 

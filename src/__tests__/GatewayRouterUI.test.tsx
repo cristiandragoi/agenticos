@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, screen, fireEvent, renderHook, act } from '@testing-library/react';
 import { useGatewayStream } from '../hooks/useGatewayStream';
 import { GatewayNotice } from '../components/gateway/GatewayNotice';
@@ -6,6 +6,7 @@ import { ProviderBadge } from '../components/gateway/ProviderBadge';
 import { GatewayEventTimeline } from '../components/gateway/GatewayEventTimeline';
 import { ProviderDetailsPanel } from '../components/gateway/ProviderDetailsPanel';
 import { GatewayRetryControls } from '../components/gateway/GatewayRetryControls';
+import GatewayStatusChip from '../components/GatewayStatusChip';
 import type { ChatMessage, GatewayUiEvent } from '../types';
 
 vi.mock('../components/gateway/GatewayNotice', () => ({ GatewayNotice: ({ message }: { message: ChatMessage }) => <div data-testid="gateway-notice">{message.gateway?.status === 'fallback' ? 'Switched provider' : (message.gateway?.status === 'interrupted' ? 'Stream interrupted' : null)}</div> }));
@@ -111,6 +112,50 @@ describe('GatewayRouter Phase 3 Verification', () => {
       const msg: ChatMessage = { id: '1', role: 'agent', content: '', timestamp: '', gateway: { status: 'fallback', fallbackFrom: 'failProv', provider: 'nextProv' } };
       render(<GatewayNotice message={msg} />);
       expect(screen.getByText('Switched provider')).toBeInTheDocument();
+    });
+  });
+
+  describe('GatewayStatusChip status contract', () => {
+    // The health endpoint may omit `reachable` entirely; an absent field must
+    // not be treated as failure. Only explicit reachable:false or an explicit
+    // error/offline status may turn the chip red.
+    beforeAll(() => {
+      // Defensive: jsdom may not implement AbortSignal.timeout.
+      if (typeof (AbortSignal as any).timeout !== 'function') {
+        (AbortSignal as any).timeout = () => new AbortController().signal;
+      }
+    });
+
+    const mockGatewayResponse = (payload: Record<string, unknown>) => {
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => payload
+      });
+    };
+
+    it('status online with no reachable field → online', async () => {
+      mockGatewayResponse({ gateway: 'OmniRoute', status: 'online', port: 20128, configured: true });
+      render(<GatewayStatusChip />);
+      expect(await screen.findByText('Gateway: OmniRoute')).toBeInTheDocument();
+      expect(screen.queryByText('Gateway: error')).not.toBeInTheDocument();
+    });
+
+    it('reachable false → error', async () => {
+      mockGatewayResponse({ gateway: 'OmniRoute', status: 'online', reachable: false });
+      render(<GatewayStatusChip />);
+      expect(await screen.findByText('Gateway: error')).toBeInTheDocument();
+    });
+
+    it('status degraded → degraded', async () => {
+      mockGatewayResponse({ gateway: 'OmniRoute', status: 'degraded', reachable: true });
+      render(<GatewayStatusChip />);
+      expect(await screen.findByText('Gateway: OmniRoute (Slow)')).toBeInTheDocument();
+    });
+
+    it('status offline → error', async () => {
+      mockGatewayResponse({ gateway: 'OmniRoute', status: 'offline', reachable: true });
+      render(<GatewayStatusChip />);
+      expect(await screen.findByText('Gateway: error')).toBeInTheDocument();
     });
   });
 });

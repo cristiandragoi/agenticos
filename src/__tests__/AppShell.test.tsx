@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import { AppProvider } from '../store/appStore';
 import { DataProvider } from '../store/dataStore';
+import { CodexProvider } from '../store/codexStore';
 
 // Mock dependencies
 vi.mock('../components/layout/LeftRail', () => ({
@@ -68,9 +69,11 @@ describe('AppShell > UniversalChatDock integration on /hermes-studio', () => {
     return render(
       <DataProvider>
         <AppProvider>
-          <MemoryRouter initialEntries={['/hermes-studio']}>
-            <AppShell />
-          </MemoryRouter>
+          <CodexProvider>
+            <MemoryRouter initialEntries={['/hermes-studio']}>
+              <AppShell />
+            </MemoryRouter>
+          </CodexProvider>
         </AppProvider>
       </DataProvider>
     );

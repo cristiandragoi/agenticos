@@ -1,9 +1,11 @@
 import { logger } from '../utils/logger.js';
+import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../services/agent/assignments.js';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { parseToolCall, type ParsedToolCall } from './toolCallParser.js';
-import { llmChat, OLLAMA_BASE, OLLAMA_DEFAULT_CODING_MODEL } from '../services/llmGateway.js';
+import { llmChat, type LlmChatOptions } from '../services/llmGateway.js';
+
 import { goalStore } from '../services/goalStore.js';
 import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
 import { detectShellFileIo } from '../utils/nativeToolGuard.js';
@@ -12,7 +14,18 @@ import { goalControllers } from '../routers/chat.js';
 import { db } from '../db/index.js';
 import { providerCircuitBreakers, agentTeamArtifacts, verificationReports, agentTeamHandoffs } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
+const CODEX_LLM_TIMEOUT_MS = (() => {
+  const parsed = Number.parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS ?? '300000', 10);
+  return Number.isNaN(parsed) ? 300000 : parsed;
+})();
 
+const CODEX_LEASE_DURATION_MS = CODEX_LLM_TIMEOUT_MS + 30000;
+
+// Log lease configuration for debugging
+logger.info('CodeX lease configuration', JSON.stringify({
+  llmTimeoutMs: CODEX_LLM_TIMEOUT_MS,
+  leaseDurationMs: CODEX_LEASE_DURATION_MS
+}));
 interface ToolCall {
   tool: 'writeFile' | 'readFile' | 'runCommand' | 'reasoningQuery' | 'finish';
   path?: string;
@@ -304,7 +317,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
       state: 'failed',
       message: 'CodeX cannot start without a task description.',
       provider: 'ollama',
-      model: OLLAMA_DEFAULT_CODING_MODEL,
+      // model field removed, rely on routing logic
       eventType: 'task_failed',
       normalizedStatus: 'failed',
       lifecycleState: 'failed',
@@ -317,7 +330,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     return;
   }
 
-  if (!goalStore.acquireLease(goalId, workerId, 30000)) {
+  if (!goalStore.acquireLease(goalId, workerId, CODEX_LEASE_DURATION_MS)) {
     logger.info(`[GoalMode] Goal ${goalId} is already running elsewhere.`);
     return;
   }
@@ -461,15 +474,64 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
 
   let currentProvider = 'unassigned';
   let currentModel = 'unassigned';
+
+  let codexAssignment:
+    Awaited<
+      ReturnType<
+        typeof AgentProviderAssignmentService.getAssignment
+      >
+    > | undefined;
+
   try {
-    const { AgentProviderAssignmentService } = await import('../services/agent/assignments.js');
-    const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
-    if (assignment) {
-      currentProvider = assignment.providerId;
-      currentModel = assignment.modelId || 'auto';
-    }
-  } catch (e) {
-    logger.warn('[codexLoop] Failed to fetch assignment for agent-codex', e);
+    codexAssignment =
+      await AgentProviderAssignmentService.getAssignment(
+        'agent-codex'
+      );
+  } catch (error) {
+    logger.warn(
+      '[codexLoop] Optional agent-codex assignment unavailable',
+      {
+        message:
+          error instanceof Error ? error.message : String(error),
+        code:
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error
+            ? String((error as any).code)
+            : undefined
+      }
+    );
+    codexAssignment = undefined;
+  }
+
+  if (codexAssignment) {
+    currentProvider = codexAssignment.providerId;
+    currentModel = codexAssignment.modelId || 'auto';
+  }
+
+  // Detect whether the assigned provider is a local Ollama model based on resolved planning provider.
+  const resolvedPlanningProviderId = codexAssignment?.providerId
+    ? mapCatalogToGatewayId(codexAssignment.providerId)
+    : undefined;
+  const isLocalPlanningProvider = resolvedPlanningProviderId === 'ollama';
+
+  const execProviderSetting = goal.executionOptions?.executionProviderId;
+  const executionRouting = {
+    mode: execProviderSetting === 'auto' ? 'automatic' 
+          : execProviderSetting === 'none' ? 'disabled' 
+          : 'forced',
+    providerId: execProviderSetting && !['auto', 'none'].includes(execProviderSetting) 
+                ? execProviderSetting 
+                : undefined,
+    source: execProviderSetting ? 'run-setting' : 'gateway-default'
+  };
+
+  if (isLocalPlanningProvider) {
+    logger.info('[codexLoop] Local model detected', JSON.stringify({
+      provider: currentProvider,
+      model: currentModel,
+      executionRouting
+    }));
   }
 
   pushEventToWriter(
@@ -502,11 +564,11 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     }
 
     goal = goalStore.get(goalId);
-    if (!goal || goal.status === 'paused' || goal.status === 'stopped' || goal.status === 'completed' || goal.status === 'failed') {
+    if (!goal || goal.status === 'paused' || goal.status === 'stopped' || goal.status === 'completed' || goal.status === 'failed' || goal.status === 'waiting_for_approval') {
       break; 
     }
 
-    if (!goalStore.acquireLease(goalId, workerId, 30000)) {
+    if (!goalStore.acquireLease(goalId, workerId, CODEX_LEASE_DURATION_MS)) {
       pushEventToWriter(writer, 'failed', 'Worker lost lease lock. Terminating.', undefined, undefined, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX could not continue because another worker claimed the task.', eventType: 'task_failed', provider: currentProvider, model: currentModel });
       break;
     }
@@ -547,9 +609,10 @@ ${m.content}`).join('\n\n');
       let isRetry = false;
       let effectiveSystemPrompt = systemPrompt;
 
-      // --- Retry loop: up to 2 attempts (original + 1 retry) ---
-      for (let attempt = 0; attempt < 2; attempt++) {
-        isRetry = attempt > 0;
+      // --- Retry loop: 1 attempt for local models, 2 attempts (original + 1 retry) for cloud ---
+      const maxToolGenerationAttempts = isLocalPlanningProvider ? 1 : 2;
+      for (let attempt = 1; attempt <= maxToolGenerationAttempts; attempt++) {
+        isRetry = attempt > 1;
 
         if (responseExpectation === 'final_answer' && isRetry) break;
 
@@ -561,19 +624,35 @@ ${m.content}`).join('\n\n');
         try {
           const timeoutMs = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
           const disableFallback = goal.executionOptions?.disableFallback === true;
+          const effectiveProvider = executionRouting.providerId;
 
-          const llmOptions: any = {
+          if (executionRouting.mode === 'disabled' && !isRetry) {
+            effectiveSystemPrompt += '\n\nCRITICAL PLAN-ONLY MODE: Do NOT output any JSON tool calls or <tool_call> tags. Stop after explaining your plan.';
+          }
+
+          const promptLength = prompt.length;
+          logger.info('[CodeX LLM Options]', JSON.stringify({
+            promptLength,
+            maxTokens: 2048,
+            timeoutMs,
+            provider: effectiveProvider || currentProvider,
+            model: currentModel,
+            retryNumber: attempt - 1,
+            isLocalPlanningProvider,
+            executionRouting
+          }));
+
+          const llmOptions: LlmChatOptions = {
             prompt,
             systemPrompt: effectiveSystemPrompt,
             agentId: 'agent-codex',
             disableFallback,
-            timeoutMs
+            timeoutMs,
+            maxTokens: 2048,
+            ...(effectiveProvider ? { provider: effectiveProvider } : {})
           };
 
-          // Use temperature 0 for retry if the API supports it
-          if (isRetry) {
-            llmOptions.temperature = 0;
-          }
+          // temperature is not supported by LlmChatOptions; strict JSON retry is handled via effectiveSystemPrompt
 
           logger.info('[CodeXProvider]', JSON.stringify({
             requestId: `${goalId}-${attempt}`,
@@ -584,7 +663,16 @@ ${m.content}`).join('\n\n');
           const startLlm = Date.now();
           llmResult = await llmChat(llmOptions);
           const durationLlm = Date.now() - startLlm;
-          logger.info(`[codexLoop] LLM Generation took ${durationLlm}ms`);
+          const replyLength = llmResult.reply?.length ?? 0;
+          const endsWithBrace = llmResult.reply?.trimEnd().endsWith('}') ?? false;
+          logger.info('[codexLoop] LLM Response Diagnostics', JSON.stringify({
+            durationMs: durationLlm,
+            replyLength,
+            endsWithBrace,
+            provider: llmResult.provider,
+            model: llmResult.model || 'unknown',
+            rawResponsePreview: llmResult.reply?.slice(0, 300)
+          }));
 
           currentProvider = llmResult.provider;
           currentModel = llmResult.model || 'unknown';
@@ -622,15 +710,53 @@ ${m.content}`).join('\n\n');
           throw providerErr; // Break out to fatal loop error handler
         }
 
-const response = llmResult.reply;
-        logger.info(`[codexLoop] LLM Response (attempt ${attempt + 1}): ${response}`);
+        const response = llmResult.reply;
+        logger.info(`[codexLoop] LLM Response (attempt ${attempt}): ${response}`);
         conversation.push({ role: 'assistant', content: response });
+
+        if (executionRouting.mode === 'disabled') {
+          const planningOutput = response.trim();
+          const userMsg = 'Planning completed. Select an execution provider to apply changes.';
+          
+          pushEventToWriter(
+            writer,
+            'agent_completed',
+            planningOutput || 'Local planning completed.',
+            undefined,
+            undefined,
+            {
+              normalizedStatus: 'attention',
+              lifecycleState: 'waiting',
+              userMessage: userMsg,
+              eventType: 'planning_completed',
+              provider: currentProvider,
+              model: currentModel,
+              payload: {
+                reasonCode: 'EXECUTION_PROVIDER_REQUIRED',
+                planningProvider: currentProvider,
+                planningModel: currentModel,
+                planningOutput: planningOutput,
+                toolsRun: 0,
+                filesChanged: 0
+              }
+            }
+          );
+          goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'planning_completed' }), planningOutput);
+          goalStore.update(goalId, { status: 'waiting_for_approval' });
+          
+          // Clear out tools to prevent execution logic from running
+          toolCall = null;
+          finalAnswerText = null;
+          break; // Break the attempt loop; the outer while loop will exit because goal.status === 'waiting_for_approval'
+        }
 
         if (responseExpectation === 'final_answer') {
           if (looksLikeExplicitToolCall(response)) {
             const parseResult = parseToolCall(response);
             toolCall = parseResult.toolCall;
-            parseError = parseResult.parseError;
+            parseError =
+  parseResult.parseError ??
+  'No JSON tool call found in response';
             if (toolCall && toolCall.type === 'tool_call' && isAllowedReadOnlyToolCall(toolCall)) {
               responseExpectation = 'tool_decision';
               break;
@@ -663,7 +789,9 @@ const response = llmResult.reply;
 
         const parseResult = parseToolCall(response);
         toolCall = parseResult.toolCall;
-        parseError = parseResult.parseError;
+        parseError =
+  parseResult.parseError ??
+  'No JSON tool call found in response';
 
         if (toolCall && toolCall.type === 'tool_call') {
           break; // Valid tool call found — exit retry loop
@@ -695,10 +823,11 @@ const response = llmResult.reply;
           );
           // Continue to second attempt
         } else {
-          // Second attempt also failed — fatal parse failure
-          logger.error('[CodeX] Tool parsing failed on retry:', parseError);
-          logger.error('[CodeX] Raw LLM response (retry):', response);
+          // Final attempt failed — check if this is a local model (plan-only mode)
+          logger.error(`[CodeX] Tool parsing failed on attempt ${attempt + 1}:`, parseError);
+          logger.error(`[CodeX] Raw LLM response (attempt ${attempt + 1}):`, response);
 
+          // Cloud model failure path — try read-only fallback or fatal failure
           const fallbackToolCall = fallbackToolCallAfterParseFailure(goal.originalGoal, response, allowedTools, usedReadFallbacks, workspaceRoot);
           if (fallbackToolCall) {
             toolCall = fallbackToolCall;
@@ -728,13 +857,13 @@ const response = llmResult.reply;
           pushEventToWriter(
             writer,
             'failed',
-            'CodeX received an invalid structured response from the model after one retry.',
+            'CodeX received an invalid structured response from the model after retrying.',
             undefined,
             parseError,
             {
               normalizedStatus: 'failed',
               lifecycleState: 'failed',
-              userMessage: 'CodeX received an invalid response from the model after one retry. Start again with a clearer task or run without the generated plan.',
+              userMessage: 'CodeX received an invalid response from the model after retrying. Start again with a clearer task.',
               eventType: 'task_failed',
               provider: currentProvider,
               model: currentModel,
@@ -748,7 +877,6 @@ const response = llmResult.reply;
           );
 
           goalStore.update(goalId, { status: 'failed' });
-          // Break out of the while(true) loop via the outer catch or by returning
           throw new Error('CODEX_TOOL_PARSE_FAILED');
         }
       }

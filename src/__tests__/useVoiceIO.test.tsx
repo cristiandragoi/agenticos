@@ -96,4 +96,36 @@ describe('useVoiceIO speak logic', () => {
     expect(playSpy).not.toHaveBeenCalled();
     expect(speechSynthesisSpeakSpy).not.toHaveBeenCalled();
   });
+
+  it('does NOT duplicate speech when playback fails (no fallback after successful synthesis)', async () => {
+    // Synthesis succeeds (audioData returned), but play() rejects (autoplay policy).
+    const rejectingPlay = vi.fn().mockRejectedValue(new DOMException('Blocked', 'NotAllowedError'));
+    class RejectingAudio {
+      src = '';
+      onplay: any = null;
+      onended: any = null;
+      onerror: any = null;
+      play = rejectingPlay;
+      pause = vi.fn();
+    }
+    vi.stubGlobal('Audio', RejectingAudio);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ audioData: 'real-audio-data' }),
+    }));
+
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+
+    await act(async () => {
+      await result.current.speak('Spoken once');
+    });
+
+    // play() was attempted exactly once...
+    expect(rejectingPlay).toHaveBeenCalledTimes(1);
+    // ...and speechSynthesis was NEVER used as a fallback (no duplicate speech).
+    expect(speechSynthesisSpeakSpy).not.toHaveBeenCalled();
+    // One understandable playback error is surfaced; voice state is error.
+    expect(result.current.playbackError).toBeTruthy();
+    expect(result.current.voiceState).toBe('error');
+  });
 });

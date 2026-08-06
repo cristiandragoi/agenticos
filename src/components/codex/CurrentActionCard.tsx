@@ -193,27 +193,46 @@ export const CurrentActionCard: React.FC<Props> = ({ goal }) => {
             <span className="text-slate-300 truncate flex items-center gap-1"><Bot size={11} className="text-emerald-500" />{action.agent}</span>
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Cpu size={10} /> Provider</span>
+            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Cpu size={10} /> {action.executionProvider ? 'Plan Provider' : 'Provider'}</span>
             <span className="text-slate-300 truncate">{action.provider && action.provider !== 'unknown' ? action.provider : '—'}</span>
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Cpu size={10} /> Model</span>
+            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Cpu size={10} /> {action.executionProvider ? 'Plan Model' : 'Model'}</span>
             <span className="text-slate-300 truncate font-mono">{action.model && action.model !== 'unknown' ? action.model : '—'}</span>
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Terminal size={10} /> Tool</span>
-            <span className="text-slate-300 truncate font-mono">{action.tool ? getToolLabel(action.tool) : '—'}</span>
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><FileCode size={10} /> File</span>
-            <span className="text-purple-400 truncate font-mono" title={action.filePath || action.command || ''}>
-              {action.filePath || action.command || '—'}
-            </span>
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Clock size={10} /> Elapsed</span>
-            <span className="text-emerald-400 font-mono">{elapsed}</span>
-          </div>
+          {action.executionProvider ? (
+            <>
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Cpu size={10} /> Exec Provider</span>
+                <span className="text-slate-300 truncate">{action.executionProvider}</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Terminal size={10} /> Tools Run</span>
+                <span className="text-slate-300 truncate font-mono">{action.toolsRun}</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><FileCode size={10} /> Files Chg</span>
+                <span className="text-slate-300 truncate font-mono">{action.filesChanged}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Terminal size={10} /> Tool</span>
+                <span className="text-slate-300 truncate font-mono">{action.tool ? getToolLabel(action.tool) : '—'}</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><FileCode size={10} /> File</span>
+                <span className="text-purple-400 truncate font-mono" title={action.filePath || action.command || ''}>
+                  {action.filePath || action.command || '—'}
+                </span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-500 uppercase tracking-wider flex items-center gap-1"><Clock size={10} /> Elapsed</span>
+                <span className="text-emerald-400 font-mono">{elapsed}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Next action */}

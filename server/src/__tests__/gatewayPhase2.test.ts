@@ -1,7 +1,25 @@
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GatewayRouter } from '../services/gateway/router.js';
 import { loadGatewayConfig } from '../services/gateway/config.js';
 import { ChatRequest, ProviderDefinition } from '../services/gateway/types.js';
 import { GatewayRunLedger } from '../services/gateway/ledger.js';
+
+// Mock the DB-backed configuration service so tests control the circuit threshold
+vi.mock('../services/gateway/configuration.js', () => ({
+  GatewayConfigurationService: {
+    getConfiguration: vi.fn().mockResolvedValue({
+      maxProviderRetries: 3,
+      maxFallbackProviders: 3,
+      providerTimeoutMs: 30000,
+      degradedLatencyMs: 2000,
+      circuitFailureThreshold: 3,
+      circuitResetTimeoutMs: 60000,
+      healthCheckIntervalMs: 300000,
+      updatedAt: new Date().toISOString(),
+      version: 1
+    })
+  }
+}));
 
 // Mocking fetch globally for tests
 const originalFetch = global.fetch;
@@ -36,7 +54,7 @@ describe('Multi-Provider Gateway Router (Phase 2)', () => {
   });
 
   test('Omniroot available - standard chat', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ choices: [{ message: { content: 'Success!' } }], usage: { prompt_tokens: 10, completion_tokens: 5 } })
     });
@@ -48,7 +66,7 @@ describe('Multi-Provider Gateway Router (Phase 2)', () => {
 
   test('Omniroot HTTP 500 -> NineRouter fallback', async () => {
     let callCount = 0;
-    global.fetch = jest.fn().mockImplementation(async (url) => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
       callCount++;
       if (url.includes('mock-omni')) return { ok: false, status: 500, text: async () => 'Internal Server Error' };
       if (url.includes('mock-nine')) return { ok: true, json: async () => ({ choices: [{ message: { content: 'NineRouter Success' } }] }) };
@@ -62,7 +80,7 @@ describe('Multi-Provider Gateway Router (Phase 2)', () => {
 
   test('Capability-based routing (Vision bypasses Omniroot)', async () => {
     // Omniroot lacks supportsVision in our mock config
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ choices: [{ message: { content: 'Vision Success' } }] })
     });
@@ -73,7 +91,7 @@ describe('Multi-Provider Gateway Router (Phase 2)', () => {
 
   test('Circuit breaker trips and recovers', async () => {
     // Omniroot fails 3 times
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'Error' });
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'Error' });
     
     for (let i = 0; i < 3; i++) {
       try { await router.chat({ prompt: 'hello', preferredProvider: 'omniroot' }); } catch {}
@@ -81,7 +99,7 @@ describe('Multi-Provider Gateway Router (Phase 2)', () => {
     
     // Now circuit breaker should be open. It will check health.
     let healthChecked = false;
-    global.fetch = jest.fn().mockImplementation(async (url) => {
+    global.fetch = vi.fn().mockImplementation(async (url) => {
       if (url.includes('models')) healthChecked = true;
       return { ok: false, status: 500, text: async () => 'Error' };
     });

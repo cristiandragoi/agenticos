@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import LeftRail from './LeftRail';
 import TopContextBar from './TopContextBar';
 import UniversalChatDock from './UniversalChatDock';
@@ -13,6 +13,7 @@ import { useCodexStore } from '../../store/codexStore';
 const AppShell: React.FC = () => {
   const { isOpen: commandPaletteOpen, toggle: toggleCommandPalette } = useCommandPalette();
   const location = useLocation();
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
   const { isLoading, error } = useData();
@@ -47,16 +48,18 @@ const AppShell: React.FC = () => {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'j') {
         e.preventDefault();
-        if (drawer.entityType === 'jarvis' && drawer.isOpen) {
-          drawer.close();
-        } else {
-          drawer.open('jarvis', 'agent-jarvis');
-        }
+        // M1 — one canonical Jarvis: Ctrl+J navigates to /jarvis instead of
+        // opening a duplicate drawer voice controller.
+        navigate('/jarvis');
       }
+      // Agent quick-switch (navigation restoration alongside the rail)
+      if ((e.ctrlKey || e.metaKey) && e.key === '1') { e.preventDefault(); navigate('/jarvis'); }
+      if ((e.ctrlKey || e.metaKey) && e.key === '2') { e.preventDefault(); navigate('/hermes-studio'); }
+      if ((e.ctrlKey || e.metaKey) && e.key === '3') { e.preventDefault(); navigate('/codex'); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleCommandPalette, drawer]);
+  }, [toggleCommandPalette, navigate]);
 
   if (isLoading) {
     return (
@@ -85,6 +88,25 @@ const AppShell: React.FC = () => {
 
 
   // ─── Normal shared shell for all other routes ───
+  // Command-center exception: /jarvis keeps the navigation rail but drops
+  // the top context bar, global chat dock and inspector drawer so the
+  // command-center composition stays dominant (visual replacement cycle +
+  // navigation restoration cycle).
+  const jarvisFullscreen = location.pathname === '/jarvis';
+  if (jarvisFullscreen) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+        <CustomTitlebar />
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <LeftRail />
+          <div className="route-viewport route-viewport--fullscreen" style={{ flex: 1, minWidth: 0, height: 'calc(100vh - 32px)' }} key={location.pathname}>
+            <Outlet />
+          </div>
+        </div>
+        {commandPaletteOpen && <CommandPalette />}
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       <CustomTitlebar />

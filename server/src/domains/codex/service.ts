@@ -3,7 +3,7 @@ import { goalStore } from '../../services/goalStore.js';
 import { resumeCodexGoalLoop } from '../../loops/codexLoop.js';
 import { llmChat } from '../../services/llmGateway.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
-import type { GoalRecord } from '../../types.js';
+import type { GoalRecord, ExecutionOptions } from '../../types.js';
 
 function isRepositoryOnlyTask(prompt: string, workspacePath?: string): boolean {
   if (!workspacePath) return false;
@@ -29,7 +29,7 @@ export function isReadOnlyCodexTask(prompt: string): boolean {
 }
 
 export class CodexService {
-  async createGoal(prompt: string, workspacePath: string, approvalPolicy?: string, executionProvider?: string, conversationId?: string, workspaceId?: string) {
+  async createGoal(prompt: string, workspacePath: string, approvalPolicy?: string, executionProvider?: string, conversationId?: string, workspaceId?: string, executionOptions?: ExecutionOptions) {
     if (!prompt?.trim() || isRepositoryOnlyTask(prompt, workspacePath)) {
       throw Object.assign(new Error('Describe what you want CodeX to do.'), { status: 400 });
     }
@@ -50,7 +50,8 @@ export class CodexService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       retryCount: 0,
-      providerFallbackCount: 0
+      providerFallbackCount: 0,
+      executionOptions
     };
 
     goalStore.create(goalRecord);
@@ -84,7 +85,7 @@ Do not execute the steps yet, just outline the plan.`;
         systemPrompt, 
         prompt: `User Request: ${prompt}\nWorkspace: ${workspacePath}`, 
         agentId: 'agent-codex',
-        timeoutMs: 120000
+        timeoutMs: 3000000
       });
       
       const durationMs = Date.now() - startTime;

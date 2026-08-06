@@ -42,7 +42,7 @@ export interface ChatResponse {
 }
 
 export interface ChatStreamChunk {
-  type: 'token' | 'done' | 'error' | 'gateway.selected' | 'gateway.fallback' | 'gateway.failed' | 'gateway.completed' | 'streaming_interruption';
+  type: 'token' | 'done' | 'error' | 'gateway.selected' | 'gateway.fallback' | 'gateway.failed' | 'gateway.completed' | 'gateway.rate_limited' | 'streaming_interruption';
   content?: string;
   provider: string;
   model?: string;
@@ -59,6 +59,11 @@ export interface ChatStreamChunk {
   completionTokens?: number;
   totalTokens?: number;
   latencyMs?: number;
+
+  // Rate-limit diagnostics (provider HTTP 429)
+  stage?: string;
+  status?: number;
+  retryAfter?: string;
 }
 
 export interface ProviderAttemptError {

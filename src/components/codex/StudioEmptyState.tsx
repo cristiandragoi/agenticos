@@ -36,7 +36,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       setIsDetecting(true);
       setWorkspaceError(null);
       try {
-        const res = await fetch('http://localhost:4001/api/workspace/detect', {
+        const res = await fetch('http://localhost:4600/api/workspace/detect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ basePath: path || undefined })
@@ -88,7 +88,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
       });
       console.log('[DEBUG] startGoal pressed. Sending payload:', payload);
 
-      const res = await fetch('http://localhost:4001/api/chat/agents/goal', {
+      const res = await fetch('http://localhost:4600/api/chat/agents/goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -134,7 +134,7 @@ export const StudioEmptyState: React.FC<Props> = ({ onGoalCreated }) => {
     
     let generatedPlan = "";
     try {
-      const res = await fetch('http://localhost:4001/api/chat/quick', {
+      const res = await fetch('http://localhost:4600/api/chat/quick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

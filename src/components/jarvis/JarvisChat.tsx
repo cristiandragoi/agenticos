@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Cpu, Server, User } from 'lucide-react';
 import { JarvisComposer } from './JarvisComposer';
+import type { MicState } from './JarvisComposer';
 import { JarvisTeamPreviewCard } from './JarvisTeamPreviewCard';
 import { JarvisTeamExecutionCard } from './JarvisTeamExecutionCard';
 import { JarvisGoalCard } from './JarvisGoalCard';
@@ -22,6 +23,40 @@ export interface JarvisChatProps {
   onComposerTextChange?: (text: string) => void;
   /** When provided, the next message send will include this channel tag. */
   pendingInputChannel?: 'typed' | 'voice';
+  /** Forwarded to the composer: real microphone capture state changes. */
+  onMicStateChange?: (state: MicState) => void;
+  /**
+   * Fires EXACTLY ONCE per completed direct Jarvis reply (SSE `done` event),
+   * with the full accumulated assistant text and the input channel that
+   * originated the request. Consumers (e.g. TTS) must dedupe/guard further.
+   */
+  onAssistantResponse?: (text: string, inputChannel: 'typed' | 'voice') => void;
+  /**
+   * Progressive TTS hook: fires on every streamed assistant delta of a
+   * DIRECT reply. When provided, the page owns speech (chunked, sequential)
+   * and the one-shot `onAssistantResponse` speech trigger is skipped for
+   * that turn — exactly one TTS path per reply, never both.
+   */
+  onStreamDelta?: (delta: string, inputChannel: 'typed' | 'voice') => void;
+  /**
+   * Canonical-voice integration: when true the composer's OWN microphone
+   * button is hidden — the page-level useVoiceIO engine is the single mic
+   * owner (one microphone, one transcription path).
+   */
+  hideComposerMic?: boolean;
+  /**
+   * Visual variant for the command-center /jarvis page: 'command' renders
+   * labeled monospace transcript lines (YOU / JARVIS / HERMES / CODEX /
+   * REVIEWER / SYSTEM) instead of chat bubbles. Default 'chat' keeps the
+   * existing bubble UI for every other consumer.
+   */
+  transcriptVariant?: 'chat' | 'command';
+}
+
+/** Imperative API — lets the single canonical voice engine auto-submit a
+ *  transcribed turn through the exact same streaming pipeline as Send. */
+export interface JarvisChatHandle {
+  sendMessage: (text: string, inputChannel?: 'typed' | 'voice') => void;
 }
 
 export type JarvisRuntimeState = 'idle' | 'understanding' | 'planning' | 'delegating' | 'executing' | 'reviewing' | 'thinking' | 'streaming' | 'approval_required' | 'paused' | 'completed' | 'error' | 'cancelled';
@@ -109,7 +144,7 @@ const runtimeStateForDelegatedStatus = (status?: string): JarvisRuntimeState => 
   return 'executing';
 };
 
-export const JarvisChat: React.FC<JarvisChatProps> = ({
+export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   conversationId,
   onStatusChange,
   onMessagesChange,
@@ -117,7 +152,12 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
   composerText,
   onComposerTextChange,
   pendingInputChannel,
-}) => {
+  onMicStateChange,
+  onAssistantResponse,
+  onStreamDelta,
+  hideComposerMic,
+  transcriptVariant = 'chat',
+}, ref) => {
   const { runSettings } = useCodexStore();
   const [messages, setMessages] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -132,6 +172,20 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
   const requestStartedAtRef = useRef<number | null>(null);
   const statusIntervalRef = useRef<number | null>(null);
   const isProcessingRef = useRef(false);
+  // ── TTS trigger bookkeeping ─────────────────────────────────────────────
+  // Input channel of the in-flight request ('voice' → reply may be spoken).
+  const pendingChannelRef = useRef<'typed' | 'voice'>('typed');
+  // Accumulated streamed assistant text per operation, read exactly once at
+  // the SSE `done` event so the reply is handed to TTS a single time.
+  const streamedTextByOpRef = useRef<Record<string, string>>({});
+  const onAssistantResponseRef = useRef(onAssistantResponse);
+  const onStreamDeltaRef = useRef(onStreamDelta);
+  useEffect(() => {
+    onAssistantResponseRef.current = onAssistantResponse;
+  }, [onAssistantResponse]);
+  useEffect(() => {
+    onStreamDeltaRef.current = onStreamDelta;
+  }, [onStreamDelta]);
 
   // Sync isProcessing to ref
   useEffect(() => {
@@ -304,6 +358,11 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
   };
 
   const appendStreamingAssistantText = (operationId: string, delta: string, final = false) => {
+    // Track the accumulated text for the TTS trigger (read once at `done`).
+    if (delta) {
+      streamedTextByOpRef.current[operationId] =
+        `${streamedTextByOpRef.current[operationId] || ''}${delta}`;
+    }
     setMessages(prev => {
       const existingIndex = prev.findIndex(p => p.id === `assistant-${operationId}`);
       if (existingIndex >= 0) {
@@ -385,10 +444,11 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
   };
 
   const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = pendingInputChannel ?? 'typed') => {
+    // Track the input channel so the completed reply can be routed to TTS.
+    pendingChannelRef.current = inputChannel;
     // ── Dev timing telemetry ──────────────────────────────────────────
     const t0 = Date.now();
     if (DEV_TIMING) console.debug('[JarvisChat:timing] submit', { text: text.slice(0, 40), inputChannel, t: t0 });
-
     let targetConversationId = conversationId;
     if (!targetConversationId) {
       try {
@@ -528,6 +588,7 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
       if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-error', { operationId, error: e?.message, ms: Date.now() - t0 });
       if (controller.signal.aborted && !responseTimedOutRef.current) {
         appendStreamingAssistantText(operationId, '\n\n[Response cancelled]', true);
+        delete streamedTextByOpRef.current[operationId];
         emitStatus({ state: 'cancelled' });
       } else if (!sendError) {
         const message = `Could not reach the backend: ${e.message || e}`;
@@ -541,6 +602,14 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
       setIsProcessing(false);
     }
   };
+
+  // Canonical voice engine auto-submits transcribed turns through the exact
+  // same streaming pipeline the Send button uses (one response-stream path).
+  React.useImperativeHandle(ref, () => ({
+    sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice') => {
+      void handleSendMessage(text, inputChannel);
+    },
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {
     const fallbackRes = await fetch(`/api/jarvis/conversations/${conversationId}/message`, {
@@ -633,6 +702,7 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
           model: data.model ?? null
         });
         appendStreamingAssistantText(operationId, data.delta || '');
+        if (data.delta) onStreamDeltaRef.current?.(data.delta, pendingChannelRef.current);
       } else if (event.event === 'error') {
         const message = data.error || 'Jarvis response failed.';
         setSendError({ message, operationId });
@@ -640,6 +710,17 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
         await fetchMessages();
       } else if (event.event === 'done') {
         appendStreamingAssistantText(operationId, '', true);
+        // ── TTS trigger: fires EXACTLY ONCE per completed DIRECT Jarvis reply.
+        //    Delegated (CodeX/team), telemetry and system messages never reach
+        //    this point with streamed text; the consumer gates on the channel. ──
+        const finalText = (streamedTextByOpRef.current[operationId] || '').trim();
+        delete streamedTextByOpRef.current[operationId];
+        if (finalText && (!data.route || data.route === 'direct')) {
+          // One-shot TTS only when the page did NOT take the progressive path.
+          if (!onStreamDeltaRef.current) {
+            onAssistantResponseRef.current?.(finalText, pendingChannelRef.current);
+          }
+        }
         if (data.goalId) setCreatedGoalId(data.goalId);
         const nextState = data.route && data.route !== 'direct'
           ? runtimeStateForDelegatedStatus(data.status)
@@ -677,7 +758,29 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
   return (
     <>
       <div className={styles.chatContainer} data-testid="jarvis-chat-scroll">
-        {visibleMessages.map(msg => {
+        {transcriptVariant === 'command' && visibleMessages.map((msg) => {
+          // ── Command transcript: labeled lines, no bubbles ──
+          const label = (() => {
+            if (msg.role === 'user') return 'YOU';
+            const via = (msg.routedAgent || '').toLowerCase();
+            if (via === 'hermes' || via === 'agent-hermes') return 'HERMES';
+            if (via === 'codex' || via === 'agent-codex') return 'CODEX';
+            if (via === 'reviewer' || via === 'evaluator') return 'REVIEWER';
+            if (msg.role === 'agent') return 'JARVIS';
+            if (msg.messageType === 'approval_request' || msg.messageType === 'plan') return 'REVIEWER';
+            return 'SYSTEM';
+          })();
+          const color = ({ YOU: '#7dd3fc', JARVIS: '#e2e8f0', HERMES: '#fb923c', CODEX: '#4ade80', REVIEWER: '#c084fc', SYSTEM: '#64748b' } as Record<string, string>)[label] || '#94a3b8';
+          return (
+            <div key={msg.id} data-testid="jarvis-command-line" style={{ display: 'flex', gap: 10, padding: '5px 2px', borderBottom: '1px solid rgba(30,41,59,0.4)', fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace", fontSize: 12, lineHeight: 1.55 }}>
+              <span style={{ color, flexShrink: 0, width: 78, letterSpacing: 1, fontWeight: 700 }}>{label}</span>
+              <span style={{ color: msg.messageType === 'error' ? '#fca5a5' : '#cbd5e1', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', minWidth: 0 }}>
+                {renderMessageContent(msg.content)}
+              </span>
+            </div>
+          );
+        })}
+        {transcriptVariant !== 'command' && visibleMessages.map(msg => {
           const isUser = msg.role === 'user';
           const isSystem = msg.role === 'system';
           const isError = msg.messageType === 'error';
@@ -816,6 +919,8 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
         onCancelResponse={cancelResponse}
         composerText={composerText}
         onComposerTextChange={onComposerTextChange}
+        onMicStateChange={onMicStateChange}
+        hideMic={hideComposerMic}
       />
       
       {detailsMessage && (
@@ -826,4 +931,5 @@ export const JarvisChat: React.FC<JarvisChatProps> = ({
       )}
     </>
   );
-};
+});
+JarvisChat.displayName = 'JarvisChat';

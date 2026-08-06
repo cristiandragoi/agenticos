@@ -178,4 +178,53 @@ describe('Voice Ownership and Deduplication', () => {
 
     expect(mockStopAudio).toHaveBeenCalled();
   });
+
+  it('re-renders NEVER abort in-flight TTS (the verified abort bug)', async () => {
+    // The production failure: useVoiceIO returns a fresh object every render,
+    // and the old effect listed it in deps — so every re-render ran the
+    // cleanup and aborted the in-flight TTS request, killing all speech.
+    // Regression contract: speak() fires, then any number of re-renders, and
+    // stopAudio is still NOT called until the drawer closes/unmounts.
+    let forceUpdate: () => void = () => {};
+    const TestComponent = () => {
+      const dispatch = useAppDispatch();
+      const [, setTick] = React.useState(0);
+      forceUpdate = () => setTick(t => t + 1);
+      React.useEffect(() => {
+        dispatch({ type: 'OPEN_DRAWER', entityType: 'jarvis', entityId: 'agent-jarvis' });
+      }, [dispatch]);
+      return <JarvisDrawer />;
+    };
+
+    render(
+      <DataProvider>
+        <AppProvider>
+          <MemoryRouter initialEntries={['/mission-control']}>
+            <TestComponent />
+          </MemoryRouter>
+        </AppProvider>
+      </DataProvider>
+    );
+
+    // Jarvis reply arrives → speak() invoked.
+    // (Clear mount-time calls: the initial drawer-open transition legitimately
+    // stops any prior audio once — that is not the abort bug.)
+    mockSpeak.mockClear();
+    mockStopAudio.mockClear();
+
+    window.dispatchEvent(new CustomEvent('agent-response-ready', {
+      detail: { agentId: 'agent-jarvis', text: 'VOICE_OK', messageId: 'msg-abort-1' }
+    }));
+    expect(mockSpeak).toHaveBeenCalledTimes(1);
+    expect(mockStopAudio).not.toHaveBeenCalled();
+
+    // Simulate the status/transcript re-renders that occur during TTS.
+    for (let i = 0; i < 5; i++) {
+      act(() => { forceUpdate(); });
+    }
+
+    // The in-flight TTS must NOT have been aborted by re-renders.
+    expect(mockStopAudio).not.toHaveBeenCalled();
+    expect(mockSpeak).toHaveBeenCalledTimes(1); // still exactly once
+  });
 });

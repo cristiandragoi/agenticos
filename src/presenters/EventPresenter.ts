@@ -85,12 +85,17 @@ export function getActivityPhrase(event: GoalEvent): string {
   const file = event.filePath || '';
   const cmd = event.command || '';
 
+  if (event.eventType === 'planning_completed' && event.payload?.reasonCode === 'EXECUTION_PROVIDER_REQUIRED') {
+    return 'Local planning completed. Tool execution requires a capable execution provider — assign one in Run Settings.';
+  }
+
   if (event.errorCode === 'CODEX_TOOL_PARSE_FAILED') {
     if (event.lifecycleState === 'retrying' || event.normalizedStatus === 'attention') {
       return 'The local model did not return valid tool JSON. Retrying once with strict instructions…';
     }
     return 'Execution stopped because the model response was invalid after retry.';
   }
+
 
   switch (event.eventType) {
     case 'task_resumed': return 'Resuming the task from the last checkpoint…';

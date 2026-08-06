@@ -4,7 +4,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $AgentDir = Join-Path $RepoRoot '.agentos'
 $LogDir = Join-Path $AgentDir 'logs'
 $ProcessFile = Join-Path $AgentDir 'dev-processes.json'
-$BackendPort = 4001
+$BackendPort = 4600
 $FrontendPort = 5173
 
 function Write-Stage([string]$Message) {

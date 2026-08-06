@@ -1,19 +1,67 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudioHeader } from '../components/codex/StudioHeader';
 import { StudioEmptyState } from '../components/codex/StudioEmptyState';
 import { StudioChat } from '../components/codex/StudioChat';
+import { StudioWorkspace } from '../components/codex/StudioWorkspace';
 import CodeXStudio from '../pages/CodeXStudio';
 import { CodexProvider, useCodexStore } from '../store/codexStore';
 
 const fetchMock = vi.fn();
 
+class MockEventSource {
+  static instances: MockEventSource[] = [];
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 2;
+  url: string;
+  readyState = MockEventSource.CONNECTING;
+  onopen: null | (() => void) = null;
+  onerror: null | (() => void) = null;
+  listeners: Record<string, Array<(event: any) => void>> = {};
+  closed = false;
+
+  constructor(url: string) {
+    this.url = url;
+    MockEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: any) => void) {
+    this.listeners[type] = this.listeners[type] || [];
+    this.listeners[type].push(listener);
+  }
+
+  emitOpen() {
+    this.readyState = MockEventSource.OPEN;
+    this.onopen?.();
+  }
+
+  emitGoalEvent(data: any) {
+    this.listeners.goal_event?.forEach(listener => listener({ data: JSON.stringify(data) }));
+  }
+
+  emitError(readyState = MockEventSource.CONNECTING) {
+    this.readyState = readyState;
+    this.onerror?.();
+  }
+
+  close() {
+    this.closed = true;
+    this.readyState = MockEventSource.CLOSED;
+  }
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
+  MockEventSource.instances = [];
+  vi.stubGlobal('EventSource', MockEventSource as any);
+  (window as any).EventSource = MockEventSource;
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   window.localStorage.clear();
@@ -75,6 +123,7 @@ function ChatHarness({
 
 describe('Empty state', () => {
   it('renders goal composer, provider selectors, and Start Goal button', () => {
+    mockGoalApi(null);
     render(
       <CodexProvider>
         <StudioEmptyState onGoalCreated={vi.fn()} />
@@ -318,6 +367,136 @@ describe('CodeX Studio lifecycle fixes', () => {
         body: expect.stringContaining('Inspect server/src/routers/jarvis.ts')
       }));
     });
+  });
+
+  it('CodeX Studio Play submits auto approval policy even when settings are strict', async () => {
+    mockGoalApi(null);
+    const onGoalCreated = vi.fn();
+    render(
+      <CodexProvider>
+        <StudioChat activeGoalId={null} onGoalCreated={onGoalCreated} />
+      </CodexProvider>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('What should CodeX do?'), {
+      target: { value: 'Create codex-test.txt containing CODEX_WORKS' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }));
+
+    await waitFor(() => {
+      const goalPost = fetchMock.mock.calls.find(([url, init]) =>
+        String(url) === '/api/chat/agents/goal' && (init as RequestInit)?.method === 'POST'
+      );
+      expect(goalPost).toBeTruthy();
+      const payload = JSON.parse((goalPost![1] as RequestInit).body as string);
+      expect(payload.approvalPolicy).toBe('auto');
+      expect(payload.executionOptions.executionProviderId).toBe('auto');
+    });
+  });
+
+  it('EventSource opens once for a goal and receives events', async () => {
+    const goal = { id: 'goal-stream', status: 'queued', originalGoal: 'Run', history: [], createdAt: new Date().toISOString() };
+    mockGoalApi(goal);
+    render(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-stream" goalStatus="queued" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    act(() => {
+      MockEventSource.instances[0].emitOpen();
+      MockEventSource.instances[0].emitGoalEvent({ sequence: 1, state: 'planning', eventType: 'planning_started', message: 'Planning' });
+    });
+
+    expect(await screen.findByText(/Planning/i)).toBeInTheDocument();
+  });
+
+  it('EventSource is not duplicated by goal status rerenders', async () => {
+    const goal = { id: 'goal-stream', status: 'queued', originalGoal: 'Run', history: [], createdAt: new Date().toISOString() };
+    mockGoalApi(goal);
+    const { rerender } = render(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-stream" goalStatus="queued" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    rerender(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-stream" goalStatus="planning" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    expect(MockEventSource.instances).toHaveLength(1);
+  });
+
+  it('manual reconnect resumes after the last event sequence and avoids duplicate events', async () => {
+    const goal = { id: 'goal-stream', status: 'queued', originalGoal: 'Run', history: [], createdAt: new Date().toISOString() };
+    mockGoalApi(goal);
+    render(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-stream" goalStatus="queued" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    act(() => {
+      MockEventSource.instances[0].emitOpen();
+      MockEventSource.instances[0].emitGoalEvent({ sequence: 7, state: 'planning', eventType: 'planning_started', message: 'Planning once' });
+      MockEventSource.instances[0].emitError(MockEventSource.CONNECTING);
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /Reconnect/i }));
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2));
+    expect(MockEventSource.instances[1].url).toBe('/api/chat/agents/goal/stream/goal-stream?lastEventId=7');
+    act(() => {
+      MockEventSource.instances[1].emitGoalEvent({ sequence: 7, state: 'planning', eventType: 'planning_started', message: 'Planning once' });
+    });
+    expect(screen.getAllByText(/1 events/i).length).toBeGreaterThan(0);
+  });
+
+  it('heartbeat window does not mark an open active stream disconnected', async () => {
+    const goal = { id: 'goal-stream', status: 'queued', originalGoal: 'Run', history: [], createdAt: new Date().toISOString() };
+    mockGoalApi(goal);
+    render(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-stream" goalStatus="queued" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    vi.useFakeTimers();
+    act(() => {
+      MockEventSource.instances[0].emitOpen();
+      vi.advanceTimersByTime(50000);
+    });
+
+    expect(screen.queryByText(/The live event stream disconnected/i)).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('EventSource cleanup prevents duplicate active connections on goal change', async () => {
+    const goal = { id: 'goal-one', status: 'queued', originalGoal: 'Run', history: [], createdAt: new Date().toISOString() };
+    mockGoalApi(goal);
+    const { rerender, unmount } = render(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-one" goalStatus="queued" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+    rerender(
+      <CodexProvider>
+        <StudioWorkspace activeGoalId="goal-two" goalStatus="queued" activeTab="chat" setActiveTab={vi.fn()} />
+      </CodexProvider>
+    );
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(2));
+    expect(MockEventSource.instances[0].closed).toBe(true);
+    unmount();
+    expect(MockEventSource.instances[1].closed).toBe(true);
   });
 
   it('clicking Stop calls backend cancellation and restores Send', async () => {

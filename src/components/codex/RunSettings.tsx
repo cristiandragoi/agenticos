@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings2, ChevronDown, ChevronRight, Loader2, FolderGit2 } from 'lucide-react';
 import { AgentRuntimeSelector } from '../agents/AgentRuntimeSelector';
 
@@ -13,6 +13,7 @@ export interface RunSettingsValues {
     providerId: string;
     modelId: string | null;
   };
+  executionProviderId?: string;
 }
 
 export function providerLabel(value: string): string {
@@ -56,7 +57,27 @@ export const RunSettings: React.FC<Props> = ({
   disabled = false, defaultOpen = false
 }) => {
   const [open, setOpen] = useState(defaultOpen);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [catalogError, setCatalogError] = useState(false);
   const editable = !disabled && !!onChange;
+
+  useEffect(() => {
+    fetch('/api/providers')
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const body = await response.json();
+        const providers = Array.isArray(body)
+          ? body
+          : Array.isArray(body.providers)
+            ? body.providers
+            : [];
+        setProviders(providers.filter((provider: any) => provider.kind === 'llm' && provider.status === 'connected'));
+      })
+      .catch(err => {
+        console.error('Failed to load providers:', err);
+        setCatalogError(true);
+      });
+  }, []);
 
   const inputCls = "w-full bg-[#1e1e1e] border border-[#333333] text-[#cccccc] text-[12px] p-2 focus:outline-none focus:border-emerald-500 h-[34px] disabled:opacity-60 disabled:cursor-not-allowed";
   const labelCls = "block text-[10px] font-bold text-[#858585] uppercase tracking-widest mb-1.5";
@@ -70,9 +91,11 @@ export const RunSettings: React.FC<Props> = ({
     
     return (
       <span className="flex items-center flex-wrap gap-x-2 gap-y-1">
-        <span className="text-[#858585]">Execution Provider:</span> {providerId || 'None'}
+        <span className="text-[#858585]">Planning Provider:</span> {providerId || 'None'}
         <span className="text-[#555]">·</span>
-        <span className="text-[#858585]">Execution Model:</span> {modelId || 'Default'}
+        <span className="text-[#858585]">Execution Provider:</span> {values.executionProviderId || 'auto'}
+        <span className="text-[#555]">·</span>
+        <span className="text-[#858585]">Planning Model:</span> {modelId || 'Default'}
         <span className="text-[#555]">·</span>
         <span className="text-[#858585]">Routing Mode:</span> <span className="capitalize">{mode}</span>
         <span className="text-[#555]">·</span>
@@ -143,7 +166,7 @@ export const RunSettings: React.FC<Props> = ({
             )}
           </div>
           <div className="col-span-2 md:col-span-2">
-            <label className={labelCls}>Execution Runtime</label>
+            <label className={labelCls}>Planning Runtime</label>
             <div className={disabled ? 'opacity-60 pointer-events-none' : ''}>
               <AgentRuntimeSelector 
                 agentId="agent-codex" 
@@ -160,6 +183,25 @@ export const RunSettings: React.FC<Props> = ({
                 }}
               />
             </div>
+          </div>
+          <div>
+            <label className={labelCls}>Execution Provider</label>
+            <select
+              value={values.executionProviderId || 'auto'}
+              onChange={e => onChange?.({ executionProviderId: e.target.value })}
+              disabled={!editable}
+              className={inputCls}
+            >
+              <option value="auto">Automatic — choose a capable execution provider</option>
+              <option value="none">Plan Only — no tool execution</option>
+              {catalogError ? (
+                <option value="" disabled>Provider catalog unavailable</option>
+              ) : (
+                providers.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))
+              )}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Validation Provider</label>
