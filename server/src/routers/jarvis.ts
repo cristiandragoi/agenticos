@@ -395,7 +395,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     const { taskShortId } = await import('../services/backgroundTasks/types.js');
 
     const executive = classifyExecutiveIntent(prompt);
-    if (executive && executive.intent !== 'worker_delegation') {
+    if (executive && executive.intent !== 'worker_delegation' && executive.intent !== 'revenue_pipeline') {
       const execRoute = executive.intent;
       logStreamStage(normalizedOperationId, 'executive intent intercept', {
         intent: execRoute,
@@ -553,6 +553,102 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         model: 'task-manager',
         firstTokenMs: 0,
         totalMs: Date.now() - delegationStartedAt
+      });
+      completed = true;
+      return res.end();
+    }
+
+    // ── Revenue Pipeline: create a persistent background task ──
+    // Intake is parsed deterministically; the pipeline defaults to dry-run
+    // (safe). One task + one Board card, exactly like other delegations.
+    if (executive?.intent === 'revenue_pipeline' && executive.workerKind === 'revenue') {
+      const workerKind = 'revenue';
+      const workerTitle = 'Revenue Pipeline';
+      const { parsePipelineRequest } = await import('../services/revenuePipeline/intake.js');
+      const intake = parsePipelineRequest(prompt);
+
+      logStreamStage(normalizedOperationId, 'revenue pipeline intake', {
+        niche: intake.config.niche,
+        city: intake.config.city,
+        prospectCount: intake.config.prospectCount,
+        dryRun: intake.config.dryRun,
+        specificUrl: intake.config.specificUrl || null,
+        confidence: intake.confidence,
+      });
+      writeSse(res, 'intent', {
+        type: 'revenue_pipeline',
+        route: 'revenue_pipeline',
+        mode: 'operational_execution',
+        confidence: executive.confidence,
+        reason: executive.reason,
+        capability: 'revenue_pipeline',
+        worker: workerKind,
+        dryRun: intake.config.dryRun,
+        operationId: normalizedOperationId,
+      });
+
+      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      const { task, error } = backgroundTaskManager.createTask({
+        title,
+        objective: prompt,
+        originalRequest: prompt,
+        route: 'revenue_pipeline',
+        selectedAgent: workerTitle,
+        worker: workerKind,
+        conversationId: req.params.id,
+        resumable: false,
+        metadata: {
+          operationId: normalizedOperationId,
+          capabilityId: 'revenue_pipeline',
+          ...intake.config,
+          intakeNotes: intake.notes,
+        },
+      });
+      if (!task) {
+        writeSse(res, 'error', {
+          error: error || 'Could not create the revenue pipeline task.',
+          route: 'revenue_pipeline',
+          operationId: normalizedOperationId,
+        });
+        writeSse(res, 'done', { route: 'revenue_pipeline', status: 'failed', operationId: normalizedOperationId });
+        completed = true;
+        return res.end();
+      }
+
+      dispatchTask(task).catch(() => { /* adapter records its own failure */ });
+
+      const shortId = taskShortId(task.taskId);
+      const pipelineStartedAt = Date.now();
+      const dryRunNote = intake.config.dryRun
+        ? ' DRY-RUN — nothing will be contacted, published, or deployed.'
+        : ' Live mode requested — V1 discovery requires a specific business URL.';
+      const reply =
+        `I started task ${shortId} — Revenue Pipeline: ${intake.config.niche} · ${intake.config.city || 'no region specified'} · ${intake.config.prospectCount} prospect(s).` +
+        `${dryRunNote} Status: queued. Ask "show task ${shortId}" for progress.`;
+      writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          taskId: task.taskId,
+          provider: 'agentic-os',
+          model: 'task-manager',
+          intent: { type: 'revenue_pipeline', capability: 'revenue_pipeline', worker: workerKind, dryRun: intake.config.dryRun }
+        }
+      });
+      writeSse(res, 'done', {
+        route: 'revenue_pipeline',
+        category: 'revenue_pipeline',
+        taskId: task.taskId,
+        status: 'queued',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'task-manager',
+        firstTokenMs: 0,
+        totalMs: Date.now() - pipelineStartedAt
       });
       completed = true;
       return res.end();

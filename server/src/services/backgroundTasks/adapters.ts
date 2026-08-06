@@ -24,6 +24,10 @@ import { runStore } from '../runStore.js';
 import { executeResearchBriefWorkflow } from '../../workflows/researchBrief.js';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../../utils/logger.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runRevenuePipeline, newRunId, type PipelineHooks } from '../revenuePipeline/pipelineService.js';
+import type { PipelineConfig } from '../revenuePipeline/types.js';
 
 /** Guard against duplicate dispatch of the same task (restore/retry safety). */
 const dispatched = new Set<string>();
@@ -449,7 +453,125 @@ export async function dispatchAutomationTask(task: BackgroundTaskRecord): Promis
   }
 }
 
-/** Unified dispatch entry — routes by task.worker. */
+// ── REVENUE PIPELINE ADAPTER ────────────────────────────────────────────────
+//
+// Maps the canonical task contract onto the Revenue Pipeline V1 service.
+// The pipeline runs asynchronously (fire-and-forget after dispatch); all
+// progress flows back through the manager's transition/progress/approval
+// machinery — one task, one Board card, task-owned approvals.
+
+interface ApprovalGate {
+  resolve: (choice: 'allow' | 'deny') => void;
+}
+
+/** Per-task active approval gate (only one wait at a time in the pipeline). */
+const approvalGates = new Map<string, ApprovalGate>();
+
+export async function dispatchRevenuePipelineTask(task: BackgroundTaskRecord, workspacePath?: string): Promise<{ ok: boolean; error?: string }> {
+  if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
+  const mgr = backgroundTaskManager;
+  let stopRequested = false;
+
+  try {
+    mgr.transition(task.taskId, 'running', {
+      currentStage: 'DISCOVERING PROSPECTS',
+      progressMessage: 'Revenue pipeline started.',
+      buildState: 'idle',
+      testState: 'idle',
+    });
+    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Revenue Pipeline (audit → concept → proposal).', { agent: 'Revenue Pipeline' });
+
+    const runId = newRunId();
+    backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: runId, resumable: false });
+    mgr.appendEvent(task.taskId, 'task.run_linked', `Revenue pipeline run linked (${runId}).`, { runId });
+
+    const config: PipelineConfig = {
+      niche: (task.metadata?.niche as string) || 'local business',
+      city: (task.metadata?.city as string) || '',
+      serviceKeywords: Array.isArray(task.metadata?.serviceKeywords) ? (task.metadata?.serviceKeywords as string[]) : [],
+      prospectCount: Number(task.metadata?.prospectCount) || 3,
+      specificUrl: (task.metadata?.specificUrl as string) || null,
+      maxResearchBudgetUsd: task.metadata?.maxResearchBudgetUsd != null ? Number(task.metadata?.maxResearchBudgetUsd) : null,
+      dryRun: task.metadata?.dryRun !== false,
+      runBuild: task.metadata?.runBuild !== false,
+      useLlm: task.metadata?.useLlm === true,
+      rawRequest: task.originalRequest || '',
+      workspacePath: workspacePath || pipelineWorkspaceRoot(),
+    };
+
+    const hooks: PipelineHooks = {
+      transition: (status: string, patch: Record<string, unknown> = {}) => {
+        mgr.transition(task.taskId, status as any, patch as any);
+      },
+      progress: (kind: string, summary: string, patch: Record<string, unknown> = {}, detail: Record<string, unknown> = {}) => {
+        mgr.progress(task.taskId, kind as any, summary, patch as any, detail);
+      },
+      requestApprovalAndWait: (request) => {
+        mgr.requestApproval(task.taskId, request);
+        return new Promise<'allow' | 'deny'>((resolve) => {
+          approvalGates.set(task.taskId, { resolve });
+        });
+      },
+      verifyCompletion: (evidence) => {
+        const updated = mgr.verifyCompletion(task.taskId, evidence as any);
+        if (!updated) return null;
+        return { status: updated.status, blocker: updated.blocker };
+      },
+      setFilesChanged: (files) => {
+        const current = backgroundTaskRepo.getTask(task.taskId);
+        if (!current) return;
+        const merged = [...new Set([...(current.filesChanged || []), ...files])];
+        backgroundTaskRepo.updateTask(task.taskId, { filesChanged: merged });
+        mgr.appendEvent(task.taskId, 'task.file_changed', `${files.length} artifact(s) written.`, { files: merged.slice(-20) });
+      },
+      getTask: () => {
+        const t = backgroundTaskRepo.getTask(task.taskId);
+        return t ? { buildState: t.buildState, testState: t.testState } : null;
+      },
+      isStopRequested: () => stopRequested,
+    };
+
+    mgr.registerApprovalResolver(task.taskId, async (choice) => {
+      const gate = approvalGates.get(task.taskId);
+      if (gate) {
+        approvalGates.delete(task.taskId);
+        gate.resolve(choice);
+      }
+    });
+
+    mgr.registerWorkerHandlers(task.taskId, {
+      stop: async () => {
+        stopRequested = true;
+      },
+    });
+
+    // Fire-and-forget: the pipeline reports through the hooks; the manager
+    // guards terminal transitions. Never block the dispatch return.
+    runRevenuePipeline({ runId, taskId: task.taskId, config, hooks }).catch((err: any) => {
+      logger.error(`[bg-task] revenue pipeline crash for ${task.taskId}: ${err?.message}`);
+      const current = backgroundTaskRepo.getTask(task.taskId);
+      if (current && !TERMINAL_STATUSES.has(current.status)) {
+        mgr.transition(task.taskId, 'failed', { lastError: err?.message, blocker: `Revenue pipeline crashed: ${err?.message}` });
+      }
+    });
+
+    return { ok: true };
+  } catch (err: any) {
+    backgroundTaskManager.transition(task.taskId, 'failed', {
+      lastError: `Revenue dispatch failed: ${err?.message}`,
+      blocker: `Revenue dispatch failed: ${err?.message}`,
+    });
+    return { ok: false, error: err?.message };
+  }
+}
+
+function pipelineWorkspaceRoot(): string {
+  // Artifacts live under the server data dir (runtime state, not source).
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  return path.resolve(__dirname, '..', '..', '..', 'data', 'revenue-pipeline');
+}
+
 export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: string): Promise<{ ok: boolean; error?: string }> {
   switch (task.worker) {
     case 'hermes': return dispatchHermesTask(task);
@@ -457,6 +579,7 @@ export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: s
     case 'research': return dispatchResearchTask(task);
     case 'team': return dispatchTeamTask(task, workspacePath || '');
     case 'automation': return dispatchAutomationTask(task);
+    case 'revenue': return dispatchRevenuePipelineTask(task, workspacePath);
     default:
       backgroundTaskManager.transition(task.taskId, 'failed', { lastError: `No adapter for worker kind: ${task.worker}` });
       return { ok: false, error: `No adapter for worker kind: ${task.worker}` };

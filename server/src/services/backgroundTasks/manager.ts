@@ -72,6 +72,13 @@ export class BackgroundTaskManager extends EventEmitter {
   /** Registered worker pause callbacks (only when genuinely resumable). */
   private pauseHandlers = new Map<string, () => Promise<void> | void>();
   private resumeHandlers = new Map<string, () => Promise<void> | void>();
+  /**
+   * Registered approval resolvers — workers that WAIT on a human approval
+   * mid-execution (e.g. the revenue pipeline) register a callback that
+   * receives the resolved choice ('allow' | 'deny'). Invoked inside
+   * resolveApproval after the worker-specific bridge runs.
+   */
+  private approvalResolvers = new Map<string, (choice: 'allow' | 'deny') => Promise<void> | void>();
   private restored = false;
 
   constructor() {
@@ -324,6 +331,11 @@ export class BackgroundTaskManager extends EventEmitter {
     if (handlers.resume) this.resumeHandlers.set(taskId, handlers.resume);
   }
 
+  /** Workers that WAIT on approvals register a resolver that receives the choice. */
+  registerApprovalResolver(taskId: string, resolver: (choice: 'allow' | 'deny') => Promise<void> | void): void {
+    this.approvalResolvers.set(taskId, resolver);
+  }
+
   // ── Explicit task-control commands (the ONLY way conversation touches tasks)
 
   async stopTask(taskId: string, reason = 'Stopped by user command.'): Promise<{ ok: boolean; error?: string; task?: BackgroundTaskRecord }> {
@@ -421,6 +433,10 @@ export class BackgroundTaskManager extends EventEmitter {
     if (task.status !== 'waiting_approval') return { ok: false, error: `Task is not waiting for approval (current: ${task.status}).` };
     try {
       await resolver(choice);
+      // Record the decision BEFORE waking any registered approval resolver
+      // (e.g. the revenue pipeline gate). Otherwise the worker continuation
+      // runs on a microtask while approvalState is still 'pending' and its
+      // verifyCompletion gate would refuse completion as unresolved.
       this.approvalRequests.delete(taskId);
       const nextStatus = choice === 'allow' ? 'running' : 'blocked';
       this.transition(taskId, nextStatus, {
@@ -428,6 +444,8 @@ export class BackgroundTaskManager extends EventEmitter {
         blocker: choice === 'deny' ? 'Action denied by user — affected operation will not execute.' : null,
       });
       this.appendEvent(taskId, 'task.approval_resolved', `Approval ${choice === 'allow' ? 'allowed' : 'denied'} by user.`);
+      const registered = this.approvalResolvers.get(taskId);
+      if (registered) await registered(choice);
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: `Approval resolution failed: ${err?.message}` };

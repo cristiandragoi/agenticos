@@ -2,22 +2,24 @@
  * JARVIS Executive Intent classifier.
  *
  * Determines whether a prompt refers to an internal AgenticOS capability
- * (Hermes, CodeX, Research, Agent Teams, Boards, Memory, Automations) and
- * which of the executive intent classes applies.
+ * (Hermes, CodeX, Research, Agent Teams, Boards, Memory, Automations,
+ * Revenue Pipeline) and which of the executive intent classes applies.
  *
  * Precedence (explicit user language overrides low-confidence classification):
  *   1. task-control command            (delegated to taskControl.ts upstream)
- *   2. explicit worker delegation
- *   3. worker status / feedback query
- *   4. navigation request
- *   5. board / memory / automation query
- *   6. direct response / explanation
- *   7. LLM classification only where still ambiguous
+ *   2. revenue pipeline request        (business website audit/rebuild/proposal)
+ *   3. explicit worker delegation
+ *   4. worker status / feedback query
+ *   5. navigation request
+ *   6. board / memory / automation query
+ *   7. direct response / explanation
+ *   8. LLM classification only where still ambiguous
  *
- * This classifier only fires when the prompt names an internal capability.
- * It must never route a plain conversation message to execution.
+ * This classifier only fires when the prompt names an internal capability or
+ * clearly describes a pipeline request. It must never route a plain
+ * conversation message to execution.
  */
-import { CAPABILITY_REGISTRY, resolveCapability, type Capability, type CapabilityId } from './capabilityRegistry.js';
+import { CAPABILITY_REGISTRY, getCapability, resolveCapability, type Capability, type CapabilityId } from './capabilityRegistry.js';
 
 export type ExecutiveIntentType =
   | 'direct_explanation'
@@ -27,7 +29,8 @@ export type ExecutiveIntentType =
   | 'navigation'
   | 'board_query'
   | 'memory_query'
-  | 'automation_request';
+  | 'automation_request'
+  | 'revenue_pipeline';
 
 export interface ExecutiveIntent {
   intent: ExecutiveIntentType;
@@ -49,6 +52,20 @@ const DELEGATE_VERBS =
 const TASK_WORDS = /\b(inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build|trace|read|investigate|report|find|look at|examine|check)\b/;
 const READ_ONLY_CONSTRAINTS = /\b(do not modify|do not change|do not write|without modifying|without changing|read-only|readonly|no file changes|no changes|do not edit|do not touch)\b/;
 
+/**
+ * Revenue Pipeline V1 request detection (two parts):
+ *   - PIPELINE_PHRASE_RE — explicit pipeline phrases
+ *   - PIPELINE_ACTION_RE — action verb + business/prospect context + website/city
+ * Status/explanation queries about the pipeline itself (e.g. "how is the
+ * revenue pipeline doing") must NOT create tasks — they fall through to
+ * worker_status / direct_explanation.
+ */
+export const PIPELINE_PHRASE_RE =
+  /(revenue pipeline|business pipeline|website audit|rebuild (concept|proposal)|prospect pipeline)/i;
+
+export const PIPELINE_ACTION_RE =
+  /(audit|find|discover|research|rank|score)[^.!?\n]{0,100}(businesses?|companies?|firms?|shops?|prospects?|leads|candidates)[^.!?\n]{0,100}(websites?|in [A-Za-zäöüß][A-Za-zäöüß -]{1,40})|(businesses?|companies?|firms?|shops?|prospects?)[^.!?\n]{0,60}(weak websites?|website audit|rebuild)/i;
+
 /** True when the prompt names an internal capability at all. */
 export function mentionsInternalCapability(prompt: string): boolean {
   const p = prompt.toLowerCase();
@@ -59,6 +76,28 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
 
   const cap = resolveCapability(p);
+
+  // Revenue Pipeline V1 — runs when the prompt describes a business website
+  // audit/rebuild/proposal request and NO real worker capability won (an
+  // explicit "Ask Hermes to audit…" still delegates to Hermes).
+  const explicitWorkerDelegationMention = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex|research|teams?|automation)\b/.test(p);
+  const realWorkerCap = (cap && cap.taskWorkerKind !== null && cap.id !== 'revenue_pipeline') || explicitWorkerDelegationMention;
+  const pipelinePhrase = PIPELINE_PHRASE_RE.test(p);
+  const pipelineAction = PIPELINE_ACTION_RE.test(p);
+  if (
+    (pipelinePhrase && !realWorkerCap && !STATUS_VERBS.test(p) && !EXPLAIN_VERBS.test(p)) ||
+    (pipelineAction && !realWorkerCap)
+  ) {
+    const pipelineCap = getCapability('revenue_pipeline')!;
+    return {
+      intent: 'revenue_pipeline',
+      capability: pipelineCap,
+      confidence: cap?.id === 'revenue_pipeline' ? 0.97 : 0.9,
+      reason: 'Local business website audit / rebuild / proposal request',
+      workerKind: 'revenue',
+    };
+  }
+
   if (!cap) return null;
 
   // JARVIS is the orchestrator itself — "you"/"assistant" mentions are direct

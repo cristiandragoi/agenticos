@@ -242,7 +242,8 @@ app.use('/api/workspace', workspaceRouter);
 
 import revenueRouter from './routers/revenue.js';
 app.use('/api/revenue', revenueRouter);
-
+import revenuePipelineRouter from './routers/revenuePipeline.js';
+app.use('/api/revenue-pipeline', revenuePipelineRouter);
 import skillsRouter from './routers/skills.js';
 app.use('/api/skills', skillsRouter);
 

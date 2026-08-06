@@ -133,4 +133,36 @@ describe('executive intent classification', () => {
     expect(r?.intent).toBe('worker_delegation');
     expect(r?.capability.id).toBe('hermes');
   });
+
+  it('acceptance pipeline phrase → revenue_pipeline (creates a task)', () => {
+    const r = classifyExecutiveIntent(
+      'Find three roofing businesses in Berlin with weak websites. Audit them, rank the opportunities, and prepare a staged rebuild concept and proposal for the strongest candidate. Do not contact anyone and do not publish anything.'
+    );
+    expect(r?.intent).toBe('revenue_pipeline');
+    expect(r?.capability.id).toBe('revenue_pipeline');
+    expect(r?.workerKind).toBe('revenue');
+  });
+
+  it('explicit worker delegation is NOT hijacked by pipeline detection', () => {
+    const r = classifyExecutiveIntent('Ask Hermes to audit the revenue pipeline code');
+    expect(r?.intent).toBe('worker_delegation');
+    expect(r?.capability.id).toBe('hermes');
+  });
+
+  it('status query about the pipeline does NOT create a task', () => {
+    const r = classifyExecutiveIntent('How is the revenue pipeline doing?');
+    expect(r?.intent).toBe('worker_status');
+    expect(r?.capability.id).toBe('revenue_pipeline');
+  });
+
+  it('explain the revenue pipeline → direct_explanation (no task)', () => {
+    const r = classifyExecutiveIntent('Explain the revenue pipeline');
+    expect(r?.intent).toBe('direct_explanation');
+    expect(r?.capability.id).toBe('revenue_pipeline');
+  });
+
+  it('live-mode pipeline request still classifies as revenue_pipeline', () => {
+    const r = classifyExecutiveIntent('Find five roofing businesses in Berlin. Live mode. Do contact them.');
+    expect(r?.intent).toBe('revenue_pipeline');
+  });
 });

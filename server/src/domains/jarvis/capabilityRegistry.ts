@@ -16,9 +16,10 @@ export type CapabilityId =
   | 'agent_teams'
   | 'boards'
   | 'memory'
-  | 'automations';
+  | 'automations'
+  | 'revenue_pipeline';
 
-export type TaskWorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | null;
+export type TaskWorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | null;
 
 export interface Capability {
   id: CapabilityId;
@@ -160,6 +161,24 @@ export const CAPABILITY_REGISTRY: Capability[] = [
     route: '/automations',
     limitations: 'The scheduler has no live per-fire progress stream; registration is the task result.',
   },
+  {
+    id: 'revenue_pipeline',
+    displayName: 'Revenue Pipeline',
+    aliases: ['revenue pipeline', 'business pipeline', 'website audit pipeline', 'rebuild proposal pipeline', 'prospect pipeline'],
+    responsibilities:
+      'Revenue Pipeline finds local businesses with weak websites, audits them against public-page signals, scores opportunities with transparent criteria, builds a staged rebuild concept, and prepares a proposal package — dry-run by default, never contacting or publishing without human approval.',
+    supportedActions: [
+      'run a website audit pipeline',
+      'discover and rank prospects',
+      'build a staged site concept',
+      'prepare a proposal package',
+    ],
+    statusSource: 'revenue pipeline runs store + background tasks with worker=revenue',
+    assignmentAgentId: null,
+    taskWorkerKind: 'revenue',
+    route: '/kanban/b-sales',
+    limitations: 'V1 discovery uses clearly-labelled sample fixtures or a user-provided URL; no automated outreach or publishing.',
+  },
 ];
 
 export function getCapability(id: CapabilityId): Capability | undefined {
@@ -176,7 +195,10 @@ export function resolveCapability(text: string): Capability | undefined {
     // Priority: real worker kinds (hermes/codex/research/team/automation) beat
     // generic aliases like 'jarvis'/'you' (which can appear inside file paths),
     // and boards/memory sit above the orchestrator alias.
-    const priority = cap.taskWorkerKind ? 2 : cap.id === 'boards' || cap.id === 'memory' || cap.id === 'automations' ? 1 : 0;
+    // The revenue pipeline is an orchestrated workflow, NOT a worker you "ask"
+    // to do something — priority 1 so an explicit worker mention ("Ask Hermes
+    // to audit the revenue pipeline code") always resolves to the worker.
+    const priority = cap.id === 'revenue_pipeline' ? 1 : cap.taskWorkerKind ? 2 : cap.id === 'boards' || cap.id === 'memory' || cap.id === 'automations' ? 1 : 0;
     for (const alias of cap.aliases) {
       if (p.includes(alias) && (priority > bestPriority || (priority === bestPriority && alias.length > bestLen))) {
         best = cap;

@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
     if (!title || !worker) {
       return res.status(400).json({ error: 'title and worker are required' });
     }
-    if (!['hermes', 'codex', 'research', 'team', 'automation'].includes(worker)) {
+    if (!['hermes', 'codex', 'research', 'team', 'automation', 'revenue'].includes(worker)) {
       return res.status(400).json({ error: `Unknown worker kind: ${worker}` });
     }
 
