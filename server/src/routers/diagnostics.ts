@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import { db } from '../db/index.js';
 import { agentProviderAssignments } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { diagnosticsStore } from '../services/diagnosticsStore.js';
 
 const router = Router();
 
@@ -91,3 +92,21 @@ router.post('/repair/:repairId', async (req: Request, res: Response) => {
 });
 
 export default router;
+
+/**
+ * Read-only UI diagnostics bridge — the FRONTEND reports what it renders.
+ * Reporting-only; the backend/runtime remains authoritative.
+ */
+router.post('/ui-snapshot', (req: Request, res: Response) => {
+  const snapshot = req.body;
+  if (!snapshot || typeof snapshot !== 'object') {
+    res.status(400).json({ error: 'snapshot object required' });
+    return;
+  }
+  diagnosticsStore.setUiSnapshot(snapshot as any);
+  res.json({ ok: true, receivedVersion: snapshot.version ?? 0 });
+});
+
+router.get('/ui-snapshot', (_req: Request, res: Response) => {
+  res.json(diagnosticsStore.getUiSnapshot() || { available: false });
+});

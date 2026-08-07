@@ -8,6 +8,7 @@ import { JarvisGoalCard } from './JarvisGoalCard';
 import { useCodexStore } from '../../store/codexStore';
 import { useGatewayStream } from '../../hooks/useGatewayStream';
 import { ProviderBadge } from '../gateway/ProviderBadge';
+import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
 import { GatewayNotice } from '../gateway/GatewayNotice';
 import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
 import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
@@ -191,6 +192,19 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
 }, ref) => {
   const { runSettings } = useCodexStore();
   const [messages, setMessages] = useState<any[]>([]);
+
+  // Diagnostic: report the most recent transcript ProviderBadge value (what
+  // the UI is actually displaying for the last gateway-bearing message).
+  useEffect(() => {
+    const lastBadge = [...messages].reverse().find((m: any) => m?.gateway?.provider);
+    if (lastBadge) {
+      uiDiagnostics.setFrontendBadge(
+        lastBadge.gateway.provider ?? null,
+        lastBadge.gateway.model ?? null,
+        lastBadge.id ?? null
+      );
+    }
+  }, [messages]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sendError, setSendError] = useState<SendErrorState | null>(null);
   const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
@@ -753,6 +767,8 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           provider: data.provider ?? null,
           model: data.model ?? null
         });
+        // Diagnostic: report what the UI is streaming (active stream layer).
+        uiDiagnostics.setActiveStream(data.provider ?? null, data.model ?? null, operationId);
         appendStreamingAssistantText(operationId, data.delta || '');
         if (data.delta) onStreamDeltaRef.current?.(data.delta, pendingChannelRef.current);
       } else if (event.event === 'error') {

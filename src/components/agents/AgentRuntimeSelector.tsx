@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
 import { AlertTriangle, Save, Server, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -30,6 +31,11 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
 
   // Track whether user has made any deliberate selection change
   const [userTouched, setUserTouched] = useState(false);
+
+  // Diagnostic: report the user-selected provider/model the selector renders.
+  useEffect(() => {
+    uiDiagnostics.setSelected(selectedProviderId || null, selectedModelId || null);
+  }, [selectedProviderId, selectedModelId]);
 
   // Stale-request guard: cancel in-flight fetch on agentId change or unmount (handles StrictMode double-invoke)
   const abortRef = useRef<AbortController | null>(null);

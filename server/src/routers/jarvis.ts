@@ -57,6 +57,19 @@ async function resolveDirectChatMetadata(): Promise<{ selectedModel: string; fal
   return { selectedModel, fallbackModel };
 }
 
+/** Recent conversation text for contextual routing (best effort). */
+async function buildRecentConversationText(conversationId: string): Promise<string> {
+  try {
+    const msgs = await conversationService.getMessages(conversationId);
+    const arr = Array.isArray(msgs) ? msgs : [];
+    return arr.slice(-8)
+      .map((m: any) => `${m.role || 'system'}: ${typeof m.content === 'string' ? m.content : ''}`)
+      .join('\n');
+  } catch {
+    return '';
+  }
+}
+
 function logStreamStage(operationId: string | undefined, stage: string, details: Record<string, any> = {}) {
   logger.info('[JarvisStream]', stage, {
     operationId,
@@ -695,7 +708,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
-    const classified = await intentRouter.routeIntent(prompt);
+    const classified = await intentRouter.routeIntent(prompt, {
+      // Recent turns: contextual problem reports ("Why is Laguna still
+      // there?", "That's not what I selected.") resolve deictic references
+      // against AgenticOS state talk in the conversation.
+      recentText: await buildRecentConversationText(req.params.id),
+    });
     logStreamStage(normalizedOperationId, 'intent routing completed', {
       route: classified.route,
       category: classified.category,

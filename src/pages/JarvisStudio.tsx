@@ -10,6 +10,7 @@ import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
+import { uiDiagnostics } from '../diagnostics/uiSnapshot';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import styles from './JarvisStudio.module.css';
@@ -283,6 +284,8 @@ export default function JarvisStudio() {
         if (!res.ok) { if (!cancelled) setBackendOffline(true); return; }
         const data = await res.json();
         if (!cancelled) setBackendOffline(data?.status === 'offline');
+        // Diagnostic: report the gateway status the UI renders (read-only).
+        uiDiagnostics.setGatewayResolved(data?.gateway ?? null, data?.model ?? null, data?.status === 'online' || data?.status === 'degraded');
       } catch { if (!cancelled) setBackendOffline(true); }
     };
     check();

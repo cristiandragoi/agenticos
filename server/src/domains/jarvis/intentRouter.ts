@@ -76,14 +76,46 @@ export function isBugReportStatement(prompt: string): boolean {
   return BUG_SIGNAL_PATTERNS.some((re) => re.test(p));
 }
 
+/**
+ * Context-aware investigation signals — vague statements that only read as
+ * problem reports when recent conversation establishes AgenticOS-state talk
+ * ("That value shouldn't be there anymore.", "Why is Laguna still there?",
+ * "It changed back."). Requires `recentText` (recent Jarvis turns) to contain
+ * a known AgenticOS entity / operation — never globally classifies vague
+ * negatives.
+ */
+const CONTEXTUAL_SIGNAL_PATTERNS: RegExp[] = [
+  new RegExp(`\\b(shouldn${APOSTROPHE}?t|should not)\\s+be\\s+(there|here|shown|displayed|visible)\\b`),
+  new RegExp(`\\b(isn${APOSTROPHE}?t|is not|ain${APOSTROPHE}?t)\\s+what\\s+(we|i|you|it)\\s+(configured|selected|set|chose|picked|asked)\\b`),
+  /\b(not|no longer)\s+what\s+(we|i|you)\s+(configured|selected|set|chose|picked|asked)\b/,
+  /\bchanged\s+back\b/,
+  /\bstill\s+(there|here|shown|displayed)\b/,
+  /\b(the old one|it|that)\s+is\s+(there|back)\s+again\b/,
+  new RegExp(`\\b(that${APOSTROPHE}?s|thats|this is)\\s+not\\s+what\\b`),
+  /\b(why|how come)\s+(is|does|did)\s+([a-z0-9][a-z0-9 -]{0,30})\s+still\b/,
+];
+
+/** Known AgenticOS entities/state tokens used to establish app context. */
+const APP_ENTITY_RE =
+  /\b(model|provider|gateway|badge|runtime|agent|task|board|card|stream|operation|status|assignment|selection|config|setting|option|button|panel|orb|voice|mic|tts|stt|hermes|codex|jarvis|qwen|deepseek|laguna|openrouter|ollama|llama|poolside)\b/i;
+
+export function isContextualInvestigationRequest(prompt: string, recentText?: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!CONTEXTUAL_SIGNAL_PATTERNS.some((re) => re.test(p))) return false;
+  if (!recentText) return false; // no context — don't classify
+  // The prompt itself or the recent turns must mention an AgenticOS entity.
+  return APP_ENTITY_RE.test(p) || APP_ENTITY_RE.test(recentText);
+}
+
 export class IntentRouter {
   /**
    * Fast, heuristic-based intent routing.
    * Promoted to an independent service layer for future ML replacement.
    */
-  async routeIntent(prompt: string): Promise<IntentResult> {
+  async routeIntent(prompt: string, context?: { recentText?: string }): Promise<IntentResult> {
     const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
     const words = p.split(' ').filter(Boolean);
+    const recentText = context?.recentText;
 
     const direct = (category: IntentResult['category'], confidence: number, reason: string, plan?: string[]): IntentResult => ({
       route: 'direct',
@@ -245,6 +277,25 @@ export class IntentRouter {
     const agentNames = ['jarvis', 'hermes', 'codex', 'athena', 'sentinel', 'qwable', 'qwythos'];
     if (words.length === 1 && agentNames.includes(words[0])) {
       return direct('conversation', 0.6, 'Agent invocation — direct conversation');
+    }
+
+    // Context-aware investigation: vague statements that read as problem
+    // reports ONLY when recent context establishes AgenticOS-state talk
+    // ("Why is Laguna still there?", "That value shouldn't be there anymore.").
+    // Runs before the question check so problem-questions route to
+    // INVESTIGATE while informational questions stay direct.
+    if (isContextualInvestigationRequest(prompt, recentText)) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.8,
+        reason: 'Contextual AgenticOS problem report (recent conversation context) — implicit investigation request',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Resolve the referent from recent conversation context', 'Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe'],
+      };
     }
 
     // Questions (wh- words or auxiliary + subject) are direct conversation

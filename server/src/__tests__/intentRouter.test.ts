@@ -208,4 +208,39 @@ describe('IntentRouter — required routing cases', () => {
       expect(result.route).toBe('investigate');
     });
   });
+
+  describe('context-aware INVESTIGATE (recent conversation context)', () => {
+    const appContext = 'You: the model switched to DeepSeek\nJarvis: I updated the agent assignment to DeepSeek/deepseek-v4\nSystem: operation abc123 completed';
+    const cases: Array<[string, string]> = [
+      ['That value shouldn\u2019t be there anymore.', appContext],
+      ['This isn\u2019t what we configured.', appContext],
+      ['Why is Laguna still there?', appContext],
+      ['That\u2019s not what I selected.', appContext],
+      ['It changed back.', appContext],
+      ['The old one is there again.', appContext],
+    ];
+    for (const [input, context] of cases) {
+      it(`routes ${JSON.stringify(input)} to investigate when recent context is AgenticOS state`, async () => {
+        const result = await router.routeIntent(input, { recentText: context });
+        expect(result.route, input).toBe('investigate');
+      });
+    }
+
+    it('does NOT investigate the same vague statement without app context', async () => {
+      const result = await router.routeIntent('That value shouldn\u2019t be there anymore.');
+      expect(result.route).toBe('direct');
+    });
+
+    it('does NOT globally classify vague negatives as investigate', async () => {
+      for (const input of ['I don\u2019t like this.', 'The weather is bad today.', 'That movie was long.']) {
+        const result = await router.routeIntent(input, { recentText: 'You: hello\nJarvis: hi there' });
+        expect(result.route, input).toBe('direct');
+      }
+    });
+
+    it('keeps informational questions direct even with app context', async () => {
+      const result = await router.routeIntent('Why is the sky blue?', { recentText: appContext });
+      expect(result.route).toBe('direct');
+    });
+  });
 });

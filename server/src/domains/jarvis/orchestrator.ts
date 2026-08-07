@@ -51,8 +51,15 @@ export class JarvisOrchestrator {
       metadata: requestMetadata
     });
 
-    // 2. Route intent
-    const intent = preclassifiedIntent || await intentRouter.routeIntent(prompt);
+    // 2. Route intent (context-aware: recent turns resolve deictic refs).
+    let recentText = '';
+    try {
+      const msgs = await conversationService.getMessages(conversationId);
+      recentText = (Array.isArray(msgs) ? msgs : []).slice(-8)
+        .map((m: any) => `${m.role || 'system'}: ${typeof m.content === 'string' ? m.content : ''}`)
+        .join('\n');
+    } catch { /* context optional */ }
+    const intent = preclassifiedIntent || await intentRouter.routeIntent(prompt, { recentText });
 
     // Append routing event
     await conversationService.appendMessage({

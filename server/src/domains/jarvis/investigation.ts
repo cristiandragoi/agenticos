@@ -15,6 +15,7 @@ import { conversationService } from '../conversations/service.js';
 import { hermesApiService } from '../../services/hermesApiService.js';
 import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
+import { diagnosticsStore, type UiDiagnosticSnapshot } from '../../services/diagnosticsStore.js';
 
 const PROBE_TIMEOUT_MS = parseInt(process.env.GATEWAY_HEALTH_PROBE_TIMEOUT_MS || '2500', 10);
 
@@ -166,11 +167,50 @@ export async function investigateAgenticState(conversationId: string, prompt: st
   }
 
   const modelMismatch = /model|provider|badge|display|showing|shows/i.test(prompt);
+
+  // 6. Frontend diagnostic snapshot — what the UI is ACTUALLY rendering
+  //    (reported by the UI itself; backend/runtime remains authoritative).
+  const ui = diagnosticsStore.getUiSnapshot();
+  if (ui) {
+    const fmt = (p: { provider?: string | null; model?: string | null }): string =>
+      p?.provider || p?.model ? `${p.provider || '(unset)'}${p.model ? ' / ' + p.model : ''}` : '(not reported)';
+    lines.push(
+      '',
+      'Frontend display state (reported by the UI, read-only):',
+      `  • Selected (AgentRuntimeSelector): ${fmt(ui.selected)}`,
+      `  • Gateway status rendered: ${fmt(ui.gatewayResolved)}${ui.gatewayResolved?.online === false ? ' (UI shows gateway offline)' : ui.gatewayResolved?.online ? '' : ''}`,
+      `  • Active stream: ${fmt(ui.activeStream)}${ui.activeStream?.operationId ? ` (operation ${ui.activeStream.operationId.slice(-10)})` : ''}`,
+      `  • Frontend ProviderBadge: ${fmt(ui.frontendBadge)}${ui.frontendBadge?.messageId ? ` (message ${ui.frontendBadge.messageId.slice(-10)})` : ''}`,
+      ui.hermes?.provider || ui.hermes?.model ? `  • Hermes runtime: ${fmt(ui.hermes)}` : '',
+    );
+    // Staleness analysis: if the badge was updated before the latest stream
+    // operation that changed the model, the badge is not reacting to the
+    // latest gateway state.
+    const badge = ui.frontendBadge;
+    const stream = ui.activeStream;
+    if (badge?.updatedAt && stream?.updatedAt && badge.updatedAt < stream.updatedAt) {
+      lines.push(
+        `The ProviderBadge last updated ${Math.round((stream.updatedAt - badge.updatedAt) / 1000)}s before the latest stream operation ` +
+        `(operation ${stream.operationId?.slice(-10) || 'unknown'}) — the badge is not reacting to the latest gateway state.`
+      );
+    }
+  } else {
+    lines.push(
+      '',
+      'Frontend display state: not yet reported by the UI (no snapshot received). Ask me to check again after the interface has rendered once.'
+    );
+  }
+
   lines.push('');
   if (modelMismatch) {
     lines.push(
       `The authoritative runtime resolves provider ${selectedProvider || '(unset)'} / model ${selectedModel}. ` +
-      `If the UI displays something else, it is showing a stale value — the runtime itself is the source of truth.`
+      (ui?.frontendBadge?.provider || ui?.frontendBadge?.model
+        ? `The frontend ProviderBadge renders ${ui.frontendBadge.provider || '(unset)'}${ui.frontendBadge.model ? ' / ' + ui.frontendBadge.model : ''}. ` +
+          (ui.frontendBadge.provider === selectedProvider && (ui.frontendBadge.model === selectedModel || !selectedModel)
+            ? 'The badge matches the runtime — no stale display detected.'
+            : 'The badge does NOT match the runtime — the stale value is limited to the frontend display state.')
+        : 'If the UI displays something else, it is showing a stale value — the runtime itself is the source of truth.')
     );
   }
   lines.push(
