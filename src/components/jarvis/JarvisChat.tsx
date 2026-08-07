@@ -251,25 +251,11 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const lastOperationIdRef = useRef<string | null>(null);
   const [routingOverride, setRoutingOverride] = useState<{ provider: string | null; model: string | null; mode: 'auto' | 'manual' }>({ provider: null, model: null, mode: 'auto' });
 
-  // STOP propagation (PRIORITY 6): the execution bar's STOP aborts the
-  // in-flight stream via the same controller as the chat's own Stop control,
-  // and runs the same cleanup so the composer re-enables and the bar clears.
+  // STOP propagation (PRIORITY 6): the chat's own Cancel button already aborts
+  // the in-flight stream. The Execution Bar's STOP cancels through the
+  // canonical backend cancel endpoint (which targets the active operation).
   useEffect(() => {
-    executionStore.registerStop(() => {
-      if (abortControllerRef.current) {
-        logAbort('execution_bar_stop', abortControllerRef.current, requestStartedAtRef.current);
-        abortControllerRef.current.abort();
-      }
-      clearResponseTimers();
-      stopStatusClock();
-      emitStatus({ state: 'cancelled' });
-      uiDiagnostics.setStreamEnded(null);
-      window.setTimeout(() => {
-        if (!abortControllerRef.current) emitStatus(idleStatus);
-      }, 1200);
-      setIsProcessing(false);
-    });
-    return () => executionStore.registerStop(null);
+    return () => { /* nothing to unregister — the bar reads the canonical store */ };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -286,21 +272,6 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       error: null,
       ...patch
     });
-    // Live execution bar (PRIORITY 4/5): feed the shared execution store.
-    if (patch.state && patch.state !== 'idle' && !['cancelled', 'error', 'completed'].includes(patch.state)) {
-      const agentLabel = patch.state === 'streaming' ? 'Jarvis' : 'Jarvis';
-      executionStore.setActive({
-        agent: agentLabel,
-        provider: patch.provider ?? null,
-        model: patch.model ?? null,
-        currentAction: patch.state === 'streaming' ? 'Streaming reply' : patch.state === 'thinking' ? 'Thinking' : patch.state === 'understanding' ? 'Understanding request' : patch.state,
-        stage: patch.state,
-        startedAt: requestStartedAtRef.current || Date.now(),
-        operationId: lastOperationIdRef.current || null,
-      });
-    } else if (patch.state === 'completed' || patch.state === 'cancelled' || patch.state === 'error') {
-      executionStore.setIdle();
-    }
   };
 
   const fetchMessages = async (merge = false) => {

@@ -1,49 +1,97 @@
 /**
- * Live execution state (PRIORITY 4/5/6) — the single feed for the Execution
- * Bar. Fed by JarvisChat (stream status) and JarvisStudio (active background
- * task progress). The STOP action is a registered callback so cancel
- * propagates to the right owner (stream abort / task cancel API).
+ * ONE frontend execution surface (coherence milestone).
+ *
+ * Subscribes to the backend's canonical execution stream
+ * (GET /api/execution/stream) + polls GET /api/execution/current as a
+ * fallback. Every component (ExecutionBar, activity panel, transcript) reads
+ * the SAME { current, history } record — no component derives its own stage.
  */
-export interface ExecutionState {
-  active: boolean;
-  agent: string | null;
-  provider: string | null;
-  model: string | null;
+export interface ExecutionRecord {
+  operationId: string;
+  worker: 'jarvis' | 'codex' | 'hermes' | 'revenue' | 'investigate' | 'other';
+  status: string;
   currentAction: string | null;
-  stage: string | null;
-  operationId: string | null;
-  taskId: string | null;
-  state: string | null;
+  requestedProvider: string | null;
+  requestedModel: string | null;
+  resolvedProvider: string | null;
+  resolvedModel: string | null;
+  fallbackUsed: boolean;
+  fallbackReason: string | null;
   startedAt: number;
+  endedAt: number | null;
   lastActivityAt: number;
+  queuePosition: number | null;
+  activeCount: number | null;
+  limit: number | null;
+  result: string | null;
+  cancel: { kind: 'stream' | 'task' | 'goal'; id: string } | null;
+  note: string | null;
 }
 
-let state: ExecutionState = {
-  active: false, agent: null, provider: null, model: null, currentAction: null,
-  stage: null, operationId: null, taskId: null, state: null, startedAt: 0, lastActivityAt: 0,
-};
-const listeners = new Set<() => void>();
-let stopHandler: (() => void) | null = null;
+interface StoreState {
+  current: ExecutionRecord | null;
+  history: ExecutionRecord[];
+}
 
-function publish(partial: Partial<ExecutionState>) {
-  state = { ...state, ...partial, lastActivityAt: Date.now() };
+let state: StoreState = { current: null, history: [] };
+const listeners = new Set<() => void>();
+let stopBusy = false;
+
+function publish() {
   for (const fn of listeners) fn();
 }
 
 export const executionStore = {
-  get(): ExecutionState { return state; },
-  /** Activate from a stream/task status update. */
-  setActive(partial: Partial<ExecutionState>): void {
-    publish({ active: true, ...partial, startedAt: partial.startedAt || state.startedAt || Date.now() });
-  },
-  setIdle(): void {
-    publish({ active: false, agent: null, provider: null, model: null, currentAction: null, stage: null, operationId: null, taskId: null, state: 'idle' });
-  },
-  registerStop(handler: (() => void) | null): void { stopHandler = handler; },
+  get(): StoreState { return state; },
+  subscribe(fn: () => void): () => void { listeners.add(fn); return () => { listeners.delete(fn); }; },
+  replace(next: StoreState): void { state = next; publish(); },
   stop(): boolean {
-    if (!stopHandler) return false;
-    stopHandler();
+    if (stopBusy || !state.current) return false;
+    stopBusy = true;
+    void fetch('/api/execution/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operationId: state.current.operationId }),
+    })
+      .catch(() => {})
+      .finally(() => { stopBusy = false; });
     return true;
   },
-  subscribe(fn: () => void): () => void { listeners.add(fn); return () => { listeners.delete(fn); }; },
 };
+
+let es: EventSource | null = null;
+let pollTimer: number | null = null;
+
+export function startExecutionStream(): void {
+  if (es) return;
+  try {
+    es = new EventSource('/api/execution/stream');
+    const apply = (data: StoreState) => {
+      if (data && Array.isArray(data.history)) { state = data; publish(); }
+    };
+    es.addEventListener('snapshot', (e) => apply(JSON.parse((e as MessageEvent).data)));
+    es.addEventListener('change', (e) => apply(JSON.parse((e as MessageEvent).data)));
+    es.onerror = () => {
+      // SSE dropped — fall back to polling until it reconnects.
+      if (!pollTimer) {
+        pollTimer = window.setInterval(async () => {
+          try {
+            const res = await fetch('/api/execution/current');
+            if (res.ok) { state = await res.json(); publish(); }
+          } catch { /* keep last state */ }
+        }, 3000);
+      }
+    };
+    es.onopen = () => {
+      if (pollTimer) { window.clearInterval(pollTimer); pollTimer = null; }
+    };
+  } catch {
+    // No SSE support — poll.
+    pollTimer = window.setInterval(async () => {
+      try {
+        const res = await fetch('/api/execution/current');
+        if (res.ok) { state = await res.json(); publish(); }
+      } catch { /* keep last state */ }
+    }, 3000);
+  }
+}

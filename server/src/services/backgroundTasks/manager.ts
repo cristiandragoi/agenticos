@@ -28,6 +28,8 @@ import {
 } from './types.js';
 import { localDataPort } from '../../adapters/localDataPort.js';
 import { logger } from '../../utils/logger.js';
+import * as executionState from '../executionState.js';
+import { routingLedger } from '../routingLedger.js';
 
 export interface CreateTaskInput {
   title: string;
@@ -187,6 +189,24 @@ export class BackgroundTaskManager extends EventEmitter {
       ? `Queued behind ${task.worker} — active ${perWorkerActive}/${workerLimit}, position ${queuedCount + 1}`
       : 'Task queued for execution.');
     this.linkBoardCard(task);
+
+    // Canonical execution record (coherence milestone): the stream began the
+    // operation under metadata.operationId — adopt it as QUEUED with the
+    // task-owned cancel action.
+    const opId = (task.metadata as any)?.operationId as string | undefined;
+    if (opId) {
+      executionState.update(opId, {
+        status: 'QUEUED',
+        worker: task.worker === 'hermes' ? 'hermes' : task.worker === 'codex' ? 'codex' : task.worker === 'revenue' ? 'revenue' : 'other',
+        currentAction: atWorkerLimit
+          ? `Waiting for ${task.worker} slot — active ${perWorkerActive}/${workerLimit}, position ${queuedCount + 1}`
+          : `Task ${taskShortId(task.taskId)} queued: ${task.title.slice(0, 60)}`,
+        queuePosition: atWorkerLimit ? queuedCount + 1 : null,
+        activeCount: perWorkerActive,
+        limit: workerLimit,
+        cancel: { kind: 'task', id: task.taskId },
+      });
+    }
     return { task };
   }
 
@@ -239,6 +259,59 @@ export class BackgroundTaskManager extends EventEmitter {
     if (TERMINAL_STATUSES.has(status)) merged.completedAt = now;
     const updated = backgroundTaskRepo.updateTask(taskId, merged);
     if (updated) {
+      // Canonical execution record (coherence milestone): mirror the
+      // transition onto the shared execution record (operationId = the
+      // metadata.operationId the stream registered).
+      const opId = (task.metadata as any)?.operationId as string | undefined;
+      if (opId) {
+        if (TERMINAL_STATUSES.has(status)) {
+          const execStatus = status === 'completed' ? 'COMPLETED' : status === 'cancelled' ? 'CANCELLED' : 'FAILED';
+          executionState.end(opId, execStatus, (updated.resultText || undefined) as string | undefined);
+          // Routing-ledger consistency (step 7): every task-backed operation
+          // records its requested vs resolved provider/model in the ledger.
+          const rec = executionState.get(opId);
+          if (rec) {
+            routingLedger.record({
+              operationId: opId,
+              worker: rec.worker,
+              routingMode: 'auto',
+              requestedProvider: rec.requestedProvider,
+              requestedModel: rec.requestedModel,
+              resolvedProvider: rec.resolvedProvider,
+              resolvedModel: rec.resolvedModel,
+              fallbackUsed: rec.fallbackUsed,
+              fallbackReason: rec.resolvedProvider && !rec.requestedProvider ? null : rec.fallbackReason,
+              startedAt: rec.startedAt,
+              endedAt: rec.endedAt,
+            });
+          }
+        } else {
+          const execStatus = status === 'running' ? 'RUNNING'
+            : status === 'waiting_approval' ? 'WAITING_FOR_APPROVAL'
+            : status === 'queued' ? 'QUEUED' : 'RUNNING';
+          executionState.update(opId, { status: execStatus, currentAction: updated.progressMessage || updated.currentStage || undefined });
+        }
+      }
+      // Worker result return (P10): a completed task delivers its result into
+      // the Jarvis conversation automatically — the user never has to open a
+      // side panel to discover what the worker found.
+      if (status === 'completed' && task.conversationId && (updated.resultText || task.resultText)) {
+        const resultText = String(updated.resultText || task.resultText || '').slice(0, 2000);
+        void (async () => {
+          try {
+            const { conversationService } = await import('../../domains/conversations/service.js');
+            await conversationService.appendMessage({
+              conversationId: task.conversationId as string,
+              role: 'agent',
+              content: `Completed — here is what I found:\n${resultText}`,
+              routedAgent: 'jarvis',
+              metadata: { taskId: task.taskId, provider: 'agentic-os', model: 'task-manager', resultReturn: true },
+            });
+          } catch (err: any) {
+            logger.warn(`[bg-task] result-return append failed for ${task.taskId}: ${err?.message}`);
+          }
+        })();
+      }
       // PRIORITY 10: a terminal transition frees a worker slot — dispatch the
       // oldest queued task for that worker (fire-and-forget).
       if (TERMINAL_STATUSES.has(status)) {

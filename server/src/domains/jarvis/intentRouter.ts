@@ -358,6 +358,34 @@ export class IntentRouter {
       };
     }
 
+    // ── Continuation of an ongoing problem (P7/P8, coherence milestone) ──
+    // "So right now…", "it still…", "it's just sitting there", "nothing is
+    // happening" — a deictic/summary opener that only makes sense as a
+    // continuation. Gated on RECENT CONVERSATION CONTEXT (the prior complaint
+    // about a malfunction), never on the prompt alone. Placed BEFORE the
+    // question/direct branch so a continuation question like "What the hell is
+    // it doing?" does not reset to a generic DIRECT answer.
+    const CONTINUATION_CUES =
+      /\b(so right now|it still|this is still|still not working|still shows?|what is it doing|what'?s it doing|i still don'?t know|it'?s just sitting there|nothing is happening|it'?s just stuck|what the hell is it doing|what the hell is going on|it won'?t do anything)\b/i;
+    if (CONTINUATION_CUES.test(prompt)) {
+      const contextSignal =
+        recentText &&
+        /(wrong|broken|stuck|failed|not working|mismatch|not showing|still|issue|problem|waiting|laguna|model|provider|error)/i.test(recentText);
+      if (contextSignal) {
+        return {
+          route: 'investigate',
+          category: 'investigation',
+          mode: 'operational_execution',
+          confidence: 0.82,
+          reason: 'Continuation of an ongoing problem report (uses recent conversation context)',
+          requiresWorkspace: false,
+          requiresApproval: false,
+          selectedAgent: 'Jarvis',
+          plan: ['Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe'],
+        };
+      }
+    }
+
     // Questions (wh- words or auxiliary + subject) are direct conversation
     const isQuestion = /^(what|who|how|why|where|when|which)\b/.test(p) ||
       /^(do|does|did|can|could|will|would|is|are|am)\s+(you|i|we|they)\b/.test(p) ||
@@ -403,7 +431,7 @@ export class IntentRouter {
       };
     }
 
-    // ── Semantic fallback (PRIORITY 8) ──
+    // ── 7. Semantic fallback (PRIORITY 8) ──
     // When deterministic signals are exhausted, score the utterance into
     // semantic categories (live state / bug / delegation / repo / info) using
     // the utterance + recent conversation context. High-confidence categories

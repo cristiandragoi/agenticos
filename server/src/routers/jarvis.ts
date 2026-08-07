@@ -378,6 +378,36 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
   const requestMetadata = normalizedOperationId ? { operationId: normalizedOperationId } : undefined;
   const abortController = new AbortController();
+
+  // ── Canonical execution state (coherence milestone) ──
+  // This stream registers ONE record; the task manager / goal loop continue
+  // the SAME operationId when work is delegated. UI reads this record only.
+  const { registerStreamAborter, unregisterStreamAborter } = await import('../routers/execution.js');
+  const executionState = await import('../services/executionState.js');
+  const execOpId = normalizedOperationId || `jarvis-${Date.now()}`;
+  executionState.begin({
+    operationId: execOpId,
+    worker: 'jarvis',
+    status: 'ROUTING',
+    currentAction: 'Routing request',
+    requestedProvider: selectedProvider,
+    requestedModel: selectedModel,
+    cancel: { kind: 'stream', id: execOpId },
+  });
+  registerStreamAborter(execOpId, abortController);
+  const endStreamExecution = (status: 'COMPLETED' | 'FAILED' | 'CANCELLED', result?: string | null) => {
+    const rec = executionState.get(execOpId);
+    // A delegation (task/goal) may have taken over the record — only end when
+    // the record is still stream-owned (no task/goal continuation).
+    if (rec?.worker === 'jarvis' && !rec.note) {
+      // A user-initiated STOP must win over a late normal completion.
+      const finalStatus = rec.status === 'STOPPING' ? 'CANCELLED' : status;
+      executionState.end(execOpId, finalStatus, result ?? undefined);
+    }
+  };
+  const updateStreamExecution = (patch: Parameters<typeof executionState.update>[1]) => {
+    executionState.update(execOpId, patch);
+  };
   let clientClosed = false;
   let completed = false;
   let totalTimer: NodeJS.Timeout | null = null;
@@ -386,7 +416,10 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   req.on('close', () => {
     clientClosed = true;
     logStreamStage(normalizedOperationId, 'client disconnected', { completed });
-    if (!completed) abortController.abort();
+    if (!completed) {
+      abortController.abort();
+      endStreamExecution('CANCELLED');
+    }
   });
 
   try {
@@ -411,10 +444,52 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       }
       writeSse(res, 'done', { route: 'task_control', category: 'task_control', operationId: normalizedOperationId, provider: 'agentic-os', model: 'task-manager', firstTokenMs: 0, totalMs: 0 });
       completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
       return res.end();
     }
 
     logStreamStage(normalizedOperationId, 'intent routing started');
+    // ── Execution-aware control (coherence milestone) ──
+    // While an operation is active, "what are you doing?", "is it stuck?",
+    // and "stop it." are answered from the canonical execution record — never
+    // a generic direct reset.
+    const execNow = executionState.getCurrent();
+    const trimmed = prompt.trim();
+    const STOP_CUE = /^(stop|cancel|abort)( it| that| this)?[.!?]*$/i;
+    const STATUS_CUE = /^(what are you doing|what is it doing|is it stuck|is it frozen|is anything happening|are you stuck|what is going on|what is happening)( right now| currently| at the moment)?[.!?]*$/i;
+    if (execNow) {
+      if (STOP_CUE.test(trimmed)) {
+        logStreamStage(normalizedOperationId, 'execution-stop cue', { operationId: execNow.operationId });
+        const { dispatchCancel } = await import('../routers/execution.js');
+        await executionState.cancel(execNow.operationId, dispatchCancel);
+        const reply = `Stopping ${execNow.worker} (${execNow.operationId.slice(-12)})…`;
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        writeSse(res, 'done', { route: 'execution_stop', operationId: normalizedOperationId, status: 'stopping' });
+        completed = true;
+        updateStreamExecution({ status: 'STOPPING', currentAction: 'Stopping…' });
+        return res.end();
+      }
+      if (STATUS_CUE.test(trimmed)) {
+        logStreamStage(normalizedOperationId, 'execution-status cue', { operationId: execNow.operationId });
+        const idleS = Math.max(0, Math.round((Date.now() - execNow.lastActivityAt) / 1000));
+        const elapsedS = Math.max(0, Math.round((Date.now() - execNow.startedAt) / 1000));
+        const llm = (execNow.resolvedProvider || execNow.requestedProvider) || 'unknown'
+          + (execNow.resolvedModel || execNow.requestedModel ? ` / ${execNow.resolvedModel || execNow.requestedModel}` : '');
+        const reply =
+          `${execNow.worker === 'jarvis' ? 'Jarvis' : execNow.worker === 'codex' ? 'CodeX' : execNow.worker === 'hermes' ? 'Hermes' : execNow.worker} is currently ${execNow.status.replace(/_/g, ' ').toLowerCase()} on operation ${execNow.operationId.slice(-12)}. ` +
+          (llm ? `LLM: ${llm}. ` : '') +
+          (execNow.currentAction ? `Current action: ${execNow.currentAction}. ` : '') +
+          `It entered ${execNow.status.replace(/_/g, ' ').toLowerCase()} ${elapsedS}s ago; last backend activity was ${idleS}s ago.` +
+          (idleS > 30 ? ' This looks stalled — you can stop it and retry.' : (execNow.cancel ? ' You can stop it anytime.' : ''));
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        writeSse(res, 'done', { route: 'execution_status', operationId: normalizedOperationId });
+        completed = true;
+        updateStreamExecution({ status: execNow.status, currentAction: execNow.currentAction || undefined });
+        return res.end();
+      }
+    }
+
     // ── Executive intent intercept (internal-worker awareness) ──
     // Runs after explicit task-control but before the generic intent router.
     // When the prompt names an internal capability (Hermes/CodeX/Research/
@@ -564,6 +639,14 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           limit: concurrency.limit,
           position: concurrency.position
         });
+        updateStreamExecution({
+          status: 'QUEUED',
+          currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
+          queuePosition: concurrency.position ?? null,
+          activeCount: concurrency.active ?? null,
+          limit: concurrency.limit ?? null,
+          cancel: { kind: 'task', id: task.taskId },
+        });
         writeSse(res, 'status', {
           state: 'queued',
           currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
@@ -574,6 +657,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           lastActivityAt: Date.now()
         });
       } else {
+        updateStreamExecution({
+          status: 'DISPATCHING',
+          currentAction: `Dispatching ${workerTitle} task ${taskShortId(task.taskId)}`,
+          cancel: { kind: 'task', id: task.taskId },
+        });
         dispatchTask(task).catch(() => { /* adapter records its own failure */ });
       }
 
@@ -824,6 +912,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       logStreamStage(normalizedOperationId, 'investigate route', { confidence: intent.confidence });
       const startedAt = Date.now();
       let reply: string;
+      updateStreamExecution({ status: 'RUNNING', currentAction: 'Inspecting runtime state' });
       try {
         reply = await investigateAgenticState(req.params.id, prompt);
       } catch (err: any) {
@@ -852,6 +941,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         totalMs: Date.now() - startedAt
       });
       completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply.slice(0, 500));
       return res.end();
     }
 
@@ -1012,6 +1103,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       ...(overrideProvider ? { provider: overrideProvider } : {}),
       ...(overrideModel ? { model: overrideModel } : {})
     });
+    updateStreamExecution({ status: 'WAITING_FOR_MODEL', currentAction: `Waiting for ${selectedProvider} / ${selectedModel}` });
     logStreamStage(normalizedOperationId, 'provider call started', {
       provider: selectedProvider,
       model: selectedModel
@@ -1059,6 +1151,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         if (firstTokenAt === null) {
           firstTokenAt = Date.now();
           sawFirstToken = true;
+          updateStreamExecution({ status: 'RUNNING', currentAction: 'Streaming reply', resolvedProvider: provider, resolvedModel: model });
           logStreamStage(normalizedOperationId, 'first token received', {
             elapsedMs: firstTokenAt - startedAt,
             provider,
@@ -1143,6 +1236,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       responseLength: finalReply.length
     });
     completed = true;
+    updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+    endStreamExecution('COMPLETED', finalReply.slice(0, 500));
     return res.end();
   } catch (err: any) {
     if (totalTimer) clearTimeout(totalTimer);
@@ -1158,6 +1253,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       fallbackProvider,
       fallbackModel
     });
+    endStreamExecution(cancelledByClient ? 'CANCELLED' : 'FAILED', message);
     if (!clientClosed) {
       writeSse(res, cancelledByClient ? 'cancelled' : 'error', {
         error: message,
@@ -1173,6 +1269,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
   } finally {
     if (totalTimer) clearTimeout(totalTimer);
+    unregisterStreamAborter(execOpId);
   }
 });
 

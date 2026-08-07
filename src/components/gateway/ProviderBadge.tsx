@@ -19,11 +19,29 @@ export const ProviderBadge: React.FC<ProviderBadgeProps> = ({ message, onClick }
     );
   }
 
-  if (!message.gateway || !message.gateway.provider) {
+  const meta = ((message as any).metadata || {}) as Record<string, any>;
+  const provider = message.gateway?.provider || meta.provider;
+  const model = message.gateway?.model || meta.model;
+
+  if (!provider) {
     return null;
   }
 
-  const { status, provider } = message.gateway;
+  // Orchestrator messages (task delegation, routing events, investigations)
+  // are NOT LLM executions — label them clearly so they are never mistaken
+  // for the actual provider/model that ran.
+  if (provider === 'agentic-os') {
+    return (
+      <span
+        className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700"
+        title="Orchestrator (AgenticOS routing layer), not the LLM provider/model"
+      >
+        ORCHESTRATOR · agentic-os / {model || 'registry'}
+      </span>
+    );
+  }
+
+  const { status } = message.gateway || {};
   let colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
   
   if (status === 'fallback' || status === 'routing') {

@@ -338,6 +338,21 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const controller = new AbortController();
   goalControllers.set(goalId, controller);
 
+  // Canonical execution record (coherence milestone): the goal is the
+  // operation; the UI reads this record only.
+  const exec = await import('../services/executionState.js');
+  exec.begin({
+    operationId: goalId,
+    worker: 'codex',
+    status: 'PLANNING',
+    currentAction: 'Planning the approach',
+    requestedProvider: null,
+    requestedModel: null,
+    cancel: { kind: 'goal', id: goalId },
+  });
+  const updateGoalExec = (patch: Parameters<typeof exec.update>[1]) => exec.update(goalId, patch);
+  const endGoalExec = (status: 'COMPLETED' | 'FAILED' | 'CANCELLED', result?: string) => exec.end(goalId, status, result);
+
   let goal: ReturnType<typeof goalStore.get> = initialGoal;
 
   // Resolve the workspace root for this run: an explicit team/execution context
@@ -677,6 +692,7 @@ ${m.content}`).join('\n\n');
           }));
 
           const startLlm = Date.now();
+          updateGoalExec({ status: 'WAITING_FOR_MODEL', currentAction: `Waiting for ${effectiveProvider || 'model'} response` });
           llmResult = await llmChat(llmOptions);
           const durationLlm = Date.now() - startLlm;
           const replyLength = llmResult.reply?.length ?? 0;
@@ -947,6 +963,7 @@ ${m.content}`).join('\n\n');
             errorDetails: parseError
           });
           goalStore.update(goalId, { status: 'failed' });
+          endGoalExec('FAILED', limitMessage);
           throw new Error('CODEX_PARSE_FAILURE_LIMIT');
         }
       }
@@ -1175,6 +1192,7 @@ ${m.content}`).join('\n\n');
 
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
             goalStore.update(goalId, { status: 'completed' });
+          endGoalExec('COMPLETED', toolResult?.slice(0, 500));
             break;
           }
           else {
@@ -1219,10 +1237,12 @@ ${m.content}`).join('\n\n');
         } else if (current && !['stopped', 'paused', 'cancelled', 'failed', 'completed', 'interrupted'].includes(current.status)) {
           goalStore.update(goalId, { status: 'failed' });
         }
+        endGoalExec('CANCELLED');
         break;
       }
       pushEventToWriter(writer, 'failed', `Fatal loop error: ${err.message}`, undefined, err.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'A fatal error occurred. Task stopped.', eventType: 'task_failed', provider: currentProvider, model: currentModel, payload: { error: err.message } });
       goalStore.update(goalId, { status: 'failed' });
+      endGoalExec('FAILED', err.message);
       break;
     }
   }

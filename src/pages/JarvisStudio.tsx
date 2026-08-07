@@ -11,7 +11,8 @@ import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/ja
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
-import { executionStore } from '../diagnostics/executionStore';
+import { executionStore, startExecutionStream } from '../diagnostics/executionStore';
+import type { ExecutionRecord } from '../diagnostics/executionStore';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import styles from './JarvisStudio.module.css';
@@ -391,69 +392,20 @@ export default function JarvisStudio() {
     if (next && next !== selectedTaskId) setSelectedTaskId(next);
   }, [taskSummary]);
 
-  // Live execution bar for background tasks (PRIORITY 4/5/6/10): feed the
-  // shared store from the active task + register STOP → cancel API. CodeX
-  // repository-analysis dispatches create GOALS (goalStore), not background
-  // tasks, so active goals are also surfaced here.
+  // Live execution state (coherence milestone): the backend is the single
+  // author — start the SSE stream; the ExecutionBar and activity panel read
+  // the same canonical record. No component feeds the store independently.
   useEffect(() => {
-    const tasks = taskSummary?.tasks || [];
-    const activeTask = tasks.find(t => t.status === 'running' || t.status === 'queued' || t.status === 'dispatching' || t.status === 'planning') || null;
-    if (activeTask) {
-      const meta = (activeTask as any).metadata || {};
-      const concurrency = meta.concurrency;
-      const workerLabel = activeTask.worker === 'hermes' ? 'Hermes' : activeTask.worker === 'codex' ? 'CodeX' : activeTask.worker === 'revenue' ? 'Revenue' : activeTask.worker;
-      executionStore.setActive({
-        agent: workerLabel,
-        provider: null,
-        model: null,
-        currentAction: activeTask.status === 'queued' && concurrency?.blocked
-          ? `Waiting for ${workerLabel} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`
-          : activeTask.progressMessage || activeTask.currentStage || 'Working…',
-        // A concurrency-queued task keeps the semantic 'queued' stage so the
-        // Execution Bar's STOP stays visible (PRIORITY 6: stop while queued).
-        stage: activeTask.status === 'queued' && concurrency?.blocked ? 'queued' : (activeTask.currentStage || activeTask.status),
-        taskId: activeTask.taskId,
-        operationId: meta.operationId || null,
-        startedAt: activeTask.startedAt ? new Date(activeTask.startedAt).getTime() : Date.now(),
-      });
-      executionStore.registerStop(() => {
-        void fetch(`/api/background-tasks/${encodeURIComponent(activeTask.taskId)}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'user-stopped-execution-bar' }) }).catch(() => {});
-      });
-      return;
-    }
-    // No active background task — check for an active CodeX goal.
-    (async () => {
-      try {
-        const goalsRes = await fetch('/api/chat/agents/goals');
-        const goals = await goalsRes.json();
-        const activeGoal = (Array.isArray(goals) ? goals : []).find((g: any) => ['queued', 'planning', 'executing', 'retrying', 'waiting_for_approval'].includes(g.status));
-        if (!activeGoal) { executionStore.setIdle(); executionStore.registerStop(null); return; }
-        let action = activeGoal.status;
-        try {
-          const d = await (await fetch(`/api/chat/agents/goal/${activeGoal.id}`)).json();
-          const last = (d?.history || []).slice(-1)[0];
-          if (last?.message) action = last.message;
-          else if (last?.eventType) action = last.eventType;
-        } catch { /* keep status as action */ }
-        executionStore.setActive({
-          agent: 'CodeX',
-          provider: null,
-          model: null,
-          currentAction: action,
-          stage: activeGoal.status,
-          taskId: null,
-          operationId: activeGoal.id,
-          startedAt: activeGoal.createdAt ? new Date(activeGoal.createdAt).getTime() : Date.now(),
-        });
-        executionStore.registerStop(() => {
-          void fetch(`/api/chat/agents/goal/${encodeURIComponent(activeGoal.id)}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'abort' }) }).catch(() => {});
-        });
-      } catch {
-        executionStore.setIdle();
-        executionStore.registerStop(null);
-      }
-    })();
-  }, [taskSummary]);
+    startExecutionStream();
+    return () => { /* the stream is module-scoped (shared across remounts) */ };
+  }, []);
+
+  // Canonical current execution for the ACTIVE RUN panel.
+  const [currentExec, setCurrentExec] = useState<ExecutionRecord | null>(executionStore.get().current);
+  useEffect(() => {
+    const unsub = executionStore.subscribe(() => setCurrentExec(executionStore.get().current));
+    return unsub;
+  }, []);
 
   // Current-turn ownership: a task created by the running operation becomes
   // the selected task immediately (even over a manually pinned historical one).
@@ -893,15 +845,31 @@ export default function JarvisStudio() {
               OPEN BOARD
             </button>
           </div>
-          {activeRun ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div className={cc.kv}><span className={cc.kvLabel}>AGENT</span><span className={cc.kvValue}>Hermes</span></div>
+          {currentExec ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} data-testid="jarvis-current-execution">
+              <div className={cc.kv}><span className={cc.kvLabel}>AGENT</span><span className={cc.kvValue}>{currentExec.worker === 'jarvis' ? 'Jarvis' : currentExec.worker === 'codex' ? 'CodeX' : currentExec.worker === 'hermes' ? 'Hermes' : currentExec.worker === 'revenue' ? 'Revenue' : currentExec.worker}</span></div>
+              <div className={cc.kv}><span className={cc.kvLabel}>STATUS</span><span className={cc.kvValue} style={{ color: currentExec.status === 'CANCELLED' || currentExec.status === 'FAILED' ? '#f87171' : currentExec.status === 'COMPLETED' ? '#4ade80' : '#7dd3fc' }}>{currentExec.status.replace(/_/g, ' ')}</span></div>
+              {(currentExec.resolvedProvider || currentExec.requestedProvider) && (
+                <div className={cc.kv}><span className={cc.kvLabel}>LLM</span><span className={cc.kvValue}>{(currentExec.resolvedProvider || currentExec.requestedProvider) || ''}{(currentExec.resolvedModel || currentExec.requestedModel) ? ` / ${currentExec.resolvedModel || currentExec.requestedModel}` : ''}{currentExec.fallbackUsed ? ` (fallback: ${currentExec.fallbackReason || 'yes'})` : ''}</span></div>
+              )}
+              {currentExec.currentAction && (
+                <div className={cc.kv}><span className={cc.kvLabel}>ACTION</span><span className={cc.kvValue} style={{ maxWidth: 190 }}>{currentExec.currentAction}</span></div>
+              )}
+              {currentExec.status === 'QUEUED' && currentExec.limit != null && (
+                <div className={cc.kv}><span className={cc.kvLabel}>QUEUE</span><span className={cc.kvValue}>Active {currentExec.activeCount ?? 0}/{currentExec.limit}{currentExec.queuePosition != null ? ` · Position ${currentExec.queuePosition}` : ''}</span></div>
+              )}
+              <div className={cc.kv}><span className={cc.kvLabel}>ELAPSED</span><span className={cc.kvValue}>{Math.max(0, Math.round((Date.now() - currentExec.startedAt) / 1000))}s</span></div>
+              <div className={cc.kv}><span className={cc.kvLabel}>OPERATION</span><span className={cc.kvValue} style={{ fontVariantNumeric: 'tabular-nums' }}>{currentExec.operationId.slice(-16)}</span></div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: '#64748b' }}>No active run</div>
+          )}
+          {activeRun && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(30,41,59,0.6)' }}>
+              <div style={{ fontSize: 9, letterSpacing: 1, color: '#64748b' }}>HERMES RUN (board detail)</div>
               <div className={cc.kv}><span className={cc.kvLabel}>TASK</span><span className={cc.kvValue} style={{ maxWidth: 190 }}>{activeRun.prompt.slice(0, 60)}</span></div>
-              <div className={cc.kv}><span className={cc.kvLabel}>STAGE</span><span className={cc.kvValue}>{activeRun.status.replace(/_/g, ' ').toUpperCase()}</span></div>
               <div className={cc.kv}><span className={cc.kvLabel}>FILES</span><span className={cc.kvValue}>{filesChanged > 0 ? `${filesChanged} changed` : '—'}</span></div>
-              <div className={cc.kv}><span className={cc.kvLabel}>BUILD</span><span className={cc.kvValue}>{activeRun.status === 'completed' ? 'PASSED' : activeRun.status === 'failed' ? 'FAILED' : '—'}</span></div>
               <div className={cc.kv}><span className={cc.kvLabel}>CARD</span><span className={cc.kvValue}>{activeRun.cardId || '—'}</span></div>
-              <div className={cc.kv}><span className={cc.kvLabel}>RUN ID</span><span className={cc.kvValue}>{activeRun.hermesRunId.slice(0, 16)}…</span></div>
               {activeRun.status === 'completed' && activeRun.finalText && (
                 <div style={{ fontSize: 10.5, color: '#86efac', marginTop: 4 }}>✓ {activeRun.finalText.slice(0, 110)}</div>
               )}
@@ -909,8 +877,6 @@ export default function JarvisStudio() {
                 <div style={{ fontSize: 10.5, color: '#fca5a5', marginTop: 4 }}>✗ run failed — see activity</div>
               )}
             </div>
-          ) : (
-            <div style={{ fontSize: 11, color: '#64748b' }}>No active run</div>
           )}
           {/* Collapsible activity stream (real run events) */}
           <button
@@ -980,9 +946,22 @@ export default function JarvisStudio() {
                     </div>
                   )}
                   <div className={cc.kv}><span className={cc.kvLabel}>AGENT</span><span className={cc.kvValue}>{selectedTask.selectedAgent || selectedTask.worker}</span></div>
-                  <div className={cc.kv}><span className={cc.kvLabel}>STAGE</span><span className={cc.kvValue}>{(selectedTask.currentStage || selectedTask.status).replace(/_/g, ' ').toUpperCase()}</span></div>
-                  <div className={cc.kv}><span className={cc.kvLabel}>PROGRESS</span><span className={cc.kvValue} style={{ maxWidth: 200 }}>{selectedTask.progressMessage || '—'}</span></div>
-                  <div className={cc.kv}><span className={cc.kvLabel}>ELAPSED</span><span className={cc.kvValue}>{elapsedLabel(selectedTask)}</span></div>
+                  {/* Terminal normalization (coherence milestone): a cancelled/
+                      completed/failed task NEVER shows its stale currentStage or
+                      progressMessage as though it were still running. */}
+                  {TASK_TERMINAL_STATUS.has(selectedTask.status) ? (
+                    <>
+                      <div className={cc.kv}><span className={cc.kvLabel}>STAGE</span><span className={cc.kvValue} style={{ color: selectedTask.status === 'cancelled' ? '#f87171' : selectedTask.status === 'failed' ? '#f87171' : '#4ade80' }}>{selectedTask.status.replace(/_/g, ' ').toUpperCase()}</span></div>
+                      <div className={cc.kv}><span className={cc.kvLabel}>PROGRESS</span><span className={cc.kvValue} style={{ maxWidth: 200 }}>{selectedTask.status === 'completed' ? (((selectedTask as any).resultText) ? `Result: ${String((selectedTask as any).resultText).slice(0, 140)}` : 'Task completed.') : `Final action before ${selectedTask.status}: ${selectedTask.progressMessage || '—'}`}</span></div>
+                      <div className={cc.kv}><span className={cc.kvLabel}>ENDED</span><span className={cc.kvValue}>{selectedTask.completedAt ? new Date(selectedTask.completedAt).toLocaleTimeString() : '—'}</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={cc.kv}><span className={cc.kvLabel}>STAGE</span><span className={cc.kvValue}>{(selectedTask.currentStage || selectedTask.status).replace(/_/g, ' ').toUpperCase()}</span></div>
+                      <div className={cc.kv}><span className={cc.kvLabel}>PROGRESS</span><span className={cc.kvValue} style={{ maxWidth: 200 }}>{selectedTask.progressMessage || '—'}</span></div>
+                      <div className={cc.kv}><span className={cc.kvLabel}>ELAPSED</span><span className={cc.kvValue}>{elapsedLabel(selectedTask)}</span></div>
+                    </>
+                  )}
                   <div className={cc.kv}><span className={cc.kvLabel}>FILES</span><span className={cc.kvValue}>{selectedTask.filesChanged.length ? `${selectedTask.filesChanged.length} changed` : '—'}</span></div>
                   <div className={cc.kv}><span className={cc.kvLabel}>BUILD/TEST</span><span className={cc.kvValue}>{selectedTask.buildState.toUpperCase()} / {selectedTask.testState.toUpperCase()}</span></div>
                   <div className={cc.kv}><span className={cc.kvLabel}>CARD</span><span className={cc.kvValue}>{selectedTask.linkedBoardCardId || '—'}</span></div>
