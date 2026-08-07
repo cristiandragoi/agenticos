@@ -71,6 +71,14 @@ export interface PipelineConfig {
   rawRequest: string;
   /** Where artifacts (proposal package, site concept) are written. */
   workspacePath: string;
+  /**
+   * Discovery headroom (contact-quality milestone): discovery requests
+   * prospectCount × this multiplier candidates so that qualification
+   * rejections can be replaced WITHOUT a second discovery round. Default 2.
+   */
+  discoveryHeadroomMultiplier?: number;
+  /** Hard cap on how many candidates a single discovery pass may return. */
+  discoveryCap?: number;
 }
 
 export type EvidenceLabel = 'verified' | 'inferred' | 'unavailable';

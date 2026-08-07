@@ -25,6 +25,10 @@ export interface ExecutionRecord {
   limit: number | null;
   result: string | null;
   cancel: { kind: 'stream' | 'task' | 'goal'; id: string } | null;
+  discoveredCount: number | null;
+  qualifiedCount: number | null;
+  rejectedCount: number | null;
+  targetCount: number | null;
   note: string | null;
 }
 

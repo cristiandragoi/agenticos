@@ -79,7 +79,9 @@ export async function discoverProspects(
         blocker: `No sample fixtures match niche "${config.niche}" and city "${config.city}".`,
       };
     }
-    const wanted = Math.max(1, Math.min(config.prospectCount, fixtures.length));
+    // Discovery headroom: request more than the target so rejections can be
+    // replaced without a second discovery round (contact-quality milestone).
+    const wanted = Math.max(1, Math.min(config.prospectCount * (config.discoveryHeadroomMultiplier ?? 2), fixtures.length));
     const prospects: ProspectRecord[] = fixtures.slice(0, wanted).map((f) => ({
       prospectId: `pp-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
       businessName: f.businessName,

@@ -122,6 +122,11 @@ export const ExecutionBar: React.FC = () => {
       <span style={{ color: '#cbd5e1', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={exec.currentAction || ''}>
         {exec.currentAction || 'Working…'}
       </span>
+      {exec.worker === 'revenue' && exec.targetCount != null && (
+        <span data-testid="execution-revenue-counts" style={{ color: '#a5b4fc', fontSize: 11, whiteSpace: 'nowrap' }}>
+          Target {exec.targetCount} · Discovered {exec.discoveredCount ?? '?'} · Qualified {exec.qualifiedCount ?? '?'} · Rejected {exec.rejectedCount ?? '?'}
+        </span>
+      )}
       <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{elapsedS}s</span>
       <span style={{ color: stalled ? '#f87171' : idleS > 5 ? '#f59e0b' : '#475569', fontSize: 11 }}>
         {stalled ? `Possible stall · last backend activity ${idleS}s ago` : `Last activity ${idleS}s ago`}

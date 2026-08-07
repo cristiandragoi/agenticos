@@ -21,7 +21,7 @@ import { PIPELINE_STAGE_LABELS, type AuditFinding, type PipelineConfig, type Pip
 import { revenuePipelineRepo } from './store.js';
 import { discoverProspects } from './discovery.js';
 import { fetchPublicPage } from './web.js';
-import { auditWebsite, findingsToFacts, computeAuditScore, extractPublicContactInfo, hasPublicContact } from './audit.js';
+import { auditWebsite, findingsToFacts, computeAuditScore, extractPublicContactInfo, hasPublicContact, contactBelongsToBusiness } from './audit.js';
 import { scoreProspect, rankProspects } from './scoring.js';
 import { buildRebuildBlueprint } from './blueprint.js';
 import { generateSiteConcept } from './concept.js';
@@ -116,10 +116,19 @@ export async function runRevenuePipeline(opts: {
     hooks.progress('task.progress', `${discovered.prospects.length} prospect(s) discovered (source: ${discovered.prospects[0].discoverySource}${discovered.prospects[0].discoverySourceRecord ? ` — ${discovered.prospects[0].discoverySourceRecord.sourceType}` : ''}).`, { source: discovered.prospects[0].discoverySource }, { worker: 'research' });
 
     // ── Stage 2+3 — Public website inspection + structured audit ───────────
+    // (contact-quality milestone) Discovery returns a HEADROOM pool; the
+    // audit processes the initial batch, then EXPANDS while qualified < target
+    // and candidates remain — a rejected candidate triggers replacement
+    // instead of silently stopping at the first batch.
     setStage('INSPECTING WEBSITE', 'Inspecting public websites…');
+    const pool = discovered.prospects;
+    const target = config.prospectCount;
+    const headroom = Math.max(target, target * (config.discoveryHeadroomMultiplier ?? 2));
     const audited: ProspectRecord[] = [];
-    for (const prospect of discovered.prospects) {
-      if (hooks.isStopRequested()) return finishCancelled(runId, hooks);
+    let cursor = 0;
+    const qualifiedNow = () => audited.filter((p) => hasPublicContact(p.publicContact) && contactBelongsToBusiness(p.publicContact, canonicalDomainOf(p.websiteUrl))).length;
+    const auditOne = async (prospect: ProspectRecord): Promise<boolean> => {
+      if (hooks.isStopRequested()) return false;
       hooks.progress('task.progress', `Inspecting ${prospect.websiteUrl}…`, { url: prospect.websiteUrl });
 
       let html = '';
@@ -146,12 +155,35 @@ export async function runRevenuePipeline(opts: {
       findingsToFacts(prospect, findings);
       prospect.auditScore = computeAuditScore(findings);
       // Multi-lead contract: extract observed public contact methods. A lead
-      // qualifies only when at least one real public contact is present.
+      // qualifies only when at least one real public contact is present AND
+      // plausibly belongs to the business (identity sanity).
       prospect.publicContact = extractPublicContactInfo(html, prospect.websiteUrl);
       prospect.status = 'audited';
       prospect.updatedAt = new Date().toISOString();
       revenuePipelineRepo.upsertProspect(prospect);
       audited.push(prospect);
+      return true;
+    };
+
+    // Initial batch = headroom.
+    const initialEnd = Math.min(pool.length, headroom);
+    for (; cursor < initialEnd; cursor++) {
+      if (!(await auditOne(pool[cursor]))) return finishCancelled(runId, hooks);
+    }
+    let q = qualifiedNow();
+    hooks.progress('task.progress', `${cursor}/${pool.length} candidates inspected, ${q} qualified, ${cursor - q} rejected (target ${target}).`, { discovered: cursor, qualified: q, rejected: cursor - q, requested: target });
+    // Replacement expansion: while qualified < target and candidates remain,
+    // inspect the next candidates — never stop at the first batch.
+    while (q < target && cursor < pool.length) {
+      const remainingNeed = target - q;
+      const batch = Math.max(remainingNeed, Math.min(5, pool.length - cursor));
+      const end = Math.min(pool.length, cursor + batch);
+      for (; cursor < end; cursor++) {
+        if (!(await auditOne(pool[cursor]))) return finishCancelled(runId, hooks);
+      }
+      q = qualifiedNow();
+      hooks.progress('task.progress', `Expanded discovery: ${cursor}/${pool.length} candidates inspected, ${q} qualified, ${cursor - q} rejected (target ${target}).`, { discovered: cursor, qualified: q, rejected: cursor - q, requested: target, expanded: true });
+      if (hooks.isStopRequested()) return finishCancelled(runId, hooks);
     }
     run = revenuePipelineRepo.updateRun(runId, { prospects: audited }) ?? run;
 
@@ -174,8 +206,10 @@ export async function runRevenuePipeline(opts: {
 
     // ── Multi-lead delivery (separate lead discovery from deep-dive) ──
     // The requested deliverable is N qualified leads; the deep-dive targets
-    // the strongest ONE but must never destroy the full lead list.
-    const qualifiedLeads = ranked.filter((p) => hasPublicContact(p.publicContact));
+    // the strongest ONE but must never destroy the full lead list. A lead
+    // counts toward the target ONLY when it has verified public contact AND
+    // the contact plausibly belongs to the business (identity sanity).
+    const qualifiedLeads = ranked.filter((p) => hasPublicContact(p.publicContact) && contactBelongsToBusiness(p.publicContact, canonicalDomainOf(p.websiteUrl)));
     const rejectedCount = ranked.length - qualifiedLeads.length;
     hooks.progress('task.progress', `${qualifiedLeads.length} qualified lead(s) with public contact found (requested ${config.prospectCount}); ${rejectedCount} candidate(s) rejected (no public contact observed).`, {
       qualified: qualifiedLeads.length,
@@ -184,7 +218,9 @@ export async function runRevenuePipeline(opts: {
     });
 
     // ── Stage 5 — Human target selection when confidence is low ─────────────
-    let selected = ranked[0];
+    // The deep-dive targets the strongest QUALIFIED lead — never a candidate
+    // without verified public contact (contact-quality milestone).
+    let selected = qualifiedLeads[0] || ranked[0];
     if (selected && selected.confidence === 'low') {
       setStage('SCORING OPPORTUNITY', 'Confidence low — requesting human target selection…');
       const choice = await hooks.requestApprovalAndWait({
@@ -357,7 +393,10 @@ export async function runRevenuePipeline(opts: {
     run = revenuePipelineRepo.updateRun(runId, { currentStage: 'COMPLETED', runSummaryPath, totalElapsedMs }) ?? run;
     writeMemoryEntry(run, selected);
 
-    const leadLines = qualifiedLeads.map((p, i) =>
+    // The RETURNED deliverable is exactly the requested count (top N by rank);
+    // extra qualified candidates remain in the pool but do not overshoot.
+    const returnedLeads = qualifiedLeads.slice(0, config.prospectCount);
+    const leadLines = returnedLeads.map((p, i) =>
       `${i + 1}. ${p.businessName}\n` +
       `   Website: ${p.websiteUrl}\n` +
       `   Contact: ${formatContact(p.publicContact)}\n` +
@@ -365,11 +404,13 @@ export async function runRevenuePipeline(opts: {
       `   Confidence: ${p.confidence} · opportunity score ${p.opportunityScore}/100`
     ).join('\n');
     const shortfallNote = qualifiedLeads.length < config.prospectCount
-      ? `\nOnly ${qualifiedLeads.length} qualifying lead(s) could be verified (requested ${config.prospectCount}); ${rejectedCount} candidate(s) rejected because no publicly accessible contact information was found.`
+      ? `\nPARTIAL result — ${qualifiedLeads.length} of ${config.prospectCount} requested leads verified; ${rejectedCount} candidate(s) rejected (no verified business contact found). Discovery sources exhausted.`
       : '';
     const resultText =
-      `Revenue pipeline completed — ${qualifiedLeads.length} qualified lead(s) found (requested ${config.prospectCount}).\n\n` +
-      `${leadLines || '(no qualifying leads with public contact)'}\n` +
+      (qualifiedLeads.length >= config.prospectCount
+        ? `Revenue pipeline completed — COMPLETED ${Math.min(qualifiedLeads.length, config.prospectCount)}/${config.prospectCount} qualified leads found.`
+        : `Revenue pipeline completed — PARTIAL ${qualifiedLeads.length} of ${config.prospectCount} requested leads verified.`) +
+      `\n\n${leadLines || '(no qualifying leads with public contact)'}\n` +
       `\nTop prospect: ${selected.businessName} (${selected.websiteUrl})\n` +
       `Deep-dive package: ${proposalDir}\n` +
       `Build ${run.buildState} · tests ${run.testState} · verification ${run.verificationState}.` +
@@ -660,9 +701,9 @@ function buildRunSummary(
       discovered: (run.prospects || []).length,
       qualified: qualifiedLeads.length,
       rejected: rejectedCount,
-      returned: qualifiedLeads.length,
+      returned: Math.min(qualifiedLeads.length, config.prospectCount),
     },
-    leads: qualifiedLeads.map((p) => ({
+    leads: qualifiedLeads.slice(0, config.prospectCount).map((p) => ({
       businessName: p.businessName,
       website: p.websiteUrl,
       contact: p.publicContact,
@@ -707,6 +748,15 @@ function formatContact(contact: PublicContactInfo | null | undefined): string {
   if (contact.contactPageUrl) parts.push(`contact page ${contact.contactPageUrl}`);
   if (contact.address) parts.push(`address "${contact.address}"`);
   return parts.length ? parts.join(' · ') : '(no public contact found)';
+}
+
+function canonicalDomainOf(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 function writeMemoryEntry(run: PipelineRunRecord, selected: ProspectRecord): void {

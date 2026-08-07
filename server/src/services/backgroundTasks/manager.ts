@@ -410,6 +410,22 @@ export class BackgroundTaskManager extends EventEmitter {
       ? backgroundTaskRepo.updateTask(taskId, safePatch)
       : task;
     this.appendEvent(taskId, kind, summary, detail);
+    // Canonical count mirror (contact-quality milestone): revenue progress
+    // events carry {discovered, qualified, rejected, requested} in the patch
+    // (3rd arg) or detail (4th arg) — expose the same numbers on the
+    // canonical execution record so the bar/activity panel show live pipeline
+    // progress without any second source.
+    const opId = (task.metadata as any)?.operationId as string | undefined;
+    const counts = { ...safePatch, ...detail } as Record<string, unknown>;
+    if (opId && (counts.discovered !== undefined || counts.qualified !== undefined || counts.rejected !== undefined || counts.requested !== undefined || counts.expanded !== undefined)) {
+      executionState.update(opId, {
+        discoveredCount: typeof counts.discovered === 'number' ? counts.discovered : null,
+        qualifiedCount: typeof counts.qualified === 'number' ? counts.qualified : null,
+        rejectedCount: typeof counts.rejected === 'number' ? counts.rejected : null,
+        targetCount: typeof counts.requested === 'number' ? counts.requested : null,
+        currentAction: summary,
+      });
+    }
     if (updated && updated.progressMessage !== task.progressMessage) {
       this.emit('task:updated', updated);
     }

@@ -75,6 +75,22 @@ describe('Background Task Manager — persistence & events', () => {
     expect(new Set(seqs).size).toBe(seqs.length);
   });
 
+  it('mirrors revenue lead counts from progress events onto the canonical execution record', async () => {
+    const opId = 'op-mirror-test';
+    const { task } = mgr.createTask({ ...baseInput, worker: 'revenue' as const, route: 'revenue_pipeline' as const, metadata: { operationId: opId } });
+    const execMod = await import('../services/executionState.js');
+    execMod.clearExecutions();
+    execMod.begin({ operationId: opId, worker: 'revenue', status: 'RUNNING' });
+    mgr.progress(task.taskId, 'task.progress', '10/10 candidates inspected, 8 qualified, 2 rejected (target 5).', {}, { discovered: 10, qualified: 8, rejected: 2, requested: 5 });
+    const rec = execMod.getCurrent();
+    expect(rec?.discoveredCount).toBe(10);
+    expect(rec?.qualifiedCount).toBe(8);
+    expect(rec?.rejectedCount).toBe(2);
+    expect(rec?.targetCount).toBe(5);
+    expect(rec?.currentAction).toContain('candidates inspected');
+    execMod.clearExecutions();
+  });
+
   it('supports multiple concurrent tasks independently', () => {
     const a = mgr.createTask(baseInput).task;
     const b = mgr.createTask({ ...baseInput, title: 'Research brief', worker: 'research' as const, route: 'research' }).task;

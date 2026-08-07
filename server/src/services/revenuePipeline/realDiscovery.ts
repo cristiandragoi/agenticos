@@ -144,8 +144,16 @@ export function elementsToProspects(
 ): ProspectRecord[] {
   const seen = new Set<string>();
   const prospects: ProspectRecord[] = [];
+  // Discovery headroom: request prospectCount × multiplier candidates so that
+  // qualification rejections can be replaced without a second discovery round.
+  const target = Math.max(
+    config.prospectCount,
+    config.prospectCount * (config.discoveryHeadroomMultiplier ?? 2)
+  );
+  const cap = config.discoveryCap ?? 40;
+  const limit = Math.min(target, cap);
   for (const el of elements) {
-    if (prospects.length >= config.prospectCount) break;
+    if (prospects.length >= limit) break;
     const tags = el.tags || {};
     const name = tags.name?.trim();
     const website = normalizeWebsite(tags.website);

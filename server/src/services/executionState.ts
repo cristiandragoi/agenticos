@@ -49,6 +49,11 @@ export interface ExecutionRecord {
   limit: number | null;
   result: string | null;
   cancel: CancelAction | null;
+  /** Revenue-pipeline lead counts (contact-quality milestone). */
+  discoveredCount: number | null;
+  qualifiedCount: number | null;
+  rejectedCount: number | null;
+  targetCount: number | null;
   note: string | null;
 }
 
@@ -117,6 +122,10 @@ export function begin(partial: Partial<ExecutionRecord> & { operationId: string;
     limit: partial.limit ?? null,
     result: partial.result ?? null,
     cancel: partial.cancel ?? null,
+    discoveredCount: partial.discoveredCount ?? null,
+    qualifiedCount: partial.qualifiedCount ?? null,
+    rejectedCount: partial.rejectedCount ?? null,
+    targetCount: partial.targetCount ?? null,
     note: partial.note ?? null,
   };
   publish();

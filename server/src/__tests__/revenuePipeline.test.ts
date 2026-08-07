@@ -203,7 +203,9 @@ describe('Revenue Pipeline — prospect records', () => {
     const cfg = baseConfig();
     const { prospects, blocker } = await discoveryMod.discoverProspects(cfg);
     expect(blocker).toBeNull();
-    expect(prospects.length).toBe(3);
+    // Discovery headroom (contact-quality milestone): requested 3 → up to 6
+    // candidates so qualification rejections can be replaced.
+    expect(prospects.length).toBe(6);
     for (const p of prospects) {
       expect(p.prospectId).toBeTruthy();
       expect(p.businessName).toBeTruthy();
@@ -479,7 +481,7 @@ describe('Revenue Pipeline — end-to-end (fake hooks, no build)', () => {
     expect(run.outreachApproved).toBe(true);
     expect(run.buildState).toBe('skipped');
     expect(run.verificationState).toBe('passed');
-    expect(run.prospects.length).toBe(3);
+    expect(run.prospects.length).toBe(6);
     expect(run.proposalDirPath).toBeTruthy();
     expect(run.runSummaryPath).toBeTruthy();
     expect(run.costLedger).toEqual([]);
@@ -787,22 +789,24 @@ describe('Revenue Pipeline — multi-lead delivery', () => {
     return { result, resultText, summary };
   }
 
-  it('requested 1 → returns 1 qualified lead', async () => {
+  it('requested 1 → returns 1 qualified lead (headroom discovers 2, returns 1)', async () => {
     const { result, resultText, summary } = await runPipeline(1);
     expect(result.status).toBe('completed');
-    expect(summary.counts.qualified).toBe(1);
+    expect(summary.counts.discovered).toBe(2); // headroom 1×2
+    expect(summary.counts.qualified).toBe(2);
     expect(summary.counts.returned).toBe(1);
-    expect(resultText).toContain('1 qualified lead(s) found (requested 1)');
+    expect(resultText).toContain('COMPLETED 1/1 qualified leads found.');
   });
 
   it('requested 5 → returns 5 qualified leads, full list preserved with top prospect', async () => {
     const { resultText, summary } = await runPipeline(5);
-    expect(summary.counts.discovered).toBe(5);
+    expect(summary.counts.discovered).toBe(6); // headroom 5×2 capped at 6 fixtures
     expect(summary.counts.qualified).toBe(5);
-    expect(summary.counts.rejected).toBe(0);
+    expect(summary.counts.rejected).toBe(1); // Weber (no public contact)
+    expect(summary.counts.returned).toBe(5);
     expect(summary.leads.length).toBe(5);
     expect(summary.selectedProspect.businessName).toBeTruthy();
-    expect(resultText).toContain('5 qualified lead(s) found (requested 5)');
+    expect(resultText).toContain('COMPLETED 5/5 qualified leads found.');
     expect(resultText).toContain('Top prospect:');
     expect(resultText).toContain('No outreach was performed.');
     for (const l of summary.leads) {
@@ -811,13 +815,14 @@ describe('Revenue Pipeline — multi-lead delivery', () => {
     }
   });
 
-  it('requested 10 → attempts 10, truthful shortfall when only 6 discoverable', async () => {
+  it('requested 10 → attempts 10, truthful PARTIAL shortfall when only 6 discoverable', async () => {
     const { resultText, summary } = await runPipeline(10);
     expect(summary.counts.requested).toBe(10);
     expect(summary.counts.discovered).toBe(6);
     expect(summary.counts.qualified).toBe(5); // Weber rejected (no public contact)
     expect(summary.counts.rejected).toBe(1);
-    expect(resultText).toContain('Only 5 qualifying lead(s) could be verified (requested 10)');
+    expect(resultText).toContain('PARTIAL 5 of 10 requested leads verified');
+    expect(resultText).toContain('Discovery sources exhausted');
   });
 
   it('no contact info → lead rejected, never counted or invented', async () => {
@@ -826,6 +831,14 @@ describe('Revenue Pipeline — multi-lead delivery', () => {
     expect(summary.counts.qualified).toBe(5);
     const names = summary.leads.map((l: any) => l.businessName);
     expect(names).not.toContain('Meisterbetrieb Weber Dach & Fassade');
+  });
+
+  it('replacement discovery: a rejected candidate does not stop at the first batch', async () => {
+    // requested 5 with 6 candidates: 5 qualified + 1 rejected — the headroom
+    // pool provides the replacement, so the run returns the full target.
+    const { summary } = await runPipeline(5);
+    expect(summary.counts.qualified).toBe(5);
+    expect(summary.counts.returned).toBe(5);
   });
 
   it('deduplication does not reduce the count without replacement search', async () => {
@@ -840,5 +853,62 @@ describe('Revenue Pipeline — multi-lead delivery', () => {
     expect(summary.leads.length).toBe(5);
     const selectedInList = summary.leads.some((l: any) => l.businessName === summary.selectedProspect.businessName);
     expect(selectedInList).toBe(true);
+  });
+});
+
+describe('Revenue Pipeline — contact quality (no false positives)', () => {
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-cq-'));
+    wsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-cqws-'));
+    process.env.AGENT_TEAMS_DB_PATH = path.join(tmpDir, 'test.db');
+    await freshModules();
+  });
+  afterEach(() => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try { fs.rmSync(wsDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  const extract = (html: string, baseUrl: string) => auditMod.extractPublicContactInfo(html, baseUrl);
+  const belongs = (c: any, d: string) => auditMod.contactBelongsToBusiness(c, d);
+
+  it('rejects asset URLs as contact pages (css/js/images/plugin paths)', () => {
+    const html = `<a href="/kontakt">Kontakt</a><a href="/wp-content/plugins/contact-form-7/includes/css/styles.css">form</a><a href="/wp-content/themes/x/js/main.js">js</a><a href="/static/img/logo.png">img</a><a href="/uploads/banner.jpg">banner</a>`;
+    const c = extract(html, 'https://pilch-dachbau.de');
+    expect(c).toBeTruthy();
+    // The real /kontakt page IS the contact page; the assets are rejected.
+    expect(c.contactPageUrl).toBe('https://pilch-dachbau.de/kontakt');
+  });
+
+  it('rejects an asset-only page as having NO contact page', () => {
+    const html = `<a href="/wp-content/plugins/contact-form-7/includes/css/styles.css?ver=123">form css</a>`;
+    const c = extract(html, 'https://pilch-dachbau.de');
+    expect(c).toBeNull();
+  });
+
+  it('does not count external/legal links (EU ODR) as contact information', () => {
+    const html = `<a href="https://ec.europa.eu/consumers/odr">ODR</a><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a>`;
+    const c = extract(html, 'https://dachdeckerei-hasenbein.de');
+    expect(c).toBeNull();
+  });
+
+  it('rejects non-email values (mailto: ODR pattern) by format validation', () => {
+    const html = `<a href="mailto:info@dachdeckerei-hasenbein.de">info</a><a href="mailto:https://ec.europa.eu/consumers/odr">odr</a>`;
+    const c = extract(html, 'https://dachdeckerei-hasenbein.de');
+    expect(c?.email).toEqual(['info@dachdeckerei-hasenbein.de']);
+  });
+
+  it('identity sanity: same-domain contact belongs to the business', () => {
+    const c = extract('<a href="mailto:info@pilch-dachbau.de">info</a><a href="/kontakt">Kontakt</a>', 'https://pilch-dachbau.de');
+    expect(belongs(c, 'pilch-dachbau.de')).toBe(true);
+  });
+
+  it('identity sanity: external chamber/legal email alone does not qualify the lead', () => {
+    const c = extract('<a href="mailto:info@hwkpotsdam.de">kammer</a><a href="https://ec.europa.eu/consumers/odr">odr</a>', 'https://dachdeckerei-hasenbein.de');
+    expect(belongs(c, 'dachdeckerei-hasenbein.de')).toBe(false);
+  });
+
+  it('identity sanity: common free-mail providers still qualify (small-business norm)', () => {
+    const c = extract('<a href="mailto:kontakt@web.de">kontakt</a>', 'https://dachdeckerei-mueller.example');
+    expect(belongs(c, 'dachdeckerei-mueller.example')).toBe(true);
   });
 });

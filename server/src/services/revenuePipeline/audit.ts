@@ -23,29 +23,92 @@ const TRUST_RE = /\b(reviews?|testimonials?|referenzen|bewertungen|about|über u
 const PLACEHOLDER_RE = /\b(lorem ipsum|under construction|coming soon|im aufbau|placeholder|demnächst|todo|tbd|soon)\b/i;
 const SERVICE_PAGE_RE = /\b(leistungen|services|service|dachdeckerei|roofing|repair|wartung|maintenance|sanierung|renovation)\b/i;
 
+/** Asset URLs are never contact pages (contact-quality milestone). */
+const ASSET_EXT_RE = /\.(css|js|mjs|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|eot|json|xml|pdf|zip|map)(\?|#|$)/i;
+const ASSET_PATH_RE = /\/(wp-content|wp-includes|wp-json|plugins?|themes?|static|assets?|uploads?|cache|min|build|dist|node_modules|fonts?|images?|img|media|files)\//i;
+/** Contact signals in hrefs/paths that are NOT business contact pages. */
+const NON_BUSINESS_LINK_RE = /\b(impressum|imprint|privacy|datenschutz|legal|terms|agb|odr|ec\.europa|handwerkskammer|chamber|analytics|gtag|clarity|hotjar|facebook\.com|instagram\.com|x\.com|twitter\.com|linkedin\.com|youtube\.com)\b/i;
+/** Business-domain / official-directory email domains (identity sanity check). */
+const COMMON_MAIL_DOMAINS = /@(gmail|googlemail|web\.de|gmx\.de|gmx\.net|t-online\.de|freenet\.de|yahoo\.de?|outlook\.de?|hotmail\.de?|icloud\.com|me\.com|aol\.com)\b/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
+function canonicalDomain(url: string): string | null {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+    return h || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Extract publicly accessible contact methods from a public website document.
  * Values are OBSERVED (tel:/mailto: links, contact-page links, address text) —
  * never guessed or invented. A lead qualifies when at least one method exists.
+ *
+ * Contact-quality rules (contact-quality milestone):
+ *  - contact-page URLs must be real HTML/navigation pages: asset extensions
+ *    (.css/.js/.png/…) and asset/plugin paths (/wp-content/, /static/, …) are
+ *    rejected;
+ *  - emails must actually look like emails (the EU ODR mailto: pattern is
+ *    rejected by format validation);
+ *  - external/legal/chamber links (ODR, privacy, impressum, social widgets)
+ *    are never business contact methods.
  */
 export function extractPublicContactInfo(html: string, baseUrl: string | null): PublicContactInfo | null {
   if (!html) return null;
   const hrefs = [...html.matchAll(/href=["']([^"']*)["']/gi)].map((m) => m[1]).filter(Boolean);
-  const phones = [...new Set(hrefs.filter((h) => /^tel:/i.test(h)).map((h) => h.replace(/^tel:/i, '').trim()).filter(Boolean))];
-  const emails = [...new Set(hrefs.filter((h) => /^mailto:/i.test(h)).map((h) => h.replace(/^mailto:/i, '').split('?')[0].trim()).filter(Boolean))];
-  const contactHref = hrefs.find((h) => CONTACT_RE.test(h) && !/^tel:|^mailto:/i.test(h));
+  const phones = [...new Set(
+    hrefs
+      .filter((h) => /^tel:/i.test(h))
+      .map((h) => h.replace(/^tel:/i, '').trim())
+      .filter((v) => v && /^[+\d][\d\s\-()/]{4,}$/.test(v))
+  )];
+  const emails = [...new Set(
+    hrefs
+      .filter((h) => /^mailto:/i.test(h))
+      .map((h) => h.replace(/^mailto:/i, '').split('?')[0].trim())
+      .filter((v) => EMAIL_RE.test(v))
+  )];
+  const contactHref = hrefs.find((h) => CONTACT_RE.test(h) && !/^tel:|^mailto:/i.test(h) && !NON_BUSINESS_LINK_RE.test(h));
   let contactPageUrl: string | null = null;
   if (contactHref) {
+    let resolved: string | null = null;
     try {
-      contactPageUrl = new URL(contactHref, baseUrl || 'https://example.invalid').href;
+      resolved = new URL(contactHref, baseUrl || 'https://example.invalid').href;
     } catch {
-      contactPageUrl = contactHref;
+      resolved = contactHref;
+    }
+    // Asset extensions and asset/plugin paths are NOT contact pages.
+    if (resolved && !ASSET_EXT_RE.test(resolved) && !ASSET_PATH_RE.test(resolved)) {
+      contactPageUrl = resolved;
     }
   }
   const addressMatch = html.match(/\d{2,5}\s+[A-Za-zäöüß\- ]+(?:straße|str\.|weg|platz|allee)\b/i);
   const address = addressMatch ? addressMatch[0].replace(/</g, '&lt;').slice(0, 120) : null;
   if (!phones.length && !emails.length && !contactPageUrl && !address) return null;
   return { phone: phones, email: emails, contactPageUrl, address };
+}
+
+/**
+ * Identity sanity: does the contact plausibly belong to the business?
+ * Same-domain methods are always accepted; common free-mail providers are
+ * accepted (small businesses commonly use them); external chamber/legal/
+ * government domains are rejected as business contact channels.
+ */
+export function contactBelongsToBusiness(contact: PublicContactInfo | null | undefined, businessDomain: string | null): boolean {
+  if (!contact) return false;
+  const domain = businessDomain ? businessDomain.replace(/^www\./, '').toLowerCase() : null;
+  const sameDomain = (d: string | null) => Boolean(domain && d && (d === domain || d.endsWith(`.${domain}`)));
+  if (contact.phone.length > 0) return true;
+  if (contact.contactPageUrl && sameDomain(canonicalDomain(contact.contactPageUrl))) return true;
+  if (contact.address) return true;
+  for (const e of contact.email) {
+    const d = e.split('@')[1]?.toLowerCase() ?? '';
+    if (sameDomain(d)) return true;
+    if (COMMON_MAIL_DOMAINS.test(`@${d}`)) return true;
+  }
+  return false;
 }
 
 /** A lead qualifies when at least one real public contact method is observed. */
