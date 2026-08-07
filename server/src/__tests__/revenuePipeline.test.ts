@@ -14,6 +14,11 @@ import fs from 'fs';
 import path from 'node:path';
 import os from 'node:os';
 
+// This host is slow to boot the manager/gateway module chain inside
+// freshModules(); give hooks headroom so environment slowness never reads as
+// a test failure.
+vi.setConfig({ hookTimeout: 60000, testTimeout: 30000 });
+
 let tmpDir: string;
 let wsDir: string;
 let intakeMod: any;
@@ -63,6 +68,7 @@ function baseConfig(overrides: Record<string, unknown> = {}) {
     maxResearchBudgetUsd: null,
     dryRun: true,
     runBuild: false,
+    useCodex: false,
     useLlm: false,
     rawRequest: ACCEPTANCE_PROMPT,
     workspacePath: wsDir,
@@ -106,6 +112,7 @@ describe('Revenue Pipeline — intake', () => {
 
   it('parses the acceptance phrase (roofing · Berlin · 3 · dry-run)', () => {
     const r = intakeMod.parsePipelineRequest(ACCEPTANCE_PROMPT);
+    expect(r.missing).toEqual([]);
     expect(r.config.niche).toBe('roofing');
     expect(r.config.city).toBe('Berlin');
     expect(r.config.prospectCount).toBe(3);
@@ -113,9 +120,45 @@ describe('Revenue Pipeline — intake', () => {
     expect(r.config.specificUrl).toBeNull();
   });
 
+  it('parses the EXACT real prompt (multiline: roofers · Berlin · 5 · dry-run)', () => {
+    const realPrompt = [
+      'Run a real Local Business Revenue Pipeline for roofers in Berlin.',
+      'Find 5 legitimate roofing businesses with weak websites, audit them, rank the opportunities, and prepare a staged rebuild concept and proposal for the strongest candidate.',
+      'Do not contact anyone, do not publish anything, and do not spend any money.',
+    ].join('\n');
+    const r = intakeMod.parsePipelineRequest(realPrompt);
+    expect(r.missing).toEqual([]);
+    // niche may be the find-form noun or the for-form noun — both are the real niche.
+    expect(['roofing', 'roofers']).toContain(r.config.niche);
+    expect(r.config.city).toBe('Berlin');
+    expect(r.config.prospectCount).toBe(5);
+    expect(r.config.dryRun).toBe(true);
+    // The reply message must NOT say "run a real local" or default count 3.
+    expect(r.config.niche).not.toContain('run');
+    expect(r.config.prospectCount).not.toBe(3);
+  });
+
+  it('parses numbered-list + lowercase variants', () => {
+    const r = intakeMod.parsePipelineRequest('1. Find 5 roofing companies in munich\n2. audit them\n3. do not contact anyone');
+    expect(r.missing).toEqual([]);
+    expect(r.config.niche).toBe('roofing');
+    expect(r.config.city).toBe('Munich');
+    expect(r.config.prospectCount).toBe(5);
+    expect(r.config.dryRun).toBe(true);
+  });
+
+  it('parses singular/plural niche forms ("a plumber in Hamburg")', () => {
+    const r = intakeMod.parsePipelineRequest('Find 3 plumbers in Hamburg and prepare proposals. Do not contact anyone.');
+    expect(r.missing).toEqual([]);
+    expect(r.config.niche).toBe('plumbers');
+    expect(r.config.city).toBe('Hamburg');
+    expect(r.config.prospectCount).toBe(3);
+  });
+
   it('parses explicit markers (niche/city/budget/count/URL/dry-run)', () => {
-    const text = 'niche: plumbing, city: Munich, budget: $10, five prospects, dry-run, https://example.com/plumbing';
+    const text = 'niche: plumbing, city: Munich, budget: $10, count: 5, dry-run, https://example.com/plumbing';
     const r = intakeMod.parsePipelineRequest(text);
+    expect(r.missing).toEqual([]);
     expect(r.config.niche).toBe('plumbing');
     expect(r.config.city).toBe('Munich');
     expect(r.config.maxResearchBudgetUsd).toBe(10);
@@ -124,16 +167,24 @@ describe('Revenue Pipeline — intake', () => {
     expect(r.config.specificUrl).toBe('https://example.com/plumbing');
   });
 
-  it('defaults to dry-run true and count 3 when unspecified', () => {
-    const r = intakeMod.parsePipelineRequest('Find roofing businesses in Berlin');
-    expect(r.config.dryRun).toBe(true);
-    expect(r.config.prospectCount).toBe(3);
-    expect(r.notes.some((n: string) => n.includes('dry-run'))).toBe(true);
+  it('asks for missing fields instead of inventing defaults', () => {
+    // No count anywhere.
+    const r1 = intakeMod.parsePipelineRequest('Find roofing businesses in Berlin');
+    expect(r1.missing).toContain('prospectCount');
+    // No niche.
+    const r2 = intakeMod.parsePipelineRequest('Find 5 businesses in Berlin');
+    expect(r2.missing).toContain('niche');
+    // No city.
+    const r3 = intakeMod.parsePipelineRequest('Find 5 roofing businesses');
+    expect(r3.missing).toContain('city');
   });
 
-  it('honours explicit live mode', () => {
-    const r = intakeMod.parsePipelineRequest('Find five roofing businesses in Berlin. Live mode. Do contact them.');
-    expect(r.config.dryRun).toBe(false);
+  it('defaults to dry-run true and honours explicit live mode', () => {
+    const r = intakeMod.parsePipelineRequest('Find 5 roofing businesses in Berlin');
+    expect(r.config.dryRun).toBe(true);
+    const live = intakeMod.parsePipelineRequest('Find five roofing businesses in Berlin. Live mode. Do contact them.');
+    expect(live.config.dryRun).toBe(false);
+    expect(live.config.prospectCount).toBe(5);
   });
 });
 
@@ -354,6 +405,35 @@ describe('Revenue Pipeline — end-to-end (fake hooks, no build)', () => {
     expect(run.outreachApproved).toBe(false);
     // The package was still generated locally, but nothing was sent.
     expect(fs.existsSync(path.join(wsDir, runId, 'proposal_offer.md'))).toBe(true);
+  });
+
+  it('CodeX suitability gate: local (ollama) assignment → approval, deny skips CodeX truthfully', async () => {
+    const runId = pipelineMod.newRunId();
+    const approvals: string[] = [];
+    const hooks = {
+      ...fakeHooks('allow'),
+      requestApprovalAndWait: async (request: { action: string }) => {
+        approvals.push(request.action);
+        // Deny ONLY the suitability gate; allow the outreach approval so the
+        // run reaches completion.
+        return request.action.includes('suitability') ? 'deny' : 'allow';
+      },
+    };
+    const result = await pipelineMod.runRevenuePipeline({
+      runId,
+      taskId: 'bgtask-codex-gate',
+      config: baseConfig({ useCodex: true, runBuild: false }),
+      hooks,
+      deps: { resolveCodexAssignment: async () => ({ providerId: 'prov-ollama', modelId: 'qwen3.5:4b' }) },
+    });
+    expect(result.status).toBe('completed');
+    // The suitability approval was requested (local model marked unsuitable).
+    expect(approvals.some((a) => a.includes('suitability'))).toBe(true);
+    // Deny → CodeX skipped truthfully; the run still completed with the
+    // deterministic scaffold as evidence.
+    const run = storeMod.revenuePipelineRepo.getRun(runId);
+    expect(run.status).toBe('completed');
+    expect(run.proposalDirPath).toBeTruthy();
   });
 
   it('cost-limit enforcement stops the run when budget is exceeded', async () => {

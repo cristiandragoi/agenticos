@@ -285,8 +285,13 @@ export class BackgroundTaskManager extends EventEmitter {
   progress(taskId: string, kind: TaskEventKind, summary: string, patch: Partial<BackgroundTaskRecord> = {}, detail: Record<string, unknown> = {}): BackgroundTaskRecord | null {
     const task = backgroundTaskRepo.getTask(taskId);
     if (!task || TERMINAL_STATUSES.has(task.status)) return task;
-    const updated = Object.keys(patch).length
-      ? backgroundTaskRepo.updateTask(taskId, patch)
+    // Identity fields are set at creation only — a progress event must NEVER
+    // rewrite the worker column (a routing label like { worker: 'hermes' }
+    // must stay in `detail`, not the row patch).
+    const safePatch = { ...patch };
+    delete safePatch.worker;
+    const updated = Object.keys(safePatch).length
+      ? backgroundTaskRepo.updateTask(taskId, safePatch)
       : task;
     this.appendEvent(taskId, kind, summary, detail);
     if (updated && updated.progressMessage !== task.progressMessage) {

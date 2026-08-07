@@ -177,8 +177,10 @@ router.post('/:taskId/approval', async (req, res) => {
   }
 
   const result = await backgroundTaskManager.resolveApproval(task.taskId, choice, async (c) => {
-    // Bridge to the real worker approval endpoint.
-    if (task.worker === 'hermes' && task.linkedRunId) {
+    // Bridge to the real worker approval endpoint. Revenue-pipeline tasks are
+    // NOT hermes runs — their approval gate lives inside the pipeline adapter,
+    // so never forward a revenue task to the hermes bridge.
+    if (task.worker === 'hermes' && task.route !== 'revenue_pipeline' && task.linkedRunId) {
       await hermesApiService.resolveApproval(task.linkedRunId, c);
     } else if ((task.worker === 'codex' || task.worker === 'team') && task.linkedRunId) {
       if (c === 'allow') await codexService.approveAndResume(task.linkedRunId);

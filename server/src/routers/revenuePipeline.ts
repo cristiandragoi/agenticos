@@ -42,6 +42,10 @@ router.post('/runs', async (req, res) => {
       return res.status(400).json({ error: 'request (free text) or config is required' });
     }
     const intake = request ? parsePipelineRequest(request) : null;
+    if (intake && intake.missing.length > 0) {
+      // Required values are NEVER invented — ask, do not create a task.
+      return res.status(400).json({ error: 'Missing required pipeline fields', missing: intake.missing, notes: intake.notes });
+    }
     const cfg = {
       niche: config?.niche ?? intake?.config.niche ?? 'local business',
       city: config?.city ?? intake?.config.city ?? '',
@@ -51,6 +55,7 @@ router.post('/runs', async (req, res) => {
       maxResearchBudgetUsd: config?.maxResearchBudgetUsd ?? intake?.config.maxResearchBudgetUsd ?? null,
       dryRun: config?.dryRun ?? intake?.config.dryRun ?? true,
       runBuild: config?.runBuild ?? true,
+      useCodex: config?.useCodex ?? true,
       useLlm: config?.useLlm ?? false,
       rawRequest: request || '(manual config)',
       workspacePath: workspacePath || path.resolve(process.cwd(), '..', 'data', 'revenue-pipeline'),

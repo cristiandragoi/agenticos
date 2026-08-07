@@ -4,6 +4,13 @@ import { eq, and, sql, desc } from 'drizzle-orm';
 import type { GoalState, GoalEvent, GoalRecord } from '../types.js';
 import { EventEmitter } from 'events';
 
+/**
+ * Live AbortControllers for running CodeX goal loops, keyed by goal id.
+ * Lives here (not in a router) so both the chat routes (pause/stop) and
+ * codexService.abortGoal can abort an in-flight model request immediately.
+ */
+export const goalControllers = new Map<string, AbortController>();
+
 class GoalStore extends EventEmitter {
   create(goal: GoalRecord): GoalRecord {
     db.insert(goals).values({
@@ -183,6 +190,54 @@ class GoalStore extends EventEmitter {
       .set({ workerId: null, leaseExpiresAt: null, updatedAt: Date.now().toString() })
       .where(and(eq(goals.id, goalId), eq(goals.workerId, workerId)))
       .run();
+  }
+
+  /**
+   * Boot-time reconciliation: any non-terminal goal whose worker lease has
+   * EXPIRED is orphaned — the backend restarted while its loop was running
+   * (or the loop died). Mark it failed truthfully so the UI never shows
+   * "Waiting for local model response" forever. Safe at boot because no goal
+   * loop can be active in a fresh process; do NOT run this while loops run
+   * (a slow model request can legitimately outlive a short lease).
+   */
+  sweepExpiredLeases(): number {
+    const now = Date.now();
+    const stale = db.select({ id: goals.id, status: goals.status })
+      .from(goals)
+      .where(
+        and(
+          sql`${goals.leaseExpiresAt} IS NOT NULL`,
+          sql`CAST(${goals.leaseExpiresAt} AS INTEGER) < ${now}`,
+          sql`${goals.status} NOT IN ('completed','failed','stopped','cancelled','interrupted','pause_requested')`
+        )
+      )
+      .all();
+
+    for (const g of stale) {
+      const message = 'Backend restarted while this goal was running — the worker lease expired and no live loop exists. Marking failed; resume or retry to continue.';
+      db.update(goals)
+        .set({ status: 'failed', updatedAt: now.toString(), workerId: null, leaseExpiresAt: null })
+        .where(eq(goals.id, g.id))
+        .run();
+      db.insert(goalEvents).values({
+        id: `bgevt-sweep-${g.id}-${now}`,
+        goalId: g.id,
+        sequence: (db.select({ m: sql`COALESCE(MAX(${goalEvents.sequence}), 0)` }).from(goalEvents).where(eq(goalEvents.goalId, g.id)).get() as any)?.m + 1,
+        timestamp: new Date(now).toISOString(),
+        state: 'failed',
+        step: 0,
+        message,
+        eventType: 'task_failed',
+        normalizedStatus: 'failed',
+        lifecycleState: 'failed',
+        userMessage: message,
+        technicalMessage: message,
+        provider: 'agentic-os',
+        model: 'goal-sweep',
+      }).run();
+      this.emit('goal:updated', this.get(g.id));
+    }
+    return stale.length;
   }
 
   upsertStep(goalId: string, stepNumber: number, status: string, toolCall?: any, toolResult?: string, error?: string) {

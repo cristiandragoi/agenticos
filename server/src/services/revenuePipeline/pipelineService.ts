@@ -30,12 +30,23 @@ import { verifyPipelineArtifacts } from './verify.js';
 import { checkBudget, createLedger, recordLlmCall } from './cost.js';
 import { FIXTURE_PREFIX } from './fixtures.js';
 import { logger } from '../../utils/logger.js';
+import { codexService } from '../../domains/codex/service.js';
+import { goalStore } from '../goalStore.js';
+import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../agent/assignments.js';
 
 const execFileAsync = promisify(execFile);
 
 /** npm is a .cmd shim on Windows — spawn via the shell (bare spawn → ENOENT/EINVAL). */
 const NPM_BIN = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const NPM_SPAWN_OPTS = process.platform === 'win32' ? { shell: true } : {};
+
+const GOAL_TERMINAL = new Set(['completed', 'failed', 'stopped', 'cancelled', 'interrupted']);
+
+/** Injectable seams for tests (real defaults are used in production). */
+export interface PipelineDeps {
+  resolveCodexAssignment?: () => Promise<{ providerId: string; modelId?: string | null } | null>;
+  codexTimeoutMs?: number;
+}
 
 export interface PipelineHooks {
   transition(status: string, patch?: Record<string, unknown>): void;
@@ -74,8 +85,10 @@ export async function runRevenuePipeline(opts: {
   taskId: string;
   config: PipelineConfig;
   hooks: PipelineHooks;
+  deps?: PipelineDeps;
 }): Promise<PipelineResult> {
   const { runId, taskId, config, hooks } = opts;
+  const deps = opts.deps || {};
   const startedAt = Date.now();
   let run = ensureRun(runId, taskId, config);
   const setStage = (label: (typeof PIPELINE_STAGE_LABELS)[number], message: string) => {
@@ -100,7 +113,7 @@ export async function runRevenuePipeline(opts: {
       revenuePipelineRepo.upsertProspect(p);
     }
     run = revenuePipelineRepo.updateRun(runId, { prospects: discovered.prospects }) ?? run;
-    hooks.progress('task.progress', `${discovered.prospects.length} prospect(s) discovered (source: ${discovered.prospects[0].discoverySource}).`, { source: discovered.prospects[0].discoverySource });
+    hooks.progress('task.progress', `${discovered.prospects.length} prospect(s) discovered (source: ${discovered.prospects[0].discoverySource}).`, { source: discovered.prospects[0].discoverySource }, { worker: 'research' });
 
     // ── Stage 2+3 — Public website inspection + structured audit ───────────
     setStage('INSPECTING WEBSITE', 'Inspecting public websites…');
@@ -154,7 +167,7 @@ export async function runRevenuePipeline(opts: {
     run = revenuePipelineRepo.updateRun(runId, { prospects: ranked }) ?? run;
     hooks.progress('task.progress', `Ranked ${ranked.length} prospect(s) — top: ${ranked[0]?.businessName} (${ranked[0]?.opportunityScore}/100, ${ranked[0]?.confidence} confidence).`, {
       ranking: ranked.map((p) => ({ businessName: p.businessName, score: p.opportunityScore, confidence: p.confidence })),
-    });
+    }, { worker: 'hermes' });
 
     // ── Stage 5 — Human target selection when confidence is low ─────────────
     let selected = ranked[0];
@@ -192,7 +205,69 @@ export async function runRevenuePipeline(opts: {
     run = revenuePipelineRepo.updateRun(runId, { conceptPath: concept.path }) ?? run;
     hooks.setFilesChanged(concept.files);
 
-    // ── Stage 8 — Running build + focused tests ─────────────────────────────
+    // ── Stage 8 — Bounded CodeX site implementation (worker routing) ────────
+    // CodeX receives ONLY the bounded site-implementation task — never the
+    // discovery/audit pipeline. It starts only after: prospect selected,
+    // audit completed, blueprint created, concept scaffold prepared.
+    // Model suitability gate: a local (ollama) assignment is unsuitable for a
+    // real implementation task — route to a configured cloud provider on
+    // human approval, or skip CodeX truthfully on denial.
+    let codexState: 'not_requested' | 'approved' | 'denied' | 'goal_created' | 'completed' | 'failed' | 'timeout' | 'stopped' | 'interrupted' = 'not_requested';
+    let codexGoalId: string | null = null;
+    if (config.useCodex) {
+      setStage('GENERATING SITE CONCEPT', 'Preparing the bounded CodeX site-implementation task…');
+      hooks.progress('task.progress', 'Worker routing: Research (discovery) → Hermes (audit + blueprint) → CodeX (bounded build) → Reviewer (verification).', {}, {
+        workerRouting: ['research', 'hermes', 'codex', 'reviewer'],
+      });
+
+      const assignment = deps.resolveCodexAssignment
+        ? await deps.resolveCodexAssignment()
+        : await AgentProviderAssignmentService.getAssignment('agent-codex');
+      const assignedProvider = assignment ? mapCatalogToGatewayId(assignment.providerId) : 'unknown';
+      const assignedModel = assignment?.modelId || 'auto';
+      const isLocalAssignment = assignedProvider === 'ollama';
+      let executionProvider: string | undefined;
+
+      if (isLocalAssignment) {
+        const choice = await hooks.requestApprovalAndWait({
+          action: 'CodeX model suitability — route site build to cloud provider',
+          reason: `CodeX is assigned to ${assignedProvider}/${assignedModel}, which is unsuitable for the bounded site-implementation task. Approve routing to the configured cloud provider (OpenRouter), or deny to skip CodeX and use the deterministic scaffold build.`,
+          choices: ['allow', 'deny'],
+        });
+        if (choice === 'allow') {
+          executionProvider = 'openrouter';
+          codexState = 'approved';
+          hooks.progress('task.progress', `CodeX routed to cloud provider (OpenRouter) for the bounded site task — local assignment ${assignedProvider}/${assignedModel} marked unsuitable.`, { executionProvider });
+        } else {
+          codexState = 'denied';
+          hooks.progress('task.progress', 'CodeX skipped by human decision — the deterministic scaffold build will be used as build evidence (truthful).', { codexState });
+        }
+      } else {
+        codexState = 'approved';
+        hooks.progress('task.progress', `CodeX assignment ${assignedProvider}/${assignedModel} is suitable — dispatching the bounded site task.`, { assignedProvider, assignedModel });
+      }
+
+      if (codexState === 'approved') {
+        const codexPrompt = buildBoundedCodexPrompt(selected, blueprintPath, concept.path);
+        const codexTimeoutMs = deps.codexTimeoutMs ?? parseInt(process.env.REVENUE_CODEX_TIMEOUT_MS || '240000');
+        try {
+          codexGoalId = await codexService.createGoal(codexPrompt, concept.path, 'auto', executionProvider, undefined, undefined, { disableFallback: true });
+          codexState = 'goal_created';
+          hooks.progress('task.progress', `CodeX goal created (${codexGoalId}) with the BOUNDED site-implementation task only.`, { goalId: codexGoalId, executionProvider: executionProvider || 'assignment-default' });
+
+          const outcome = await waitForGoalTerminal(codexGoalId, codexTimeoutMs, hooks);
+          codexState = outcome.outcome === 'completed' ? 'completed' : outcome.outcome;
+          hooks.progress('task.progress', `CodeX bounded task ${codexState}${outcome.detail ? ` — ${outcome.detail}` : ''}.`, { goalId: codexGoalId, codexState, detail: outcome.detail });
+        } catch (err: any) {
+          codexState = 'failed';
+          hooks.progress('task.progress', `CodeX dispatch failed: ${err?.message} — deterministic scaffold build will be used as evidence.`, { codexState, lastError: err?.message });
+        }
+      }
+    }
+
+    // ── Stage 8b — Running build + focused tests (REVIEWER evidence) ────────
+    // The deterministic build + verify script run regardless of the CodeX
+    // outcome, so the artifact evidence is real and verifiable.
     if (config.runBuild) {
       setStage('RUNNING BUILD', 'Installing dependencies and building the concept…');
       const buildResult = await runConceptBuild(concept.path, proposalDir, hooks);
@@ -227,6 +302,7 @@ export async function runRevenuePipeline(opts: {
     // Write the run summary BEFORE verifying so the package is complete; the
     // final summary is re-written with the completed status at stage 12.
     setStage('VERIFYING', 'Verifying artifacts and factual separation…');
+    hooks.progress('task.progress', 'Worker: Reviewer — checking artifacts, factual separation, and build/test evidence.', {}, { worker: 'reviewer' });
     const preSummary = buildRunSummary(run, selected, config, Date.now() - startedAt);
     const preSummaryPath = path.join(proposalDir, 'run_summary.json');
     fs.writeFileSync(preSummaryPath, JSON.stringify({ ...preSummary, status: 'verifying', completedAt: null }, null, 2), 'utf8');
@@ -261,7 +337,7 @@ export async function runRevenuePipeline(opts: {
     // non-failed build/test and sets verificationState=passed only on success.
     setStage('COMPLETED', 'Pipeline completed and verified.');
     const totalElapsedMs = Date.now() - startedAt;
-    const summary = buildRunSummary(run, selected, config, totalElapsedMs);
+    const summary = buildRunSummary(run, selected, config, totalElapsedMs, { codexState, codexGoalId });
     const runSummaryPath = path.join(proposalDir, 'run_summary.json');
     fs.writeFileSync(runSummaryPath, JSON.stringify(summary, null, 2), 'utf8');
     run = revenuePipelineRepo.updateRun(runId, { currentStage: 'COMPLETED', runSummaryPath, totalElapsedMs }) ?? run;
@@ -404,6 +480,71 @@ async function runConceptBuild(
   }
 }
 
+/** The ONLY thing CodeX ever receives from this pipeline — never the full discovery/audit flow. */
+function buildBoundedCodexPrompt(prospect: ProspectRecord, blueprintPath: string, conceptPath: string): string {
+  return [
+    'BOUNDED SITE-IMPLEMENTATION TASK (you receive ONLY this task — not the discovery/audit pipeline).',
+    `Prospect: ${prospect.businessName} (${prospect.websiteUrl}).`,
+    `Rebuild blueprint: ${blueprintPath}`,
+    `Staged site concept scaffold: ${conceptPath}`,
+    'Your ONLY job: improve the staged site concept copy/structure so it reflects the blueprint.',
+    'STRICT CONSTRAINTS:',
+    '- Do NOT modify package.json, tsconfig*.json, vite.config.ts, index.html structure, or tests/verify.mjs.',
+    '- Do NOT run npm install, npm run build, or ANY shell command (build/tests are run by the pipeline reviewer).',
+    '- Do NOT touch anything outside the concept directory.',
+    '- Do NOT publish, deploy, or contact anyone.',
+    '- Keep every [PLACEHOLDER: ...] marker intact.',
+    'Finish by replying DONE with a one-paragraph summary of what you changed.',
+  ].join('\n');
+}
+
+/**
+ * Wait for a CodeX goal to reach a terminal state, with a hard deadline and
+ * stop support. On timeout/stop the goal is aborted (abortGoal now interrupts
+ * the in-flight model request) — no goal is ever left running forever.
+ */
+async function waitForGoalTerminal(
+  goalId: string,
+  timeoutMs: number,
+  hooks: PipelineHooks
+): Promise<{ outcome: 'completed' | 'failed' | 'stopped' | 'timeout' | 'interrupted'; detail?: string }> {
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve) => {
+    let timer: NodeJS.Timeout | null = null;
+    let settled = false;
+    const finish = (result: { outcome: 'completed' | 'failed' | 'stopped' | 'timeout' | 'interrupted'; detail?: string }) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      goalStore.off('goal:updated', listener);
+      resolve(result);
+    };
+    const check = () => {
+      const goal = goalStore.get(goalId);
+      if (goal && GOAL_TERMINAL.has(goal.status)) {
+        finish({ outcome: goal.status as any, detail: (goal as any).runSummary?.summary || goal.status });
+        return;
+      }
+      if (hooks.isStopRequested()) {
+        codexService.abortGoal(goalId);
+        finish({ outcome: 'interrupted', detail: 'Pipeline stopped by user — CodeX goal aborted.' });
+        return;
+      }
+      if (Date.now() > deadline) {
+        codexService.abortGoal(goalId);
+        finish({ outcome: 'timeout', detail: `CodeX goal exceeded the bounded wait of ${timeoutMs} ms — aborted truthfully.` });
+        return;
+      }
+      timer = setTimeout(check, 2000);
+    };
+    const listener = (g: any) => {
+      if (g?.id === goalId) check();
+    };
+    goalStore.on('goal:updated', listener);
+    timer = setTimeout(check, 500);
+  });
+}
+
 function renderAuditReportMd(prospect: ProspectRecord, config: PipelineConfig): string {
   const label = prospect.fixture ? `${FIXTURE_PREFIX} ` : '';
   const lines: string[] = [
@@ -436,7 +577,8 @@ function buildRunSummary(
   run: PipelineRunRecord,
   selected: ProspectRecord,
   config: PipelineConfig,
-  totalElapsedMs: number
+  totalElapsedMs: number,
+  extra: { codexState?: string; codexGoalId?: string | null } = {}
 ): Record<string, unknown> {
   return {
     runId: run.runId,
@@ -450,7 +592,15 @@ function buildRunSummary(
       maxResearchBudgetUsd: config.maxResearchBudgetUsd,
       dryRun: config.dryRun,
       runBuild: config.runBuild,
+      useCodex: config.useCodex,
       useLlm: config.useLlm,
+    },
+    workerRouting: {
+      research: 'prospect discovery + public inspection',
+      hermes: 'audit, scoring, rebuild blueprint',
+      codex: extra.codexState || 'not_requested',
+      codexGoalId: extra.codexGoalId || null,
+      reviewer: 'artifact verification + build/test evidence',
     },
     status: 'completed',
     stage: 'COMPLETED',

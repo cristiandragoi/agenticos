@@ -494,6 +494,7 @@ export async function dispatchRevenuePipelineTask(task: BackgroundTaskRecord, wo
       maxResearchBudgetUsd: task.metadata?.maxResearchBudgetUsd != null ? Number(task.metadata?.maxResearchBudgetUsd) : null,
       dryRun: task.metadata?.dryRun !== false,
       runBuild: task.metadata?.runBuild !== false,
+      useCodex: task.metadata?.useCodex !== false,
       useLlm: task.metadata?.useLlm === true,
       rawRequest: task.originalRequest || '',
       workspacePath: workspacePath || pipelineWorkspaceRoot(),

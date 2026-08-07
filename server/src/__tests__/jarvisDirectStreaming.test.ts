@@ -2,6 +2,10 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// This host is slow to boot the app under test; give tests headroom so a
+// slow stream never times out mid-request and contaminates shared mocks.
+vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
+
 const mocks = vi.hoisted(() => ({
   appended: [] as any[],
   orchestratorCalls: [] as any[],

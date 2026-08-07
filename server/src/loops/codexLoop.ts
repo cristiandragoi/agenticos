@@ -10,7 +10,7 @@ import { goalStore } from '../services/goalStore.js';
 import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
 import { detectShellFileIo } from '../utils/nativeToolGuard.js';
 import type { GoalState, GoalEvent, AgentExecutionContext } from '../types.js';
-import { goalControllers } from '../routers/chat.js';
+import { goalControllers } from '../services/goalStore.js';
 import { db } from '../db/index.js';
 import { providerCircuitBreakers, agentTeamArtifacts, verificationReports, agentTeamHandoffs } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
@@ -622,7 +622,12 @@ ${m.content}`).join('\n\n');
         }
 
         try {
-          const timeoutMs = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
+          // Bounded timeout: local (ollama) models get a SHORT cap so a hung
+          // request resolves to a truthful failure instead of "Waiting for
+          // local model response" for the full cloud timeout. Env-overridable.
+          const configuredTimeout = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
+          const localTimeout = parseInt(process.env.AGENT_TEAMS_LOCAL_TIMEOUT_MS || '120000');
+          const timeoutMs = isLocalPlanningProvider ? Math.min(configuredTimeout, localTimeout) : configuredTimeout;
           const disableFallback = goal.executionOptions?.disableFallback === true;
           const effectiveProvider = executionRouting.providerId;
 
@@ -649,6 +654,9 @@ ${m.content}`).join('\n\n');
             disableFallback,
             timeoutMs,
             maxTokens: 2048,
+            // Stop/pause must interrupt an in-flight model request — not just
+            // wait for the next loop-top check.
+            signal: controller.signal,
             ...(effectiveProvider ? { provider: effectiveProvider } : {})
           };
 
@@ -685,6 +693,12 @@ ${m.content}`).join('\n\n');
             recordCircuitBreakerSuccess('custom-codex');
           }
         } catch (providerErr: any) {
+          if (controller.signal.aborted) {
+            // Stop/pause interrupted the in-flight request — do NOT record it
+            // as a provider failure (truthful terminal state is reconciled in
+            // the fatal handler below).
+            throw providerErr;
+          }
           recordCircuitBreakerError('custom-codex');
           const providerFailureMessage =
             `CodeX provider/model unavailable. ` +
@@ -1138,6 +1152,18 @@ ${m.content}`).join('\n\n');
       if (err.message === 'CODEX_TOOL_PARSE_FAILED') {
         // Already emitted event and set status to failed inside the retry loop.
         // Just break cleanly.
+        break;
+      }
+      if (controller.signal.aborted) {
+        // Stop/pause aborted the loop mid-request. Preserve the truthful
+        // terminal state already persisted by abortGoal/pause instead of
+        // overwriting it with 'failed'.
+        const current = goalStore.get(goalId);
+        if (current && current.status === 'pause_requested') {
+          goalStore.update(goalId, { status: 'paused' });
+        } else if (current && !['stopped', 'paused', 'cancelled', 'failed', 'completed', 'interrupted'].includes(current.status)) {
+          goalStore.update(goalId, { status: 'failed' });
+        }
         break;
       }
       pushEventToWriter(writer, 'failed', `Fatal loop error: ${err.message}`, undefined, err.message, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'A fatal error occurred. Task stopped.', eventType: 'task_failed', provider: currentProvider, model: currentModel, payload: { error: err.message } });

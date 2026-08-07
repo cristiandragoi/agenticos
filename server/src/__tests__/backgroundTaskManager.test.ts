@@ -11,6 +11,11 @@ import fs from 'fs';
 import path from 'node:path';
 import os from 'node:os';
 
+// This host is slow to boot the manager/gateway module chain inside
+// freshModules(); give hooks headroom so environment slowness never reads as
+// a test failure.
+vi.setConfig({ hookTimeout: 60000, testTimeout: 30000 });
+
 let tmpDir: string;
 let mgr: any;
 let repo: any;

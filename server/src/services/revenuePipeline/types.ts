@@ -58,6 +58,8 @@ export interface PipelineConfig {
   dryRun: boolean;
   /** Whether the staged concept is actually built (npm install + build + verify). */
   runBuild: boolean;
+  /** Whether CodeX runs the bounded site-implementation task (worker routing). */
+  useCodex: boolean;
   /** Whether to attempt LLM-assisted proposal drafting (default false in V1). */
   useLlm: boolean;
   rawRequest: string;

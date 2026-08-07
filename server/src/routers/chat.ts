@@ -8,7 +8,7 @@ import { resumeCodexGoalLoop } from '../loops/codexLoop.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
 import { conversationService } from '../domains/conversations/service.js';
 import { logger } from '../utils/logger.js';
-import { goalStore } from '../services/goalStore.js';
+import { goalStore, goalControllers } from '../services/goalStore.js';
 import { codexService } from '../domains/codex/service.js';
 import type { GoalRecord, GoalEvent } from '../types.js';
 
@@ -271,9 +271,6 @@ router.post('/agents/goal/:id/revise', async (req, res) => {
   if (!success) return res.status(400).json({ error: 'Failed to revise goal' });
   res.json({ success: true });
 });
-
-// Maintain abort controllers for running goals
-export const goalControllers = new Map<string, AbortController>();
 
 /* ── GET /api/chat/agents/goal/stream/:id ───────────────
    Streams goal events, replays via DB catch-up, heartbeats */

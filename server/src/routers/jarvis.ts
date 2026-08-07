@@ -573,6 +573,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         prospectCount: intake.config.prospectCount,
         dryRun: intake.config.dryRun,
         specificUrl: intake.config.specificUrl || null,
+        missing: intake.missing,
         confidence: intake.confidence,
       });
       writeSse(res, 'intent', {
@@ -586,6 +587,45 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         dryRun: intake.config.dryRun,
         operationId: normalizedOperationId,
       });
+
+      // Required values are NEVER invented. If any of niche / city /
+      // prospectCount is genuinely absent, ask ONE clarification instead of
+      // creating a task with defaults.
+      if (intake.missing.length > 0) {
+        const askMap: Record<string, string> = {
+          niche: 'which industry/niche to target (e.g. roofing, plumbing)',
+          city: 'which city or region to target',
+          prospectCount: 'how many prospects to evaluate',
+        };
+        const questions = intake.missing.map((m: string) => askMap[m] || m);
+        const reply =
+          `I need a bit more detail before starting the Revenue Pipeline: please tell me ${questions.join(', and ')}. ` +
+          `No task was created — I will not guess.`;
+        writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'task-manager',
+            intent: { type: 'revenue_pipeline', capability: 'revenue_pipeline', worker: workerKind, clarification: intake.missing }
+          }
+        });
+        writeSse(res, 'done', {
+          route: 'revenue_pipeline_clarification',
+          category: 'revenue_pipeline',
+          operationId: normalizedOperationId,
+          provider: 'agentic-os',
+          model: 'task-manager',
+          firstTokenMs: 0,
+          totalMs: 0,
+        });
+        completed = true;
+        return res.end();
+      }
 
       const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
       const { task, error } = backgroundTaskManager.createTask({

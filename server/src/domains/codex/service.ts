@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { goalStore } from '../../services/goalStore.js';
+import { goalStore, goalControllers } from '../../services/goalStore.js';
 import { resumeCodexGoalLoop } from '../../loops/codexLoop.js';
 import { llmChat } from '../../services/llmGateway.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
@@ -38,6 +38,14 @@ export class CodexService {
     // actions needing review must never be silently auto-approved.
     const policy: 'manual' | 'auto' = approvalPolicy === 'auto' || isReadOnlyCodexTask(prompt) ? 'auto' : 'manual';
 
+    // The `executionProvider` parameter must ACTUALLY route the goal: the
+    // loop reads goal.executionOptions.executionProviderId. Merge it in so a
+    // caller-provided provider is never silently ignored.
+    const mergedExecutionOptions: ExecutionOptions = {
+      ...(executionProvider ? { executionProviderId: executionProvider } : {}),
+      ...(executionOptions || {}),
+    };
+
     const goalId = `goal-${randomUUID().slice(0, 9)}`;
     const goalRecord: GoalRecord = {
       id: goalId,
@@ -51,7 +59,7 @@ export class CodexService {
       updatedAt: new Date().toISOString(),
       retryCount: 0,
       providerFallbackCount: 0,
-      executionOptions
+      executionOptions: mergedExecutionOptions
     };
 
     goalStore.create(goalRecord);
@@ -183,6 +191,9 @@ Do not execute the steps yet, just outline the plan.`;
   }
 
   async abortGoal(goalId: string) {
+    // Abort the in-flight loop FIRST (interrupts a pending model request),
+    // then persist the terminal state. Stop must work even mid-llmChat.
+    goalControllers.get(goalId)?.abort();
     goalStore.update(goalId, { status: 'stopped' });
     return true;
   }

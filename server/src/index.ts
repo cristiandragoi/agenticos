@@ -282,6 +282,15 @@ seedDefaultSkills();
 import { backgroundTaskManager } from './services/backgroundTasks/manager.js';
 backgroundTaskManager.restoreAfterRestart();
 
+// CodeX goals: reconcile orphaned goals (backend restarted while their loop
+// ran and the worker lease expired) so they never show "Waiting for local
+// model response" forever. Boot-only — no loop can be active in a fresh process.
+import { goalStore } from './services/goalStore.js';
+const sweptGoals = goalStore.sweepExpiredLeases();
+if (sweptGoals > 0) {
+  logger.info(`[GoalMode] Marked ${sweptGoals} orphaned goal(s) failed after restart (expired worker lease).`);
+}
+
 // Legacy compatibility redirects (keep old paths working)
 app.get('/api/memory-scopes', (_req, res) => res.redirect('/api/memory/scopes'));
 app.get('/api/memory-entries', (_req, res) => res.redirect('/api/memory/entries'));
