@@ -117,12 +117,20 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord): Promise<{ 
         });
       } else if (rec.status === 'failed' || rec.status === 'cancelled') {
         mgr.transition(task.taskId, rec.status === 'cancelled' ? 'cancelled' : 'failed', {
-          lastError: rec.finalText || `Hermes run ${rec.status}.`,
+          lastError: rec.errorMessage || rec.finalText || `Hermes run ${rec.status}.`,
         });
       }
     };
     hermesApiService.on('hermes:event', onEvent);
     hermesApiService.on('hermes:update', onUpdate);
+
+    // Race guard: the upstream run may have failed BEFORE the listeners were
+    // attached (createRun fires the SSE consumer immediately). Re-check now —
+    // the onUpdate TERMINAL guard makes this idempotent.
+    const already = hermesApiService.getRun?.(record.id) as HermesRunRecord | undefined;
+    if (already && (already.status === 'failed' || already.status === 'cancelled' || already.status === 'completed')) {
+      onUpdate(already);
+    }
 
     // Worker control handlers (stop + approval).
     mgr.registerWorkerHandlers(task.taskId, {

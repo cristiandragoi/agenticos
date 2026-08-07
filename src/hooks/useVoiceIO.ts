@@ -33,6 +33,7 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
+import { decideContinuation } from '../utils/utteranceCompleteness';
 
 export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
 
@@ -56,6 +57,9 @@ interface UseVoiceIOOptions {
   /** Conversation mode: ignore mic input this long after playback starts
    *  (echo-cancellation settle window for barge-in detection). */
   bargeInGraceMs?: number;
+  /** Conversation mode: hold an incomplete utterance this long (ms) while
+   *  waiting for a continuation segment before submitting it as-is. */
+  continuationWindowMs?: number;
 }
 
 const BACKEND = '/api';
@@ -79,6 +83,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     minSpeechMs = 120,
     maxSegmentMs = 20000,
     bargeInGraceMs = 250,
+    continuationWindowMs = 2500,
   } = options;
 
   const [voiceState, setVoiceStateInternal] = useState<VoiceState>('idle');
@@ -118,6 +123,14 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const turnSubmittedRef = useRef(false);
   const playbackStartedAtRef = useRef<number | null>(null);
   const playbackActiveRef = useRef(false);
+  // Bounded continuation window for incomplete utterances ("It is…"): the
+  // text is held, the mic re-arms, and a later segment appends to it so ONE
+  // combined turn is submitted. `validity` is captured from the FIRST segment.
+  const continuationRef = useRef<{ text: string; validity?: { sessionId: string | null; turnId: number }; at: number } | null>(null);
+  const continuationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Indirection so the (earlier-defined) transcription path can reach the
+  // (later-defined) continuation handler without TDZ/stale-closure hazards.
+  const handleConversationTranscriptRef = useRef<(text: string, validity?: { sessionId: string | null; turnId: number }) => void>(() => {});
   const speakingRef = useRef(false);
   const recoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoSubmitRef = useRef<{ text: string; at: number } | null>(null);
@@ -440,6 +453,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const submitConversationTurn = useCallback((
     text: string,
     validity?: { sessionId: string | null; turnId: number },
+    opts?: { skipTurnIdCheck?: boolean },
   ): boolean => {
     // Session/turn validity first: a turn recorded by a dead session (user
     // ended Conversation mid-transcription) or superseded by a newer turn
@@ -450,7 +464,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         console.log('[ConvTrace] submit REJECTED: session invalidated', { recorded: validity.sessionId, live: conversationSessionIdRef.current });
         return false;
       }
-      if (validity.turnId !== turnSeqRef.current) {
+      if (!opts?.skipTurnIdCheck && validity.turnId !== turnSeqRef.current) {
         // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
         console.log('[ConvTrace] submit REJECTED: stale turnId', { recorded: validity.turnId, current: turnSeqRef.current });
         return false;
@@ -542,15 +556,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         branch: (fromConversation || conversationActiveRef.current) ? 'AUTO-SUBMIT' : 'MANUAL-INPUT',
       });
       if (fromConversation || conversationActiveRef.current) {
-        // Auto-submit EXACTLY ONCE, then hand off to the agent pipeline.
-        const submitted = submitConversationTurn(transcriptText, validity);
-        if (submitted) {
-          setVoiceState('thinking');
-        } else {
-          // Duplicate — swallow silently, keep listening.
-          setVoiceState('listening');
-          startConversationListeningInternal();
-        }
+        // End-of-turn gating (see handleConversationTranscript): incomplete
+        // utterances are held for a bounded continuation window; complete
+        // ones (including short commands) submit immediately.
+        handleConversationTranscriptRef.current(transcriptText, validity);
         return;
       }
       // Manual mode: surface transcript, wait for explicit user Send.
@@ -612,6 +621,12 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     turnActiveRef.current = false;
     speechStartedAtRef.current = null;
     silenceSinceRef.current = null;
+    // Drop any held continuation buffer — it belongs to the dead turn.
+    continuationRef.current = null;
+    if (continuationTimerRef.current) {
+      clearTimeout(continuationTimerRef.current);
+      continuationTimerRef.current = null;
+    }
     const rec = convRecorderRef.current;
     convRecorderRef.current = null;
     convChunksRef.current = [];
@@ -768,6 +783,73 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     };
     vadRafRef.current = requestAnimationFrame(tick);
   }, [speechThreshold, minSpeechMs, endSpeechSilenceMs, maxSegmentMs, bargeInGraceMs, startTurnRecording, stopTurnRecording, stopSpeaking, setVoiceState]);
+
+  /** Re-arm the mic inside the continuation window. */
+  const rearmListening = useCallback(() => {
+    if (!conversationActiveRef.current) return;
+    setVoiceState('listening');
+    startConversationListeningInternal();
+  }, [setVoiceState, startConversationListeningInternal]);
+
+  /**
+   * End-of-turn gating for conversation-mode transcripts.
+   *
+   * - COMPLETE utterance (terminal punctuation, or final word not a
+   *   continuation marker) → submit immediately (fast short commands).
+   * - INCOMPLETE first segment ("It is…") → buffer it, re-arm the mic, and
+   *   start a bounded continuation window (continuationWindowMs). A later
+   *   segment APPENDS to the buffer; when the combined text is complete the
+   *   WHOLE utterance submits ONCE. If the window expires, the buffer
+   *   submits as-is (never held forever).
+   */
+  const handleConversationTranscript = useCallback((text: string, validity?: { sessionId: string | null; turnId: number }) => {
+    const decision = decideContinuation(continuationRef.current?.text ?? null, text);
+    if (decision.action === 'hold') {
+      continuationRef.current = { text, validity, at: Date.now() };
+      if (continuationTimerRef.current) clearTimeout(continuationTimerRef.current);
+      continuationTimerRef.current = setTimeout(() => {
+        continuationTimerRef.current = null;
+        const buf = continuationRef.current;
+        continuationRef.current = null;
+        if (!buf) return;
+        // Window expired — submit the buffered fragment as-is (bounded hold).
+        const submitted = submitConversationTurn(buf.text, buf.validity, { skipTurnIdCheck: true });
+        if (submitted) setVoiceState('thinking');
+        else rearmListening();
+      }, continuationWindowMs);
+      rearmListening();
+      return;
+    }
+    if (decision.action === 'buffer') {
+      const buf = continuationRef.current;
+      if (buf) {
+        buf.text = decision.combined;
+        buf.at = Date.now();
+      }
+      if (continuationTimerRef.current) clearTimeout(continuationTimerRef.current);
+      continuationTimerRef.current = setTimeout(() => {
+        continuationTimerRef.current = null;
+        const b = continuationRef.current;
+        continuationRef.current = null;
+        if (!b) return;
+        const submitted = submitConversationTurn(b.text, b.validity, { skipTurnIdCheck: true });
+        if (submitted) setVoiceState('thinking');
+        else rearmListening();
+      }, continuationWindowMs);
+      rearmListening();
+      return;
+    }
+    // submit — combined when a continuation was buffered, else this segment.
+    const firstValidity = continuationRef.current?.validity || validity;
+    const isCombined = Boolean(continuationRef.current);
+    continuationRef.current = null;
+    if (continuationTimerRef.current) { clearTimeout(continuationTimerRef.current); continuationTimerRef.current = null; }
+    const submitted = submitConversationTurn(decision.text, firstValidity, { skipTurnIdCheck: isCombined });
+    if (submitted) setVoiceState('thinking');
+    else rearmListening();
+  }, [continuationWindowMs, rearmListening, setVoiceState, submitConversationTurn]);
+
+  handleConversationTranscriptRef.current = handleConversationTranscript;
 
   /** Activate conversation mode. Returns true when the mic opened. */
   const startConversation = useCallback(async (): Promise<boolean> => {

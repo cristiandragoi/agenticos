@@ -50,6 +50,7 @@ export interface HermesRunRecord {
   status: HermesRunStatus;
   provider: string;
   model: string;
+  errorMessage?: string;      // upstream failure detail (run.failed / error)
   events: HermesActivityEvent[];
   pendingApproval: { action?: string; reason?: string; command?: string; files?: string[]; choices?: string[] } | null;
   finalText: string;
@@ -61,14 +62,16 @@ const HERMES_PROFILE = process.env.HERMES_PROFILE || 'backend-engineer';
 const MAX_EVENTS_PER_RUN = 200;
 
 /**
- * Run model routing. The profile's DEFAULT model resolves to an expired
- * cloud key (DashScope 401), so every run carries an explicit
- * provider+model override. Verified working against the installed gateway:
- * provider 'qwen3-coder-plus' + model 'qwen3.8-max-preview' (the same
- * key/model the profile's main agent session uses). Override via env.
+ * Run model routing. The gateway's /v1/models exposes the PROFILE id (e.g.
+ * "backend-engineer") as the runnable model — a run with `model: <profile>`
+ * and NO provider uses the profile's configured provider/model (config.yaml
+ * model.provider). Provider+model overrides remain available via env for
+ * explicit routing. NOTE: a provider name that the installed Hermes gateway
+ * does not know (e.g. 'qwen3-coder-plus') fails at run start with
+ * "Provider authentication failed: Unknown provider ...".
  */
-const HERMES_RUN_PROVIDER = process.env.HERMES_RUN_PROVIDER || 'qwen3-coder-plus';
-const HERMES_RUN_MODEL = process.env.HERMES_RUN_MODEL || 'qwen3.8-max-preview';
+const HERMES_RUN_PROVIDER = process.env.HERMES_RUN_PROVIDER || '';
+const HERMES_RUN_MODEL = process.env.HERMES_RUN_MODEL || HERMES_PROFILE;
 
 /**
  * Resolve the live Hermes API base URL. Preference: explicit HERMES_API_URL
@@ -175,9 +178,11 @@ class HermesApiService extends EventEmitter {
 
     const body: Record<string, unknown> = {
       input: prompt,
-      // Explicit provider+model: the profile default routes to an expired
-      // cloud key; this combination is verified live against this gateway.
-      provider: HERMES_RUN_PROVIDER,
+      // Default: run as the gateway profile (model = profile id, no
+      // provider) so the profile's configured provider/model is used. An
+      // explicit provider is only sent when the operator sets one — an
+      // unknown provider name fails at run start.
+      ...(HERMES_RUN_PROVIDER ? { provider: HERMES_RUN_PROVIDER } : {}),
       model: HERMES_RUN_MODEL,
     };
     if (opts.instructions) body.instructions = opts.instructions;
@@ -315,6 +320,7 @@ class HermesApiService extends EventEmitter {
     } catch (err: any) {
       this.appendEvent(record, 'error', `Event stream failed: ${err?.message || err}`);
       record.status = record.status === 'completed' ? record.status : 'failed';
+      record.errorMessage = record.errorMessage || `Event stream failed: ${err?.message || err}`;
       this.touch(record);
     }
   }
@@ -380,9 +386,16 @@ class HermesApiService extends EventEmitter {
         this.appendEvent(record, 'run.completed', 'Hermes run completed', { stats: ev?.usage });
         this.finishBoardLinkage(record, 'done');
         break;
+      case 'run.failed':
+        record.status = 'failed';
+        record.errorMessage = typeof ev?.error === 'string' ? ev.error : (ev?.message || 'Hermes run failed');
+        this.appendEvent(record, 'status.changed', `run.failed: ${record.errorMessage}`, { error: record.errorMessage, event: 'run.failed' });
+        this.finishBoardLinkage(record, 'error');
+        break;
       case 'error':
         record.status = 'failed';
-        this.appendEvent(record, 'error', ev?.message || 'Run error');
+        record.errorMessage = ev?.message || 'Run error';
+        this.appendEvent(record, 'error', record.errorMessage || 'Run error', { error: record.errorMessage || 'Run error' });
         this.finishBoardLinkage(record, 'error');
         break;
       case 'done':
