@@ -37,8 +37,15 @@ import PromptLab from './pages/evolution/PromptLab';
 import AgentTeamsDashboard from './pages/AgentTeamsDashboard';
 import TeamDetailView from './pages/TeamDetailView';
 import SystemDoctorPage from './pages/SystemDoctorPage';
+import { uiDiagnostics } from './diagnostics/uiSnapshot';
+import { useEffect } from 'react';
 
 function App() {
+  // Startup: publish configured/selected frontend diagnostic state as soon as
+  // it is available (before AgentRuntimeSelector/ProviderBadge mount).
+  useEffect(() => {
+    uiDiagnostics.init();
+  }, []);
   return (
     <DataProvider>
       <AppProvider>

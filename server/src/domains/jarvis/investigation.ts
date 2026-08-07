@@ -168,31 +168,66 @@ export async function investigateAgenticState(conversationId: string, prompt: st
 
   const modelMismatch = /model|provider|badge|display|showing|shows/i.test(prompt);
 
-  // 6. Frontend diagnostic snapshot — what the UI is ACTUALLY rendering
-  //    (reported by the UI itself; backend/runtime remains authoritative).
+  // 6. Frontend diagnostic snapshot — what the UI is ACTUALLY rendering /
+  //    last rendered (reported by the UI itself; backend/runtime authoritative).
   const ui = diagnosticsStore.getUiSnapshot();
   if (ui) {
-    const fmt = (p: { provider?: string | null; model?: string | null }): string =>
-      p?.provider || p?.model ? `${p.provider || '(unset)'}${p.model ? ' / ' + p.model : ''}` : '(not reported)';
+    const now = Date.now();
+    const fmt = (p?: string | null, m?: string | null): string =>
+      p || m ? `${p || '(unset)'}${m ? ' / ' + m : ''}` : '(not reported)';
+    const age = (ts?: number | null): string => {
+      if (!ts) return 'unknown age';
+      const s = Math.max(0, Math.round((now - ts) / 1000));
+      return s < 90 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
+    };
     lines.push(
       '',
       'Frontend display state (reported by the UI, read-only):',
-      `  • Selected (AgentRuntimeSelector): ${fmt(ui.selected)}`,
-      `  • Gateway status rendered: ${fmt(ui.gatewayResolved)}${ui.gatewayResolved?.online === false ? ' (UI shows gateway offline)' : ui.gatewayResolved?.online ? '' : ''}`,
-      `  • Active stream: ${fmt(ui.activeStream)}${ui.activeStream?.operationId ? ` (operation ${ui.activeStream.operationId.slice(-10)})` : ''}`,
-      `  • Frontend ProviderBadge: ${fmt(ui.frontendBadge)}${ui.frontendBadge?.messageId ? ` (message ${ui.frontendBadge.messageId.slice(-10)})` : ''}`,
-      ui.hermes?.provider || ui.hermes?.model ? `  • Hermes runtime: ${fmt(ui.hermes)}` : '',
     );
-    // Staleness analysis: if the badge was updated before the latest stream
-    // operation that changed the model, the badge is not reacting to the
-    // latest gateway state.
-    const badge = ui.frontendBadge;
-    const stream = ui.activeStream;
-    if (badge?.updatedAt && stream?.updatedAt && badge.updatedAt < stream.updatedAt) {
-      lines.push(
-        `The ProviderBadge last updated ${Math.round((stream.updatedAt - badge.updatedAt) / 1000)}s before the latest stream operation ` +
-        `(operation ${stream.operationId?.slice(-10) || 'unknown'}) — the badge is not reacting to the latest gateway state.`
-      );
+    // Selected / configured frontend state.
+    const sel = ui.selected;
+    lines.push(
+      sel?.provider || sel?.model
+        ? `  • Selected frontend model: ${fmt(sel.provider, sel.model)} (source: ${sel.source || 'unknown'}; ${age(sel.updatedAt)})`
+        : '  • Selected frontend model: (not reported)'
+    );
+    // Gateway status rendered.
+    const gw = ui.gatewayRendered;
+    lines.push(
+      gw?.provider || gw?.model
+        ? `  • Gateway status rendered: ${fmt(gw.provider, gw.model)}${gw.online === false ? ' (UI shows gateway offline)' : ''} (source: ${gw.source || 'unknown'}; ${age(gw.updatedAt)})`
+        : '  • Gateway status rendered: (not reported)'
+    );
+    // ProviderBadge — last rendered value with explicit mount/age markers.
+    const badge = ui.rendered?.providerBadge;
+    if (badge?.provider || badge?.model) {
+      const mount = badge.componentMounted ? 'component mounted' : `component currently unmounted; last render ${age(badge.renderedAt)}`;
+      lines.push(`  • ProviderBadge last rendered: ${fmt(badge.provider, badge.model)} (${mount}${badge.messageId ? `, message ${badge.messageId.slice(-10)}` : ''})`);
+    } else {
+      lines.push('  • ProviderBadge last rendered: (not reported)');
+    }
+    // Active vs last-known stream — never fabricated.
+    const active = ui.stream?.active;
+    const last = ui.stream?.lastKnown;
+    lines.push(
+      active?.provider || active?.model
+        ? `  • Active stream: ${fmt(active.provider, active.model)} (operation ${active.operationId?.slice(-10) || 'unknown'}; started ${age(active.startedAt)})`
+        : '  • Active stream: none'
+    );
+    lines.push(
+      last?.provider || last?.model
+        ? `  • Last stream: ${fmt(last.provider, last.model)} (operation ${last.operationId?.slice(-10) || 'unknown'}; ended ${age(last.endedAt)})`
+        : '  • Last stream: none'
+    );
+    // Staleness analysis: a badge rendered before a newer stream operation is
+    // not reacting to the latest gateway state.
+    if ((badge?.provider || badge?.model) && badge?.renderedAt) {
+      const opTs = active?.startedAt || last?.endedAt;
+      if (opTs && badge.renderedAt < opTs) {
+        lines.push(
+          `The ProviderBadge last rendered ${age(badge.renderedAt)} (${Math.round((opTs - badge.renderedAt) / 1000)}s before the latest stream operation) — the badge is not reacting to the latest gateway state.`
+        );
+      }
     }
   } else {
     lines.push(
@@ -203,11 +238,12 @@ export async function investigateAgenticState(conversationId: string, prompt: st
 
   lines.push('');
   if (modelMismatch) {
+    const badge = ui?.rendered?.providerBadge;
     lines.push(
       `The authoritative runtime resolves provider ${selectedProvider || '(unset)'} / model ${selectedModel}. ` +
-      (ui?.frontendBadge?.provider || ui?.frontendBadge?.model
-        ? `The frontend ProviderBadge renders ${ui.frontendBadge.provider || '(unset)'}${ui.frontendBadge.model ? ' / ' + ui.frontendBadge.model : ''}. ` +
-          (ui.frontendBadge.provider === selectedProvider && (ui.frontendBadge.model === selectedModel || !selectedModel)
+      (badge?.provider || badge?.model
+        ? `The frontend ProviderBadge last rendered ${badge.provider || '(unset)'}${badge.model ? ' / ' + badge.model : ''}. ` +
+          (badge.provider === selectedProvider && (badge.model === selectedModel || !selectedModel)
             ? 'The badge matches the runtime — no stale display detected.'
             : 'The badge does NOT match the runtime — the stale value is limited to the frontend display state.')
         : 'If the UI displays something else, it is showing a stale value — the runtime itself is the source of truth.')

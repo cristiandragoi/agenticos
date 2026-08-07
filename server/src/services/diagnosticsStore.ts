@@ -1,24 +1,26 @@
 /**
  * UI Diagnostic Snapshot store (backend side).
  *
- * The FRONTEND reports what it is currently rendering via
- * POST /api/diagnostics/ui-snapshot. This store keeps the LATEST snapshot
- * (read-only reporting — the backend/runtime remains authoritative).
+ * The FRONTEND reports what it is currently rendering (and last rendered) via
+ * POST /api/diagnostics/ui-snapshot. This store keeps the LATEST snapshot —
+ * read-only observational state; the backend/runtime remains authoritative.
  * Jarvis INVESTIGATE reads it to compare UI-displayed provider/model state
  * against backend runtime state.
  */
-export interface UiSnapshotPart {
-  provider: string | null;
-  model: string | null;
-  updatedAt: number;
-}
-
 export interface UiDiagnosticSnapshot {
-  selected: UiSnapshotPart;
-  gatewayResolved: UiSnapshotPart & { online: boolean | null };
-  activeStream: UiSnapshotPart & { operationId: string | null };
-  frontendBadge: UiSnapshotPart & { messageId: string | null };
-  hermes: UiSnapshotPart;
+  /** Configured/selected frontend state (assignment API + user selection). */
+  selected: { provider: string | null; model: string | null; updatedAt: number; source: string | null };
+  /** Gateway status the UI renders (health poll / bootstrap). */
+  gatewayRendered: { provider: string | null; model: string | null; online: boolean | null; updatedAt: number; source: string | null };
+  /** Last rendered transcript ProviderBadge (render confirmation + last-known). */
+  rendered: {
+    providerBadge: { provider: string | null; model: string | null; renderedAt: number; componentMounted: boolean; messageId: string | null };
+  };
+  /** Current active stream vs last-known stream (never fabricated). */
+  stream: {
+    active: { provider: string | null; model: string | null; operationId: string | null; startedAt: number } | null;
+    lastKnown: { provider: string | null; model: string | null; operationId: string | null; endedAt: number } | null;
+  };
   version: number;
   updatedAt: number;
 }

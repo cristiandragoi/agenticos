@@ -34,7 +34,7 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
 
   // Diagnostic: report the user-selected provider/model the selector renders.
   useEffect(() => {
-    uiDiagnostics.setSelected(selectedProviderId || null, selectedModelId || null);
+    uiDiagnostics.setSelected(selectedProviderId || null, selectedModelId || null, 'agent-runtime-selector');
   }, [selectedProviderId, selectedModelId]);
 
   // Stale-request guard: cancel in-flight fetch on agentId change or unmount (handles StrictMode double-invoke)

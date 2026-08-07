@@ -1,44 +1,51 @@
 /**
  * UI Diagnostic Snapshot — READ-ONLY reporting of what the React UI is
- * currently rendering.
+ * currently rendering (and has last rendered).
  *
- * The backend/runtime remains the AUTHORITATIVE source of truth. This module
- * only answers the question "what is the UI currently displaying?" — the
- * frontend's selected runtime, the gateway status it renders, the active
- * stream provider/model, and the most recent transcript ProviderBadge — so
- * Jarvis INVESTIGATE can compare layers and pinpoint stale UI state.
+ * Architectural rules:
+ *  - The backend/runtime remains AUTHORITATIVE. This module only answers
+ *    "what is the UI currently displaying / what did it last display?"
+ *  - No DOM scraping, no screenshot/OCR. Fields are derived from existing
+ *    frontend state (API fetches, stores, hooks) or published by components
+ *    as render confirmation.
+ *  - No diagnostic state may drive runtime routing; no config changes occur
+ *    through the diagnostic endpoint.
  *
- * The snapshot is pushed to the backend through the existing Vite proxy via
- * POST /api/diagnostics/ui-snapshot (debounced, no secrets, no side effects).
+ * Startup: `initUiDiagnostics()` publishes configured/selected state from
+ * the authoritative assignment API as soon as the app starts — before any
+ * component that displays it has mounted.
+ *
+ * Remounts: values persist in module scope for the whole Electron/app
+ * session. A component unmount marks its layer's render confirmation as
+ * `componentMounted: false` but never erases the last-known value.
+ *
+ * Truthfulness: nothing is fabricated. A layer with no value reports
+ * null/"none"; uncertainty is explicit (source, last-known, age).
  */
-export interface UiSnapshotPart {
-  provider: string | null;
-  model: string | null;
-  updatedAt: number;
-}
-
 export interface UiDiagnosticSnapshot {
-  /** User-selected provider/model (AgentRuntimeSelector). */
-  selected: UiSnapshotPart;
-  /** Gateway status the UI renders (health/gateway poll). */
-  gatewayResolved: UiSnapshotPart & { online: boolean | null };
-  /** Last active stream provider/model + operationId (JarvisChat status). */
-  activeStream: UiSnapshotPart & { operationId: string | null };
-  /** Most recent transcript ProviderBadge value. */
-  frontendBadge: UiSnapshotPart & { messageId: string | null };
-  /** Hermes runtime provider/model where applicable. */
-  hermes: UiSnapshotPart;
+  /** Configured/selected frontend state (assignment API + user selection). */
+  selected: { provider: string | null; model: string | null; updatedAt: number; source: string | null };
+  /** Gateway status the UI renders (health poll / bootstrap). */
+  gatewayRendered: { provider: string | null; model: string | null; online: boolean | null; updatedAt: number; source: string | null };
+  /** Last rendered transcript ProviderBadge (render confirmation + last-known). */
+  rendered: {
+    providerBadge: { provider: string | null; model: string | null; renderedAt: number; componentMounted: boolean; messageId: string | null };
+  };
+  /** Current active stream vs last-known stream (never fabricated). */
+  stream: {
+    active: { provider: string | null; model: string | null; operationId: string | null; startedAt: number } | null;
+    lastKnown: { provider: string | null; model: string | null; operationId: string | null; endedAt: number } | null;
+  };
   version: number;
   updatedAt: number;
 }
 
 function empty(): UiDiagnosticSnapshot {
   return {
-    selected: { provider: null, model: null, updatedAt: 0 },
-    gatewayResolved: { provider: null, model: null, updatedAt: 0, online: null },
-    activeStream: { provider: null, model: null, updatedAt: 0, operationId: null },
-    frontendBadge: { provider: null, model: null, updatedAt: 0, messageId: null },
-    hermes: { provider: null, model: null, updatedAt: 0 },
+    selected: { provider: null, model: null, updatedAt: 0, source: null },
+    gatewayRendered: { provider: null, model: null, online: null, updatedAt: 0, source: null },
+    rendered: { providerBadge: { provider: null, model: null, renderedAt: 0, componentMounted: false, messageId: null } },
+    stream: { active: null, lastKnown: null },
     version: 0,
     updatedAt: 0,
   };
@@ -48,6 +55,7 @@ let state = empty();
 let reportTimer: ReturnType<typeof setTimeout> | null = null;
 let lastSent = '';
 const listeners = new Set<() => void>();
+let initialized = false;
 
 function bump(): void {
   state.version += 1;
@@ -68,7 +76,7 @@ function scheduleReport(): void {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payload,
-    }).catch(() => { /* diagnostics only — never break the UI */ });
+    }).catch(() => { /* diagnostics only — endpoint unavailable must never break the UI */ });
   }, 800);
 }
 
@@ -76,26 +84,84 @@ export const uiDiagnostics = {
   get(): UiDiagnosticSnapshot {
     return state;
   },
-  setSelected(provider: string | null, model: string | null): void {
-    state.selected = { provider, model, updatedAt: Date.now() };
+  /** Startup bootstrap: publish configured/selected state as soon as the
+   *  authoritative assignment + gateway status are available — independent of
+   *  component mount timing and without waiting for user interaction. */
+  init(): void {
+    if (initialized) return;
+    initialized = true;
+    void (async () => {
+      try {
+        const res = await fetch('/api/settings/agent-provider-assignments/agent-jarvis');
+        if (res.ok) {
+          const a = await res.json();
+          if (a?.providerId || a?.modelId) {
+            uiDiagnostics.setSelected(a.providerId || null, a.modelId || null, 'agent-provider-assignments');
+          }
+        }
+      } catch { /* diagnostics only */ }
+      try {
+        const res = await fetch('/api/health/gateway');
+        if (res.ok) {
+          const d = await res.json();
+          uiDiagnostics.setGatewayRendered(
+            d?.gateway ?? null,
+            d?.model ?? null,
+            d?.status === 'online' || d?.status === 'degraded',
+            'health-gateway-poll'
+          );
+        }
+      } catch { /* diagnostics only */ }
+    })();
+  },
+  setSelected(provider: string | null, model: string | null, source: string | null): void {
+    state.selected = { provider, model, updatedAt: Date.now(), source };
     bump();
   },
-  setGatewayResolved(provider: string | null, model: string | null, online: boolean | null): void {
-    state.gatewayResolved = { provider, model, online, updatedAt: Date.now() };
+  setGatewayRendered(provider: string | null, model: string | null, online: boolean | null, source: string | null): void {
+    state.gatewayRendered = { provider, model, online, updatedAt: Date.now(), source };
     bump();
   },
-  setActiveStream(provider: string | null, model: string | null, operationId: string | null): void {
-    if (!provider && !model && !operationId) return; // idle statuses don't clobber the last real stream
-    state.activeStream = { provider, model, operationId, updatedAt: Date.now() };
-    bump();
-  },
+  /** Render confirmation for the transcript ProviderBadge. */
   setFrontendBadge(provider: string | null, model: string | null, messageId: string | null): void {
-    state.frontendBadge = { provider, model, messageId, updatedAt: Date.now() };
+    state.rendered.providerBadge = { provider, model, renderedAt: Date.now(), componentMounted: true, messageId };
     bump();
   },
-  setHermes(provider: string | null, model: string | null): void {
-    state.hermes = { provider, model, updatedAt: Date.now() };
+  /** Component unmount marker — value is preserved as last-known. */
+  setFrontendBadgeUnmounted(): void {
+    if (state.rendered.providerBadge.componentMounted) {
+      state.rendered.providerBadge = { ...state.rendered.providerBadge, componentMounted: false };
+      bump();
+    }
+  },
+  /** Current active stream — startedAt is kept for the same operation. */
+  setStreamActive(provider: string | null, model: string | null, operationId: string | null): void {
+    const prevActive = state.stream.active;
+    const sameOp = prevActive?.operationId && operationId && prevActive.operationId === operationId;
+    state.stream.active = {
+      provider,
+      model,
+      operationId,
+      startedAt: sameOp && prevActive.startedAt ? prevActive.startedAt : Date.now(),
+    };
     bump();
+  },
+  /** Stream end — moves the active stream to lastKnown (never fabricates). */
+  setStreamEnded(operationId: string | null): void {
+    const active = state.stream.active;
+    if (active) {
+      state.stream.lastKnown = {
+        provider: active.provider,
+        model: active.model,
+        operationId: active.operationId || operationId,
+        endedAt: Date.now(),
+      };
+      state.stream.active = null;
+      bump();
+    } else if (operationId && state.stream.lastKnown && state.stream.lastKnown.operationId === operationId) {
+      state.stream.lastKnown = { ...state.stream.lastKnown, endedAt: Date.now() };
+      bump();
+    }
   },
   subscribe(fn: () => void): () => void {
     listeners.add(fn);
@@ -105,5 +171,6 @@ export const uiDiagnostics = {
   reset(): void {
     state = empty();
     lastSent = '';
+    initialized = false;
   },
 };

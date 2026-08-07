@@ -285,7 +285,7 @@ export default function JarvisStudio() {
         const data = await res.json();
         if (!cancelled) setBackendOffline(data?.status === 'offline');
         // Diagnostic: report the gateway status the UI renders (read-only).
-        uiDiagnostics.setGatewayResolved(data?.gateway ?? null, data?.model ?? null, data?.status === 'online' || data?.status === 'degraded');
+        uiDiagnostics.setGatewayRendered(data?.gateway ?? null, data?.model ?? null, data?.status === 'online' || data?.status === 'degraded', 'health-gateway-poll');
       } catch { if (!cancelled) setBackendOffline(true); }
     };
     check();

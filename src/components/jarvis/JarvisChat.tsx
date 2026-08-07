@@ -204,6 +204,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         lastBadge.id ?? null
       );
     }
+    // Unmount marker: the value stays as last-known, but the component is no
+    // longer mounted (remounts must not erase valid diagnostic state).
+    return () => { uiDiagnostics.setFrontendBadgeUnmounted(); };
   }, [messages]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sendError, setSendError] = useState<SendErrorState | null>(null);
@@ -467,6 +470,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     clearResponseTimers();
     stopStatusClock();
     emitStatus({ state: 'cancelled' });
+    uiDiagnostics.setStreamEnded(null);
     window.setTimeout(() => {
       if (!abortControllerRef.current) emitStatus(idleStatus);
     }, 1200);
@@ -745,6 +749,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         );
       } else if (event.event === 'execution_failed') {
         emitStatus({ state: 'error', error: data.error || 'Execution failed.' });
+        uiDiagnostics.setStreamEnded(operationId);
         appendOperationalEvent(operationId, 'execution_failed', `Execution failed: ${data.error || 'Unknown error'}`, data);
       } else if (event.event === 'paused') {
         emitStatus({ state: 'paused' });
@@ -767,14 +772,15 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           provider: data.provider ?? null,
           model: data.model ?? null
         });
-        // Diagnostic: report what the UI is streaming (active stream layer).
-        uiDiagnostics.setActiveStream(data.provider ?? null, data.model ?? null, operationId);
+        // Diagnostic: report what the UI is streaming (current active stream).
+        uiDiagnostics.setStreamActive(data.provider ?? null, data.model ?? null, operationId);
         appendStreamingAssistantText(operationId, data.delta || '');
         if (data.delta) onStreamDeltaRef.current?.(data.delta, pendingChannelRef.current);
       } else if (event.event === 'error') {
         const message = data.error || 'Jarvis response failed.';
         setSendError({ message, operationId });
         emitStatus({ state: 'error', error: message });
+        uiDiagnostics.setStreamEnded(operationId);
         await fetchMessages();
       } else if (event.event === 'done') {
         appendStreamingAssistantText(operationId, '', true);
@@ -807,6 +813,8 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           provider: data.provider ?? null,
           model: data.model ?? null
         });
+        // Diagnostic: the stream ended — move active → lastKnown.
+        uiDiagnostics.setStreamEnded(operationId);
         if (nextState === 'completed') {
           window.setTimeout(() => {
             if (!abortControllerRef.current) emitStatus(idleStatus);
