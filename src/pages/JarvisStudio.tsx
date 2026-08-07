@@ -11,8 +11,9 @@ import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/ja
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
-import { executionStore, startExecutionStream } from '../diagnostics/executionStore';
-import type { ExecutionRecord } from '../diagnostics/executionStore';
+import { executionStore, startExecutionStream, completionNotifiedAt } from '../diagnostics/executionStore';
+import type { ExecutionRecord, CompletionEvent } from '../diagnostics/executionStore';
+import { CompletionCard } from '../components/jarvis/CompletionCard';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import styles from './JarvisStudio.module.css';
@@ -191,6 +192,54 @@ export default function JarvisStudio() {
   voiceRef.current = voice;
 
   useEffect(() => { voiceRef.current?.setVoiceOverride?.(readPersistedVoice()); }, []);
+
+  // ── Task-completion UX (task-completion milestone) ──
+  // One chime + one desktop notification + one voice announcement per
+  // operation; never replayed on rerender/restart (acknowledgement persisted).
+  const [completions, setCompletions] = useState<CompletionEvent[]>([]);
+  const announcedOpsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const refresh = () => setCompletions(executionStore.getCompletions().filter((e) => completionNotifiedAt(e.operationId) == null));
+    refresh();
+    return executionStore.subscribe(refresh);
+  }, []);
+
+  useEffect(() => {
+    for (const evt of completions) {
+      if (announcedOpsRef.current.has(evt.operationId)) continue;
+      announcedOpsRef.current.add(evt.operationId);
+      playCompletionChime();
+      if (!document.hasFocus() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const n = new Notification('Jarvis', { body: `${evt.taskType} — ${evt.summary}` });
+          n.onclick = () => window.focus();
+        } catch { /* notifications unavailable */ }
+      }
+      if (evt.spokenSummary) voiceRef.current?.speakCompletion?.(evt.spokenSummary);
+    }
+  }, [completions]);
+
+  function playCompletionChime() {
+    try {
+      const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new Ctor();
+      const tone = (freq: number, delay: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + delay + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + dur);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + delay); osc.stop(ctx.currentTime + delay + dur + 0.05);
+      };
+      tone(660, 0, 0.18);
+      tone(880, 0.15, 0.24);
+      setTimeout(() => { ctx.close().catch(() => {}); }, 1400);
+    } catch { /* audio unavailable */ }
+  }
 
   // ── Mode switching ──
   const handleModeChange = useCallback(async (next: 'manual' | 'conversation') => {
@@ -845,6 +894,11 @@ export default function JarvisStudio() {
               OPEN BOARD
             </button>
           </div>
+          {completions.length > 0 && (
+            <div data-testid="completion-cards" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              {[...completions].reverse().map((evt) => <CompletionCard key={evt.operationId} event={evt} />)}
+            </div>
+          )}
           {currentExec ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} data-testid="jarvis-current-execution">
               {currentExec.status === 'WAITING_FOR_USER' ? (

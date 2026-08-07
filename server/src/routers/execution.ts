@@ -7,17 +7,46 @@
 import { Router, Request, Response } from 'express';
 import * as executionState from '../services/executionState.js';
 import type { CancelAction } from '../services/executionState.js';
+import type { TaskCompletedEvent } from '../services/completionSummary.js';
 
 export const executionRouter = Router();
 
 /** Stream-owned aborts registered by the Jarvis stream handler. */
 const streamAborters = new Map<string, AbortController>();
 
+/** TASK_COMPLETED pub/sub (task-completion milestone). */
+const completionSubscribers = new Set<(event: TaskCompletedEvent) => void>();
+const publishedOperations = new Set<string>();
+const recentCompletions: TaskCompletedEvent[] = [];
+const MAX_RECENT_COMPLETIONS = 50;
+
 export function registerStreamAborter(operationId: string, controller: AbortController): void {
   streamAborters.set(operationId, controller);
 }
 export function unregisterStreamAborter(operationId: string): void {
   streamAborters.delete(operationId);
+}
+
+/**
+ * Publish ONE user-facing completion event per operation (never replays).
+ * The text summary and the spoken summary come from the same event.
+ */
+export function publishCompletion(event: TaskCompletedEvent): boolean {
+  if (publishedOperations.has(event.operationId)) return false;
+  publishedOperations.add(event.operationId);
+  recentCompletions.push(event);
+  if (recentCompletions.length > MAX_RECENT_COMPLETIONS) recentCompletions.shift();
+  for (const fn of completionSubscribers) {
+    try { fn(event); } catch { /* subscriber error */ }
+  }
+  return true;
+}
+export function onCompletion(fn: (event: TaskCompletedEvent) => void): () => void {
+  completionSubscribers.add(fn);
+  return () => completionSubscribers.delete(fn);
+}
+export function recentCompletionEvents(): TaskCompletedEvent[] {
+  return [...recentCompletions];
 }
 
 async function dispatchCancel(c: CancelAction): Promise<void> {
@@ -42,6 +71,10 @@ executionRouter.get('/current', (_req: Request, res: Response) => {
   res.json(executionState.snapshot());
 });
 
+executionRouter.get('/completions', (_req: Request, res: Response) => {
+  res.json(recentCompletionEvents());
+});
+
 executionRouter.get('/stream', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -52,7 +85,8 @@ executionRouter.get('/stream', (req: Request, res: Response) => {
   };
   send('snapshot', executionState.snapshot());
   const off = executionState.onExecutionChange((s) => send('change', s));
-  req.on('close', () => { off(); res.end(); });
+  const offCompletion = onCompletion((event) => send('task_completed', event));
+  req.on('close', () => { off(); offCompletion(); res.end(); });
 });
 
 executionRouter.post('/cancel', async (req: Request, res: Response) => {

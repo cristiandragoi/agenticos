@@ -29,6 +29,16 @@ import {
 import { localDataPort } from '../../adapters/localDataPort.js';
 import { logger } from '../../utils/logger.js';
 import * as executionState from '../executionState.js';
+
+/** Extract "Top prospect: X" (or the first numbered result) from a worker result. */
+function extractTopResult(result: string | null | undefined): string | null {
+  if (!result) return null;
+  const top = result.match(/Top prospect:\s*([^\n]+)/i);
+  if (top?.[1]) return top[1].trim();
+  const first = result.match(/^\s*1[.)]\s*(.+)$/m);
+  if (first?.[1]) return first[1].trim().slice(0, 80);
+  return null;
+}
 import { routingLedger } from '../routingLedger.js';
 
 export interface CreateTaskInput {
@@ -285,6 +295,31 @@ export class BackgroundTaskManager extends EventEmitter {
               endedAt: rec.endedAt,
             });
           }
+          // TASK_COMPLETED user-experience event (task-completion milestone):
+          // publish ONE semantic completion event (text + spoken summary come
+          // from the same event). Fire-and-forget — never blocks the transition.
+          void (async () => {
+            try {
+              const { buildCompletionEvent } = await import('../completionSummary.js');
+              const { publishCompletion } = await import('../../routers/execution.js');
+              const rec = executionState.get(opId);
+              if (rec) {
+                const meta = (task.metadata || {}) as Record<string, any>;
+                const evt = buildCompletionEvent(rec, {
+                  taskId: task.taskId,
+                  conversationId: task.conversationId ?? null,
+                  taskType: task.worker === 'revenue' ? 'revenue search' : task.worker === 'codex' ? 'code inspection' : task.worker,
+                  niche: meta.niche ?? null,
+                  city: meta.city ?? null,
+                  requestedCount: typeof meta.prospectCount === 'number' ? meta.prospectCount : null,
+                  resultCount: rec.qualifiedCount != null && typeof meta.prospectCount === 'number' ? Math.min(rec.qualifiedCount, meta.prospectCount) : rec.qualifiedCount,
+                  topResult: extractTopResult(rec.result),
+                  detail: status === 'failed' ? (updated.blocker || updated.lastError || null) : null,
+                });
+                if (evt) publishCompletion(evt);
+              }
+            } catch { /* completion event must never break the transition */ }
+          })();
         } else {
           const execStatus = status === 'running' ? 'RUNNING'
             : status === 'waiting_approval' ? 'WAITING_FOR_APPROVAL'

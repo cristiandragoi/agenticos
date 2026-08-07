@@ -1151,6 +1151,41 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, [speak]);
 
+  // Task-completion announcement (task-completion milestone): speak the
+  // summary once; defer while the user is speaking / mic is capturing.
+  // `speakProgressiveRef` is assigned AFTER speakProgressive is declared
+  // (below) to avoid the TDZ (Cannot access before initialization).
+  const pendingCompletionRef = useRef<string | null>(null);
+  const speakProgressiveRef = useRef<((t: string) => void) | null>(null);
+
+  const speakCompletion = useCallback((text: string) => {
+    if (!text) return;
+    const trySpeak = () => {
+      if (!voiceEnabledRef.current) {
+        pendingCompletionRef.current = null;
+        return;
+      }
+      if (voiceStateRef.current === 'listening') {
+        // User is speaking / mic actively capturing — defer, never talk over.
+        pendingCompletionRef.current = text;
+        return;
+      }
+      pendingCompletionRef.current = null;
+      speakProgressiveRef.current?.(text);
+    };
+    trySpeak();
+  }, []);
+
+  // When the user stops speaking, flush any deferred completion announcement.
+  useEffect(() => {
+    if (voiceState === 'listening') return;
+    if (pendingCompletionRef.current) {
+      const pending = pendingCompletionRef.current;
+      pendingCompletionRef.current = null;
+      speakCompletion(pending);
+    }
+  }, [voiceState, speakCompletion]);
+
   /** Enqueue one short phrase/sentence chunk for sequential TTS playback. */
   const speakProgressive = useCallback((chunk: string) => {
     const text = (chunk || '').trim();
@@ -1158,6 +1193,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     speechQueueRef.current.push(text);
     void pumpSpeechQueue();
   }, [pumpSpeechQueue]);
+  speakProgressiveRef.current = speakProgressive;
 
   /** VOICE KILL SWITCH: stop current playback, abort in-flight TTS
    *  synthesis, clear queued speech, suppress all further speech for the
@@ -1213,21 +1249,24 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     stopSpeaking,
     speak,
     // Progressive sequential TTS + kill switch (never overlaps audio).
-    speakProgressive,
-    killSpeech,
-    armSpeech,
-    setVoiceEnabled,
-    conversationActive,
-    // Session/turn validity identity (never mutable booleans alone).
-    conversationSessionId,
-    startConversation,
-    endConversation,
-    isListening: voiceState === 'listening',
-    isSpeaking: voiceState === 'speaking',
-    isProcessing: voiceState === 'transcribing' || voiceState === 'thinking',
-    playbackError,
-    // Visible voice selection (product milestone) — override wins in speak().
-    selectedVoice,
-    setVoiceOverride,
-  };
-}
+        speakProgressive,
+        killSpeech,
+        armSpeech,
+        setVoiceEnabled,
+        conversationActive,
+        // Session/turn validity identity (never mutable booleans alone).
+        conversationSessionId,
+        startConversation,
+        endConversation,
+        isListening: voiceState === 'listening',
+        isSpeaking: voiceState === 'speaking',
+        isProcessing: voiceState === 'transcribing' || voiceState === 'thinking',
+        playbackError,
+        // Visible voice selection (product milestone) — override wins in speak().
+        selectedVoice,
+        setVoiceOverride,
+        // Task-completion announcement (task-completion milestone): speaks the
+        // completion summary once; defers while the user is speaking/mic active.
+        speakCompletion,
+      };
+    }
