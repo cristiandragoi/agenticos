@@ -92,7 +92,7 @@ const CONTEXTUAL_SIGNAL_PATTERNS: RegExp[] = [
   /\bstill\s+(there|here|shown|displayed)\b/,
   /\b(the old one|it|that)\s+is\s+(there|back)\s+again\b/,
   new RegExp(`\\b(that${APOSTROPHE}?s|thats|this is)\\s+not\\s+what\\b`),
-  /\b(why|how come)\s+(is|does|did)\s+([a-z0-9][a-z0-9 -]{0,30})\s+still\b/,
+  /\b(why\s+the\s+hell|how\s+the\s+hell|what\s+the\s+hell|the\s+hell|why|how come)\s+(is|does|did)\s+([a-z0-9][a-z0-9 -]{0,30})\s+still\b/,
 ];
 
 /** Known AgenticOS entities/state tokens used to establish app context. */

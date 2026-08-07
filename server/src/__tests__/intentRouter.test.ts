@@ -242,5 +242,24 @@ describe('IntentRouter — required routing cases', () => {
       const result = await router.routeIntent('Why is the sky blue?', { recentText: appContext });
       expect(result.route).toBe('direct');
     });
+
+    it('routes idiomatic intensifier variants of "why is X still there?" to investigate', async () => {
+      for (const input of [
+        'The hell is Laguna still there?',
+        'Why the hell is Laguna still there?',
+        'How the hell is it still there?',
+        'What the hell is this model still doing here?',
+      ]) {
+        const result = await router.routeIntent(input, { recentText: appContext });
+        expect(result.route, input).toBe('investigate');
+      }
+    });
+
+    it('does NOT route non-app "the hell is" questions as investigate', async () => {
+      for (const input of ['The hell is this weather?', 'The hell is going on?']) {
+        const result = await router.routeIntent(input, { recentText: appContext });
+        expect(result.route, input).toBe('direct');
+      }
+    });
   });
 });
