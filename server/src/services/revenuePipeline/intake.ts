@@ -232,6 +232,7 @@ export function parsePipelineRequest(text: string): IntakeResult {
       specificUrl: url,
       maxResearchBudgetUsd: budget,
       dryRun,
+      fixturesOnly: false,
       runBuild: true,
       useCodex: true,
       useLlm: false,

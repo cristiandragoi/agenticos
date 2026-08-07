@@ -493,6 +493,7 @@ export async function dispatchRevenuePipelineTask(task: BackgroundTaskRecord, wo
       specificUrl: (task.metadata?.specificUrl as string) || null,
       maxResearchBudgetUsd: task.metadata?.maxResearchBudgetUsd != null ? Number(task.metadata?.maxResearchBudgetUsd) : null,
       dryRun: task.metadata?.dryRun !== false,
+      fixturesOnly: task.metadata?.fixturesOnly === true,
       runBuild: task.metadata?.runBuild !== false,
       useCodex: task.metadata?.useCodex !== false,
       useLlm: task.metadata?.useLlm === true,

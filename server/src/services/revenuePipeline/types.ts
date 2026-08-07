@@ -54,8 +54,14 @@ export interface PipelineConfig {
   specificUrl: string | null;
   /** Per-run research budget in USD. null = no explicit budget. */
   maxResearchBudgetUsd: number | null;
-  /** Dry-run: fixtures only, no real contact, no publish. Default true. */
+  /** Dry-run: no real contact, no publish, no spend. Default true. */
   dryRun: boolean;
+  /**
+   * TRUE only for tests/demo: discovery uses labelled sample fixtures.
+   * Production runs (and the live acceptance) set FALSE and use REAL
+   * public-business discovery — fixtures are never substituted silently.
+   */
+  fixturesOnly: boolean;
   /** Whether the staged concept is actually built (npm install + build + verify). */
   runBuild: boolean;
   /** Whether CodeX runs the bounded site-implementation task (worker routing). */
@@ -92,6 +98,23 @@ export type ProspectStatus =
   | 'rejected'
   | 'blocked';
 
+/**
+ * Public discovery-source contract: WHERE a prospect came from and WHY it is
+ * believed to be a real business. Every real (non-fixture) prospect carries
+ * one; the reviewer refuses non-fixture prospects without it.
+ */
+export interface DiscoverySourceRecord {
+  /** Machine kind, e.g. 'osm-overpass' (OpenStreetMap Overpass API). */
+  sourceType: string;
+  /** Public URL that can be opened to verify the source (OSM element page, …). */
+  sourceUrl: string;
+  /** ISO timestamp of retrieval. */
+  retrievedAt: string;
+  /** Human-readable evidence chain (name, website tag, address, area). */
+  evidence: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
 export interface ProspectRecord {
   prospectId: string;
   businessName: string;
@@ -99,7 +122,9 @@ export interface ProspectRecord {
   city: string;
   websiteUrl: string;
   publicContactUrl: string | null;
-  discoverySource: 'fixture' | 'user-url' | 'live-search';
+  discoverySource: 'fixture' | 'user-url' | 'osm-overpass';
+  /** Discovery provenance for real prospects (null for fixtures/user-url). */
+  discoverySourceRecord: DiscoverySourceRecord | null;
   /** Clearly-labelled sample data — never presented as a real business. */
   fixture: boolean;
   verifiedFacts: string[];

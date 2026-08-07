@@ -67,6 +67,7 @@ function baseConfig(overrides: Record<string, unknown> = {}) {
     specificUrl: null,
     maxResearchBudgetUsd: null,
     dryRun: true,
+    fixturesOnly: true,
     runBuild: false,
     useCodex: false,
     useLlm: false,
@@ -198,9 +199,9 @@ describe('Revenue Pipeline — prospect records', () => {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
-  it('discovers labelled fixture prospects with the canonical record shape', () => {
+  it('discovers labelled fixture prospects with the canonical record shape', async () => {
     const cfg = baseConfig();
-    const { prospects, blocker } = discoveryMod.discoverProspects(cfg);
+    const { prospects, blocker } = await discoveryMod.discoverProspects(cfg);
     expect(blocker).toBeNull();
     expect(prospects.length).toBe(3);
     for (const p of prospects) {
@@ -218,30 +219,133 @@ describe('Revenue Pipeline — prospect records', () => {
     }
   });
 
-  it('refuses live discovery without a specific URL (no fabrication)', () => {
+  it('refuses live discovery in fixture mode (no fabrication)', async () => {
     const cfg = baseConfig({ dryRun: false });
-    const { prospects, blocker } = discoveryMod.discoverProspects(cfg);
+    const { prospects, blocker } = await discoveryMod.discoverProspects(cfg);
     expect(prospects).toEqual([]);
-    expect(blocker).toContain('Live prospect discovery');
+    expect(blocker).toContain('not allowed in live mode');
   });
 
-  it('accepts a user-provided URL as a single non-fixture prospect', () => {
+  it('accepts a user-provided URL as a single non-fixture prospect', async () => {
     const cfg = baseConfig({ dryRun: false, specificUrl: 'https://www.dachfirma.example' });
-    const { prospects } = discoveryMod.discoverProspects(cfg);
+    const { prospects } = await discoveryMod.discoverProspects(cfg);
     expect(prospects.length).toBe(1);
     expect(prospects[0].fixture).toBe(false);
     expect(prospects[0].discoverySource).toBe('user-url');
   });
 
-  it('never creates duplicate prospects for the same website URL', () => {
+  it('never creates duplicate prospects for the same website URL', async () => {
     const cfg = baseConfig();
-    const { prospects } = discoveryMod.discoverProspects(cfg);
+    const { prospects } = await discoveryMod.discoverProspects(cfg);
     const first = storeMod.revenuePipelineRepo.upsertProspect(prospects[0]);
     const second = storeMod.revenuePipelineRepo.upsertProspect({ ...prospects[0], prospectId: 'pp-other' });
     expect(first.created).toBe(true);
     expect(second.created).toBe(false);
     expect(second.prospect.prospectId).toBe(first.prospect.prospectId);
     expect(storeMod.revenuePipelineRepo.findProspectByWebsite(prospects[0].websiteUrl)?.prospectId).toBe(first.prospect.prospectId);
+  });
+});
+
+describe('Revenue Pipeline — real discovery (OpenStreetMap Overpass)', () => {
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-real-'));
+    process.env.AGENT_TEAMS_DB_PATH = path.join(tmpDir, 'test.db');
+    await freshModules();
+  });
+  afterEach(() => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  // Routes by URL: Nominatim → a Berlin bounding box; Overpass → elements.
+  const routedFetch = (elements: any[]) => async (url: string) => {
+    if (url.includes('nominatim')) {
+      return { ok: true, status: 200, json: async () => [{ boundingbox: ['52.34', '52.68', '13.09', '13.76'], name: 'Berlin' }] };
+    }
+    return { ok: true, status: 200, json: async () => ({ elements }) };
+  };
+
+  const SAMPLE_ELEMENTS = [
+    {
+      type: 'node', id: 1001, lat: 52.4, lon: 13.3,
+      tags: { craft: 'roofer', name: 'Dachdeckerei Beispiel GmbH', website: 'https://www.dachdeckerei-beispiel.de', 'addr:city': 'Berlin', 'addr:street': 'Hauptstraße', 'addr:housenumber': '7', 'addr:postcode': '10115' },
+    },
+    {
+      type: 'node', id: 1002, lat: 52.5, lon: 13.4,
+      tags: { craft: 'roofer', name: 'Zweitdach GmbH', website: 'http://zweitdach.de/', 'addr:city': 'Berlin', 'addr:street': 'Nebenweg', 'addr:housenumber': '3' },
+    },
+    {
+      type: 'node', id: 1003, lat: 52.6, lon: 13.5,
+      tags: { craft: 'roofer', name: 'No Site Betrieb', phone: '+49 30 1234567' },
+    },
+  ];
+
+  it('builds a valid Overpass tag clause (key="value", not key=value inside quotes)', async () => {
+    const { buildOverpassQuery } = await import('../services/revenuePipeline/realDiscovery.js');
+    const q = buildOverpassQuery('roofing', { south: 52.34, north: 52.68, west: 13.09, east: 13.76 });
+    expect(q).toContain('["craft"="roofer"]["website"]');
+    expect(q).not.toContain('["craft=roofer"]');
+    expect(q).toContain('(52.34,13.09,52.68,13.76)');
+    expect(q).toContain(';);out center 50;');
+  });
+
+  it('parses Overpass elements into real prospects with the discovery source contract', async () => {
+    const cfg = baseConfig({ fixturesOnly: false });
+    const { prospects, blocker } = await discoveryMod.discoverProspects(cfg, routedFetch(SAMPLE_ELEMENTS.slice(0, 1)) as any);
+    expect(blocker).toBeNull();
+    expect(prospects).toHaveLength(1);
+    const p = prospects[0];
+    expect(p.fixture).toBe(false);
+    expect(p.discoverySource).toBe('osm-overpass');
+    expect(p.businessName).toBe('Dachdeckerei Beispiel GmbH');
+    expect(p.websiteUrl).toBe('https://www.dachdeckerei-beispiel.de');
+    expect(p.city).toBe('Berlin');
+    expect(p.discoverySourceRecord).toBeTruthy();
+    expect(p.discoverySourceRecord!.sourceType).toBe('osm-overpass');
+    expect(p.discoverySourceRecord!.sourceUrl).toContain('openstreetmap.org/node/1001');
+    expect(p.discoverySourceRecord!.retrievedAt).toBeTruthy();
+    expect(p.discoverySourceRecord!.evidence).toContain('Dachdeckerei Beispiel GmbH');
+    expect(p.discoverySourceRecord!.evidence).toContain('website tag');
+    expect(p.discoverySourceRecord!.confidence).toBe('high');
+    expect(p.websiteUrl).not.toMatch(/\.example/);
+  });
+
+  it('dedupes by canonical domain and limits to prospectCount', async () => {
+    const dup = { ...SAMPLE_ELEMENTS[1], tags: { ...SAMPLE_ELEMENTS[1].tags, website: 'https://www.zweitdach.de' } };
+    const cfg = baseConfig({ fixturesOnly: false, prospectCount: 2 });
+    const { prospects } = await discoveryMod.discoverProspects(cfg, routedFetch([SAMPLE_ELEMENTS[0], SAMPLE_ELEMENTS[1], dup]) as any);
+    expect(prospects).toHaveLength(2);
+    expect(new Set(prospects.map((p) => p.businessName)).size).toBe(2);
+  });
+
+  it('returns the truthful number found when fewer than requested (no padding)', async () => {
+    const cfg = baseConfig({ fixturesOnly: false, prospectCount: 5 });
+    const third = { ...SAMPLE_ELEMENTS[2], tags: { ...SAMPLE_ELEMENTS[2].tags, website: 'https://drittes-dach.de', name: 'Drittes Dach GmbH' } };
+    const { prospects } = await discoveryMod.discoverProspects(cfg, routedFetch([SAMPLE_ELEMENTS[0], SAMPLE_ELEMENTS[1], third]) as any);
+    expect(prospects).toHaveLength(3); // never padded to 5
+    expect(prospects.every((p) => p.businessName)).toBe(true);
+  });
+
+  it('skips elements without a name or a usable website', async () => {
+    const cfg = baseConfig({ fixturesOnly: false });
+    const { prospects } = await discoveryMod.discoverProspects(cfg, routedFetch(SAMPLE_ELEMENTS) as any);
+    expect(prospects).toHaveLength(2); // 1003 has no website tag
+    expect(prospects.every((p) => p.websiteUrl.startsWith('http'))).toBe(true);
+  });
+
+  it('blocks truthfully when the source fails (no fabricated prospects)', async () => {
+    const cfg = baseConfig({ fixturesOnly: false });
+    const failing = async () => { throw new Error('ECONNREFUSED'); };
+    const { prospects, blocker } = await discoveryMod.discoverProspects(cfg, failing as any);
+    expect(prospects).toEqual([]);
+    expect(blocker).toContain('No candidates were invented');
+  });
+
+  it('uses real discovery in live mode (read-only, no fixtures)', async () => {
+    const cfg = baseConfig({ dryRun: false, fixturesOnly: false });
+    const { prospects, blocker } = await discoveryMod.discoverProspects(cfg, routedFetch(SAMPLE_ELEMENTS.slice(0, 2)) as any);
+    expect(blocker).toBeNull();
+    expect(prospects).toHaveLength(2);
+    expect(prospects.every((p) => p.fixture === false)).toBe(true);
   });
 });
 
@@ -640,10 +744,10 @@ describe('Revenue Pipeline — stale-event rejection & dry-run safety', () => {
     expect(fx.every((f: any) => f.verifiedFacts.every((fact: string) => fact.startsWith('FIXTURE SAMPLE:')))).toBe(true);
 
     const cfg = baseConfig();
-    const { prospects } = discoveryMod.discoverProspects(cfg);
+    const { prospects } = await discoveryMod.discoverProspects(cfg);
     expect(prospects.every((p: any) => p.fixture === true)).toBe(true);
 
-    const live = discoveryMod.discoverProspects(baseConfig({ dryRun: false }));
+    const live = await discoveryMod.discoverProspects(baseConfig({ dryRun: false }));
     expect(live.prospects).toEqual([]);
     expect(live.blocker).toBeTruthy();
   });

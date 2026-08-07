@@ -46,7 +46,7 @@ export function generateProposalPackage(opts: {
   files['opportunity_summary.md'] = `# Opportunity summary — ${name}
 
 > ${label}Generated ${now} by the AgenticOS Revenue Pipeline V1 (dry-run: ${config.dryRun ? 'yes' : 'no'}).
-> ${prospect.fixture ? '**Clearly-labelled SAMPLE FIXTURE — not a real business.**' : 'Prospect from user-provided URL.'}
+> ${prospect.fixture ? '**Clearly-labelled SAMPLE FIXTURE — not a real business.**' : prospect.discoverySourceRecord ? `Discovered via ${prospect.discoverySourceRecord.sourceType} (${prospect.discoverySourceRecord.sourceUrl}).` : 'Prospect from user-provided URL.'}
 
 | Field | Value |
 |---|---|

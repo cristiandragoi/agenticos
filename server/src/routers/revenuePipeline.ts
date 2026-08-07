@@ -54,6 +54,7 @@ router.post('/runs', async (req, res) => {
       specificUrl: config?.specificUrl ?? intake?.config.specificUrl ?? null,
       maxResearchBudgetUsd: config?.maxResearchBudgetUsd ?? intake?.config.maxResearchBudgetUsd ?? null,
       dryRun: config?.dryRun ?? intake?.config.dryRun ?? true,
+      fixturesOnly: config?.fixturesOnly ?? intake?.config.fixturesOnly ?? false,
       runBuild: config?.runBuild ?? true,
       useCodex: config?.useCodex ?? true,
       useLlm: config?.useLlm ?? false,

@@ -1,25 +1,30 @@
 /**
  * Stage 1 — Prospect discovery.
  *
- * Sources (V1, honest):
- *   - `dryRun`   → clearly-labelled SAMPLE FIXTURES (never real businesses)
- *   - `specificUrl` → a single user-supplied public URL (live inspection)
- *   - anything else → NO candidates + a truthful blocker explaining that
- *     live discovery needs a configured research source (out of scope V1).
+ * Sources:
+ *   - `fixturesOnly`  → clearly-labelled SAMPLE FIXTURES (tests/demo only)
+ *   - `specificUrl`   → a single user-supplied public URL (live inspection)
+ *   - everything else → REAL public-business discovery (OpenStreetMap Overpass)
  *
- * Discovery never invents businesses. If a requested count exceeds the
- * available labelled candidates, we return what exists and note the shortfall.
+ * Discovery never invents businesses. If the requested count exceeds the
+ * available verified candidates, we return the truthful number found and note
+ * the shortfall. If real discovery fails, the pipeline BLOCKS with the exact
+ * limitation — fixtures are never substituted silently.
  */
 import type { PipelineConfig, ProspectRecord } from './types.js';
 import { fixturesFor } from './fixtures.js';
 import { randomUUID } from 'node:crypto';
+import { discoverRealProspects } from './realDiscovery.js';
 
 export interface DiscoveryResult {
   prospects: ProspectRecord[];
   blocker: string | null;
 }
 
-export function discoverProspects(config: PipelineConfig): DiscoveryResult {
+export async function discoverProspects(
+  config: PipelineConfig,
+  fetchImpl: typeof fetch = fetch
+): Promise<DiscoveryResult> {
   const now = new Date().toISOString();
 
   if (config.specificUrl) {
@@ -37,6 +42,7 @@ export function discoverProspects(config: PipelineConfig): DiscoveryResult {
       websiteUrl: config.specificUrl,
       publicContactUrl: null,
       discoverySource: 'user-url',
+      discoverySourceRecord: null,
       fixture: false,
       verifiedFacts: [],
       unverifiedObservations: [],
@@ -56,48 +62,52 @@ export function discoverProspects(config: PipelineConfig): DiscoveryResult {
     return { prospects: [prospect], blocker: null };
   }
 
-  if (!config.dryRun) {
-    return {
-      prospects: [],
-      blocker:
-        'Live prospect discovery is not available in V1 without a configured research source. ' +
-        'Run in dry-run mode (sample fixtures) or provide a specific business URL.',
-    };
+  if (config.fixturesOnly) {
+    // Test/demo fixtures. Live + fixturesOnly is refused — real discovery is
+    // the only acceptable live source.
+    if (!config.dryRun) {
+      return {
+        prospects: [],
+        blocker:
+          'Fixture discovery is not allowed in live mode. Real prospect discovery requires a configured research source; provide a specific business URL or retry without fixture mode.',
+      };
+    }
+    const fixtures = fixturesFor(config.niche, config.city);
+    if (fixtures.length === 0) {
+      return {
+        prospects: [],
+        blocker: `No sample fixtures match niche "${config.niche}" and city "${config.city}".`,
+      };
+    }
+    const wanted = Math.max(1, Math.min(config.prospectCount, fixtures.length));
+    const prospects: ProspectRecord[] = fixtures.slice(0, wanted).map((f) => ({
+      prospectId: `pp-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      businessName: f.businessName,
+      niche: f.niche,
+      city: f.city,
+      websiteUrl: f.websiteUrl,
+      publicContactUrl: f.publicContactUrl,
+      discoverySource: 'fixture',
+      discoverySourceRecord: null,
+      fixture: true,
+      verifiedFacts: [...f.verifiedFacts],
+      unverifiedObservations: [...f.unverifiedObservations],
+      auditFindings: [],
+      auditScore: null,
+      opportunityScore: null,
+      scoringCriteria: null,
+      confidence: 'low',
+      status: 'discovered',
+      linkedTaskId: null,
+      linkedBoardCardId: null,
+      workspacePath: null,
+      selectedForBuild: false,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    return { prospects, blocker: null };
   }
 
-  const fixtures = fixturesFor(config.niche, config.city);
-  if (fixtures.length === 0) {
-    return {
-      prospects: [],
-      blocker: `No sample fixtures match niche "${config.niche}" and city "${config.city}".`,
-    };
-  }
-
-  const wanted = Math.max(1, Math.min(config.prospectCount, fixtures.length));
-  const prospects: ProspectRecord[] = fixtures.slice(0, wanted).map((f) => ({
-    prospectId: `pp-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-    businessName: f.businessName,
-    niche: f.niche,
-    city: f.city,
-    websiteUrl: f.websiteUrl,
-    publicContactUrl: f.publicContactUrl,
-    discoverySource: 'fixture',
-    fixture: true,
-    verifiedFacts: [...f.verifiedFacts],
-    unverifiedObservations: [...f.unverifiedObservations],
-    auditFindings: [],
-    auditScore: null,
-    opportunityScore: null,
-    scoringCriteria: null,
-    confidence: 'low',
-    status: 'discovered',
-    linkedTaskId: null,
-    linkedBoardCardId: null,
-    workspacePath: null,
-    selectedForBuild: false,
-    createdAt: now,
-    updatedAt: now,
-  }));
-
-  return { prospects, blocker: null };
+  // REAL public-business discovery — read-only, robots-respecting, legal.
+  return discoverRealProspects(config, fetchImpl);
 }

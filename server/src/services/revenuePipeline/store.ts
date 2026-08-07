@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS revenue_prospects (
   website_url TEXT NOT NULL,
   public_contact_url TEXT,
   discovery_source TEXT NOT NULL DEFAULT 'fixture',
+  discovery_source_record TEXT,
   fixture INTEGER NOT NULL DEFAULT 0,
   verified_facts TEXT NOT NULL DEFAULT '[]',
   unverified_observations TEXT NOT NULL DEFAULT '[]',
@@ -71,6 +72,12 @@ let initialized = false;
 export function ensureRevenueTables(): void {
   if (initialized) return;
   rawDb.exec(DDL);
+  // Existing databases created before the discovery-source contract: add the
+  // column idempotently (SQLite ADD COLUMN has no IF NOT EXISTS).
+  const cols = (rawDb.prepare('PRAGMA table_info(revenue_prospects)').all() as any[]).map((c) => c.name);
+  if (!cols.includes('discovery_source_record')) {
+    rawDb.exec('ALTER TABLE revenue_prospects ADD COLUMN discovery_source_record TEXT');
+  }
   initialized = true;
 }
 
@@ -112,6 +119,7 @@ function rowToProspect(row: any): ProspectRecord {
     websiteUrl: row.website_url,
     publicContactUrl: row.public_contact_url,
     discoverySource: row.discovery_source,
+    discoverySourceRecord: row.discovery_source_record ? JSON.parse(row.discovery_source_record) : null,
     fixture: !!row.fixture,
     verifiedFacts: JSON.parse(row.verified_facts || '[]'),
     unverifiedObservations: JSON.parse(row.unverified_observations || '[]'),
@@ -228,6 +236,7 @@ export const revenuePipelineRepo = {
         UPDATE revenue_prospects SET
           business_name=@businessName, niche=@niche, city=@city, website_url=@websiteUrl,
           public_contact_url=@publicContactUrl, discovery_source=@discoverySource,
+          discovery_source_record=@discoverySourceRecord,
           fixture=@fixture, verified_facts=@verifiedFacts,
           unverified_observations=@unverifiedObservations, audit_findings=@auditFindings,
           audit_score=@auditScore, opportunity_score=@opportunityScore,
@@ -238,6 +247,7 @@ export const revenuePipelineRepo = {
         WHERE prospect_id=@prospectId
       `).run({
         ...merged,
+        discoverySourceRecord: merged.discoverySourceRecord ? JSON.stringify(merged.discoverySourceRecord) : null,
         fixture: merged.fixture ? 1 : 0,
         verifiedFacts: JSON.stringify(merged.verifiedFacts),
         unverifiedObservations: JSON.stringify(merged.unverifiedObservations),
@@ -250,19 +260,20 @@ export const revenuePipelineRepo = {
     rawDb.prepare(`
       INSERT INTO revenue_prospects (
         prospect_id, business_name, niche, city, website_url, public_contact_url,
-        discovery_source, fixture, verified_facts, unverified_observations,
+        discovery_source, discovery_source_record, fixture, verified_facts, unverified_observations,
         audit_findings, audit_score, opportunity_score, scoring_criteria,
         confidence, status, linked_task_id, linked_board_card_id, workspace_path,
         selected_for_build, created_at, updated_at
       ) VALUES (
         @prospectId, @businessName, @niche, @city, @websiteUrl, @publicContactUrl,
-        @discoverySource, @fixture, @verifiedFacts, @unverifiedObservations,
+        @discoverySource, @discoverySourceRecord, @fixture, @verifiedFacts, @unverifiedObservations,
         @auditFindings, @auditScore, @opportunityScore, @scoringCriteria,
         @confidence, @status, @linkedTaskId, @linkedBoardCardId, @workspacePath,
         @selectedForBuild, @createdAt, @updatedAt
       )
     `).run({
       ...prospect,
+      discoverySourceRecord: prospect.discoverySourceRecord ? JSON.stringify(prospect.discoverySourceRecord) : null,
       fixture: prospect.fixture ? 1 : 0,
       verifiedFacts: JSON.stringify(prospect.verifiedFacts),
       unverifiedObservations: JSON.stringify(prospect.unverifiedObservations),

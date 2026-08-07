@@ -89,8 +89,25 @@ export function verifyPipelineArtifacts(run: PipelineRunRecord): VerificationRes
     detail: bannedHits.length === 0 ? 'banlist scan clean' : `banned: ${bannedHits.join(' | ')}`,
   });
 
-  // 4. Fixture labelling (dry-run safety).
-  if (run.config.dryRun) {
+  // 4. Real-vs-fixture provenance (discovery truthfulness).
+  const nonFixture = run.prospects.filter((p) => !p.fixture);
+  if (nonFixture.length > 0) {
+    // Real prospects: every one must carry a public discovery source and no
+    // fixture/.example domain may appear. Fixtures are never substituted
+    // silently into a real run.
+    const example = nonFixture.filter((p) => /\.example(?::|\/|$)/i.test(p.websiteUrl));
+    const missingEvidence = nonFixture.filter((p) => !p.discoverySourceRecord?.sourceUrl || !p.discoverySourceRecord?.evidence);
+    const problemNames = [...new Set([...example, ...missingEvidence].map((p) => p.businessName))];
+    checks.push({
+      name: 'real prospect provenance',
+      passed: example.length === 0 && missingEvidence.length === 0,
+      detail: problemNames.length
+        ? `non-fixture prospects with .example domain or missing discovery evidence: ${problemNames.join(', ')}`
+        : `${nonFixture.length}/${run.prospects.length} real prospects each carry a public discovery source; no .example domains`,
+    });
+  }
+  // All-fixture runs still require full labelling + no outreach material.
+  if (run.config.dryRun && run.prospects.length > 0 && run.prospects.every((p) => p.fixture)) {
     const fixtureCount = run.prospects.filter((p) => p.fixture).length;
     const allLabelled = run.prospects.every((p) => p.fixture && p.verifiedFacts.every((f) => f.startsWith(FIXTURE_PREFIX)));
     checks.push({
@@ -98,6 +115,8 @@ export function verifyPipelineArtifacts(run: PipelineRunRecord): VerificationRes
       passed: fixtureCount === run.prospects.length && allLabelled,
       detail: `${fixtureCount}/${run.prospects.length} prospects are labelled fixtures; all verified facts prefixed`,
     });
+  }
+  if (run.config.dryRun) {
     const outreachFiles = docTexts.match(/(outreach plan|email template|call script|send proposal to)/gi) || [];
     checks.push({
       name: 'no outreach artifacts',

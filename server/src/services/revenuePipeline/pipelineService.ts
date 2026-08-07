@@ -100,20 +100,20 @@ export async function runRevenuePipeline(opts: {
 
   try {
     // ── Stage 1 — Prospect discovery ────────────────────────────────────────
-    setStage('DISCOVERING PROSPECTS', 'Discovering prospects…');
-    const discovered = discoverProspects(config);
+    setStage('DISCOVERING PROSPECTS', config.fixturesOnly ? 'Discovering labelled sample prospects…' : 'Discovering real public prospects…');
+    const discovered = await discoverProspects(config);
     if (discovered.blocker || discovered.prospects.length === 0) {
       return finishBlocked(runId, hooks, discovered.blocker || 'No prospects discovered.');
     }
     if (discovered.prospects.length < config.prospectCount) {
-      hooks.progress('task.progress', `Requested ${config.prospectCount} prospects; only ${discovered.prospects.length} labelled candidates available.`, { shortfall: true });
+      hooks.progress('task.progress', `Requested ${config.prospectCount} prospects; only ${discovered.prospects.length} verifiable candidates found (truthful shortfall — nothing invented).`, { shortfall: true });
     }
     for (const p of discovered.prospects) {
       p.linkedTaskId = taskId;
       revenuePipelineRepo.upsertProspect(p);
     }
     run = revenuePipelineRepo.updateRun(runId, { prospects: discovered.prospects }) ?? run;
-    hooks.progress('task.progress', `${discovered.prospects.length} prospect(s) discovered (source: ${discovered.prospects[0].discoverySource}).`, { source: discovered.prospects[0].discoverySource }, { worker: 'research' });
+    hooks.progress('task.progress', `${discovered.prospects.length} prospect(s) discovered (source: ${discovered.prospects[0].discoverySource}${discovered.prospects[0].discoverySourceRecord ? ` — ${discovered.prospects[0].discoverySourceRecord.sourceType}` : ''}).`, { source: discovered.prospects[0].discoverySource }, { worker: 'research' });
 
     // ── Stage 2+3 — Public website inspection + structured audit ───────────
     setStage('INSPECTING WEBSITE', 'Inspecting public websites…');
@@ -591,9 +591,22 @@ function buildRunSummary(
       specificUrl: config.specificUrl,
       maxResearchBudgetUsd: config.maxResearchBudgetUsd,
       dryRun: config.dryRun,
+      fixturesOnly: config.fixturesOnly,
       runBuild: config.runBuild,
       useCodex: config.useCodex,
       useLlm: config.useLlm,
+    },
+    discovery: {
+      mode: config.fixturesOnly ? 'fixtures' : 'real',
+      requested: config.prospectCount,
+      found: run.prospects.length,
+      sources: run.prospects.map((p) => ({
+        businessName: p.businessName,
+        website: p.websiteUrl,
+        sourceType: p.discoverySourceRecord?.sourceType || p.discoverySource,
+        sourceUrl: p.discoverySourceRecord?.sourceUrl || null,
+        evidence: p.discoverySourceRecord?.evidence || null,
+      })),
     },
     workerRouting: {
       research: 'prospect discovery + public inspection',
