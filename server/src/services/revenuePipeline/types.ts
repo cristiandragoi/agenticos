@@ -79,6 +79,14 @@ export interface PipelineConfig {
   discoveryHeadroomMultiplier?: number;
   /** Hard cap on how many candidates a single discovery pass may return. */
   discoveryCap?: number;
+  /** Bounded retry budget per discovery source (default 3). */
+  discoveryMaxAttemptsPerSource?: number;
+  /** Bounded retry budget across ALL discovery sources (default 6). */
+  discoveryMaxTotalAttempts?: number;
+  /** Discovery time budget in ms (default 120000). */
+  discoveryTimeBudgetMs?: number;
+  /** Backoff base in ms for transient retries (default 500; tests use 1). */
+  discoveryBackoffBaseMs?: number;
 }
 
 export type EvidenceLabel = 'verified' | 'inferred' | 'unavailable';
@@ -121,6 +129,26 @@ export interface DiscoverySourceRecord {
   /** Human-readable evidence chain (name, website tag, address, area). */
   evidence: string;
   confidence: 'high' | 'medium' | 'low';
+  /** Other discovery sources that corroborated the SAME business (by domain). */
+  corroboratedBy?: string[];
+}
+
+/** Why discovery stopped (source-resilience milestone). */
+export type DiscoveryStopReason =
+  | 'TARGET_REACHED'
+  | 'SOURCE_EXHAUSTED'
+  | 'TIME_EXHAUSTED'
+  | 'RATE_LIMITED'
+  | 'INVALID_RESPONSE'
+  | 'NO_RESULTS';
+
+/** One attempt against one discovery source (retry/fallback log). */
+export interface DiscoverySourceAttempt {
+  source: string;
+  attempt: number;
+  status: 'ok' | 'transient_failure' | 'rate_limited' | 'invalid_response' | 'no_results';
+  error: string | null;
+  latencyMs: number | null;
 }
 
 /**
@@ -201,6 +229,10 @@ export interface PipelineRunRecord {
   lastError: string | null;
   /** True only after a human approved the outreach step (V1: no actual outreach). */
   outreachApproved: boolean;
+  /** Why discovery stopped (source-resilience milestone). */
+  discoveryStopReason?: string | null;
+  /** Full discovery attempt log across sources. */
+  discoverySourceLog?: DiscoverySourceAttempt[];
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;

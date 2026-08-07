@@ -101,7 +101,23 @@ export async function runRevenuePipeline(opts: {
   try {
     // ── Stage 1 — Prospect discovery ────────────────────────────────────────
     setStage('DISCOVERING PROSPECTS', config.fixturesOnly ? 'Discovering labelled sample prospects…' : 'Discovering real public prospects…');
-    const discovered = await discoverProspects(config);
+    const discovered = await discoverProspects(config, undefined, (p) => {
+      // Live discovery progress (source-resilience milestone): the same
+      // source/attempt/discovered numbers reach the canonical record via the
+      // manager's count mirror, so the bar shows which source + attempt.
+      const action = p.error
+        ? `Retrying ${p.source} after ${p.error} (attempt ${p.attempt}/${p.maxAttempts})`
+        : p.reason === 'NO_RESULTS'
+          ? `Switching source: ${p.source} returned no new candidates`
+          : `Discovery — source ${p.source}, attempt ${p.attempt}/${p.maxAttempts}, discovered ${p.discovered}`;
+      hooks.progress('task.progress', action, {
+        discovered: p.discovered,
+        requested: config.prospectCount,
+        expanded: true,
+        discoverySource: p.source,
+        discoveryAttempt: p.attempt,
+      });
+    });
     if (discovered.blocker || discovered.prospects.length === 0) {
       return finishBlocked(runId, hooks, discovered.blocker || 'No prospects discovered.');
     }
@@ -112,7 +128,7 @@ export async function runRevenuePipeline(opts: {
       p.linkedTaskId = taskId;
       revenuePipelineRepo.upsertProspect(p);
     }
-    run = revenuePipelineRepo.updateRun(runId, { prospects: discovered.prospects }) ?? run;
+    run = revenuePipelineRepo.updateRun(runId, { prospects: discovered.prospects, discoveryStopReason: discovered.stopReason || null, discoverySourceLog: discovered.sourceLog || [] }) ?? run;
     hooks.progress('task.progress', `${discovered.prospects.length} prospect(s) discovered (source: ${discovered.prospects[0].discoverySource}${discovered.prospects[0].discoverySourceRecord ? ` — ${discovered.prospects[0].discoverySourceRecord.sourceType}` : ''}).`, { source: discovered.prospects[0].discoverySource }, { worker: 'research' });
 
     // ── Stage 2+3 — Public website inspection + structured audit ───────────
@@ -669,12 +685,21 @@ function buildRunSummary(
       mode: config.fixturesOnly ? 'fixtures' : 'real',
       requested: config.prospectCount,
       found: run.prospects.length,
+      stopReason: run.discoveryStopReason || null,
+      sourcesTried: (run.discoverySourceLog || []).map((s) => ({
+        source: s.source,
+        attempt: s.attempt,
+        status: s.status,
+        error: s.error,
+        latencyMs: s.latencyMs,
+      })),
       sources: run.prospects.map((p) => ({
         businessName: p.businessName,
         website: p.websiteUrl,
         sourceType: p.discoverySourceRecord?.sourceType || p.discoverySource,
         sourceUrl: p.discoverySourceRecord?.sourceUrl || null,
         evidence: p.discoverySourceRecord?.evidence || null,
+        corroboratedBy: p.discoverySourceRecord?.corroboratedBy || [],
       })),
     },
     workerRouting: {

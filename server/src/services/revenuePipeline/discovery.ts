@@ -11,19 +11,25 @@
  * the shortfall. If real discovery fails, the pipeline BLOCKS with the exact
  * limitation — fixtures are never substituted silently.
  */
-import type { PipelineConfig, ProspectRecord } from './types.js';
+import type { PipelineConfig, ProspectRecord, DiscoveryStopReason, DiscoverySourceAttempt } from './types.js';
 import { fixturesFor } from './fixtures.js';
 import { randomUUID } from 'node:crypto';
 import { discoverRealProspects } from './realDiscovery.js';
+import type { DiscoveryProgress } from './realDiscovery.js';
 
 export interface DiscoveryResult {
   prospects: ProspectRecord[];
   blocker: string | null;
+  /** Why discovery stopped (source-resilience milestone). */
+  stopReason?: DiscoveryStopReason | null;
+  /** Full attempt log across sources (retry/fallback evidence). */
+  sourceLog?: DiscoverySourceAttempt[];
 }
 
 export async function discoverProspects(
   config: PipelineConfig,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  onProgress?: (p: DiscoveryProgress) => void
 ): Promise<DiscoveryResult> {
   const now = new Date().toISOString();
 
@@ -111,5 +117,5 @@ export async function discoverProspects(
   }
 
   // REAL public-business discovery — read-only, robots-respecting, legal.
-  return discoverRealProspects(config, fetchImpl);
+  return discoverRealProspects(config, fetchImpl, onProgress);
 }

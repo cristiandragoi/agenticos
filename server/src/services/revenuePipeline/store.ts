@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS revenue_pipeline_runs (
   blocker TEXT,
   last_error TEXT,
   outreach_approved INTEGER NOT NULL DEFAULT 0,
+  discovery_stop_reason TEXT,
+  discovery_source_log TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   completed_at TEXT
@@ -78,6 +80,15 @@ export function ensureRevenueTables(): void {
   if (!cols.includes('discovery_source_record')) {
     rawDb.exec('ALTER TABLE revenue_prospects ADD COLUMN discovery_source_record TEXT');
   }
+  // Source-resilience milestone: the discovery stop reason + attempt log on
+  // the runs table (safe, idempotent migration for existing databases).
+  const runCols = (rawDb.prepare('PRAGMA table_info(revenue_pipeline_runs)').all() as any[]).map((c) => c.name);
+  if (!runCols.includes('discovery_stop_reason')) {
+    rawDb.exec('ALTER TABLE revenue_pipeline_runs ADD COLUMN discovery_stop_reason TEXT');
+  }
+  if (!runCols.includes('discovery_source_log')) {
+    rawDb.exec("ALTER TABLE revenue_pipeline_runs ADD COLUMN discovery_source_log TEXT NOT NULL DEFAULT '[]'");
+  }
   initialized = true;
 }
 
@@ -104,6 +115,8 @@ function rowToRun(row: any): PipelineRunRecord {
     blocker: row.blocker,
     lastError: row.last_error,
     outreachApproved: !!row.outreach_approved,
+    discoveryStopReason: row.discovery_stop_reason ?? null,
+    discoverySourceLog: JSON.parse(row.discovery_source_log || '[]'),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
@@ -149,13 +162,15 @@ export const revenuePipelineRepo = {
         selected_prospect_id, audit_report_path, blueprint_path, concept_path,
         proposal_dir_path, run_summary_path, build_state, test_state,
         verification_state, approval_state, cost_ledger, total_elapsed_ms,
-        blocker, last_error, outreach_approved, created_at, updated_at, completed_at
+        blocker, last_error, outreach_approved, discovery_stop_reason, discovery_source_log,
+        created_at, updated_at, completed_at
       ) VALUES (
         @runId, @taskId, @config, @status, @currentStage, @prospects,
         @selectedProspectId, @auditReportPath, @blueprintPath, @conceptPath,
         @proposalDirPath, @runSummaryPath, @buildState, @testState,
         @verificationState, @approvalState, @costLedger, @totalElapsedMs,
-        @blocker, @lastError, @outreachApproved, @createdAt, @updatedAt, @completedAt
+        @blocker, @lastError, @outreachApproved, @discoveryStopReason, @discoverySourceLog,
+        @createdAt, @updatedAt, @completedAt
       )
     `).run({
       ...run,
@@ -163,6 +178,8 @@ export const revenuePipelineRepo = {
       prospects: JSON.stringify(run.prospects),
       costLedger: JSON.stringify(run.costLedger),
       outreachApproved: run.outreachApproved ? 1 : 0,
+      discoveryStopReason: run.discoveryStopReason ?? null,
+      discoverySourceLog: JSON.stringify(run.discoverySourceLog || []),
     });
   },
 
@@ -181,7 +198,9 @@ export const revenuePipelineRepo = {
         test_state=@testState, verification_state=@verificationState,
         approval_state=@approvalState, cost_ledger=@costLedger,
         total_elapsed_ms=@totalElapsedMs, blocker=@blocker, last_error=@lastError,
-        outreach_approved=@outreachApproved, updated_at=@updatedAt, completed_at=@completedAt
+        outreach_approved=@outreachApproved,
+        discovery_stop_reason=@discoveryStopReason, discovery_source_log=@discoverySourceLog,
+        updated_at=@updatedAt, completed_at=@completedAt
       WHERE run_id=@runId
     `).run({
       ...merged,
@@ -189,6 +208,8 @@ export const revenuePipelineRepo = {
       prospects: JSON.stringify(merged.prospects),
       costLedger: JSON.stringify(merged.costLedger),
       outreachApproved: merged.outreachApproved ? 1 : 0,
+      discoveryStopReason: merged.discoveryStopReason ?? null,
+      discoverySourceLog: JSON.stringify(merged.discoverySourceLog || []),
     });
     return merged;
   },
