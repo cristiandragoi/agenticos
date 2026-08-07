@@ -10,13 +10,13 @@ import { executionStore } from '../../diagnostics/executionStore';
 
 const ACTIVE_STATUSES = new Set([
   'ROUTING', 'PLANNING', 'QUEUED', 'DISPATCHING', 'WAITING_FOR_MODEL', 'RUNNING',
-  'TOOL_EXECUTION', 'WAITING_FOR_APPROVAL', 'COMPLETING', 'STOPPING',
+  'TOOL_EXECUTION', 'WAITING_FOR_APPROVAL', 'WAITING_FOR_USER', 'COMPLETING', 'STOPPING',
 ]);
 
 const STATUS_LABEL: Record<string, string> = {
   ROUTING: 'ROUTING', PLANNING: 'PLANNING', QUEUED: 'QUEUED', DISPATCHING: 'DISPATCHING',
   WAITING_FOR_MODEL: 'WAITING FOR MODEL', RUNNING: 'RUNNING', TOOL_EXECUTION: 'EXECUTING TOOL',
-  WAITING_FOR_APPROVAL: 'AWAITING APPROVAL', COMPLETING: 'COMPLETING', STOPPING: 'STOPPING',
+  WAITING_FOR_APPROVAL: 'AWAITING APPROVAL', WAITING_FOR_USER: 'WAITING FOR YOU', COMPLETING: 'COMPLETING', STOPPING: 'STOPPING',
   COMPLETED: 'COMPLETED', FAILED: 'FAILED', CANCELLED: 'CANCELLED',
 };
 
@@ -43,11 +43,40 @@ export const ExecutionBar: React.FC = () => {
   const elapsedS = Math.max(0, Math.round((Date.now() - exec.startedAt) / 1000));
   const idleS = Math.max(0, Math.round((Date.now() - exec.lastActivityAt) / 1000));
   const stalled = idleS > 30;
-  const canStop = exec.status !== 'COMPLETING' && exec.status !== 'STOPPING';
+  // WAITING_FOR_USER: nothing is executing — no STOP, no worker, no LLM,
+  // no spinner. The bar shows "Waiting for your reply" (conversation-state
+  // milestone).
+  const waitingForUser = exec.status === 'WAITING_FOR_USER';
+  const canStop = !waitingForUser && exec.status !== 'COMPLETING' && exec.status !== 'STOPPING';
 
-  const llm = exec.resolvedProvider || exec.requestedProvider
-    ? `${exec.resolvedProvider || exec.requestedProvider}${(exec.resolvedModel || exec.requestedModel) ? ` / ${exec.resolvedModel || exec.requestedModel}` : ''}`
-    : null;
+  const llm = waitingForUser
+    ? null
+    : exec.resolvedProvider || exec.requestedProvider
+      ? `${exec.resolvedProvider || exec.requestedProvider}${(exec.resolvedModel || exec.requestedModel) ? ` / ${exec.resolvedModel || exec.requestedModel}` : ''}`
+      : null;
+
+  if (waitingForUser) {
+    return (
+      <div
+        data-testid="execution-bar"
+        data-state="waiting-for-user"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: 'rgba(30,41,59,0.95)', border: '1px solid #334155',
+          borderRadius: 10, padding: '6px 12px', margin: '4px 0',
+          fontSize: 12, color: '#e2e8f0', position: 'sticky', bottom: 0, zIndex: 30,
+        }}
+      >
+        <span data-testid="execution-waiting-dot" style={{ color: '#fbbf24', fontSize: 11 }}>●</span>
+        <span style={{ fontWeight: 700, color: '#fbbf24' }}>Waiting for your reply</span>
+        <span style={{ color: '#94a3b8' }}>· Clarification required</span>
+        <span style={{ color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>Waiting: {elapsedS}s</span>
+        <span style={{ color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          Operation: {exec.operationId.slice(-14)}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div

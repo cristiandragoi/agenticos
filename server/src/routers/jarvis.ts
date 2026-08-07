@@ -382,9 +382,14 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   // ── Canonical execution state (coherence milestone) ──
   // This stream registers ONE record; the task manager / goal loop continue
   // the SAME operationId when work is delegated. UI reads this record only.
+  // The pre-existing current record (an active task or a WAITING_FOR_USER
+  // clarification) is captured BEFORE this stream's begin supersedes it, so
+  // task-control cues ("what are you doing", "stop") answer about the state
+  // the user is actually asking about — never this stream's own routing.
   const { registerStreamAborter, unregisterStreamAborter } = await import('../routers/execution.js');
   const executionState = await import('../services/executionState.js');
   const execOpId = normalizedOperationId || `jarvis-${Date.now()}`;
+  const preExistingCurrent = executionState.getCurrent();
   executionState.begin({
     operationId: execOpId,
     worker: 'jarvis',
@@ -453,14 +458,25 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // ── Execution-aware control (coherence milestone) ──
     // While an operation is active, "what are you doing?", "is it stuck?",
     // and "stop it." are answered from the canonical execution record — never
-    // a generic direct reset.
-    const execNow = executionState.getCurrent();
+    // a generic direct reset. The pre-existing record (captured before this
+    // stream's begin) is what the user is asking about.
+    const execNow = (preExistingCurrent && preExistingCurrent.operationId !== normalizedOperationId
+      ? preExistingCurrent
+      : executionState.getCurrent());
     const trimmed = prompt.trim();
     const STOP_CUE = /^(stop|cancel|abort)( it| that| this)?[.!?]*$/i;
     const STATUS_CUE = /^(what are you doing|what is it doing|is it stuck|is it frozen|is anything happening|are you stuck|what is going on|what is happening)( right now| currently| at the moment)?[.!?]*$/i;
     if (execNow) {
       if (STOP_CUE.test(trimmed)) {
         logStreamStage(normalizedOperationId, 'execution-stop cue', { operationId: execNow.operationId });
+        if (execNow.status === 'WAITING_FOR_USER') {
+          const reply = "There's nothing running to stop — I'm waiting for your reply.";
+          streamTextAsChunks(res, reply, normalizedOperationId);
+          writeSse(res, 'done', { route: 'execution_stop', operationId: normalizedOperationId, status: 'waiting_for_user' });
+          completed = true;
+          updateStreamExecution({ status: 'WAITING_FOR_USER', currentAction: execNow.currentAction || undefined });
+          return res.end();
+        }
         const { dispatchCancel } = await import('../routers/execution.js');
         await executionState.cancel(execNow.operationId, dispatchCancel);
         const reply = `Stopping ${execNow.worker} (${execNow.operationId.slice(-12)})…`;
@@ -472,6 +488,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       }
       if (STATUS_CUE.test(trimmed)) {
         logStreamStage(normalizedOperationId, 'execution-status cue', { operationId: execNow.operationId });
+        // WAITING_FOR_USER: Jarvis is NOT working — it is waiting for the
+        // user. The status answer must never say "Routing…".
+        if (execNow.status === 'WAITING_FOR_USER') {
+          const reply =
+            `I'm waiting for you to clarify your request${execNow.currentAction ? ` (${execNow.currentAction})` : ''}. ` +
+            `I've been waiting for ${Math.max(0, Math.round((Date.now() - execNow.startedAt) / 1000))}s. Nothing is executing right now.`;
+          streamTextAsChunks(res, reply, normalizedOperationId);
+          writeSse(res, 'done', { route: 'execution_status', operationId: normalizedOperationId });
+          completed = true;
+          updateStreamExecution({ status: 'WAITING_FOR_USER', currentAction: execNow.currentAction || undefined });
+          return res.end();
+        }
         const idleS = Math.max(0, Math.round((Date.now() - execNow.lastActivityAt) / 1000));
         const elapsedS = Math.max(0, Math.round((Date.now() - execNow.startedAt) / 1000));
         const llm = (execNow.resolvedProvider || execNow.requestedProvider) || 'unknown'
@@ -767,6 +795,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           totalMs: 0,
         });
         completed = true;
+        updateStreamExecution({
+          status: 'WAITING_FOR_USER',
+          currentAction: 'Clarification required — waiting for your reply',
+          resolvedProvider: null,
+          resolvedModel: null,
+        });
         return res.end();
       }
 
@@ -943,6 +977,50 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       completed = true;
       updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
       endStreamExecution('COMPLETED', reply.slice(0, 500));
+      return res.end();
+    }
+
+    // ── CLARIFICATION_REQUIRED (conversation-state milestone) ──
+    // Jarvis is NOT executing: it is waiting for the user. The canonical
+    // execution record transitions to WAITING_FOR_USER and STAYS current
+    // until the user replies (the next stream supersedes it). Nothing is
+    // routing, there is no STOP, and the elapsed timer counts waiting time.
+    if (intent.route === 'clarification_required') {
+      const voiceIssue = (intent as any).voiceIssue as string | null | undefined;
+      const reply = voiceIssue
+        ? 'I think part of that sentence was transcribed incorrectly. Could you repeat just the last sentence?'
+        : (intent as any).reason === 'voice_transcription'
+          ? 'Were you still talking about the current Jarvis task?'
+          : 'I didn\'t quite understand your request. Could you rephrase it?';
+      writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'task-manager',
+          intent: { type: 'clarification_required', category: 'conversation', confidence: intent.confidence, reason: intent.reason }
+        }
+      });
+      writeSse(res, 'done', {
+        route: 'clarification_required',
+        category: 'conversation',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'task-manager',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      completed = true;
+      updateStreamExecution({
+        status: 'WAITING_FOR_USER',
+        currentAction: 'Clarification required — waiting for your reply',
+        resolvedProvider: null,
+        resolvedModel: null,
+      });
       return res.end();
     }
 

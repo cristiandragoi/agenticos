@@ -18,7 +18,7 @@ export type ExecutionWorker = 'jarvis' | 'codex' | 'hermes' | 'revenue' | 'inves
 
 export const EXECUTION_STATUSES = [
   'IDLE', 'ROUTING', 'PLANNING', 'QUEUED', 'DISPATCHING', 'WAITING_FOR_MODEL',
-  'RUNNING', 'TOOL_EXECUTION', 'WAITING_FOR_APPROVAL', 'COMPLETING', 'COMPLETED',
+  'RUNNING', 'TOOL_EXECUTION', 'WAITING_FOR_APPROVAL', 'WAITING_FOR_USER', 'COMPLETING', 'COMPLETED',
   'FAILED', 'CANCELLED', 'STOPPING',
 ] as const;
 export type ExecutionStatus = typeof EXECUTION_STATUSES[number];

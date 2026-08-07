@@ -847,6 +847,15 @@ export default function JarvisStudio() {
           </div>
           {currentExec ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} data-testid="jarvis-current-execution">
+              {currentExec.status === 'WAITING_FOR_USER' ? (
+                <>
+                  <div className={cc.kv}><span className={cc.kvLabel}>STATE</span><span className={cc.kvValue} style={{ color: '#fbbf24' }}>WAITING FOR CLARIFICATION</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>ACTION</span><span className={cc.kvValue} style={{ maxWidth: 190 }}>{currentExec.currentAction || 'Clarification required — waiting for your reply'}</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>WAITING</span><span className={cc.kvValue}>{Math.max(0, Math.round((Date.now() - currentExec.startedAt) / 1000))}s</span></div>
+                  <div className={cc.kv}><span className={cc.kvLabel}>OPERATION</span><span className={cc.kvValue} style={{ fontVariantNumeric: 'tabular-nums' }}>{currentExec.operationId.slice(-16)}</span></div>
+                </>
+              ) : (
+                <>
               <div className={cc.kv}><span className={cc.kvLabel}>AGENT</span><span className={cc.kvValue}>{currentExec.worker === 'jarvis' ? 'Jarvis' : currentExec.worker === 'codex' ? 'CodeX' : currentExec.worker === 'hermes' ? 'Hermes' : currentExec.worker === 'revenue' ? 'Revenue' : currentExec.worker}</span></div>
               <div className={cc.kv}><span className={cc.kvLabel}>STATUS</span><span className={cc.kvValue} style={{ color: currentExec.status === 'CANCELLED' || currentExec.status === 'FAILED' ? '#f87171' : currentExec.status === 'COMPLETED' ? '#4ade80' : '#7dd3fc' }}>{currentExec.status.replace(/_/g, ' ')}</span></div>
               {(currentExec.resolvedProvider || currentExec.requestedProvider) && (
@@ -860,6 +869,8 @@ export default function JarvisStudio() {
               )}
               <div className={cc.kv}><span className={cc.kvLabel}>ELAPSED</span><span className={cc.kvValue}>{Math.max(0, Math.round((Date.now() - currentExec.startedAt) / 1000))}s</span></div>
               <div className={cc.kv}><span className={cc.kvLabel}>OPERATION</span><span className={cc.kvValue} style={{ fontVariantNumeric: 'tabular-nums' }}>{currentExec.operationId.slice(-16)}</span></div>
+                </>
+              )}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: '#64748b' }}>No active run</div>

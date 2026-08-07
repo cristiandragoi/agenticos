@@ -344,4 +344,42 @@ describe('IntentRouter — required routing cases', () => {
       expect(result.route).toBe('investigate');
     });
   });
+
+  describe('voice-aware continuations (conversation-state milestone)', () => {
+    it('detects repeated-fragment transcription corruption and asks to repeat (no reset)', async () => {
+      const result = await router.routeIntent('the the the and then what');
+      expect(result.route).toBe('clarification_required');
+      expect(result.reason).toBe('voice_transcription');
+      expect(result.voiceIssue).toBeTruthy();
+    });
+
+    it('detects impossible consonant-run words', async () => {
+      const result = await router.routeIntent('xxxqzzfrt btw check it');
+      expect(result.route).toBe('clarification_required');
+      expect(result.voiceIssue).toBe('impossible word fragment detected');
+    });
+
+    it('detects abrupt truncation (final bare letter fragment)', async () => {
+      const result = await router.routeIntent('tell me a story ab');
+      expect(result.route).toBe('clarification_required');
+      expect(result.voiceIssue).toBe('abrupt truncation detected');
+    });
+
+    it('keeps clean speech unblocked', async () => {
+      const result = await router.routeIntent('tell me a story about a roofer in Berlin');
+      expect(result.voiceIssue).toBeUndefined();
+      expect(result.route).not.toBe('clarification_required');
+    });
+
+    it('continuation cue with malfunction context routes INVESTIGATE (never DIRECT reset)', async () => {
+      const recent = 'The execution bar still shows the wrong provider and the task is stuck.';
+      const result = await router.routeIntent('So right now, Jarvis is still not showing the model.', { recentText: recent });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('continuation cue without any context does not invent a problem', async () => {
+      const result = await router.routeIntent('So right now, what do you think about that?', { recentText: '' });
+      expect(result.route).toBe('direct');
+    });
+  });
 });

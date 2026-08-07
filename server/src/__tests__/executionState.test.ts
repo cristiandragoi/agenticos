@@ -61,3 +61,26 @@ describe('continuation routing (P7 — uses recent context, not phrase lists)', 
     expect(result.route).not.toBe('investigate');
   });
 });
+
+describe('WAITING_FOR_USER (conversation-state milestone)', () => {
+  beforeEach(() => exec.clearExecutions());
+
+  it('a clarification keeps the record current in WAITING_FOR_USER until the user replies', () => {
+    exec.begin({ operationId: 'op-clarify', worker: 'jarvis', status: 'ROUTING', currentAction: 'Routing request' });
+    exec.update('op-clarify', { status: 'WAITING_FOR_USER', currentAction: 'Clarification required — waiting for your reply', resolvedProvider: null, resolvedModel: null });
+    const rec = exec.getCurrent();
+    expect(rec?.status).toBe('WAITING_FOR_USER');
+    expect(rec?.endedAt).toBeNull();
+    expect(rec?.resolvedProvider).toBeNull();
+  });
+
+  it('the user reply begins a NEW stream: WAITING_FOR_USER is superseded (never last-writer-wins)', () => {
+    exec.begin({ operationId: 'op-clarify', worker: 'jarvis', status: 'WAITING_FOR_USER' });
+    exec.begin({ operationId: 'op-reply', worker: 'jarvis', status: 'ROUTING', currentAction: 'Routing request' });
+    expect(exec.getCurrent()?.operationId).toBe('op-reply');
+    expect(exec.getCurrent()?.status).toBe('ROUTING');
+    const waiting = exec.get('op-clarify');
+    expect(waiting?.endedAt).not.toBeNull();
+    expect(waiting?.note).toContain('Superseded');
+  });
+});

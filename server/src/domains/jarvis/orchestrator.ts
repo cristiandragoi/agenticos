@@ -345,7 +345,7 @@ You have LIVE INSPECTION capability: AgenticOS tracks real runtime state (active
     await conversationService.appendMessage({
       conversationId,
       role: 'agent',
-      content: 'Could you please clarify your request? I want to make sure I route it to the correct subsystem (CodeX for engineering, Hermes for project tracking, or just a direct chat).',
+      content: 'I didn\'t quite understand your request. Could you rephrase it?',
       routedAgent: 'jarvis',
       metadata: operationId ? { operationId } : undefined
     });

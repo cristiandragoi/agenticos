@@ -19,6 +19,9 @@ export interface IntentResult {
   requiresApproval?: boolean;
   selectedAgent?: 'Jarvis' | 'CodeX' | 'Agent Teams' | 'System';
   plan?: string[];
+  /** Populated only for clarification_required when the transcript looks
+   *  like speech-recognition corruption (voice-aware clarification). */
+  voiceIssue?: string;
 }
 
 export interface DelegationSignals {
@@ -74,6 +77,41 @@ const BUG_SIGNAL_PATTERNS: RegExp[] = [
 export function isBugReportStatement(prompt: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
   return BUG_SIGNAL_PATTERNS.some((re) => re.test(p));
+}
+
+/**
+ * Detect obvious speech-recognition corruption (conversation-state milestone).
+ *
+ * Returns a short human description when the transcript is likely malformed,
+ * or null when it reads normally. Heuristics only — never blocks a clean
+ * utterance. Recognized corruption classes:
+ *  - repeated fragments: "the the the" / "and and and"
+ *  - impossible letter-runs: "xxxqzz" (no vowels, 5+ consonants)
+ *  - abrupt truncation: the final token is a bare letter or 1-2 chars
+ */
+export function detectVoiceTranscriptionIssue(prompt: string): string | null {
+  const p = prompt.trim();
+  if (!p) return null;
+  // Repeated fragments (3+ identical consecutive word tokens).
+  const tokens = p.split(/\s+/);
+  for (let i = 0; i + 2 < tokens.length; i++) {
+    if (tokens[i].toLowerCase() === tokens[i + 1].toLowerCase() && tokens[i].toLowerCase() === tokens[i + 2].toLowerCase()) {
+      return 'repeated fragment detected';
+    }
+  }
+  // Impossible letter-run "words" (5+ consecutive consonants, no vowel).
+  for (const t of tokens) {
+    const alpha = t.replace(/[^a-zA-ZäöüÄÖÜß]/g, '');
+    if (alpha.length >= 6 && !/[aeiouyäöü]/i.test(alpha)) {
+      return 'impossible word fragment detected';
+    }
+  }
+  // Abrupt truncation: ends in a bare letter or 1-2 char fragment.
+  const last = tokens[tokens.length - 1];
+  if (last && /^[a-zäöü]{1,2}$/i.test(last) && tokens.length >= 3) {
+    return 'abrupt truncation detected';
+  }
+  return null;
 }
 
 /**
@@ -371,13 +409,21 @@ export class IntentRouter {
       const contextSignal =
         recentText &&
         /(wrong|broken|stuck|failed|not working|mismatch|not showing|still|issue|problem|waiting|laguna|model|provider|error)/i.test(recentText);
-      if (contextSignal) {
+      // Active execution also establishes continuation: while a task is
+      // running or Jarvis is waiting for the user, a deictic opener cannot
+      // reset to a generic DIRECT answer (conversation-state milestone).
+      let activeExecution = false;
+      try {
+        const { getCurrent } = await import('../../services/executionState.js');
+        activeExecution = Boolean(getCurrent());
+      } catch { /* import cycle safety — context text remains the gate */ }
+      if (contextSignal || activeExecution) {
         return {
           route: 'investigate',
           category: 'investigation',
           mode: 'operational_execution',
           confidence: 0.82,
-          reason: 'Continuation of an ongoing problem report (uses recent conversation context)',
+          reason: 'Continuation of an ongoing problem report (uses recent conversation context + active execution)',
           requiresWorkspace: false,
           requiresApproval: false,
           selectedAgent: 'Jarvis',
@@ -413,6 +459,26 @@ export class IntentRouter {
         requiresApproval: false,
         selectedAgent: 'Jarvis',
         plan: ['Inspect active runtime/gateway state', 'Compare with displayed/expected state', 'Report evidence and resolve when safe'],
+      };
+    }
+
+    // ── Voice-transcription issues (conversation-state milestone) ──
+    // When the transcript is obviously corrupted — repeated fragments,
+    // abrupt mid-word truncation, impossible letter-run "words" — do NOT
+    // reset the conversation and do NOT say "I don't understand". The user
+    // is still in the SAME conversation; ask them to repeat the last part.
+    const voiceIssue = detectVoiceTranscriptionIssue(prompt);
+    if (voiceIssue) {
+      return {
+        route: 'clarification_required',
+        category: 'conversation',
+        mode: 'direct_conversation',
+        confidence: 0.3,
+        reason: 'voice_transcription',
+        voiceIssue,
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis'
       };
     }
 
