@@ -107,6 +107,42 @@ export function isContextualInvestigationRequest(prompt: string, recentText?: st
   return APP_ENTITY_RE.test(p) || APP_ENTITY_RE.test(recentText);
 }
 
+/**
+ * Live AgenticOS system/runtime/UI state inspection.
+ *
+ * Explicit inspection verbs targeting CURRENT runtime/system/UI state route to
+ * INVESTIGATE (Jarvis reads backend runtime + frontend diagnostic state) —
+ * they are NOT generic conversation and NOT repository analysis.
+ *
+ * Guards:
+ *  - "How does X work?" explanations stay direct (informational).
+ *  - Strong code signals (source/code/repository/paths/components) block this
+ *    and let the CODE analysis rules take over.
+ *  - The phrase "read-only" alone never implies repository analysis here.
+ */
+const LIVE_STATE_TARGET_RE =
+  /\b(model|provider|gateway|hermes|ollama|openrouter|runtime|ui|frontend|backend|stream|task|operation|error|failure|health|status|state|config|configuration|badge|assignment|selection|agent|registry|mismatch|agree|active model|selected model|displayed model)\b/i;
+const LIVE_STATE_VERB_RE =
+  /\b(check|inspect|verify|investigate|diagnose|compare|monitor|probe|find out|tell me whether|tell me if|see if|look at)\b/i;
+const LIVE_STATE_PREDICATE_RE =
+  /\b(is|are|does|do)\s+[a-z0-9 ,&/.-]{0,60}\b(online|working|up|running|active|down|offline|responding|reachable|stuck|broken)\b/i;
+const CODE_SIGNAL_RE =
+  /\b(source|code|codebase|repository|repo|component|function|class|module|implementation|workspace)\b|\.(tsx?|jsx?|json|md|css)\b/i;
+
+export function isLiveSystemInvestigationRequest(prompt: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  // Informational "how does X work" explanations stay direct.
+  if (/^how\s+(does|do|is|are|can|would|should|come)\b/.test(p)) return false;
+  // Project/milestone/goal/plan tracking belongs to Hermes orchestration,
+  // not live runtime investigation.
+  if (/\b(project|milestone|goal|plan|sprint|roadmap)\b/.test(p)) return false;
+  const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
+  if (!hasLiveVerb) return false;
+  if (!LIVE_STATE_TARGET_RE.test(p)) return false;
+  if (CODE_SIGNAL_RE.test(p)) return false;
+  return true;
+}
+
 export class IntentRouter {
   /**
    * Fast, heuristic-based intent routing.
@@ -153,7 +189,7 @@ export class IntentRouter {
     const hasAny = (...terms: string[]) => terms.some(term => p.includes(term));
     const hasWord = (...terms: string[]) => terms.some(term => new RegExp(`\\b${term}\\b`).test(p));
     const delegationSignals = detectDelegationSignals(prompt);
-    const hasFileTarget = hasAny('.ts', '.tsx', '.js', '.json', '.md', 'file', 'component', 'router', 'implementation', 'workspace', 'repository', 'repo');
+    const hasFileTarget = hasAny('.ts', '.tsx', '.js', '.json', '.md', 'file', 'component', 'router', 'implementation', 'workspace', 'repository', 'repo', 'source', 'code', 'codebase');
     const hasReadOnlyConstraint = hasAny(
       'do not modify',
       'do not change',
@@ -211,6 +247,27 @@ export class IntentRouter {
         return operational('codex', 'repository_analysis', 0.96, 'Explicit read-only CodeX delegation request', 'CodeX', ['Package read-only request for CodeX', 'Attach selected repository', 'Create CodeX inspection goal'], true, false);
       }
       return operational('codex', 'codex_delegation', 0.96, 'Explicit CodeX delegation request', 'CodeX', ['Package user request for CodeX', 'Attach selected repository', 'Create CodeX goal'], true, true);
+    }
+
+    // ── LIVE AGENTICOS SYSTEM/RUNTIME/UI STATE INSPECTION ──
+    // Explicit inspection verbs targeting CURRENT runtime/system/UI state
+    // (model/provider/gateway/Hermes/Ollama/OpenRouter/frontend/stream/tasks/
+    // errors/health) route to INVESTIGATE — NOT direct chat and NOT CodeX.
+    // This runs BEFORE the broad read-only repository-analysis rule so
+    // "read-only" alone never implies repository analysis. Explicit CodeX
+    // delegation (above) still wins.
+    if (isLiveSystemInvestigationRequest(prompt)) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.9,
+        reason: 'Live AgenticOS runtime/system/UI state inspection request',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect active runtime/gateway/frontend state', 'Compare selected vs gateway-resolved vs displayed state', 'Report evidence and resolve when safe'],
+      };
     }
 
     if (hasAny('run the deployment pipeline', 'start deployment', 'trigger pipeline', 'run pipeline')) {

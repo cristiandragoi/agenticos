@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../services/goalStore.js', () => ({
+  goalControllers: new Map<string, AbortController>(),
   goalStore: {
     get: vi.fn(() => mocks.goal),
     createEventWriter: vi.fn(() => ({ push: mocks.writerPush })),

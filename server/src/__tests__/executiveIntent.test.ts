@@ -201,4 +201,27 @@ describe('executive intent classification', () => {
     const r = classifyExecutiveIntent('Find five roofing businesses in Berlin. Live mode. Do contact them.');
     expect(r?.intent).toBe('revenue_pipeline');
   });
+
+  it('full live-system health inspection falls through to routeIntent (null → INVESTIGATE)', () => {
+    const r = classifyExecutiveIntent(
+      'Jarvis, perform a read-only AgenticOS health inspection.\nCheck active model/provider, frontend model/provider, Hermes, Ollama, OpenRouter, failed operations and backend errors.\nDo not change anything.'
+    );
+    expect(r).toBeNull();
+  });
+
+  it('single-worker live health checks also fall through to INVESTIGATE', () => {
+    expect(classifyExecutiveIntent('Check Hermes, Ollama, and OpenRouter health.')).toBeNull();
+    expect(classifyExecutiveIntent('Check Hermes health.')).toBeNull();
+  });
+
+  it('informational status questions stay worker_status', () => {
+    const r = classifyExecutiveIntent('How is Hermes doing?');
+    expect(r?.intent).toBe('worker_status');
+  });
+
+  it('explicit delegation + navigation still win over the live-investigation fall-through', () => {
+    expect(classifyExecutiveIntent('Ask Hermes to inspect the gateway health')?.intent).toBe('worker_delegation');
+    expect(classifyExecutiveIntent('Open CodeX')?.intent).toBe('navigation');
+    expect(classifyExecutiveIntent('Give me feedback regarding CodeX')?.intent).toBe('worker_feedback');
+  });
 });

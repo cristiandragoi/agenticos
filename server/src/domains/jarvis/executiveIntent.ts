@@ -20,6 +20,7 @@
  * conversation message to execution.
  */
 import { CAPABILITY_REGISTRY, getCapability, resolveCapability, type Capability, type CapabilityId } from './capabilityRegistry.js';
+import { isLiveSystemInvestigationRequest } from './intentRouter.js';
 
 export type ExecutiveIntentType =
   | 'direct_explanation'
@@ -199,6 +200,15 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
       confidence: 0.94,
       reason: `Worker feedback request for ${cap.displayName}`,
     };
+  }
+
+  // A full live-system/health inspection ("perform a read-only AgenticOS
+  // health inspection; check Hermes/Ollama/OpenRouter...") must fall through
+  // to the INVESTIGATE pipeline — a single-worker status reply cannot cover
+  // gateway/frontend/stream/task state. Delegation/navigation/feedback above
+  // still win; "How is Hermes doing?" (informational) stays worker_status.
+  if (isLiveSystemInvestigationRequest(prompt)) {
+    return null;
   }
 
   // Status: "How is Hermes doing?" / "What model is CodeX using?"

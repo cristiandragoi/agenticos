@@ -262,4 +262,67 @@ describe('IntentRouter — required routing cases', () => {
       }
     });
   });
+
+  describe('LIVE AgenticOS state inspection vs repository analysis', () => {
+    const liveCases = [
+      'Jarvis, check which model you are actually using right now and tell me whether the UI is showing the same model.',
+      'Perform a read-only AgenticOS health inspection.',
+      'Check Hermes, Ollama, and OpenRouter health.',
+      'Verify whether the frontend provider matches the runtime provider.',
+      'Check recent failed operations.',
+      'Inspect the current AgenticOS runtime state.',
+      'Tell me whether the selected model is actually being used.',
+      'Check which model you are using.',
+      'Inspect the current provider.',
+      'Check whether the frontend and backend agree.',
+      'Tell me whether Hermes is online.',
+      'Find out which provider is active.',
+      'Compare the selected model with the runtime model.',
+      'Are Ollama and OpenRouter working?',
+      'Which model is actually active?',
+      'Check backend errors.',
+    ];
+    for (const input of liveCases) {
+      it(`routes ${JSON.stringify(input)} to INVESTIGATE`, async () => {
+        const result = await router.routeIntent(input);
+        expect(result.route, input).toBe('investigate');
+        expect(result.category).toBe('investigation');
+        expect(result.mode).toBe('operational_execution');
+      });
+    }
+
+    const codexCases = [
+      'Inspect server/src/domains/jarvis/intentRouter.ts.',
+      'Perform a read-only analysis of the Jarvis source code.',
+      'Review the repository and find where ProviderBadge gets its value.',
+      'Analyze JarvisCore.tsx without changing files.',
+      'Inspect intentRouter.ts.',
+      'Read JarvisCore.tsx and explain it.',
+      'Inspect the Jarvis router implementation.',
+    ];
+    for (const input of codexCases) {
+      it(`routes ${JSON.stringify(input)} to CODEX/repository analysis`, async () => {
+        const result = await router.routeIntent(input);
+        expect(result.route, input).toBe('codex');
+        expect(result.category, input).toBe('repository_analysis');
+      });
+    }
+
+    const directCases = [
+      'What is OpenRouter?',
+      'How does Ollama work?',
+      'What is a provider?',
+    ];
+    for (const input of directCases) {
+      it(`keeps ${JSON.stringify(input)} DIRECT/informational`, async () => {
+        const result = await router.routeIntent(input);
+        expect(result.route, input).toBe('direct');
+      });
+    }
+
+    it('"read-only" alone does NOT imply repository analysis without a code signal', async () => {
+      const result = await router.routeIntent('Perform a read-only health inspection of the gateway.');
+      expect(result.route).toBe('investigate');
+    });
+  });
 });

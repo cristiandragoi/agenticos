@@ -50,6 +50,9 @@ vi.mock('../domains/jarvis/intentRouter.js', () => ({
         /\bno\s+agent\b/.test(p)
     };
   },
+  // Live-investigation fall-through is covered by the executiveIntent unit
+  // tests; the streaming suite keeps the classifier inert for its prompts.
+  isLiveSystemInvestigationRequest: () => false,
   intentRouter: {
     routeIntent: vi.fn(async () => ({
       route: mocks.route,

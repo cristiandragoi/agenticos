@@ -554,6 +554,14 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const usedReadFallbacks = new Set<string>();
   let responseExpectation: ResponseExpectation = 'tool_decision';
 
+  // Bounded parse-failure budget: a model that repeatedly returns output that
+  // cannot be parsed into a tool call must NOT cycle planning phases forever.
+  // (Live failure: local ollama/qwen3.5:4b + fallback laguna returned chatty
+  // text; the goal stayed "planning" / "Waiting for local model response" for
+  // minutes with no terminal state.) Env-overridable.
+  const maxParseFailures = parseInt(process.env.CODEX_MAX_PARSE_FAILURES || '3', 10);
+  let parseFailureCount = 0;
+
   while (true) {
     if (controller.signal.aborted) {
       goalStore.upsertStep(goalId, stepCounter, 'paused', undefined, 'Goal paused explicitly.');
@@ -896,6 +904,33 @@ ${m.content}`).join('\n\n');
       }
       // --- End retry loop ---
 
+      // ── Bounded parse-failure budget ──
+      // If the attempt loop ended without a valid tool call or final answer
+      // (local single-attempt path, or retries exhausted without a fallback),
+      // count it. Past the budget the goal transitions to an explicit
+      // terminal 'failed' state instead of cycling phases indefinitely.
+      if (!toolCall && !finalAnswerText && parseError && (goal.status as string) !== 'waiting_for_approval' && !controller.signal.aborted) {
+        parseFailureCount += 1;
+        logger.warn(`[CodeX] Parse failure ${parseFailureCount}/${maxParseFailures} for ${goalId} (${currentProvider}/${currentModel})`);
+        if (parseFailureCount >= maxParseFailures) {
+          const limitMessage =
+            `CodeX could not parse the model response into a tool call after ${parseFailureCount} attempts ` +
+            `(provider ${currentProvider}, model ${currentModel}). No files were changed.`;
+          pushEventToWriter(writer, 'failed', limitMessage, undefined, parseError, {
+            normalizedStatus: 'failed',
+            lifecycleState: 'failed',
+            userMessage: `CodeX could not parse the model response after ${parseFailureCount} attempts. No files were changed.`,
+            eventType: 'task_failed',
+            provider: currentProvider,
+            model: currentModel,
+            errorCode: 'CODEX_PARSE_FAILURE_LIMIT',
+            errorDetails: parseError
+          });
+          goalStore.update(goalId, { status: 'failed' });
+          throw new Error('CODEX_PARSE_FAILURE_LIMIT');
+        }
+      }
+
       if (finalAnswerText) {
         const toolResult = `Goal finished: ${finalAnswerText}`;
         await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
@@ -1148,10 +1183,10 @@ ${m.content}`).join('\n\n');
         }
       }
     } catch (err: any) {
-      // Distinguish between our own parse-failure throw and genuine fatal errors
-      if (err.message === 'CODEX_TOOL_PARSE_FAILED') {
-        // Already emitted event and set status to failed inside the retry loop.
-        // Just break cleanly.
+      // Distinguish between our own parse-failure throws and genuine fatal errors
+      if (err.message === 'CODEX_TOOL_PARSE_FAILED' || err.message === 'CODEX_PARSE_FAILURE_LIMIT') {
+        // Already emitted the terminal event and set status to failed inside
+        // the retry loop / parse-failure budget. Just break cleanly.
         break;
       }
       if (controller.signal.aborted) {
