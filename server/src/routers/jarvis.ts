@@ -338,23 +338,42 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   res.flushHeaders?.();
   logStreamStage(normalizedOperationId, 'response headers flushed');
 
-  const selectedProvider = 'OpenRouter';
-  const { selectedModel, fallbackModel } = await resolveDirectChatMetadata();
+  const baseSelectedProvider = 'OpenRouter';
+  const { selectedModel: baseSelectedModel, fallbackModel } = await resolveDirectChatMetadata();
   const fallbackProvider = 'ollama';
-  writeSse(res, 'status', {
-    state: 'thinking',
+
+  // Conversation-level provider/model override (PRIORITY 3): a manual choice
+  // in the Jarvis chat routing control applies ONLY to this execution — it
+  // never changes the global assignment.
+  const overrideProvider: string | null = typeof req.body?.overrideProvider === 'string' && req.body.overrideProvider ? req.body.overrideProvider : null;
+  const overrideModel: string | null = typeof req.body?.overrideModel === 'string' && req.body.overrideModel ? req.body.overrideModel : null;
+  const selectedProvider = overrideProvider || baseSelectedProvider;
+  const selectedModel = overrideModel || baseSelectedModel;
+  const routingMode: 'auto' | 'manual' = overrideProvider || overrideModel ? 'manual' : 'auto';
+
+  const streamStartedAt = Date.now();
+  const statusBase = {
     provider: selectedProvider,
     model: selectedModel,
     fallbackProvider,
     fallbackModel,
-    operationId: normalizedOperationId
-  });
+    operationId: normalizedOperationId,
+    currentAction: 'Routing request',
+    elapsedMs: 0,
+    lastActivityAt: Date.now(),
+  };
+  const emitStatus = (patch: Record<string, unknown>) => {
+    writeSse(res, 'status', { ...statusBase, ...patch, elapsedMs: Date.now() - streamStartedAt, lastActivityAt: Date.now() });
+  };
+  emitStatus({ state: 'thinking' });
   logStreamStage(normalizedOperationId, 'status event sent', {
     state: 'thinking',
     provider: selectedProvider,
     model: selectedModel,
     fallbackProvider,
-    fallbackModel
+    fallbackModel,
+    routingMode,
+    override: overrideProvider ? `${overrideProvider}/${overrideModel || '?'}` : 'none'
   });
 
   const requestMetadata = normalizedOperationId ? { operationId: normalizedOperationId } : undefined;
@@ -535,14 +554,36 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         return res.end();
       }
 
-      dispatchTask(task).catch(() => { /* adapter records its own failure */ });
+      const concurrency = (task.metadata as any)?.concurrency as { active?: number; limit?: number; position?: number; blocked?: boolean } | undefined;
+      if (concurrency?.blocked) {
+        // PRIORITY 10: worker slot occupied — do NOT dispatch now; the pump
+        // dispatches when a slot frees. Report the truthful QUEUED state.
+        logStreamStage(normalizedOperationId, 'delegation queued behind worker', {
+          worker: workerKind,
+          active: concurrency.active,
+          limit: concurrency.limit,
+          position: concurrency.position
+        });
+        writeSse(res, 'status', {
+          state: 'queued',
+          currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
+          provider: 'agentic-os',
+          model: 'task-manager',
+          operationId: normalizedOperationId,
+          elapsedMs: 0,
+          lastActivityAt: Date.now()
+        });
+      } else {
+        dispatchTask(task).catch(() => { /* adapter records its own failure */ });
+      }
 
       const shortId = taskShortId(task.taskId);
       const readOnlyNote = executive.readOnly ? ' Read-only — no file changes will be made.' : '';
       const delegationStartedAt = Date.now();
-      const reply =
-        `I started task ${shortId} with ${workerTitle}. Status: queued.` +
-        `${readOnlyNote} The task continues in the background — keep talking to me, and ask "show task ${shortId}" for progress.`;
+      const reply = concurrency?.blocked
+        ? `Task ${shortId} is QUEUED behind ${workerTitle} (active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}). I'll dispatch it automatically when a slot frees.`
+        : `I started task ${shortId} with ${workerTitle}. Status: queued.` +
+          `${readOnlyNote} The task continues in the background — keep talking to me, and ask "show task ${shortId}" for progress.`;
       writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
       await conversationService.appendMessage({
         conversationId: req.params.id,
@@ -964,7 +1005,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       timeoutMs: getDirectChatConnectTimeoutMs(),
       ollamaTimeoutMs: getDirectChatOverallTimeoutMs(),
       signal: abortController.signal,
-      requestId: normalizedOperationId
+      requestId: normalizedOperationId,
+      // Conversation-level override (PRIORITY 3): only when the user manually
+      // picked a provider/model in the chat routing control. Auto mode leaves
+      // the gateway's routing untouched.
+      ...(overrideProvider ? { provider: overrideProvider } : {}),
+      ...(overrideModel ? { model: overrideModel } : {})
     });
     logStreamStage(normalizedOperationId, 'provider call started', {
       provider: selectedProvider,
@@ -1060,11 +1106,32 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       metadata: { ...(requestMetadata || {}), provider, model }
     });
 
+    // Authoritative routing record (PRIORITY 1): what this execution REQUESTED
+    // vs what it RESOLVED to (fallback = resolved differs from requested).
+    const resolvedProvider: string = provider || selectedProvider;
+    const resolvedModel: string = model || selectedModel;
+    const { routingLedger } = await import('../services/routingLedger.js');
+    routingLedger.record({
+      operationId: normalizedOperationId || 'unknown',
+      worker: 'jarvis',
+      routingMode,
+      requestedProvider: selectedProvider,
+      requestedModel: selectedModel,
+      resolvedProvider,
+      resolvedModel,
+      fallbackUsed: Boolean(overrideProvider && resolvedProvider !== overrideProvider) || Boolean(overrideModel && resolvedModel !== overrideModel),
+      fallbackReason: overrideProvider && resolvedProvider !== overrideProvider
+        ? `Requested ${overrideProvider} but resolved ${resolvedProvider}`
+        : null,
+      startedAt: streamStartedAt,
+      endedAt: Date.now(),
+    });
+
     writeSse(res, 'done', {
       route: 'direct',
       operationId: normalizedOperationId,
-      provider: provider || selectedProvider,
-      model: model || selectedModel,
+      provider: resolvedProvider,
+      model: resolvedModel,
       firstTokenMs: firstTokenAt ? firstTokenAt - startedAt : null,
       totalMs: Date.now() - startedAt
     });

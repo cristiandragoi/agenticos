@@ -16,6 +16,7 @@ import { hermesApiService } from '../../services/hermesApiService.js';
 import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
 import { diagnosticsStore, type UiDiagnosticSnapshot } from '../../services/diagnosticsStore.js';
+import { routingLedger } from '../../services/routingLedger.js';
 
 const PROBE_TIMEOUT_MS = parseInt(process.env.GATEWAY_HEALTH_PROBE_TIMEOUT_MS || '2500', 10);
 
@@ -239,6 +240,20 @@ export async function investigateAgenticState(conversationId: string, prompt: st
   lines.push('');
   if (modelMismatch) {
     const badge = ui?.rendered?.providerBadge;
+    // Authoritative routing record (PRIORITY 1): the most recent execution's
+    // Requested vs Resolved values come from the routing ledger, never from
+    // the model's own knowledge.
+    const latest = routingLedger.latest('jarvis', 1)[0] || routingLedger.latest(undefined, 1)[0];
+    if (latest) {
+      lines.push(
+        'Runtime execution metadata (from the routing ledger):',
+        `  • Requested: ${latest.requestedProvider || '(unset)'} / ${latest.requestedModel || '(unset)'} (mode ${latest.routingMode})`,
+        `  • Resolved: ${latest.resolvedProvider || '(unset)'} / ${latest.resolvedModel || '(unset)'}${latest.fallbackUsed ? ` — FALLBACK (${latest.fallbackReason || 'reason unknown'})` : ''}`,
+        `  • Operation: ${latest.operationId} · worker ${latest.worker}`
+      );
+    } else {
+      lines.push('Runtime execution metadata: no execution recorded yet in the routing ledger.');
+    }
     lines.push(
       `The authoritative runtime resolves provider ${selectedProvider || '(unset)'} / model ${selectedModel}. ` +
       (badge?.provider || badge?.model
@@ -252,6 +267,24 @@ export async function investigateAgenticState(conversationId: string, prompt: st
   lines.push(
     'I can go deeper: verify the frontend display state, trace recent gateway events, or (with your approval) correct a configuration mismatch. No files or settings were changed by this inspection.'
   );
+
+  // Record this investigation in the routing ledger (PRIORITY 1) so runtime-
+  // identity questions ("What model are you using?") have an authoritative
+  // entry even when no direct LLM execution has happened yet.
+  const resolvedProvider = orProbe.ok ? (openrouterUrl.includes('openrouter') ? 'openrouter' : selectedProvider) : selectedProvider;
+  routingLedger.record({
+    operationId: `investigate-${Date.now()}`,
+    worker: 'investigate',
+    routingMode: 'auto',
+    requestedProvider: selectedProvider,
+    requestedModel: selectedModel,
+    resolvedProvider,
+    resolvedModel: selectedModel,
+    fallbackUsed: false,
+    fallbackReason: null,
+    startedAt: Date.now(),
+    endedAt: Date.now(),
+  });
 
   return lines.join('\n');
 }

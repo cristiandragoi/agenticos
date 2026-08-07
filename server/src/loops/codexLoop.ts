@@ -693,6 +693,26 @@ ${m.content}`).join('\n\n');
           currentProvider = llmResult.provider;
           currentModel = llmResult.model || 'unknown';
 
+          // Authoritative routing record (PRIORITY 1): requested = the
+          // execution routing assignment; resolved = what llmChat actually used.
+          const { routingLedger } = await import('../services/routingLedger.js');
+          const requestedProvider = executionRouting.providerId || currentProvider;
+          routingLedger.record({
+            operationId: goalId,
+            worker: 'codex',
+            routingMode: 'auto',
+            requestedProvider,
+            requestedModel: currentModel,
+            resolvedProvider: llmResult.provider || requestedProvider,
+            resolvedModel: llmResult.model || currentModel,
+            fallbackUsed: Boolean(llmResult.provider && requestedProvider && llmResult.provider !== requestedProvider),
+            fallbackReason: llmResult.provider && requestedProvider && llmResult.provider !== requestedProvider
+              ? `Requested ${requestedProvider} but resolved ${llmResult.provider}`
+              : null,
+            startedAt: startLlm,
+            endedAt: Date.now(),
+          });
+
           if (llmResult.offline) {
             throw new Error(llmResult.error || 'All models unreachable');
           }

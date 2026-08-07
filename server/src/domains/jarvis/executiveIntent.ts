@@ -146,6 +146,17 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
     }
   }
 
+  // A full live-system/health inspection ("perform a read-only AgenticOS
+  // health inspection; check Hermes/Ollama/OpenRouter...") must fall through
+  // to the INVESTIGATE pipeline — a single-worker status reply cannot cover
+  // gateway/frontend/stream/task state. Runs BEFORE the broad delegation
+  // branch (a mere worker mention is an OBJECT, not delegation), but AFTER an
+  // EXPLICIT worker-target cue ("Ask Hermes to inspect X") which still wins.
+  const explicitWorkerTargetCue = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex)\b/.test(p);
+  if (isLiveSystemInvestigationRequest(prompt) && !explicitWorkerTargetCue) {
+    return null;
+  }
+
   // Delegation: explicit ask/tell + task verb → create a background task.
   // Checked BEFORE capability-specific (board/memory/automation) queries so
   // "Ask Hermes to inspect the Boards integration" delegates to Hermes.

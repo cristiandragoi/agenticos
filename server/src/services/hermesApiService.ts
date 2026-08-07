@@ -20,6 +20,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { localDataPort } from '../adapters/localDataPort.js';
+import { routingLedger } from './routingLedger.js';
 import { logger } from '../utils/logger.js';
 
 export type HermesRunStatus =
@@ -385,6 +386,22 @@ class HermesApiService extends EventEmitter {
         if (!record.finalText && typeof ev?.output === 'string') record.finalText = ev.output;
         this.appendEvent(record, 'run.completed', 'Hermes run completed', { stats: ev?.usage });
         this.finishBoardLinkage(record, 'done');
+        {
+          // Authoritative routing record (PRIORITY 1).
+          routingLedger.record({
+            operationId: record.id,
+            worker: 'hermes',
+            routingMode: 'auto',
+            requestedProvider: record.provider || null,
+            requestedModel: record.model || null,
+            resolvedProvider: record.provider || null,
+            resolvedModel: record.model || null,
+            fallbackUsed: false,
+            fallbackReason: null,
+            startedAt: record.createdAt ? new Date(record.createdAt).getTime() : Date.now(),
+            endedAt: Date.now(),
+          });
+        }
         break;
       case 'run.failed':
         record.status = 'failed';

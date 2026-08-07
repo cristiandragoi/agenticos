@@ -9,6 +9,9 @@ import { useCodexStore } from '../../store/codexStore';
 import { useGatewayStream } from '../../hooks/useGatewayStream';
 import { ProviderBadge } from '../gateway/ProviderBadge';
 import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
+import { executionStore } from '../../diagnostics/executionStore';
+import { ExecutionBar } from './ExecutionBar';
+import { RoutingOverrideControl } from './RoutingOverrideControl';
 import { GatewayNotice } from '../gateway/GatewayNotice';
 import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
 import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
@@ -245,6 +248,19 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   }, [isProcessing]);
   const runtimeStateRef = useRef<JarvisRuntimeState>('idle');
   const firstTokenMsRef = useRef<number | null>(null);
+  const lastOperationIdRef = useRef<string | null>(null);
+  const [routingOverride, setRoutingOverride] = useState<{ provider: string | null; model: string | null; mode: 'auto' | 'manual' }>({ provider: null, model: null, mode: 'auto' });
+
+  // STOP propagation (PRIORITY 6): the execution bar's STOP aborts the
+  // in-flight stream via the same controller as the chat's own Stop control.
+  useEffect(() => {
+    executionStore.registerStop(() => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      emitStatus({ state: 'cancelled' });
+    });
+    return () => executionStore.registerStop(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const emitStatus = (patch: Partial<JarvisRuntimeStatus>) => {
     const elapsedMs = requestStartedAtRef.current ? Date.now() - requestStartedAtRef.current : 0;
@@ -259,6 +275,21 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       error: null,
       ...patch
     });
+    // Live execution bar (PRIORITY 4/5): feed the shared execution store.
+    if (patch.state && patch.state !== 'idle' && !['cancelled', 'error', 'completed'].includes(patch.state)) {
+      const agentLabel = patch.state === 'streaming' ? 'Jarvis' : 'Jarvis';
+      executionStore.setActive({
+        agent: agentLabel,
+        provider: patch.provider ?? null,
+        model: patch.model ?? null,
+        currentAction: patch.state === 'streaming' ? 'Streaming reply' : patch.state === 'thinking' ? 'Thinking' : patch.state === 'understanding' ? 'Understanding request' : patch.state,
+        stage: patch.state,
+        startedAt: requestStartedAtRef.current || Date.now(),
+        operationId: lastOperationIdRef.current || null,
+      });
+    } else if (patch.state === 'completed' || patch.state === 'cancelled' || patch.state === 'error') {
+      executionStore.setIdle();
+    }
   };
 
   const fetchMessages = async (merge = false) => {
@@ -485,7 +516,16 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       workspacePath?: string;
       repositoryPath?: string;
       approvalPolicy?: string;
+      overrideProvider?: string;
+      overrideModel?: string;
     } = { prompt: text, operationId, inputChannel };
+
+    // Conversation-level routing override (PRIORITY 3): manual selections
+    // apply only to this execution; the backend records them in the ledger.
+    if (routingOverride.mode === 'manual' && routingOverride.provider) {
+      body.overrideProvider = routingOverride.provider;
+      if (routingOverride.model) body.overrideModel = routingOverride.model;
+    }
 
     if (runSettings.workspacePath) {
       body.workspacePath = runSettings.workspacePath;
@@ -525,6 +565,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     }
 
     const operationId = `jarvis-${targetConversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    lastOperationIdRef.current = operationId;
     if (abortControllerRef.current) {
       logAbort('new_request', abortControllerRef.current, requestStartedAtRef.current, operationId);
       abortControllerRef.current.abort();
@@ -996,6 +1037,11 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
 
         <div ref={chatEndRef} />
       </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
+        <RoutingOverrideControl value={routingOverride} onChange={setRoutingOverride} />
+      </div>
+      <ExecutionBar />
 
       <JarvisComposer
         onSendMessage={handleSendMessage}

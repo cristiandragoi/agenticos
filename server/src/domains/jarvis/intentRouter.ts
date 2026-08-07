@@ -136,6 +136,9 @@ export function isLiveSystemInvestigationRequest(prompt: string): boolean {
   // Project/milestone/goal/plan tracking belongs to Hermes orchestration,
   // not live runtime investigation.
   if (/\b(project|milestone|goal|plan|sprint|roadmap)\b/.test(p)) return false;
+  // Runtime-identity questions must be answered from execution metadata
+  // (PRIORITY 1): "What model are you using?" → investigate reads the ledger.
+  if (/\bwhat (model|provider)( and (model|provider))? (are|am|is) (you|i|we|it) (actually |currently )?(using|running|on|configured with)\b/.test(p)) return true;
   const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
   if (!hasLiveVerb) return false;
   if (!LIVE_STATE_TARGET_RE.test(p)) return false;
@@ -398,6 +401,39 @@ export class IntentRouter {
         requiresApproval: false,
         selectedAgent: 'Jarvis'
       };
+    }
+
+    // ── Semantic fallback (PRIORITY 8) ──
+    // When deterministic signals are exhausted, score the utterance into
+    // semantic categories (live state / bug / delegation / repo / info) using
+    // the utterance + recent conversation context. High-confidence categories
+    // route instead of a blind direct fallback. Dynamic import avoids a
+    // module cycle (semanticIntent imports the detectors from this module).
+    const { scoreSemanticIntent, semanticRouteToIntent } = await import('./semanticIntent.js');
+    const semantic = scoreSemanticIntent(prompt, recentText);
+    if (semantic.bestScore >= 0.75) {
+      const mapped = semanticRouteToIntent(semantic, prompt);
+      if (mapped?.route === 'investigate') {
+        return {
+          route: 'investigate',
+          category: 'investigation',
+          mode: 'operational_execution',
+          confidence: mapped.confidence,
+          reason: 'Semantic intent: live AgenticOS state / problem report',
+          requiresWorkspace: false,
+          requiresApproval: false,
+          selectedAgent: 'Jarvis',
+          plan: ['Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe'],
+        };
+      }
+      if (mapped?.route === 'codex') {
+        // Refine delegation vs repository analysis by the worker target.
+        const explicitHermes = /\b(ask|tell|have|give this to|hand this to|send this to)\s+hermes\b/.test(p) || /^give this to hermes/.test(p);
+        if (explicitHermes) {
+          return operational('hermes', 'pipeline_operation', mapped.confidence, 'Semantic intent: explicit Hermes delegation', 'Jarvis', ['Create Hermes task', 'Dispatch to Hermes worker'], false, false);
+        }
+        return operational('codex', 'repository_analysis', mapped.confidence, 'Semantic intent: repository/source analysis', 'CodeX', ['Confirm selected repository', 'Inspect relevant files', 'Report findings'], true, false);
+      }
     }
 
     // Fallback direct chat

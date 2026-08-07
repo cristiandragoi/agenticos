@@ -31,6 +31,26 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
 
   // Track whether user has made any deliberate selection change
   const [userTouched, setUserTouched] = useState(false);
+  const [testingRouting, setTestingRouting] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+
+  /** TEST ROUTING (PRIORITY 2): tiny safe runtime request with the SAVED
+   *  assignment — saving config alone is not proof execution uses it. */
+  const handleTestRouting = async () => {
+    if (testingRouting) return;
+    setTestingRouting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/settings/agent-provider-assignments/${agentId}/test`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) setTestResult({ result: 'FAIL', reason: data?.error || `HTTP ${res.status}` });
+      else setTestResult(data);
+    } catch (err: any) {
+      setTestResult({ result: 'FAIL', reason: err?.message || 'Request failed' });
+    } finally {
+      setTestingRouting(false);
+    }
+  };
 
   // Diagnostic: report the user-selected provider/model the selector renders.
   useEffect(() => {
@@ -253,6 +273,37 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
           Save
         </button>
+      )}
+
+      {!isDirty && (
+        <button
+          data-testid="test-routing-button"
+          onClick={handleTestRouting}
+          disabled={testingRouting || !selectedProviderId}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-50 transition-colors"
+          title="Perform a tiny safe runtime request with the saved assignment to verify execution actually resolves where configured"
+        >
+          {testingRouting ? <Loader2 size={12} className="animate-spin" /> : <Server size={12} />}
+          TEST ROUTING
+        </button>
+      )}
+
+      {testResult && (
+        <div data-testid="test-routing-result" className="flex flex-col gap-0.5 text-xs border border-slate-700 rounded p-2 mt-1 bg-slate-900/60" style={{ fontSize: 11 }}>
+          <div>
+            <span className="text-slate-400">Configured:</span>{' '}
+            {testResult.configured?.provider || '(unset)'}{testResult.configured?.model ? ` / ${testResult.configured.model}` : ''}
+          </div>
+          <div>
+            <span className="text-slate-400">Resolved:</span>{' '}
+            {testResult.resolved ? `${testResult.resolved.provider || '(unset)'}${testResult.resolved.model ? ` / ${testResult.resolved.model}` : ''}` : '(none)'}
+          </div>
+          <div style={{ color: testResult.result === 'PASS' ? '#4ade80' : testResult.result === 'FALLBACK' ? '#f59e0b' : testResult.result === 'SKIPPED' ? '#94a3b8' : '#f87171' }}>
+            Result: {testResult.result}
+            {typeof testResult.latencyMs === 'number' ? ` · Latency: ${testResult.latencyMs}ms` : ''}
+          </div>
+          {testResult.reason && <div className="text-slate-500">Reason: {testResult.reason}</div>}
+        </div>
       )}
 
       {error && <span className="text-red-400 text-xs" role="alert">{error}</span>}

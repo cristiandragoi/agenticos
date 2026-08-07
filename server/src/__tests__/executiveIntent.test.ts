@@ -224,4 +224,12 @@ describe('executive intent classification', () => {
     expect(classifyExecutiveIntent('Open CodeX')?.intent).toBe('navigation');
     expect(classifyExecutiveIntent('Give me feedback regarding CodeX')?.intent).toBe('worker_feedback');
   });
+
+  it('worker-as-OBJECT health checks fall through to INVESTIGATE even with "tell me"', () => {
+    const r = classifyExecutiveIntent('Check Hermes, Ollama, OpenRouter and the frontend model display. Tell me only if something is wrong.');
+    expect(r).toBeNull();
+    expect(classifyExecutiveIntent('Check Hermes health.')).toBeNull();
+    // Explicit worker-target cue still delegates.
+    expect(classifyExecutiveIntent('Ask Hermes to inspect intentRouter.ts.')?.intent).toBe('worker_delegation');
+  });
 });

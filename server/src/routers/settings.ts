@@ -203,6 +203,58 @@ router.get('/agent-provider-assignments/:agentId', async (req, res) => {
   }
 });
 
+/* ── POST /api/settings/agent-provider-assignments/:agentId/test ──
+   TEST ROUTING (PRIORITY 2): performs a tiny, safe runtime request using the
+   SAVED assignment so the user sees whether execution actually resolves where
+   it was configured — saving configuration alone is not proof of execution. */
+router.post('/agent-provider-assignments/:agentId/test', async (req, res) => {
+  try {
+    const assignment = db.select().from(agentProviderAssignments).where(eq(agentProviderAssignments.agentId, req.params.agentId)).get();
+    if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+    if (!assignment.enabled) {
+      return res.json({ configured: { provider: assignment.providerId, model: assignment.modelId }, resolved: null, result: 'SKIPPED', reason: 'Assignment is disabled', latencyMs: 0 });
+    }
+    const configuredProvider = assignment.providerId;
+    const configuredModel = assignment.modelId;
+    const started = Date.now();
+    const { llmChat } = await import('../services/llmGateway.js');
+    let result;
+    try {
+      result = await llmChat({
+        prompt: 'Reply with exactly: OK',
+        systemPrompt: 'You are a routing connectivity probe. Reply with exactly the word OK.',
+        agentId: req.params.agentId,
+        provider: configuredProvider || undefined,
+        timeoutMs: 15000,
+        maxTokens: 8,
+        disableFallback: true, // test what was CONFIGURED, not a silent fallback
+      });
+    } catch (err: any) {
+      const latencyMs = Date.now() - started;
+      return res.json({
+        configured: { provider: configuredProvider, model: configuredModel },
+        resolved: null,
+        result: 'FAIL',
+        reason: err?.message || 'Request failed',
+        latencyMs,
+      });
+    }
+    const latencyMs = Date.now() - started;
+    const resolvedProvider = result.provider || configuredProvider;
+    const resolvedModel = result.model || configuredModel;
+    const matched = resolvedProvider === configuredProvider && (!configuredModel || resolvedModel === configuredModel);
+    res.json({
+      configured: { provider: configuredProvider, model: configuredModel },
+      resolved: { provider: resolvedProvider, model: resolvedModel },
+      result: matched ? 'PASS' : 'FALLBACK',
+      reason: matched ? 'Resolved exactly as configured' : `Requested ${configuredProvider}/${configuredModel} but resolved ${resolvedProvider}/${resolvedModel}`,
+      latencyMs,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: `Test routing failed: ${err?.message || err}` });
+  }
+});
+
 router.put('/agent-provider-assignments/:agentId', async (req, res) => {
   try {
     const { providerId, modelId, routingMode, enabled } = req.body;

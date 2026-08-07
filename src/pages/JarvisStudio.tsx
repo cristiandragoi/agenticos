@@ -11,6 +11,7 @@ import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/ja
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
+import { executionStore } from '../diagnostics/executionStore';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import styles from './JarvisStudio.module.css';
@@ -388,6 +389,36 @@ export default function JarvisStudio() {
     if (manualSelectionRef.current) return; // user is inspecting a task; only a new task-created event overrides
     const next = pickActiveTask(tasks, currentTaskOpIdRef.current, selectedTaskId);
     if (next && next !== selectedTaskId) setSelectedTaskId(next);
+  }, [taskSummary]);
+
+  // Live execution bar for background tasks (PRIORITY 4/5/6/10): feed the
+  // shared store from the active task + register STOP → cancel API.
+  useEffect(() => {
+    const tasks = taskSummary?.tasks || [];
+    const activeTask = tasks.find(t => t.status === 'running' || t.status === 'queued' || t.status === 'dispatching' || t.status === 'planning') || null;
+    if (activeTask) {
+      const meta = (activeTask as any).metadata || {};
+      const concurrency = meta.concurrency;
+      const workerLabel = activeTask.worker === 'hermes' ? 'Hermes' : activeTask.worker === 'codex' ? 'CodeX' : activeTask.worker === 'revenue' ? 'Revenue' : activeTask.worker;
+      executionStore.setActive({
+        agent: workerLabel,
+        provider: null,
+        model: null,
+        currentAction: activeTask.status === 'queued' && concurrency?.blocked
+          ? `Waiting for ${workerLabel} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`
+          : activeTask.progressMessage || activeTask.currentStage || 'Working…',
+        stage: activeTask.currentStage || activeTask.status,
+        taskId: activeTask.taskId,
+        operationId: meta.operationId || null,
+        startedAt: activeTask.startedAt ? new Date(activeTask.startedAt).getTime() : Date.now(),
+      });
+      executionStore.registerStop(() => {
+        void fetch(`/api/background-tasks/${encodeURIComponent(activeTask.taskId)}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'user-stopped-execution-bar' }) }).catch(() => {});
+      });
+    } else {
+      executionStore.setIdle();
+      executionStore.registerStop(null);
+    }
   }, [taskSummary]);
 
   // Current-turn ownership: a task created by the running operation becomes

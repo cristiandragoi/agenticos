@@ -87,6 +87,7 @@ import geminiRouter from './routers/gemini.js';
 import weldersPipelineRouter from './routers/weldersPipeline.js';
 import jarvisRouter from './routers/jarvis.js';
 import settingsRouter from './routers/settings.js';
+import { routingRouter } from './routers/routing.js';
 import diagnosticsRouter from './routers/diagnostics.js';
 
 const app = express();
@@ -233,6 +234,7 @@ app.use('/api/connectors', connectorRouter);
 app.use('/api/pipeline/welders', weldersPipelineRouter);
 app.use('/api/jarvis', jarvisRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/routing', routingRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
 
 app.use('/api/agentic', agenticRouter);

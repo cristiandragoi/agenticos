@@ -133,9 +133,15 @@ export class BackgroundTaskManager extends EventEmitter {
       : input.worker === 'codex' ? TASK_LIMITS.maxActiveCodex
       : input.worker === 'team' ? TASK_LIMITS.maxActiveTeam
       : TASK_LIMITS.maxActiveGlobal;
-    if (perWorkerActive >= workerLimit) {
-      return { error: `${input.worker} is already at its active-task limit (${workerLimit}).` };
-    }
+    // PRIORITY 10: when the worker is at its limit, QUEUE instead of rejecting.
+    // The task is created queued with concurrency metadata so the UI shows
+    // "QUEUED — waiting for Hermes (active 1/1, position N)" instead of a fake
+    // DISPATCHING state or a hard error. The pump dispatches it when a slot
+    // frees (see transition → pumpQueuedForWorker).
+    const atWorkerLimit = perWorkerActive >= workerLimit;
+    const queueConcurrencyMeta = atWorkerLimit
+      ? { concurrency: { active: perWorkerActive, limit: workerLimit, position: queuedCount + 1, blocked: true } }
+      : {};
 
     const now = new Date().toISOString();
     const task: BackgroundTaskRecord = {
@@ -172,14 +178,46 @@ export class BackgroundTaskManager extends EventEmitter {
       resumable: input.resumable || false,
       resultText: null,
       attempt: 1,
-      metadata: input.metadata || {},
+      metadata: { ...(input.metadata || {}), ...queueConcurrencyMeta },
     };
 
     backgroundTaskRepo.insertTask(task);
     this.appendEvent(task.taskId, 'task.created', `Task ${taskShortId(task.taskId)} created — ${task.title}`, { worker: task.worker });
-    this.appendEvent(task.taskId, 'task.queued', 'Task queued for execution.');
+    this.appendEvent(task.taskId, atWorkerLimit ? 'task.blocked' : 'task.queued', atWorkerLimit
+      ? `Queued behind ${task.worker} — active ${perWorkerActive}/${workerLimit}, position ${queuedCount + 1}`
+      : 'Task queued for execution.');
     this.linkBoardCard(task);
     return { task };
+  }
+
+  /**
+   * PRIORITY 10: when a worker's slot frees, dispatch the oldest queued task
+   * that was blocked on concurrency. Dynamic import avoids a module cycle
+   * (adapters statically import this manager).
+   */
+  async pumpQueuedForWorker(worker: string): Promise<void> {
+    try {
+      const queued = this.listTasks({ activeOnly: true })
+        .filter(t => t.worker === worker && t.status === 'queued' && (t.metadata as any)?.concurrency?.blocked);
+      if (!queued.length) return;
+      const active = this.listTasks({ activeOnly: true })
+        .filter(t => t.worker === worker && isActiveStatus(t.status) && t.status !== 'queued').length;
+      const workerLimit =
+        worker === 'hermes' ? TASK_LIMITS.maxActiveHermes
+        : worker === 'codex' ? TASK_LIMITS.maxActiveCodex
+        : worker === 'team' ? TASK_LIMITS.maxActiveTeam
+        : TASK_LIMITS.maxActiveGlobal;
+      if (active >= workerLimit) return;
+      const next = queued.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0];
+      logger.info(`[bg-task] pump: dispatching queued ${next.taskId} for ${worker} (active ${active}/${workerLimit})`);
+      const { dispatchTask } = await import('./adapters.js');
+      const result = await dispatchTask(next);
+      if (!result.ok) {
+        this.transition(next.taskId, 'blocked', { lastError: result.error || 'Dispatch failed' });
+      }
+    } catch (err: any) {
+      logger.warn('[bg-task] pump failed', err);
+    }
   }
 
   // ── State transitions (the ONLY mutators) ────────────────────────────────
@@ -201,6 +239,11 @@ export class BackgroundTaskManager extends EventEmitter {
     if (TERMINAL_STATUSES.has(status)) merged.completedAt = now;
     const updated = backgroundTaskRepo.updateTask(taskId, merged);
     if (updated) {
+      // PRIORITY 10: a terminal transition frees a worker slot — dispatch the
+      // oldest queued task for that worker (fire-and-forget).
+      if (TERMINAL_STATUSES.has(status)) {
+        void this.pumpQueuedForWorker(task.worker);
+      }
       const kindMap: Partial<Record<TaskStatus, TaskEventKind>> = {
         running: 'task.started',
         paused: 'task.paused',

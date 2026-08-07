@@ -320,6 +320,25 @@ describe('IntentRouter — required routing cases', () => {
       });
     }
 
+    it('routes "what model are you using" to INVESTIGATE (answered from runtime metadata)', async () => {
+      for (const input of ['What model are you using?', 'What model and provider are you actually using for this reply?', 'What model are you running?']) {
+        const result = await router.routeIntent(input);
+        expect(result.route, input).toBe('investigate');
+      }
+    });
+
+    it('routes worker-as-OBJECT checks to INVESTIGATE and explicit delegation to the worker', async () => {
+      expect((await router.routeIntent('Check Hermes health.')).route).toBe('investigate');
+      expect((await router.routeIntent('Check Hermes, Ollama and OpenRouter.')).route).toBe('investigate');
+      const del = await router.routeIntent('Give this to Hermes.');
+      expect(del.route).toBe('hermes');
+    });
+
+    it('read-only health inspection is INVESTIGATE, read-only file analysis is CODEX', async () => {
+      expect((await router.routeIntent('Perform a read-only AgenticOS health inspection.')).route).toBe('investigate');
+      expect((await router.routeIntent('Perform a read-only analysis of intentRouter.ts.')).route).toBe('codex');
+    });
+
     it('"read-only" alone does NOT imply repository analysis without a code signal', async () => {
       const result = await router.routeIntent('Perform a read-only health inspection of the gateway.');
       expect(result.route).toBe('investigate');

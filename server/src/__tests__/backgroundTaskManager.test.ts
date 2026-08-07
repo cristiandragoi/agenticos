@@ -84,14 +84,17 @@ describe('Background Task Manager — persistence & events', () => {
     expect(mgr.getTask(b.taskId).status).toBe('queued'); // switching/running one never alters the other
   });
 
-  it('enforces concurrency limits', () => {
+  it('enforces concurrency limits (PRIORITY 10: queues instead of rejecting)', () => {
     // Default maxActiveHermes = 1.
     const first = mgr.createTask(baseInput);
     expect(first.task).toBeTruthy();
     mgr.transition(first.task.taskId, 'running');
     const second = mgr.createTask({ ...baseInput, title: 'Second hermes task' });
-    expect(second.error).toBeTruthy();
-    expect(second.task).toBeUndefined();
+    // At the worker limit the task is QUEUED with concurrency metadata — the
+    // UI shows QUEUED (active 1/1, position 1), not a hard error or DISPATCHING.
+    expect(second.task).toBeTruthy();
+    expect(second.task.status).toBe('queued');
+    expect(second.task.metadata?.concurrency).toMatchObject({ active: 1, limit: 1, blocked: true });
   });
 });
 
