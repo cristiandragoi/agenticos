@@ -752,3 +752,93 @@ describe('Revenue Pipeline — stale-event rejection & dry-run safety', () => {
     expect(live.blocker).toBeTruthy();
   });
 });
+
+describe('Revenue Pipeline — multi-lead delivery', () => {
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-ml-'));
+    wsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-mlws-'));
+    process.env.AGENT_TEAMS_DB_PATH = path.join(tmpDir, 'test.db');
+    await freshModules();
+  });
+  afterEach(() => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    try { fs.rmSync(wsDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  async function runPipeline(prospectCount: number, overrides: Record<string, unknown> = {}) {
+    let resultText = '';
+    const hooks = {
+      transition: () => {},
+      progress: () => {},
+      requestApprovalAndWait: async () => 'allow' as const,
+      verifyCompletion: (evidence: { resultText: string }) => {
+        resultText = evidence.resultText;
+        return { status: 'completed', blocker: null };
+      },
+      setFilesChanged: () => {},
+      getTask: () => ({ buildState: 'idle', testState: 'idle' }),
+      isStopRequested: () => false,
+    };
+    const runId = pipelineMod.newRunId();
+    const result = await pipelineMod.runRevenuePipeline({ runId, taskId: 'bgtask-ml', config: baseConfig({ prospectCount, ...overrides }), hooks });
+    let summary: any = null;
+    const summaryPath = path.join(wsDir, runId, 'run_summary.json');
+    if (fs.existsSync(summaryPath)) summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+    return { result, resultText, summary };
+  }
+
+  it('requested 1 → returns 1 qualified lead', async () => {
+    const { result, resultText, summary } = await runPipeline(1);
+    expect(result.status).toBe('completed');
+    expect(summary.counts.qualified).toBe(1);
+    expect(summary.counts.returned).toBe(1);
+    expect(resultText).toContain('1 qualified lead(s) found (requested 1)');
+  });
+
+  it('requested 5 → returns 5 qualified leads, full list preserved with top prospect', async () => {
+    const { resultText, summary } = await runPipeline(5);
+    expect(summary.counts.discovered).toBe(5);
+    expect(summary.counts.qualified).toBe(5);
+    expect(summary.counts.rejected).toBe(0);
+    expect(summary.leads.length).toBe(5);
+    expect(summary.selectedProspect.businessName).toBeTruthy();
+    expect(resultText).toContain('5 qualified lead(s) found (requested 5)');
+    expect(resultText).toContain('Top prospect:');
+    expect(resultText).toContain('No outreach was performed.');
+    for (const l of summary.leads) {
+      expect(l.contactAvailability).toBe('available');
+      expect(l.contact).toBeTruthy();
+    }
+  });
+
+  it('requested 10 → attempts 10, truthful shortfall when only 6 discoverable', async () => {
+    const { resultText, summary } = await runPipeline(10);
+    expect(summary.counts.requested).toBe(10);
+    expect(summary.counts.discovered).toBe(6);
+    expect(summary.counts.qualified).toBe(5); // Weber rejected (no public contact)
+    expect(summary.counts.rejected).toBe(1);
+    expect(resultText).toContain('Only 5 qualifying lead(s) could be verified (requested 10)');
+  });
+
+  it('no contact info → lead rejected, never counted or invented', async () => {
+    const { summary } = await runPipeline(6);
+    expect(summary.counts.discovered).toBe(6);
+    expect(summary.counts.qualified).toBe(5);
+    const names = summary.leads.map((l: any) => l.businessName);
+    expect(names).not.toContain('Meisterbetrieb Weber Dach & Fassade');
+  });
+
+  it('deduplication does not reduce the count without replacement search', async () => {
+    const { summary } = await runPipeline(5);
+    const names = summary.leads.map((l: any) => l.businessName);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('deep-dive chooses one top lead but preserves the full lead list', async () => {
+    const { summary } = await runPipeline(5);
+    expect(summary.selectedProspect).toBeTruthy();
+    expect(summary.leads.length).toBe(5);
+    const selectedInList = summary.leads.some((l: any) => l.businessName === summary.selectedProspect.businessName);
+    expect(selectedInList).toBe(true);
+  });
+});

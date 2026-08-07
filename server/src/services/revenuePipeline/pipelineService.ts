@@ -17,11 +17,11 @@ import path from 'path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
-import { PIPELINE_STAGE_LABELS, type AuditFinding, type PipelineConfig, type PipelineRunRecord, type ProspectRecord } from './types.js';
+import { PIPELINE_STAGE_LABELS, type AuditFinding, type PipelineConfig, type PipelineRunRecord, type ProspectRecord, type PublicContactInfo } from './types.js';
 import { revenuePipelineRepo } from './store.js';
 import { discoverProspects } from './discovery.js';
 import { fetchPublicPage } from './web.js';
-import { auditWebsite, findingsToFacts, computeAuditScore } from './audit.js';
+import { auditWebsite, findingsToFacts, computeAuditScore, extractPublicContactInfo, hasPublicContact } from './audit.js';
 import { scoreProspect, rankProspects } from './scoring.js';
 import { buildRebuildBlueprint } from './blueprint.js';
 import { generateSiteConcept } from './concept.js';
@@ -145,6 +145,9 @@ export async function runRevenuePipeline(opts: {
       const findings = auditWebsite({ html, fixture: prospect.fixture, sitemapUrl, fetchFailedReason: fetchFailed });
       findingsToFacts(prospect, findings);
       prospect.auditScore = computeAuditScore(findings);
+      // Multi-lead contract: extract observed public contact methods. A lead
+      // qualifies only when at least one real public contact is present.
+      prospect.publicContact = extractPublicContactInfo(html, prospect.websiteUrl);
       prospect.status = 'audited';
       prospect.updatedAt = new Date().toISOString();
       revenuePipelineRepo.upsertProspect(prospect);
@@ -168,6 +171,17 @@ export async function runRevenuePipeline(opts: {
     hooks.progress('task.progress', `Ranked ${ranked.length} prospect(s) — top: ${ranked[0]?.businessName} (${ranked[0]?.opportunityScore}/100, ${ranked[0]?.confidence} confidence).`, {
       ranking: ranked.map((p) => ({ businessName: p.businessName, score: p.opportunityScore, confidence: p.confidence })),
     }, { worker: 'hermes' });
+
+    // ── Multi-lead delivery (separate lead discovery from deep-dive) ──
+    // The requested deliverable is N qualified leads; the deep-dive targets
+    // the strongest ONE but must never destroy the full lead list.
+    const qualifiedLeads = ranked.filter((p) => hasPublicContact(p.publicContact));
+    const rejectedCount = ranked.length - qualifiedLeads.length;
+    hooks.progress('task.progress', `${qualifiedLeads.length} qualified lead(s) with public contact found (requested ${config.prospectCount}); ${rejectedCount} candidate(s) rejected (no public contact observed).`, {
+      qualified: qualifiedLeads.length,
+      rejected: rejectedCount,
+      requested: config.prospectCount,
+    });
 
     // ── Stage 5 — Human target selection when confidence is low ─────────────
     let selected = ranked[0];
@@ -343,12 +357,24 @@ export async function runRevenuePipeline(opts: {
     run = revenuePipelineRepo.updateRun(runId, { currentStage: 'COMPLETED', runSummaryPath, totalElapsedMs }) ?? run;
     writeMemoryEntry(run, selected);
 
+    const leadLines = qualifiedLeads.map((p, i) =>
+      `${i + 1}. ${p.businessName}\n` +
+      `   Website: ${p.websiteUrl}\n` +
+      `   Contact: ${formatContact(p.publicContact)}\n` +
+      `   Source: ${p.discoverySourceRecord?.sourceType || p.discoverySource}${p.discoverySourceRecord?.sourceUrl ? ` (${p.discoverySourceRecord.sourceUrl})` : ''}\n` +
+      `   Confidence: ${p.confidence} · opportunity score ${p.opportunityScore}/100`
+    ).join('\n');
+    const shortfallNote = qualifiedLeads.length < config.prospectCount
+      ? `\nOnly ${qualifiedLeads.length} qualifying lead(s) could be verified (requested ${config.prospectCount}); ${rejectedCount} candidate(s) rejected because no publicly accessible contact information was found.`
+      : '';
     const resultText =
-      `Revenue pipeline completed — ${selected.businessName} (${selected.websiteUrl}). ` +
-      `Score ${selected.opportunityScore}/100 (${selected.confidence} confidence). ` +
-      `Proposal package: ${proposalDir}. ` +
-      `Build ${run.buildState} · tests ${run.testState} · verification ${run.verificationState}. ` +
-      `Outreach approved (dry-run safe) — no automated outreach in V1.`;
+      `Revenue pipeline completed — ${qualifiedLeads.length} qualified lead(s) found (requested ${config.prospectCount}).\n\n` +
+      `${leadLines || '(no qualifying leads with public contact)'}\n` +
+      `\nTop prospect: ${selected.businessName} (${selected.websiteUrl})\n` +
+      `Deep-dive package: ${proposalDir}\n` +
+      `Build ${run.buildState} · tests ${run.testState} · verification ${run.verificationState}.` +
+      shortfallNote +
+      `\nNo outreach was performed.`;
 
     const completion = hooks.verifyCompletion({
       resultText,
@@ -580,6 +606,8 @@ function buildRunSummary(
   totalElapsedMs: number,
   extra: { codexState?: string; codexGoalId?: string | null } = {}
 ): Record<string, unknown> {
+  const qualifiedLeads = (run.prospects || []).filter((p) => hasPublicContact(p.publicContact));
+  const rejectedCount = (run.prospects || []).length - qualifiedLeads.length;
   return {
     runId: run.runId,
     taskId: run.taskId,
@@ -627,6 +655,25 @@ function buildRunSummary(
       confidence: selected.confidence,
     },
     ranking: run.prospects.map((p) => ({ businessName: p.businessName, score: p.opportunityScore, confidence: p.confidence })),
+    counts: {
+      requested: config.prospectCount,
+      discovered: (run.prospects || []).length,
+      qualified: qualifiedLeads.length,
+      rejected: rejectedCount,
+      returned: qualifiedLeads.length,
+    },
+    leads: qualifiedLeads.map((p) => ({
+      businessName: p.businessName,
+      website: p.websiteUrl,
+      contact: p.publicContact,
+      contactAvailability: p.publicContact ? 'available' : 'unavailable',
+      location: p.city,
+      source: p.discoverySourceRecord?.sourceType || p.discoverySource,
+      sourceUrl: p.discoverySourceRecord?.sourceUrl || null,
+      confidence: p.confidence,
+      opportunityScore: p.opportunityScore,
+      reason: p.scoringCriteria ? Object.entries(p.scoringCriteria).slice(0, 2).map(([k, v]) => `${k}: ${v.reason}`).join('; ') : null,
+    })),
     buildState: run.buildState,
     testState: run.testState,
     verificationState: run.verificationState,
@@ -650,6 +697,16 @@ function buildRunSummary(
     createdAt: run.createdAt,
     completedAt: new Date().toISOString(),
   };
+}
+
+function formatContact(contact: PublicContactInfo | null | undefined): string {
+  if (!contact) return '(no public contact found)';
+  const parts: string[] = [];
+  if (contact.phone.length) parts.push(`phone ${contact.phone.join(', ')}`);
+  if (contact.email.length) parts.push(`email ${contact.email.join(', ')}`);
+  if (contact.contactPageUrl) parts.push(`contact page ${contact.contactPageUrl}`);
+  if (contact.address) parts.push(`address "${contact.address}"`);
+  return parts.length ? parts.join(' · ') : '(no public contact found)';
 }
 
 function writeMemoryEntry(run: PipelineRunRecord, selected: ProspectRecord): void {

@@ -47,6 +47,7 @@ const dachfixHtml = base(
 <a href="/">Start</a>
 <a href="#">Leistungen</a>
 <a href="#">Kontakt</a>
+<a href="mailto:info@dachfix-berlin.example">info@dachfix-berlin.example</a>
 <p>Copyright 2019 Dachfix Berlin</p>
 `,
   'Dachfix Berlin',
@@ -93,6 +94,12 @@ const weberHtml = base(
   ``
 );
 
+const nordHtml = `<!DOCTYPE html><html><head><title>Dachservice Nord — Dachdecker Berlin</title><meta name="description" content="Dachreparatur in Berlin-Nord"></head><body><nav><a href="/kontakt">Kontakt</a><a href="/leistungen">Leistungen</a></nav><h1>Dachservice Nord</h1><p>Dachreparatur, Dämmung, Neueindeckung in Berlin.</p><a href="tel:+493012345679">+49 30 12345679</a></body></html>`;
+
+const teamHtml = `<!DOCTYPE html><html><head><title>Berliner Dächer Team</title></head><body><nav><a href="/kontakt">Kontakt</a><a href="/leistungen">Leistungen</a></nav><h1>Berliner Dächer Team</h1><p>Dachdecker für Berlin.</p><a href="mailto:info@berliner-daecher-team.example">info@berliner-daecher-team.example</a><p>12345 Musterstraße, Berlin</p></body></html>`;
+
+const mitteHtml = `<!DOCTYPE html><html><head><title>Dachprofi Mitte — Dachdecker in Berlin</title></head><body><nav><a href="/kontakt">Kontakt</a><a href="/leistungen">Leistungen</a></nav><h1>Dachprofi Mitte</h1><p>Lorem ipsum dolor sit amet.</p><a href="tel:+493012345680">+49 30 12345680</a><a href="mailto:info@dachprofi-mitte.example">info@dachprofi-mitte.example</a></body></html>`;
+
 export const SAMPLE_FIXTURES: FixtureProspect[] = [
   {
     businessName: 'Dachfix Berlin GmbH',
@@ -133,6 +140,56 @@ export const SAMPLE_FIXTURES: FixtureProspect[] = [
       `${FIXTURE_PREFIX} Recurring-service potential typical for roofing (repairs/emergency) — sample assumption`,
     ],
     snapshotHtml: muellerHtml,
+  },
+  {
+    businessName: 'Dachservice Nord Berlin',
+    niche: 'roofing',
+    city: 'Berlin',
+    websiteUrl: 'https://www.dachservice-nord.example',
+    publicContactUrl: 'https://www.dachservice-nord.example/kontakt',
+    verifiedFacts: [
+      `${FIXTURE_PREFIX} Homepage title is "Dachservice Nord — Dachdecker Berlin"`,
+      `${FIXTURE_PREFIX} Phone link (tel:) present on homepage — CTA verified`,
+      `${FIXTURE_PREFIX} Contact page linked from navigation`,
+      `${FIXTURE_PREFIX} Meta description present`,
+    ],
+    unverifiedObservations: [
+      `${FIXTURE_PREFIX} No trust/review section on homepage (sample inference)`,
+    ],
+    snapshotHtml: nordHtml,
+  },
+  {
+    businessName: 'Berliner Dächer Team',
+    niche: 'roofing',
+    city: 'Berlin',
+    websiteUrl: 'https://www.berliner-daecher-team.example',
+    publicContactUrl: 'https://www.berliner-daecher-team.example/kontakt',
+    verifiedFacts: [
+      `${FIXTURE_PREFIX} Homepage contains an email link (mailto:) — CTA verified`,
+      `${FIXTURE_PREFIX} Address text with street present on homepage`,
+      `${FIXTURE_PREFIX} Contact page linked from navigation`,
+    ],
+    unverifiedObservations: [
+      `${FIXTURE_PREFIX} Only one service page linked from navigation (sample)`,
+    ],
+    snapshotHtml: teamHtml,
+  },
+  {
+    businessName: 'Dachprofi Mitte GmbH',
+    niche: 'roofing',
+    city: 'Berlin',
+    websiteUrl: 'https://www.dachprofi-mitte.example',
+    publicContactUrl: 'https://www.dachprofi-mitte.example/kontakt',
+    verifiedFacts: [
+      `${FIXTURE_PREFIX} Homepage title is "Dachprofi Mitte — Dachdecker in Berlin"`,
+      `${FIXTURE_PREFIX} Phone link (tel:) and email link (mailto:) present on homepage`,
+      `${FIXTURE_PREFIX} Contact page linked from navigation`,
+      `${FIXTURE_PREFIX} Placeholder copy "Lorem ipsum" present on homepage`,
+    ],
+    unverifiedObservations: [
+      `${FIXTURE_PREFIX} Rebuild upside likely from placeholder content (sample assumption)`,
+    ],
+    snapshotHtml: mitteHtml,
   },
   {
     businessName: 'Meisterbetrieb Weber Dach & Fassade',

@@ -8,6 +8,7 @@
  * invented metrics.
  */
 import type { AuditFinding, EvidenceLabel, ProspectRecord } from './types.js';
+import type { PublicContactInfo } from './types.js';
 
 export interface AuditInput {
   html: string;
@@ -21,6 +22,36 @@ const CONTACT_RE = /\b(kontakt|contact|impressum|anfahrt|telefon|phone|address|a
 const TRUST_RE = /\b(reviews?|testimonials?|referenzen|bewertungen|about|über uns|partner|zertifiziert|geprüft|garantie|warranty|experience|erfahrung)\b/i;
 const PLACEHOLDER_RE = /\b(lorem ipsum|under construction|coming soon|im aufbau|placeholder|demnächst|todo|tbd|soon)\b/i;
 const SERVICE_PAGE_RE = /\b(leistungen|services|service|dachdeckerei|roofing|repair|wartung|maintenance|sanierung|renovation)\b/i;
+
+/**
+ * Extract publicly accessible contact methods from a public website document.
+ * Values are OBSERVED (tel:/mailto: links, contact-page links, address text) —
+ * never guessed or invented. A lead qualifies when at least one method exists.
+ */
+export function extractPublicContactInfo(html: string, baseUrl: string | null): PublicContactInfo | null {
+  if (!html) return null;
+  const hrefs = [...html.matchAll(/href=["']([^"']*)["']/gi)].map((m) => m[1]).filter(Boolean);
+  const phones = [...new Set(hrefs.filter((h) => /^tel:/i.test(h)).map((h) => h.replace(/^tel:/i, '').trim()).filter(Boolean))];
+  const emails = [...new Set(hrefs.filter((h) => /^mailto:/i.test(h)).map((h) => h.replace(/^mailto:/i, '').split('?')[0].trim()).filter(Boolean))];
+  const contactHref = hrefs.find((h) => CONTACT_RE.test(h) && !/^tel:|^mailto:/i.test(h));
+  let contactPageUrl: string | null = null;
+  if (contactHref) {
+    try {
+      contactPageUrl = new URL(contactHref, baseUrl || 'https://example.invalid').href;
+    } catch {
+      contactPageUrl = contactHref;
+    }
+  }
+  const addressMatch = html.match(/\d{2,5}\s+[A-Za-zäöüß\- ]+(?:straße|str\.|weg|platz|allee)\b/i);
+  const address = addressMatch ? addressMatch[0].replace(/</g, '&lt;').slice(0, 120) : null;
+  if (!phones.length && !emails.length && !contactPageUrl && !address) return null;
+  return { phone: phones, email: emails, contactPageUrl, address };
+}
+
+/** A lead qualifies when at least one real public contact method is observed. */
+export function hasPublicContact(contact: PublicContactInfo | null | undefined): boolean {
+  return Boolean(contact && (contact.phone.length > 0 || contact.email.length > 0 || contact.contactPageUrl || contact.address));
+}
 
 function esc(s: string): string {
   return s.replace(/</g, '&lt;').slice(0, 400);

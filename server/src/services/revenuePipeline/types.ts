@@ -115,6 +115,18 @@ export interface DiscoverySourceRecord {
   confidence: 'high' | 'medium' | 'low';
 }
 
+/**
+ * Publicly accessible contact information (multi-lead contract).
+ * A lead qualifies only when at least one of these methods is actually
+ * observed on the public website. Values are extracted, never invented.
+ */
+export interface PublicContactInfo {
+  phone: string[];
+  email: string[];
+  contactPageUrl: string | null;
+  address: string | null;
+}
+
 export interface ProspectRecord {
   prospectId: string;
   businessName: string;
@@ -122,6 +134,9 @@ export interface ProspectRecord {
   city: string;
   websiteUrl: string;
   publicContactUrl: string | null;
+  /** Publicly accessible contact methods extracted from the public website
+   *  (phone/email/contact-page/address). NEVER fabricated. */
+  publicContact?: PublicContactInfo | null;
   discoverySource: 'fixture' | 'user-url' | 'osm-overpass';
   /** Discovery provenance for real prospects (null for fixtures/user-url). */
   discoverySourceRecord: DiscoverySourceRecord | null;
