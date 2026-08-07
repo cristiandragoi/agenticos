@@ -9,6 +9,7 @@ import { JarvisCore } from '../components/jarvis/JarvisCore';
 import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
+import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import styles from './JarvisStudio.module.css';
@@ -352,6 +353,14 @@ export default function JarvisStudio() {
   const [taskEvents, setTaskEvents] = useState<BackgroundTaskEvent[]>([]);
   const [tasksOpen, setTasksOpen] = useState(true);
 
+  // Current-turn ownership: when the /jarvis stream creates a task it fires
+  // 'jarvis:task-created' with {taskId, operationId}. That task is THE current
+  // task regardless of any historical selection. A manual row click pins a
+  // task until the next task-created event (so the user can inspect history
+  // without the poller stealing the selection).
+  const currentTaskOpIdRef = useRef<string | null>(null);
+  const manualSelectionRef = useRef(false);
+
   const pollTasks = useCallback(async () => {
     try {
       const res = await fetch('/api/background-tasks/summary');
@@ -365,14 +374,32 @@ export default function JarvisStudio() {
     return () => window.clearInterval(id);
   }, [pollTasks]);
 
-  // Auto-select the most recently updated non-terminal task.
+  // Task-selection policy, re-evaluated on every summary refresh:
+  //   1. task created by the current operationId
+  //   2. active non-terminal task (blocked/completed/failed/cancelled are
+  //      TERMINAL — a historical blocked task can never claim 'current')
+  //   3. most recent task by createdAt
   useEffect(() => {
     const tasks = taskSummary?.tasks || [];
     if (!tasks.length) { setSelectedTaskId(null); return; }
-    if (selectedTaskId && tasks.some(t => t.taskId === selectedTaskId)) return;
-    const live = tasks.find(t => !['completed', 'failed', 'cancelled'].includes(t.status));
-    setSelectedTaskId((live || tasks[0]).taskId);
-  }, [taskSummary, selectedTaskId]);
+    if (manualSelectionRef.current) return; // user is inspecting a task; only a new task-created event overrides
+    const next = pickActiveTask(tasks, currentTaskOpIdRef.current, selectedTaskId);
+    if (next && next !== selectedTaskId) setSelectedTaskId(next);
+  }, [taskSummary]);
+
+  // Current-turn ownership: a task created by the running operation becomes
+  // the selected task immediately (even over a manually pinned historical one).
+  useEffect(() => {
+    const onTaskCreated = (e: Event) => {
+      const detail = (e as CustomEvent<{ taskId: string; operationId?: string }>).detail;
+      if (!detail?.taskId) return;
+      currentTaskOpIdRef.current = detail.operationId || null;
+      manualSelectionRef.current = false;
+      setSelectedTaskId(detail.taskId);
+    };
+    window.addEventListener('jarvis:task-created', onTaskCreated);
+    return () => window.removeEventListener('jarvis:task-created', onTaskCreated);
+  }, []);
 
   // SSE subscription for the selected task (real events, catch-up included).
   useEffect(() => {
@@ -857,7 +884,7 @@ export default function JarvisStudio() {
                 <button
                   key={t.taskId}
                   data-testid={`jarvis-task-row-${t.taskId}`}
-                  onClick={() => setSelectedTaskId(t.taskId)}
+                  onClick={() => { manualSelectionRef.current = true; setSelectedTaskId(t.taskId); }}
                   style={{
                     display: 'flex', gap: 6, alignItems: 'center', padding: '3px 6px', fontSize: 10,
                     background: t.taskId === selectedTaskId ? 'rgba(56,189,248,0.10)' : 'rgba(15,23,42,0.4)',
@@ -866,6 +893,9 @@ export default function JarvisStudio() {
                   }}
                 >
                   <span style={{ color: statusColor(t.status), fontWeight: 600, flexShrink: 0, minWidth: 54 }}>{t.status.replace(/_/g, ' ').toUpperCase()}</span>
+                  {TASK_TERMINAL_STATUS.has(t.status) && (
+                    <span style={{ color: '#f59e0b', fontSize: 9, flexShrink: 0, letterSpacing: 0.5 }}>HISTORICAL</span>
+                  )}
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
                   <span style={{ marginLeft: 'auto', color: '#475569', flexShrink: 0 }}>{t.worker}</span>
                 </button>
@@ -876,6 +906,11 @@ export default function JarvisStudio() {
               {/* Selected task detail */}
               {selectedTask && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 0' }}>
+                  {TASK_TERMINAL_STATUS.has(selectedTask.status) && (
+                    <div style={{ fontSize: 10, color: '#f59e0b', letterSpacing: 1, fontWeight: 600 }} data-testid="jarvis-task-historical-label">
+                      ⚠ HISTORICAL TASK — {selectedTask.status.toUpperCase()} (not current)
+                    </div>
+                  )}
                   <div className={cc.kv}><span className={cc.kvLabel}>AGENT</span><span className={cc.kvValue}>{selectedTask.selectedAgent || selectedTask.worker}</span></div>
                   <div className={cc.kv}><span className={cc.kvLabel}>STAGE</span><span className={cc.kvValue}>{(selectedTask.currentStage || selectedTask.status).replace(/_/g, ' ').toUpperCase()}</span></div>
                   <div className={cc.kv}><span className={cc.kvLabel}>PROGRESS</span><span className={cc.kvValue} style={{ maxWidth: 200 }}>{selectedTask.progressMessage || '—'}</span></div>

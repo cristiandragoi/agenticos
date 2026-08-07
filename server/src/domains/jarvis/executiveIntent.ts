@@ -66,6 +66,24 @@ export const PIPELINE_PHRASE_RE =
 export const PIPELINE_ACTION_RE =
   /(audit|find|discover|research|rank|score)[^.!?\n]{0,100}(businesses?|companies?|firms?|shops?|prospects?|leads|candidates)[^.!?\n]{0,100}(websites?|in [A-Za-zäöüß][A-Za-zäöüß -]{1,40})|(businesses?|companies?|firms?|shops?|prospects?)[^.!?\n]{0,60}(weak websites?|website audit|rebuild)/i;
 
+/**
+ * Bare revenue action: an audit/discover/find/rank verb plus a business or
+ * trade target, WITHOUT the city/website tail. These prompts carry enough
+ * revenue-pipeline structure to route to the Revenue Pipeline (which then
+ * asks for the genuinely missing field) — they must never fall into the
+ * generic short-prompt clarification (CodeX / Hermes / direct chat).
+ */
+export const PIPELINE_BARE_ACTION_RE =
+  /(audit|find|discover|research|rank|score)[^.!?\n]{0,80}(businesses?|companies?|firms?|shops?|prospects?|leads?|roofers?|plumbers?|electricians?|painters?|hairdressers?|barbers?|contractors?)/i;
+
+/** True when the prompt is a revenue-pipeline REQUEST (action or phrase). */
+export function isRevenueActionRequest(prompt: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex|research|teams?|automation)\b/.test(p)) return false;
+  if (STATUS_VERBS.test(p) || EXPLAIN_VERBS.test(p)) return false;
+  return PIPELINE_PHRASE_RE.test(p) || PIPELINE_ACTION_RE.test(p) || PIPELINE_BARE_ACTION_RE.test(p);
+}
+
 /** True when the prompt names an internal capability at all. */
 export function mentionsInternalCapability(prompt: string): boolean {
   const p = prompt.toLowerCase();
@@ -83,7 +101,7 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   const explicitWorkerDelegationMention = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex|research|teams?|automation)\b/.test(p);
   const realWorkerCap = (cap && cap.taskWorkerKind !== null && cap.id !== 'revenue_pipeline') || explicitWorkerDelegationMention;
   const pipelinePhrase = PIPELINE_PHRASE_RE.test(p);
-  const pipelineAction = PIPELINE_ACTION_RE.test(p);
+  const pipelineAction = PIPELINE_ACTION_RE.test(p) || PIPELINE_BARE_ACTION_RE.test(p);
   if (
     (pipelinePhrase && !realWorkerCap && !STATUS_VERBS.test(p) && !EXPLAIN_VERBS.test(p)) ||
     (pipelineAction && !realWorkerCap)

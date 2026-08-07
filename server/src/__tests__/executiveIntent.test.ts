@@ -162,6 +162,42 @@ describe('executive intent classification', () => {
   });
 
   it('live-mode pipeline request still classifies as revenue_pipeline', () => {
+    const r = classifyExecutiveIntent(
+      'Find 5 real roofing businesses in Berlin with publicly accessible websites. Audit and rank them. Build a staged website concept and proposal for the strongest candidate. Do not contact anyone, publish anything, or spend money.'
+    );
+    expect(r?.intent).toBe('revenue_pipeline');
+    expect(r?.workerKind).toBe('revenue');
+  });
+
+  it('short revenue prompts classify as revenue_pipeline (never ambiguous clarification)', () => {
+    for (const prompt of [
+      'find roofing businesses',
+      'Find 5 real roofing businesses in Berlin',
+      'audit roofing businesses',
+      'discover plumbers in Hamburg',
+    ]) {
+      const r = classifyExecutiveIntent(prompt);
+      expect(r?.intent, prompt).toBe('revenue_pipeline');
+      expect(r?.workerKind).toBe('revenue');
+    }
+  });
+
+  it('revenue prompt with niche/city/count is a task request, not clarification', () => {
+    // The classifier must not emit any clarification intent for a complete
+    // revenue request; the intake-level missing-field check (not the generic
+    // routing clarification) is the only permitted clarification.
+    const r = classifyExecutiveIntent('Find 5 real roofing businesses in Berlin');
+    expect(r?.intent).toBe('revenue_pipeline');
+    expect(r).not.toHaveProperty('reason', 'Ambiguous short prompt requires clarification');
+  });
+
+  it('status question during a revenue run does not create a revenue task', () => {
+    const r = classifyExecutiveIntent('What is CodeX doing?');
+    expect(r?.intent).not.toBe('revenue_pipeline');
+    expect(r?.intent).not.toBe('worker_delegation');
+  });
+
+  it('live-mode pipeline request still classifies as revenue_pipeline (original)', () => {
     const r = classifyExecutiveIntent('Find five roofing businesses in Berlin. Live mode. Do contact them.');
     expect(r?.intent).toBe('revenue_pipeline');
   });

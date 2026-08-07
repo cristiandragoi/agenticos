@@ -607,4 +607,49 @@ describe('Jarvis direct streaming', () => {
     expect(res.text).toContain('"provider":"OpenRouter"');
     expect(res.text).not.toContain('event: done');
   });
+
+  it('short revenue prompt never gets the CodeX/Hermes routing clarification — it streams revenue_pipeline field clarification', async () => {
+    mocks.route = 'clarification_required';
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'find roofing businesses', operationId: 'op-rev-short' })
+      .expect(200);
+
+    // The executive classifier intercepts BEFORE the generic router: the
+    // prompt is a revenue request (missing fields), never an ambiguous-short
+    // routing question.
+    expect(res.text).toContain('event: intent');
+    expect(res.text).toContain('revenue_pipeline');
+    expect(res.text).toContain('please tell me');
+    expect(res.text).not.toContain('route it to the correct subsystem');
+    expect(res.text).not.toContain('Ambiguous short prompt requires clarification');
+    // The clarifying ask is persisted with the operationId of THIS turn.
+    const agent = mocks.appended.filter((m) => m.role === 'agent').pop();
+    expect(agent?.metadata?.operationId).toBe('op-rev-short');
+    expect(agent?.metadata?.intent?.type).toBe('revenue_pipeline');
+  }, 15_000);
+
+  it('full revenue prompt streams a task-created done event with taskId (current turn ownership)', async () => {
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({
+        prompt: 'Find 5 real roofing businesses in Berlin with publicly accessible websites. Audit and rank them. Build a staged website concept and proposal for the strongest candidate. Do not contact anyone, publish anything, or spend money.',
+        operationId: 'op-rev-full',
+      })
+      .expect(200);
+
+    expect(res.text).toContain('event: intent');
+    expect(res.text).toContain('revenue_pipeline');
+    expect(res.text).toContain('Revenue Pipeline: roofing · Berlin · 5 prospect(s)');
+    // done carries the taskId of the NEWLY created task for this operation.
+    expect(res.text).toContain('event: done');
+    expect(res.text).toContain('"taskId":"bgtask-');
+    expect(res.text).toContain('"operationId":"op-rev-full"');
+    const agent = mocks.appended.filter((m) => m.role === 'agent').pop();
+    expect(agent?.metadata?.taskId).toBe(`bgtask-${mocks.delegationTaskId}`);
+    expect(agent?.metadata?.operationId).toBe('op-rev-full');
+    expect(agent?.content).toContain('DRY-RUN');
+  }, 15_000);
 });

@@ -774,6 +774,14 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           }
         }
         if (data.goalId) setCreatedGoalId(data.goalId);
+        // Current-turn ownership: a background task created by THIS operation
+        // is announced so the Active Task panel selects it (never a stale
+        // historical task) and pins it as the current operation.
+        if (data.taskId) {
+          window.dispatchEvent(new CustomEvent('jarvis:task-created', {
+            detail: { taskId: data.taskId, operationId }
+          }));
+        }
         const nextState = data.route && data.route !== 'direct'
           ? runtimeStateForDelegatedStatus(data.status)
           : 'completed';
