@@ -137,6 +137,25 @@ export async function investigateAgenticState(conversationId: string, prompt: st
     probes.push({ label: 'Hermes gateway', ok: false, detail: 'unavailable' });
   }
 
+  // Record this investigation in the routing ledger (PRIORITY 1) so runtime-
+  // identity questions ("What model are you using?") have an authoritative
+  // entry even when no direct LLM execution has happened yet. Written BEFORE
+  // the report lines so the metadata block below always reads the current run.
+  const resolvedProvider = orProbe.ok ? (openrouterUrl.includes('openrouter') ? 'openrouter' : selectedProvider) : selectedProvider;
+  routingLedger.record({
+    operationId: `investigate-${Date.now()}`,
+    worker: 'investigate',
+    routingMode: 'auto',
+    requestedProvider: selectedProvider,
+    requestedModel: selectedModel,
+    resolvedProvider,
+    resolvedModel: selectedModel,
+    fallbackUsed: false,
+    fallbackReason: null,
+    startedAt: Date.now(),
+    endedAt: Date.now(),
+  });
+
   // 4. Background tasks.
   const taskLines: string[] = [];
   try {
@@ -267,24 +286,6 @@ export async function investigateAgenticState(conversationId: string, prompt: st
   lines.push(
     'I can go deeper: verify the frontend display state, trace recent gateway events, or (with your approval) correct a configuration mismatch. No files or settings were changed by this inspection.'
   );
-
-  // Record this investigation in the routing ledger (PRIORITY 1) so runtime-
-  // identity questions ("What model are you using?") have an authoritative
-  // entry even when no direct LLM execution has happened yet.
-  const resolvedProvider = orProbe.ok ? (openrouterUrl.includes('openrouter') ? 'openrouter' : selectedProvider) : selectedProvider;
-  routingLedger.record({
-    operationId: `investigate-${Date.now()}`,
-    worker: 'investigate',
-    routingMode: 'auto',
-    requestedProvider: selectedProvider,
-    requestedModel: selectedModel,
-    resolvedProvider,
-    resolvedModel: selectedModel,
-    fallbackUsed: false,
-    fallbackReason: null,
-    startedAt: Date.now(),
-    endedAt: Date.now(),
-  });
 
   return lines.join('\n');
 }

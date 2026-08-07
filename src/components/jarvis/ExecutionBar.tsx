@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { executionStore } from '../../diagnostics/executionStore';
 
-const STOP_STATES = new Set(['queued', 'dispatching', 'planning', 'waiting', 'running', 'tool', 'retrying', 'thinking', 'understanding', 'streaming', 'working', 'investigating']);
+const STOP_STATES = new Set(['queued', 'dispatching', 'planning', 'waiting', 'running', 'executing', 'tool', 'retrying', 'thinking', 'understanding', 'streaming', 'working', 'investigating']);
 
 export const ExecutionBar: React.FC = () => {
   const [exec, setExec] = useState(executionStore.get());
@@ -31,7 +31,10 @@ export const ExecutionBar: React.FC = () => {
 
   const elapsedS = Math.max(0, Math.round((Date.now() - exec.startedAt) / 1000));
   const idleS = Math.max(0, Math.round((Date.now() - exec.lastActivityAt) / 1000));
-  const canStop = STOP_STATES.has(exec.state || '');
+  // STOP must stay visible across every active phase (PRIORITY 6). The feeds
+  // write the semantic stage (queued/dispatching/planning/streaming/...); the
+  // store's generic `state` may lag, so prefer stage.
+  const canStop = STOP_STATES.has(exec.stage || exec.state || '');
 
   const onStop = () => {
     if (executionStore.stop()) setTick((t) => t + 1);

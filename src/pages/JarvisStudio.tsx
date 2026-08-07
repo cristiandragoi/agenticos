@@ -392,7 +392,9 @@ export default function JarvisStudio() {
   }, [taskSummary]);
 
   // Live execution bar for background tasks (PRIORITY 4/5/6/10): feed the
-  // shared store from the active task + register STOP → cancel API.
+  // shared store from the active task + register STOP → cancel API. CodeX
+  // repository-analysis dispatches create GOALS (goalStore), not background
+  // tasks, so active goals are also surfaced here.
   useEffect(() => {
     const tasks = taskSummary?.tasks || [];
     const activeTask = tasks.find(t => t.status === 'running' || t.status === 'queued' || t.status === 'dispatching' || t.status === 'planning') || null;
@@ -407,7 +409,9 @@ export default function JarvisStudio() {
         currentAction: activeTask.status === 'queued' && concurrency?.blocked
           ? `Waiting for ${workerLabel} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`
           : activeTask.progressMessage || activeTask.currentStage || 'Working…',
-        stage: activeTask.currentStage || activeTask.status,
+        // A concurrency-queued task keeps the semantic 'queued' stage so the
+        // Execution Bar's STOP stays visible (PRIORITY 6: stop while queued).
+        stage: activeTask.status === 'queued' && concurrency?.blocked ? 'queued' : (activeTask.currentStage || activeTask.status),
         taskId: activeTask.taskId,
         operationId: meta.operationId || null,
         startedAt: activeTask.startedAt ? new Date(activeTask.startedAt).getTime() : Date.now(),
@@ -415,10 +419,40 @@ export default function JarvisStudio() {
       executionStore.registerStop(() => {
         void fetch(`/api/background-tasks/${encodeURIComponent(activeTask.taskId)}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'user-stopped-execution-bar' }) }).catch(() => {});
       });
-    } else {
-      executionStore.setIdle();
-      executionStore.registerStop(null);
+      return;
     }
+    // No active background task — check for an active CodeX goal.
+    (async () => {
+      try {
+        const goalsRes = await fetch('/api/chat/agents/goals');
+        const goals = await goalsRes.json();
+        const activeGoal = (Array.isArray(goals) ? goals : []).find((g: any) => ['queued', 'planning', 'executing', 'retrying', 'waiting_for_approval'].includes(g.status));
+        if (!activeGoal) { executionStore.setIdle(); executionStore.registerStop(null); return; }
+        let action = activeGoal.status;
+        try {
+          const d = await (await fetch(`/api/chat/agents/goal/${activeGoal.id}`)).json();
+          const last = (d?.history || []).slice(-1)[0];
+          if (last?.message) action = last.message;
+          else if (last?.eventType) action = last.eventType;
+        } catch { /* keep status as action */ }
+        executionStore.setActive({
+          agent: 'CodeX',
+          provider: null,
+          model: null,
+          currentAction: action,
+          stage: activeGoal.status,
+          taskId: null,
+          operationId: activeGoal.id,
+          startedAt: activeGoal.createdAt ? new Date(activeGoal.createdAt).getTime() : Date.now(),
+        });
+        executionStore.registerStop(() => {
+          void fetch(`/api/chat/agents/goal/${encodeURIComponent(activeGoal.id)}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'abort' }) }).catch(() => {});
+        });
+      } catch {
+        executionStore.setIdle();
+        executionStore.registerStop(null);
+      }
+    })();
   }, [taskSummary]);
 
   // Current-turn ownership: a task created by the running operation becomes

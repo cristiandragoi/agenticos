@@ -252,11 +252,22 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const [routingOverride, setRoutingOverride] = useState<{ provider: string | null; model: string | null; mode: 'auto' | 'manual' }>({ provider: null, model: null, mode: 'auto' });
 
   // STOP propagation (PRIORITY 6): the execution bar's STOP aborts the
-  // in-flight stream via the same controller as the chat's own Stop control.
+  // in-flight stream via the same controller as the chat's own Stop control,
+  // and runs the same cleanup so the composer re-enables and the bar clears.
   useEffect(() => {
     executionStore.registerStop(() => {
-      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (abortControllerRef.current) {
+        logAbort('execution_bar_stop', abortControllerRef.current, requestStartedAtRef.current);
+        abortControllerRef.current.abort();
+      }
+      clearResponseTimers();
+      stopStatusClock();
       emitStatus({ state: 'cancelled' });
+      uiDiagnostics.setStreamEnded(null);
+      window.setTimeout(() => {
+        if (!abortControllerRef.current) emitStatus(idleStatus);
+      }, 1200);
+      setIsProcessing(false);
     });
     return () => executionStore.registerStop(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
