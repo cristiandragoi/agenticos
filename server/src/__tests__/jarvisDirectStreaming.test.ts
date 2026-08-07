@@ -652,4 +652,29 @@ describe('Jarvis direct streaming', () => {
     expect(agent?.metadata?.operationId).toBe('op-rev-full');
     expect(agent?.content).toContain('DRY-RUN');
   }, 15_000);
+
+  it('contextual bug reports route to INVESTIGATE: inspects state instead of asking "What interface?"', async () => {
+    mocks.route = 'investigate';
+    mocks.category = 'investigation';
+    mocks.mode = 'operational_execution';
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'It\u2019s not showing the correct model.', operationId: 'op-investigate' })
+      .expect(200);
+
+    expect(res.text).toContain('event: intent');
+    expect(res.text).toContain('"route":"investigate"');
+    expect(res.text).toContain('event: chunk');
+    // Inspect-first: the reply reports inspected state, never the generic
+    // clarification questions.
+    expect(res.text).toContain('inspected');
+    expect(res.text).not.toContain('What interface or application');
+    expect(res.text).not.toContain('What model is it currently displaying');
+    expect(res.text).not.toContain('No operational action requested');
+    expect(res.text).toContain('event: done');
+    const agent = mocks.appended.filter((m) => m.role === 'agent').pop();
+    expect(agent?.metadata?.operationId).toBe('op-investigate');
+    expect(agent?.metadata?.intent?.type).toBe('investigate');
+  }, 15_000);
 });

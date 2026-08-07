@@ -163,4 +163,49 @@ describe('IntentRouter — required routing cases', () => {
     expect(result.route).toBe('direct');
     expect(result.category).toBe('system_status');
   });
+
+  describe('implicit BUG_REPORT / INVESTIGATE (contextual AgenticOS statements)', () => {
+    const investigateCases = [
+      'It\u2019s not showing the correct model.',
+      'It still shows Qwen but I switched to DeepSeek.',
+      'The provider badge is wrong.',
+      'The stop button doesn\u2019t work.',
+      'The status is stuck on processing.',
+      'It didn\u2019t switch to DeepSeek.',
+      'The model name is not updating.',
+      'This is broken.',
+      'That didn\u2019t work.',
+      'The provider is wrong.',
+      'This button doesn\u2019t work.',
+      'It failed again.',
+      'That\u2019s wrong.',
+    ];
+    for (const input of investigateCases) {
+      it(`routes ${JSON.stringify(input)} to investigate`, async () => {
+        const result = await router.routeIntent(input);
+        expect(result.route, input).toBe('investigate');
+        expect(result.category).toBe('investigation');
+        expect(result.mode).toBe('operational_execution');
+      });
+    }
+
+    const directCases = [
+      'Why does the provider badge exist?',
+      'What is DeepSeek?',
+      'What model is Jarvis using?',
+      'How does the gateway work?',
+    ];
+    for (const input of directCases) {
+      it(`keeps ${JSON.stringify(input)} direct/informational`, async () => {
+        const result = await router.routeIntent(input);
+        expect(result.route, input).toBe('direct');
+      });
+    }
+
+    it('the detector is pattern-based, not a hardcoded phrase list', async () => {
+      // Slightly different wording of the same problem still triggers.
+      const result = await router.routeIntent('The runtime is showing the incorrect provider now');
+      expect(result.route).toBe('investigate');
+    });
+  });
 });

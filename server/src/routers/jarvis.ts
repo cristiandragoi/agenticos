@@ -390,6 +390,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // between explanation, status, feedback, delegation, or navigation.
     const { classifyExecutiveIntent } = await import('../domains/jarvis/executiveIntent.js');
     const { buildWorkerFeedback, buildWorkerStatus, buildCapabilityExplanation } = await import('../domains/jarvis/workerInsights.js');
+    const { investigateAgenticState } = await import('../domains/jarvis/investigation.js');
     const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
     const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
     const { taskShortId } = await import('../services/backgroundTasks/types.js');
@@ -756,6 +757,44 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       requiresApproval: Boolean(intent.requiresApproval),
       operationId: normalizedOperationId
     });
+
+    // ── INVESTIGATE (implicit bug reports / contextual problem statements) ──
+    // Inspect-first, ask-later. Runs a read-only state inspection and streams
+    // an evidence report; never the generic "What interface?" clarification.
+    if (intent.route === 'investigate') {
+      logStreamStage(normalizedOperationId, 'investigate route', { confidence: intent.confidence });
+      const startedAt = Date.now();
+      let reply: string;
+      try {
+        reply = await investigateAgenticState(req.params.id, prompt);
+      } catch (err: any) {
+        reply = `I attempted a read-only inspection but it failed: ${err?.message || err}. Nothing was changed.`;
+      }
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'registry',
+          intent: { type: 'investigate', category: 'investigation', confidence: intent.confidence }
+        }
+      });
+      writeSse(res, 'done', {
+        route: 'investigate',
+        category: 'investigation',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'registry',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      return res.end();
+    }
 
     if (intent.route !== 'direct') {
       if (intent.plan?.length) {

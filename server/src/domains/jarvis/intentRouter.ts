@@ -1,5 +1,5 @@
 export interface IntentResult {
-  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams';
+  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams' | 'investigate';
   category:
     | 'conversation'
     | 'repository_analysis'
@@ -10,7 +10,8 @@ export interface IntentResult {
     | 'pipeline_operation'
     | 'research'
     | 'system_status'
-    | 'approval_required';
+    | 'approval_required'
+    | 'investigation';
   mode: 'direct_conversation' | 'operational_execution';
   confidence: number;
   reason: string;
@@ -38,6 +39,41 @@ export function detectDelegationSignals(prompt: string): DelegationSignals {
       /\bno\s+codex\s+goal\b/.test(p) ||
       /\bno\s+agent\b/.test(p)
   };
+}
+
+/**
+ * Implicit bug-report detection for contextual AgenticOS statements.
+ *
+ * A statement about a malfunction, inconsistency, unexpected UI state,
+ * incorrect value, failed operation, or broken behavior is treated as an
+ * implicit operational request ("investigate this problem"), even without an
+ * imperative verb. This is PATTERN-based (problem signals + contextual
+ * references) — NOT a hardcoded list of example phrases.
+ *
+ * Informational wh-questions are handled BEFORE this check (they stay direct),
+ * so "Why does the provider badge exist?" remains direct conversation.
+ */
+const APOSTROPHE = `['\u2019]`;
+const BUG_SIGNAL_PATTERNS: RegExp[] = [
+  // Explicit incorrectness / inconsistency
+  /\b(wrong|incorrect|mismatch|out of sync|outdated|stale)\b/,
+  /\b(broken|broke|not working|not functioning)\b/,
+  // Negated capability about an app artifact ("button doesn't work",
+  // "not showing", "won't switch", "can't see")
+  new RegExp(`\\b(doesn${APOSTROPHE}?t|doesnt|don${APOSTROPHE}?t|dont|won${APOSTROPHE}?t|wont|can${APOSTROPHE}?t|cant|isn${APOSTROPHE}?t|isnt|aren${APOSTROPHE}?t|arent|didn${APOSTROPHE}?t|didnt)\\s+(work|working|show|showing|update|updating|display|displaying|switch|switching|load|loading|respond|responding|start|stop|open|close|appear|appearing|change|changing|connect|connecting)\\b`),
+  /\bnot\s+(work|working|show|showing|update|updating|display|displaying|switch|switching|load|loading|respond|responding|correct|right|there|found|available)\b/,
+  // Failure / stuck / missing states
+  /\b(stuck|failed|failing|error|errors|missing|gone|nothing happens|no longer|still shows|still says|still stuck|weird|strange)\b/,
+  // Deictic + state copula ("It is wrong", "That's broken", "This is stuck")
+  /\b(it|this|that|these|those)\s+(is|are|was|were|did|does)\s+(wrong|broken|stuck|failed|missing|incorrect|not)\b/,
+  new RegExp(`\\b(that${APOSTROPHE}?s|thats|this is|its|it${APOSTROPHE}?s)\\s+(wrong|broken|stuck|failed|not|showing|updating|displaying)\\b`),
+  // Repeat/failure context: "It failed again", "still not", "again"
+  /\b(failed|fail|broken|wrong|stuck)\s+again\b/,
+];
+
+export function isBugReportStatement(prompt: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  return BUG_SIGNAL_PATTERNS.some((re) => re.test(p));
 }
 
 export class IntentRouter {
@@ -217,6 +253,28 @@ export class IntentRouter {
       p.endsWith('?');
     if (isQuestion) {
       return direct('conversation', 0.55, 'Question detected — direct conversation');
+    }
+
+    // ── 6. Implicit BUG_REPORT / INVESTIGATE (contextual operational requests) ──
+    // Statements describing a malfunction, inconsistency, unexpected UI state,
+    // incorrect value, failed operation, or broken AgenticOS behavior are
+    // IMPLICIT operational requests — no imperative verb required. Jarvis is
+    // running inside AgenticOS, so "it"/"this"/"that"/"the <subject>" resolve
+    // against the application context. The INVESTIGATE path inspects runtime/
+    // application state first and only asks the user when state cannot
+    // resolve the ambiguity (inspect-before-question).
+    if (isBugReportStatement(p)) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.85,
+        reason: 'Contextual AgenticOS problem report — implicit investigation request',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect active runtime/gateway state', 'Compare with displayed/expected state', 'Report evidence and resolve when safe'],
+      };
     }
 
     // Short or vague prompts that aren't greetings, invocations, or questions need
