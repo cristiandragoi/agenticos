@@ -13,13 +13,27 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* ── TOP STATUS LANE (stabilization): reserved flow row above the wordmark.
+   Workspace/approval strip + transcription activity badge live here and can
+   NEVER overlap the wordmark / status strip — no absolute offsets. ── */
+.topStatusLane {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px 0;
+  box-sizing: border-box;
+}
+
 .wordmark {
   text-align: center;
   font-size: 22px;
   font-weight: 200;
   letter-spacing: 14px;
   padding-left: 14px; /* optical centering for letter-spacing */
-  padding-top: 34px;
+  padding-top: 10px; /* lane above reserves the space now (stabilization) */
   color: #cffafe;
   text-shadow:
     0 0 12px rgba(103, 232, 249, 0.75),
@@ -31,17 +45,18 @@
 }
 
 .activityLine {
-  position: absolute;
-  top: 30px;
-  right: 28px;
+  /* Flow item of the reserved topStatusLane (stabilization) — previously
+     absolute top-right, which collided with the workspace strip at narrow
+     widths. Now it wraps onto its own row instead of overlapping. */
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 11px;
   letter-spacing: 2px;
   color: #7dd3fc;
-  z-index: 6;
 }
 
 .activityDot {
@@ -61,62 +76,47 @@
   gap: 10px;
   z-index: 4;
   pointer-events: none; /* children re-enable */
+  /* Fixed-stage contract: the orb region fills the stage space BELOW the
+     wordmark + status strip (flex:1, min-height:0). The orb is sized from
+     this region, so it always fits and centers — never clipped. */
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .centerColumn > * {
   pointer-events: auto;
 }
 
-/* ── Scroll-correction milestone ─────────────────────────────────────────
-   The center Jarvis workspace is ONE scrolling document (the main center
-   scrollbar lives on .centerScroll), NOT a frozen viewport:
+/* ── Fixed-stage milestone ────────────────────────────────────────────
+   The center column is NOT a scrolling document. The Jarvis stage is a
+   RESERVED, fixed band (flex:1, overflow hidden) that can never be
+   scrolled away, pushed by transcript growth, or moved by Voice Trace.
+   The lower workspace is a bounded band (max-height 54vh) whose tall
+   children (Voice Trace, transcript) scroll INSIDE themselves:
 
-     ┌ centerScroll — overflow-y: auto ──────┐
-     │  jarvisStage (hero block, reserved    │
-     │    height: wordmark → orb → state     │
-     │    text → primary control, all flow)  │
-     │  workspace (controls · voice trace ·  │
-     │    transcript · composer)             │
-     └────────────────────────────────────────┘
-     systemStatus / activeRun panels are absolute overlays OUTSIDE this
-     container — the center scrollbar never scrolls them.
+     ┌ mainColumn — flex column, overflow hidden ─────────┐
+     │  centerScroll — flex column, overflow hidden       │
+     │    jarvisStage (flex:1, overflow hidden, orb       │
+     │      centered inside — never moves)                │
+     │    workspace (flex:0 1 auto, max-height 54vh,      │
+     │      overflow-y auto — controls · voice trace ·    │
+     │      transcript, each with internal scroll)        │
+     └────────────────────────────────────────────────────┘
+     sticky composer docks at the bottom of mainColumn.
 
-   Scrolling down may carry the hero out of view (expected); scrolling back
-   up restores it. Nothing is absolutely stacked on the orb. */
+   A thousand transcript messages, an expanded Voice Trace, or a long
+   activity history can NEVER move or clip the Jarvis stage. */
 
 .centerScroll {
   flex: 1 1 auto;
   min-height: 0;
   height: auto;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   overscroll-behavior: contain;
-  /* §6: the main center scrollbar must be OBVIOUS. IMPORTANT: do NOT set
-     scrollbar-color/scrollbar-width here — Chromium ≥121 switches to the
-     standard scrollbar engine when they are present and silently ignores
-     the ::-webkit-scrollbar rules below, which renders a near-invisible
-     thumb. The webkit custom scrollbar is bright, wide and always grabbable. */
-}
-
-/* §4: the main center scrollbar must be OBVIOUS — grabbable thumb on the
-   right edge of the center workspace, always visible, never hidden for
-   aesthetics (scrollbar-gutter keeps the track painted even without
-   overflow). */
-.centerScroll::-webkit-scrollbar {
-  width: 12px;
-}
-.centerScroll::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.55);
-}
-.centerScroll::-webkit-scrollbar-thumb {
-  background: rgba(147, 240, 255, 1);
-  border-radius: 6px;
-}
-.centerScroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(186, 247, 255, 1);
-}
-.centerScroll::-webkit-scrollbar-thumb:active {
-  background: rgba(224, 252, 255, 1);
 }
 
 .jarvisStage {
@@ -125,23 +125,45 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* Reserved hero height: the orb block is correctly laid out at the top
-     of the center scroll at every supported viewport (scales down modestly
-     at short heights instead of overlapping). */
-  min-height: max(430px, 56vh);
+  /* Fixed-stage contract: the hero fills the available center height
+     (never grows with content below it) with a responsive minimum that
+     guarantees the orb region (below wordmark + status strip) can always
+     hold the minimum orb + label + primary control. overflow hidden
+     guarantees the orb is never clipped and never pushes the workspace. */
+  flex: 1 1 auto;
+  min-height: max(360px, 44vh);
+  overflow: hidden;
   padding: 8px 0 14px;
-  flex: 0 0 auto;
 }
 
 .workspace {
   position: relative;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-height: 54vh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-bottom: 18px;
   background: linear-gradient(to bottom, rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.92));
   border-top: 1px solid rgba(30, 58, 95, 0.5);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(103, 232, 249, 0.38) rgba(15, 23, 42, 0.35);
+}
+
+.workspace::-webkit-scrollbar {
+  width: 12px;
+}
+.workspace::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.55);
+}
+.workspace::-webkit-scrollbar-thumb {
+  background: rgba(147, 240, 255, 0.85);
+  border-radius: 6px;
+}
+.workspace::-webkit-scrollbar-thumb:hover {
+  background: rgba(186, 247, 255, 1);
 }
 
 .workspaceControls {

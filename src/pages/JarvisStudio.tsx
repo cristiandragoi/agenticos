@@ -702,6 +702,7 @@ export default function JarvisStudio() {
   // (synthetic viewport changes — e.g. CDP device-metrics emulation — do not
   // fire ResizeObserver reliably in every Electron build). ──
   const stageRef = useRef<HTMLDivElement>(null);
+  const orbRegionRef = useRef<HTMLDivElement>(null);
   const [orbSize, setOrbSize] = useState(340);
   useEffect(() => {
     const el = stageRef.current;
@@ -709,9 +710,15 @@ export default function JarvisStudio() {
     let raf = 0;
     const measure = () => {
       raf = 0;
-      const rect = el.getBoundingClientRect();
+      // Size from the ORB REGION (centerColumn), not the whole stage: the
+      // region is the space left after wordmark + status strip, so the orb
+      // always fits and centers within it — never clipped, never pushing.
+      const region = orbRegionRef.current;
+      if (!region) return;
+      const rect = region.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const next = Math.max(180, Math.min(340, Math.round(Math.min(rect.height, rect.width) - 56)));
+      // Reserve ~70px inside the region for the state label + primary control.
+      const next = Math.max(180, Math.min(340, Math.round(Math.min(rect.height - 70, rect.width) - 16)));
       setOrbSize((prev) => (prev === next ? prev : next));
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
@@ -791,17 +798,22 @@ export default function JarvisStudio() {
   return (
     <div className={cc.root} data-testid="jarvis-studio" style={{ display: 'flex', flexDirection: 'row', height: '100%', overflow: 'hidden' }}>
       <div className={styles.mainColumn} data-testid="jarvis-active-layout" style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* ── CENTER SCROLL (scroll-correction milestone): the ONE main
-            scrollbar of the Jarvis workspace. Hero, controls, Voice Trace,
-            transcript and composer all live in this scrolling document;
-            corner panels sit OUTSIDE it so they never scroll with it. ── */}
+        {/* ── CENTER COLUMN (fixed-stage milestone): flex column, overflow
+            hidden — the Jarvis workspace is NOT one scrolling document.
+            The hero stage is a reserved fixed band (flex:1, overflow
+            hidden); the lower workspace is a bounded band (max-height
+            54vh) whose tall children (Voice Trace, transcript) scroll
+            inside themselves. Corner panels sit in the Activity column,
+            OUTSIDE this container, so they never scroll with it. ── */}
         <div className={cc.centerScroll} data-testid="jarvis-center-scroll">
-        {/* ── JARVIS HERO (scroll-correction milestone): a proper block with
-            reserved height at the top of the scrolling center workspace.
-            Real flow stack — wordmark → orb → state text → primary control —
-            nothing absolutely stacked on the orb. Scrolling down may carry the
-            hero out of view (expected); scrolling back up restores it. ── */}
-        <div ref={stageRef} className={cc.jarvisStage} data-testid="jarvis-stage">
+        {/* ── JARVIS HERO (fixed-stage milestone): a RESERVED band at the top
+            of the center column — flex:1, overflow hidden, orb centered
+            inside. It is NEVER part of a scrolling document: transcript
+            growth, Voice Trace expansion, or activity history can never
+            push it upward or clip it. Real flow stack — wordmark → orb →
+            state text → primary control — nothing absolutely stacked on
+            the orb. ── */}
+        <div ref={stageRef} className={cc.jarvisStage} data-testid="jarvis-stage" style={{ flex: '1 1 auto', minHeight: 'max(360px, 44vh)', overflow: 'hidden' }}>
 
         {/* ── Glowing wordmark ── */}
         <motion.div
@@ -812,17 +824,6 @@ export default function JarvisStudio() {
         >
           JARVIS
         </motion.div>
-
-        {/* ── Activity line (top-right, latest REAL event) ── */}
-        <div className={cc.activityLine} data-testid="jarvis-activity-line">
-          <span className={cc.activityDot} />
-          <span data-testid="jarvis-activity-text">{latestActivity ? latestActivity.text : 'READY'}</span>
-        </div>
-
-        {/* ── Compact workspace strip (real repo detection) ── */}
-        <div style={{ position: 'absolute', top: 10, left: 14, zIndex: 6, opacity: 0.9 }}>
-          <JarvisWorkspaceBar />
-        </div>
 
         {/* ── Compact status strip (real values) — flow row of the hero
             stack between wordmark and orb (scroll-correction §3): never
@@ -839,7 +840,7 @@ export default function JarvisStudio() {
         </div>
 
         {/* ── CENTRAL CORE ── */}
-        <div className={cc.centerColumn}>
+        <div ref={orbRegionRef} className={cc.centerColumn} data-testid="jarvis-orb-region">
           <div data-testid="jarvis-dashboard" className={cc.coreWrap}>
             <div data-testid="jarvis-orb-wrapper" style={{ position: 'relative' }}>
               <div data-testid="jarvis-orb-core" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -870,10 +871,28 @@ export default function JarvisStudio() {
 
         </div>
 
-        {/* ── LOWER WORKSPACE (layout-stability milestone §3): voice controls,
-            diagnostics and transcript in a capped band that can never push the
-            Jarvis stage. Tall children scroll inside their own containers. ── */}
-        <div className={cc.workspace} data-testid="jarvis-workspace">
+        {/* ── LOWER WORKSPACE (fixed-stage milestone §3/§16): the TOP STATUS
+            LANE (workspace/approval strip + activity line) lives HERE, at
+            the top of the bounded band — never inside the stage. Backend /
+            workspace status must not push the Jarvis visualization. ── */}
+        <div className={cc.workspace} data-testid="jarvis-workspace" style={{ maxHeight: '54vh', overflowY: 'auto', overflowX: 'hidden' }}>
+
+          {/* ── TOP STATUS LANE (stabilization §1): a reserved flow row at
+              the top of the workspace band. The workspace/approval strip
+              (left) and the transcription/speaking/listening activity badge
+              (right) share this lane — NEVER absolutely positioned, so they
+              can wrap at narrow widths instead of colliding. Being BELOW the
+              stage means they can never push the orb upward. ── */}
+          <div className={cc.topStatusLane} data-testid="jarvis-top-status-lane">
+            <div data-testid="jarvis-workspace-anchor" style={{ flex: '1 1 auto', minWidth: 220 }}>
+              <JarvisWorkspaceBar />
+            </div>
+            <div className={cc.activityLine} data-testid="jarvis-activity-line">
+              <span className={cc.activityDot} />
+              <span data-testid="jarvis-activity-text">{latestActivity ? latestActivity.text : 'READY'}</span>
+            </div>
+          </div>
+
           <div className={cc.workspaceControls}>
 
             {/* ── Command bar: mode selector + voice controls (always visible) ── */}

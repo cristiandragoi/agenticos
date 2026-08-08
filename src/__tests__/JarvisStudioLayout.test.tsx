@@ -66,7 +66,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('corrected layout model', () => {
+describe('fixed-stage layout model', () => {
   it('renders centerScroll > stage > workspace; orb lives in the stage', async () => {
     stubApi();
     renderStudio();
@@ -74,10 +74,17 @@ describe('corrected layout model', () => {
     const stage = await screen.findByTestId('jarvis-stage');
     const workspace = await screen.findByTestId('jarvis-workspace');
 
-    // One scrolling document containing hero + workspace in order.
+    // Fixed-stage contract: the stage and workspace live in the reserved
+    // center column (NOT a scrolling document). The stage is the first
+    // child — the hero can never be scrolled away by transcript growth.
     expect(centerScroll.contains(stage)).toBe(true);
     expect(centerScroll.contains(workspace)).toBe(true);
     expect(stage.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The workspace is a bounded band — it must not be allowed to consume
+    // the whole center viewport (its tall children scroll internally).
+    const wsEl = screen.getByTestId('jarvis-workspace');
+    expect(wsEl.style.maxHeight).not.toBe('');
+    expect(wsEl.style.overflowY || wsEl.style.overflow).not.toBe('visible');
 
     // Orb inside the reserved stage, never inside the workspace.
     const orb = screen.getByTestId('jarvis-orb');
