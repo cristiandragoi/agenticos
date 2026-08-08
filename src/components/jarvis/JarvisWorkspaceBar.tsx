@@ -37,6 +37,13 @@ export const JarvisWorkspaceBar: React.FC = () => {
         setGitRoots(roots);
         if (roots.length === 1) {
           setRunSettings(prev => ({ ...prev, folderTree: requestedPath || roots[0], workspacePath: roots[0] }));
+          // §1: publish the confirmed repository to the canonical server
+          // workspace store — every agent/worker resolves files against it.
+          void fetch('/api/workspace/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspaceRoot: roots[0] }),
+          }).catch(() => { /* backend not up yet */ });
         } else if (roots.length > 1) {
           setRunSettings(prev => ({
             ...prev,

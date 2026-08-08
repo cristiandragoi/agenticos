@@ -10,6 +10,7 @@ import { conversationService } from '../domains/conversations/service.js';
 import { logger } from '../utils/logger.js';
 import { goalStore, goalControllers } from '../services/goalStore.js';
 import { codexService } from '../domains/codex/service.js';
+import { getWorkspaceRoot } from '../services/workspaceStore.js';
 import type { GoalRecord, GoalEvent } from '../types.js';
 
 import { db } from '../db/index.js';
@@ -222,8 +223,10 @@ router.post('/agents/goal', async (req, res) => {
       agentId = 'agent-codex' 
     } = req.body;
 
-    // Ensure we use repositoryRoot or workspacePath interchangeably
-    const targetWorkspace = repositoryRoot || workspacePath;
+    // Ensure we use repositoryRoot or workspacePath interchangeably — and
+    // fall back to the ONE canonical workspace root (§1) so a CodeX goal
+    // created without an explicit repository still carries it (§2).
+    const targetWorkspace = repositoryRoot || workspacePath || getWorkspaceRoot();
 
     // Validate routing intent
     let traceAssignment = routing;

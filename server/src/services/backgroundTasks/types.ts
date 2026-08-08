@@ -92,6 +92,12 @@ export interface BackgroundTaskRecord {
   /** Incremented on retry — guards against stale worker callbacks. */
   attempt: number;
   metadata: Record<string, unknown>;
+  /**
+   * Canonical workspace root captured at task creation (§1, §9). Every
+   * worker resolves files against THIS value — never process.cwd(), never
+   * a later repository selection.
+   */
+  workspaceRoot: string;
 }
 
 export interface BackgroundTaskEvent {

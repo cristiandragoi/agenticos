@@ -8,6 +8,7 @@ import { llmChat, type LlmChatOptions } from '../services/llmGateway.js';
 
 import { goalStore } from '../services/goalStore.js';
 import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
+import { getWorkspaceRoot, resolveFileReference, resolveWorkspacePath } from '../services/workspaceStore.js';
 import { detectShellFileIo } from '../utils/nativeToolGuard.js';
 import type { GoalState, GoalEvent, AgentExecutionContext } from '../types.js';
 import { goalControllers } from '../services/goalStore.js';
@@ -358,12 +359,13 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   // Resolve the workspace root for this run: an explicit team/execution context
   // wins; otherwise fall back to the repository the goal was created with.
   // Goals created before workspace persistence (or with the legacy 'default'
-  // placeholder) keep the old process.cwd() behavior.
+  // placeholder) fall back to the CANONICAL workspace root (§3: never trust
+  // process.cwd() as repository truth).
   const goalWorkspace = (goal as any).workspacePath;
   const workspaceRoot = context?.workspaceRoot
     || (typeof goalWorkspace === 'string' && goalWorkspace && goalWorkspace !== 'default' && fs.existsSync(goalWorkspace)
       ? goalWorkspace
-      : undefined);
+      : getWorkspaceRoot() || undefined);
 
   if (['executing', 'planning', 'reasoning', 'retrying'].includes(goal.status)) {
     const lastStep = goalStore.getStep(goalId, goal.history.length);
@@ -1006,12 +1008,33 @@ ${m.content}`).join('\n\n');
             toolResult = `Successfully wrote to ${args.path}`;
           }  
           else if (toolCall.tool === 'readFile' && args.path) {
-            const absolutePath = enforceWorkspacePath(args.path, readScopes, workspaceRoot);
-            if (fs.existsSync(absolutePath)) {
+            // §5: resolve before giving up — exact path, then repository
+            // filename search; unique match is used automatically. §7: on a
+            // true miss, report exactly what was searched, never a bare
+            // "file not found".
+            let absolutePath: string;
+            let readSourceNote = '';
+            try {
+              absolutePath = enforceWorkspacePath(args.path, readScopes, workspaceRoot);
+            } catch (scopeErr: any) {
+              absolutePath = resolveWorkspacePath(args.path, workspaceRoot);
+              readSourceNote = ` (note: path fell outside the configured read scopes and was resolved against the workspace root ${workspaceRoot || 'unknown'})`;
+            }
+            if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
               toolResult = fs.readFileSync(absolutePath, 'utf-8').substring(0, 4096);
             } else {
-              toolResult = `Error: File not found at ${args.path}`;
+              const resolution = resolveFileReference(args.path, workspaceRoot);
+              if (resolution.status === 'found') {
+                toolResult = `Resolved "${args.path}" to ${resolution.relativePath} in the selected repository.\n\n` +
+                  fs.readFileSync(resolution.resolvedPath, 'utf-8').substring(0, 4096);
+              } else if (resolution.status === 'ambiguous') {
+                toolResult = `Multiple files match "${args.path}" in the selected repository (${workspaceRoot}). Choose one and retry with its full relative path:\n` +
+                  resolution.matches.slice(0, 10).map((m) => `  • ${m}`).join('\n');
+              } else {
+                toolResult = `Error: ${resolution.report}`;
+              }
             }
+            if (readSourceNote && toolResult) toolResult += `\n${readSourceNote}`;
           }
           else if (toolCall.tool === 'runCommand' && args.cmd && args.args) {
             // Shell file I/O (echo/cat/type/Get-Content/redirection) is blocked by

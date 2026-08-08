@@ -30,6 +30,8 @@ export interface ExecutionRecord {
   rejectedCount: number | null;
   targetCount: number | null;
   note: string | null;
+  /** §8: canonical workspace root the operation resolves files against. */
+  workspace: string | null;
 }
 
 interface StoreState {

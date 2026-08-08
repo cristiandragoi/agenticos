@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS background_tasks (
   resumable INTEGER NOT NULL DEFAULT 0,
   result_text TEXT,
   attempt INTEGER NOT NULL DEFAULT 1,
-  metadata TEXT NOT NULL DEFAULT '{}'
+  metadata TEXT NOT NULL DEFAULT '{}',
+  workspace_root TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS background_task_events (
@@ -69,6 +70,16 @@ let initialized = false;
 export function ensureBackgroundTaskTables(): void {
   if (initialized) return;
   rawDb.exec(DDL);
+  // Migration: existing databases created before the workspace/file
+  // reliability milestone do not have workspace_root. CREATE TABLE IF NOT
+  // EXISTS does not ALTER, so guard a one-time ADD COLUMN (same idempotent
+  // pattern as the revenue discovery_stop_reason migration).
+  try {
+    const cols = rawDb.prepare(`PRAGMA table_info(background_tasks)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'workspace_root')) {
+      rawDb.exec(`ALTER TABLE background_tasks ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`);
+    }
+  } catch { /* fresh DB already has the column via DDL */ }
   initialized = true;
 }
 
@@ -108,6 +119,7 @@ function rowToTask(row: any): BackgroundTaskRecord {
     resultText: row.result_text,
     attempt: row.attempt,
     metadata: JSON.parse(row.metadata || '{}'),
+    workspaceRoot: row.workspace_root || '',
   };
 }
 
@@ -136,7 +148,8 @@ export const backgroundTaskRepo = {
         linked_run_id, linked_board_card_id, parent_task_id, child_task_ids,
         current_stage, progress_message, files_changed, build_state, test_state,
         verification_state, approval_state, blocker, last_error,
-        cancellation_requested, resumable, result_text, attempt, metadata
+        cancellation_requested, resumable, result_text, attempt, metadata,
+        workspace_root
       ) VALUES (
         @taskId, @title, @objective, @originalRequest, @route, @selectedAgent,
         @status, @priority, @projectId, @createdAt, @startedAt, @updatedAt,
@@ -144,7 +157,8 @@ export const backgroundTaskRepo = {
         @linkedRunId, @linkedBoardCardId, @parentTaskId, @childTaskIds,
         @currentStage, @progressMessage, @filesChanged, @buildState, @testState,
         @verificationState, @approvalState, @blocker, @lastError,
-        @cancellationRequested, @resumable, @resultText, @attempt, @metadata
+        @cancellationRequested, @resumable, @resultText, @attempt, @metadata,
+        @workspaceRoot
       )
     `).run({
       ...task,
@@ -153,6 +167,7 @@ export const backgroundTaskRepo = {
       cancellationRequested: task.cancellationRequested ? 1 : 0,
       resumable: task.resumable ? 1 : 0,
       metadata: JSON.stringify(task.metadata),
+      workspaceRoot: task.workspaceRoot || '',
     });
   },
 
@@ -180,7 +195,8 @@ export const backgroundTaskRepo = {
         verification_state=@verificationState, approval_state=@approvalState,
         blocker=@blocker, last_error=@lastError,
         cancellation_requested=@cancellationRequested, resumable=@resumable,
-        result_text=@resultText, attempt=@attempt, metadata=@metadata
+        result_text=@resultText, attempt=@attempt, metadata=@metadata,
+        workspace_root=@workspaceRoot
       WHERE task_id=@taskId
     `).run({
       ...merged,
@@ -189,6 +205,7 @@ export const backgroundTaskRepo = {
       cancellationRequested: merged.cancellationRequested ? 1 : 0,
       resumable: merged.resumable ? 1 : 0,
       metadata: JSON.stringify(merged.metadata),
+      workspaceRoot: merged.workspaceRoot || '',
     });
     return merged;
   },

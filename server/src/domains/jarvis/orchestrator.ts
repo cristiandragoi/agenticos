@@ -5,6 +5,7 @@ import { llmChat, OLLAMA_DEFAULT_CODING_MODEL } from '../../services/llmGateway.
 import { coordinatorService } from '../teams/coordinatorService.js';
 import { detectGitRepository } from '../../utils/workspaceValidation.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
+import { getWorkspaceRoot } from '../../services/workspaceStore.js';
 
 import { z } from 'zod';
 
@@ -112,7 +113,13 @@ export class JarvisOrchestrator {
 
   private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string, readOnly = false) {
     const requestMetadata = operationId ? { operationId } : undefined;
-    const workspaceError = this.validateWorkspace(workspacePath);
+    // §1: ONE canonical workspace. When the request omits a repository, fall
+    // back to the canonical workspaceStore root — never fail with "select a
+    // repository" while one is already selected.
+    const effectiveWorkspace = (workspacePath && workspacePath !== 'default')
+      ? workspacePath
+      : getWorkspaceRoot();
+    const workspaceError = this.validateWorkspace(effectiveWorkspace);
     if (workspaceError) {
       await conversationService.appendMessage({
         conversationId,
@@ -138,7 +145,7 @@ export class JarvisOrchestrator {
       const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
       const executionProvider = assignment?.providerId;
 
-      const goalId = await codexService.createGoal(codexPrompt, workspacePath, approvalPolicy, executionProvider, conversationId);
+      const goalId = await codexService.createGoal(codexPrompt, effectiveWorkspace, approvalPolicy, executionProvider, conversationId);
       const status = approvalPolicy === 'manual' ? 'waiting_for_approval' : 'queued';
 
       await conversationService.appendMessage({

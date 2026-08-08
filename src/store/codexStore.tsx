@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ConnectionState } from '../presenters/executionStatus';
 import { CODEX_BASE_URL, CODEX_PROVIDER, CODEX_REPOSITORY } from '../config/codexRuntime';
 
@@ -89,6 +89,20 @@ function persistRunSettings(settings: CodexRunSettings) {
   window.localStorage.setItem(RUN_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
+/** §1: publish a repository selection to the canonical server workspace
+ *  store (workspaceStore.ts). Best-effort — local settings stay usable if
+ *  the backend is briefly unreachable. */
+async function publishWorkspaceSelection(workspaceRoot: string): Promise<void> {
+  if (!workspaceRoot?.trim()) return;
+  try {
+    await fetch('/api/workspace/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceRoot: workspaceRoot.trim() }),
+    });
+  } catch { /* backend not up yet */ }
+}
+
 export function CodexProvider({ children }: { children: ReactNode }) {
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
   const [goalStatus, setGoalStatus] = useState<string | null>(null);
@@ -120,7 +134,35 @@ export function CodexProvider({ children }: { children: ReactNode }) {
 
   const setWorkspacePath = (path: string) => {
     setRunSettings(prev => ({ ...prev, workspacePath: path, folderTree: prev.folderTree || path }));
+    // §1/§9: publish the selection to the canonical server store so ALL
+    // agents/workers (Jarvis, Hermes, CodeX, background tasks) resolve files
+    // against the same root.
+    void publishWorkspaceSelection(path);
   };
+
+  // §1: adopt the canonical server workspace root on mount — CodeX never
+  // operates on a private/hardcoded repository when one is selected.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/workspace/current');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const root = typeof data?.workspaceRoot === 'string' ? data.workspaceRoot : '';
+        if (root) {
+          setRunSettingsState(prev => {
+            if (prev.workspacePath === root) return prev;
+            const next = { ...prev, workspacePath: root, folderTree: prev.folderTree || root };
+            persistRunSettings(next);
+            return next;
+          });
+        }
+      } catch { /* backend not up yet — local settings stay authoritative */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const resetForNewTask = () => {
     setActiveGoalId(null);

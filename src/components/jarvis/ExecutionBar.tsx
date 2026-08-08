@@ -113,6 +113,17 @@ export const ExecutionBar: React.FC = () => {
           LLM: {llm}
         </span>
       )}
+      {/* §8: workspace visibility — file/repository tasks show the canonical
+          repository root so path failures are debuggable at a glance. */}
+      {exec.workspace && exec.worker !== 'jarvis' && (
+        <span
+          data-testid="execution-workspace"
+          title={`Canonical workspace root: ${exec.workspace}`}
+          style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: 6, padding: '1px 8px', color: '#67e8f9', fontSize: 10, fontFamily: 'monospace', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {exec.workspace}
+        </span>
+      )}
       {exec.status === 'QUEUED' && exec.limit != null && (
         <span style={{ color: '#fbbf24' }}>
           {exec.currentAction ? '' : ''}Active {exec.activeCount ?? 0}/{exec.limit}

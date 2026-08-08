@@ -13,6 +13,7 @@
 import { backgroundTaskManager } from './manager.js';
 import { backgroundTaskRepo } from './store.js';
 import { taskShortId, TERMINAL_STATUSES, type BackgroundTaskRecord } from './types.js';
+import { getWorkspaceRoot } from '../workspaceStore.js';
 import { hermesApiService, type HermesRunRecord, type HermesActivityEvent } from '../hermesApiService.js';
 import { codexService } from '../../domains/codex/service.js';
 import { goalStore } from '../goalStore.js';
@@ -84,15 +85,22 @@ function hermesEventToTaskEvent(taskId: string, evt: HermesActivityEvent, record
   }
 }
 
-export async function dispatchHermesTask(task: BackgroundTaskRecord): Promise<{ ok: boolean; error?: string }> {
+export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRoot?: string): Promise<{ ok: boolean; error?: string }> {
   if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
   const mgr = backgroundTaskManager;
   try {
+    // §2/§12: the canonical workspace root travels with the delegation. The
+    // Hermes API server runs in ITS OWN directory, so the repository we want
+    // work done in must be stated explicitly in the run instructions.
+    const root = workspaceRoot || task.workspaceRoot || getWorkspaceRoot();
     mgr.transition(task.taskId, 'planning', { currentStage: 'dispatching', progressMessage: 'Creating Hermes run…' });
+    const workspaceInstruction = root
+      ? `Workspace context: the selected repository is ${root}. Resolve ALL file paths against ${root} — never against your own working directory. Report the workspace (Repository: ${root}) in your answer.`
+      : 'Workspace context: no repository is currently selected; report file operations as unavailable until one is selected.';
     const record = await hermesApiService.createRun({
       prompt: task.objective || task.originalRequest,
       cardId: task.linkedBoardCardId || undefined,
-      instructions: 'Report your findings concisely. Do not ask questions.',
+      instructions: `Report your findings concisely. Do not ask questions.\n${workspaceInstruction}`,
     });
 
     backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: record.id });
@@ -583,13 +591,17 @@ function pipelineWorkspaceRoot(): string {
 }
 
 export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: string): Promise<{ ok: boolean; error?: string }> {
+  // §2: the canonical workspace root TRAVELS with the delegation. The task
+  // carries the root captured at creation time; an explicit parameter only
+  // wins when the task has none (legacy rows). Never process.cwd().
+  const root = task.workspaceRoot || workspacePath || getWorkspaceRoot();
   switch (task.worker) {
-    case 'hermes': return dispatchHermesTask(task);
-    case 'codex': return dispatchCodexTask(task, workspacePath || '');
+    case 'hermes': return dispatchHermesTask(task, root);
+    case 'codex': return dispatchCodexTask(task, root);
     case 'research': return dispatchResearchTask(task);
-    case 'team': return dispatchTeamTask(task, workspacePath || '');
+    case 'team': return dispatchTeamTask(task, root);
     case 'automation': return dispatchAutomationTask(task);
-    case 'revenue': return dispatchRevenuePipelineTask(task, workspacePath);
+    case 'revenue': return dispatchRevenuePipelineTask(task, root || workspacePath);
     default:
       backgroundTaskManager.transition(task.taskId, 'failed', { lastError: `No adapter for worker kind: ${task.worker}` });
       return { ok: false, error: `No adapter for worker kind: ${task.worker}` };

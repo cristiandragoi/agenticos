@@ -28,6 +28,7 @@ import {
 } from './types.js';
 import { localDataPort } from '../../adapters/localDataPort.js';
 import { logger } from '../../utils/logger.js';
+import { getWorkspaceRoot } from '../workspaceStore.js';
 import * as executionState from '../executionState.js';
 
 /** Extract "Top prospect: X" (or the first numbered result) from a worker result. */
@@ -64,6 +65,13 @@ export interface CreateTaskInput {
   conversationSessionId?: string | null;
   resumable?: boolean;
   metadata?: Record<string, unknown>;
+  /**
+   * Canonical workspace root the task resolves files against (§1–§2).
+   * Captured at creation time: if the user later changes repository, this
+   * task keeps its original root (§9 — never silently redirected).
+   * Falls back to the canonical workspaceStore root when omitted.
+   */
+  workspaceRoot?: string;
   /** Retry rule (req. 10): reuse an existing Board card instead of creating one. */
   boardCardId?: string | null;
 }
@@ -201,6 +209,9 @@ export class BackgroundTaskManager extends EventEmitter {
       resultText: null,
       attempt: 1,
       metadata: { ...(input.metadata || {}), ...queueConcurrencyMeta },
+      // §1/§9: the canonical workspace root captured AT CREATION. A later
+      // repository change must never silently redirect a running task.
+      workspaceRoot: input.workspaceRoot ?? getWorkspaceRoot(),
     };
 
     backgroundTaskRepo.insertTask(task);

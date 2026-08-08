@@ -55,6 +55,8 @@ export interface ExecutionRecord {
   rejectedCount: number | null;
   targetCount: number | null;
   note: string | null;
+  /** §8: canonical workspace root the operation resolves files against. */
+  workspace: string | null;
 }
 
 const HISTORY_LIMIT = 50;
@@ -127,6 +129,7 @@ export function begin(partial: Partial<ExecutionRecord> & { operationId: string;
     rejectedCount: partial.rejectedCount ?? null,
     targetCount: partial.targetCount ?? null,
     note: partial.note ?? null,
+    workspace: partial.workspace ?? null,
   };
   publish();
   return clone(current);

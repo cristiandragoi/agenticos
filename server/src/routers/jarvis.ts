@@ -2,6 +2,8 @@ import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { conversationService } from '../domains/conversations/service.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
+import { getWorkspaceRoot as getCanonicalWorkspaceRoot } from '../services/workspaceStore.js';
+import { resolvePromptFileReferences, enrichPromptWithResolvedFiles, buildFileNotFoundReply } from '../domains/jarvis/fileResolution.js';
 import { intentRouter, detectDelegationSignals, type IntentResult } from '../domains/jarvis/intentRouter.js';
 import { TeamRunner } from '../services/agentTeams/teamRunner.js';
 import { db } from '../db/index.js';
@@ -215,7 +217,11 @@ function resolveWorkspacePath(body: any) {
   const value = typeof body?.repositoryPath === 'string' && body.repositoryPath.trim()
     ? body.repositoryPath
     : body?.workspacePath;
-  return typeof value === 'string' ? value.trim() : '';
+  const explicit = typeof value === 'string' ? value.trim() : '';
+  // §1: ONE canonical workspace. When the client omits the repository,
+  // every route still operates against the canonical selected root — the
+  // user never has to re-state where the repository is.
+  return explicit || getCanonicalWorkspaceRoot();
 }
 
 function providerDiagnostics(result: any, defaults: Record<string, string>) {
@@ -440,6 +446,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     requestedProvider: selectedProvider,
     requestedModel: selectedModel,
     cancel: { kind: 'stream', id: execOpId },
+    // §8: every operation carries the canonical workspace root so file/path
+    // failures are debuggable from the execution record.
+    workspace: workspacePath || null,
   });
   registerStreamAborter(execOpId, abortController);
   const endStreamExecution = (status: 'COMPLETED' | 'FAILED' | 'CANCELLED', result?: string | null) => {
@@ -673,20 +682,73 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         operationId: normalizedOperationId
       });
 
+      // ── File pre-resolution (§5–§7): resolve file references against the
+      //     canonical workspace BEFORE delegating. A unique match is injected
+      //     into the worker objective; when nothing referenced exists, Jarvis
+      //     reports exactly what was searched instead of starting a doomed
+      //     worker ("file not found" must be truthful, not generic). ──
+      const fileOutcome = resolvePromptFileReferences(prompt, workspacePath || undefined);
+      const notFoundReply = buildFileNotFoundReply(fileOutcome);
+      if (notFoundReply) {
+        updateStreamExecution({
+          status: 'COMPLETING',
+          currentAction: 'Reporting file resolution result',
+          workspace: workspacePath || null,
+        });
+        streamTextAsChunks(res, notFoundReply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: notFoundReply,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'task-manager',
+            workspace: workspacePath || null,
+            intent: { type: 'file_resolution', worker: workerKind, resolved: false }
+          }
+        });
+        writeSse(res, 'done', {
+          route: 'worker_delegation',
+          category: 'file_resolution',
+          status: 'file_not_found',
+          operationId: normalizedOperationId,
+          workspace: workspacePath || null,
+          provider: 'agentic-os',
+          model: 'task-manager',
+          firstTokenMs: 0,
+          totalMs: 0,
+        });
+        completed = true;
+        endStreamExecution('COMPLETED', notFoundReply.slice(0, 500));
+        return res.end();
+      }
+      const delegatedObjective = enrichPromptWithResolvedFiles(prompt, fileOutcome);
+
       const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
       const { task, error } = backgroundTaskManager.createTask({
         title,
-        objective: prompt,
+        objective: delegatedObjective,
         originalRequest: prompt,
         route: workerKind,
         selectedAgent: workerTitle,
         worker: workerKind,
         conversationId: req.params.id,
         resumable: workerKind === 'codex',
+        workspaceRoot: workspacePath || undefined,
         metadata: {
           operationId: normalizedOperationId,
           readOnly: Boolean(executive.readOnly),
-          capabilityId: executive.capability.id
+          capabilityId: executive.capability.id,
+          // §8: workspace + resolved files are part of the execution record.
+          workspace: workspacePath || null,
+          resolvedFiles: fileOutcome.resolved.length > 0
+            ? fileOutcome.resolved.map((r) => ({ requested: r.token, relativePath: r.relativePath }))
+            : undefined,
+          ambiguousFiles: fileOutcome.ambiguous.length > 0
+            ? fileOutcome.ambiguous.map((a) => ({ requested: a.token, matches: a.matches }))
+            : undefined,
         },
       });
       if (!task) {
@@ -857,6 +919,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         worker: workerKind,
         conversationId: req.params.id,
         resumable: false,
+        // §9: capture the canonical root at creation — a later repository
+        // change never redirects this task.
+        workspaceRoot: workspacePath || undefined,
         metadata: {
           operationId: normalizedOperationId,
           capabilityId: 'revenue_pipeline',
