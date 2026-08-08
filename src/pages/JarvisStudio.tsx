@@ -165,16 +165,19 @@ export default function JarvisStudio() {
   }, []);
 
   /** Streamed assistant deltas → sentence chunks → sequential TTS queue.
-   *  Only VOICE-originated direct replies are spoken; typed chat, routing
-   *  events, tool events and diagnostics are never spoken. */
+   *  Direct-chat replies are spoken whenever voice output is enabled,
+   *  regardless of input channel (typed OR voice) — the user must never get
+   *  "text in chat but no spoken response" for a reply they expect to hear.
+   *  Routing events, tool events and diagnostics never reach this point with
+   *  streamed text (only direct-reply deltas do). */
   const handleStreamDelta = useCallback((delta: string, channel: 'typed' | 'voice') => {
-    if (channel !== 'voice') return;
+    void channel;
     speechBufferRef.current += delta;
     flushSpeechBuffer(false);
   }, [flushSpeechBuffer]);
 
   const handleAssistantDone = useCallback((_text: string, channel: 'typed' | 'voice') => {
-    if (channel !== 'voice') return;
+    void channel;
     flushSpeechBuffer(true);
   }, [flushSpeechBuffer]);
 

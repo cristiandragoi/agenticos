@@ -318,8 +318,31 @@ export class JarvisOrchestrator {
       // about current AgenticOS state are routed to INVESTIGATE, and any that
       // reach direct chat should be answered from that capability.
       const systemPrompt = `You are Jarvis, the core orchestration agent of Agentic OS. Keep answers short, direct, and conversational.
-You have LIVE INSPECTION capability: AgenticOS tracks real runtime state (active model and provider, gateway-resolved model/provider, selected frontend model, what the UI is displaying, Hermes/Ollama/OpenRouter health, active and last streams, background tasks, recent errors) and exposes it through the investigation pipeline. Do NOT claim you lack access to inspect the current model configuration or UI state. If a request is about current AgenticOS runtime/UI state, say you will inspect it (or report what the investigation found) — the inspection pipeline handles those requests.`;
-      const result = await llmChat({ systemPrompt, prompt });
+You have LIVE INSPECTION capability: AgenticOS tracks real runtime state (active model and provider, gateway-resolved model/provider, selected frontend model, what the UI is displaying, Hermes/Ollama/OpenRouter health, active and last streams, background tasks, recent errors) and exposes it through the investigation pipeline. Do NOT claim you lack access to inspect the current model configuration or UI state. If a request is about current AgenticOS runtime/UI state, say you will inspect it (or report what the investigation found) — the inspection pipeline handles those requests.
+If you do not know something, say so explicitly. Never invent facts, values, or prior decisions.`;
+      // Conversation history (runtime root-cause fix): the direct-chat LLM
+      // must see the prior turns of this conversation, exactly like the
+      // streaming path — otherwise it cannot answer follow-up questions and
+      // hallucinates context.
+      let history: { role: 'user' | 'assistant'; content: string }[] = [];
+      try {
+        const msgs = await conversationService.getMessages(conversationId);
+        const arr = Array.isArray(msgs) ? msgs : [];
+        const current = prompt;
+        for (let i = arr.length - 1; i >= 0 && history.length < 12; i--) {
+          const m = arr[i];
+          const role = m?.role;
+          const content = typeof m?.content === 'string' ? m.content : '';
+          if (!content) continue;
+          if (role === 'system') continue;
+          if (role === 'user' && content === current) continue;
+          if (role !== 'user' && role !== 'agent') continue;
+          history.unshift({ role: role === 'agent' ? 'assistant' : 'user', content });
+        }
+      } catch {
+        // best effort — a failed history read must not break direct chat
+      }
+      const result = await llmChat({ systemPrompt, prompt, history });
 
       await conversationService.appendMessage({
         conversationId,

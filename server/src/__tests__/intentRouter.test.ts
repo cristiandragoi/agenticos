@@ -81,6 +81,47 @@ describe('IntentRouter — required routing cases', () => {
     expect(result2.route).toBe('memory');
   });
 
+  it('STORE-memory requests are never routed as RECALL (runtime semantics fix)', async () => {
+    const storeForms = [
+      'Please remember that my favorite color is teal',
+      'Please remember my favorite color is teal',
+      'Remember that I prefer dark mode',
+      'From now on remember my email is x@example.com',
+    ];
+    for (const s of storeForms) {
+      const result = await router.routeIntent(s);
+      expect(result.route).not.toBe('memory');
+    }
+  });
+
+  it('RECALL-memory requests still route to memory', async () => {
+    const recallForms = [
+      'What do you remember about Kadabau?',
+      'What happened in our last Berlin roofing search?',
+      'Do you remember what model we chose?',
+    ];
+    for (const s of recallForms) {
+      const result = await router.routeIntent(s);
+      expect(result.route).toBe('memory');
+    }
+  });
+
+  it('project/task STATE questions route to direct/investigate, never Hermes delegation (runtime fix)', async () => {
+    const qs = [
+      'What project are we currently working on?',
+      'What is the current project?',
+      'Which task is active right now?',
+      'What is the status of the plan?',
+    ];
+    for (const s of qs) {
+      const result = await router.routeIntent(s);
+      expect(result.route).not.toBe('hermes');
+      // informational answer paths: direct chat (history+state) or the
+      // read-only investigate pipeline for runtime-state questions
+      expect(['direct', 'investigate']).toContain(result.route);
+    }
+  });
+
   it('returns clarification_required for ambiguous short prompt', async () => {
     const result = await router.routeIntent('do it');
     expect(result.route).toBe('clarification_required');

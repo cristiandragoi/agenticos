@@ -1234,6 +1234,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'If asked about system capabilities, describe Agentic OS capabilities: CodeX delegation, Agent Teams, workspace inspection/change through approval, runtime/tool/pipeline status, and research/search only when available.',
       'Never narrate your internal reasoning; answer the user directly instead of describing your own thought process.',
       'Do not write phrases such as "the user is asking" or otherwise refer to the user in the third person.',
+      'If you do not know something, say so explicitly ("I do not know") — never invent facts, values, prior decisions, or runtime state.',
+      'AgenticOS has a persistent memory system (decisions, preferences, episodic records) and you receive this conversation\'s history. When the user says "please remember X", acknowledge it and keep it in the conversation; you can also recall from persistent memory when asked.',
       'Do not claim voice playback is working unless the runtime confirms audio playback started.',
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',

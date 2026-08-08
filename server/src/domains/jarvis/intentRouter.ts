@@ -358,6 +358,17 @@ export class IntentRouter {
     }
 
     // 4. Hermes checks (projects, goals, plans, milestones, tasks, dependencies, execution tracking)
+    // Status/state QUESTIONS about projects/tasks ("What project are we
+    // working on?", "What is the current project?") are informational — the
+    // direct-chat LLM answers them from conversation history + runtime state.
+    // Only actionable project commands ("create a plan", "update the
+    // milestone", "track execution") route to the Hermes orchestration worker.
+    const isProjectStateQuestion =
+      /^(what|which|how|who|where|when|is|are|does|do|why)\b/i.test(p.trim()) &&
+      /\b(project|goal|milestone|task|plan|status|progress)\b/.test(p);
+    if (isProjectStateQuestion) {
+      return direct('conversation', 0.62, 'Project/task status question — direct conversation');
+    }
     if (
       p.includes('project') ||
       p.includes('goal') ||
