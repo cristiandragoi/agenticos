@@ -15,6 +15,7 @@ import { executionStore, startExecutionStream, completionNotifiedAt } from '../d
 import type { ExecutionRecord, CompletionEvent } from '../diagnostics/executionStore';
 import { CompletionCard } from '../components/jarvis/CompletionCard';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
+import VoiceTracePanel from '../components/jarvis/VoiceTracePanel';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import styles from './JarvisStudio.module.css';
 import cc from './JarvisCommandCenter.module.css';
@@ -862,9 +863,19 @@ export default function JarvisStudio() {
               </div>
             </div>
 
+            {/* Voice trace + manual acceptance (physical-mic stabilization) */}
+            <VoiceTracePanel />
+
             {voice.playbackError && (
-              <div data-testid="jarvis-playback-error" style={{ fontSize: 11, color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: 6, padding: '6px 8px', marginTop: 6 }}>
-                Voice playback error: {voice.playbackError}
+              <div data-testid="jarvis-playback-error" style={{ fontSize: 11, color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: 6, padding: '6px 8px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>Voice playback error: {voice.playbackError}</span>
+                <button
+                  data-testid="jarvis-audio-recover"
+                  onClick={() => voiceRef.current?.unlockAudio?.()}
+                  style={{ background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}
+                >
+                  Enable audio
+                </button>
               </div>
             )}
           </div>

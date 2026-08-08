@@ -34,6 +34,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import { decideContinuation } from '../utils/utteranceCompleteness';
+import { voiceTracePush } from '../diagnostics/voiceTrace';
 
 export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
 
@@ -303,6 +304,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
           // state. Real output amplitude is monitored for the orb.
           // TEMP DIAGNOSTIC (remove once root cause confirmed)
           console.log('[VoiceDiag] onplay FIRED (real playback started)', { agentId, volume: audio.volume, muted: audio.muted });
+          voiceTracePush('playback_started', 'ok', `Audio playback started (${Math.round((audio.duration || 0) * 10) / 10}s)`);
           playbackActiveRef.current = true;
           speakingRef.current = true;
           playbackStartedAtRef.current = Date.now();
@@ -486,6 +488,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
     lastAutoSubmitRef.current = { text, at: now };
     console.log('[ConvTrace] onAutoSubmit firing', { hasCallback: typeof onAutoSubmit === 'function' });
+    voiceTracePush('auto_submit', 'ok', `Auto-submitted: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
     onAutoSubmit?.(text);
     return true;
   }, [onAutoSubmit]);
@@ -508,6 +511,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     validity?: { sessionId: string | null; turnId: number },
   ) => {
     setVoiceState('transcribing');
+    voiceTracePush('audio_captured', 'ok', `${(audioBlob.size / 1024).toFixed(1)} KB audio blob received (fromConversation=${fromConversation})`);
 
     try {
       // 1. Transcribe
@@ -548,6 +552,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }
 
       setLastTranscript(transcriptText);
+      voiceTracePush('transcript', 'ok', `Transcript: "${transcriptText.slice(0, 90)}${transcriptText.length > 90 ? '…' : ''}"`);
       // TEMP DIAGNOSTIC — which branch decided auto-submit vs manual input.
       console.log('[ConvTrace] transcript arrived', {
         text: transcriptText.slice(0, 60),
@@ -751,6 +756,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
           silenceSinceRef.current = null;
           // TEMP DIAGNOSTIC — live chain trace (remove after confirmation).
           window.dispatchEvent(new CustomEvent('jarvis:conv-trace', { detail: { stage: 'vadStart', value: `speech-start rms>${speechThreshold}` } }));
+          voiceTracePush('vad_triggered', 'ok', `VAD speech start (rms > ${speechThreshold}, sustained ${minSpeechMs}ms)`);
           if (streamRef.current) startTurnRecording(streamRef.current);
         }
       } else if (!turnActiveRef.current && !isSpeech) {
@@ -982,11 +988,40 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, [voiceState, startListening, stopListening]);
 
+  /** Audio-unlock on a user gesture (VOICE ON / recovery click).
+   *  Establishes the playback permission with a silent AudioContext + a
+   *  short audio-element touch. Not a silent infinite retry: called once per
+   *  enable and on the explicit recovery action. */
+  const unlockAudio = useCallback(() => {
+    try {
+      const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+      if (Ctor) {
+        const ctx = new Ctor();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        void ctx.resume().catch(() => {});
+        setTimeout(() => ctx.close().catch(() => {}), 1500);
+      }
+    } catch { /* noop */ }
+    try {
+      const audio = audioElementRef.current;
+      if (audio && audio.paused) {
+        const p = audio.play();
+        if (p && typeof p.then === 'function') p.then(() => audio.pause()).catch(() => {});
+      }
+    } catch { /* noop */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Voice output enable/disable. Disabling halts any current playback. */
   const setVoiceEnabled = useCallback((enabled: boolean) => {
     voiceEnabledRef.current = enabled;
+    if (enabled) unlockAudio();
     if (!enabled) haltPlayback();
-  }, [haltPlayback]);
+  }, [haltPlayback, unlockAudio]);
 
   const fallbackSpeak = useCallback((text: string) => {
     window.speechSynthesis?.cancel();
@@ -1112,6 +1147,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Play the synthesised audio. playAudio sets 'speaking' ONLY after the
       // browser confirms playback actually started (onplay), and resolves
       // only then; a rejection means playback failed (autoplay/policy/decode).
+      voiceTracePush('tts_request', 'ok', `TTS synthesis OK (${audioData ? Math.round(audioData.length * 0.75 / 1024) : 0} KB audio)`);
       await playAudio(audioData);
     } catch {
       // Playback failure: playbackError already carries one understandable
@@ -1253,6 +1289,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         killSpeech,
         armSpeech,
         setVoiceEnabled,
+        unlockAudio,
         conversationActive,
         // Session/turn validity identity (never mutable booleans alone).
         conversationSessionId,

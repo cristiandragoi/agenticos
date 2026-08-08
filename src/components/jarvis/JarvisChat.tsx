@@ -9,6 +9,7 @@ import { useCodexStore } from '../../store/codexStore';
 import { useGatewayStream } from '../../hooks/useGatewayStream';
 import { ProviderBadge } from '../gateway/ProviderBadge';
 import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
+import { voiceTraceBegin, voiceTracePush } from '../../diagnostics/voiceTrace';
 import { executionStore } from '../../diagnostics/executionStore';
 import { ExecutionBar } from './ExecutionBar';
 import { RoutingOverrideControl } from './RoutingOverrideControl';
@@ -521,6 +522,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = pendingInputChannel ?? 'typed') => {
     // Track the input channel so the completed reply can be routed to TTS.
     pendingChannelRef.current = inputChannel;
+    voiceTraceBegin();
     // ── Dev timing telemetry ──────────────────────────────────────────
     const t0 = Date.now();
     if (DEV_TIMING) console.debug('[JarvisChat:timing] submit', { text: text.slice(0, 40), inputChannel, t: t0 });
@@ -545,6 +547,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         return;
       }
     }
+    voiceTracePush('conversation', 'ok', `Conversation ${targetConversationId} (channel ${inputChannel})`);
 
     const operationId = `jarvis-${targetConversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     lastOperationIdRef.current = operationId;
@@ -777,13 +780,17 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       } else if (event.event === 'paused') {
         emitStatus({ state: 'paused' });
         appendOperationalEvent(operationId, 'paused', `Execution paused${data.reason ? `: ${data.reason}` : ''}`, data);
+      } else if (event.event === 'intent') {
+        voiceTracePush('intent_route', 'ok', `Intent ${data.type || data.route || '?'} (${Math.round((data.confidence || 0) * 100)}%)`);
       } else if (event.event === 'timing' && data.marker === 'first_token') {
+        voiceTracePush('provider_model', 'ok', `${data.provider} / ${data.model} — first token in ${data.elapsedMs}ms`);
         if (typeof data.elapsedMs === 'number') firstTokenMsRef.current = data.elapsedMs;
         if (firstTokenTimerRef.current !== null) {
           window.clearTimeout(firstTokenTimerRef.current);
           firstTokenTimerRef.current = null;
         }
       } else if (event.event === 'chunk') {
+        if (nextSawTextChunk === false) voiceTracePush('response_started', 'ok', 'Response stream started');
         nextSawTextChunk = true;
         if (firstTokenTimerRef.current !== null) {
           window.clearTimeout(firstTokenTimerRef.current);
@@ -806,6 +813,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         uiDiagnostics.setStreamEnded(operationId);
         await fetchMessages();
       } else if (event.event === 'done') {
+        voiceTracePush('response_done', 'ok', `Stream done (route ${data.route || 'direct'})`);
         appendStreamingAssistantText(operationId, '', true);
         // ── TTS trigger: fires EXACTLY ONCE per completed DIRECT Jarvis reply.
         //    Delegated (CodeX/team), telemetry and system messages never reach

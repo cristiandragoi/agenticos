@@ -94,3 +94,75 @@ export async function handleDecisionStatement(prompt: string): Promise<string> {
   });
   return `Remembered: ${title}.\n(decision memory, scope ${m.scope}, confidence ${m.confidence.toFixed(2)})`;
 }
+
+/**
+ * STORE-memory semantics (user-acceptance stabilization):
+ *
+ * "Please remember that X." / "Remember that X." / "From now on remember X."
+ * are STORE requests — the fact becomes a persistent PREFERENCE memory.
+ * This is deliberately distinct from RECALL ("What do you remember about
+ * X?"), which queries stored memory, and from same-conversation history
+ * (which the direct-chat LLM receives automatically).
+ *
+ * The acknowledgment is truthful: it says the fact was saved to memory and
+ * is available in future conversations — no blurred "between conversations"
+ * claims when only history was stored.
+ */
+const STORE_PREFIX_RE = /^(please\s+|from now on\s+|can you\s+|try to\s+|hey jarvis[\s,]*|jarvis[\s,]*)*/i;
+const STORE_VERB_RE = /^\s*(remember|store|save|note|keep in mind|note down)\s*(that\s+)?/i;
+
+export function isMemoryStore(prompt: string): boolean {
+  const p = prompt.trim();
+  if (!p || p.length < 10) return false;
+  // RECALL forms are never STORE.
+  if (/\b(do you remember|do we remember|what do you remember|what did i|what happened|whats? our|did you remember)\b/i.test(p)) return false;
+  // A direct question like "Remember to..." is not a store either.
+  if (/^(do|did|can|could|will|would|are|is|have|has)\b/i.test(p) && /\?$/.test(p)) return false;
+  return /\b(remember|store|save|note down|keep in mind)\b/i.test(p);
+}
+
+export function handleMemoryStore(prompt: string): { reply: string; memoryId: string } {
+  const p = prompt.trim().replace(/[.!?]+$/, '');
+  let fact = p.replace(STORE_PREFIX_RE, '').replace(STORE_VERB_RE, '').trim();
+  if (!fact || fact.length < 2) fact = p;
+  // Drop a trailing conversational tail ("...for this conversation", "...ok?")
+  fact = fact.replace(/\s+(for|in)\s+(this|the|our)\s+(conversation|chat|session)\b.*$/i, '').trim();
+  const title = fact.slice(0, 120);
+  const m = createMemory({
+    type: 'preference',
+    title,
+    summary: fact.slice(0, 200),
+    content: `User preference/remembered fact: ${fact}\nStored from conversation (STORE request). Available to Jarvis in future conversations via relevant-memory retrieval.`,
+    scope: 'user',
+    entities: [],
+    tags: ['preference', 'remembered'],
+    confidence: 0.9,
+    source: { sourceType: 'conversation' },
+  });
+  return {
+    reply: `I've saved that to memory: ${fact}. (preference memory, scope user — available in future conversations)`,
+    memoryId: m.id,
+  };
+}
+
+/** Relevant active preferences/decisions for the direct-chat prompt
+ *  (relevance-gated persistent-memory injection). Episodic records are NOT
+ *  injected — only durable user preferences and decisions. */
+export function retrieveRelevantPreferences(prompt: string, limit = 2): { type: string; title: string; content: string }[] {
+  const terms = prompt
+    .replace(/[^a-z0-9 ]/gi, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 3 && !['what', 'is', 'are', 'the', 'my', 'your', 'please', 'remember', 'about', 'from', 'with'].includes(t.toLowerCase()))
+    .slice(0, 4)
+    .join(' ');
+  if (!terms) return [];
+  try {
+    const hits = memoryStore.search(terms, { status: 'active', limit });
+    return hits
+      .filter((h) => h.memory.type === 'preference' || h.memory.type === 'decision')
+      .slice(0, limit)
+      .map((h) => ({ type: h.memory.type, title: h.memory.title, content: h.memory.content }));
+  } catch {
+    return [];
+  }
+}

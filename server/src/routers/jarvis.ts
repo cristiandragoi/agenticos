@@ -991,7 +991,25 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     if (intent.route !== 'investigate' && intent.route !== 'clarification_required') {
       try {
         const startedAt = Date.now();
-        const { isMemoryRecall, isDecisionStatement, handleMemoryRecall, handleDecisionStatement } = await import('../domains/jarvis/memoryRecall.js');
+        const { isMemoryStore, handleMemoryStore, isMemoryRecall, isDecisionStatement, handleMemoryRecall, handleDecisionStatement } = await import('../domains/jarvis/memoryRecall.js');
+        if (isMemoryStore(prompt)) {
+          const { reply } = handleMemoryStore(prompt);
+          streamTextAsChunks(res, reply, normalizedOperationId);
+          await conversationService.appendMessage({
+            conversationId: req.params.id,
+            role: 'agent',
+            content: reply,
+            routedAgent: 'jarvis',
+            metadata: { intent: 'memory_store', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory' },
+          });
+          endStreamExecution('COMPLETED', reply);
+          logStreamStage(normalizedOperationId, 'memory_store');
+          writeSse(res, 'done', {
+            route: 'memory_store', category: 'memory', operationId: normalizedOperationId,
+            provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
+          });
+          return res.end();
+        }
         if (isDecisionStatement(prompt)) {
         const reply = await handleDecisionStatement(prompt);
         streamTextAsChunks(res, reply, normalizedOperationId);
@@ -1227,6 +1245,23 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    // Relevance-gated persistent-memory injection (user-acceptance
+    // stabilization): active PREFERENCE/DECISION memories matching the
+    // current prompt are surfaced to the LLM so "What is my favorite color?"
+    // in a NEW conversation can answer from a previously stored fact.
+    // Episodic records are never injected (avoids stale revenue memories).
+    let persistentMemoryContext = '';
+    try {
+      const { retrieveRelevantPreferences } = await import('../domains/jarvis/memoryRecall.js');
+      const relevant = retrieveRelevantPreferences(prompt, 2);
+      if (relevant.length) {
+        persistentMemoryContext = '\n\nPersistent memory relevant to this request (from AgenticOS memory, may be stale — the user/current state wins):\n' +
+          relevant.map((r) => `- [${r.type}] ${r.title}`).join('\n');
+      }
+    } catch {
+      // best effort — memory retrieval must never break direct chat
+    }
+
     const systemPrompt = [
       'You are Jarvis, the operational commander of Agentic OS.',
       'For normal conversation, answer directly and briefly.',
@@ -1236,12 +1271,15 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'Do not write phrases such as "the user is asking" or otherwise refer to the user in the third person.',
       'If you do not know something, say so explicitly ("I do not know") — never invent facts, values, prior decisions, or runtime state.',
       'AgenticOS has a persistent memory system (decisions, preferences, episodic records) and you receive this conversation\'s history. When the user says "please remember X", acknowledge it and keep it in the conversation; you can also recall from persistent memory when asked.',
+      'Never claim that you are speaking, spoke, or will speak aloud, and never append delivery notes like "(spoken aloud)" — audio delivery is handled by the system outside your text. Just answer the question.',
+      'Answer concisely and directly. Do not repeat yourself. Do not comment on your own responses. Do not announce or describe actions you did not take. For simple questions, answer simply.',
       'Do not claim voice playback is working unless the runtime confirms audio playback started.',
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
         'The fact that this text reached you means microphone capture and transcription are working.',
         'Microphone input and voice output are separate capabilities; do not infer voice playback status from input being transcribed.'
-      ] : [])
+      ] : []),
+      ...(persistentMemoryContext ? [persistentMemoryContext] : [])
     ].join('\n');
     logStreamStage(normalizedOperationId, 'provider/model selected', {
       provider: selectedProvider,
