@@ -912,9 +912,21 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
             detail: { taskId: data.taskId, operationId }
           }));
         }
-        const nextState = data.route && data.route !== 'direct'
-          ? runtimeStateForDelegatedStatus(data.status)
-          : 'completed';
+        // §stabilization: clarification_required is a TERMINAL conversation
+        // state (Jarvis is waiting for the user), NOT a delegated execution.
+        // Treating it as delegated left runtimeStatus stuck in 'executing',
+        // which disabled the composer forever. Terminal conversation routes
+        // complete like 'direct' and release the composer via the idle timer.
+        // Same for a SYNCHRONOUS 'investigate' reply (registry state report):
+        // its done frame carries no status and ends the stream — it is
+        // completed, not a still-executing delegation. (Async delegations —
+        // codex/hermes — carry data.status from execution_* events.)
+        const isTerminalConversation = !data.route || data.route === 'direct' ||
+          data.route === 'clarification_required' ||
+          (data.route === 'investigate' && !data.status);
+        const nextState = isTerminalConversation
+          ? 'completed'
+          : runtimeStateForDelegatedStatus(data.status);
         emitStatus({
           state: nextState,
           firstTokenMs: typeof data.firstTokenMs === 'number' ? data.firstTokenMs : firstTokenMsRef.current,
