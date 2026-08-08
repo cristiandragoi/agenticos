@@ -1,8 +1,15 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import {
+  createBackendLifecycleManager,
+  httpHealthProbe,
+  spawnBackendWithElectronNode,
+  readPortFromServerEnv,
+  type BackendLifecycleManager,
+  type BackendMode,
+} from './backendLifecycle';
 
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-software-rasterizer');
@@ -18,9 +25,22 @@ process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
-const USE_EXTERNAL_SERVERS = process.env['AGENTICOS_EXTERNAL_SERVERS'] === 'true';
 const ELECTRON_RENDERER_ROUTE = process.env['AGENTICOS_ELECTRON_ROUTE'] || '#/mission-control';
 const REMOTE_DEBUGGING_PORT = process.env['AGENTICOS_ELECTRON_REMOTE_DEBUGGING_PORT'];
+
+/**
+ * Backend lifecycle mode resolution (see docs/backend-lifecycle.md):
+ *   AGENTICOS_BACKEND_MODE=AUTO_MANAGED|EXTERNAL  (explicit override)
+ *   AGENTICOS_EXTERNAL_SERVERS=true               (legacy dev-clean.ps1 flag → EXTERNAL)
+ *   default                                       → AUTO_MANAGED
+ */
+function resolveBackendMode(): BackendMode {
+  const explicit = process.env['AGENTICOS_BACKEND_MODE'];
+  if (explicit === 'EXTERNAL' || explicit === 'AUTO_MANAGED') return explicit;
+  if (process.env['AGENTICOS_EXTERNAL_SERVERS'] === 'true') return 'EXTERNAL';
+  return 'AUTO_MANAGED';
+}
+const BACKEND_MODE = resolveBackendMode();
 
 if (REMOTE_DEBUGGING_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', REMOTE_DEBUGGING_PORT);
@@ -30,7 +50,8 @@ if (REMOTE_DEBUGGING_PORT) {
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
 let win: BrowserWindow | null;
-let serverProcess: ReturnType<typeof spawn> | null = null;
+let backendLifecycle: BackendLifecycleManager | null = null;
+let backendShutdownStarted = false;
 
 function logElectron(message: string, data?: unknown) {
   const line = data === undefined ? message : `${message} ${JSON.stringify(data)}`;
@@ -44,19 +65,51 @@ function logElectron(message: string, data?: unknown) {
   } catch {}
 }
 
-function startBackendServer() {
-  logElectron('Starting backend server...');
-  const serverPath = path.join(process.env.APP_ROOT, 'server', 'dist', 'index.js');
-  
-  serverProcess = spawn('node', [serverPath], {
-    cwd: path.join(process.env.APP_ROOT, 'server'),
+/**
+ * Build the backend lifecycle manager. Paths resolve from the Electron
+ * app root (repo root in dev, packaged resources in production — the
+ * electron-builder `files` list ships server/dist + server/node_modules
+ * next to dist-electron), never from the shell working directory.
+ */
+function initBackendLifecycle(): BackendLifecycleManager {
+  const appRoot = process.env.APP_ROOT as string;
+  const port = process.env['AGENTICOS_BACKEND_PORT']
+    ? parseInt(process.env['AGENTICOS_BACKEND_PORT'], 10)
+    : readPortFromServerEnv(appRoot, 4600);
+  const manager = createBackendLifecycleManager({
+    mode: BACKEND_MODE,
+    host: '127.0.0.1',
+    port,
+    entry: path.join(appRoot, 'server', 'dist', 'index.js'),
+    cwd: path.join(appRoot, 'server'),
+    // The Electron binary itself runs the backend as plain Node — the
+    // packaged app ships no separate node executable.
+    nodeExec: process.execPath,
     env: process.env,
-    stdio: 'inherit'
+    healthPath: '/api/health',
+    healthProbeTimeoutMs: 2500,
+    readinessPollMs: 1000,
+    // Observed cold boot is ~20s (migrations + gateway checks); allow room
+    // while still failing clearly when readiness never arrives.
+    readyTimeoutMs: 60000,
+    healthIntervalMs: 5000,
+    maxRestarts: 3,
+    backoffMs: [1000, 3000, 8000],
+    crashThreshold: 3,
+    crashWindowMs: 60000,
+    unhealthyTolerance: 3,
+    logFile: path.join(appRoot, '.agentos', 'logs', 'backend-managed.log'),
+  }, {
+    probe: httpHealthProbe,
+    spawnBackend: spawnBackendWithElectronNode,
+    log: (message) => logElectron(message),
   });
-
-  serverProcess.on('error', (err) => {
-    logElectron('Failed to start server process:', { error: err.message });
+  manager.onStateChange((state) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      try { window.webContents.send('backend-lifecycle:state', state); } catch { /* window closing */ }
+    }
   });
+  return manager;
 }
 
 function createWindow() {
@@ -148,6 +201,11 @@ ipcMain.on('agenticos:renderer-diagnostics', (_event, payload) => {
   });
 });
 
+// ── Backend lifecycle IPC (one state machine feeds every UI surface) ──
+ipcMain.handle('backend-lifecycle:get-state', () => backendLifecycle?.getState() ?? null);
+ipcMain.handle('backend-lifecycle:restart', () => backendLifecycle?.restart() ?? { ok: false, reason: 'Lifecycle manager not initialized.' });
+ipcMain.handle('backend-lifecycle:retry', () => backendLifecycle?.retry() ?? { ok: false, reason: 'Lifecycle manager not initialized.' });
+
 function getAudioDiagnostics(webContents = win?.webContents) {
   const ownerWindow = webContents ? BrowserWindow.fromWebContents(webContents) : win;
   const inspectedContents = webContents || ownerWindow?.webContents || null;
@@ -181,11 +239,17 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('quit', () => {
-  if (serverProcess) {
-    logElectron('Killing backend server...');
-    serverProcess.kill();
-  }
+app.on('before-quit', (event) => {
+  // Graceful shutdown of the owned backend: SIGTERM → brief grace → SIGKILL.
+  // In EXTERNAL mode the external backend is never touched.
+  if (backendShutdownStarted || !backendLifecycle) return;
+  backendShutdownStarted = true;
+  event.preventDefault();
+  logElectron('Shutting down backend via lifecycle manager...');
+  void backendLifecycle.shutdown().finally(() => {
+    logElectron('Backend shutdown complete.');
+    app.exit(0);
+  });
 });
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -217,13 +281,13 @@ if (!gotTheLock) {
       return true;
     });
 
-    if (USE_EXTERNAL_SERVERS) {
-      logElectron('Using external AgenticOS backend/Vite servers. Electron will not spawn a backend.');
-      createWindow();
-    } else {
-      startBackendServer();
-      setTimeout(() => createWindow(), 1000);
-    }
+    // ONE lifecycle manager owns backend truth in every mode. The window
+    // shows immediately; the renderer renders the startup/offline state
+    // from the manager's broadcast (no silent dead-backend UI).
+    backendLifecycle = initBackendLifecycle();
+    logElectron(`Backend lifecycle mode: ${BACKEND_MODE}`, { port: backendLifecycle.getState().port });
+    createWindow();
+    void backendLifecycle.start();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

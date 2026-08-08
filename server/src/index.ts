@@ -24,7 +24,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Lifecycle contract: an explicitly provided PORT (e.g. the Electron
+// lifecycle manager pinning the managed backend's port) survives dotenv —
+// .env keeps governing every other value (and PORT when not provided).
+const explicitPort = process.env.PORT;
 dotenv.config({ path: path.resolve(__dirname, '..', '.env'), override: true });
+if (explicitPort !== undefined) process.env.PORT = explicitPort;
 
 import express from 'express';
 import cors from 'cors';
@@ -310,7 +315,7 @@ app.use(errorHandler);
 
 // Only listen if not running in a serverless environment like Vercel
 if (!process.env.VERCEL) {
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     logger.info(`\n  ┌─────────────────────────────────────────┐`);
     logger.info(`  │  Agentic OS Backend  v9.0              │`);
     logger.info(`  │  http://localhost:${PORT}${' '.repeat(20 - PORT.toString().length)}│`);
@@ -319,6 +324,21 @@ if (!process.env.VERCEL) {
     logger.info(`  Adapters: Hermes ✓  Jarvis ✓  VideoAgent ✓`);
     logger.info(`  Routes:   13 registered\n`);
   });
+
+  /* Graceful shutdown (backend lifecycle milestone): when Electron owns this
+     process it sends SIGTERM on app exit; close the HTTP server and exit
+     cleanly instead of leaving an orphaned listener on the port. */
+  let shuttingDown = false;
+  const gracefulShutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info(`Received ${signal} — shutting down gracefully…`);
+    server.close(() => process.exit(0));
+    // Hard exit if connections refuse to drain in time.
+    setTimeout(() => process.exit(0), 3000).unref();
+  };
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 // Export for Vercel Serverless

@@ -7,6 +7,7 @@ import { useChat, useDrawer } from '../../store/appStore';
 import { useChatManager } from '../../hooks/useChatManager';
 import { useLocation } from 'react-router-dom';
 import { appendLog, runStage, getPipelineState } from '../../command/jarvisPipeline';
+import { useBackendLifecycle } from '../../diagnostics/useBackendLifecycle';
 
 const UniversalChatDock: React.FC = () => {
   const location = useLocation();
@@ -39,8 +40,18 @@ const UniversalChatDock: React.FC = () => {
 
   const drawer = useDrawer();
 
+  // Backend lifecycle gate (backend lifecycle milestone): the dock never
+  // pretends to process requests while the backend is definitively down.
+  // The gate activates on the authoritative lifecycle source (Electron IPC
+  // in the desktop app); browser dev mode relies on the AppShell screens.
+  const backendLifecycle = useBackendLifecycle();
+  const backendDown =
+    backendLifecycle.source === 'electron' &&
+    (backendLifecycle.status === 'offline' || backendLifecycle.status === 'failed');
+
   const handleSend = async () => {
     if (!inputValue.trim() || isTyping || agentLoading) return;
+    if (backendDown) return; // gated — Jarvis/chat must not fake processing
     const target = chat.targetAgentId || 'auto';
     const text = inputValue.trim();
     setInputValue('');
@@ -287,6 +298,7 @@ const UniversalChatDock: React.FC = () => {
           className="chat-dock__input"
           type="text"
           placeholder={
+            backendDown ? 'Backend offline — chat unavailable' :
             micState === 'listening' ? 'Listening...' :
             micState === 'processing' ? 'Transcribing audio...' :
             micState === 'error' ? micError :
@@ -294,7 +306,7 @@ const UniversalChatDock: React.FC = () => {
               ? `Message ${targetAgent.name}...`
               : 'Ask anything or request a task...'
           }
-          disabled={micState === 'listening' || micState === 'processing' || agentLoading}
+          disabled={backendDown || micState === 'listening' || micState === 'processing' || agentLoading}
           value={micState === 'error' ? '' : inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -303,8 +315,9 @@ const UniversalChatDock: React.FC = () => {
         <button
           className="quick-action-btn"
           onClick={handleSend}
-          title="Send"
-          style={{ color: inputValue.trim() ? 'var(--color-hermes)' : undefined }}
+          disabled={backendDown}
+          title={backendDown ? 'Backend offline' : 'Send'}
+          style={{ color: inputValue.trim() && !backendDown ? 'var(--color-hermes)' : undefined }}
         >
           <Send size={15} />
         </button>

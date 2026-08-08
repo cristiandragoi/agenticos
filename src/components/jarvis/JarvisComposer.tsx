@@ -25,6 +25,13 @@ interface JarvisComposerProps {
    * field and Send button remain fully functional (Manual mode contract).
    */
   hideMic?: boolean;
+  /**
+   * Backend lifecycle gate (backend lifecycle milestone): when set, the
+   * backend is definitively unavailable (offline/failed) — the input and
+   * Send are disabled and the reason is shown. Jarvis must never pretend to
+   * process requests while the backend APIs are down.
+   */
+  disabledReason?: string | null;
 }
 
 const SILENCE_TIMEOUT_MS = 1800; // ms of silence before auto-stopping
@@ -38,6 +45,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
   onComposerTextChange,
   onMicStateChange,
   hideMic,
+  disabledReason,
 }) => {
   const [internalText, setInternalText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -76,7 +84,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
     }
   }, [composerText, onComposerTextChange]);
 
-  const canSend = !!text.trim() && !isProcessing;
+  const canSend = !!text.trim() && !isProcessing && !disabledReason;
 
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
@@ -458,7 +466,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
         <textarea
           ref={textareaRef}
           className={styles.composerInput}
-          placeholder="Ask Jarvis anything..."
+          placeholder={disabledReason ? 'Backend offline — Jarvis cannot process requests' : 'Ask Jarvis anything...'}
           value={text}
           onChange={(e) => {
             // Any manual keystroke resets the channel to 'typed'
@@ -466,10 +474,28 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
             setText(e.target.value);
           }}
           onKeyDown={handleKeyDown}
-          disabled={isProcessing}
+          disabled={isProcessing || !!disabledReason}
           rows={1}
           aria-label="Message Input"
         />
+
+        {/* ── Backend lifecycle gate banner (offline/failed backend) ── */}
+        {disabledReason && (
+          <span
+            data-testid="jarvis-offline-gate"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 11,
+              color: 'var(--color-error, #ff6b6b)',
+              fontWeight: 600,
+            }}
+          >
+            <AlertCircle size={12} aria-hidden />
+            {disabledReason}
+          </span>
+        )}
 
         <div className={styles.composerActions}>
           {isProcessing && onCancelResponse && (

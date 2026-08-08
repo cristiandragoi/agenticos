@@ -1,6 +1,7 @@
 import React from 'react';
 import { Minus, Square, X } from 'lucide-react';
 import GatewayStatusChip from '../GatewayStatusChip';
+import BackendStatusIndicator from './BackendStatusIndicator';
 
 const CustomTitlebar: React.FC = () => {
   const handleMinimize = () => {
@@ -43,14 +44,23 @@ const CustomTitlebar: React.FC = () => {
         </span>
       </div>
 
-      {/* Gateway Status */}
-      <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {/* Backend lifecycle + Gateway Status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <BackendStatusIndicator />
         <GatewayStatusChip />
       </div>
 
-      {/* Window Controls */}
-      <div style={{ display: 'flex', height: '100%', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {/* Window Controls (§stabilization: regression-protected — these
+          three buttons MUST render at every supported resolution. The
+          data-app-region marker is the jsdom-testable contract that this
+          island stays clickable (no-drag) inside the draggable titlebar. */}
+      <div
+        data-testid="titlebar-window-controls"
+        data-app-region="no-drag"
+        style={{ display: 'flex', height: '100%', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
         <button
+          data-testid="titlebar-minimize"
           onClick={handleMinimize}
           className="titlebar-btn"
           title="Minimize"
@@ -58,6 +68,7 @@ const CustomTitlebar: React.FC = () => {
           <Minus size={14} />
         </button>
         <button
+          data-testid="titlebar-maximize"
           onClick={handleMaximize}
           className="titlebar-btn"
           title="Maximize"
@@ -65,6 +76,7 @@ const CustomTitlebar: React.FC = () => {
           <Square size={12} />
         </button>
         <button
+          data-testid="titlebar-close"
           onClick={handleClose}
           className="titlebar-btn close-btn"
           title="Close"
