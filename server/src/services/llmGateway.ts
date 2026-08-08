@@ -20,6 +20,8 @@ export interface LlmChatOptions {
   disableFallback?: boolean;
   signal?: AbortSignal;
   onDiagnostic?: (event: LlmChatStreamChunk) => void;
+  /** Prior conversation turns (excluding the current prompt). */
+  history?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 export interface LlmChatResult {
@@ -85,6 +87,7 @@ function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
   return {
     systemPrompt: opts.systemPrompt,
     prompt: opts.prompt,
+    history: opts.history,
     maxTokens: opts.maxTokens,
     timeoutMs: opts.timeoutMs,
     signal: opts.signal,

@@ -187,6 +187,15 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
     };
   }
   if (cap.id === 'memory') {
+    // A bare "remember" in an ordinary statement ("Please remember that…",
+    // "I remember when…") is conversational context — the direct-chat LLM
+    // receives it via conversation history. Only genuine memory QUERIES
+    // ("Do you remember…", "What did I say…", "my preferences") route to the
+    // memory capability; everything else falls through to the normal router.
+    const isGenuineMemoryQuery =
+      /\b(what did i say|my preferences|do you remember|do we remember|what do you remember|what happened|what did we (do|decide|find|learn)|whats? our (last|most recent))\b/i.test(p) ||
+      /^(what|how|do|does|when|where|why)\b.*\b(remember|memory|memor(y|ies))\b/i.test(p);
+    if (!isGenuineMemoryQuery) return null;
     return {
       intent: 'memory_query',
       capability: cap,

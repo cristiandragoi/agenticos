@@ -257,8 +257,15 @@ export class IntentRouter {
       );
     }
 
-    // 1. Memory checks
-    if (p.includes('remember') || p.includes('what did i say') || p.includes('my preferences')) {
+    // 1. Memory checks — only genuine memory QUERIES route to memory.
+    // A bare "remember" in an ordinary statement ("Please remember that…",
+    // "I remember when…") is NOT a memory operation: it is conversational
+    // context that the direct-chat LLM now receives via history. Routing it
+    // to memory tooling produced stale "From what I remember" dumps for
+    // completely unrelated user statements (live runtime investigation).
+    const isMemoryQuery = p.includes('what did i say') || p.includes('my preferences')
+      || /\b(what (do|does) (you|we) remember|do you remember|do we remember|what happened|what did we (do|decide|find|learn)|whats? our (last|most recent))\b/i.test(p);
+    if (isMemoryQuery) {
       return operational('memory', 'file_operation', 0.9, 'Explicit memory operation detected', 'Jarvis', ['Validate memory service availability', 'Route the request to memory tooling'], false, hasWriteVerb);
     }
 

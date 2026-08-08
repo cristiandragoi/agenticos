@@ -70,6 +70,48 @@ async function buildRecentConversationText(conversationId: string): Promise<stri
   }
 }
 
+/**
+ * Build the LLM conversation history for the direct-chat call.
+ *
+ * ROOT-CAUSE FIX (runtime investigation): the direct-chat LLM previously
+ * received ONLY systemPrompt + the current prompt (messageCount: 2), so it
+ * had ZERO memory of the conversation — it could not answer "What is my
+ * favorite color?" after the user stated it, and it hallucinated when asked
+ * about prior context. History now comes from the persisted conversation.
+ *
+ * Excluded from history:
+ *   - the current prompt itself (the gateway appends it after history),
+ *   - routing_event/system bookkeeping messages (never user-visible),
+ *   - everything beyond the bounded window (last 12 turns) and a sane char
+ *     budget, so context windows are never blown by long histories.
+ */
+export function buildConversationHistory(
+  messages: any[],
+  currentPrompt: string,
+  maxTurns = 12,
+  maxChars = 14000,
+): { role: 'user' | 'assistant'; content: string }[] {
+  const arr = Array.isArray(messages) ? messages : [];
+  const history: { role: 'user' | 'assistant'; content: string }[] = [];
+  let chars = 0;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const m = arr[i];
+    const role = m?.role;
+    const content = typeof m?.content === 'string' ? m.content : '';
+    if (!content) continue;
+    if (role === 'system' && m?.messageType === 'routing_event') continue;
+    if (role === 'system') continue; // never surface bookkeeping system rows
+    if (role === 'user' && content === currentPrompt) continue; // current turn
+    if (role !== 'user' && role !== 'agent') continue;
+    const mapped = role === 'agent' ? 'assistant' : 'user';
+    if (chars + content.length > maxChars) continue;
+    history.unshift({ role: mapped, content });
+    chars += content.length;
+    if (history.length >= maxTurns) break;
+  }
+  return history;
+}
+
 function logStreamStage(operationId: string | undefined, stage: string, details: Record<string, any> = {}) {
   logger.info('[JarvisStream]', stage, {
     operationId,
@@ -1206,17 +1248,29 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       fallbackModel
     });
 
+    // Conversation history for the direct-chat LLM (root-cause fix). The
+    // current prompt was appended above; build the prior-turn window so the
+    // model can actually remember the conversation instead of hallucinating.
+    let history: { role: 'user' | 'assistant'; content: string }[] = [];
+    try {
+      const msgs = await conversationService.getMessages(req.params.id);
+      history = buildConversationHistory(msgs, prompt);
+    } catch (err) {
+      logStreamStage(normalizedOperationId, 'history build failed', { error: String(err) });
+    }
+
     logger.info('[JarvisTrace] prompt-built', JSON.stringify({
       requestId: normalizedOperationId,
       provider: selectedProvider,
       model: selectedModel,
       systemPromptLength: systemPrompt.length,
       userPromptExact: prompt,
-      messageCount: 2
+      messageCount: history.length + 2
     }, null, 2));
     const stream = llmChatStream({
       systemPrompt,
       prompt,
+      history,
       agentId: 'agent-jarvis',
       // Gateway request budget: connection/first-response allowance for HTTP
       // gateways and the overall request allowance for Ollama. First-token,

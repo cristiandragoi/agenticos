@@ -6,6 +6,10 @@ export interface ChatRequest {
   maxRetries?: number;
   signal?: AbortSignal;
   requestId?: string;
+
+  // Conversation context: prior turns, in order, EXCLUDING the current
+  // prompt (the gateway appends the current prompt after history).
+  history?: { role: 'user' | 'assistant'; content: string }[];
   
   // Phase 2: Task-Aware Routing
   taskProfile?: 'tiny_summary' | 'simple_formatting' | 'repo_analysis' | 'coding' | 'heavy_refactor' | 'vision_task' | 'heavy_reasoning' | 'massive_context';

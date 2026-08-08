@@ -75,9 +75,12 @@ export class OllamaGateway implements ModelGateway {
   }
 
   public async chat(req: ChatRequest): Promise<ChatResponse> {
+    const historyText = (req.history || [])
+      .map((h) => `${h.role === 'assistant' ? 'Assistant' : 'User'}: ${h.content}`)
+      .join('\n\n');
     const ollamaPrompt = req.systemPrompt
-      ? `${req.systemPrompt}\n\nUser: ${req.prompt}\nAssistant:`
-      : req.prompt;
+      ? `${req.systemPrompt}${historyText ? `\n\n${historyText}` : ''}\n\nUser: ${req.prompt}\nAssistant:`
+      : `${historyText ? `${historyText}\n\n` : ''}${req.prompt}`;
 
     const model = req.routing?.modelId ?? req.modelId ?? this.definition.model;
     const timeout = req.timeoutMs ?? 120000;
@@ -155,9 +158,12 @@ export class OllamaGateway implements ModelGateway {
   }
 
   public async *stream(req: ChatRequest): AsyncGenerator<ChatStreamChunk> {
+    const historyText = (req.history || [])
+      .map((h) => `${h.role === 'assistant' ? 'Assistant' : 'User'}: ${h.content}`)
+      .join('\n\n');
     const ollamaPrompt = req.systemPrompt
-      ? `${req.systemPrompt}\n\nUser: ${req.prompt}\nAssistant:`
-      : req.prompt;
+      ? `${req.systemPrompt}${historyText ? `\n\n${historyText}` : ''}\n\nUser: ${req.prompt}\nAssistant:`
+      : `${historyText ? `${historyText}\n\n` : ''}${req.prompt}`;
 
     const configuredModel = req.routing?.modelId ?? req.modelId ?? this.definition.model;
     const timeout = (req.timeoutMs ?? 120000) * 2;

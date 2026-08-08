@@ -52,6 +52,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
   public async chat(req: ChatRequest): Promise<ChatResponse> {
     const messages = [];
     if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
+    if (req.history) for (const h of req.history) messages.push({ role: h.role, content: h.content });
     messages.push({ role: 'user', content: req.prompt });
 
     const dbKey = await ProviderCredentialService.getCredential(this.name);
@@ -95,6 +96,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
   public async *stream(req: ChatRequest): AsyncGenerator<ChatStreamChunk> {
     const messages = [];
     if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
+    if (req.history) for (const h of req.history) messages.push({ role: h.role, content: h.content });
     messages.push({ role: 'user', content: req.prompt });
 
     const dbKey = await ProviderCredentialService.getCredential(this.name);

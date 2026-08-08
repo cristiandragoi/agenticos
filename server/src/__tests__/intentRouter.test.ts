@@ -68,6 +68,19 @@ describe('IntentRouter — required routing cases', () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.8);
   });
 
+  it('does NOT route a bare "remember" context statement to memory (runtime fix)', async () => {
+    const result = await router.routeIntent('My favorite color is teal. Please remember that for this conversation.');
+    expect(result.route).not.toBe('memory');
+    expect(result.route).toBe('direct');
+  });
+
+  it('still routes genuine memory queries to memory', async () => {
+    const result = await router.routeIntent('Do you remember what model we chose?');
+    expect(result.route).toBe('memory');
+    const result2 = await router.routeIntent('What happened in our last Berlin roofing search?');
+    expect(result2.route).toBe('memory');
+  });
+
   it('returns clarification_required for ambiguous short prompt', async () => {
     const result = await router.routeIntent('do it');
     expect(result.route).toBe('clarification_required');

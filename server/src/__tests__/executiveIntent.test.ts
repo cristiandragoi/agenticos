@@ -110,6 +110,11 @@ describe('executive intent classification', () => {
     expect(r?.capability.id).toBe('memory');
   });
 
+  it('bare "please remember that" context statement does NOT route to memory (runtime fix)', () => {
+    const r = classifyExecutiveIntent('My favorite color is teal. Please remember that for this conversation.');
+    expect(r).toBeNull();
+  });
+
   it('create a daily automation → automation_request', () => {
     const r = classifyExecutiveIntent('create a daily automation for briefings');
     expect(r?.intent).toBe('automation_request');
