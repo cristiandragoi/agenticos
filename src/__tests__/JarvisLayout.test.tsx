@@ -433,17 +433,23 @@ describe('Phase 1 Dashboard and Telemetry', () => {
     expect(histories[0].className).toContain('chatContainer');
   });
 
-  it('places the composer inside the chat workspace after the message history', async () => {
+  it('keeps the message history in the chat workspace; composer is the sticky bottom of the center column (§8)', async () => {
     renderPage();
     await screen.findByTestId('jarvis-dashboard');
 
     const chatWorkspace = screen.getByTestId('jarvis-chat-workspace');
     const history = screen.getByTestId('jarvis-chat-scroll');
     const composer = screen.getByTestId('jarvis-composer');
+    const centerScroll = screen.getByTestId('jarvis-center-scroll');
 
     expect(chatWorkspace.contains(history)).toBe(true);
-    expect(chatWorkspace.contains(composer)).toBe(true);
-    expect(history.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Final layout correction §8: the composer can never disappear below the
+    // fold — it lives OUTSIDE the scrolling document, docked at the bottom
+    // of the center column.
+    expect(chatWorkspace.contains(composer)).toBe(false);
+    expect(centerScroll.contains(composer)).toBe(false);
+    const mainColumn = screen.getByTestId('jarvis-active-layout');
+    expect(mainColumn.contains(composer)).toBe(true);
   });
 
   it('keeps chat workspace and message history out of fixed or absolute positioning', async () => {

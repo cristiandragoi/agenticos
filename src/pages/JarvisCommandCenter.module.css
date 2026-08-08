@@ -85,30 +85,38 @@
    up restores it. Nothing is absolutely stacked on the orb. */
 
 .centerScroll {
-  height: 100%;
+  flex: 1 1 auto;
   min-height: 0;
+  height: auto;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  scrollbar-width: auto;
-  scrollbar-color: rgba(103, 232, 249, 0.45) rgba(15, 23, 42, 0.4);
+  /* §6: the main center scrollbar must be OBVIOUS. IMPORTANT: do NOT set
+     scrollbar-color/scrollbar-width here — Chromium ≥121 switches to the
+     standard scrollbar engine when they are present and silently ignores
+     the ::-webkit-scrollbar rules below, which renders a near-invisible
+     thumb. The webkit custom scrollbar is bright, wide and always grabbable. */
 }
 
 /* §4: the main center scrollbar must be OBVIOUS — grabbable thumb on the
-   right edge of the center workspace, never hidden for aesthetics. */
+   right edge of the center workspace, always visible, never hidden for
+   aesthetics (scrollbar-gutter keeps the track painted even without
+   overflow). */
 .centerScroll::-webkit-scrollbar {
-  width: 11px;
+  width: 12px;
 }
 .centerScroll::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(15, 23, 42, 0.55);
 }
 .centerScroll::-webkit-scrollbar-thumb {
-  background: rgba(103, 232, 249, 0.45);
+  background: rgba(147, 240, 255, 1);
   border-radius: 6px;
-  border: 2px solid rgba(15, 23, 42, 0.4);
 }
 .centerScroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(103, 232, 249, 0.7);
+  background: rgba(186, 247, 255, 1);
+}
+.centerScroll::-webkit-scrollbar-thumb:active {
+  background: rgba(224, 252, 255, 1);
 }
 
 .jarvisStage {
@@ -209,26 +217,24 @@
   font-weight: 700;
 }
 
+/* ── Final layout correction (§3): both info panels are FLOW children of
+   the dedicated Activity column — never absolute overlays over the orb. */
 .systemStatus {
-  position: absolute;
-  left: 26px;
-  bottom: 26px;
-  width: 240px;
-  max-height: 62%;
+  position: static;
+  width: 100%;
+  max-height: 240px;
   overflow-y: auto;
   padding: 12px 14px;
-  z-index: 6;
+  margin-bottom: 10px;
 }
 
 .activeRun {
-  position: absolute;
-  right: 26px;
-  bottom: 26px;
-  width: 300px;
-  max-height: 70%;
-  overflow-y: auto;
+  position: static;
+  width: 100%;
+  max-height: none;
+  overflow-y: visible;
   padding: 12px 14px;
-  z-index: 6;
+  margin-bottom: 10px;
 }
 
 /* Sticky header inside the activity panel (§9): the title row stays put
@@ -289,6 +295,94 @@
 .ctl:hover:not(:disabled) {
   border-color: #3b82f6;
   color: #cbd5e1;
+}
+
+/* ── Final layout correction — true 3-column shell ─────────────────────
+   LEFT NAV | CENTER JARVIS | RIGHT ACTIVITY. The Activity column is a
+   dedicated grid/flex column with its own width and scrollbar — it can
+   NEVER overlap the center column (no absolute positioning anywhere). */
+
+.activityColumn {
+  flex: 0 0 auto;
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-left: 1px solid rgba(30, 58, 95, 0.5);
+  background: rgba(2, 6, 23, 0.6);
+  padding: 10px;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(103, 232, 249, 0.35) rgba(15, 23, 42, 0.3);
+}
+.activityColumn::-webkit-scrollbar { width: 8px; }
+.activityColumn::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); }
+.activityColumn::-webkit-scrollbar-thumb {
+  background: rgba(103, 232, 249, 0.35);
+  border-radius: 6px;
+  border: 2px solid rgba(15, 23, 42, 0.3);
+}
+
+/* Collapse/expand control (§3) — pinned to the column's left edge. */
+.activityColumnToggle {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 3px 0;
+  background: rgba(8, 20, 40, 0.85);
+  border: 1px solid #27436b;
+  border-radius: 6px;
+  color: #7dd3fc;
+  font-size: 12px;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+.activityColumnToggle:hover {
+  border-color: rgba(103, 232, 249, 0.7);
+  color: #cffafe;
+}
+
+/* §5: the HISTORY list scrolls independently inside a bounded box — a long
+   historical result can never grow the panel without limit. */
+.historyScroll {
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(30, 58, 95, 0.45);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(4, 12, 28, 0.5);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(103, 232, 249, 0.35) rgba(15, 23, 42, 0.3);
+}
+.historyScroll::-webkit-scrollbar { width: 8px; }
+.historyScroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); }
+.historyScroll::-webkit-scrollbar-thumb {
+  background: rgba(103, 232, 249, 0.35);
+  border-radius: 6px;
+  border: 2px solid rgba(15, 23, 42, 0.3);
+}
+
+/* §8: sticky composer — the bottom row of the center column. It is a flex
+   sibling BELOW centerScroll (not inside it), so it is always visible no
+   matter how tall the workspace document grows. */
+.stickyComposer {
+  flex: 0 0 auto;
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(30, 58, 95, 0.5);
+  background: linear-gradient(to bottom, rgba(2, 6, 23, 0.85), rgba(2, 6, 23, 0.98));
+  z-index: 9;
+}
+
+/* §11: System Status is docked in the Activity column flow (compact +
+   collapsible) — it never floats over the orb. */
+.systemStatusDocked {
+  margin-bottom: 10px;
 }
 
 /* ── Transcript dock (layout-stability milestone) ──

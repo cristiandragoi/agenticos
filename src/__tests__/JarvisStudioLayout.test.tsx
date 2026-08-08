@@ -89,6 +89,47 @@ describe('corrected layout model', () => {
     expect(centerScroll.contains(screen.getByTestId('jarvis-current-run'))).toBe(false);
   });
 
+  it('3-column shell: Activity is a dedicated column, never an overlay (final correction §1–3)', async () => {
+    stubApi();
+    renderStudio();
+    const mainColumn = await screen.findByTestId('jarvis-active-layout');
+    const activityColumn = await screen.findByTestId('jarvis-activity-column');
+
+    // The Activity column is a SIBLING of the center column — a true
+    // grid/flex column, not an absolutely-positioned overlay.
+    expect(activityColumn.parentElement).toBe(mainColumn.parentElement);
+    expect(mainColumn.contains(activityColumn)).toBe(false);
+
+    // Both info panels live inside the Activity column, in flow (static
+    // positioning — they can never cover the orb).
+    expect(activityColumn.contains(screen.getByTestId('jarvis-system-status'))).toBe(true);
+    expect(activityColumn.contains(screen.getByTestId('jarvis-current-run'))).toBe(true);
+    const computed = window.getComputedStyle(screen.getByTestId('jarvis-current-run'));
+    expect(['static', 'relative']).toContain(computed.position);
+
+    // The center column owns the hero; the Activity column never contains it.
+    expect(mainColumn.contains(screen.getByTestId('jarvis-orb'))).toBe(true);
+    expect(activityColumn.contains(screen.getByTestId('jarvis-orb'))).toBe(false);
+  });
+
+  it('sticky composer sits at the bottom of the center column (§8) — outside the scroll document', async () => {
+    stubApi();
+    renderStudio();
+    const mainColumn = await screen.findByTestId('jarvis-active-layout');
+    const centerScroll = await screen.findByTestId('jarvis-center-scroll');
+    const sticky = await screen.findByTestId('jarvis-sticky-composer');
+
+    // The composer is a sibling BELOW the scrolling document — always
+    // reachable regardless of workspace height.
+    expect(mainColumn.contains(sticky)).toBe(true);
+    expect(centerScroll.contains(sticky)).toBe(false);
+    expect(centerScroll.compareDocumentPosition(sticky) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // The Activity column can never cover it.
+    const activityColumn = screen.getByTestId('jarvis-activity-column');
+    expect(activityColumn.contains(sticky)).toBe(false);
+  });
+
   it('hero is a real flow stack — wordmark, orb, state text, primary control (§3)', async () => {
     stubApi();
     renderStudio();
@@ -187,6 +228,44 @@ describe('voice trace (§7) + manual acceptance (§8)', () => {
     expect(screen.queryByTestId('voice-trace-checklist')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('voice-trace-checklist-toggle'));
     expect(screen.getByTestId('voice-trace-checklist')).toBeInTheDocument();
+  });
+});
+
+describe('ACTIVE RUN shows only current work (§4)', () => {
+  it('a finished (failed/completed) Hermes run appears under HISTORY, never as the active run', async () => {
+    // Runs endpoint returns ONLY terminal runs — nothing live.
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string, options?: any) => {
+      const u = String(url);
+      if (u.endsWith('/api/hermes-api/runs') && (!options || options.method !== 'POST')) {
+        return {
+          ok: true, status: 200,
+          json: async () => [{
+            id: 'run-old', hermesRunId: 'hr-1', cardId: 'card-1',
+            prompt: 'Historical failed task — must not dominate ACTIVE RUN',
+            status: 'failed', provider: 'x', model: 'y',
+            events: [], finalText: '', pendingApproval: null, updatedAt: Date.now(),
+          }],
+        };
+      }
+      if (u.endsWith('/api/jarvis/conversations') && (!options || options.method !== 'POST')) {
+        return { ok: true, status: 200, json: async () => [{ id: 'conv-layout' }] };
+      }
+      if (u.endsWith('/messages')) return { ok: true, status: 200, json: async () => [] };
+      return { ok: true, status: 200, json: async () => ({}) };
+    }));
+    renderStudio();
+
+    // The ACTIVE RUN panel shows the empty current state…
+    const runPanel = await screen.findByTestId('jarvis-current-run');
+    await waitFor(() => {
+      expect(runPanel).toHaveTextContent('No active run');
+    });
+    // …and never renders the historical run detail as board detail/current.
+    expect(runPanel.textContent).not.toContain('HERMES RUN (board detail)');
+
+    // The failed run lives under HISTORY instead.
+    const history = await screen.findByTestId('jarvis-history-scroll');
+    expect(history).toHaveTextContent(/HISTORICAL FAILED TASK/i);
   });
 });
 

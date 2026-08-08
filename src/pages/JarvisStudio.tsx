@@ -9,6 +9,8 @@ import { JarvisCore } from '../components/jarvis/JarvisCore';
 import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
+import { JarvisComposer } from '../components/jarvis/JarvisComposer';
+import { ExecutionBar } from '../components/jarvis/ExecutionBar';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
 import { useBackendLifecycle } from '../diagnostics/useBackendLifecycle';
@@ -364,6 +366,35 @@ export default function JarvisStudio() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
 
+  // ── Final layout correction (§1, §3, §10): true 3-column shell ──
+  // LEFT NAV (LeftRail) | CENTER JARVIS (mainColumn) | RIGHT ACTIVITY
+  // (activityColumn). Activity is a dedicated grid column with its own
+  // width, scrollbar and collapse control — it can NEVER overlap the
+  // center column. Auto-collapses at narrow viewports so the Jarvis stage
+  // never gets squeezed into unusability.
+  const [activityColumnOpen, setActivityColumnOpen] = useState(true);
+  const [viewportWidth, setViewportWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1600);
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    // Safety net: some platforms/embedded contexts do not fire resize for
+    // every window transition; keep the auto-collapse truthful either way.
+    const id = window.setInterval(onResize, 1500);
+    return () => { window.removeEventListener('resize', onResize); window.clearInterval(id); };
+  }, []);
+  useEffect(() => {
+    if (viewportWidth < 1000) setActivityColumnOpen(false);
+    else if (viewportWidth >= 1400) setActivityColumnOpen(true);
+  }, [viewportWidth]);
+
+  // §8 sticky composer: processing is derived from the SAME runtime-status
+  // stream JarvisChat already reports (onStatusChange) — no separate state,
+  // so the sticky composer's cancel button is always truthful.
+
+  // §11: System Status is docked compactly in the center flow (collapsible)
+  // — it never floats over the orb.
+  const [sysStatusOpen, setSysStatusOpen] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     const check = async () => {
@@ -391,7 +422,10 @@ export default function JarvisStudio() {
           const detail = await fetch(`/api/hermes-api/runs/${live.id}`);
           if (detail.ok && !cancelled) setActiveRun(await detail.json());
         } else if (!live) {
-          setActiveRun(runs[0] || null); // most recent finished run for summary
+          // §4: ACTIVE RUN shows ONLY current work. A finished run is
+          // history — the panel renders it under HISTORY, never as the
+          // active run (the old runs[0] fallback was the contradiction).
+          setActiveRun(null);
         }
       } catch { /* panel stays on last good state */ }
     };
@@ -755,8 +789,8 @@ export default function JarvisStudio() {
   })();
 
   return (
-    <div className={cc.root} data-testid="jarvis-studio" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div className={styles.mainColumn} data-testid="jarvis-active-layout" style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+    <div className={cc.root} data-testid="jarvis-studio" style={{ display: 'flex', flexDirection: 'row', height: '100%', overflow: 'hidden' }}>
+      <div className={styles.mainColumn} data-testid="jarvis-active-layout" style={{ position: 'relative', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {/* ── CENTER SCROLL (scroll-correction milestone): the ONE main
             scrollbar of the Jarvis workspace. Hero, controls, Voice Trace,
             transcript and composer all live in this scrolling document;
@@ -1003,6 +1037,7 @@ export default function JarvisStudio() {
                   navigate(target);
                 }}
                 hideComposerMic
+                hideComposer
                 transcriptVariant="command"
               />
             </div>
@@ -1010,6 +1045,44 @@ export default function JarvisStudio() {
         </div>
         </div>
 
+
+        {/* ── STICKY COMPOSER (§8): always reachable at the bottom of the
+            center column. Never inside the scrolling document, never covered
+            by the Activity column — "Ask Jarvis anything…" stays on screen. ── */}
+        <div className={cc.stickyComposer} data-testid="jarvis-sticky-composer">
+          <JarvisComposer
+            onSendMessage={(text, channel) => chatRef.current?.sendMessage(text, channel ?? 'typed')}
+            isProcessing={['thinking', 'understanding', 'planning', 'delegating', 'executing', 'reviewing', 'streaming'].includes(runtimeStatus.state)}
+            onCancelResponse={() => chatRef.current?.cancelResponse()}
+            composerText={composerText}
+            onComposerTextChange={setComposerText}
+            onMicStateChange={setMicState}
+            hideMic
+            disabledReason={backendLifecycle.source === 'electron' && backendOffline ? 'AgenticOS backend is offline.' : undefined}
+          />
+        </div>
+        </div>
+
+
+      {/* ── RIGHT ACTIVITY COLUMN (§1, §3): a dedicated grid column with its
+          own width and scrollbar. It can NEVER overlap the center column —
+          no absolute positioning. Collapsible (§12C); auto-collapses at
+          narrow viewports (§10). ── */}
+      <div
+        className={cc.activityColumn}
+        data-testid="jarvis-activity-column"
+        style={{ width: activityColumnOpen ? 320 : 38 }}
+      >
+        <button
+          data-testid="jarvis-activity-column-toggle"
+          className={cc.activityColumnToggle}
+          onClick={() => setActivityColumnOpen((v) => !v)}
+          title={activityColumnOpen ? 'Collapse Activity' : 'Expand Activity'}
+        >
+          {activityColumnOpen ? '»' : '«'}
+        </button>
+        {activityColumnOpen && (
+        <>
         {/* ── SYSTEM STATUS (bottom-left, real values only) ── */}
         <motion.div
           className={`${cc.panel} ${cc.systemStatus}`}
@@ -1047,11 +1120,7 @@ export default function JarvisStudio() {
               OPEN BOARD
             </button>
           </div>
-          {completions.length > 0 && (
-            <div data-testid="completion-cards" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              {[...completions].reverse().map((evt) => <CompletionCard key={evt.operationId} event={evt} />)}
-            </div>
-          )}
+          
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             <button
               data-testid="view-related-memories"
@@ -1127,7 +1196,31 @@ export default function JarvisStudio() {
             </div>
           )}
 
-          {/* ── BACKGROUND TASKS (persistent task manager — real SSE events) ── */}
+          
+          {/* ── HISTORY (§4–5): finished work lives here — NEVER under
+              ACTIVE RUN. Its own bounded, independently scrollable list so
+              a long historical result cannot grow the panel unbounded. ── */}
+          <div className={cc.panelTitle} style={{ marginTop: 10, marginBottom: 4 }} data-testid="jarvis-history-title">HISTORY</div>
+          <div className={cc.historyScroll} data-testid="jarvis-history-scroll">
+            {/* Past Hermes runs (§4): finished work rendered compactly here —
+                a failed/completed run NEVER appears as the current ACTIVE RUN. */}
+            {hermesRuns.length > 0 && (
+              <div data-testid="jarvis-history-runs" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                {hermesRuns.slice(0, 20).map((run) => (
+                  <div key={run.id} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '3px 6px', fontSize: 10, background: 'rgba(15,23,42,0.4)', border: '1px solid rgba(30,41,59,0.6)', borderRadius: 4 }}>
+                    <span style={{ color: run.status === 'failed' ? '#f87171' : run.status === 'completed' ? '#4ade80' : '#94a3b8', fontWeight: 600, flexShrink: 0, minWidth: 62 }}>{run.status.toUpperCase()}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#94a3b8' }}>{run.prompt.slice(0, 60)}</span>
+                    <span style={{ marginLeft: 'auto', color: '#475569', flexShrink: 0 }}>{new Date(run.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {completions.length > 0 && (
+            <div data-testid="completion-cards" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              {[...completions].reverse().map((evt) => <CompletionCard key={evt.operationId} event={evt} />)}
+            </div>
+          )}
+{/* ── BACKGROUND TASKS (persistent task manager — real SSE events) ── */}
           <button
             data-testid="jarvis-tasks-toggle"
             onClick={() => setTasksOpen((v) => !v)}
@@ -1225,9 +1318,15 @@ export default function JarvisStudio() {
               )}
             </div>
           )}
-        </motion.div>
+        
+          </div>
+</motion.div>
 
+
+        </>
+        )}
       </div>
+
 
       {/* ── APPROVAL MODAL — real Hermes approval.request OR task-owned approval, never auto-approved ── */}
       {(activeRun?.pendingApproval || pendingTaskApproval) && (

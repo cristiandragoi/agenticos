@@ -87,12 +87,22 @@ export interface JarvisChatProps {
    * existing bubble UI for every other consumer.
    */
   transcriptVariant?: 'chat' | 'command';
+  /**
+   * Final layout correction (§8): when true the routing row, ExecutionBar
+   * and composer are NOT rendered inside the transcript dock — the page
+   * hosts a sticky composer at the bottom of the center column instead, so
+   * "Ask Jarvis anything…" can never disappear below the fold.
+   */
+  hideComposer?: boolean;
 }
 
 /** Imperative API — lets the single canonical voice engine auto-submit a
  *  transcribed turn through the exact same streaming pipeline as Send. */
 export interface JarvisChatHandle {
   sendMessage: (text: string, inputChannel?: 'typed' | 'voice') => void;
+  /** Final layout correction (§8): the sticky page-level composer cancels
+   *  the in-flight response through the same pipeline as the inline one. */
+  cancelResponse: () => void;
 }
 
 export type JarvisRuntimeState = 'idle' | 'understanding' | 'planning' | 'delegating' | 'executing' | 'reviewing' | 'thinking' | 'streaming' | 'approval_required' | 'paused' | 'completed' | 'error' | 'cancelled';
@@ -194,6 +204,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   onNavigate,
   hideComposerMic,
   transcriptVariant = 'chat',
+  hideComposer = false,
 }, ref) => {
   const { runSettings } = useCodexStore();
   const [messages, setMessages] = useState<any[]>([]);
@@ -753,6 +764,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice') => {
       void handleSendMessage(text, inputChannel);
     },
+    cancelResponse: () => cancelResponse(),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {
@@ -1118,11 +1130,15 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       </div>
       </div>
 
+      {/* Routing override + ExecutionBar stay with the transcript command
+          flow; only the composer moves out when hideComposer is set (§8) —
+          the page hosts it sticky at the bottom of the center column. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
         <RoutingOverrideControl value={routingOverride} onChange={setRoutingOverride} />
       </div>
       <ExecutionBar />
 
+      {!hideComposer && (
       <JarvisComposer
         onSendMessage={handleSendMessage}
         isProcessing={isProcessing}
@@ -1133,6 +1149,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         hideMic={hideComposerMic}
         disabledReason={offlineGateReason}
       />
+      )}
       
       {detailsMessage && (
         <ProviderDetailsPanel 
