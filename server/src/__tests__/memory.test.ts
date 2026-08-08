@@ -134,6 +134,29 @@ describe('graph + entities', () => {
     expect(g.nodes.length).toBeLessThanOrEqual(5);
     expect(typeof g.truncated).toBe('boolean');
   });
+
+  it('resolves plain-term focus to matching memory/entity neighborhoods (fuzzy)', () => {
+    // term in a memory title
+    const m = createMemory({ type: 'episodic', title: 'Berlin roofing run', summary: 's', content: 'c', scope: 'revenue', entities: [], tags: [], confidence: 0.8, source: { sourceType: 'manual' } });
+    CLEANUP_IDS.push(m.id);
+    // term in an entity name (linked so the neighborhood has edges)
+    const e = entityId('Kadabau (https://www.kadabau.de)');
+    link(m.id, e, 'TOP_PROSPECT_OF');
+    // exact memory id still works
+    const byId = memoryStore.graph({ focus: m.id, depth: 1 });
+    expect(byId.nodes.some((n) => n.id === m.id)).toBe(true);
+    // plain title term resolves to the memory + its linked entity
+    const byTerm = memoryStore.graph({ focus: 'Berlin roofing', depth: 1 });
+    expect(byTerm.nodes.some((n) => n.id === m.id)).toBe(true);
+    expect(byTerm.nodes.some((n) => n.id === e)).toBe(true);
+    expect(byTerm.edges.some((ed) => ed.relation === 'TOP_PROSPECT_OF')).toBe(true);
+    // plain entity term resolves to the linked entity even without the entity: prefix
+    const byEntity = memoryStore.graph({ focus: 'Kadabau', depth: 1 });
+    expect(byEntity.nodes.some((n) => n.id === e)).toBe(true);
+    // unknown term: empty but truthful (no crash, no fabricated nodes)
+    const unknown = memoryStore.graph({ focus: 'zzz-no-such-term-zzz', depth: 1 });
+    expect(unknown.totalNodes).toBe(0);
+  });
 });
 
 describe('user control + provenance', () => {

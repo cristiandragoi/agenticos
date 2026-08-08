@@ -948,6 +948,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // the db), fall through to the normal direct handling.
     if (intent.route !== 'investigate' && intent.route !== 'clarification_required') {
       try {
+        const startedAt = Date.now();
         const { isMemoryRecall, isDecisionStatement, handleMemoryRecall, handleDecisionStatement } = await import('../domains/jarvis/memoryRecall.js');
         if (isDecisionStatement(prompt)) {
         const reply = await handleDecisionStatement(prompt);
@@ -961,7 +962,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         });
         endStreamExecution('COMPLETED', reply);
         logStreamStage(normalizedOperationId, 'decision_statement');
-        return;
+        writeSse(res, 'done', {
+          route: 'decision_statement', category: 'memory', operationId: normalizedOperationId,
+          provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
+        });
+        return res.end();
       }
       if (isMemoryRecall(prompt)) {
         updateStreamExecution({ status: 'RUNNING', currentAction: 'Recalling related memories' });
@@ -976,7 +981,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         });
         endStreamExecution('COMPLETED', reply);
         logStreamStage(normalizedOperationId, 'memory_recall');
-        return;
+        writeSse(res, 'done', {
+          route: 'memory_recall', category: 'memory', operationId: normalizedOperationId,
+          provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
+        });
+        return res.end();
       }
       } catch { /* memory store unavailable — normal direct handling */ }
     }

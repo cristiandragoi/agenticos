@@ -264,14 +264,37 @@ export const memoryStore = {
     const queue: { id: string; kind: 'memory' | 'entity'; d: number }[] = [];
 
     if (focus) {
+      const seedNode = (id: string) => {
+        if (nodes.has(id) || nodes.size >= limit) return;
+        if (id.startsWith('entity:')) {
+          const ent = rawDb.prepare('SELECT * FROM memory_entities WHERE id = ?').get(id) as any;
+          if (ent) nodes.set(id, { id, kind: 'entity', title: ent.name, entityKind: ent.kind, strength: ent.strength });
+        } else {
+          const m = this.get(id);
+          if (m) nodes.set(id, { id, kind: 'memory', type: m.type, title: m.title, summary: m.summary, status: m.status });
+        }
+        queue.push({ id, kind: id.startsWith('entity:') ? 'entity' : 'memory', d: 0 });
+      };
       if (focus.startsWith('entity:')) {
-        const ent = rawDb.prepare('SELECT * FROM memory_entities WHERE id = ?').get(focus) as any;
-        if (ent) nodes.set(focus, { id: focus, kind: 'entity', title: ent.name, entityKind: ent.kind, strength: ent.strength });
-        queue.push({ id: focus, kind: 'entity', d: 0 });
+        seedNode(focus);
       } else {
         const m = this.get(focus);
-        if (m) nodes.set(focus, { id: focus, kind: 'memory', type: m.type, title: m.title, summary: m.summary, status: m.status });
-        queue.push({ id: focus, kind: 'memory', d: 0 });
+        if (m) {
+          seedNode(focus);
+        } else {
+          // Fuzzy term resolution: the user types a plain term ("Kadabau",
+          // "Berlin roofing"). Resolve to every memory whose title contains it
+          // and every entity whose name contains it, then seed each match so
+          // the neighborhood is populated instead of an empty canvas.
+          const memRows = rawDb
+            .prepare("SELECT id FROM memory_records WHERE title LIKE ? ORDER BY created_at DESC LIMIT 8")
+            .all(`%${focus}%`) as any[];
+          const entRows = rawDb
+            .prepare("SELECT id FROM memory_entities WHERE name LIKE ? ORDER BY strength DESC LIMIT 8")
+            .all(`%${focus}%`) as any[];
+          for (const r of memRows) seedNode(r.id);
+          for (const r of entRows) seedNode(r.id);
+        }
       }
     } else {
       // No focus: seed with the most recent active memories so the graph is

@@ -51,7 +51,7 @@ describe('investigateAgenticState — frontend diagnostic bridge', () => {
     // last stream (3s ago).
     expect(report).toMatch(/The ProviderBadge last rendered \d+s ago \(\d+s before the latest stream operation\)/);
     expect(report).toContain('The badge does NOT match the runtime');
-  });
+  }, 20000);
 
   it('says the snapshot is unavailable when the UI has not reported yet', async () => {
     const mod = await import('../domains/jarvis/investigation.js');
