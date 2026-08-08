@@ -276,11 +276,16 @@ describe('JarvisStudio integration — orb wiring with real UI intact', () => {
   });
 
   it('backend outage flips the orb to offline', async () => {
+    // Layout-stability milestone (§16): backend status comes from the ONE
+    // lifecycle store, not a local /api/health/gateway poll. In browser
+    // mode (no Electron bridge) the store falls back to polling /api/health
+    // — a failing probe flips the store to 'offline', which JarvisStudio
+    // derives backendOffline from.
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (url: string) => {
-        if (String(url).includes('/api/health/gateway')) {
-          return { ok: true, status: 200, json: async () => ({ status: 'offline', reachable: false }) };
+        if (String(url).includes('/api/health')) {
+          throw new Error('backend unreachable');
         }
         return { ok: true, status: 200, json: async () => ({}) };
       }),

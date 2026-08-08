@@ -9,6 +9,7 @@ import { useCodexStore } from '../../store/codexStore';
 import { useGatewayStream } from '../../hooks/useGatewayStream';
 import { ProviderBadge } from '../gateway/ProviderBadge';
 import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
+import { useBackendLifecycle } from '../../diagnostics/useBackendLifecycle';
 import { voiceTraceBegin, voiceTracePush } from '../../diagnostics/voiceTrace';
 import { executionStore } from '../../diagnostics/executionStore';
 import { ExecutionBar } from './ExecutionBar';
@@ -214,9 +215,56 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   }, [messages]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sendError, setSendError] = useState<SendErrorState | null>(null);
+
+  // ── Backend lifecycle gate (backend lifecycle milestone) ──────────────
+  // Jarvis never pretends to process requests when the backend APIs are
+  // definitively down (offline/failed). The gate activates on the
+  // AUTHORITATIVE lifecycle source (Electron IPC in the desktop app); in
+  // plain browser dev mode the AppShell startup/error screens own the
+  // offline experience instead. Transient states (starting/reconnecting)
+  // keep the composer usable — the lifecycle manager may be mid-restart and
+  // the very next send can succeed. The gate message is the user-facing
+  // contract from the milestone spec.
+  const backendLifecycle = useBackendLifecycle();
+  const backendDefinitivelyDown =
+    backendLifecycle.status === 'offline' || backendLifecycle.status === 'failed';
+  const offlineGateReason =
+    backendLifecycle.source === 'electron' && backendDefinitivelyDown
+      ? backendLifecycle.status === 'offline'
+        ? (backendLifecycle.mode === 'EXTERNAL'
+          ? 'AgenticOS backend is offline — waiting for the external backend.'
+          : 'AgenticOS backend is offline. Reconnecting now…')
+        : 'The backend could not be restored automatically. Open diagnostics (top bar) or retry.'
+      : null;
+  const offlineGateReasonRef = useRef<string | null>(offlineGateReason);
+  useEffect(() => {
+    offlineGateReasonRef.current = offlineGateReason;
+  }, [offlineGateReason]);
   const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
   const [detailsMessage, setDetailsMessage] = useState<any | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  // ── Transcript scroll ownership (layout-stability milestone) ──
+  // The transcript scrolls INSIDE its bounded dock. Auto-follow only while
+  // the user is near the bottom; a manual scroll-up is never force-jumped
+  // back — a "Jump to latest" control appears instead (§4).
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const handleTranscriptScroll = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom < 140;
+    stickToBottomRef.current = nearBottom;
+    setShowJumpToLatest(!nearBottom && messages.length > 0);
+  };
+  const jumpToLatest = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    stickToBottomRef.current = true;
+    setShowJumpToLatest(false);
+  };
   const abortControllerRef = useRef<AbortController | null>(null);
   const firstTokenTimerRef = useRef<number | null>(null);
   const totalResponseTimerRef = useRef<number | null>(null);
@@ -353,7 +401,11 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   });
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Follow new content only while the user is already near the bottom —
+    // reading history is never interrupted (§4).
+    if (stickToBottomRef.current && chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
   }, [messages, isProcessing]);
 
   useEffect(() => {
@@ -520,6 +572,19 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   };
 
   const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = pendingInputChannel ?? 'typed') => {
+    // Offline gate: never route a request into Jarvis logic while the
+    // backend is definitively unavailable — answer truthfully instead.
+    if (offlineGateReasonRef.current) {
+      setMessages(prev => [...prev, {
+        id: `offline-${Date.now()}`,
+        role: 'agent',
+        content: offlineGateReasonRef.current,
+        createdAt: new Date().toISOString(),
+        metadata: { offlineGate: true },
+      }]);
+      setIsProcessing(false);
+      return;
+    }
     // Track the input channel so the completed reply can be routed to TTS.
     pendingChannelRef.current = inputChannel;
     voiceTraceBegin();
@@ -872,7 +937,21 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
 
   return (
     <>
-      <div className={styles.chatContainer} data-testid="jarvis-chat-scroll">
+      {/* §4 command dock: bounded flex column — the transcript gets the
+          scroll surface (flex:1, min-height:0); routing/execution/composer
+          stay fixed-height rows below it instead of eating scroll space.
+          Transparent wrapper for non-command (conversation panel) use. */}
+      <div style={transcriptVariant === 'command' ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : undefined}>
+      <div className={styles.chatScrollFrame} data-testid="jarvis-chat-scroll-frame">
+        <div
+          ref={chatScrollRef}
+          onScroll={handleTranscriptScroll}
+          className={styles.chatContainer}
+          data-testid="jarvis-chat-scroll"
+          // Inline scroll contract (§4): the transcript scrolls here even if
+          // the stylesheet fails to load — the bounded dock provides height.
+          style={{ overflowY: 'auto', height: '100%', minHeight: 0 }}
+        >
         {transcriptVariant === 'command' && visibleMessages.map((msg) => {
           // ── Command transcript: labeled lines, no bubbles ──
           const label = (() => {
@@ -1026,6 +1105,17 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         )}
 
         <div ref={chatEndRef} />
+        </div>
+        {showJumpToLatest && (
+          <button
+            data-testid="jarvis-jump-to-latest"
+            className={styles.jumpToLatest}
+            onClick={jumpToLatest}
+          >
+            ↓ JUMP TO LATEST
+          </button>
+        )}
+      </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
@@ -1041,6 +1131,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         onComposerTextChange={onComposerTextChange}
         onMicStateChange={onMicStateChange}
         hideMic={hideComposerMic}
+        disabledReason={offlineGateReason}
       />
       
       {detailsMessage && (

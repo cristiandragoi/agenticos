@@ -11,6 +11,8 @@ import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/ja
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
+import { useBackendLifecycle } from '../diagnostics/useBackendLifecycle';
+import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
 import { executionStore, startExecutionStream, completionNotifiedAt } from '../diagnostics/executionStore';
 import type { ExecutionRecord, CompletionEvent } from '../diagnostics/executionStore';
 import { CompletionCard } from '../components/jarvis/CompletionCard';
@@ -136,7 +138,6 @@ export default function JarvisStudio() {
 
   // ── Orb inputs: REAL signals only ──
   const [micState, setMicState] = useState<MicState>('idle');
-  const [backendOffline, setBackendOffline] = useState(false);
   const [runtimeStatus, setRuntimeStatus] = useState<JarvisRuntimeStatus>({
     state: 'idle', elapsedMs: 0, firstTokenMs: null, provider: null, model: null, error: null,
   });
@@ -340,34 +341,20 @@ export default function JarvisStudio() {
     try { sessionStorage.setItem(ACTIVE_CONV_KEY, activeConversationId); } catch { /* ignore */ }
   }, [activeConversationId]);
 
-  // ── Backend connectivity (truthful health probe, 30 s cadence) ──
-  useEffect(() => {
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const res = await fetch('/api/health/gateway');
-        if (!res.ok) { if (!cancelled) setBackendOffline(true); return; }
-        const data = await res.json();
-        if (!cancelled) setBackendOffline(data?.status === 'offline');
-        // Diagnostic: report the gateway status the UI renders (read-only).
-        uiDiagnostics.setGatewayRendered(data?.gateway ?? null, data?.model ?? null, data?.status === 'online' || data?.status === 'degraded', 'health-gateway-poll');
-      } catch { if (!cancelled) setBackendOffline(true); }
-    };
-    check();
-    const id = window.setInterval(check, 30_000);
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, []);
+  // ── Backend connectivity: ONE lifecycle store feeds everything (backend
+  // lifecycle milestone). Electron pushes authoritative AUTO_MANAGED/EXTERNAL
+  // state via IPC; browser mode falls back to /api/health polling. Jarvis
+  // never derives connectivity from its own fetch failures. ──
+  const backendLifecycle = useBackendLifecycle();
+  // Definitive-down only: 'starting'/'reconnecting' are transient (the
+  // lifecycle manager may be mid-restart — the UI stays usable and the
+  // very next action can succeed). This mirrors the legacy default-offline
+  // contract the orb tests encode.
+  const backendOffline = backendLifecycle.status === 'offline' || backendLifecycle.status === 'failed';
 
-  /** RECONNECT (primary control while offline): probe immediately. */
+  /** RECONNECT (primary control while offline): re-run the lifecycle retry. */
   const handleReconnect = useCallback(() => {
-    void (async () => {
-      try {
-        const res = await fetch('/api/health/gateway');
-        if (!res.ok) { setBackendOffline(true); return; }
-        const data = await res.json();
-        setBackendOffline(data?.status === 'offline');
-      } catch { setBackendOffline(true); }
-    })();
+    void backendLifecycleStore.retry();
   }, []);
 
   // ── Hermes live-run status + current run (real events, no fakes) ──
@@ -674,6 +661,76 @@ export default function JarvisStudio() {
 
   const [transcriptOpen, setTranscriptOpen] = useState(true);
 
+  // ── Responsive orb sizing (§12, §15): the orb always FITS the reserved
+  // stage — it scales down gracefully on short viewports but never overflows
+  // or gets clipped. Measured from the stage element with three triggers:
+  // ResizeObserver, window resize, and a low-cost interval safety net
+  // (synthetic viewport changes — e.g. CDP device-metrics emulation — do not
+  // fire ResizeObserver reliably in every Electron build). ──
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [orbSize, setOrbSize] = useState(340);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const next = Math.max(180, Math.min(340, Math.round(Math.min(rect.height, rect.width) - 56)));
+      setOrbSize((prev) => (prev === next ? prev : next));
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', schedule);
+    measure();
+    // Safety net calls measure() DIRECTLY — never through rAF: an occluded
+    // Electron window throttles rAF to a stop, which stranded the orb one
+    // size behind after resolution changes (caught in live verification).
+    const interval = window.setInterval(measure, 1000);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', schedule);
+      if (raf) cancelAnimationFrame(raf);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  // ── Transcript height (layout-stability milestone §6) ──
+  // User-bounded resize: min 160px / default 280px / max 420px. The bounded
+  // body contains the scroll surface AND the fixed composer/routing rows, so
+  // the minimum keeps a usable scroll viewport. The dock can never consume
+  // the center viewport — the workspace band itself is capped at 54vh in
+  // CSS, and the stage keeps flex:1 above it.
+  const TRANSCRIPT_MIN = 160;
+  const TRANSCRIPT_MAX = 420;
+  const [transcriptHeight, setTranscriptHeight] = useState(() => {
+    try {
+      const saved = Number(sessionStorage.getItem('jarvis.transcriptHeight'));
+      if (Number.isFinite(saved) && saved >= TRANSCRIPT_MIN && saved <= TRANSCRIPT_MAX) return saved;
+    } catch { /* storage unavailable */ }
+    return 280;
+  });
+  const handleTranscriptResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = transcriptHeight;
+    const onMove = (ev: PointerEvent) => {
+      // Dragging the handle DOWN shrinks the dock; UP grows it.
+      const next = Math.min(TRANSCRIPT_MAX, Math.max(TRANSCRIPT_MIN, startHeight + (ev.clientY - startY)));
+      setTranscriptHeight(next);
+    };
+    const onUp = (ev: PointerEvent) => {
+      const next = Math.min(TRANSCRIPT_MAX, Math.max(TRANSCRIPT_MIN, startHeight + (ev.clientY - startY)));
+      try { sessionStorage.setItem('jarvis.transcriptHeight', String(next)); } catch { /* ignore */ }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   const recentActivity = (activeRun?.events || [])
     .filter(e => e.kind !== 'assistant.delta')
     .slice(-10)
@@ -699,7 +756,18 @@ export default function JarvisStudio() {
 
   return (
     <div className={cc.root} data-testid="jarvis-studio" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div className={styles.mainColumn} data-testid="jarvis-active-layout" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+      <div className={styles.mainColumn} data-testid="jarvis-active-layout" style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {/* ── CENTER SCROLL (scroll-correction milestone): the ONE main
+            scrollbar of the Jarvis workspace. Hero, controls, Voice Trace,
+            transcript and composer all live in this scrolling document;
+            corner panels sit OUTSIDE it so they never scroll with it. ── */}
+        <div className={cc.centerScroll} data-testid="jarvis-center-scroll">
+        {/* ── JARVIS HERO (scroll-correction milestone): a proper block with
+            reserved height at the top of the scrolling center workspace.
+            Real flow stack — wordmark → orb → state text → primary control —
+            nothing absolutely stacked on the orb. Scrolling down may carry the
+            hero out of view (expected); scrolling back up restores it. ── */}
+        <div ref={stageRef} className={cc.jarvisStage} data-testid="jarvis-stage">
 
         {/* ── Glowing wordmark ── */}
         <motion.div
@@ -722,8 +790,10 @@ export default function JarvisStudio() {
           <JarvisWorkspaceBar />
         </div>
 
-        {/* ── Compact status strip (real values) ── */}
-        <div data-testid="jarvis-status-strip" style={{ position: 'absolute', top: 62, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, zIndex: 5 }}>
+        {/* ── Compact status strip (real values) — flow row of the hero
+            stack between wordmark and orb (scroll-correction §3): never
+            absolutely pinned, so it can never collide with the wordmark. ── */}
+        <div data-testid="jarvis-status-strip" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, zIndex: 5, margin: '16px 0 10px' }}>
           {statusChip('', backendOffline ? 'BACKEND OFFLINE' : 'CONNECTED', !backendOffline)}
           {statusChip('PROVIDER', runtimeStatus.provider || '—')}
           {statusChip('MODEL', runtimeStatus.model || '—')}
@@ -743,23 +813,34 @@ export default function JarvisStudio() {
                   state={orbState as JarvisCoreState}
                   inputLevel={orbState === 'listening' ? inputLevel : 0}
                   outputLevel={orbState === 'speaking' ? outputLevel : 0}
-                  size={340}
+                  size={orbSize}
                   testIdPrefix="jarvis-orb"
                 />
               </div>
-              {/* Primary control — centered ON the core (inside the wrapper,
-                  outside jarvis-orb-core so state words never sit in the core) */}
-              <button
-                data-testid="jarvis-primary-control"
-                className={cc.primaryControl}
-                onClick={primary.onClick}
-                disabled={primary.disabled}
-              >
-                {primary.label}
-              </button>
             </div>
             <div data-testid="jarvis-orb-status-label" className={cc.stateLabel}>{JARVIS_ORB_LABELS[orbState]}</div>
             <span data-testid="jarvis-orb-label" aria-hidden="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{JARVIS_ORB_LABELS[orbState]}</span>
+            {/* Primary control — its own flow row BELOW the orb (overlap fix):
+                wordmark → orb → state text → control, with real spacing.
+                Never absolutely positioned on top of the visualization. */}
+            <button
+              data-testid="jarvis-primary-control"
+              className={cc.primaryControl}
+              onClick={primary.onClick}
+              disabled={primary.disabled}
+            >
+              {primary.label}
+            </button>
+          </div>
+        </div>
+
+        </div>
+
+        {/* ── LOWER WORKSPACE (layout-stability milestone §3): voice controls,
+            diagnostics and transcript in a capped band that can never push the
+            Jarvis stage. Tall children scroll inside their own containers. ── */}
+        <div className={cc.workspace} data-testid="jarvis-workspace">
+          <div className={cc.workspaceControls}>
 
             {/* ── Command bar: mode selector + voice controls (always visible) ── */}
             <div className={cc.commandBar} role="radiogroup" aria-label="Jarvis voice mode">
@@ -863,9 +944,6 @@ export default function JarvisStudio() {
               </div>
             </div>
 
-            {/* Voice trace + manual acceptance (physical-mic stabilization) */}
-            <VoiceTracePanel />
-
             {voice.playbackError && (
               <div data-testid="jarvis-playback-error" style={{ fontSize: 11, color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: 6, padding: '6px 8px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>Voice playback error: {voice.playbackError}</span>
@@ -879,6 +957,57 @@ export default function JarvisStudio() {
               </div>
             )}
           </div>
+          <div className={cc.workspaceDiagnostics} data-testid="jarvis-workspace-diagnostics">
+            {/* Voice trace + manual acceptance (physical-mic stabilization) */}
+            <VoiceTracePanel />
+          </div>
+
+          {/* ── Command transcript dock (§4–6): bounded height, resizable,
+              own scrollbar. A thousand messages can never push the stage. ── */}
+          <div className={`${cc.panel} ${cc.transcriptDock}`} data-testid="jarvis-chat-workspace">
+            <div
+              className={cc.resizeHandle}
+              data-testid="jarvis-transcript-resize"
+              onPointerDown={handleTranscriptResizeStart}
+              title="Drag to resize the transcript"
+            >
+              ···
+            </div>
+            <button
+              data-testid="jarvis-transcript-toggle"
+              className={cc.transcriptToggle}
+              onClick={() => setTranscriptOpen((v) => !v)}
+            >
+              <span>TRANSCRIPT</span>
+              <span>{transcriptOpen ? '▾ HIDE' : '▴ SHOW'}</span>
+            </button>
+            <div
+              className={transcriptOpen ? cc.transcriptBody : `${cc.transcriptBody} ${cc.collapsed}`}
+              style={transcriptOpen ? { height: transcriptHeight } : undefined}
+              data-testid="jarvis-transcript-body"
+            >
+              <JarvisChat
+                ref={chatRef}
+                conversationId={activeConversationId}
+                onConversationCreated={(id) => setActiveConversationId(id)}
+                onStatusChange={setRuntimeStatus}
+                composerText={composerText}
+                onComposerTextChange={setComposerText}
+                onMicStateChange={setMicState}
+                onStreamDelta={handleStreamDelta}
+                onAssistantResponse={handleAssistantDone}
+                onNavigate={(target) => {
+                  // Navigation is a pure UI action — the conversation and
+                  // background tasks are session-owned and survive the route
+                  // change (JarvisStudio unmount/remount restores them).
+                  navigate(target);
+                }}
+                hideComposerMic
+                transcriptVariant="command"
+              />
+            </div>
+          </div>
+        </div>
         </div>
 
         {/* ── SYSTEM STATUS (bottom-left, real values only) ── */}
@@ -907,7 +1036,7 @@ export default function JarvisStudio() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div className={cc.activeRunHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span className={cc.panelTitle}>ACTIVE RUN</span>
             <button
               data-testid="jarvis-open-board"
@@ -1098,40 +1227,6 @@ export default function JarvisStudio() {
           )}
         </motion.div>
 
-        {/* ── Command transcript dock (collapsible, labeled lines) ── */}
-        <div className={`${cc.panel} ${cc.transcriptDock}`} data-testid="jarvis-chat-workspace">
-          <button
-            data-testid="jarvis-transcript-toggle"
-            className={cc.transcriptToggle}
-            onClick={() => setTranscriptOpen((v) => !v)}
-          >
-            <span>TRANSCRIPT</span>
-            <span>{transcriptOpen ? '▾ HIDE' : '▴ SHOW'}</span>
-          </button>
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }} className={transcriptOpen ? undefined : cc.collapsed}>
-            <div style={{ flex: 1, minHeight: 120, maxHeight: '32vh', overflowY: 'auto', padding: '0 14px' }}>
-              <JarvisChat
-                ref={chatRef}
-                conversationId={activeConversationId}
-                onConversationCreated={(id) => setActiveConversationId(id)}
-                onStatusChange={setRuntimeStatus}
-                composerText={composerText}
-                onComposerTextChange={setComposerText}
-                onMicStateChange={setMicState}
-                onStreamDelta={handleStreamDelta}
-                onAssistantResponse={handleAssistantDone}
-                onNavigate={(target) => {
-                  // Navigation is a pure UI action — the conversation and
-                  // background tasks are session-owned and survive the route
-                  // change (JarvisStudio unmount/remount restores them).
-                  navigate(target);
-                }}
-                hideComposerMic
-                transcriptVariant="command"
-              />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ── APPROVAL MODAL — real Hermes approval.request OR task-owned approval, never auto-approved ── */}
