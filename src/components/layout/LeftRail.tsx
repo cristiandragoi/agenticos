@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Activity, HardDrive, Database,
   Package, Radio, BookOpen, Settings, Cpu, Layers, Box,
   GitBranch, Clapperboard, Mic, Terminal, Wrench,
-  Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight
+  Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight, Brain
 } from 'lucide-react';
 
 /** Session persistence for the collapsed rail state (survives navigation,
@@ -83,6 +83,12 @@ const LeftRail: React.FC = () => {
             <Users size={12} className="text-purple-400" />
           </div>
           {!collapsed && <span className="font-medium text-purple-500/90 tracking-wide">AGENT TEAMS</span>}
+        </NavLink>
+        <NavLink to="/memory" data-testid="nav-memory" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Memory">
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-cyan-500/30 bg-cyan-500/20">
+            <Brain size={12} className="text-cyan-400" />
+          </div>
+          {!collapsed && <span className="font-medium text-cyan-500/90 tracking-wide">MEMORY</span>}
         </NavLink>
 
         <div className="nav-section-label">{collapsed ? <LayoutDashboard size={14} /> : 'WORKSPACE'}</div>

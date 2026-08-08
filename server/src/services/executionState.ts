@@ -149,6 +149,23 @@ export function update(operationId: string, patch: Partial<Omit<ExecutionRecord,
   return clone(current);
 }
 
+/**
+ * Update a record by id whether it is CURRENT or in HISTORY (memory/count
+ * milestone). Task-backed operations can be superseded in the current slot
+ * by another stream (e.g. a chat reply) while their progress still lands —
+ * the counts must reach the operation's own record, not only the current one.
+ */
+export function updateRecord(operationId: string, patch: Partial<Omit<ExecutionRecord, 'operationId' | 'startedAt'>>): ExecutionRecord | null {
+  if (current && current.operationId === operationId) return update(operationId, patch);
+  const h = history.find((r) => r.operationId === operationId);
+  if (h) {
+    Object.assign(h, patch, { lastActivityAt: Date.now() });
+    publish();
+    return clone(h);
+  }
+  return null;
+}
+
 /** Terminal end: moves the record to history and clears the current slot. */
 export function end(operationId: string, status: 'COMPLETED' | 'FAILED' | 'CANCELLED', result?: string | null, note?: string | null): ExecutionRecord | null {
   if (current && current.operationId === operationId) {

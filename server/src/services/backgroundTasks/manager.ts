@@ -39,6 +39,16 @@ function extractTopResult(result: string | null | undefined): string | null {
   if (first?.[1]) return first[1].trim().slice(0, 80);
   return null;
 }
+
+/** Extract the returned lead count from a revenue result ("COMPLETED 10/10"). */
+function extractResultCount(result: string | null | undefined): number | null {
+  if (!result) return null;
+  const completed = result.match(/COMPLETED\s+(\d+)\s*\/\s*(\d+)/i);
+  if (completed?.[1]) return Number(completed[1]);
+  const qualified = result.match(/(\d+)\s+qualified lead/i);
+  if (qualified?.[1]) return Number(qualified[1]);
+  return null;
+}
 import { routingLedger } from '../routingLedger.js';
 
 export interface CreateTaskInput {
@@ -305,20 +315,38 @@ export class BackgroundTaskManager extends EventEmitter {
               const rec = executionState.get(opId);
               if (rec) {
                 const meta = (task.metadata || {}) as Record<string, any>;
+                const requestedCount = typeof meta.prospectCount === 'number' ? meta.prospectCount : null;
+                const resultCount = rec.qualifiedCount != null && requestedCount != null
+                  ? Math.min(rec.qualifiedCount, requestedCount)
+                  : (extractResultCount(rec.result) ?? rec.qualifiedCount);
+                const topResult = extractTopResult(rec.result);
                 const evt = buildCompletionEvent(rec, {
                   taskId: task.taskId,
                   conversationId: task.conversationId ?? null,
                   taskType: task.worker === 'revenue' ? 'revenue search' : task.worker === 'codex' ? 'code inspection' : task.worker,
                   niche: meta.niche ?? null,
                   city: meta.city ?? null,
-                  requestedCount: typeof meta.prospectCount === 'number' ? meta.prospectCount : null,
-                  resultCount: rec.qualifiedCount != null && typeof meta.prospectCount === 'number' ? Math.min(rec.qualifiedCount, meta.prospectCount) : rec.qualifiedCount,
-                  topResult: extractTopResult(rec.result),
+                  requestedCount,
+                  resultCount,
+                  topResult,
                   detail: status === 'failed' ? (updated.blocker || updated.lastError || null) : null,
                 });
                 if (evt) publishCompletion(evt);
+                // Memory distillation (memory milestone): meaningful terminal
+                // tasks create episodic/semantic memories with provenance.
+                const { distillFromExecution } = await import('../memory/distill.js');
+                distillFromExecution(rec, {
+                  taskId: task.taskId,
+                  conversationId: task.conversationId ?? null,
+                  niche: meta.niche ?? null,
+                  city: meta.city ?? null,
+                  requestedCount,
+                  resultCount,
+                  topResult,
+                  detail: status === 'failed' ? (updated.blocker || updated.lastError || null) : null,
+                });
               }
-            } catch { /* completion event must never break the transition */ }
+            } catch { /* completion event + distillation must never break the transition */ }
           })();
         } else {
           const execStatus = status === 'running' ? 'RUNNING'
@@ -453,13 +481,14 @@ export class BackgroundTaskManager extends EventEmitter {
     const opId = (task.metadata as any)?.operationId as string | undefined;
     const counts = { ...safePatch, ...detail } as Record<string, unknown>;
     if (opId && (counts.discovered !== undefined || counts.qualified !== undefined || counts.rejected !== undefined || counts.requested !== undefined || counts.expanded !== undefined)) {
-      executionState.update(opId, {
-        discoveredCount: typeof counts.discovered === 'number' ? counts.discovered : null,
-        qualifiedCount: typeof counts.qualified === 'number' ? counts.qualified : null,
-        rejectedCount: typeof counts.rejected === 'number' ? counts.rejected : null,
-        targetCount: typeof counts.requested === 'number' ? counts.requested : null,
-        currentAction: summary,
-      });
+      // Only overwrite a count field when this event actually carries it —
+      // a later event without `discovered` must not null it out.
+      const countPatch: Record<string, unknown> = { currentAction: summary };
+      if (typeof counts.discovered === 'number') countPatch.discoveredCount = counts.discovered;
+      if (typeof counts.qualified === 'number') countPatch.qualifiedCount = counts.qualified;
+      if (typeof counts.rejected === 'number') countPatch.rejectedCount = counts.rejected;
+      if (typeof counts.requested === 'number') countPatch.targetCount = counts.requested;
+      executionState.updateRecord(opId, countPatch as any);
     }
     if (updated && updated.progressMessage !== task.progressMessage) {
       this.emit('task:updated', updated);

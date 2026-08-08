@@ -560,7 +560,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       } else if (execRoute === 'board_query') {
         reply = buildCapabilityExplanation(executive.capability) + '\n\nOpen the task board to see live cards.';
       } else if (execRoute === 'memory_query') {
-        reply = buildCapabilityExplanation(executive.capability);
+        const { handleMemoryRecall } = await import('../domains/jarvis/memoryRecall.js');
+        reply = await handleMemoryRecall(prompt);
       } else if (execRoute === 'automation_request') {
         reply = buildCapabilityExplanation(executive.capability) + '\n\nSay "create an automation" and I will register it as a background task.';
       } else if (execRoute === 'worker_feedback') {
@@ -938,6 +939,47 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       requiresApproval: Boolean(intent.requiresApproval),
       operationId: normalizedOperationId
     });
+
+    // ── MEMORY recall + decision statements (memory milestone) ──
+    // Natural-language past/decision questions are answered from stored
+    // memory with provenance — no new task required. Runs before the
+    // investigate/question branches so recall is not swallowed as a task.
+    // Guarded: if the memory store is unavailable (e.g. a test env mocking
+    // the db), fall through to the normal direct handling.
+    if (intent.route !== 'investigate' && intent.route !== 'clarification_required') {
+      try {
+        const { isMemoryRecall, isDecisionStatement, handleMemoryRecall, handleDecisionStatement } = await import('../domains/jarvis/memoryRecall.js');
+        if (isDecisionStatement(prompt)) {
+        const reply = await handleDecisionStatement(prompt);
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { intent: 'decision_statement', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory' },
+        });
+        endStreamExecution('COMPLETED', reply);
+        logStreamStage(normalizedOperationId, 'decision_statement');
+        return;
+      }
+      if (isMemoryRecall(prompt)) {
+        updateStreamExecution({ status: 'RUNNING', currentAction: 'Recalling related memories' });
+        const reply = await handleMemoryRecall(prompt);
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { intent: 'memory_recall', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory' },
+        });
+        endStreamExecution('COMPLETED', reply);
+        logStreamStage(normalizedOperationId, 'memory_recall');
+        return;
+      }
+      } catch { /* memory store unavailable — normal direct handling */ }
+    }
 
     // ── INVESTIGATE (implicit bug reports / contextual problem statements) ──
     // Inspect-first, ask-later. Runs a read-only state inspection and streams

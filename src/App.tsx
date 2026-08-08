@@ -8,6 +8,7 @@ import AppShell from './components/layout/AppShell';
 /* ─── Pages ─── */
 import MissionControl from './pages/MissionControlPage';
 import JarvisStudio from './pages/JarvisStudio';
+import MemoryStudio from './pages/MemoryStudio';
 import AgentsGallery from './pages/AgentsGallery';
 import AgentDetail from './pages/AgentDetail';
 import OrnithDashboard from './pages/OrnithDashboard';
@@ -65,7 +66,7 @@ function App() {
                 <Route path="runs" element={<RunsInspector />} />
                 <Route path="skills" element={<SkillsPage />} />
                 <Route path="providers" element={<ProvidersBoard />} />
-                <Route path="memory" element={<MemoryBoard />} />
+                <Route path="memory" element={<MemoryStudio />} />
                 <Route path="builds" element={<BuildsGallery />} />
                 <Route path="control-room" element={<ControlRoom />} />
                 <Route path="boards" element={<BoardsGallery />} />

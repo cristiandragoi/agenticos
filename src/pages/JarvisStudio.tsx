@@ -199,6 +199,16 @@ export default function JarvisStudio() {
   const [completions, setCompletions] = useState<CompletionEvent[]>([]);
   const announcedOpsRef = useRef<Set<string>>(new Set());
 
+  // "View related memories" (memory milestone): focus terms from the active
+  // execution's action text (e.g. "…roofing in Berlin…") fall back to the
+  // operation id so the Memory graph opens on the relevant neighborhood.
+  const relatedMemoryFocus = useCallback((): string => {
+    const exec = executionStore.get().current;
+    const action = exec?.currentAction || '';
+    const terms = action.replace(/[^a-z0-9 ]/gi, ' ').split(/\s+/).filter((t) => t.length > 3).slice(0, 4).join(' ');
+    return terms || exec?.operationId || '';
+  }, []);
+
   useEffect(() => {
     const refresh = () => setCompletions(executionStore.getCompletions().filter((e) => completionNotifiedAt(e.operationId) == null));
     refresh();
@@ -899,6 +909,15 @@ export default function JarvisStudio() {
               {[...completions].reverse().map((evt) => <CompletionCard key={evt.operationId} event={evt} />)}
             </div>
           )}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <button
+              data-testid="view-related-memories"
+              onClick={() => { window.location.hash = `#/memory?focus=${encodeURIComponent(relatedMemoryFocus())}`; }}
+              style={{ background: '#0f172a', border: '1px solid #164e63', color: '#67e8f9', borderRadius: 8, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}
+              title="Open the Memory area focused on this conversation">
+              🧠 View related memories
+            </button>
+          </div>
           {currentExec ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} data-testid="jarvis-current-execution">
               {currentExec.status === 'WAITING_FOR_USER' ? (

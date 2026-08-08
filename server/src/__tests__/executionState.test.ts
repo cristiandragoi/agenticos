@@ -84,3 +84,30 @@ describe('WAITING_FOR_USER (conversation-state milestone)', () => {
     expect(waiting?.note).toContain('Superseded');
   });
 });
+
+describe('updateRecord (memory milestone — counts reach history records)', () => {
+  beforeEach(() => exec.clearExecutions());
+
+  it('patches a record that has been superseded into history (task progress still lands)', () => {
+    exec.begin({ operationId: 'op-rev', worker: 'revenue', status: 'RUNNING', currentAction: 'Discovering prospects' });
+    // Another stream supersedes the revenue op in the current slot.
+    exec.begin({ operationId: 'op-chat', worker: 'jarvis', status: 'ROUTING' });
+    expect(exec.getCurrent()?.operationId).toBe('op-chat');
+    // The count mirror now reaches the revenue record even though it is history.
+    const updated = exec.updateRecord('op-rev', { qualifiedCount: 8, discoveredCount: 13, targetCount: 10 });
+    expect(updated?.qualifiedCount).toBe(8);
+    expect(exec.get('op-rev')?.qualifiedCount).toBe(8);
+    expect(exec.getCurrent()?.operationId).toBe('op-chat'); // current untouched
+  });
+
+  it('still updates the current record when it is the current one', () => {
+    exec.begin({ operationId: 'op-rev', worker: 'revenue', status: 'RUNNING' });
+    const updated = exec.updateRecord('op-rev', { qualifiedCount: 5 });
+    expect(updated?.qualifiedCount).toBe(5);
+    expect(exec.getCurrent()?.qualifiedCount).toBe(5);
+  });
+
+  it('returns null for an unknown operationId', () => {
+    expect(exec.updateRecord('op-missing', { qualifiedCount: 1 })).toBeNull();
+  });
+});
