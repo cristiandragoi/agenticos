@@ -176,6 +176,66 @@ export function isAssistantComplaint(prompt: string): boolean {
 }
 
 /**
+ * UI / interface / layout operational problem classifier.
+ *
+ * AgenticOS is a working desktop application: when the user says the UI is
+ * wrong, asks to change/fix/move a panel, or reports an overlap, that is an
+ * OPERATIONAL problem report — Jarvis inspects runtime/frontend state and
+ * can delegate engineering work. It must NEVER fall through to generic chat
+ * ("I cannot modify the UI") or to a clarification wall.
+ *
+ * Pattern-based (semantic family), NOT a hardcoded sentence list:
+ *  - UI/interface/layout topic tokens: chat interface, layout, panel,
+ *    transcript, composer, orb, workspace, controls, section, sidebar,
+ *    activity column, spacing, overlap, component, screen, window…
+ *  - Problem/change signals: wrong, broken, fix, change, move, overlap,
+ *    overlapping, cut, misaligned, misplaced, floating, still looks,
+ *    shouldn't be, doesn't work, bug, glitch, weird, inconsistent…
+ *  - Deictic phrases (this/that/it) are classified ONLY when recent
+ *    conversation context already refers to AgenticOS UI/state.
+ *
+ * Informational UI QUESTIONS ("What is the transcript panel?", "How does
+ * the layout system work?") are explicitly excluded — they stay direct.
+ */
+const UI_TOPIC_RE =
+  /\b(ui|interface|layout|panel|transcript|composer|orb|workspace|controls|section|sidebar|activity column|spacing|overlap|component|screen|window|header|footer|status strip|command bar|dock|rail)\b/i;
+const UI_CHANGE_RE =
+  /\b(change|fix|move|modify|rearrange|reorder|adjust|repair|redesign|restyle|relocate|shift)\b/i;
+const UI_PROBLEM_RE =
+  /\b(wrong|broken|broke|misaligned|misplaced|overlap|overlapping|cut|cutting|floating|inconsistent|shouldn'?t be|should not be|doesn'?t (look|work|fit|belong)|still looks|looks wrong|bug|glitch|weird|strange|not (right|correct|aligned|working)|out of place|in the wrong place|too (high|low|big|small|wide|narrow)|pushed|clipped|hidden|overlapping|still (here|there|shown|displayed|visible)|still present)\b/i;
+const UI_DEICTIC_RE = /\b(this|that|it|these|those)\b/i;
+
+export function isUIChangeOrProblemRequest(prompt: string, recentText?: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!p) return false;
+  // Informational UI questions stay direct — never investigate.
+  if (/^(what|who|how|where|when|which)\s+(is|are|does|do|can|could|would)\b/.test(p)) return false;
+  if (/^how\s+(does|do|is|are|would|should|can)\b/.test(p)) return false;
+  if (/\b(what is|what does|how does|how do|explain|tell me about|describe)\b/.test(p)) return false;
+
+  const hasTopic = UI_TOPIC_RE.test(p);
+  const hasChange = UI_CHANGE_RE.test(p);
+  const hasProblem = UI_PROBLEM_RE.test(p);
+  const hasDeictic = UI_DEICTIC_RE.test(p);
+
+  // Direct UI topic + change or problem signal → operational.
+  if (hasTopic && (hasChange || hasProblem)) return true;
+  // Bare UI topic with an explicit problem ("The layout is broken.").
+  if (hasTopic && hasProblem) return true;
+  // Explicit "investigate <this/that/it>" — an operational command even
+  // without a UI topic; the plan inspects AgenticOS frontend/runtime state.
+  if (/^(investigate|check|inspect|look into|look at)\b/.test(p) && hasDeictic) return true;
+  // Deictic UI reference — needs recent AgenticOS UI context to disambiguate.
+  if (hasDeictic && (hasChange || hasProblem) && recentText) {
+    return UI_TOPIC_RE.test(recentText) || /(ui|interface|layout|panel|transcript|composer|orb|workspace|overlap)/i.test(recentText);
+  }
+  // "Can you change that?" — a change request about a deictic referent.
+  // With no UI context it is genuinely ambiguous (may clarify); with UI
+  // context it is operational (handled above).
+  return false;
+}
+
+/**
  * Context-aware investigation signals — vague statements that only read as
  * problem reports when recent conversation establishes AgenticOS-state talk
  * ("That value shouldn't be there anymore.", "Why is Laguna still there?",
@@ -482,6 +542,28 @@ export class IntentRouter {
         requiresApproval: false,
         selectedAgent: 'Jarvis',
         plan: ['Inspect active runtime/gateway/frontend state', 'Identify what is failing', 'Report evidence and next step'],
+      };
+    }
+
+    // ── UI/interface/layout CHANGE or PROBLEM requests (operational) ──
+    // "Change the chat interface.", "Fix the layout.", "Why does the UI
+    // still look wrong?", "The transcript is overlapping the controls."
+    // are OPERATIONAL problem reports in AgenticOS — Jarvis inspects
+    // runtime/frontend state and can delegate engineering work. They must
+    // never fall to generic chat ("I cannot modify the UI") or to the
+    // clarification wall. Runs BEFORE the question gate so "Why does the
+    // UI still look wrong?" does not become an informational question.
+    if (isUIChangeOrProblemRequest(prompt, recentText)) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.85,
+        reason: 'UI/interface/layout change or problem request — inspect AgenticOS frontend state and delegate',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules'],
       };
     }
 

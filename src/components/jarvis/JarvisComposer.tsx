@@ -89,7 +89,11 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+      // Bound the auto-grow to ~4 lines (96px) so the sticky composer can
+      // never grow content-driven beyond its intended UI height. Without
+      // this, a long draft pushes the composer to ~293px and starves the
+      // workspace band at short viewports (1366×768 live investigation).
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 96)}px`;
     }
   };
 

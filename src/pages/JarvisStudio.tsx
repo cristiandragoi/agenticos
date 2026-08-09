@@ -875,7 +875,7 @@ export default function JarvisStudio() {
             LANE (workspace/approval strip + activity line) lives HERE, at
             the top of the bounded band — never inside the stage. Backend /
             workspace status must not push the Jarvis visualization. ── */}
-        <div className={cc.workspace} data-testid="jarvis-workspace" style={{ maxHeight: '54vh', overflowY: 'auto', overflowX: 'hidden' }}>
+        <div className={cc.workspace} data-testid="jarvis-workspace" style={{ maxHeight: '54vh', overflow: 'hidden' }}>
 
           {/* ── TOP STATUS LANE (stabilization §1): a reserved flow row at
               the top of the workspace band. The workspace/approval strip

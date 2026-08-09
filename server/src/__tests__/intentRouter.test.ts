@@ -516,4 +516,48 @@ describe('IntentRouter — required routing cases', () => {
       expect(result.route).toBe('clarification_required');
     });
   });
+
+  describe('stabilization: UI/interface/layout change requests are OPERATIONAL (§ runtime investigation)', () => {
+    const uiChangeCases = [
+      'Change the chat interface.',
+      'Fix the layout.',
+      'Why does the UI still look wrong?',
+      'Investigate this.',
+      'The chat interface is wrong.',
+      'The layout is broken.',
+      'Why is this panel still here?',
+      'Move this section down.',
+      'Why does the transcript overlap?',
+      'The transcript is overlapping the controls.',
+      'Move this section down.',
+    ];
+    for (const input of uiChangeCases) {
+      it(`routes ${JSON.stringify(input)} to INVESTIGATE (operational, never generic chat)`, async () => {
+        const recentText = input === 'Move this section down.' ? 'the transcript is overlapping the composer' : '';
+        const result = await router.routeIntent(input, { recentText });
+        expect(result.route, input).toBe('investigate');
+        expect(result.category).toBe('investigation');
+        expect(result.mode).toBe('operational_execution');
+        expect(result.plan && result.plan.some(p => /engineering task|affected UI component|frontend/i.test(p))).toBe(true);
+      });
+    }
+
+    it('routes deictic UI change with recent UI context to INVESTIGATE', async () => {
+      const result = await router.routeIntent('Can you change that?', { recentText: 'the chat interface is wrong and I want it fixed' });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('keeps informational UI questions DIRECT, never investigate', async () => {
+      for (const s of ['What is the transcript panel?', 'How does the layout system work?', 'What does the Memory tab do?']) {
+        const result = await router.routeIntent(s);
+        expect(result.route, s).toBe('direct');
+      }
+    });
+
+    it('deictic change without UI context is not force-investigated', async () => {
+      const result = await router.routeIntent('Can you change that?', { recentText: '' });
+      // Genuinely ambiguous — must NOT claim UI change intent without context.
+      expect(result.route).not.toBe('investigate');
+    });
+  });
 });

@@ -85,9 +85,9 @@ export const JarvisWorkspaceBar: React.FC = () => {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        flexWrap: 'wrap',
-        padding: '8px 16px',
+        gap: '8px',
+        flexWrap: 'nowrap',
+        padding: '3px 8px',
         borderBottom: '1px solid var(--border-color)',
         background: 'rgba(255,255,255,0.02)',
         fontSize: '0.8125rem'
@@ -114,13 +114,13 @@ export const JarvisWorkspaceBar: React.FC = () => {
           setRunSettings(prev => ({ ...prev, folderTree: e.target.value }));
         }}
         style={{
-          flex: '1 1 220px',
-          minWidth: '180px',
+          flex: '1 1 140px',
+          minWidth: '120px',
           background: 'rgba(0,0,0,0.25)',
           border: '1px solid var(--border-color)',
           borderRadius: '6px',
           color: 'var(--text-primary)',
-          padding: '6px 10px',
+          padding: '3px 8px',
           fontSize: '0.8125rem',
           fontFamily: 'monospace',
           outline: 'none'
@@ -183,7 +183,7 @@ export const JarvisWorkspaceBar: React.FC = () => {
           border: '1px solid var(--border-color)',
           borderRadius: '6px',
           color: 'var(--text-primary)',
-          padding: '6px 8px',
+          padding: '3px 6px',
           fontSize: '0.8125rem'
         }}
       >

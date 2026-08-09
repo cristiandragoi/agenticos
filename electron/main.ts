@@ -42,9 +42,42 @@ function resolveBackendMode(): BackendMode {
 }
 const BACKEND_MODE = resolveBackendMode();
 
+/**
+ * EPIPE hardening (dev-runtime stability): Electron main must NEVER crash
+ * because a console/logging stream is closed. When vite-plugin-electron
+ * owns Electron's stdout/stderr pipes and Vite exits, writes to the broken
+ * pipe throw EPIPE. We (a) ignore stream-level errors on stdout/stderr and
+ * (b) guard every console call so a closed pipe cannot raise an uncaught
+ * exception. Real application errors still surface — only stream I/O
+ * failures are absorbed.
+ */
+function hardenConsolePipes(): void {
+  for (const stream of [process.stdout, process.stderr]) {
+    if (stream) {
+      stream.on('error', (err: NodeJS.ErrnoException) => {
+        if (err && (err.code === 'EPIPE' || err.code === 'ECONNRESET')) return; // pipe closed — ignore
+        // Any other stream error: log what we can without recursing.
+        try { console.error('[AgenticOS Electron] stdout/stderr stream error', err); } catch { /* ignore */ }
+      });
+    }
+  }
+}
+
+/** Fail-safe console.log — never throws on a closed pipe. */
+function safeLog(message: string, data?: unknown): void {
+  const line = data === undefined ? message : `${message} ${JSON.stringify(data)}`;
+  try {
+    console.log(line);
+  } catch {
+    // stdout pipe closed (EPIPE) — log is best-effort; the app keeps running.
+  }
+}
+
+hardenConsolePipes();
+
 if (REMOTE_DEBUGGING_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', REMOTE_DEBUGGING_PORT);
-  console.log(`[AgenticOS Electron] Remote debugging port: ${REMOTE_DEBUGGING_PORT}`);
+  safeLog(`[AgenticOS Electron] Remote debugging port: ${REMOTE_DEBUGGING_PORT}`);
 }
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
@@ -55,7 +88,7 @@ let backendShutdownStarted = false;
 
 function logElectron(message: string, data?: unknown) {
   const line = data === undefined ? message : `${message} ${JSON.stringify(data)}`;
-  console.log(line);
+  safeLog(line);
   const logFile = process.env['AGENTICOS_ELECTRON_LOG'] ||
     path.join(process.env.APP_ROOT || path.join(__dirname, '..'), '.agentos', 'logs', 'electron-dev.log');
   if (!logFile) return;
