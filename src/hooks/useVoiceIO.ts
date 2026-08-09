@@ -105,6 +105,12 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  /** Playback generation counter (§stabilization): every playAudio() bumps
+   *  this, and stale onerror/onended/onplay handlers from a PREVIOUS session
+   *  must ignore their events — a late async media error (e.g. from an
+   *  earlier autoplay-unlock on an empty src) can never surface as today's
+   *  VOICE PLAYBACK ERROR banner. */
+  const playbackGenRef = useRef(0);
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
   // Playback-amplitude analysis (real output level for the orb).
   const playbackContextRef = useRef<AudioContext | null>(null);
@@ -179,6 +185,20 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   }, []);
 
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+
+  /** Autoplay-unlock that can NEVER fire "Empty src attribute" (§4/§5).
+   *  Calling play() on an element without a src raises a MEDIA_ELEMENT
+   *  error event — the root cause of the phantom VOICE PLAYBACK ERROR.
+   *  When the element has no source yet, assign a minimal silent WAV
+   *  data-URL first so the unlock plays valid (silent) content. */
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+  const unlockAudioElement = useCallback(() => {
+    if (!audioElementRef.current) audioElementRef.current = new Audio();
+    const el = audioElementRef.current;
+    if (!el.src) el.src = SILENT_WAV;
+    el.play().catch(() => { /* unlock is best-effort; real errors surface via playAudio */ });
+    el.pause();
+  }, []);
 
   const stopPlaybackLevelMonitor = useCallback(() => {
     if (playbackLevelRafRef.current !== null) {
@@ -280,114 +300,124 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Play base64-encoded MP3 audio, strictly confirming playback start */
+  /** Play base64-encoded MP3 audio, strictly confirming playback start.
+   *
+   *  §5 playback state machine contract:
+   *    - NEVER call play() unless a non-empty audio payload exists AND has
+   *      been assigned as a valid data-URL src.
+   *    - Stale media events from a previous session (generation) are ignored.
+   *    - A successful playback clears any earlier FAILED banner (§6). */
   const playAudio = useCallback((base64Audio: string | null): Promise<void> => {
+    const gen = ++playbackGenRef.current;
     return new Promise((resolve, reject) => {
       // Audio playback should not call stopAudio, since speak orchestrates it.
       // Just pause existing audioElementRef without aborting the controller.
       window.speechSynthesis?.cancel();
       if (audioElementRef.current) {
-        audioElementRef.current.pause();
-        audioElementRef.current.src = '';
+        // Detach ALL handlers BEFORE clearing the src: assigning an empty
+        // src fires an async MEDIA_ELEMENT error ("Empty src attribute")
+        // which a still-attached stale handler would surface as a phantom
+        // VOICE PLAYBACK ERROR for the NEXT session.
+        const old = audioElementRef.current;
+        old.onplay = null;
+        old.onended = null;
+        old.onerror = null;
+        old.pause();
+        old.removeAttribute('src');
+        old.load();
       }
       setPlaybackError(null);
 
-      if (base64Audio) {
-        if (!audioElementRef.current) {
-          audioElementRef.current = new Audio();
-        }
-        const audio = audioElementRef.current;
-        audio.src = `data:audio/mp3;base64,${base64Audio}`;
-
-        audio.onplay = () => {
-          // Playback ACTUALLY started — only now do we enter the speaking
-          // state. Real output amplitude is monitored for the orb.
-          // TEMP DIAGNOSTIC (remove once root cause confirmed)
-          console.log('[VoiceDiag] onplay FIRED (real playback started)', { agentId, volume: audio.volume, muted: audio.muted });
-          voiceTracePush('playback_started', 'ok', `Audio playback started (${Math.round((audio.duration || 0) * 10) / 10}s)`);
-          playbackActiveRef.current = true;
-          speakingRef.current = true;
-          playbackStartedAtRef.current = Date.now();
-          ensurePlaybackAnalyser();
-          startPlaybackLevelMonitor();
-          setVoiceState('speaking');
-          window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
-            detail: { agentId },
-          }));
-          // Conversation mode: keep the VAD loop armed DURING playback so a
-          // real user voice can barge in (stop audio, open a new turn).
-          if (conversationActiveRef.current) startConversationListeningInternal();
-          resolve();
-        };
-
-        audio.onended = () => {
-          stopPlaybackLevelMonitor();
-          playbackActiveRef.current = false;
-          speakingRef.current = false;
-          window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
-            detail: { agentId },
-          }));
-          afterPlaybackEnd();
-        };
-
-        audio.onerror = () => {
-          stopPlaybackLevelMonitor();
-          playbackActiveRef.current = false;
-          speakingRef.current = false;
-          const err = audio.error?.message || 'Audio element playback error';
-          setPlaybackError(err);
-          setVoiceState('error');
-          window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
-            detail: { agentId },
-          }));
-          if (conversationActiveRef.current) {
-            // Error path: recover to listening, never duplicate the speech.
-            if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
-            recoverTimerRef.current = setTimeout(() => {
-              recoverTimerRef.current = null;
-              if (conversationActiveRef.current) {
-                setVoiceState('listening');
-                startConversationListeningInternal();
-              }
-            }, 1500);
-          }
-          reject(new Error(err));
-        };
-
-        audio.play().catch((err) => {
-          const errMsg = err.message || 'Autoplay blocked or playback failed';
-          // TEMP DIAGNOSTIC (remove once root cause confirmed)
-          console.log('[VoiceDiag] play() REJECTED', {
-            agentId,
-            name: err.name,
-            message: errMsg,
-            src: audio.src ? `${audio.src.slice(0, 30)}... (${audio.src.length} chars)` : '(empty)',
-            muted: audio.muted,
-            volume: audio.volume,
-            readyState: audio.readyState,
-            networkState: audio.networkState,
-            paused: audio.paused,
-          });
-          setPlaybackError(errMsg);
-          setVoiceState('error');
-          reject(new Error(errMsg));
-        }).then(() => {
-          // TEMP DIAGNOSTIC (remove once root cause confirmed)
-          console.log('[VoiceDiag] play() RESOLVED', {
-            agentId,
-            muted: audio.muted,
-            volume: audio.volume,
-            readyState: audio.readyState,
-            networkState: audio.networkState,
-            paused: audio.paused,
-          });
-        });
-      } else {
+      // §5: SYNTHESIZING→READY gate — reject before play() when the payload
+      // is missing/empty (never produce a media-element error from nothing).
+      if (!base64Audio || typeof base64Audio !== 'string' || base64Audio.trim().length === 0) {
         const err = 'No audio data returned from backend';
         setPlaybackError(err);
         setVoiceState('error');
         reject(new Error(err));
+        return;
       }
+
+      if (!audioElementRef.current) {
+        audioElementRef.current = new Audio();
+      }
+      const audio = audioElementRef.current;
+      const src = `data:audio/mp3;base64,${base64Audio}`;
+      audio.src = src;
+
+      audio.onplay = () => {
+        if (playbackGenRef.current !== gen) return; // stale session event
+        // Playback ACTUALLY started — only now do we enter the speaking
+        // state. Real output amplitude is monitored for the orb.
+        voiceTracePush('playback_started', 'ok', `Audio playback started (${Math.round((audio.duration || 0) * 10) / 10}s)`);
+        playbackActiveRef.current = true;
+        speakingRef.current = true;
+        playbackStartedAtRef.current = Date.now();
+        // §6: playback recovered — clear any leftover FAILED banner.
+        setPlaybackError(null);
+        ensurePlaybackAnalyser();
+        startPlaybackLevelMonitor();
+        setVoiceState('speaking');
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
+          detail: { agentId },
+        }));
+        // Conversation mode: keep the VAD loop armed DURING playback so a
+        // real user voice can barge in (stop audio, open a new turn).
+        if (conversationActiveRef.current) startConversationListeningInternal();
+        resolve();
+      };
+
+      audio.onended = () => {
+        if (playbackGenRef.current !== gen) return; // stale session event
+        stopPlaybackLevelMonitor();
+        playbackActiveRef.current = false;
+        speakingRef.current = false;
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+          detail: { agentId },
+        }));
+        afterPlaybackEnd();
+      };
+
+      audio.onerror = () => {
+        if (playbackGenRef.current !== gen) return; // §6: stale error — NEVER banner
+        stopPlaybackLevelMonitor();
+        playbackActiveRef.current = false;
+        speakingRef.current = false;
+        const err = audio.error?.message || 'Audio element playback error';
+        setPlaybackError(err);
+        setVoiceState('error');
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+          detail: { agentId },
+        }));
+        if (conversationActiveRef.current) {
+          // Error path: recover to listening, never duplicate the speech.
+          if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+          recoverTimerRef.current = setTimeout(() => {
+            recoverTimerRef.current = null;
+            if (conversationActiveRef.current) {
+              setVoiceState('listening');
+              startConversationListeningInternal();
+            }
+          }, 1500);
+        }
+        reject(new Error(err));
+      };
+
+      // §5 final guard: only play with a real, non-empty src.
+      if (!audio.src) {
+        const err = 'Audio source missing after assignment (URL creation failed)';
+        setPlaybackError(err);
+        setVoiceState('error');
+        reject(new Error(err));
+        return;
+      }
+      audio.play().catch((err) => {
+        if (playbackGenRef.current !== gen) return; // stale rejection
+        const errMsg = err.message || 'Autoplay blocked or playback failed';
+        setPlaybackError(errMsg);
+        setVoiceState('error');
+        reject(new Error(errMsg));
+      });
     });
   }, [agentId, setVoiceState, ensurePlaybackAnalyser, startPlaybackLevelMonitor, stopPlaybackLevelMonitor, afterPlaybackEnd]);
 
@@ -889,15 +919,13 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       return false;
     }
     // Unlock the audio element for later playback (user-gesture context).
-    if (!audioElementRef.current) audioElementRef.current = new Audio();
-    audioElementRef.current.play().catch(() => {});
-    audioElementRef.current.pause();
+    unlockAudioElement();
     setVoiceState('listening');
     startConversationListeningInternal();
     // TEMP DIAGNOSTIC — conversation session confirmed live (remove after confirmation)
     console.log('[ConvTrace] startConversation OK — VAD armed');
     return true;
-  }, [openConversationMic, setVoiceState, startConversationListeningInternal]);
+  }, [openConversationMic, setVoiceState, startConversationListeningInternal, unlockAudioElement]);
 
   /** End conversation mode: stop mic capture, VAD loop, timers, recorder. */
   const endConversation = useCallback(() => {
@@ -932,8 +960,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     if (!audioElementRef.current) {
       audioElementRef.current = new Audio();
     }
-    audioElementRef.current.play().catch(() => {});
-    audioElementRef.current.pause();
+    // Unlock the audio element for later playback (user-gesture context).
+    unlockAudioElement();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -961,7 +989,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       setVoiceState('error');
       setTimeout(() => setVoiceState('idle'), 2000);
     }
-  }, [agentId, voiceState, cleanupStream, processAudioBlob, startSilenceDetection, setVoiceState, openConversationMic, startConversationListeningInternal]);
+  }, [agentId, voiceState, cleanupStream, processAudioBlob, startSilenceDetection, setVoiceState, openConversationMic, startConversationListeningInternal, unlockAudioElement]);
 
   /** Stop listening manually (manual mode stops the segment; conversation
    *  mode just pauses the VAD loop without closing the mic). */

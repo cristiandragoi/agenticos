@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from 'react';
 
+interface GatewayFallback {
+  provider?: string;
+  reachable?: boolean;
+  active?: boolean;
+  currentModel?: string | null;
+}
+
 interface GatewayStatus {
   gateway: string;
-  status: 'online' | 'offline' | 'error' | 'loading' | 'degraded';
+  status: 'online' | 'offline' | 'error' | 'loading' | 'degraded' | 'fallback';
   port?: number;
   configured?: boolean;
   latencyMs?: number;
   providerMetrics?: any;
+  fallback?: GatewayFallback;
 }
 
 const GatewayStatusChip: React.FC = () => {
@@ -23,14 +31,22 @@ const GatewayStatusChip: React.FC = () => {
         // `reachable` is optional: the health endpoint may omit it entirely.
         // Only an explicit reachable:false or an explicit error/offline status
         // marks the gateway as failed — an absent field must not read as failure.
-        if (data.reachable === false || data.status === 'error' || data.status === 'offline') derivedStatus = 'error';
-        else if (data.status === 'degraded') derivedStatus = 'degraded';
+        const gatewayDown = data.reachable === false || data.status === 'error' || data.status === 'offline';
+        if (gatewayDown) {
+          // §6 (stabilization) gateway/fallback truth: a down gateway with an
+          // ACTIVE local fallback (Ollama etc.) is NOT a dead end — Jarvis is
+          // still operating, just through the fallback. Say so explicitly
+          // instead of a bare "Gateway: offline".
+          const fb: GatewayFallback | undefined = data.fallback;
+          derivedStatus = fb?.active && fb.reachable !== false ? 'fallback' : 'error';
+        } else if (data.status === 'degraded') derivedStatus = 'degraded';
 
         setState({
           gateway: data.providerName || data.gateway || 'GatewayRouter',
           status: derivedStatus,
           port: data.port,
-          latencyMs: data.latencyMs
+          latencyMs: data.latencyMs,
+          fallback: data.fallback
         });
       } else {
         setState(s => ({ ...s, status: 'error' }));
@@ -48,9 +64,13 @@ const GatewayStatusChip: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const fallbackName = state.fallback?.provider || 'local provider';
+  const fallbackModel = state.fallback?.currentModel ? ` / ${state.fallback.currentModel}` : '';
+
   const dot = {
     online: 'bg-emerald-400 shadow-emerald-400/60 shadow-sm',
     degraded: 'bg-amber-400 shadow-amber-400/60 shadow-sm',
+    fallback: 'bg-amber-400 shadow-amber-400/60 shadow-sm',
     offline: 'bg-red-500',
     error: 'bg-red-500 animate-pulse',
     loading: 'bg-slate-500 animate-pulse',
@@ -59,6 +79,8 @@ const GatewayStatusChip: React.FC = () => {
   const label = {
     online: `Gateway: ${state.gateway}`,
     degraded: `Gateway: ${state.gateway} (Slow)`,
+    // §6: the down gateway + active fallback is explained, not hidden.
+    fallback: `Gateway: ${state.gateway} offline → Active LLM: ${fallbackName}${fallbackModel} (fallback active)`,
     offline: `Gateway: offline`,
     error: `Gateway: error`,
     loading: `Gateway: …`,
@@ -67,6 +89,7 @@ const GatewayStatusChip: React.FC = () => {
   const textColor = {
     online: 'text-emerald-400',
     degraded: 'text-amber-400',
+    fallback: 'text-amber-400',
     offline: 'text-red-400',
     error: 'text-red-400',
     loading: 'text-slate-500',

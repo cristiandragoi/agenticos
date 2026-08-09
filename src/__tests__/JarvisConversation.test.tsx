@@ -71,6 +71,9 @@ class MockMediaRecorder {
 /* ─── Audio element mock with controllable playback confirmation ─── */
 let autoFireOnPlay = true;
 let lastAudio: MockAudio | null = null;
+/** Every src present at the moment play() was invoked — the core regression
+ *  guard: the Empty-src bug was play() being called with src === ''. */
+let playSrcs: string[] = [];
 
 class MockAudio {
   src = '';
@@ -78,8 +81,14 @@ class MockAudio {
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
   pause = vi.fn();
+  // HTMLMediaElement contract surface used by the playback cleanup path
+  // (detach handlers → drop src → load) — the engine clears the source
+  // between sessions without ever firing a phantom media error.
+  removeAttribute = vi.fn((attr: string) => { if (attr === 'src') this.src = ''; });
+  load = vi.fn();
   play = vi.fn(() => {
     const self = this;
+    playSrcs.push(self.src || '');
     if (autoFireOnPlay && self.src) {
       Promise.resolve().then(() => self.onplay?.());
     }
@@ -145,6 +154,7 @@ beforeEach(() => {
   recorderChunkSize = 600;
   autoFireOnPlay = true;
   lastAudio = null;
+  playSrcs = [];
   transcribeText = 'hello jarvis';
   transcribeImpl = null;
 
@@ -394,5 +404,98 @@ describe('Jarvis conversation mode — turn engine', () => {
     const ttsCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/voice/tts'));
     expect(ttsCalls).toHaveLength(0); // synthesis never requested
     expect(result.current.voiceState).not.toBe('speaking');
+  });
+});
+
+/* ─── §4–§6 playback state machine (stabilization freeze) ─── */
+describe('playback state machine — Empty-src regression (stabilization)', () => {
+  it('§5: play() is NEVER called with an empty src (autoplay unlock regression)', async () => {
+    // Root cause of the phantom VOICE PLAYBACK ERROR: the autoplay-unlock
+    // calls play() on an element with no src, firing MEDIA_ELEMENT_ERROR
+    // "Empty src attribute". After the fix, every play() call — unlock or
+    // real playback — must carry a valid non-empty src.
+    const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit: vi.fn() }));
+
+    await act(async () => { await result.current.startConversation(); });
+    await act(async () => { await result.current.speak('hello jarvis').catch(() => {}); });
+
+    expect(playSrcs.length).toBeGreaterThan(0);
+    for (const src of playSrcs) {
+      expect(src).not.toBe(''); // the regression guard — no empty-src play()
+    }
+    expect(result.current.playbackError).toBeNull();
+  });
+
+  it('§5: a playback media error surfaces the EXACT reason in the FAILED state', async () => {
+    const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit: vi.fn() }));
+    await act(async () => { await result.current.startConversation(); });
+    await act(async () => { await result.current.speak('hello jarvis').catch(() => {}); });
+    expect(result.current.voiceState).toBe('speaking');
+
+    // The media element reports the classic error — the banner must carry
+    // the exact message, and the voice state must be FAILED (error).
+    await act(async () => {
+      const audio = lastAudio;
+      expect(audio).not.toBeNull();
+      Object.defineProperty(audio, 'error', { value: { message: 'Empty src attribute' }, configurable: true });
+      audio!.onerror?.();
+    });
+    expect(result.current.playbackError).toBe('Empty src attribute');
+    expect(result.current.voiceState).toBe('error');
+  });
+
+  it('§6: a later successful playback clears the previous FAILED banner', async () => {
+    const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit: vi.fn() }));
+    await act(async () => { await result.current.startConversation(); });
+    await act(async () => { await result.current.speak('first attempt').catch(() => {}); });
+
+    // Fail the first playback.
+    await act(async () => {
+      const audio = lastAudio;
+      Object.defineProperty(audio, 'error', { value: { message: 'Empty src attribute' }, configurable: true });
+      audio?.onerror?.();
+    });
+    expect(result.current.playbackError).toBe('Empty src attribute');
+
+    // A healthy playback afterwards must CLEAR the old banner (§6).
+    await act(async () => { await result.current.speak('second attempt').catch(() => {}); });
+    expect(result.current.playbackError).toBeNull();
+    expect(result.current.voiceState).toBe('speaking');
+  });
+
+  it('§6: stale-session contract — recovery clears errors, no empty-src plays, live handler owns element', async () => {
+    // NOTE: playAudio REUSES audioElementRef.current across sessions (it does
+    // NOT recreate the element), so the contract here is behavioral, not
+    // structural: after a failed attempt then a healthy recovery, the banner
+    // clears, the live session owns the element's handlers, and no play()
+    // call was ever made against an empty src.
+    const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit: vi.fn() }));
+    await act(async () => { await result.current.startConversation(); });
+
+    // Session 1: a playback media error sets the FAILED banner.
+    await act(async () => { await result.current.speak('first').catch(() => {}); });
+    const audio = lastAudio;
+    expect(audio).not.toBeNull();
+    await act(async () => {
+      Object.defineProperty(audio, 'error', { value: { message: 'Empty src attribute' }, configurable: true });
+      audio!.onerror?.();
+    });
+    expect(result.current.playbackError).toBe('Empty src attribute');
+    expect(result.current.voiceState).toBe('error');
+
+    // Session 2: a healthy playback recovers. The banner MUST clear (§6) and
+    // the live session's handler now owns the element — the failed attempt
+    // cannot resurface once playback has recovered.
+    await act(async () => { await result.current.speak('second').catch(() => {}); });
+    expect(result.current.playbackError).toBeNull();
+    expect(result.current.voiceState).toBe('speaking');
+
+    // Behavioral contract across both sessions:
+    //  - every play() attempt carried a real, non-empty src (no Empty-src)
+    //  - the element is owned by a live handler, not orphaned/stale
+    expect(playSrcs.length).toBeGreaterThan(0);
+    for (const src of playSrcs) expect(src).not.toBe('');
+    expect(audio!.onerror).not.toBeNull();
+    expect(audio!.onplay).not.toBeNull();
   });
 });

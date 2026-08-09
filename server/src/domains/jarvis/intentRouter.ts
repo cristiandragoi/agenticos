@@ -92,26 +92,87 @@ export function isBugReportStatement(prompt: string): boolean {
 export function detectVoiceTranscriptionIssue(prompt: string): string | null {
   const p = prompt.trim();
   if (!p) return null;
-  // Repeated fragments (3+ identical consecutive word tokens).
+  // §9 (stabilization): corruption detection must be CONSERVATIVE. Normal
+  // grammar mistakes, accents, frustration, repetition and informal speech
+  // are NOT corruption. Only STRONG evidence triggers this path.
+
+  // Repeated fragments (3+ identical consecutive content tokens). Short
+  // particles ("a", "i") are excluded — repeated exclamations like "ha ha
+  // ha" or "no no no" are valid emphatic speech, not word salad.
   const tokens = p.split(/\s+/);
   for (let i = 0; i + 2 < tokens.length; i++) {
-    if (tokens[i].toLowerCase() === tokens[i + 1].toLowerCase() && tokens[i].toLowerCase() === tokens[i + 2].toLowerCase()) {
+    const t = tokens[i].toLowerCase().replace(/[^a-zäöü]/g, '');
+    if (t.length >= 3 &&
+      t === tokens[i + 1].toLowerCase().replace(/[^a-zäöü]/g, '') &&
+      t === tokens[i + 2].toLowerCase().replace(/[^a-zäöü]/g, '')) {
       return 'repeated fragment detected';
     }
   }
-  // Impossible letter-run "words" (5+ consecutive consonants, no vowel).
+  // Impossible letter-run "words" (6+ consecutive consonants, no vowel) —
+  // raised from 5+ because short consonant clusters ("strengths", "glimpsed")
+  // are real words; only long vowel-less runs are genuine STT artifacts.
   for (const t of tokens) {
     const alpha = t.replace(/[^a-zA-ZäöüÄÖÜß]/g, '');
-    if (alpha.length >= 6 && !/[aeiouyäöü]/i.test(alpha)) {
+    if (alpha.length >= 8 && !/[aeiouyäöü]/i.test(alpha)) {
       return 'impossible word fragment detected';
     }
   }
-  // Abrupt truncation: ends in a bare letter or 1-2 char fragment.
+  // Abrupt truncation — STRONG evidence only (§9):
+  //  - a sentence that already ends in terminal punctuation is complete,
+  //    whatever the final token length ("What the hell is going on?").
+  //  - the final token must be a BARE single letter, or a 2-char fragment
+  //    in a longer utterance. Real words like "me", "on", "do", "up" at
+  //    the end of a valid sentence must never classify as truncation.
+  if (/[?.!…]$/.test(p)) return null;
   const last = tokens[tokens.length - 1];
-  if (last && /^[a-zäöü]{1,2}$/i.test(last) && tokens.length >= 3) {
+  if (last && /^[a-zäöü]$/i.test(last) && tokens.length >= 2) {
+    return 'abrupt truncation detected';
+  }
+  // 2-char fragment: truncation UNLESS it is a common real 2-letter word
+  // ("do", "on", "me", "up"). Genuine artifacts like "ab" (from "about")
+  // still classify. §9: never flag real words.
+  const REAL_TWO_LETTER_WORDS = new Set([
+    'me', 'my', 'do', 'no', 'on', 'of', 'in', 'it', 'is', 'am', 'be',
+    'we', 'he', 'us', 'up', 'or', 'so', 'to', 'an', 'as', 'at', 'by',
+    'if', 'ok', 'hi', 'go', 'ya', 'um', 'uh', 'hm', 'ah', 'oh',
+  ]);
+  const lastClean = last ? last.toLowerCase().replace(/[^a-zäöü]/g, '') : '';
+  if (lastClean && /^[a-zäöü]{2}$/.test(lastClean) && tokens.length >= 5 && !REAL_TWO_LETTER_WORDS.has(lastClean)) {
     return 'abrupt truncation detected';
   }
   return null;
+}
+
+/**
+ * §8 (stabilization): complaints ABOUT Jarvis/AgenticOS itself.
+ *
+ * "You are not able to work fine.", "You keep misunderstanding me.",
+ * "What the hell is going on?" are complaints about the assistant —
+ * understandable conversational input, never corrupted speech. They route
+ * to INVESTIGATE (inspect the current AgenticOS/runtime state and report)
+ * instead of clarification or generic chat.
+ */
+const ASSISTANT_COMPLAINT_PATTERNS: RegExp[] = [
+  // Second-person malfunction: "you are not able to work fine",
+  // "you're not working", "you don't work", "you never listen"
+  new RegExp(`\\byou${APOSTROPHE}?re\\s+(not\\s+)?(able|capable)\\s+to\\b`),
+  /\byou\s+(are|were)\s+(not\s+)?(able|capable)\s+to\b/,
+  /\byou\s+(don|do)\s*['\u2019]?t\s+(work|function|understand|listen|respond|help|know)\b/,
+  /\byou\s+(never|always)\s+(work|function|understand|listen|respond|help|ask|fail)\b/,
+  /\byou\s+keep\s+\w{3,}ing\b/, // "you keep misunderstanding me"
+  /\byou\s+are\s+(useless|broken|annoying|terrible|awful|hopeless)\b/,
+  // Frustrated rhetorical complaints about the situation
+  /\bwhat\s+the\s+(hell|heck|f[\u2019']?)\s+is\s+going\s+on\b/,
+  /\bi\s+don\s*['\u2019]?t\s+know\s+what\s+(to\s+do|you\s*['\u2019]?re\s+doing)\b/,
+  /\bwhy\s+are\s+you\s+(asking|saying|doing)\s+(me\s+)?(again|that)\b/,
+  /\b(why|how)\s+(did|do)\s+you\s+keep\b/,
+  // Explicit "this still doesn't work" family about the app itself
+  /\b(this|it|that)\s+still\s+doesn\s*['\u2019]?t\s+work\b/,
+];
+
+export function isAssistantComplaint(prompt: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  return ASSISTANT_COMPLAINT_PATTERNS.some((re) => re.test(p));
 }
 
 /**
@@ -383,6 +444,16 @@ export class IntentRouter {
     }
 
     // 5. Ambiguous intent handling
+    // Short imperative commands are NOT ambiguous — "Jarvis, say hello.",
+    // "Show status.", "Repeat that." are complete requests. They go to
+    // direct conversation instead of the clarification wall (§11).
+    // Checked EARLY: before contextual-investigation signals, so an agent
+    // name in the command ("Jarvis, …") cannot trip the entity heuristic.
+    const isShortCommand = /\b(say|tell|show|repeat|speak|read|open|run|start|stop|send|play|write|give|describe|summarize|explain)\b/.test(p);
+    if (words.length <= 3 && isShortCommand) {
+      return direct('conversation', 0.6, 'Short imperative command — direct conversation');
+    }
+
     // Greetings are always direct conversation, never clarification
     const isGreeting = /^(hi|hello|hey|yo|sup|howdy|greetings|good\s+(morning|afternoon|evening))\b/.test(p);
     if (isGreeting) {
@@ -393,6 +464,25 @@ export class IntentRouter {
     const agentNames = ['jarvis', 'hermes', 'codex', 'athena', 'sentinel', 'qwable', 'qwythos'];
     if (words.length === 1 && agentNames.includes(words[0])) {
       return direct('conversation', 0.6, 'Agent invocation — direct conversation');
+    }
+
+    // ── §8 (stabilization): complaints ABOUT Jarvis/AgenticOS itself ──
+    // MUST run BEFORE the question gate: "Why are you asking me again?" and
+    // "What the hell is going on?" are complaints, not informational
+    // questions — they route INVESTIGATE (inspect runtime state, report),
+    // never clarification, never "I didn't quite understand".
+    if (isAssistantComplaint(prompt)) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.8,
+        reason: 'Complaint about Jarvis/AgenticOS — inspect runtime state and report',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect active runtime/gateway/frontend state', 'Identify what is failing', 'Report evidence and next step'],
+      };
     }
 
     // Context-aware investigation: vague statements that read as problem
@@ -500,9 +590,18 @@ export class IntentRouter {
       };
     }
 
-    // Short or vague prompts that aren't greetings, invocations, or questions need
-    // clarification. They must not create a goal or silently default to conversation.
+    // Short or vague prompts that aren't greetings, invocations, questions,
+    // or imperative commands need clarification. They must not create a goal
+    // or silently default to conversation. §11 budget: only when the previous
+    // turn was ALSO a clarification do we ask again — otherwise interpret.
     if (words.length <= 3) {
+      const recent = (recentText || '').toLowerCase();
+      const previousWasClarification = /(could you|can you).*(rephrase|repeat|clarify)|didn['\u2019]?t quite understand/.test(recent);
+      if (!previousWasClarification && recent.length > 0) {
+        // There IS conversation context and Jarvis has not already asked —
+        // attempt interpretation via direct conversation instead of asking.
+        return direct('conversation', 0.45, 'Short prompt with active context — interpret rather than clarify');
+      }
       return {
         route: 'clarification_required',
         category: 'conversation',

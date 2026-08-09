@@ -436,4 +436,84 @@ describe('IntentRouter — required routing cases', () => {
       expect(result.route).toBe('direct');
     });
   });
+
+  // ── §8/§9/§11 (stabilization freeze): conservative corruption detection,
+  //    complaint understanding, clarification budget ────────────────────
+  describe('stabilization: valid complaints are never corrupted speech', () => {
+    const validComplaints = [
+      'You are not able to work fine. I don\'t know what to do anymore.',
+      'You are still not working properly.',
+      'I don\'t know what you\'re doing anymore.',
+      'This still doesn\'t work.',
+      'Why are you asking me again?',
+      'You keep misunderstanding me.',
+      'What the hell is going on?',
+      'You are not working fine.',
+      'I don\'t know what to do anymore.',
+    ];
+
+    it.each(validComplaints)('is NOT corrupted speech: %s', async (utterance) => {
+      const result = await router.routeIntent(utterance, { recentText: 'Earlier: the backend reconnected.' });
+      expect(result.voiceIssue).toBeUndefined();
+      expect(result.route).not.toBe('clarification_required');
+    });
+
+    it.each(validComplaints)('complaint about Jarvis routes INVESTIGATE: %s', async (utterance) => {
+      const result = await router.routeIntent(utterance, { recentText: '' });
+      expect(result.route).toBe('investigate');
+    });
+  });
+
+  describe('stabilization: conservative corruption detection (§9)', () => {
+    it('real words at sentence end never classify as truncation', async () => {
+      for (const s of ['tell me what to do', 'what is going on', 'why do you keep doing this']) {
+        const result = await router.routeIntent(s, { recentText: 'context here' });
+        expect(result.voiceIssue).toBeUndefined();
+      }
+    });
+
+    it('punctuated sentences are complete even with short final tokens', async () => {
+      const result = await router.routeIntent('What the hell is going on?', { recentText: 'x' });
+      expect(result.voiceIssue).toBeUndefined();
+      expect(result.route).not.toBe('clarification_required');
+    });
+
+    it('strong corruption still detected: repeated fragments', async () => {
+      const result = await router.routeIntent('the the the roof search');
+      expect(result.voiceIssue).toBe('repeated fragment detected');
+    });
+
+    it('strong corruption still detected: bare-letter truncation', async () => {
+      const result = await router.routeIntent('tell me a story ab');
+      expect(result.voiceIssue).toBe('abrupt truncation detected');
+    });
+  });
+
+  describe('stabilization: short commands + clarification budget (§11)', () => {
+    it('short imperative commands go to direct conversation, never clarification', async () => {
+      // NOTE: "show status" deliberately excluded — it is a legitimate
+      // live-state inspection and routes INVESTIGATE (correct behavior).
+      for (const s of ['say hello', 'repeat that', 'play it', 'Jarvis, say hello.']) {
+        const result = await router.routeIntent(s, { recentText: '' });
+        expect(result.route).toBe('direct');
+        expect(result.reason).toContain('imperative');
+      }
+    });
+
+    it('short vague prompt WITH context is interpreted, not clarified', async () => {
+      const result = await router.routeIntent('try again', { recentText: 'I ran the task and it failed.' });
+      expect(result.route).toBe('direct');
+      expect(result.reason).toContain('interpret');
+    });
+
+    it('short vague prompt AFTER a prior clarification may ask once more (budget)', async () => {
+      const result = await router.routeIntent('hmm', { recentText: 'I didn\'t quite understand your request. Could you rephrase it?' });
+      expect(result.route).toBe('clarification_required');
+    });
+
+    it('short vague prompt with NO context still clarifies (first ask)', async () => {
+      const result = await router.routeIntent('hmm', { recentText: '' });
+      expect(result.route).toBe('clarification_required');
+    });
+  });
 });
