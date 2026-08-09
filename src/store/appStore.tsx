@@ -193,6 +193,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case "SET_JARVIS_STATE":
       return { ...state, jarvis: { ...state.jarvis, status: action.status } };
     case "ADD_JARVIS_TRANSCRIPT":
+      // Dedup by id: if the same entry is already in state (e.g. a replay/
+      // persistence path appends a record that just entered), skip it —
+      // duplicate rows with identical ids would render duplicate React keys.
+      // This removes genuinely duplicated records instead of hiding them.
+      if (state.jarvis.transcript.some((e) => e.id === action.entry.id)) {
+        return state;
+      }
       return { ...state, jarvis: { ...state.jarvis, transcript: [...state.jarvis.transcript, action.entry] } };
     case "CLEAR_JARVIS_TRANSCRIPT":
       return { ...state, jarvis: { ...state.jarvis, transcript: [] } };

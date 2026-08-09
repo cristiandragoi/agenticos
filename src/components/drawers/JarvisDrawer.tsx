@@ -106,6 +106,20 @@ const JarvisDrawer: React.FC = () => {
   const convSubmitSeqRef = useRef(0);        // staleness guard for async turns
   const convExecAbortRef = useRef<AbortController | null>(null);
 
+  // Collision-safe local transcript ID generator. Local voice/text entries
+  // used `v-usr-${Date.now()}` / `t-msg-${Date.now()}` — two messages created
+  // in the same millisecond produced the SAME id, and React rendered them
+  // with duplicate keys (live warning: "two children with the same key
+  // v-usr-…"). A monotonic session counter guarantees uniqueness even within
+  // one millisecond while keeping ids stable across renders (never regenerated
+  // on update). Backend messages carry canonical ids where available; this is
+  // only for locally-created optimistic entries.
+  const transcriptIdSeqRef = useRef(0);
+  const nextTranscriptId = useCallback((prefix: string) => {
+    transcriptIdSeqRef.current += 1;
+    return `${prefix}-${transcriptIdSeqRef.current}-${Date.now()}`;
+  }, []);
+
   /** Execute one Jarvis turn for the conversation pipeline (single
    *  /api/voice/execute POST — the existing verified route). Exactly one
    *  response is spoken per turn; barge-in can abort mid-playback via
@@ -190,7 +204,7 @@ const JarvisDrawer: React.FC = () => {
     onTranscript: async (text) => {
       // Show what was heard in the transcript immediately
       jarvis.addTranscript({
-        id: `v-usr-${Date.now()}`,
+        id: nextTranscriptId('v-usr'),
         role: 'user',
         text,
         timestamp: new Date().toISOString(),
@@ -208,7 +222,7 @@ const JarvisDrawer: React.FC = () => {
           const responseText = data.text || 'No response.';
           jarvis.setStatus('speaking');
           jarvis.addTranscript({
-            id: `v-jrv-${Date.now()}`,
+            id: nextTranscriptId('v-jrv'),
             role: 'jarvis',
             text: responseText,
             timestamp: new Date().toISOString(),
@@ -243,7 +257,7 @@ const JarvisDrawer: React.FC = () => {
     },
     onResponse: (text) => {
       jarvis.addTranscript({
-        id: `v-jrv-${Date.now()}`,
+        id: nextTranscriptId('v-jrv'),
         role: 'jarvis',
         text,
         timestamp: new Date().toISOString(),
@@ -385,7 +399,7 @@ const JarvisDrawer: React.FC = () => {
     setIsSending(true);
 
     const userEntry = {
-      id: `t-msg-${Date.now()}`,
+      id: nextTranscriptId('t-msg'),
       role: 'user' as const,
       text,
       timestamp: new Date().toISOString(),
@@ -405,7 +419,7 @@ const JarvisDrawer: React.FC = () => {
         const responseText = data.text || 'No response.';
         jarvis.setStatus('speaking');
         jarvis.addTranscript({
-          id: `t-jrv-${Date.now()}`,
+          id: nextTranscriptId('t-jrv'),
           role: 'jarvis',
           text: responseText,
           timestamp: new Date().toISOString(),
@@ -953,6 +967,7 @@ const JarvisDrawer: React.FC = () => {
               {jarvis.transcript.map((entry) => (
                 <div
                   key={entry.id}
+                  data-testid="jarvis-drawer-transcript-entry"
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
