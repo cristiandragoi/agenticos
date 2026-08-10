@@ -986,7 +986,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           data-testid="jarvis-chat-scroll"
           // Inline scroll contract (§4): the transcript scrolls here even if
           // the stylesheet fails to load — the bounded dock provides height.
-          style={{ overflowY: 'auto', height: '100%', minHeight: 0 }}
+          // Jarvis-layout fix: flex-fill (no hard height:100%) so the scroll
+          // surface exactly matches the bounded frame and can never extend
+          // past it into the composer below.
+          style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}
         >
         {transcriptVariant === 'command' && visibleMessages.map((msg) => {
           // ── Command transcript: labeled lines, no bubbles ──

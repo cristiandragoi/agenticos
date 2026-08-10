@@ -694,3 +694,41 @@ export const gatewayConfiguration = sqliteTable('gateway_configuration', {
   leaseExpiresAt: text('lease_expires_at'),
   migrationVersion: integer('migration_version').default(1)
 });
+
+// Projects — durable first-class entities
+export const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('active'), // active | archived | paused
+  tags: text('tags', { mode: 'json' }), // string[]
+  workspacePath: text('workspace_path'), // optional default repo
+  color: text('color'), // optional UI accent color
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// Knowledge items — Obsidian-inspired notes/decisions/research within projects
+export const knowledgeItems = sqliteTable('knowledge_items', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull().default(''),
+  type: text('type').notNull().default('note'), // note | decision | research | reference | meeting | result
+  tags: text('tags', { mode: 'json' }), // string[]
+  linkedIds: text('linked_ids', { mode: 'json' }), // string[] — forward links to other item ids
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// Entity links — generic relationship foundation
+export const entityLinks = sqliteTable('entity_links', {
+  id: text('id').primaryKey(),
+  fromId: text('from_id').notNull(),
+  fromType: text('from_type').notNull(), // note | task | run | project | decision | ...
+  toId: text('to_id').notNull(),
+  toType: text('to_type').notNull(),
+  relation: text('relation').notNull(), // belongs_to | references | supersedes | blocks | ...
+  metadata: text('metadata', { mode: 'json' }),
+  createdAt: text('created_at').notNull(),
+});

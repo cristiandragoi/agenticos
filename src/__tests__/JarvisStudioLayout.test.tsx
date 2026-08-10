@@ -82,9 +82,15 @@ describe('fixed-stage layout model', () => {
     expect(stage.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The workspace is a bounded band — it must not be allowed to consume
     // the whole center viewport (its tall children scroll internally).
+    // Jarvis-layout fix: the band no longer carries a fixed 54vh inline cap
+    // (that starved the transcript); it fills the remaining center height
+    // (flex) with overflow hidden, and the transcript dock inside it has a
+    // real 160px floor so it can never be crushed to invisibility.
     const wsEl = screen.getByTestId('jarvis-workspace');
-    expect(wsEl.style.maxHeight).not.toBe('');
     expect(wsEl.style.overflowY || wsEl.style.overflow).not.toBe('visible');
+    const dockEl = screen.getByTestId('jarvis-chat-workspace');
+    // CSS modules hash class names — check for the transcriptDock marker.
+    expect([...dockEl.classList].some((c) => c.includes('transcriptDock'))).toBe(true);
 
     // Orb inside the reserved stage, never inside the workspace.
     const orb = screen.getByTestId('jarvis-orb');
@@ -190,9 +196,15 @@ describe('transcript (§5)', () => {
     expect(workspace.contains(dock)).toBe(true);
 
     const body = screen.getByTestId('jarvis-transcript-body');
-    const height = Number(body.style.height?.replace('px', ''));
-    expect(height).toBeGreaterThanOrEqual(160);
-    expect(height).toBeLessThanOrEqual(420);
+    // Jarvis-layout fix: the body height is a MAXIMUM (user resize pref),
+    // not a fixed inline height — flex fills the dock, capped at the pref.
+    const maxH = Number(body.style.maxHeight?.replace('px', ''));
+    expect(maxH).toBeGreaterThanOrEqual(160);
+    expect(maxH).toBeLessThanOrEqual(420);
+    // The dock itself carries a 120px floor so a long conversation can
+    // never crush the transcript to zero (the acceptance blocker).
+    const dockFloor = screen.getByTestId('jarvis-chat-workspace');
+    expect(Number(getComputedStyle(dockFloor).minHeight?.replace('px', '')) || 120).toBeGreaterThanOrEqual(120);
   });
 
   it('HIDE/SHOW collapses and restores the transcript body', async () => {

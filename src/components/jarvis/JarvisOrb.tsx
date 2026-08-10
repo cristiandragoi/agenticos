@@ -42,7 +42,14 @@ export type JarvisVisualState =
   | 'thinking'
   | 'speaking'
   | 'error'
-  | 'offline';
+  | 'offline'
+  // Extended semantic states (spec §13)
+  | 'reasoning'   // cyan/white — model processing/routing
+  | 'executing'   // strong cyan — operational/running agent
+  | 'delegated'   // pink — secondary agent active
+  | 'repairing'   // purple (distinct from speaking) — corrective work
+  | 'warning'     // yellow — diagnostic/attention
+  | 'completed';  // green — success
 
 export interface JarvisOrbProps {
   state: JarvisVisualState;
@@ -67,6 +74,12 @@ export const JARVIS_ORB_LABELS: Record<JarvisVisualState, string> = {
   speaking: 'Speaking…',
   error: 'Error',
   offline: 'Offline',
+  reasoning: 'Reasoning…',
+  executing: 'Executing…',
+  delegated: 'Delegated…',
+  repairing: 'Repairing…',
+  warning: 'Warning',
+  completed: 'Completed',
 };
 
 /** Colour contract (hex) for each visual state. */
@@ -78,6 +91,13 @@ export const JARVIS_ORB_COLORS: Record<JarvisVisualState, string> = {
   speaking: '#a855f7', // purple
   error: '#ef4444', // red
   offline: '#7f1d1d', // dark red
+  // Extended semantic states
+  reasoning: '#e0f2fe', // cyan-white — model reasoning/processing
+  executing: '#00d4ff', // strong cyan — operational/running
+  delegated: '#ec4899', // pink — secondary agent activity
+  repairing: '#9333ea', // deeper purple — corrective work
+  warning: '#f59e0b', // amber/yellow — diagnostic attention
+  completed: '#22c55e', // green — success
 };
 
 /* Per-state motion tuning. Everything is a deterministic function of time
@@ -122,6 +142,18 @@ const MOTION: Record<JarvisVisualState, MotionParams> = {
   error: { drift: 0.12, distort: 0.025, levelGain: 0, breatheAmp: 0.025, breatheFreq: 2.2, glowBase: 0.34, glowGain: 0, innerSpin: 0.3, highlightSpeed: 0.08, orbitEnergy: 0, coreDark: 0.9 },
   // Dark red, nearly still.
   offline: { drift: 0.015, distort: 0.012, levelGain: 0, breatheAmp: 0.006, breatheFreq: 0.3, glowBase: 0.18, glowGain: 0, innerSpin: 0.05, highlightSpeed: 0.02, orbitEnergy: 0, coreDark: 0.92 },
+  // Cyan-white — fast drift, orbiting energy, high inner spin (model reasoning).
+  reasoning: { drift: 0.75, distort: 0.055, levelGain: 0, breatheAmp: 0.025, breatheFreq: 1.8, glowBase: 0.52, glowGain: 0.04, innerSpin: 1.6, highlightSpeed: 0.6, orbitEnergy: 0.8, coreDark: 0.82 },
+  // Strong cyan — higher drift + distortion than idle, active inner spin (running).
+  executing: { drift: 1.3, distort: 0.065, levelGain: 0.02, breatheAmp: 0.035, breatheFreq: 2.2, glowBase: 0.46, glowGain: 0.1, innerSpin: 2.0, highlightSpeed: 0.9, orbitEnergy: 0.4, coreDark: 0.84 },
+  // Pink — moderate drift + visible glow pulse (secondary agent active).
+  delegated: { drift: 0.9, distort: 0.05, levelGain: 0, breatheAmp: 0.04, breatheFreq: 1.5, glowBase: 0.45, glowGain: 0.08, innerSpin: 1.2, highlightSpeed: 0.45, orbitEnergy: 0.3, coreDark: 0.86 },
+  // Deep purple — slow orbit energy, moderate spin (corrective/repair work).
+  repairing: { drift: 0.6, distort: 0.045, levelGain: 0, breatheAmp: 0.03, breatheFreq: 1.1, glowBase: 0.42, glowGain: 0.05, innerSpin: 0.9, highlightSpeed: 0.35, orbitEnergy: 0.7, coreDark: 0.87 },
+  // Yellow — slow pulse, gentle orbit (diagnostic/warning attention).
+  warning: { drift: 0.4, distort: 0.04, levelGain: 0, breatheAmp: 0.035, breatheFreq: 1.0, glowBase: 0.4, glowGain: 0.04, innerSpin: 0.6, highlightSpeed: 0.25, orbitEnergy: 0.5, coreDark: 0.88 },
+  // Green — brief bright flash then settles (success/completed).
+  completed: { drift: 0.55, distort: 0.04, levelGain: 0, breatheAmp: 0.05, breatheFreq: 1.4, glowBase: 0.48, glowGain: 0.06, innerSpin: 1.4, highlightSpeed: 0.6, orbitEnergy: 0, coreDark: 0.84 },
 };
 
 /** Smoothing time constant (s): ~95 % settled in ~3τ ≈ 330–360 ms. */

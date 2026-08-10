@@ -758,7 +758,7 @@ export class BackgroundTaskManager extends EventEmitter {
     return backgroundTaskRepo.getTask(taskId);
   }
 
-  listTasks(opts?: { activeOnly?: boolean; status?: TaskStatus[]; limit?: number }): BackgroundTaskRecord[] {
+  listTasks(opts?: { activeOnly?: boolean; status?: TaskStatus[]; projectId?: string | null; limit?: number }): BackgroundTaskRecord[] {
     return backgroundTaskRepo.listTasks(opts);
   }
 

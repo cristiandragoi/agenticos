@@ -238,6 +238,8 @@ app.use('/api/heavy-gen', heavyGenRouter);
 import { connectorRouter } from './routers/connectorRouter.js';
 app.use('/api/connectors', connectorRouter);
 app.use('/api/pipeline/welders', weldersPipelineRouter);
+import projectsRouter from './routers/projects.js';
+app.use('/api/projects', projectsRouter);
 app.use('/api/jarvis', jarvisRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/routing', routingRouter);

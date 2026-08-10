@@ -216,7 +216,7 @@ export const backgroundTaskRepo = {
     return row ? rowToTask(row) : null;
   },
 
-  listTasks(opts?: { status?: TaskStatus[]; activeOnly?: boolean; limit?: number }): BackgroundTaskRecord[] {
+  listTasks(opts?: { status?: TaskStatus[]; activeOnly?: boolean; projectId?: string | null; limit?: number }): BackgroundTaskRecord[] {
     ensureBackgroundTaskTables();
     let sql = 'SELECT * FROM background_tasks';
     const params: any[] = [];
@@ -228,11 +228,36 @@ export const backgroundTaskRepo = {
     if (opts?.activeOnly) {
       clauses.push(`status IN ('queued','planning','running','waiting_approval','review','paused')`);
     }
+    if (opts?.projectId) {
+      clauses.push(`project_id = ?`);
+      params.push(opts.projectId);
+    }
     if (clauses.length) sql += ` WHERE ${clauses.join(' AND ')}`;
     sql += ' ORDER BY created_at DESC';
     if (opts?.limit) sql += ` LIMIT ${Math.max(1, Math.min(200, opts.limit))}`;
     const rows = rawDb.prepare(sql).all(...params);
     return rows.map(rowToTask);
+  },
+
+  /** Return the most recent OPERATIONAL events across ALL tasks (for Live Work panel).
+   *  Excludes streaming token events (task.progress with detail.streaming=true)
+   *  so the panel shows meaningful operational events only, not raw LLM chunks. */
+  listRecentEvents(limit = 30): Array<BackgroundTaskEvent & { taskTitle: string; taskWorker: string }> {
+    ensureBackgroundTaskTables();
+    const rows = rawDb.prepare(`
+      SELECT e.*, t.title AS task_title, t.worker AS task_worker
+      FROM background_task_events e
+      JOIN background_tasks t ON t.task_id = e.task_id
+      WHERE NOT (e.kind = 'task.progress' AND e.detail LIKE '%"streaming":true%')
+        AND e.kind NOT IN ('task.queued')
+      ORDER BY e.ts DESC
+      LIMIT ?
+    `).all(Math.max(1, Math.min(100, limit)));
+    return rows.map((row: any) => ({
+      ...rowToEvent(row),
+      taskTitle: row.task_title || '',
+      taskWorker: row.task_worker || '',
+    }));
   },
 
   insertEvent(evt: BackgroundTaskEvent): void {

@@ -131,25 +131,37 @@
      (never grows with content below it) with a responsive minimum that
      guarantees the orb region (below wordmark + status strip) can always
      hold the minimum orb + label + primary control. overflow hidden
-     guarantees the orb is never clipped and never pushes the workspace. */
-  flex: 1 1 auto;
-  min-height: max(360px, 44vh);
+     guarantees the orb is never clipped and never pushes the workspace.
+     Jarvis-layout fix: the stage is CONTENT-BOUNDED (flex 0 1 auto) —
+     its centered flow stack (wordmark + status + orb + label + primary
+     control) defines its natural height, so the workspace band below it
+     always receives the REMAINING center-column height. A greedy flex:1
+     stage consumed the whole viewport and pushed the transcript dock +
+     composer off-screen (the overlap blocker). */
+  flex: 0 1 auto;
+  /* Jarvis-layout fix: floor is viewport-relative and yields hard at short
+     heights (max(180px, 26vh)) — at a 540px window the 240px floor left the
+     workspace only ~115px, crushing the transcript dock to 1px and letting
+     the composer overlap it. The orb is responsive (180-340px), so it sizes
+     down to fit the smaller stage. */
+  min-height: max(180px, 26vh);
   overflow: hidden;
   padding: 8px 0 14px;
 }
 
 .workspace {
   position: relative;
-  flex: 0 1 auto;
-  max-height: 54vh;
+  /* Jarvis-layout fix: the workspace band fills the REMAINING center-column
+     height (flex 1 1 auto) instead of a fixed 54vh cap. A fixed max-height
+     starves the transcript when the hero + controls + composer already
+     consume the viewport: the transcript dock inside was shrinking to 0.
+     The band is still NOT a scroll container — its tall children (Voice
+     Trace diagnostics, transcript dock) are flex-shrinkable with
+     min-height:0 and scroll INSIDE themselves. */
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  /* Starvation fix: the band is NOT a scroll container. Its tall children
-     (Voice Trace diagnostics, transcript dock) are flex-shrinkable with
-     min-height:0 and scroll INSIDE themselves, so the frozen order stays
-     visually true — controls, VT, transcript, composer — with no overlap
-     and no whole-band scrolling. */
   overflow: hidden;
   padding-bottom: 10px;
   background: linear-gradient(to bottom, rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.92));
@@ -171,13 +183,21 @@
 }
 
 .workspaceControls {
-  flex: 0 0 auto;
+  /* Jarvis-layout fix: the controls row must be SHRINKABLE (flex 0 1 auto).
+     A non-shrinkable 76px fixed row starved the transcript dock below it
+     and pushed the dock + composer off-screen at normal window heights. It
+     compresses/wraps first; the transcript keeps its own floor. */
+  flex: 0 1 auto;
   padding: 6px 16px 4px;
 }
 
 .workspaceDiagnostics {
   flex: 0 1 auto;
   min-height: 0;
+  /* Jarvis-layout fix: cap the Voice Trace band so expanded diagnostics can
+     never starve the transcript dock below it. It scrolls internally when it
+     exceeds the cap. 22vh keeps the transcript usable at short windows. */
+  max-height: 22vh;
   overflow-y: auto;
   padding: 0 16px;
   /* Starvation fix: the Voice Trace panel is a flex child of this region,
@@ -315,8 +335,14 @@
 }
 
 .commandBar {
+  /* Jarvis-layout fix: the controls row must stay a SINGLE compact row
+     (nowrap). Wrapping to two rows consumed ~76px of the already-short
+     workspace band and starved the transcript dock (which shrank to 15px
+     at a 672px window). Horizontal overflow scrolls if the window is too
+     narrow; the row never eats the transcript's vertical space. */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   justify-content: center;
   align-items: center;
   gap: 8px;
@@ -466,8 +492,15 @@
    overlapping the composer below. The message list scrolls INSIDE it. */
 .transcriptDock {
   position: relative;
-  flex: 0 1 auto;
+  /* Jarvis-layout fix: the transcript dock fills the REMAINING workspace
+     height (flex 1 1 auto) and can shrink to 0 when the window is short —
+     it NEVER overflows its band, so it can never underlap the composer.
+     The message list inside (chatContainer) is the scroll surface with its
+     own scrollbar; the dock merely bounds it. A hard floor here forced the
+     box past the composer at normal window sizes (the overlap blocker). */
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
   width: min(860px, 94%);
   margin: 2px auto 8px;
   display: flex;
@@ -486,10 +519,12 @@
      Without flex here the frame grows to content height and nothing scrolls. */
   display: flex;
   flex-direction: column;
-  /* Starvation fix: the inline height (user-resize, 160–420px) is a
-     maximum — the body must never exceed the shrinkable dock's space, so
-     it can never overlap the composer. */
-  max-height: 100%;
+  /* Jarvis-layout fix: the body is a PURE flex child of the dock
+     (flex 1 1 auto, min-height 0, NO hard height) so it fills exactly the
+     dock's remaining space and can never grow past it — the dock bounds the
+     transcript, and the chat scroll surface inside can never underlap the
+     composer. The user-resize maxHeight (inline) caps it. */
+  flex: 1 1 auto;
   min-height: 0;
 }
 

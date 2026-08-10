@@ -136,26 +136,29 @@ describe('GatewayRouter Phase 3 Verification', () => {
     it('status online with no reachable field → online', async () => {
       mockGatewayResponse({ gateway: 'OmniRoute', status: 'online', port: 20128, configured: true });
       render(<GatewayStatusChip />);
-      expect(await screen.findByText('Gateway: OmniRoute')).toBeInTheDocument();
-      expect(screen.queryByText('Gateway: error')).not.toBeInTheDocument();
+      // Runtime-display truth: the badge is GLOBAL gateway health, labeled
+      // "GATEWAY · <provider>" — never "Gateway: X" which read like Jarvis's
+      // active model.
+      expect(await screen.findByText('GATEWAY · OmniRoute')).toBeInTheDocument();
+      expect(screen.queryByText('GATEWAY · error')).not.toBeInTheDocument();
     });
 
     it('reachable false → error', async () => {
       mockGatewayResponse({ gateway: 'OmniRoute', status: 'online', reachable: false });
       render(<GatewayStatusChip />);
-      expect(await screen.findByText('Gateway: error')).toBeInTheDocument();
+      expect(await screen.findByText('GATEWAY · error')).toBeInTheDocument();
     });
 
     it('status degraded → degraded', async () => {
       mockGatewayResponse({ gateway: 'OmniRoute', status: 'degraded', reachable: true });
       render(<GatewayStatusChip />);
-      expect(await screen.findByText('Gateway: OmniRoute (Slow)')).toBeInTheDocument();
+      expect(await screen.findByText('GATEWAY · OmniRoute (Slow)')).toBeInTheDocument();
     });
 
     it('status offline → error', async () => {
       mockGatewayResponse({ gateway: 'OmniRoute', status: 'offline', reachable: true });
       render(<GatewayStatusChip />);
-      expect(await screen.findByText('Gateway: error')).toBeInTheDocument();
+      expect(await screen.findByText('GATEWAY · error')).toBeInTheDocument();
     });
   });
 });

@@ -78,13 +78,16 @@ const GatewayStatusChip: React.FC = () => {
   }[state.status];
 
   const label = {
-    online: `Gateway: ${state.gateway}`,
-    degraded: `Gateway: ${state.gateway} (Slow)`,
+    // Jarvis runtime-display truth: the top badge is GLOBAL GATEWAY HEALTH
+    // (the router's configured primary provider), NOT Jarvis's active model.
+    // Label it as such so it never reads as "the model Jarvis is using".
+    online: `GATEWAY · ${state.gateway}`,
+    degraded: `GATEWAY · ${state.gateway} (Slow)`,
     // §6: the down gateway + active fallback is explained, not hidden.
-    fallback: `Gateway: ${state.gateway} offline → Active LLM: ${fallbackName}${fallbackModel} (fallback active)`,
-    offline: `Gateway: offline`,
-    error: `Gateway: error`,
-    loading: `Gateway: …`,
+    fallback: `GATEWAY · ${state.gateway} offline → Active LLM: ${fallbackName}${fallbackModel} (fallback active)`,
+    offline: `GATEWAY · offline`,
+    error: `GATEWAY · error`,
+    loading: `GATEWAY · …`,
   }[state.status];
 
   const textColor = {
@@ -101,7 +104,7 @@ const GatewayStatusChip: React.FC = () => {
       href="http://localhost:20128/dashboard"
       target="_blank"
       rel="noopener noreferrer"
-      title={`Gateway dashboard — port ${state.port ?? 20128}${state.latencyMs ? ` — ${Math.round(state.latencyMs)}ms` : ''}`}
+      title={`Gateway health — the router's configured primary provider (${state.gateway}). This is NOT Jarvis's active model; see Jarvis status for the current turn's provider/model. Port ${state.port ?? 20128}${state.latencyMs ? ` — ${Math.round(state.latencyMs)}ms` : ''}`}
       className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-800/60 border border-slate-700/50 hover:border-slate-600 hover:bg-slate-800 transition-all cursor-pointer group"
     >
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />

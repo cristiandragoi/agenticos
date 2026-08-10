@@ -25,7 +25,7 @@
  * The module has NO electron imports so it runs under vitest (node env) with
  * injected probe/spawn/timer dependencies.
  */
-import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
+import { spawn as nodeSpawn, execFileSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -568,11 +568,43 @@ export async function httpHealthProbe(url: string, timeoutMs: number): Promise<P
   }
 }
 
+/**
+ * Resolve the Node executable used to run the backend.
+ *
+ * The backend is a PLAIN Node application (no Electron APIs). Running it under
+ * Electron's embedded Node (ELECTRON_RUN_AS_NODE) loads native modules against
+ * Electron's Node ABI (Electron 34 → Node 20.19 → modules 126), which fails
+ * with ERR_DLOPEN_FAILED for modules compiled against the system Node ABI
+ * (e.g. better-sqlite3 built for Node 24 → modules 137). Prefer the system
+ * `node` on PATH when present — it matches the ABI the native modules were
+ * built for — and only fall back to Electron's embedded Node otherwise (the
+ * packaged app scenario where no separate node ships).
+ */
+export function resolveBackendNodeExec(fallback: string): string {
+  try {
+    // execFileSync is statically imported (not the runtime require shim), so
+    // it resolves correctly inside the bundled Electron ESM main context.
+    const systemNode = execFileSync('node', ['--version'], { encoding: 'utf8', timeout: 5000, windowsHide: true }).trim();
+    if (/^v\d+\.\d+\.\d+$/.test(systemNode)) {
+      return 'node';
+    }
+  } catch {
+    // system node not on PATH — fall through to the provided executable
+  }
+  return fallback;
+}
+
 /** Spawn the backend with the Electron binary running as plain Node. */
 export function spawnBackendWithElectronNode(config: LifecycleConfig): BackendChild {
-  const childProc: ChildProcess = nodeSpawn(config.nodeExec, [config.entry], {
+  const nodeExec = resolveBackendNodeExec(config.nodeExec);
+  const usingElectronNode = nodeExec === config.nodeExec;
+  const childProc: ChildProcess = nodeSpawn(nodeExec, [config.entry], {
     cwd: config.cwd,
-    env: { ...config.env, ELECTRON_RUN_AS_NODE: '1' },
+    // Only ELECTRON_RUN_AS_NODE when we are actually using the Electron
+    // binary as Node. A system `node` must NOT get ELECTRON_RUN_AS_NODE.
+    env: usingElectronNode
+      ? { ...config.env, ELECTRON_RUN_AS_NODE: '1' }
+      : { ...config.env, ELECTRON_RUN_AS_NODE: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });

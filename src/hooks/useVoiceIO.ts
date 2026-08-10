@@ -224,8 +224,20 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     ttsAbortControllerRef.current = null;
     window.speechSynthesis?.cancel();
     if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current.src = '';
+      const el = audioElementRef.current;
+      // Jarvis voice fix: detach ALL handlers and invalidate the playback
+      // generation BEFORE clearing the src. Assigning an empty src fires an
+      // async MEDIA_ELEMENT error ("Empty src attribute"); a still-attached
+      // stale onerror would surface it as a phantom VOICE PLAYBACK ERROR on
+      // the very next speak (the observable bug). playAudio already follows
+      // this discipline; haltPlayback must too.
+      playbackGenRef.current += 1;
+      el.onplay = null;
+      el.onended = null;
+      el.onerror = null;
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
     }
     stopPlaybackLevelMonitor();
     playbackActiveRef.current = false;
@@ -1056,8 +1068,13 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   /** Audio-unlock on a user gesture (VOICE ON / recovery click).
    *  Establishes the playback permission with a silent AudioContext + a
    *  short audio-element touch. Not a silent infinite retry: called once per
-   *  enable and on the explicit recovery action. */
+   *  enable and on the explicit recovery action. The recovery action also
+   *  clears any phantom playback-error banner (Jarvis voice fix): an unlock
+   *  that succeeds must not leave a stale "Empty src attribute" error
+   *  visible — that error was a stale-handler artifact, not a real policy
+   *  block. */
   const unlockAudio = useCallback(() => {
+    setPlaybackError(null);
     try {
       const Ctor = window.AudioContext || (window as any).webkitAudioContext;
       if (Ctor) {
@@ -1074,8 +1091,12 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     try {
       const audio = audioElementRef.current;
       if (audio && audio.paused) {
-        const p = audio.play();
-        if (p && typeof p.then === 'function') p.then(() => audio.pause()).catch(() => {});
+        // Only touch play() when the element actually has a source — calling
+        // play() on a sourceless element raises MEDIA_ELEMENT_ERROR again.
+        if (audio.src) {
+          const p = audio.play();
+          if (p && typeof p.then === 'function') p.then(() => audio.pause()).catch(() => {});
+        }
       }
     } catch { /* noop */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps

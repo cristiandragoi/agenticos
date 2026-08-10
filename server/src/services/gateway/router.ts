@@ -242,6 +242,17 @@ export class GatewayRouter {
       const attemptStart = Date.now();
       try {
         const response = await provider.chat(req);
+        // Empty-response handling (Jarvis repair): a provider that returns an
+        // empty/whitespace-only assistant reply is a provider fault, not a
+        // successful conversational result. Throw so the existing fallback
+        // loop below attempts the next provider and the request never returns
+        // a blank answer that the caller would render as "Jarvis returned an
+        // empty response".
+        if (!response || typeof response.reply !== 'string' || response.reply.trim().length === 0) {
+          const emptyErr = new Error(`Provider returned empty response (${providerName}/${provider.definition.model})`);
+          (emptyErr as any).emptyResponse = true;
+          throw emptyErr;
+        }
         this.consecutiveFailures.set(providerName, 0); // reset
         
         this.emit({

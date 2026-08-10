@@ -22,7 +22,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Send, Square, Volume2, VolumeX, PhoneOff, Terminal, ChevronDown, ChevronUp, Activity } from 'lucide-react';
+import { Mic, MicOff, Send, Square, Volume2, VolumeX, PhoneOff, Terminal, ChevronDown, ChevronUp, Activity, Zap } from 'lucide-react';
 import { useJarvis } from '../../store/appStore';
 import { useData } from '../../store/dataStore';
 import { useVoiceIO } from '../../hooks/useVoiceIO';
@@ -125,6 +125,9 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   const [isSending, setIsSending] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<string>(readPersistedVoice);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [liveWorkOpen, setLiveWorkOpen] = useState(false);
+  const [runtimeState, setRuntimeState] = useState<any>({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, activeTool: null, pendingTaskCount: 0 });
+  const [liveEvents, setLiveEvents] = useState<any[]>([]);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [streamMeta, setStreamMeta] = useState<{ provider?: string; model?: string; route?: string }>({});
   const [liveStreaming, setLiveStreaming] = useState<{ id: string; text: string } | null>(null);
@@ -136,6 +139,11 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   const micEnabledRef = useRef(true);
   const voiceOutEnabledRef = useRef(true);
   const voiceRef = useRef<any>(null);
+  // §9 input ownership (Jarvis repair): manual composer edits / typed
+  // submissions take ownership of the input. In-flight STT transcripts are
+  // stale once the user has typed, so conversation-mode auto-submit must
+  // never fire a voice turn over typed text.
+  const manualEditSinceVoiceRef = useRef(false);
   const processingRef = useRef(false);
   const submitSeqRef = useRef(0);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -299,6 +307,15 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   /** Conversation auto-submit — fires exactly once per valid end-of-speech
    *  transcript (the hook dedupes identical text and flags each blob). */
   const handleAutoSubmit = useCallback((text: string) => {
+    // §9 input ownership (Jarvis repair): a manual composer edit or a typed
+    // submission since the voice capture began makes this transcript stale —
+    // the engine drops it by generation identity, but this guard is the final
+    // deterministic barrier so a stale STT can never fire a voice turn over
+    // typed text in conversation mode.
+    if (manualEditSinceVoiceRef.current) {
+      setConvTrace((t) => ({ ...t, autosubmit: 'STALE-STT DROPPED (manual ownership)' }));
+      return;
+    }
     // TEMP DIAGNOSTIC — visible chain trace (remove after confirmation).
     setConvTrace((t) => ({ ...t, transcript: text.slice(0, 40), autosubmit: 'FIRED' }));
     jarvis.addTranscript({
@@ -379,6 +396,33 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
     };
   }, []);
 
+  // ── Live Work: poll runtime-state + live-events every 3s ──
+  // runtime-state gives the coarse Jarvis execution state.
+  // live-events gives real structured operational events from background_task_events.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const [stateRes, eventsRes] = await Promise.all([
+          apiFetch('/api/jarvis/runtime-state'),
+          apiFetch('/api/jarvis/live-events?limit=20'),
+        ]);
+        if (cancelled) return;
+        if (stateRes.ok) {
+          const data = await stateRes.json();
+          if (!cancelled) setRuntimeState(data);
+        }
+        if (eventsRes.ok) {
+          const events = await eventsRes.json();
+          if (!cancelled && Array.isArray(events)) setLiveEvents(events);
+        }
+      } catch { /* best effort */ }
+    };
+    poll();
+    const id = window.setInterval(poll, 3000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
   // ── Controls ──
   const handleModeToggle = useCallback(async (next: 'manual' | 'conversation') => {
     if (next === modeRef.current) return;
@@ -429,6 +473,12 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   const handleTextSend = useCallback(async () => {
     const text = textInput.trim();
     if (!text || isSending) return;
+    // §9 input ownership (Jarvis repair): a typed submission is authoritative.
+    // Invalidate every in-flight voice event (the engine drops stale STT by
+    // generation identity) and take manual ownership so no late auto-submit
+    // can fire a competing voice turn.
+    manualEditSinceVoiceRef.current = true;
+    voiceRef.current?.notifyManualEdit?.();
     setIsSending(true);
     jarvis.addTranscript({
       id: `mc-usr-t-${Date.now()}`,
@@ -439,6 +489,9 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
     setTextInput('');
     await executeStreamingTurn(text, 'typed');
     setIsSending(false);
+    // The typed turn has completed; clear manual ownership so the NEXT voice
+    // capture (a genuinely new capture) can auto-submit again.
+    manualEditSinceVoiceRef.current = false;
   }, [textInput, isSending, jarvis, executeStreamingTurn]);
 
   const handleManualMic = useCallback(() => {
@@ -704,7 +757,14 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
           type="text"
           data-testid="mission-jarvis-input"
           value={textInput}
-          onChange={(e) => setTextInput(e.target.value)}
+          onChange={(e) => {
+            // §9 input ownership (Jarvis repair): any user edit takes manual
+            // ownership — in-flight STT is stale. notifyManualEdit bumps the
+            // engine generation so a late transcript is dropped by identity.
+            manualEditSinceVoiceRef.current = true;
+            voiceRef.current?.notifyManualEdit?.();
+            setTextInput(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -751,6 +811,99 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
           </span>
         ))}
         {delegatedRuns.length === 0 && <span style={{ color: '#475569' }}>No delegated work in flight</span>}
+      </div>
+
+      {/* ── 5b. Live Work — collapsible panel with real structured events ── */}
+      <div data-testid="mission-live-work" className="rounded border border-slate-800 bg-slate-950/40">
+        <button
+          type="button"
+          data-testid="mission-live-work-toggle"
+          onClick={() => setLiveWorkOpen((o) => !o)}
+          className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500"
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+        >
+          <span className="flex items-center gap-1.5">
+            <Zap size={11} />
+            Live Work
+            {runtimeState.state !== 'idle' && (
+              <span style={{
+                marginLeft: 4, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 8,
+                background: runtimeState.state === 'error' ? 'rgba(239,68,68,0.2)' : 'rgba(0,229,255,0.1)',
+                color: runtimeState.state === 'error' ? '#f87171' : '#67e8f9',
+              }}>
+                {runtimeState.state.toUpperCase()}
+              </span>
+            )}
+            {runtimeState.pendingTaskCount > 0 && (
+              <span style={{
+                marginLeft: 2, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 8,
+                background: 'rgba(245,180,10,0.15)', color: '#f5b50a',
+              }}>
+                {runtimeState.pendingTaskCount} PENDING
+              </span>
+            )}
+          </span>
+          {liveWorkOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+        {liveWorkOpen && (
+          <div data-testid="mission-live-work-content" className="border-t border-slate-800" style={{ fontSize: 11, color: '#94a3b8' }}>
+            {/* Current execution state summary */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-3 py-2" style={{ fontSize: 10, borderBottom: '1px solid #1e293b' }}>
+              <span>State: <b style={{ color: runtimeState.state === 'idle' ? '#475569' : runtimeState.state === 'error' ? '#f87171' : '#67e8f9' }}>{runtimeState.state}</b></span>
+              <span>Agent: <b style={{ color: '#e2e8f0' }}>{runtimeState.activeAgent || '—'}</b></span>
+              {runtimeState.activeProject && (
+                <span style={{ gridColumn: '1 / -1' }}>Project: <b style={{ color: '#67e8f9' }}>{runtimeState.activeProject.name}</b></span>
+              )}
+              {runtimeState.activeTool && (
+                <span style={{ gridColumn: '1 / -1' }}>Action: <b style={{ color: '#a78bfa' }}>{runtimeState.activeTool}</b></span>
+              )}
+              {runtimeState.provider && (
+                <span>Provider: <b style={{ color: '#e2e8f0' }}>{runtimeState.provider}</b></span>
+              )}
+              {runtimeState.model && (
+                <span>Model: <b style={{ color: '#e2e8f0' }}>{runtimeState.model}</b></span>
+              )}
+            </div>
+            {/* Real structured events from background_task_events */}
+            <div style={{ maxHeight: 200, overflowY: 'auto', padding: '6px 0' }}>
+              {liveEvents.length === 0 ? (
+                <div style={{ padding: '4px 12px', color: '#334155', fontSize: 10 }}>No operational events yet. Start a task from Jarvis.</div>
+              ) : (
+                liveEvents.map((evt: any) => {
+                  const kindColor: Record<string, string> = {
+                    'task.started': '#00d4ff', 'task.created': '#0891b2',
+                    'task.completed': '#22c55e', 'task.failed': '#ef4444',
+                    'task.blocked': '#f59e0b', 'task.file_changed': '#a855f7',
+                    'task.build_started': '#f5b50a', 'task.build_completed': '#22c55e',
+                    'task.test_started': '#f5b50a', 'task.test_completed': '#22c55e',
+                    'task.approval_requested': '#f59e0b', 'task.cancelled': '#64748b',
+                    'task.progress': '#94a3b8', 'task.stage_changed': '#67e8f9',
+                    'task.agent_selected': '#ec4899',
+                  };
+                  const color = kindColor[evt.kind] || '#475569';
+                  const label = evt.summary || evt.kind.replace('task.', '').replace(/_/g, ' ');
+                  return (
+                    <div key={evt.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 6,
+                      padding: '3px 12px', borderLeft: `2px solid ${color}`,
+                      marginLeft: 6, marginBottom: 1,
+                    }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color, textTransform: 'uppercase', whiteSpace: 'nowrap', marginTop: 1, minWidth: 80 }}>
+                        {evt.kind.replace('task.', '')}
+                      </span>
+                      <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {label}
+                        {evt.taskTitle && evt.taskTitle !== label && (
+                          <span style={{ color: '#475569', marginLeft: 4 }}>({evt.taskTitle.slice(0, 40)})</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── 6. Collapsible diagnostics drawer (technical telemetry lives here,

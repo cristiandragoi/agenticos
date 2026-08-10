@@ -23,6 +23,8 @@ describe('useVoiceIO speak logic', () => {
       onerror: any = null;
       play = playSpy;
       pause = vi.fn();
+      removeAttribute = vi.fn((name: string) => { if (name === 'src') this.src = ''; });
+      load = vi.fn();
     }
     vi.stubGlobal('Audio', MockAudio);
 
@@ -107,6 +109,8 @@ describe('useVoiceIO speak logic', () => {
       onerror: any = null;
       play = rejectingPlay;
       pause = vi.fn();
+      removeAttribute = vi.fn((name: string) => { if (name === 'src') this.src = ''; });
+      load = vi.fn();
     }
     vi.stubGlobal('Audio', RejectingAudio);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({

@@ -29,7 +29,8 @@ const router = Router();
 router.get('/', (req, res) => {
   try {
     const activeOnly = req.query.activeOnly === 'true';
-    res.json(backgroundTaskManager.listTasks({ activeOnly, limit: 100 }));
+    const projectId = typeof req.query.projectId === 'string' && req.query.projectId ? req.query.projectId : undefined;
+    res.json(backgroundTaskManager.listTasks({ activeOnly, projectId, limit: 100 }));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

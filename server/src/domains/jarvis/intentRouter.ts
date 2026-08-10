@@ -293,10 +293,25 @@ export function resolveContinuationIntent(prompt: string, recentText?: string): 
   // Any prior turn mentioning UI/interface/layout problems → deictic "that"
   // resolves to the UI problem (Case A: "Can you change that?" after
   // "The chat interface is still wrong.").
-  const uiProblemInContext = /(ui|interface|layout|panel|transcript|composer|orb|workspace|overlap|controls|spacing|section|sidebar)/i.test(recent) &&
-    /(wrong|broken|still|issue|problem|overlap|misaligned|not working|fix|change)/i.test(recent);
+  // Jarvis repair: a prior UI problem requires a REAL UI-surface complaint —
+  // "the chat interface is still wrong", "the panel overlaps", "the composer
+  // is broken". Normal conversational talk ("we're not working on any
+  // engineering task", "UI changes/code fixes", "if you have a task in mind —
+  // bug, feature, investigation") must NOT trip this. Generic "ui" (matches
+  // "UI changes" capability talk), the repo-root "workspace", and action
+  // verbs ("change"/"fix") are excluded; "not working" is excluded because it
+  // matches "we're not working on X". Requires a UI-surface component word.
+  const uiProblemInContext = /(chat interface|interface|layout|panel|transcript|composer|orb|overlap|controls|spacing|section|sidebar)/i.test(recent) &&
+    /(wrong|broken|still (shows|says|looks)|issue|problem|overlap|misaligned|glitch|bug)/i.test(recent);
   const investigateInContext = /(investigate|inspection|inspecting|i inspected|problem report|runtime state|frontend state)/i.test(recent);
-  const delegatedInContext = /(i started|delegat|queued|task |codex|hermes|background|working on it)/i.test(recent);
+  // Jarvis repair: delegation context requires an ACTUAL delegation/start
+  // action, not mere mention of the words "task"/"codex"/"hermes"/"delegation"
+  // (those appear in ordinary conversation and capability talk — e.g. "I can
+  // delegate engineering work through CodeX"). Without an explicit "I started /
+  // delegated this / queued it / sent it to / working on it in the background"
+  // phrase, a short follow-up like "Why?" stays conversational.
+  const delegatedInContext =
+    /(i (have )?started|i started (a |the )?task|delegated (it|this|that|the)|delegated a|queued (a |the )?task|sent (it|this|that) to|gave (it|this|that) to|working on it (in the background|now)|codex (is|was) (working|building|fixing|investigating|inspecting)|hermes (is|was) (working|running|processing))/i.test(recent);
 
   // "fix it", "do that", "can you change that?" with a UI problem referent.
   if (uiProblemInContext) return { resolved: 'investigate_ui', referent: 'prior UI problem' };
@@ -308,7 +323,14 @@ export function resolveContinuationIntent(prompt: string, recentText?: string): 
   if (delegatedInContext) return { resolved: 'continue_goal', referent: 'prior delegated task' };
 
   // "try again"/"retry" after a failure mention.
-  if (/(failed|failure|error|broken|not working|timed out|didn'?t work)/i.test(recent)) {
+  // Jarvis repair: failure language anywhere in the 8-message window is too
+  // loose — an informational answer ("there are 10 failed tasks in the
+  // backlog", "we're not working on X") is normal talk, not a retry referent.
+  // Only the MOST RECENT assistant message is the direct referent of a bare
+  // "Why?"/"try again": if IT contains unambiguous failure language, retry is
+  // the right continuation; otherwise the follow-up stays conversational.
+  const lastAssistant = recent.split('\n').reverse().find((l) => /^agent:/.test(l)) || '';
+  if (/(failed|failure|error|broken|timed out|didn'?t work|doesn'?t work|crashed|threw (an |a )?error)/i.test(lastAssistant)) {
     return { resolved: 'retry_goal', referent: 'prior failed action' };
   }
 
@@ -319,8 +341,21 @@ export function resolveContinuationIntent(prompt: string, recentText?: string): 
   }
 
   // "why?" / "what happened?" after a previous Jarvis statement.
+  // Jarvis repair: a bare "why"/"what happened" opener is conversational —
+  // it asks for explanation of the prior reply. It must only continue an
+  // OPERATIONAL goal when the IMMEDIATELY PRECEDING assistant message is
+  // itself a live problem report, investigation, or failed action. Historical
+  // mentions anywhere in the window ("there are 10 failed tasks in the
+  // backlog") are informational, not a retry/investigation referent.
   if (/^(why|what happened|what did you find)\b/i.test(p) && recent.length > 0) {
-    return { resolved: 'continue_goal', referent: 'prior statement' };
+    const lastAssistant = recent.split('\n').reverse().find((l) => /^agent:/.test(l)) || '';
+    const operationalContext =
+      /(investigate|inspection|inspecting|i inspected|problem report|runtime state|frontend state)/i.test(lastAssistant) ||
+      /(failed|failure|error|broken|timed out|didn'?t work|doesn'?t work|still (broken|failing|wrong)|crashed|threw (an |a )?error)/i.test(lastAssistant);
+    if (operationalContext) {
+      return { resolved: 'continue_goal', referent: 'prior statement' };
+    }
+    return { resolved: 'unresolved' };
   }
 
   return { resolved: 'unresolved' };
@@ -401,7 +436,7 @@ export function isContextualInvestigationRequest(prompt: string, recentText?: st
  *  - The phrase "read-only" alone never implies repository analysis here.
  */
 const LIVE_STATE_TARGET_RE =
-  /\b(model|provider|gateway|hermes|ollama|openrouter|runtime|ui|frontend|backend|stream|task|operation|error|failure|health|status|state|config|configuration|badge|assignment|selection|agent|registry|mismatch|agree|active model|selected model|displayed model)\b/i;
+  /\b(model|provider|gateway|hermes|ollama|openrouter|runtime|ui|frontend|backend|stream|task|operation|error|failure|health|status|state|config|configuration|badge|assignment|selection|agent|registry|mismatch|agree|active model|selected model|displayed model|voice|logs|log|file|files|workspace|crash|crashing|500)\b/i;
 const LIVE_STATE_VERB_RE =
   /\b(check|inspect|verify|investigate|diagnose|compare|monitor|probe|find out|tell me whether|tell me if|see if|look at)\b/i;
 const LIVE_STATE_PREDICATE_RE =
@@ -416,10 +451,11 @@ export function isLiveSystemInvestigationRequest(prompt: string): boolean {
   // Project/milestone/goal/plan tracking belongs to Hermes orchestration,
   // not live runtime investigation.
   if (/\b(project|milestone|goal|plan|sprint|roadmap)\b/.test(p)) return false;
-  // Runtime-identity questions must be answered from execution metadata
-  // (PRIORITY 1): "What model are you using?" → investigate reads the ledger.
-  if (/\bwhat (model|provider)( and (model|provider))? (are|am|is) (you|i|we|it) (actually |currently )?(using|running|on|configured with)\b/.test(p)) return true;
-  const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
+  // Runtime-identity questions ("What model are you using?", "What provider
+  // is this?") are conversational — the direct-chat LLM receives provider/
+  // model context and answers them directly. No investigate hijack.
+  if (/\bwhat (model|provider)( and (model|provider))? (are|am|is) (you|i|we|it) (actually |currently )?(using|running|on|configured with)\b/.test(p)) return false;
+  const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /^(check|inspect|verify|investigate|diagnose|trace|probe)\b/.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
   if (!hasLiveVerb) return false;
   if (!LIVE_STATE_TARGET_RE.test(p)) return false;
   if (CODE_SIGNAL_RE.test(p)) return false;

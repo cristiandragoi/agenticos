@@ -3,6 +3,7 @@ import { AppProvider } from './store/appStore';
 import { DataProvider } from './store/dataStore';
 import { HermesProvider } from './store/hermesStore';
 import { CodexProvider } from './store/codexStore';
+import { ProjectProvider } from './store/projectStore';
 import AppShell from './components/layout/AppShell';
 
 /* ─── Pages ─── */
@@ -38,6 +39,7 @@ import PromptLab from './pages/evolution/PromptLab';
 import AgentTeamsDashboard from './pages/AgentTeamsDashboard';
 import TeamDetailView from './pages/TeamDetailView';
 import SystemDoctorPage from './pages/SystemDoctorPage';
+import ProjectsPage from './pages/ProjectsPage';
 import { uiDiagnostics } from './diagnostics/uiSnapshot';
 import { useEffect } from 'react';
 
@@ -50,6 +52,7 @@ function App() {
   return (
     <DataProvider>
       <AppProvider>
+        <ProjectProvider>
         <HermesProvider>
           <CodexProvider>
             <HashRouter>
@@ -92,11 +95,13 @@ function App() {
                 <Route path="codex" element={<CodeXStudio />} />
                 <Route path="apollo" element={<Navigate to="/hermes-studio?view=apollo" replace />} />
                 <Route path="doctor" element={<SystemDoctorPage />} />
+                <Route path="projects" element={<ProjectsPage />} />
               </Route>
             </Routes>
             </HashRouter>
           </CodexProvider>
         </HermesProvider>
+        </ProjectProvider>
       </AppProvider>
     </DataProvider>
   );

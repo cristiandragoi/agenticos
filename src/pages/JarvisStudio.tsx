@@ -417,6 +417,25 @@ export default function JarvisStudio() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
 
+  // ── Jarvis runtime-display truth: the ASSIGNED provider/model (from the
+  //     settings API) is distinct from the ACTIVE provider/model (reported by
+  //     the stream for the current turn). Both are shown explicitly so the UI
+  //     never contradicts itself when a fallback serves a turn. ──
+  const [jarvisAssignment, setJarvisAssignment] = useState<{ providerId: string | null; modelId: string | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/settings/agent-provider-assignments/agent-jarvis`, { signal: AbortSignal.timeout(4000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setJarvisAssignment({ providerId: data?.providerId ?? null, modelId: data?.modelId ?? null });
+      } catch { /* backend offline — leave assignment null, UI shows '—' */ }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
   // ── Final layout correction (§1, §3, §10): true 3-column shell ──
   // LEFT NAV (LeftRail) | CENTER JARVIS (mainColumn) | RIGHT ACTIVITY
   // (activityColumn). Activity is a dedicated grid column with its own
@@ -864,7 +883,7 @@ export default function JarvisStudio() {
             push it upward or clip it. Real flow stack — wordmark → orb →
             state text → primary control — nothing absolutely stacked on
             the orb. ── */}
-        <div ref={stageRef} className={cc.jarvisStage} data-testid="jarvis-stage" style={{ flex: '1 1 auto', minHeight: 'max(360px, 44vh)', overflow: 'hidden' }}>
+        <div ref={stageRef} className={cc.jarvisStage} data-testid="jarvis-stage" style={{ overflow: 'hidden' }}>
 
         {/* ── Glowing wordmark ── */}
         <motion.div
@@ -881,8 +900,11 @@ export default function JarvisStudio() {
             absolutely pinned, so it can never collide with the wordmark. ── */}
         <div data-testid="jarvis-status-strip" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, zIndex: 5, margin: '16px 0 10px' }}>
           {statusChip('', backendOffline ? 'BACKEND OFFLINE' : 'CONNECTED', !backendOffline)}
-          {statusChip('PROVIDER', runtimeStatus.provider || '—')}
-          {statusChip('MODEL', runtimeStatus.model || '—')}
+          {/* Runtime-display truth: ASSIGNED (settings) vs ACTIVE (stream).
+              They differ only when a fallback serves the turn — the UI says
+              so instead of silently showing one or the other. */}
+          {statusChip('ASSIGNED', jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—')}
+          {statusChip('ACTIVE', runtimeStatus.provider ? `${runtimeStatus.provider}/${runtimeStatus.model ?? '—'}` : '—', !!runtimeStatus.provider)}
           {statusChip('HERMES', hermesStatus?.gateway?.reachable ? 'ONLINE' : 'OFFLINE', !!hermesStatus?.gateway?.reachable)}
           {statusChip('STT', hermesStatus?.stt?.configured ? hermesStatus.stt.provider : 'none', !!hermesStatus?.stt?.configured)}
           {statusChip('TTS', hermesStatus?.tts?.configured ? hermesStatus.tts.provider : 'none', !!hermesStatus?.tts?.configured)}
@@ -926,7 +948,7 @@ export default function JarvisStudio() {
             LANE (workspace/approval strip + activity line) lives HERE, at
             the top of the bounded band — never inside the stage. Backend /
             workspace status must not push the Jarvis visualization. ── */}
-        <div className={cc.workspace} data-testid="jarvis-workspace" style={{ maxHeight: '54vh', overflow: 'hidden' }}>
+        <div className={cc.workspace} data-testid="jarvis-workspace" style={{ overflow: 'hidden' }}>
 
           {/* ── TOP STATUS LANE (stabilization §1): a reserved flow row at
               the top of the workspace band. The workspace/approval strip
@@ -1087,7 +1109,7 @@ export default function JarvisStudio() {
             </button>
             <div
               className={transcriptOpen ? cc.transcriptBody : `${cc.transcriptBody} ${cc.collapsed}`}
-              style={transcriptOpen ? { height: transcriptHeight } : undefined}
+              style={transcriptOpen ? { maxHeight: transcriptHeight } : undefined}
               data-testid="jarvis-transcript-body"
             >
               <JarvisChat
@@ -1182,8 +1204,8 @@ export default function JarvisStudio() {
           <div className={cc.kv}><span className={cc.kvLabel}>RAM</span><span className={cc.kvValue}>{sys?.ramUsedMb != null && sys?.ramTotalMb != null ? `${(sys.ramUsedMb / 1024).toFixed(1)} / ${(sys.ramTotalMb / 1024).toFixed(1)} GB` : '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>GPU</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{sys?.gpu || '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>BACKEND</span><span className={cc.kvValue} style={{ color: backendOffline ? '#fca5a5' : '#4ade80' }}>{backendOffline ? 'OFFLINE' : 'ONLINE'}</span></div>
-          <div className={cc.kv}><span className={cc.kvLabel}>PROVIDER</span><span className={cc.kvValue}>{runtimeStatus.provider || '—'}</span></div>
-          <div className={cc.kv}><span className={cc.kvLabel}>MODEL</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{runtimeStatus.model || '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>ASSIGNED</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>ACTIVE</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{runtimeStatus.provider ? `${runtimeStatus.provider}/${runtimeStatus.model ?? '—'}` : '—'}</span></div>
         </motion.div>
 
         {/* ── ACTIVE RUN (bottom-right, real Hermes events) ── */}

@@ -10,7 +10,7 @@ import { db } from '../db/index.js';
 import { conversations, teams, teamRuns } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { llmChatStream } from '../services/llmGateway.js';
-import { AgentProviderAssignmentService } from '../services/agent/assignments.js';
+import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../services/agent/assignments.js';
 import { mockAgents, mockProviders, mockRuntimes, mockTools } from '../data.js';
 
 const router = Router();
@@ -45,18 +45,25 @@ function getDirectChatOverallTimeoutMs() {
  *   OPENROUTER_MODEL env default. Read at request time — never from
  *   module-load constants, which can freeze before dotenv loads.
  */
-async function resolveDirectChatMetadata(): Promise<{ selectedModel: string; fallbackModel: string }> {
+async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; selectedModel: string; fallbackModel: string }> {
   const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b';
   let selectedModel = process.env.OPENROUTER_MODEL || 'auto';
+  let selectedProvider = 'OpenRouter';
   try {
     const assignment = await AgentProviderAssignmentService.getAssignment('agent-jarvis');
     if (assignment?.enabled && assignment.modelId) {
       selectedModel = assignment.modelId;
+      // Provider label must reflect the ACTUAL resolved gateway provider
+      // (Jarvis repair): derive it from the assignment via the canonical
+      // catalog→gateway mapping so the SSE/status display, the routing log,
+      // and the outgoing request all agree (e.g. prov-deepseek → DeepSeek),
+      // instead of hard-coding 'OpenRouter'.
+      selectedProvider = mapCatalogToGatewayId(assignment.providerId) || selectedProvider;
     }
   } catch (err) {
     logger.warn('[JarvisStream] assignment lookup for metadata failed; using env model label', err);
   }
-  return { selectedModel, fallbackModel };
+  return { selectedProvider, selectedModel, fallbackModel };
 }
 
 /** Recent conversation text for contextual routing (best effort). */
@@ -401,8 +408,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   res.flushHeaders?.();
   logStreamStage(normalizedOperationId, 'response headers flushed');
 
-  const baseSelectedProvider = 'OpenRouter';
-  const { selectedModel: baseSelectedModel, fallbackModel } = await resolveDirectChatMetadata();
+  const { selectedProvider: baseSelectedProvider, selectedModel: baseSelectedModel, fallbackModel } = await resolveDirectChatMetadata();
   const fallbackProvider = 'ollama';
 
   // Conversation-level provider/model override (PRIORITY 3): a manual choice
@@ -742,6 +748,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       const delegatedObjective = enrichPromptWithResolvedFiles(prompt, fileOutcome);
 
       const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      let _activeProjectId: string | null = null;
+      try {
+        const { projectsStore } = await import('../services/projectsStore.js');
+        _activeProjectId = projectsStore.getActiveProjectId();
+      } catch { /* best effort */ }
       const { task, error } = backgroundTaskManager.createTask({
         title,
         objective: delegatedObjective,
@@ -752,6 +763,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         conversationId: req.params.id,
         resumable: workerKind === 'codex',
         workspaceRoot: workspacePath || undefined,
+        projectId: _activeProjectId || undefined,
         metadata: {
           operationId: normalizedOperationId,
           readOnly: Boolean(executive.readOnly),
@@ -1743,6 +1755,102 @@ router.get('/diagnostics', async (_req, res) => {
       stt: { status: 'unavailable', reason: 'Not yet integrated' },
     }
   });
+});
+
+// GET /api/jarvis/live-events?limit=30&projectId=xxx
+// Returns recent background_task_events across all (or project-scoped) tasks.
+// Used by the Live Work panel to show real structured operational events.
+router.get('/live-events', async (req, res) => {
+  try {
+    const { backgroundTaskRepo, ensureBackgroundTaskTables } = await import('../services/backgroundTasks/store.js');
+    ensureBackgroundTaskTables();
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 30));
+    const projectId = typeof req.query.projectId === 'string' && req.query.projectId ? req.query.projectId : null;
+    let events: any[];
+    if (projectId) {
+      // Scope events to tasks belonging to the specified project (operational only)
+      const rows = (await import('../db/index.js')).rawDb.prepare(`
+        SELECT e.*, t.title AS task_title, t.worker AS task_worker
+        FROM background_task_events e
+        JOIN background_tasks t ON t.task_id = e.task_id
+        WHERE t.project_id = ?
+          AND NOT (e.kind = 'task.progress' AND e.detail LIKE '%"streaming":true%')
+          AND e.kind NOT IN ('task.queued')
+        ORDER BY e.ts DESC
+        LIMIT ?
+      `).all(projectId, limit);
+      events = rows.map((row: any) => ({
+        id: row.id, taskId: row.task_id, ts: row.ts,
+        kind: row.kind, summary: row.summary,
+        detail: JSON.parse(row.detail || '{}'),
+        sequence: row.sequence,
+        taskTitle: row.task_title || '',
+        taskWorker: row.task_worker || '',
+      }));
+    } else {
+      events = backgroundTaskRepo.listRecentEvents(limit);
+    }
+    res.json(events);
+  } catch (err: any) {
+    res.json([]);
+  }
+});
+
+// GET /api/jarvis/runtime-state
+router.get('/runtime-state', async (_req, res) => {
+  try {
+    const { getCurrent } = await import('../services/executionState.js');
+    const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+    const { projectsStore } = await import('../services/projectsStore.js');
+
+    const current = getCurrent();
+    const tasks = backgroundTaskManager.listTasks({ limit: 5 }) || [];
+    const activeTasks = tasks.filter((t: any) => ['running', 'queued', 'pending'].includes(String(t.status)));
+    const activeProject = projectsStore.getActiveProject();
+
+    let state = 'idle';
+    if (current?.status === 'WAITING_FOR_MODEL' || current?.status === 'ROUTING') state = 'reasoning';
+    else if (current?.status === 'RUNNING') state = 'executing';
+    else if (current?.status === 'DISPATCHING' || current?.status === 'QUEUED') state = 'executing';
+    else if (current?.status === 'COMPLETING') state = 'completed';
+    else if (current?.status === 'FAILED') state = 'error';
+    else if (current?.status === 'CANCELLED') state = 'idle';
+    else if (activeTasks.length > 0) state = 'delegated';
+
+    const worker = current?.worker || (activeTasks[0] as any)?.worker || null;
+    let activeAgent: string | null = null;
+    if (worker === 'hermes') activeAgent = 'Hermes';
+    else if (worker === 'codex') activeAgent = 'CodeX';
+    else if (worker === 'research') activeAgent = 'Research';
+    else if (worker === 'team') activeAgent = 'Agent Teams';
+    else if (worker === 'revenue') activeAgent = 'Revenue Pipeline';
+
+    // Project-scoped task list for Mission Control awareness
+    let projectTasks: any[] = [];
+    if (activeProject) {
+      try {
+        projectTasks = backgroundTaskManager.listTasks({ projectId: activeProject.id, limit: 10 });
+      } catch { /* best effort */ }
+    }
+
+    res.json({
+      state,
+      activeAgent,
+      activeProject: activeProject ? { id: activeProject.id, name: activeProject.name } : null,
+      activeTask: current ? { id: current.operationId, action: current.currentAction, status: current.status } : null,
+      activeTool: current?.currentAction || null,
+      provider: current?.resolvedProvider || current?.requestedProvider || null,
+      model: current?.resolvedModel || current?.requestedModel || null,
+      pendingTaskCount: activeTasks.length,
+      projectTasks: projectTasks.map((t: any) => ({
+        taskId: t.taskId, title: t.title, status: t.status,
+        worker: t.worker, createdAt: t.createdAt, updatedAt: t.updatedAt,
+        progressMessage: t.progressMessage, currentStage: t.currentStage,
+      })),
+    });
+  } catch (_err: any) {
+    res.json({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, activeTool: null, provider: null, model: null, pendingTaskCount: 0 });
+  }
 });
 
 export default router;

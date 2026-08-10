@@ -374,10 +374,10 @@ describe('IntentRouter — required routing cases', () => {
       });
     }
 
-    it('routes "what model are you using" to INVESTIGATE (answered from runtime metadata)', async () => {
+    it('routes "what model are you using" DIRECT (conversational runtime-identity question)', async () => {
       for (const input of ['What model are you using?', 'What model and provider are you actually using for this reply?', 'What model are you running?']) {
         const result = await router.routeIntent(input);
-        expect(result.route, input).toBe('investigate');
+        expect(result.route, input).toBe('direct');
       }
     });
 

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useData } from '../../store/dataStore';
 import { useDrawer } from '../../store/appStore';
+import { useProjects } from '../../store/projectStore';
 import React, { useState, useCallback } from 'react';
 
 import { NavLink, useLocation } from 'react-router-dom';
@@ -8,7 +9,8 @@ import {
   LayoutDashboard, Users, Activity, HardDrive, Database,
   Package, Radio, BookOpen, Settings, Cpu, Layers, Box,
   GitBranch, Clapperboard, Mic, Terminal, Wrench,
-  Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight, Brain
+  Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight, Brain,
+  FolderOpen, Plus, Circle
 } from 'lucide-react';
 
 /** Session persistence for the collapsed rail state (survives navigation,
@@ -21,6 +23,7 @@ function readCollapsed(): boolean {
 const LeftRail: React.FC = () => {
   const { agents: mockAgents, providers: mockProviders, runs: mockRuns, memoryScopes: mockMemoryScopes, memoryEntries: mockMemoryEntries, artifacts: mockArtifacts, runtimes: mockRuntimes, boards: mockBoards, tools: mockTools, isLoading } = useData();
   const drawer = useDrawer();
+  const { projects, activeProject } = useProjects();
   const location = useLocation();
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -90,6 +93,38 @@ const LeftRail: React.FC = () => {
           </div>
           {!collapsed && <span className="font-medium text-cyan-500/90 tracking-wide">MEMORY</span>}
         </NavLink>
+
+        {/* PROJECTS section */}
+        <div className="nav-section-label" style={{ marginTop: 4 }}>
+          {collapsed ? <FolderOpen size={14} /> : 'PROJECTS'}
+        </div>
+        <NavLink
+          to="/projects"
+          data-testid="nav-projects"
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          title="Projects"
+        >
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-sky-500/30 bg-sky-500/10">
+            <FolderOpen size={12} className="text-sky-400" />
+          </div>
+          {!collapsed && (
+            <span className="font-medium text-sky-400/90 tracking-wide" style={{ flex: 1 }}>
+              {activeProject ? activeProject.name.toUpperCase().slice(0, 14) : 'ALL PROJECTS'}
+            </span>
+          )}
+        </NavLink>
+        {!collapsed && activeProject && (
+          <div
+            style={{
+              fontSize: 10, color: '#0891b2', fontWeight: 700,
+              letterSpacing: '0.08em', paddingLeft: 32, marginTop: -4, marginBottom: 2,
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <Circle size={6} fill="#0891b2" color="#0891b2" />
+            ACTIVE: {activeProject.name.slice(0, 18)}
+          </div>
+        )}
 
         <div className="nav-section-label">{collapsed ? <LayoutDashboard size={14} /> : 'WORKSPACE'}</div>
         <NavLink to="/mission-control" data-testid="nav-mission-control" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Mission Control">

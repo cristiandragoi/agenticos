@@ -44,6 +44,8 @@ export interface ConversationContext {
   capabilities: string;
   /** Approval mode for this turn. */
   approvalMode: 'manual' | 'auto';
+  /** Currently active project context (persisted selection). */
+  activeProject: { id: string; name: string; description?: string | null } | null;
 }
 
 const CLARIFICATION_PATTERN =
@@ -75,6 +77,7 @@ export async function assembleConversationContext(
     providers: { provider: 'openrouter', model: 'auto', fallbackProvider: 'ollama', fallbackModel: 'auto' },
     capabilities: '',
     approvalMode: options.approvalMode || 'manual',
+    activeProject: null,
   };
 
   // 1. Recent turns (bounded window, newest first).
@@ -145,6 +148,13 @@ export async function assembleConversationContext(
   // 5. Capabilities (real registered list, not a static claim).
   ctx.capabilities = capabilitySummaryList();
 
+  // 6. Active project context
+  ctx.activeProject = null;
+  try {
+    const { projectsStore } = await import('../../services/projectsStore.js');
+    ctx.activeProject = projectsStore.getActiveProject() as any;
+  } catch { /* best effort */ }
+
   return ctx;
 }
 
@@ -164,6 +174,9 @@ export function contextToSystemPrompt(ctx: ConversationContext): string {
   }
   lines.push(`Provider/model: ${ctx.providers.provider}/${ctx.providers.model} (fallback ${ctx.providers.fallbackProvider}/${ctx.providers.fallbackModel})`);
   lines.push(`Approval mode: ${ctx.approvalMode}`);
+  if (ctx.activeProject) {
+    lines.push(`Active project: ${ctx.activeProject.name}${ctx.activeProject.description ? ` — ${ctx.activeProject.description.slice(0, 80)}` : ''}`);
+  }
   if (ctx.previousWasClarification) {
     lines.push('Note: your previous reply asked the user to clarify. If this message supplies additional information, reinterpret the combined context instead of asking again.');
   }
