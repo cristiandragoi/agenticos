@@ -340,6 +340,9 @@ export default function ProjectsPage() {
   const [newColor, setNewColor] = useState('#00e5ff');
   const [tab, setTab] = useState<'overview' | 'knowledge'>('overview');
 
+  // Re-sync from the server on page mount so external/active changes are shown.
+  useEffect(() => { void refresh(); }, [refresh]);
+
   const selectedProject = projects.find((p) => p.id === selectedId) ?? activeProject ?? projects[0] ?? null;
 
   const handleCreate = async () => {

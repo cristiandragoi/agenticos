@@ -258,6 +258,11 @@ export class JarvisOrchestrator {
       const { taskShortId } = await import('../../services/backgroundTasks/types.js');
 
       const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      let _activeProjectId: string | null = null;
+      try {
+        const { projectsStore } = await import('../../services/projectsStore.js');
+        _activeProjectId = projectsStore.getActiveProjectId();
+      } catch { /* best effort */ }
       const { task, error } = backgroundTaskManager.createTask({
         title,
         objective: prompt,
@@ -267,6 +272,7 @@ export class JarvisOrchestrator {
         worker: 'hermes',
         conversationId,
         resumable: false,
+        projectId: _activeProjectId || undefined,
         metadata: { operationId },
       });
       if (!task) {

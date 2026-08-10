@@ -178,6 +178,175 @@
   background: rgba(147, 240, 255, 0.85);
   border-radius: 6px;
 }
+
+/* ── Collapsible lower dock (voice-first mode). VIEW STATE ONLY: children
+   stay mounted (transcript/draft/conversation/mic/work survive) but are
+   visually hidden so the holographic head gets the freed vertical space.
+   The status lane + dock toggle remain visible as the dock's header. ── */
+.workspaceCollapsed {
+  flex: 0 0 auto;
+  padding-bottom: 4px;
+  background: linear-gradient(to bottom, rgba(2, 6, 23, 0.85), rgba(2, 6, 23, 0.6));
+}
+.workspaceCollapsed .topStatusLane {
+  padding-bottom: 4px;
+}
+.workspaceCollapsed > :not(.topStatusLane) {
+  display: none;
+}
+/* Smooth transition when toggling (not absolute — a pleasant 180ms ease). */
+.workspace {
+  transition: flex-basis 0.18s ease, padding 0.18s ease;
+}
+
+/* Dock toggle affordance — same visual language as the right-side toggle. */
+.dockToggle {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: rgba(8, 20, 40, 0.85);
+  border: 1px solid #27436b;
+  border-radius: 6px;
+  color: #7dd3fc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.dockToggle:hover {
+  border-color: rgba(103, 232, 249, 0.7);
+  color: #cffafe;
+}
+
+/* Composer collapsed — hidden but MOUNTED (draft survives). */
+.composerCollapsed {
+  display: none;
+}
+
+/* ── Live Work panel (Jarvis page) — real operational events. ── */
+.liveWorkPanel {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(860px, 94%);
+  margin: 2px auto 6px;
+  border: 1px solid rgba(30, 58, 95, 0.6);
+  border-radius: 8px;
+  background: rgba(4, 12, 28, 0.6);
+  overflow: hidden;
+}
+.liveWorkHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.liveWorkHeader:hover {
+  color: #cbd5e1;
+}
+.liveWorkTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.liveWorkDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00e5ff;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.8);
+}
+.liveWorkStateBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(0, 229, 255, 0.12);
+  color: #67e8f9;
+  letter-spacing: 1px;
+}
+.liveWorkBody {
+  max-height: 160px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(30, 58, 95, 0.4);
+  padding: 6px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.liveWorkKv {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+}
+.liveWorkKvLabel {
+  color: #475569;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  flex: 0 0 64px;
+}
+.liveWorkKvValue {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+.liveWorkEvents {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-top: 1px dashed rgba(30, 58, 95, 0.4);
+  padding-top: 6px;
+}
+.liveWorkEmpty {
+  font-size: 11px;
+  color: #334155;
+  padding: 4px 0;
+}
+.liveWorkEvent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 2px 0;
+  min-width: 0;
+}
+.liveWorkEventKind {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #67e8f9;
+  background: rgba(0, 229, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.liveWorkEventSummary {
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.liveWorkEventTask {
+  flex: 0 0 auto;
+  color: #475569;
+  font-size: 10px;
+}
+
+
 .workspace::-webkit-scrollbar-thumb:hover {
   background: rgba(186, 247, 255, 1);
 }

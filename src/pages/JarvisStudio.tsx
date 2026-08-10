@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { JarvisChat } from '../components/jarvis/JarvisChat';
-import type { JarvisChatHandle, JarvisRuntimeStatus } from '../components/jarvis/JarvisChat';
+import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '../components/jarvis/JarvisChat';
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
 import { JarvisCore } from '../components/jarvis/JarvisCore';
@@ -12,7 +12,7 @@ import type { MicState } from '../components/jarvis/JarvisComposer';
 import { JarvisComposer } from '../components/jarvis/JarvisComposer';
 import { ExecutionBar } from '../components/jarvis/ExecutionBar';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
-import { apiUrl, API_BASE } from '../api/client';
+import { apiUrl, apiFetch, API_BASE } from '../api/client';
 
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
 import { useBackendLifecycle } from '../diagnostics/useBackendLifecycle';
@@ -180,6 +180,61 @@ export default function JarvisStudio() {
   const [runtimeStatus, setRuntimeStatus] = useState<JarvisRuntimeStatus>({
     state: 'idle', elapsedMs: 0, firstTokenMs: null, provider: null, model: null, error: null,
   });
+
+  // ── Backend runtime-state (holographic Jarvis): the stream state above only
+  //     covers an ACTIVE turn. A delegated background task (Hermes/CodeX/
+  //     research) continues after the turn ends — the orb must reflect that
+  //     with the semantic 'delegated' (pink) state. Poll the same canonical
+  //     endpoint Mission Control uses so both pages agree on real state. ──
+  const [backendRuntime, setBackendRuntime] = useState<{
+    state: string; activeAgent: string | null; activeProject: { id: string; name: string } | null;
+    activeTask: { id: string; action: string | null; status: string } | null;
+    provider: string | null; model: string | null; pendingTaskCount: number;
+  }>({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, provider: null, model: null, pendingTaskCount: 0 });
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await apiFetch('/api/jarvis/runtime-state');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setBackendRuntime(data);
+      } catch { /* best effort — keep last known state */ }
+    };
+    poll();
+    const id = window.setInterval(poll, 3000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+  // Map the backend semantic state to the stream vocabulary the orb consumes.
+  // 'delegated' is the only state the stream can NOT produce itself (it only
+  // sees the active turn); the backend derives it from live background tasks.
+  const orbRuntimeState: JarvisRuntimeState =
+    backendRuntime.state === 'delegated' ? 'delegating'
+    : backendRuntime.state === 'executing' && runtimeStatus.state === 'idle' ? 'executing'
+    : backendRuntime.state === 'completed' && runtimeStatus.state === 'idle' ? 'completed'
+    : backendRuntime.state === 'error' && runtimeStatus.state === 'idle' ? 'error'
+    : runtimeStatus.state;
+
+  // ── Live Work events (Jarvis page): real structured operational events
+  //     from background_task_events, filtered server-side to exclude raw
+  //     token-stream noise. Shown in the workspace band above the transcript
+  //     so the user sees what Jarvis is actually doing. ──
+  const [liveWorkEvents, setLiveWorkEvents] = useState<any[]>([]);
+  const [liveWorkOpen, setLiveWorkOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const pollEvents = async () => {
+      try {
+        const res = await apiFetch('/api/jarvis/live-events?limit=12');
+        if (!res.ok || cancelled) return;
+        const events = await res.json();
+        if (!cancelled && Array.isArray(events)) setLiveWorkEvents(events);
+      } catch { /* best effort */ }
+    };
+    pollEvents();
+    const id = window.setInterval(pollEvents, 3000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
 
   // ── THE single voice engine — one mic, one VAD, one STT, one TTS ──
   const [mode, setMode] = useState<'manual' | 'conversation'>(readPersistedMode);
@@ -416,6 +471,27 @@ export default function JarvisStudio() {
   const [activeRun, setActiveRun] = useState<HermesRun | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+
+  // ── Lower workspace dock (voice-first / work mode). VIEW STATE ONLY:
+  //     collapsing hides the interaction surfaces (controls, diagnostics,
+  //     transcript, composer) to give the holographic head more room, but
+  //     NEVER unmounts them — transcript, draft, conversation, mic state
+  //     and running work all survive. Persisted like the transcript toggle. ──
+  const DOCK_KEY = 'jarvis.workspaceDockOpen';
+  const [workspaceDockOpen, setWorkspaceDockOpen] = useState<boolean>(() => {
+    try {
+      const saved = sessionStorage.getItem(DOCK_KEY);
+      if (saved !== null) return saved === '1';
+    } catch { /* storage unavailable */ }
+    return true; // default: work mode (expanded)
+  });
+  const toggleWorkspaceDock = useCallback(() => {
+    setWorkspaceDockOpen((v) => {
+      const next = !v;
+      try { sessionStorage.setItem(DOCK_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   // ── Jarvis runtime-display truth: the ASSIGNED provider/model (from the
   //     settings API) is distinct from the ACTIVE provider/model (reported by
@@ -700,7 +776,7 @@ export default function JarvisStudio() {
   const orbState = deriveJarvisOrbState({
     micState: orbMicState,
     playbackActive,
-    runtimeState: runtimeStatus.state,
+    runtimeState: orbRuntimeState,
     backendOffline,
   });
 
@@ -947,8 +1023,11 @@ export default function JarvisStudio() {
         {/* ── LOWER WORKSPACE (fixed-stage milestone §3/§16): the TOP STATUS
             LANE (workspace/approval strip + activity line) lives HERE, at
             the top of the bounded band — never inside the stage. Backend /
-            workspace status must not push the Jarvis visualization. ── */}
-        <div className={cc.workspace} data-testid="jarvis-workspace" style={{ overflow: 'hidden' }}>
+            workspace status must not push the Jarvis visualization.
+            The band is COLLAPSIBLE (voice-first mode): hiding the interaction
+            surfaces gives the head more room. View-state only — children
+            stay mounted so transcript/draft/conversation/mic survive. ── */}
+        <div className={`${cc.workspace} ${workspaceDockOpen ? '' : cc.workspaceCollapsed}`} data-testid="jarvis-workspace" style={{ overflow: 'hidden' }}>
 
           {/* ── TOP STATUS LANE (stabilization §1): a reserved flow row at
               the top of the workspace band. The workspace/approval strip
@@ -960,6 +1039,14 @@ export default function JarvisStudio() {
             <div data-testid="jarvis-workspace-anchor" style={{ flex: '1 1 auto', minWidth: 220 }}>
               <JarvisWorkspaceBar />
             </div>
+            <button
+              data-testid="jarvis-workspace-dock-toggle"
+              onClick={toggleWorkspaceDock}
+              title={workspaceDockOpen ? 'Collapse the lower workspace (voice-first focus)' : 'Expand the lower workspace (work mode)'}
+              className={cc.dockToggle}
+            >
+              {workspaceDockOpen ? '▾ HIDE DOCK' : '▴ SHOW DOCK'}
+            </button>
             <div className={cc.activityLine} data-testid="jarvis-activity-line">
               <span className={cc.activityDot} />
               <span data-testid="jarvis-activity-text">{latestActivity ? latestActivity.text : 'READY'}</span>
@@ -1088,6 +1175,67 @@ export default function JarvisStudio() {
             <VoiceTracePanel />
           </div>
 
+          {/* ── LIVE WORK (Jarvis page): real operational events. Shows what
+              Jarvis is actually doing — PROJECT/TASK/AGENT/ACTION/STATUS —
+              from background_task_events, never raw LLM tokens. Collapsible. ── */}
+          <div className={cc.liveWorkPanel} data-testid="jarvis-live-work">
+            <button
+              data-testid="jarvis-live-work-toggle"
+              onClick={() => setLiveWorkOpen((v) => !v)}
+              className={cc.liveWorkHeader}
+            >
+              <span className={cc.liveWorkTitle}>
+                <span className={cc.liveWorkDot} />
+                LIVE WORK
+                {backendRuntime.state !== 'idle' && (
+                  <span className={cc.liveWorkStateBadge}>{backendRuntime.state.toUpperCase()}</span>
+                )}
+              </span>
+              <span>{liveWorkOpen ? '▾ HIDE' : '▴ SHOW'}</span>
+            </button>
+            {liveWorkOpen && (
+              <div className={cc.liveWorkBody} data-testid="jarvis-live-work-body">
+                {backendRuntime.activeProject && (
+                  <div className={cc.liveWorkKv}>
+                    <span className={cc.liveWorkKvLabel}>PROJECT</span>
+                    <span className={cc.liveWorkKvValue}>{backendRuntime.activeProject.name}</span>
+                  </div>
+                )}
+                {backendRuntime.activeAgent && (
+                  <div className={cc.liveWorkKv}>
+                    <span className={cc.liveWorkKvLabel}>AGENT</span>
+                    <span className={cc.liveWorkKvValue}>{backendRuntime.activeAgent}</span>
+                  </div>
+                )}
+                {backendRuntime.activeTask?.action && (
+                  <div className={cc.liveWorkKv}>
+                    <span className={cc.liveWorkKvLabel}>ACTION</span>
+                    <span className={cc.liveWorkKvValue}>{backendRuntime.activeTask.action}</span>
+                  </div>
+                )}
+                {backendRuntime.pendingTaskCount > 0 && (
+                  <div className={cc.liveWorkKv}>
+                    <span className={cc.liveWorkKvLabel}>STATUS</span>
+                    <span className={cc.liveWorkKvValue}>{backendRuntime.pendingTaskCount} active task(s)</span>
+                  </div>
+                )}
+                <div className={cc.liveWorkEvents} data-testid="jarvis-live-work-events">
+                  {liveWorkEvents.length === 0 ? (
+                    <div className={cc.liveWorkEmpty}>No operational events yet.</div>
+                  ) : (
+                    liveWorkEvents.slice(0, 8).map((evt: any) => (
+                      <div key={evt.id || evt.ts + evt.kind} className={cc.liveWorkEvent}>
+                        <span className={cc.liveWorkEventKind}>{String(evt.kind).replace('task.', '')}</span>
+                        <span className={cc.liveWorkEventSummary}>{evt.summary || evt.detail?.message || ''}</span>
+                        {evt.taskTitle && <span className={cc.liveWorkEventTask}>{evt.taskTitle.slice(0, 40)}</span>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* ── Command transcript dock (§4–6): bounded height, resizable,
               own scrollbar. A thousand messages can never push the stage. ── */}
           <div className={`${cc.panel} ${cc.transcriptDock}`} data-testid="jarvis-chat-workspace">
@@ -1140,8 +1288,11 @@ export default function JarvisStudio() {
 
         {/* ── STICKY COMPOSER (§8): always reachable at the bottom of the
             center column. Never inside the scrolling document, never covered
-            by the Activity column — "Ask Jarvis anything…" stays on screen. ── */}
-        <div className={cc.stickyComposer} data-testid="jarvis-sticky-composer">
+            by the Activity column — "Ask Jarvis anything…" stays on screen.
+            In voice-first (dock collapsed) mode the composer hides too —
+            VIEW STATE ONLY: composerText/draft survive because the component
+            stays mounted. ── */}
+        <div className={`${cc.stickyComposer} ${workspaceDockOpen ? '' : cc.composerCollapsed}`} data-testid="jarvis-sticky-composer" style={workspaceDockOpen ? undefined : { display: 'none' }}>
           {voiceInterimTranscript && (
             <div className={cc.voiceInterimPreview} data-testid="jarvis-voice-interim" aria-live="polite">
               <span className={cc.voiceInterimLabel}>Voice preview</span>

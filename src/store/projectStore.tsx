@@ -77,6 +77,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ projectId: id }),
       });
       setActiveProjectId(id);
+      // Re-sync the full project list from the server so any external change
+      // (a project switched from another page or process) is reflected.
+      void fetchProjects();
     } catch { /* best effort */ }
   };
 

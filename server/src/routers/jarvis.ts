@@ -937,6 +937,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       }
 
       const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      let _activeProjectId: string | null = null;
+      try {
+        const { projectsStore } = await import('../services/projectsStore.js');
+        _activeProjectId = projectsStore.getActiveProjectId();
+      } catch { /* best effort */ }
       const { task, error } = backgroundTaskManager.createTask({
         title,
         objective: prompt,
@@ -949,6 +954,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         // §9: capture the canonical root at creation — a later repository
         // change never redirects this task.
         workspaceRoot: workspacePath || undefined,
+        projectId: _activeProjectId || undefined,
         metadata: {
           operationId: normalizedOperationId,
           capabilityId: 'revenue_pipeline',
@@ -1804,9 +1810,36 @@ router.get('/runtime-state', async (_req, res) => {
     const { projectsStore } = await import('../services/projectsStore.js');
 
     const current = getCurrent();
-    const tasks = backgroundTaskManager.listTasks({ limit: 5 }) || [];
-    const activeTasks = tasks.filter((t: any) => ['running', 'queued', 'pending'].includes(String(t.status)));
+    const tasks = backgroundTaskManager.listTasks({ limit: 25 }) || [];
     const activeProject = projectsStore.getActiveProject();
+
+    // Live-execution precedence: an in-flight request/turn always wins.
+    // Background tasks only mean "delegated" when they are GENUINELY in
+    // flight: running (startedAt set, recently updated) or freshly queued
+    // (<2 min old — still waiting for a worker slot, not abandoned).
+    // A task stuck in 'queued' for minutes without startedAt is stale and
+    // must never pin Jarvis into a permanent "Delegated…" state.
+    const FRESH_QUEUE_MS = 2 * 60 * 1000;
+    const nowMs = Date.now();
+    const inFlightTasks = tasks.filter((t: any) => {
+      if (t.status === 'running') {
+        const updated = new Date(String(t.updatedAt)).getTime();
+        const ageMs = Number.isFinite(updated) ? nowMs - updated : Number.MAX_SAFE_INTEGER;
+        return ageMs < 10 * 60 * 1000; // running task updated within 10 min
+      }
+      if (t.status === 'queued') {
+        const created = new Date(String(t.createdAt)).getTime();
+        const ageMs = Number.isFinite(created) ? nowMs - created : Number.MAX_SAFE_INTEGER;
+        return ageMs < FRESH_QUEUE_MS; // freshly queued, still waiting for a slot
+      }
+      return false;
+    });
+
+    // When an active project exists, prefer its tasks — unrelated stale
+    // background work must not claim Jarvis's delegated state.
+    const scopedTasks = activeProject
+      ? inFlightTasks.filter((t: any) => t.projectId === activeProject.id || !t.projectId)
+      : inFlightTasks;
 
     let state = 'idle';
     if (current?.status === 'WAITING_FOR_MODEL' || current?.status === 'ROUTING') state = 'reasoning';
@@ -1815,9 +1848,9 @@ router.get('/runtime-state', async (_req, res) => {
     else if (current?.status === 'COMPLETING') state = 'completed';
     else if (current?.status === 'FAILED') state = 'error';
     else if (current?.status === 'CANCELLED') state = 'idle';
-    else if (activeTasks.length > 0) state = 'delegated';
+    else if (scopedTasks.length > 0) state = 'delegated';
 
-    const worker = current?.worker || (activeTasks[0] as any)?.worker || null;
+    const worker = current?.worker || scopedTasks[0]?.worker || null;
     let activeAgent: string | null = null;
     if (worker === 'hermes') activeAgent = 'Hermes';
     else if (worker === 'codex') activeAgent = 'CodeX';
@@ -1841,7 +1874,7 @@ router.get('/runtime-state', async (_req, res) => {
       activeTool: current?.currentAction || null,
       provider: current?.resolvedProvider || current?.requestedProvider || null,
       model: current?.resolvedModel || current?.requestedModel || null,
-      pendingTaskCount: activeTasks.length,
+      pendingTaskCount: scopedTasks.length,
       projectTasks: projectTasks.map((t: any) => ({
         taskId: t.taskId, title: t.title, status: t.status,
         worker: t.worker, createdAt: t.createdAt, updatedAt: t.updatedAt,

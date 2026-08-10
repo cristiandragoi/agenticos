@@ -1,20 +1,23 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
-/* ── J.A.R.V.I.S command-center core ─────────────────────────────────────
- * Visual replacement for the dashboard orb ON THE /jarvis page only.
- * Canvas 2D (no Three.js/WebGL): deep central core, soft radial blue
- * energy, three moving translucent plasma layers, subtle rotating rings,
- * a restrained radar sweep, fluid asymmetrical movement, and a 40–60
- * particle processing burst during thinking — with smooth recovery.
+/* ── J.A.R.V.I.S holographic humanoid head ─────────────────────────────
+ * Canvas 2D (no Three.js/WebGL — the spec's performance contract):
+ * a translucent holographic HUMANOID HEAD / upper neural form:
+ *   - recognizable head silhouette (cranium, tapered jaw, chin, neck)
+ *   - left/right hemisphere midline + neural capability nodes
+ *   - connected energy paths (JARVIS→HERMES/CODEX/RESEARCH/MEMORY/VISION)
+ *   - eye slits + mouth output arc (listening / speaking reactivity)
  *
- * Contract preserved: driven ONLY by real signals (state + real mic/playback
- * amplitude), no fake movement, rAF cancelled on unmount, reduced-motion
- * renders one static frame.
+ * The visualization is FUNCTIONAL telemetry: every color/motion is driven
+ * by the real runtime state + real mic/playback amplitude, never faked.
+ * rAF cancelled on unmount; reduced-motion renders one static frame.
  */
 
 export type JarvisCoreState =
   | 'idle' | 'listening' | 'transcribing' | 'thinking'
-  | 'speaking' | 'error' | 'offline';
+  | 'speaking' | 'error' | 'offline'
+  | 'reasoning' | 'executing' | 'delegated'
+  | 'repairing' | 'warning' | 'completed';
 
 interface JarvisCoreProps {
   state: JarvisCoreState;
@@ -27,45 +30,48 @@ interface JarvisCoreProps {
   testIdPrefix?: string;
 }
 
-const STATE_COLORS: Record<JarvisCoreState, { main: string; soft: string }> = {
-  idle:         { main: '#67e8f9', soft: '#e2f9ff' },
-  listening:    { main: '#3b82f6', soft: '#93c5fd' },
-  transcribing: { main: '#22c55e', soft: '#86efac' },
-  thinking:     { main: '#f5b50a', soft: '#fde68a' },
-  speaking:     { main: '#a855f7', soft: '#d8b4fe' },
-  error:        { main: '#ef4444', soft: '#fca5a5' },
-  offline:      { main: '#7f1d1d', soft: '#991b1b' },
-};
-
-/** Motion parameters per state — smoothed continuously (no snapping). */
-interface MotionParams {
-  drift: number;        // plasma layer rotation speed
-  wobble: number;       // membrane distortion amplitude (fraction of R)
-  glow: number;         // halo intensity 0..1
-  sweep: number;        // radar sweep speed
-  innerSpin: number;    // inner rotation (transcribing)
-  particleTarget: number; // active particle count target
-  pulse: number;        // breathing pulse speed
-}
-
-const MOTION: Record<JarvisCoreState, MotionParams> = {
-  idle:         { drift: 0.10, wobble: 0.045, glow: 0.55, sweep: 0.12, innerSpin: 0.05, particleTarget: 0, pulse: 0.9 },
-  listening:    { drift: 0.22, wobble: 0.06,  glow: 0.70, sweep: 0.16, innerSpin: 0.10, particleTarget: 0, pulse: 1.4 },
-  transcribing: { drift: 0.30, wobble: 0.05,  glow: 0.65, sweep: 0.14, innerSpin: 2.4,  particleTarget: 0, pulse: 1.6 },
-  thinking:     { drift: 0.26, wobble: 0.055, glow: 0.75, sweep: 0.20, innerSpin: 0.4,  particleTarget: 50, pulse: 1.2 },
-  speaking:     { drift: 0.24, wobble: 0.06,  glow: 0.80, sweep: 0.14, innerSpin: 0.12, particleTarget: 0, pulse: 1.5 },
-  error:        { drift: 0.06, wobble: 0.03,  glow: 0.45, sweep: 0.05, innerSpin: 0.03, particleTarget: 0, pulse: 2.2 },
-  offline:      { drift: 0.012, wobble: 0.012, glow: 0.22, sweep: 0.01, innerSpin: 0.01, particleTarget: 0, pulse: 0.3 },
+/** Semantic color language (spec §10) — one source of truth. */
+export const JARVIS_HEAD_COLORS: Record<JarvisCoreState, { main: string; soft: string; rim: string }> = {
+  idle:         { main: '#67e8f9', soft: '#e2f9ff', rim: '#22d3ee' },
+  listening:    { main: '#3b82f6', soft: '#93c5fd', rim: '#60a5fa' },
+  transcribing: { main: '#22c55e', soft: '#86efac', rim: '#4ade80' },
+  thinking:     { main: '#f5b50a', soft: '#fde68a', rim: '#fbbf24' },
+  speaking:     { main: '#a855f7', soft: '#d8b4fe', rim: '#c084fc' },
+  error:        { main: '#ef4444', soft: '#fca5a5', rim: '#f87171' },
+  offline:      { main: '#7f1d1d', soft: '#991b1b', rim: '#b91c1c' },
+  reasoning:    { main: '#e0f2fe', soft: '#ffffff', rim: '#7dd3fc' },  // cyan/white
+  executing:    { main: '#00d4ff', soft: '#a5f3fc', rim: '#22d3ee' },  // strong cyan
+  delegated:    { main: '#ec4899', soft: '#fbcfe8', rim: '#f472b6' },  // pink
+  repairing:    { main: '#9333ea', soft: '#c4b5fd', rim: '#a855f7' },  // purple
+  warning:      { main: '#f59e0b', soft: '#fde68a', rim: '#fbbf24' },  // yellow
+  completed:    { main: '#22c55e', soft: '#bbf7d0', rim: '#4ade80' },  // green
 };
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
+const rgba = (c: [number, number, number], a: number) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a.toFixed(3)})`;
 
-interface Particle {
-  angle: number; radius: number; speed: number; life: number; maxLife: number; size: number;
-}
+/** Capability nodes positioned inside the head (relative to head frame 0..1). */
+const NODES = [
+  { id: 'JARVIS',   x: 0.50, y: 0.46, r: 0.045 },  // center
+  { id: 'HERMES',   x: 0.68, y: 0.30, r: 0.032 },
+  { id: 'CODEX',    x: 0.74, y: 0.55, r: 0.032 },
+  { id: 'RESEARCH', x: 0.32, y: 0.30, r: 0.032 },
+  { id: 'MEMORY',   x: 0.26, y: 0.55, r: 0.032 },
+  { id: 'VISION',   x: 0.44, y: 0.20, r: 0.026 },
+  { id: 'ORACLE',   x: 0.56, y: 0.20, r: 0.026 },
+] as const;
+
+/** Energy-path edges (center node ↔ capability nodes). */
+const EDGES: Array<[string, string]> = [
+  ['JARVIS', 'HERMES'], ['JARVIS', 'CODEX'], ['JARVIS', 'RESEARCH'],
+  ['JARVIS', 'MEMORY'], ['JARVIS', 'VISION'], ['JARVIS', 'ORACLE'],
+  ['HERMES', 'CODEX'], ['RESEARCH', 'MEMORY'], ['VISION', 'ORACLE'],
+];
+
+function nodeById(id: string) { return NODES.find((n) => n.id === id)!; }
 
 export function JarvisCore({
   state,
@@ -76,7 +82,6 @@ export function JarvisCore({
   testIdPrefix = 'jarvis-orb',
 }: JarvisCoreProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // Animation state lives in refs — the rAF loop is never restarted by props.
   const stateRef = useRef(state);
   const inputRef = useRef(inputLevel);
   const outputRef = useRef(outputLevel);
@@ -99,187 +104,273 @@ export function JarvisCore({
     canvas.height = size * dpr;
     ctx.scale(dpr, dpr);
 
+    // Head frame geometry (relative to canvas).
     const cx = size / 2;
-    const cy = size / 2;
-    const R = size * 0.30; // membrane base radius
+    const cy = size * 0.46;              // head center slightly above mid
+    const headW = size * 0.58;           // width of cranium
+    const headH = size * 0.72;           // height incl. jaw
+    const W = headW / 2;
+    const H = headH / 2;
 
-    // Smoothed parameters (exponential convergence ≈ 300 ms).
-    const cur: MotionParams = { ...MOTION[stateRef.current] };
-    let colMain = hexToRgb(STATE_COLORS[stateRef.current].main);
-    let colSoft = hexToRgb(STATE_COLORS[stateRef.current].soft);
-    // Seed asymmetry phases — constant per mount, never a perfect circle.
-    const seed = useMemoSeed();
-    const particles: Particle[] = [];
+    let colMain = hexToRgb(JARVIS_HEAD_COLORS[stateRef.current].main);
+    let colSoft = hexToRgb(JARVIS_HEAD_COLORS[stateRef.current].soft);
+    let colRim = hexToRgb(JARVIS_HEAD_COLORS[stateRef.current].rim);
+
+    const seed = Array.from({ length: 8 }, () => Math.random() * Math.PI * 2);
+    const pulses: { edge: [string, string]; t: number }[] = [];
 
     let raf = 0;
     let t = 0;
     let last = performance.now();
     let running = true;
 
-    function useMemoSeed() {
-      const s: number[] = [];
-      for (let i = 0; i < 8; i++) s.push(Math.random() * Math.PI * 2);
-      return s;
-    }
-
     const smooth = (a: number, b: number, k: number) => a + (b - a) * k;
+
+    function headPath(g: CanvasRenderingContext2D, ox: number, oy: number, scaleX: number, scaleY: number) {
+      // Humanoid head silhouette: cranium → temples → cheeks → jaw → chin.
+      g.beginPath();
+      g.moveTo(ox, oy - H * scaleY);
+      g.bezierCurveTo(
+        ox + W * 0.9 * scaleX, oy - H * 1.02 * scaleY,
+        ox + W * 1.12 * scaleX, oy - H * 0.35 * scaleY,
+        ox + W * 1.02 * scaleX, oy + H * 0.28 * scaleY
+      );
+      g.bezierCurveTo(
+        ox + W * 0.95 * scaleX, oy + H * 0.62 * scaleY,
+        ox + W * 0.55 * scaleX, oy + H * 0.92 * scaleY,
+        ox, oy + H * 0.98 * scaleY
+      );
+      g.bezierCurveTo(
+        ox - W * 0.55 * scaleX, oy + H * 0.92 * scaleY,
+        ox - W * 0.95 * scaleX, oy + H * 0.62 * scaleY,
+        ox - W * 1.02 * scaleX, oy + H * 0.28 * scaleY
+      );
+      g.bezierCurveTo(
+        ox - W * 1.12 * scaleX, oy - H * 0.35 * scaleY,
+        ox - W * 0.9 * scaleX, oy - H * 1.02 * scaleY,
+        ox, oy - H * scaleY
+      );
+      g.closePath();
+    }
 
     function drawFrame(dt: number) {
       if (!ctx) return;
-      const target = MOTION[stateRef.current];
-      const colors = STATE_COLORS[stateRef.current];
-      const k = Math.min(1, dt * 6); // ~160 ms time constant → ~95 % in 0.5 s
-      cur.drift = smooth(cur.drift, target.drift, k);
-      cur.wobble = smooth(cur.wobble, target.wobble, k);
-      cur.glow = smooth(cur.glow, target.glow, k);
-      cur.sweep = smooth(cur.sweep, target.sweep, k);
-      cur.innerSpin = smooth(cur.innerSpin, target.innerSpin, k);
-      cur.particleTarget = smooth(cur.particleTarget, target.particleTarget, k);
-      cur.pulse = smooth(cur.pulse, target.pulse, k);
-      const tm = hexToRgb(colors.main);
-      const ts = hexToRgb(colors.soft);
+      const target = JARVIS_HEAD_COLORS[stateRef.current];
+      const k = Math.min(1, dt * 6);
+      const tm = hexToRgb(target.main), ts = hexToRgb(target.soft), tr = hexToRgb(target.rim);
       colMain = [smooth(colMain[0], tm[0], k), smooth(colMain[1], tm[1], k), smooth(colMain[2], tm[2], k)] as [number, number, number];
       colSoft = [smooth(colSoft[0], ts[0], k), smooth(colSoft[1], ts[1], k), smooth(colSoft[2], ts[2], k)] as [number, number, number];
+      colRim = [smooth(colRim[0], tr[0], k), smooth(colRim[1], tr[1], k), smooth(colRim[2], tr[2], k)] as [number, number, number];
 
       t += dt;
-
-      // Real amplitude reactivity — listening: mic drives distortion;
-      // speaking: playback drives glow + distortion. Never outside those states.
-      const ampIn = stateRef.current === 'listening' ? Math.min(1, Math.max(0, inputRef.current)) : 0;
-      const ampOut = stateRef.current === 'speaking' ? Math.min(1, Math.max(0, outputRef.current)) : 0;
-
-      const breathe = 1 + Math.sin(t * cur.pulse) * 0.018;
-      const wobble = cur.wobble * (1 + ampIn * 1.6 + ampOut * 1.4);
+      const st = stateRef.current;
+      const ampIn = st === 'listening' ? Math.min(1, Math.max(0, inputRef.current)) : 0;
+      const ampOut = st === 'speaking' ? Math.min(1, Math.max(0, outputRef.current)) : 0;
+      const breathe = 1 + Math.sin(t * 1.1) * 0.012;
 
       ctx.clearRect(0, 0, size, size);
 
-      // ── Soft outer halo (radial energy field) ──
-      const haloR = R * (1.75 + Math.sin(t * cur.pulse) * 0.03 + ampOut * 0.12);
-      const halo = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, haloR);
-      const glowA = 0.16 * cur.glow * (1 + ampOut * 0.6);
-      halo.addColorStop(0, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},${glowA.toFixed(3)})`);
-      halo.addColorStop(0.55, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},${(glowA * 0.45).toFixed(3)})`);
+      // ── Outer holographic halo ──
+      const haloR = W * 1.75 * breathe;
+      const halo = ctx.createRadialGradient(cx, cy, W * 0.2, cx, cy, haloR);
+      const glowA = st === 'error' ? 0.22 : st === 'offline' ? 0.10 : 0.17;
+      halo.addColorStop(0, rgba(colMain, glowA * (1 + ampOut * 0.7)));
+      halo.addColorStop(0.5, rgba(colMain, glowA * 0.4));
       halo.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = halo;
       ctx.fillRect(0, 0, size, size);
 
-      // ── Restrained radar sweep (low-alpha rotating wedge) ──
-      const sweepA = t * cur.sweep;
-      let sweepGrad: CanvasGradient | null = null;
-      try {
-        sweepGrad = (ctx as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient })
-          .createConicGradient?.(sweepA, cx, cy) ?? null;
-      } catch { /* older canvas implementations render without the sweep */ }
-      if (sweepGrad) {
-        const alpha = 0.10 * cur.glow;
-        sweepGrad.addColorStop(0, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},${alpha.toFixed(3)})`);
-        sweepGrad.addColorStop(0.12, 'rgba(0,0,0,0)');
-        sweepGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(cx, cy, R * 1.45, 0, Math.PI * 2);
-        ctx.fillStyle = sweepGrad;
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // ── Three moving translucent plasma layers (fluid asymmetry) ──
-      for (let layer = 0; layer < 3; layer++) {
-        const lr = R * (1.0 - layer * 0.16) * breathe;
-        const spin = t * cur.drift * (layer % 2 === 0 ? 1 : -1) * (1 + layer * 0.35)
-          + (stateRef.current === 'transcribing' ? t * cur.innerSpin * 0.35 * (layer === 2 ? 1 : 0.3) : 0);
-        ctx.beginPath();
-        const steps = 72;
-        for (let i = 0; i <= steps; i++) {
-          const a = (i / steps) * Math.PI * 2;
-          // Multi-harmonic organic distortion — smooth, never polygonal.
-          const d =
-            Math.sin(a * 3 + seed[layer] + spin * 1.7) * 0.5 +
-            Math.sin(a * 5 - seed[layer + 3] + t * cur.drift * 2.2) * 0.3 +
-            Math.sin(a * 2 + seed[layer + 1] - spin) * 0.45;
-          const rr = lr * (1 + d * wobble);
-          const x = cx + Math.cos(a) * rr;
-          const y = cy + Math.sin(a) * rr;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        const la = (0.16 - layer * 0.035) * (0.6 + cur.glow * 0.7);
-        const grad = ctx.createRadialGradient(cx - lr * 0.25, cy - lr * 0.3, lr * 0.1, cx, cy, lr);
-        grad.addColorStop(0, `rgba(${colSoft[0] | 0},${colSoft[1] | 0},${colSoft[2] | 0},${(la * 1.4).toFixed(3)})`);
-        grad.addColorStop(0.6, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},${la.toFixed(3)})`);
-        grad.addColorStop(1, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},${(la * 0.35).toFixed(3)})`);
-        ctx.fillStyle = grad;
-        ctx.fill();
-        // Subtle moving edge highlight (smooth rim light, no dashes).
-        ctx.strokeStyle = `rgba(${colSoft[0] | 0},${colSoft[1] | 0},${colSoft[2] | 0},${(0.10 + ampIn * 0.15 + ampOut * 0.12).toFixed(3)})`;
-        ctx.lineWidth = 1.1;
-        ctx.stroke();
-      }
-
-      // ── Subtle rotating rings (thin, faded arcs — not dashed) ──
-      for (let rIdx = 0; rIdx < 2; rIdx++) {
-        const ringR = R * (1.28 + rIdx * 0.14);
-        const rot = t * (0.12 + rIdx * 0.05) * (rIdx % 2 === 0 ? 1 : -1) + seed[rIdx + 5];
-        const span = Math.PI * (0.55 + 0.2 * Math.sin(t * 0.3 + rIdx));
-        ctx.beginPath();
-        ctx.arc(cx, cy, ringR, rot, rot + span);
-        ctx.strokeStyle = `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},${(0.16 * cur.glow).toFixed(3)})`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      // ── Deep central core + radial blue energy ──
-      const coreR = R * 0.52 * (1 + ampOut * 0.08);
-      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
-      coreGrad.addColorStop(0, '#020617');
-      coreGrad.addColorStop(0.62, '#040a1c');
-      coreGrad.addColorStop(0.88, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},0.28)`);
-      coreGrad.addColorStop(1, `rgba(${colMain[0] | 0},${colMain[1] | 0},${colMain[2] | 0},0.05)`);
+      // ── Neck + shoulders base (subtle holographic pedestal) ──
+      const neckGrad = ctx.createLinearGradient(0, cy + H * 0.8, 0, size);
+      neckGrad.addColorStop(0, rgba(colRim, 0.10));
+      neckGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = neckGrad;
       ctx.beginPath();
-      ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-      ctx.fillStyle = coreGrad;
-      ctx.fill();
-      // Inner energy shimmer.
-      const shimmer = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 0.8);
-      const sh = (0.10 + 0.10 * Math.sin(t * cur.pulse * 1.3) + ampIn * 0.22 + ampOut * 0.25) * cur.glow;
-      shimmer.addColorStop(0, `rgba(${colSoft[0] | 0},${colSoft[1] | 0},${colSoft[2] | 0},${sh.toFixed(3)})`);
-      shimmer.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = shimmer;
-      ctx.beginPath();
-      ctx.arc(cx, cy, coreR * 0.8, 0, Math.PI * 2);
+      ctx.moveTo(cx - W * 0.32, cy + H * 0.82);
+      ctx.bezierCurveTo(cx - W * 0.42, cy + H * 1.02, cx - W * 0.5, cy + H * 1.12, cx - W * 0.62, cy + H * 1.3);
+      ctx.lineTo(cx + W * 0.62, cy + H * 1.3);
+      ctx.bezierCurveTo(cx + W * 0.5, cy + H * 1.12, cx + W * 0.42, cy + H * 1.02, cx + W * 0.32, cy + H * 0.82);
+      ctx.closePath();
       ctx.fill();
 
-      // ── Processing burst: 40–60 thin particles (thinking only) ──
-      const targetCount = Math.round(cur.particleTarget);
-      while (particles.length < targetCount) {
-        particles.push({
-          angle: Math.random() * Math.PI * 2,
-          radius: coreR * (0.6 + Math.random() * 0.5),
-          speed: 0.25 + Math.random() * 0.55,
-          life: 0,
-          maxLife: 1.6 + Math.random() * 1.8,
-          size: 0.6 + Math.random() * 1.1,
-        });
+      // ── Translucent head membrane ──
+      headPath(ctx, cx, cy, 1, 1);
+      const headGrad = ctx.createRadialGradient(cx - W * 0.2, cy - H * 0.3, W * 0.1, cx, cy, W * 1.1);
+      const bodyA = st === 'offline' ? 0.05 : 0.10 + ampOut * 0.05;
+      headGrad.addColorStop(0, rgba(colSoft, bodyA * 1.6));
+      headGrad.addColorStop(0.55, rgba(colMain, bodyA * 0.8));
+      headGrad.addColorStop(1, rgba(colMain, bodyA * 0.25));
+      ctx.fillStyle = headGrad;
+      ctx.fill();
+      // Rim light (the recognizable holographic edge).
+      ctx.strokeStyle = rgba(colRim, (0.30 + ampIn * 0.15 + ampOut * 0.12));
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      // Inner glow flicker.
+      ctx.strokeStyle = rgba(colSoft, 0.08 + Math.sin(t * 1.6) * 0.03);
+      ctx.lineWidth = 3;
+      headPath(ctx, cx, cy, 0.96, 0.96);
+      ctx.stroke();
+
+      // ── Ear hint (subtle side nodes — audio/auditory regions) ──
+      const earGlow = st === 'listening' ? 0.5 + ampIn * 0.5 : st === 'speaking' ? 0.2 : 0.06;
+      for (const side of [-1, 1]) {
+        const ex = cx + side * W * 1.06;
+        const ey = cy + H * 0.05;
+        const eg = ctx.createRadialGradient(ex, ey, 1, ex, ey, W * 0.14);
+        eg.addColorStop(0, rgba(st === 'listening' ? [59, 130, 246] : colMain, earGlow));
+        eg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(ex, ey, W * 0.14, 0, Math.PI * 2); ctx.fill();
       }
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.life += dt;
-        p.radius += p.speed * dt * R * 0.35;
-        p.angle += dt * 0.4;
-        if (p.life > p.maxLife || p.radius > R * 1.55 || particles.length > targetCount + 12) {
-          if (particles.length > targetCount) { particles.splice(i, 1); continue; }
-          // recycle while burst is wanted
-          p.life = 0; p.radius = coreR * (0.6 + Math.random() * 0.5);
-          p.angle = Math.random() * Math.PI * 2;
-          p.maxLife = 1.6 + Math.random() * 1.8;
+
+      // ── Midline (hemisphere divide) — faint vertical energy line ──
+      ctx.strokeStyle = rgba(colSoft, 0.10 + (st === 'reasoning' || st === 'executing' ? 0.12 : 0));
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - H * 0.9);
+      ctx.quadraticCurveTo(cx + W * 0.04, cy, cx, cy + H * 0.88);
+      ctx.stroke();
+
+      // ── Neural capability nodes + energy paths ──
+      const nodeXY = (n: typeof NODES[number]): [number, number] => [
+        cx + (n.x - 0.5) * W * 2.0,
+        cy + (n.y - 0.5) * H * 1.9,
+      ];
+      // Active node sets by state (functional telemetry, not decoration).
+      const activeNodes = (): Set<string> => {
+        const s = new Set<string>(['JARVIS']);
+        if (st === 'listening') { s.add('VISION'); s.add('ORACLE'); }
+        if (st === 'reasoning' || st === 'thinking' || st === 'transcribing') { s.add('VISION'); s.add('ORACLE'); s.add('MEMORY'); }
+        if (st === 'executing') { s.add('HERMES'); s.add('CODEX'); s.add('RESEARCH'); }
+        if (st === 'delegated') { s.add('HERMES'); s.add('CODEX'); s.add('RESEARCH'); }
+        if (st === 'repairing') { s.add('MEMORY'); s.add('VISION'); }
+        if (st === 'warning') { s.add('MEMORY'); }
+        return s;
+      };
+      const active = activeNodes();
+
+      // Energy pulses travel along edges (executing/delegated/reasoning).
+      if (st === 'executing' || st === 'delegated' || st === 'reasoning' || st === 'repairing') {
+        const rate = st === 'executing' ? 1.6 : st === 'delegated' ? 1.1 : 0.8;
+        const life = st === 'delegated' ? 3.2 : 2.4;
+        if (Math.random() < dt * rate && pulses.length < 8) {
+          const edge = EDGES[Math.floor(Math.random() * EDGES.length)];
+          pulses.push({ edge, t: 0 });
         }
-        const fade = Math.sin(Math.min(1, p.life / p.maxLife) * Math.PI);
-        const x = cx + Math.cos(p.angle) * p.radius;
-        const y = cy + Math.sin(p.angle) * p.radius;
-        ctx.beginPath();
-        ctx.arc(x, y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${colSoft[0] | 0},${colSoft[1] | 0},${colSoft[2] | 0},${(0.5 * fade).toFixed(3)})`;
+        for (let i = pulses.length - 1; i >= 0; i--) {
+          const p = pulses[i];
+          p.t += dt / life;
+          if (p.t >= 1) { pulses.splice(i, 1); continue; }
+          const a = nodeById(p.edge[0]), b = nodeById(p.edge[1]);
+          const [ax, ay] = nodeXY(a), [bx, by] = nodeXY(b);
+          const px = ax + (bx - ax) * p.t, py = ay + (by - ay) * p.t;
+          const pulseColor = st === 'delegated' ? colMain : st === 'repairing' ? colMain : colRim;
+          ctx.beginPath(); ctx.arc(px, py, 1.6, 0, Math.PI * 2);
+          ctx.fillStyle = rgba(pulseColor, 0.75 * (1 - p.t));
+          ctx.fill();
+        }
+      }
+
+      // Draw edges (stronger when their endpoint nodes are active).
+      for (const [ia, ib] of EDGES) {
+        const a = nodeById(ia), b = nodeById(ib);
+        const [ax, ay] = nodeXY(a), [bx, by] = nodeXY(b);
+        const aActive = active.has(a.id) || a.id === 'JARVIS';
+        const bActive = active.has(b.id);
+        const edgeOn = aActive && (bActive || st === 'executing' || st === 'delegated');
+        const alpha = edgeOn ? (0.22 + Math.sin(t * 2 + seed[0]) * 0.08) : 0.06;
+        const grad = ctx.createLinearGradient(ax, ay, bx, by);
+        grad.addColorStop(0, rgba(colMain, alpha));
+        grad.addColorStop(1, rgba(colSoft, alpha * 0.7));
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = edgeOn ? 1.2 : 0.7;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      }
+
+      // Draw nodes.
+      for (const n of NODES) {
+        const [nx, ny] = nodeXY(n);
+        const isActive = active.has(n.id);
+        const pulse = isActive ? 1 + Math.sin(t * 3 + seed[1] + n.x * 5) * 0.25 : 1;
+        const r = n.r * W * 2.2 * pulse;
+        const nodeColor = st === 'delegated' && (n.id === 'HERMES' || n.id === 'CODEX' || n.id === 'RESEARCH')
+          ? colMain : isActive ? colSoft : colMain;
+        const ng = ctx.createRadialGradient(nx, ny, 0, nx, ny, r * 2.2);
+        ng.addColorStop(0, rgba(nodeColor, isActive ? 0.9 : 0.4));
+        ng.addColorStop(0.4, rgba(nodeColor, isActive ? 0.35 : 0.12));
+        ng.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = ng;
+        ctx.beginPath(); ctx.arc(nx, ny, r * 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(nx, ny, r * 0.55, 0, Math.PI * 2);
+        ctx.fillStyle = rgba(nodeColor, isActive ? 1 : 0.6);
         ctx.fill();
+      }
+
+      // ── Eye slits (face recognition) — brighten while listening ──
+      const eyeY = cy - H * 0.18;
+      const eyeGlow = st === 'listening' ? 0.8 + ampIn * 0.2 : st === 'error' ? 0.9 : 0.35 + (st === 'reasoning' ? 0.3 : 0);
+      for (const side of [-1, 1]) {
+        const ex = cx + side * W * 0.34;
+        const eyeGrad = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, W * 0.16);
+        const eyeCol = st === 'listening' ? [59, 130, 246] : st === 'error' ? [239, 68, 68] : st === 'delegated' ? colMain : colSoft;
+        eyeGrad.addColorStop(0, rgba(eyeCol as [number, number, number], eyeGlow));
+        eyeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = eyeGrad;
+        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.13, H * 0.05, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.10, H * 0.028, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba(colSoft, 0.5 + eyeGlow * 0.4);
+        ctx.lineWidth = 1; ctx.stroke();
+      }
+
+      // ── Mouth output arc — pulses while speaking (real playback level) ──
+      const mouthY = cy + H * 0.42;
+      const mouthOpen = st === 'speaking' ? 0.30 + ampOut * 0.5 : st === 'listening' ? 0.08 : 0.02;
+      ctx.beginPath();
+      ctx.ellipse(cx, mouthY, W * 0.22, H * 0.03 + mouthOpen * H * 0.1, 0, 0, Math.PI);
+      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.7 + ampOut * 0.3 : 0.3);
+      ctx.lineWidth = st === 'speaking' ? 1.6 + ampOut * 1.4 : 1;
+      ctx.stroke();
+      // Speech waveform dots below mouth.
+      if (st === 'speaking') {
+        for (let i = -2; i <= 2; i++) {
+          const wx = cx + i * W * 0.09;
+          const wy = mouthY + H * 0.14 + Math.sin(t * 8 + i) * H * 0.03 * (0.3 + ampOut);
+          ctx.beginPath(); ctx.arc(wx, wy, 1.2, 0, Math.PI * 2);
+          ctx.fillStyle = rgba(colRim, 0.6 + ampOut * 0.4);
+          ctx.fill();
+        }
+      }
+
+      // ── Error / warning alert pulses ──
+      if (st === 'error') {
+        const pulseR = W * (0.9 + Math.sin(t * 2.2) * 0.08);
+        ctx.beginPath(); ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba([239, 68, 68], 0.35);
+        ctx.lineWidth = 2; ctx.stroke();
+      }
+      if (st === 'warning') {
+        const pulseR = W * (0.95 + Math.sin(t * 1.4) * 0.05);
+        ctx.beginPath(); ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba([245, 158, 11], 0.30);
+        ctx.lineWidth = 1.5; ctx.stroke();
+      }
+
+      // ── Completed green pulse (decays toward idle automatically) ──
+      if (st === 'completed') {
+        const pulseR = W * (0.8 + Math.sin(t * 3) * 0.15);
+        ctx.beginPath(); ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba([34, 197, 94], 0.4);
+        ctx.lineWidth = 2.4; ctx.stroke();
+      }
+
+      // ── Delegated path: bright line from JARVIS to active worker node ──
+      if (st === 'delegated') {
+        const jn = nodeXY(nodeById('JARVIS'));
+        const wn = nodeXY(nodeById(seed[2] % 2 === 0 ? 'HERMES' : 'CODEX'));
+        ctx.beginPath(); ctx.moveTo(jn[0], jn[1]); ctx.lineTo(wn[0], wn[1]);
+        ctx.strokeStyle = rgba(colMain, 0.55 + Math.sin(t * 4) * 0.2);
+        ctx.lineWidth = 2; ctx.stroke();
       }
     }
 
@@ -292,9 +383,12 @@ export function JarvisCore({
     }
 
     if (reducedRef.current) {
-      // Reduced motion: ONE static frame, zero animation frames.
       drawFrame(0.016);
     } else {
+      // Draw one frame synchronously at mount so the head is NEVER blank,
+      // even when rAF is throttled/blocked (hidden window, backgrounded
+      // Electron renderer). The rAF loop then continues animating.
+      drawFrame(0.016);
       raf = requestAnimationFrame(loop);
     }
 
@@ -302,7 +396,6 @@ export function JarvisCore({
       running = false;
       cancelAnimationFrame(raf);
     };
-    // size is stable for the lifetime of the mount; state/levels flow via refs.
   }, [size, staticMode]);
 
   return (

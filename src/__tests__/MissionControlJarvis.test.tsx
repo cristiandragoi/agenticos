@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MissionControlPage from '../pages/MissionControlPage';
 import LeftRail from '../components/layout/LeftRail';
 import { AppProvider } from '../store/appStore';
+import { ProjectProvider } from '../store/projectStore';
 
 const dataState = vi.hoisted(() => ({
   current: {
@@ -74,11 +75,15 @@ beforeEach(() => {
 });
 
 /** MissionControlPage now mounts the main-cockpit Jarvis conversation panel,
- *  which uses the shared app store — renders must sit inside AppProvider. */
+ *  which uses the shared app store — renders must sit inside AppProvider.
+ *  Claude's project-aware Mission Control also uses useProjects(), so the
+ *  ProjectProvider must wrap it too (project foundation integration). */
 function renderCockpit() {
   return render(
     <AppProvider>
-      <MissionControlPage />
+      <ProjectProvider>
+        <MissionControlPage />
+      </ProjectProvider>
     </AppProvider>,
   );
 }
@@ -183,9 +188,11 @@ describe('navigation IA', () => {
   it('displays the final sidebar structure with JARVIS and no Dashboard item', () => {
     render(
       <AppProvider>
-        <MemoryRouter initialEntries={['/mission-control']}>
-          <LeftRail />
-        </MemoryRouter>
+        <ProjectProvider>
+          <MemoryRouter initialEntries={['/mission-control']}>
+            <LeftRail />
+          </MemoryRouter>
+        </ProjectProvider>
       </AppProvider>
     );
 
