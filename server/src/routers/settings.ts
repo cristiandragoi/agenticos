@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { ProviderCredentialService } from '../services/gateway/credentials.js';
 import { GatewayConfigurationService } from '../services/gateway/configuration.js';
+import { mapCatalogToGatewayId } from '../services/agent/assignments.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -242,7 +243,12 @@ router.post('/agent-provider-assignments/:agentId/test', async (req, res) => {
     const latencyMs = Date.now() - started;
     const resolvedProvider = result.provider || configuredProvider;
     const resolvedModel = result.model || configuredModel;
-    const matched = resolvedProvider === configuredProvider && (!configuredModel || resolvedModel === configuredModel);
+    // The assignment stores the CATALOG provider id (e.g. prov-deepseek), but
+    // the gateway resolves to its CANONICAL name (e.g. DeepSeek). Map the
+    // configured id before comparing so a correctly-resolved assignment
+    // reports PASS instead of a false FALLBACK.
+    const expectedGatewayProvider = mapCatalogToGatewayId(configuredProvider);
+    const matched = resolvedProvider === expectedGatewayProvider && (!configuredModel || resolvedModel === configuredModel);
     res.json({
       configured: { provider: configuredProvider, model: configuredModel },
       resolved: { provider: resolvedProvider, model: resolvedModel },

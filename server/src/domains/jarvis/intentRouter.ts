@@ -157,6 +157,7 @@ const ASSISTANT_COMPLAINT_PATTERNS: RegExp[] = [
   // "you're not working", "you don't work", "you never listen"
   new RegExp(`\\byou${APOSTROPHE}?re\\s+(not\\s+)?(able|capable)\\s+to\\b`),
   /\byou\s+(are|were)\s+(not\s+)?(able|capable)\s+to\b/,
+  /\byou\s+(are|were)\s+not\s+(understanding|listening|hearing|getting|following)\b/,
   /\byou\s+(don|do)\s*['\u2019]?t\s+(work|function|understand|listen|respond|help|know)\b/,
   /\byou\s+(never|always)\s+(work|function|understand|listen|respond|help|ask|fail)\b/,
   /\byou\s+keep\s+\w{3,}ing\b/, // "you keep misunderstanding me"
@@ -198,20 +199,23 @@ export function isAssistantComplaint(prompt: string): boolean {
  * the layout system work?") are explicitly excluded — they stay direct.
  */
 const UI_TOPIC_RE =
-  /\b(ui|interface|layout|panel|transcript|composer|orb|workspace|controls|section|sidebar|activity column|spacing|overlap|component|screen|window|header|footer|status strip|command bar|dock|rail)\b/i;
+  /\b(ui|interface|layout|panel|transcript|composer|orb|workspace|controls|section|sidebar|activity column|spacing|overlap|component|screen|window|header|footer|status strip|command bar|dock|rail|bar)\b/i;
 const UI_CHANGE_RE =
   /\b(change|fix|move|modify|rearrange|reorder|adjust|repair|redesign|restyle|relocate|shift)\b/i;
 const UI_PROBLEM_RE =
-  /\b(wrong|broken|broke|misaligned|misplaced|overlap|overlapping|cut|cutting|floating|inconsistent|shouldn'?t be|should not be|doesn'?t (look|work|fit|belong)|still looks|looks wrong|bug|glitch|weird|strange|not (right|correct|aligned|working)|out of place|in the wrong place|too (high|low|big|small|wide|narrow)|pushed|clipped|hidden|overlapping|still (here|there|shown|displayed|visible)|still present)\b/i;
+  /\b(wrong|broken|broke|misaligned|misplaced|overlap|overlapping|cut|cutting|floating|inconsistent|shouldn'?t be|should not be|doesn'?t (look|work|fit|belong)|still looks|looks wrong|bug|glitch|weird|strange|not (right|correct|aligned|working)|out of place|in the wrong place|too (high|low|big|small|wide|narrow)|pushed|clipped|hidden|overlapping|still (here|there|shown|displayed|visible)|still present|like this|like that|this way|that way)\b/i;
 const UI_DEICTIC_RE = /\b(this|that|it|these|those)\b/i;
 
 export function isUIChangeOrProblemRequest(prompt: string, recentText?: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!p) return false;
   // Informational UI questions stay direct — never investigate.
-  if (/^(what|who|how|where|when|which)\s+(is|are|does|do|can|could|would)\b/.test(p)) return false;
-  if (/^how\s+(does|do|is|are|would|should|can)\b/.test(p)) return false;
-  if (/\b(what is|what does|how does|how do|explain|tell me about|describe)\b/.test(p)) return false;
+  if (/^(what|who|where|when|which)\s+(is|are|does|do|can|could|would)\b/.test(p) && !/\b(wrong|broken|overlap|still|issue|problem|like this|like that)\b/.test(p)) return false;
+  // "Why is the chat interface like this?" / "Why does the transcript
+  // overlap?" are PROBLEM questions — they investigate. Only genuine
+  // how/what explanations stay direct.
+  if (/^how\s+(does|do|is|are|would|should|can)\b/.test(p) && !/\b(wrong|broken|overlap|still|issue|problem)\b/.test(p)) return false;
+  if (/^(what is|what does|how does|how do|explain|tell me about|describe)\b/.test(p) && !/\b(wrong|broken|overlap|still|issue|problem)\b/.test(p)) return false;
 
   const hasTopic = UI_TOPIC_RE.test(p);
   const hasChange = UI_CHANGE_RE.test(p);
@@ -233,6 +237,123 @@ export function isUIChangeOrProblemRequest(prompt: string, recentText?: string):
   // With no UI context it is genuinely ambiguous (may clarify); with UI
   // context it is operational (handled above).
   return false;
+}
+
+/**
+ * Contextual continuation / follow-up resolution (§4 follow-up understanding,
+ * §5 clarification policy).
+ *
+ * Short follow-ups ("Continue.", "Fix it.", "Can you change that?", "yes",
+ * "try again", "still doesn't work") are NOT ambiguous when recent turns
+ * establish a single reasonable referent. This resolver returns a route
+ * suggestion when recent context resolves the deictic/continuation reference:
+ *
+ *  - `{ resolved: 'continue_goal' }`  → continue the most recent operational
+ *    goal/task (investigate or delegate), never generic chat.
+ *  - `{ resolved: 'retry_goal' }`     → retry the last failed/completed
+ *    operational action.
+ *  - `{ resolved: 'investigate_ui' }` → the referent (that/it/this) points at
+ *    a UI/interface/layout problem from a prior turn.
+ *  - `{ resolved: 'direct_confirm' }` → affirmative/repetition follow-up with
+ *    a single conversational referent — direct chat with the subject retained.
+ *  - `{ resolved: 'unresolved' }`     → genuinely ambiguous; clarification is
+ *    legitimate (e.g. destructive "Delete it." with two plausible objects).
+ */
+const CONTINUATION_RE = /^(continue|go on|keep going|proceed|do it|do that|fix it|try again|retry|run it again|check it|yes|yeah|yep|sure|ok|okay|no, the previous one|the other one|the one on the right|i mean .+|what about the other one|why[?!.]*$|still doesn'?t work|that'?s not what i asked)/i;
+
+const CORRECTION_RE = /^(no|not that|wait|sorry|i mean|actually|rather|no, i mean)[,.!]?\s+(the |that |it'?s |this )?/i;
+
+export interface ContinuationResolution {
+  resolved: 'continue_goal' | 'retry_goal' | 'investigate_ui' | 'direct_confirm' | 'unresolved';
+  referent?: string;
+}
+
+export function resolveContinuationIntent(prompt: string, recentText?: string): ContinuationResolution {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  const recent = (recentText || '').toLowerCase();
+
+  // Correction phrases ("No, I mean the repository bar.", "Not that — the
+  // other one.", "No, the previous one.") redirect the SUBJECT but stay
+  // operational when the new subject is a UI/app element. Checked BEFORE the
+  // continuation gate — a correction is its own class of follow-up and does
+  // not need to match the continue/yes/why vocabulary.
+  if (CORRECTION_RE.test(p)) {
+    const corrected = p.replace(CORRECTION_RE, '').trim();
+    if (/(ui|interface|layout|panel|transcript|composer|orb|workspace|controls|section|sidebar|bar|overlap|spacing)/i.test(corrected)) {
+      return { resolved: 'investigate_ui', referent: `corrected target: ${corrected}` };
+    }
+    if (recent.length > 0) return { resolved: 'direct_confirm', referent: `corrected target: ${corrected}` };
+    return { resolved: 'unresolved' };
+  }
+
+  // Only short, continuation-shaped prompts are candidates.
+  const isContinuation = CONTINUATION_RE.test(p) || /^(can|could) you (change|fix|adjust|move) that\b/i.test(p);
+  if (!isContinuation) return { resolved: 'unresolved' };
+
+  // Any prior turn mentioning UI/interface/layout problems → deictic "that"
+  // resolves to the UI problem (Case A: "Can you change that?" after
+  // "The chat interface is still wrong.").
+  const uiProblemInContext = /(ui|interface|layout|panel|transcript|composer|orb|workspace|overlap|controls|spacing|section|sidebar)/i.test(recent) &&
+    /(wrong|broken|still|issue|problem|overlap|misaligned|not working|fix|change)/i.test(recent);
+  const investigateInContext = /(investigate|inspection|inspecting|i inspected|problem report|runtime state|frontend state)/i.test(recent);
+  const delegatedInContext = /(i started|delegat|queued|task |codex|hermes|background|working on it)/i.test(recent);
+
+  // "fix it", "do that", "can you change that?" with a UI problem referent.
+  if (uiProblemInContext) return { resolved: 'investigate_ui', referent: 'prior UI problem' };
+
+  // "continue" after an investigation/inspection turn.
+  if (investigateInContext) return { resolved: 'continue_goal', referent: 'prior investigation' };
+
+  // "continue"/"do it" after a delegation — continue the goal/task.
+  if (delegatedInContext) return { resolved: 'continue_goal', referent: 'prior delegated task' };
+
+  // "try again"/"retry" after a failure mention.
+  if (/(failed|failure|error|broken|not working|timed out|didn'?t work)/i.test(recent)) {
+    return { resolved: 'retry_goal', referent: 'prior failed action' };
+  }
+
+  // Affirmative follow-ups with ANY recent conversational referent → direct,
+  // retaining the subject.
+  if (/^(yes|yeah|yep|sure|ok|okay)\b/i.test(p) && recent.length > 0) {
+    return { resolved: 'direct_confirm', referent: 'prior conversation subject' };
+  }
+
+  // "why?" / "what happened?" after a previous Jarvis statement.
+  if (/^(why|what happened|what did you find)\b/i.test(p) && recent.length > 0) {
+    return { resolved: 'continue_goal', referent: 'prior statement' };
+  }
+
+  return { resolved: 'unresolved' };
+}
+
+/**
+ * §15 Case F: destructive/irreversible requests are the LEGITIMATE exception
+ * to \"clarification is last resort\". When the object is a bare deictic
+ * (\"Delete it.\", \"Remove that.\") and recent context contains MULTIPLE
+ * plausible objects, asking is correct. When exactly one referent is clear,
+ * resolve it instead.
+ */
+export function isDestructiveAmbiguous(prompt: string, recentText?: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!/(delete|remove|drop|erase|kill|terminate|overwrite)\b/.test(p)) return false;
+  if (!/\b(it|this|that|these|those)\b/.test(p)) return false;
+  const recent = (recentText || '').toLowerCase();
+  // Count DISTINCT referent phrases. Adjacent keywords describing ONE object
+  // ("log entry", "transcript panel") must not inflate the count — group them
+  // by capturing the head noun of each contiguous referent mention.
+  const refGroups: string[] = [];
+  const refRe = /\b(?:the |that |this |a )?((?:[a-z0-9_/.-]+ ){0,3}(?:panel|transcript|composer|orb|file|task|run|card|board|section|workspace|repository|history|log|entry|row))\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = refRe.exec(recent)) !== null) {
+    const phrase = m[1].trim();
+    // Collapse to the LAST content noun so "stale log entry" → "entry".
+    const words = phrase.split(/\s+/);
+    const head = words[words.length - 1];
+    if (head && !refGroups.includes(head)) refGroups.push(head);
+    // Prevent infinite loop on zero-width matches.
+    if (m.index === refRe.lastIndex) refRe.lastIndex++;
+  }
+  return refGroups.length >= 2;
 }
 
 /**
@@ -384,8 +505,12 @@ export class IntentRouter {
     // context that the direct-chat LLM now receives via history. Routing it
     // to memory tooling produced stale "From what I remember" dumps for
     // completely unrelated user statements (live runtime investigation).
+    // Bare "what happened?" (no subject) is a conversational follow-up — the
+    // continuation resolver routes it against recent context; only subject-
+    // bearing recall ("what happened in our last search") is a memory query.
     const isMemoryQuery = p.includes('what did i say') || p.includes('my preferences')
-      || /\b(what (do|does) (you|we) remember|do you remember|do we remember|what happened|what did we (do|decide|find|learn)|whats? our (last|most recent))\b/i.test(p);
+      || /\b(what (do|does) (you|we) remember|do you remember|do we remember|what did we (do|decide|find|learn)|whats? our (last|most recent))\b/i.test(p)
+      || (/\bwhat happened\b/i.test(p) && !/^what happened[?!.]*$/i.test(p.trim()));
     if (isMemoryQuery) {
       return operational('memory', 'file_operation', 0.9, 'Explicit memory operation detected', 'Jarvis', ['Validate memory service availability', 'Route the request to memory tooling'], false, hasWriteVerb);
     }
@@ -445,6 +570,48 @@ export class IntentRouter {
 
     if (hasAny('show pipeline status', 'pipeline status')) {
       return operational('hermes', 'pipeline_operation', 0.86, 'Pipeline status request', 'Jarvis', ['Inspect pipeline registry', 'Report current status'], false, false);
+    }
+
+    // ── §15 CASE I: file-problem reports ──
+    // "Why does it keep saying file not found?" / "no such file" / "file
+    // missing" are PROBLEM reports about workspace/file resolution — route to
+    // INVESTIGATE (which now includes file-resolution evidence) BEFORE the
+    // generic read-only CodeX analysis rule would swallow them.
+    const isFileProblem = /\b(file|not found|no such file|missing file|cannot find|can'?t find)\b/i.test(prompt) &&
+      /\b(why|keep|still|error|saying|says|not found|no such|missing|failed|problem)\b/i.test(prompt);
+    if (isFileProblem && !hasWriteVerb) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.82,
+        reason: 'File-resolution problem report — inspect workspace/file evidence before answering',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Check the canonical workspace root', 'Resolve the referenced file', 'Report what was searched and what exists'],
+      };
+    }
+
+    // ── §15 CASE J: task-state questions ──
+    // "Is Hermes finished?", "Is the task done?", "What happened with the
+    // run?" are questions about ACTUAL run/task state — route to INVESTIGATE
+    // (which reads the background task manager + execution record) so the
+    // answer distinguishes ACTIVE vs HISTORICAL. Never a generic direct reply.
+    const isTaskStateQuestion = /^(is|are|did|has|was)\s+(hermes|codex|jarvis|the (task|run|job|goal|agent)|it)\s+(finished|done|still running|working|complete|completed|failed|stuck|queued)\b/i.test(prompt) ||
+      /^(what happened|what is (the |its )?(status|state) of|is (the )?(task|run|job|goal) (done|finished|still running))\b/i.test(prompt);
+    if (isTaskStateQuestion) {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.8,
+        reason: 'Task/run state question — inspect the actual run state (active vs historical)',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect background task manager state', 'Report active vs historical run truth', 'Explain the most recent result'],
+      };
     }
 
     if (hasFileTarget && isReadOnlyRepositoryRequest) {
@@ -564,6 +731,78 @@ export class IntentRouter {
         requiresApproval: false,
         selectedAgent: 'Jarvis',
         plan: ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules'],
+      };
+    }
+
+    // ── §15 Case F: destructive-ambiguous override ──
+    // "Delete it." with TWO plausible objects in recent context is the
+    // legitimate clarification exception — running BEFORE continuation
+    // resolution so an ambiguous destructive deictic is never auto-resolved
+    // to the wrong target.
+    if (isDestructiveAmbiguous(prompt, recentText)) {
+      return {
+        route: 'clarification_required',
+        category: 'conversation',
+        mode: 'direct_conversation',
+        confidence: 0.5,
+        reason: 'Destructive request with multiple plausible referents — clarification is required before acting',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+      };
+    }
+
+    // §15 Case F2: destructive deictic with a SINGLE clear referent must NOT
+    // be clarified — it routes to the approval-gated change path so the
+    // operation can actually proceed under approval rules.
+    if (/^(delete|remove|drop|erase|kill|terminate|overwrite)\b/.test(prompt.trim().toLowerCase()) && /\b(it|this|that)\b/i.test(prompt) && recentText) {
+      return {
+        route: 'codex',
+        category: 'approval_required',
+        mode: 'operational_execution',
+        confidence: 0.7,
+        reason: 'Destructive request with a resolvable referent — proceed under approval',
+        requiresWorkspace: true,
+        requiresApproval: true,
+        selectedAgent: 'CodeX',
+        plan: ['Resolve the deictic referent from recent context', 'Confirm the target', 'Request approval before destructive change'],
+      };
+    }
+
+    // ── §4/§5: contextual continuation resolution ──
+    // Short follow-ups ("Continue.", "Fix it.", "Can you change that?",
+    // "try again", "yes") are resolved against recent turns BEFORE the
+    // question gate and the short-prompt clarification wall. When recent
+    // context establishes a single referent, we route operationally
+    // (investigate/continue) or direct-with-subject — never a canned
+    // "Could you clarify?". Runs after the UI classifier (so "Fix it."
+    // with a prior UI problem still goes operational) but before
+    // questions/ambiguity handling.
+    const continuation = resolveContinuationIntent(prompt, recentText);
+    if (continuation.resolved === 'investigate_ui') {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.85,
+        reason: `Follow-up resolved to prior UI problem (${continuation.referent}) — inspect AgenticOS frontend state`,
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules'],
+      };
+    }
+    if (continuation.resolved === 'continue_goal' || continuation.resolved === 'retry_goal') {
+      return {
+        route: 'investigate',
+        category: 'investigation',
+        mode: 'operational_execution',
+        confidence: 0.8,
+        reason: `Follow-up resolved to ${continuation.referent} — continue/retry the prior operational goal`,
+        requiresWorkspace: false,
+        requiresApproval: false,
+        selectedAgent: 'Jarvis',
+        plan: ['Inspect the prior goal/task state', 'Continue or retry the most recent unresolved action', 'Report evidence and resolve when safe'],
       };
     }
 

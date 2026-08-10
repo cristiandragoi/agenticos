@@ -760,11 +760,21 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
 
   // Canonical voice engine auto-submits transcribed turns through the exact
   // same streaming pipeline the Send button uses (one response-stream path).
+  // NOTE: the imperative handle MUST NOT close over the first render's
+  // closures. `handleSendMessage` and `cancelResponse` read current props
+  // (notably `conversationId`), which are set AFTER mount by the studio's
+  // restore effect — a `[]`-deps handle would capture `conversationId === null`
+  // forever and force every typed/voice send to auto-create a NEW conversation
+  // (follow-up turns lost context; live acceptance showed T1→conv-A, T2→conv-B).
+  const handleSendRef = useRef<((text: string, channel: 'typed' | 'voice') => void) | null>(null);
+  handleSendRef.current = (text: string, channel: 'typed' | 'voice') => { void handleSendMessage(text, channel); };
+  const cancelResponseRef = useRef<(() => void) | null>(null);
+  cancelResponseRef.current = () => cancelResponse();
   React.useImperativeHandle(ref, () => ({
     sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice') => {
-      void handleSendMessage(text, inputChannel);
+      handleSendRef.current?.(text, inputChannel);
     },
-    cancelResponse: () => cancelResponse(),
+    cancelResponse: () => cancelResponseRef.current?.(),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {

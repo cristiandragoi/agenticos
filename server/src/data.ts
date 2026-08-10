@@ -506,11 +506,12 @@ export const mockProviders: ProviderDefinition[] = [
     scopes: ["chat", "completion", "reasoning"],
     description: "DeepSeek V4 — optimized for reasoning and coding.",
     lastActivity: "just now",
-    defaultModel: "deepseek-chat",
+    defaultModel: "deepseek-v4-flash",
     models: [
       { id: "deepseek-chat", name: "DeepSeek V4 Chat", contextLength: 128000 },
       { id: "deepseek-reasoner", name: "DeepSeek Reasoner", contextLength: 128000 },
       { id: "deepseek-coder", name: "DeepSeek Coder V4", contextLength: 128000 },
+      { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", contextLength: 128000 },
     ],
     usedByAgentDefaults: ["agent-hermes", "agent-jarvis"],
   },

@@ -20,6 +20,16 @@ vi.mock('../src/domains/codex/service.js', () => ({
 vi.mock('../src/services/agent/assignments.js', () => ({
   AgentProviderAssignmentService: {
     getAssignment: vi.fn()
+  },
+  mapCatalogToGatewayId: (catalogId: string) => {
+    const map: Record<string, string> = {
+      'prov-ollama': 'ollama',
+      'prov-omniroute': 'omniroot',
+      'prov-omni': 'omniroot',
+      'prov-openrouter': 'OpenRouter',
+      'prov-deepseek': 'DeepSeek',
+    };
+    return map[catalogId] || catalogId;
   }
 }));
 
@@ -109,7 +119,7 @@ describe('POST /api/chat/agents/goal', () => {
         }
       });
     expect(res.status).toBe(200);
-    expect(codexService.createGoal).toHaveBeenCalledWith('test', '/test', 'auto', undefined, undefined, undefined);
+    expect(codexService.createGoal).toHaveBeenCalledWith('test', '/test', 'auto', undefined, undefined, undefined, undefined);
   });
 
   it('malformed routing object is rejected safely', async () => {

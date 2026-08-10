@@ -501,9 +501,14 @@ describe('IntentRouter — required routing cases', () => {
     });
 
     it('short vague prompt WITH context is interpreted, not clarified', async () => {
-      const result = await router.routeIntent('try again', { recentText: 'I ran the task and it failed.' });
+      // §9/§4 milestone: "try again" after a failure is now an operational
+      // RETRY (routes INVESTIGATE to retry the prior goal). The generic
+      // "interpret with context" behavior is asserted with a short phrase —
+      // route must be DIRECT (never clarification); the reason may be either
+      // the imperative-command path or the interpret-with-context path.
+      const result = await router.routeIntent('tell me more', { recentText: 'I ran the task and it failed.' });
       expect(result.route).toBe('direct');
-      expect(result.reason).toContain('interpret');
+      expect(result.reason).toMatch(/interpret|imperative/);
     });
 
     it('short vague prompt AFTER a prior clarification may ask once more (budget)', async () => {
@@ -558,6 +563,143 @@ describe('IntentRouter — required routing cases', () => {
       const result = await router.routeIntent('Can you change that?', { recentText: '' });
       // Genuinely ambiguous — must NOT claim UI change intent without context.
       expect(result.route).not.toBe('investigate');
+    });
+  });
+
+  describe('§15/§16: multi-turn conversational coherence (context resolves follow-ups)', () => {
+    // Simulates the recentText the orchestrator builds from prior turns.
+    const uiProblemContext =
+      'user: The chat interface is still wrong.\nagent: I inspected the active AgenticOS state instead of guessing what you meant by "chat interface".';
+    const complaintContext =
+      'user: You keep misunderstanding what I am asking.\nagent: I inspected the active AgenticOS state instead of guessing what you meant.';
+    const investigationContext =
+      'user: Why does the UI still look wrong?\nagent: I inspected the active AgenticOS state (runtime, gateway, frontend).';
+    const delegatedContext =
+      'user: Ask CodeX to fix the transcript overlap.\nagent: I started task ab12cd34. CodeX is working on it in the background.';
+    const simpleContext = 'user: Jarvis, say hello.\nagent: Hello! How can I assist you today?';
+    const failureContext =
+      'user: The gateway is offline.\nagent: I inspected and found OpenRouter unreachable — the request failed.';
+
+    it('CASE A: "Can you change that?" resolves to prior UI problem → INVESTIGATE (no clarification)', async () => {
+      const result = await router.routeIntent('Can you change that?', { recentText: uiProblemContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE A2: "Fix it." after a UI problem → INVESTIGATE (no clarification)', async () => {
+      const result = await router.routeIntent('Fix it.', { recentText: uiProblemContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE B: correction changes subject (repository bar) — still investigated as UI problem', async () => {
+      const result = await router.routeIntent('No, I mean the repository bar.', { recentText: uiProblemContext });
+      // The correction names a UI element explicitly → operational investigation.
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE C: "Continue." after an investigation → continues the same goal (INVESTIGATE)', async () => {
+      const result = await router.routeIntent('Continue.', { recentText: investigationContext });
+      expect(result.route).toBe('investigate');
+      // The continuation may resolve as "prior investigation" or, when the
+      // investigation context itself names UI problems, "prior UI problem" —
+      // both are evidence-based continuations, never generic chat.
+      expect(result.reason).toMatch(/prior (investigation|UI problem)/);
+    });
+
+    it('CASE C2: "Continue." after a delegation → continues the delegated task (INVESTIGATE/operational, not generic)', async () => {
+      const result = await router.routeIntent('Continue.', { recentText: delegatedContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE D: complaint about Jarvis behavior → INVESTIGATE, not generic capabilities reply', async () => {
+      const result = await router.routeIntent('You keep misunderstanding what I am asking.', { recentText: '' });
+      expect(result.route).toBe('investigate');
+      expect(result.reason).not.toMatch(/capabilit/i);
+    });
+
+    it('CASE D2: "Continue." after a complaint → continues the complaint investigation', async () => {
+      const result = await router.routeIntent('Continue.', { recentText: complaintContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE E: "Jarvis, say hello." → DIRECT, no clarification, no engineering task', async () => {
+      const result = await router.routeIntent('Jarvis, say hello.', { recentText: '' });
+      expect(result.route).toBe('direct');
+    });
+
+    it('CASE F: destructive ambiguous "Delete it." with two plausible objects → clarification ALLOWED', async () => {
+      const result = await router.routeIntent('Delete it.', {
+        recentText: 'user: the transcript panel and the composer both look wrong\nagent: I inspected both.',
+      });
+      expect(result.route).toBe('clarification_required');
+    });
+
+    it('CASE F2: destructive with a single clear referent → NOT clarified', async () => {
+      const result = await router.routeIntent('Delete it.', {
+        recentText: 'user: the stale log entry is wrong\nagent: I inspected it.',
+      });
+      expect(result.route).not.toBe('clarification_required');
+    });
+
+    it('CASE I: "Why does it keep saying file not found?" → operational investigation (file evidence)', async () => {
+      const result = await router.routeIntent('Why does it keep saying file not found?', { recentText: '' });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE J: "Is Hermes finished?" → task-state question (operational), not generic chat', async () => {
+      const result = await router.routeIntent('Is Hermes finished?', { recentText: '' });
+      // Task-state questions must not be a generic direct answer; they are
+      // routed operationally so the run state is inspected.
+      expect(result.route).toBe('investigate');
+    });
+
+    it('CASE J2: "What happened?" after a failure → continues/retries the prior goal', async () => {
+      const result = await router.routeIntent('What happened?', { recentText: failureContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('retry: "try again" after a failure → RETRY the prior goal (operational)', async () => {
+      const result = await router.routeIntent('try again', { recentText: failureContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('affirmative follow-up with recent context → direct, subject retained (not clarification)', async () => {
+      const result = await router.routeIntent('yes', { recentText: simpleContext });
+      expect(result.route).toBe('direct');
+    });
+
+    it('"Why?" after a Jarvis statement → continues the prior subject', async () => {
+      const result = await router.routeIntent('why?', { recentText: investigationContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('standalone "Continue." with NO context → may clarify (genuinely ambiguous)', async () => {
+      const result = await router.routeIntent('Continue.', { recentText: '' });
+      expect(result.route).toBe('clarification_required');
+    });
+
+    it('golden: "Why is the chat interface like this?" → investigate', async () => {
+      const result = await router.routeIntent('Why is the chat interface like this?', { recentText: '' });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('golden: "I asked you to change this already." → investigate (prior change intent)', async () => {
+      const result = await router.routeIntent('I asked you to change this already.', { recentText: uiProblemContext });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('golden: "It\'s still not working." → investigate (problem report)', async () => {
+      const result = await router.routeIntent('It\'s still not working.', { recentText: '' });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('golden: "You are not understanding what I\'m asking." → investigate (complaint)', async () => {
+      const result = await router.routeIntent('You are not understanding what I\'m asking.', { recentText: '' });
+      expect(result.route).toBe('investigate');
+    });
+
+    it('golden: "What is the transcript panel?" → DIRECT (informational, never investigate)', async () => {
+      const result = await router.routeIntent('What is the transcript panel?', { recentText: '' });
+      expect(result.route).toBe('direct');
     });
   });
 });

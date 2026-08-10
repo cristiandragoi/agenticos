@@ -52,6 +52,23 @@ export function loadGatewayConfig(): GatewayConfig {
     });
   }
 
+  // DeepSeek is OpenAI-compatible: register the official DeepSeek API as a
+  // gateway provider so catalog assignments (mapCatalogToGatewayId:
+  // 'prov-deepseek' -> 'DeepSeek') resolve to a real runtime route. The API
+  // key always comes from DEEPSEEK_API_KEY — never hardcoded here.
+  if (process.env.DEEPSEEK_API_KEY) {
+    providers.push({
+      name: 'DeepSeek',
+      baseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
+      type: 'openai',
+      capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext'],
+      tags: ['cloud', 'coding', 'long-context'],
+      maxContext: 128000
+    });
+  }
+
   if (process.env.OLLAMA_BASE_URL) {
     providers.push({
       name: 'ollama',

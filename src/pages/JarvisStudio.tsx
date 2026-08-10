@@ -136,7 +136,42 @@ export default function JarvisStudio() {
   const navigate = useNavigate();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [composerText, setComposerText] = useState('');
+  // Separate voice-interim transcript state (§9): STT that cannot enter the
+  // composer (manual ownership) is surfaced as a preview — never a mutable
+  // shared string with typed input.
+  const [voiceInterimTranscript, setVoiceInterimTranscript] = useState('');
   const chatRef = useRef<JarvisChatHandle | null>(null);
+
+  // ── Input ownership (§9 input-ownership milestone) ──
+  // Manual keyboard input OWNS the composer. When the user types/pastes/edits,
+  // the voice engine is told (notifyManualEdit) so any in-flight STT event is
+  // dropped by generation identity. A transcript may only write the composer
+  // when the user has NOT edited since the voice capture began. The mic-off
+  // state is also pushed to the engine so a late STT event after the user
+  // turned the mic off is ignored at the source.
+  const manualEditSinceVoiceRef = useRef(false);
+  const handleComposerTextChange = useCallback((text: string) => {
+    setComposerText(text);
+    // A user edit takes ownership — notify the voice engine so stale STT is
+    // dropped. Emptying the field via the clear action is ALSO an edit (the
+    // user actively took ownership), but programmatic voice writes must not
+    // mark manual ownership (they are voice-owned writes).
+    manualEditSinceVoiceRef.current = true;
+    voiceRef.current?.notifyManualEdit?.();
+  }, []);
+  const handleVoiceTranscript = useCallback((text: string) => {
+    // Only voice-owned writes may enter the composer, and only when the user
+    // has NOT taken manual ownership since the capture began. Otherwise the
+    // transcript is shown as a separate interim preview (voiceInterim) and the
+    // typed text is preserved.
+    if (manualEditSinceVoiceRef.current) {
+      // Manual ownership wins — never overwrite typed text. Surface as preview.
+      setVoiceInterimTranscript(text);
+      return;
+    }
+    setComposerText(text);
+    setVoiceInterimTranscript('');
+  }, []);
 
   // ── Orb inputs: REAL signals only ──
   const [micState, setMicState] = useState<MicState>('idle');
@@ -190,13 +225,27 @@ export default function JarvisStudio() {
     endSpeechSilenceMs: 900,
     onAutoSubmit: (text) => {
       // Conversation auto-submit — the exact streaming pipeline, no Send.
+      // §9 input ownership: a manual edit since the capture began means the
+      // voice turn is stale; the engine already dropped it at the source, but
+      // this guard is the final deterministic barrier.
+      if (manualEditSinceVoiceRef.current) return;
       chatRef.current?.sendMessage(text, 'voice');
     },
-    onTranscript: (text) => setComposerText(text), // Manual: editable input
+    onTranscript: handleVoiceTranscript, // Manual mode: ownership-guarded
     onStateChange: () => { /* voiceState below is the single orb source */ },
   });
   const voiceRef = useRef(voice);
   voiceRef.current = voice;
+
+  // §9 input ownership: mic turning OFF invalidates every in-flight voice
+  // event in the engine (late STT after the user disabled the mic is dropped
+  // by identity). Mic returning to idle/listening/error does NOT clear manual
+  // ownership — only a successful send or explicit clear does.
+  useEffect(() => {
+    if (micState !== 'listening') {
+      voiceRef.current?.notifyMicOff?.();
+    }
+  }, [micState]);
 
   useEffect(() => { voiceRef.current?.setVoiceOverride?.(readPersistedVoice()); }, []);
 
@@ -1045,7 +1094,7 @@ export default function JarvisStudio() {
                 onConversationCreated={(id) => setActiveConversationId(id)}
                 onStatusChange={setRuntimeStatus}
                 composerText={composerText}
-                onComposerTextChange={setComposerText}
+                onComposerTextChange={handleComposerTextChange}
                 onMicStateChange={setMicState}
                 onStreamDelta={handleStreamDelta}
                 onAssistantResponse={handleAssistantDone}
@@ -1069,12 +1118,27 @@ export default function JarvisStudio() {
             center column. Never inside the scrolling document, never covered
             by the Activity column — "Ask Jarvis anything…" stays on screen. ── */}
         <div className={cc.stickyComposer} data-testid="jarvis-sticky-composer">
+          {voiceInterimTranscript && (
+            <div className={cc.voiceInterimPreview} data-testid="jarvis-voice-interim" aria-live="polite">
+              <span className={cc.voiceInterimLabel}>Voice preview</span>
+              <span className={cc.voiceInterimText}>{voiceInterimTranscript}</span>
+            </div>
+          )}
           <JarvisComposer
-            onSendMessage={(text, channel) => chatRef.current?.sendMessage(text, channel ?? 'typed')}
+            onSendMessage={(text, channel) => {
+              // §9 input ownership: a successful send ends manual ownership —
+              // the next voice turn may write the composer again. Voice-owned
+              // sends do NOT reset it (they are the same ownership).
+              if (channel !== 'voice') {
+                manualEditSinceVoiceRef.current = false;
+                setVoiceInterimTranscript('');
+              }
+              chatRef.current?.sendMessage(text, channel ?? 'typed');
+            }}
             isProcessing={['thinking', 'understanding', 'planning', 'delegating', 'executing', 'reviewing', 'streaming'].includes(runtimeStatus.state)}
             onCancelResponse={() => chatRef.current?.cancelResponse()}
             composerText={composerText}
-            onComposerTextChange={setComposerText}
+            onComposerTextChange={handleComposerTextChange}
             onMicStateChange={setMicState}
             hideMic
             disabledReason={backendLifecycle.source === 'electron' && backendOffline ? 'AgenticOS backend is offline.' : undefined}

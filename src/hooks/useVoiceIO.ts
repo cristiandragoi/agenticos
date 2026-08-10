@@ -130,6 +130,16 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const turnSubmittedRef = useRef(false);
   const playbackStartedAtRef = useRef<number | null>(null);
   const playbackActiveRef = useRef(false);
+  // ── Input ownership (§9 input-ownership milestone) ──
+  // The composer has TWO owners: manual keyboard input and voice/STT. They
+  // must never race-write the same value. Manual ownership is modeled as a
+  // MONOTONIC GENERATION: every manual edit bumps it; any voice event that
+  // started under an older generation is stale and must not mutate the
+  // composer or auto-submit. Mic-off also bumps a separate generation so a
+  // late STT callback after the user turned the mic OFF is ignored by
+  // identity, not by boolean drift.
+  const manualEditGenRef = useRef(0);
+  const micOffGenRef = useRef(0);
   // Bounded continuation window for incomplete utterances ("It is…"): the
   // text is held, the mic re-arms, and a later segment appends to it so ONE
   // combined turn is submitted. `validity` is captured from the FIRST segment.
@@ -540,6 +550,16 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     fromConversation = false,
     validity?: { sessionId: string | null; turnId: number },
   ) => {
+    // Input-ownership snapshot (§9 input-ownership milestone): capture the
+    // manual-edit + mic-off generations when this capture STARTED. If the user
+    // typed/edited the composer or turned the mic off while the STT request was
+    // in flight, this transcript is STALE and must not surface into the
+    // composer or auto-submit — it is dropped by identity, never by guess.
+    const manualGenAtCapture = manualEditGenRef.current;
+    const micOffGenAtCapture = micOffGenRef.current;
+    const isStale = () =>
+      manualEditGenRef.current !== manualGenAtCapture ||
+      micOffGenRef.current !== micOffGenAtCapture;
     setVoiceState('transcribing');
     voiceTracePush('audio_captured', 'ok', `${(audioBlob.size / 1024).toFixed(1)} KB audio blob received (fromConversation=${fromConversation})`);
 
@@ -572,6 +592,23 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       const transcriptText: string = transcribeData?.text;
 
       if (!transcriptText || transcriptText.trim() === '') {
+        if (fromConversation || conversationActiveRef.current) {
+          setVoiceState('listening');
+          startConversationListeningInternal();
+        } else {
+          setVoiceState('idle');
+        }
+        return;
+      }
+
+      // ── Input-ownership gate (§9 input-ownership milestone) ──
+      // The user typed/edited the composer or turned the mic OFF while this
+      // capture was in flight → the transcript is stale and must NOT surface
+      // into the composer, auto-submit, or mutate any state. This is the
+      // deterministic rule: MANUAL INPUT OWNS THE COMPOSER.
+      if (isStale()) {
+        voiceTracePush('input_ownership', 'skipped', 'Stale STT dropped — manual edit or mic-off while transcribing');
+        console.log('[InputOwnership] dropped stale STT transcript', { text: transcriptText.slice(0, 60) });
         if (fromConversation || conversationActiveRef.current) {
           setVoiceState('listening');
           startConversationListeningInternal();
@@ -1333,5 +1370,14 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         // Task-completion announcement (task-completion milestone): speaks the
         // completion summary once; defers while the user is speaking/mic active.
         speakCompletion,
+        // ── Input ownership (§9 input-ownership milestone) ──
+        // Manual composer edits take ownership: voice/STT events that began
+        // before the edit are stale and must not mutate the composer or
+        // auto-submit. Mic-off invalidates every in-flight voice event.
+        notifyManualEdit: () => { manualEditGenRef.current += 1; },
+        notifyMicOff: () => { micOffGenRef.current += 1; },
+        // Testable transcription entry (recorder.onstop drives it internally):
+        // exposed so the input-ownership race can be exercised deterministically.
+        processAudioBlob,
       };
     }

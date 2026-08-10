@@ -121,6 +121,21 @@ function logStreamStage(operationId: string | undefined, stage: string, details:
   });
 }
 
+/**
+ * Strip tool-call / function-call markup the model may emit as literal text.
+ * The system prompt forbids it; this is a safety net so the user never sees
+ * raw `<tool_call>…</tool_call>` in a reply (§18 — no leaked plumbing).
+ */
+function stripToolCallMarkup(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+    .replace(/<invoke>[\s\S]*?<\/invoke>/gi, '')
+    .replace(/<function[^>]*>[\s\S]*?<\/function>/gi, '')
+    .replace(/```(?:json|xml)?\s*[\s\S]*?```/g, '')
+    .trim();
+}
+
 /* ── GET /api/jarvis/conversations ────────────────────────── */
 router.get('/conversations', async (req, res) => {
   try {
@@ -1120,6 +1135,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // an evidence report; never the generic "What interface?" clarification.
     if (intent.route === 'investigate') {
       logStreamStage(normalizedOperationId, 'investigate route', { confidence: intent.confidence });
+      // Persist the USER message first so a FOLLOW-UP turn ("Can you change
+      // that?", "Continue.") can resolve deictics against this turn's context.
+      // The direct branch and the delegated orchestrator both persist it; the
+      // investigate and clarification branches must too — otherwise recentText
+      // for the next turn omits the user's statement and follow-ups degrade to
+      // generic clarification (live acceptance: 1b/2b failed exactly here).
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'user',
+        content: prompt,
+        metadata: inputChannel ? { ...(requestMetadata || {}), inputChannel } : requestMetadata
+      });
       const startedAt = Date.now();
       let reply: string;
       updateStreamExecution({ status: 'RUNNING', currentAction: 'Inspecting runtime state' });
@@ -1162,6 +1189,16 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // until the user replies (the next stream supersedes it). Nothing is
     // routing, there is no STOP, and the elapsed timer counts waiting time.
     if (intent.route === 'clarification_required') {
+      // Persist the USER message too (parity with direct/investigate): the
+      // next turn's recentText must include what the user actually said, so a
+      // follow-up after a clarification reinterprets the combined context
+      // (§5) instead of starting from a blank slate.
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'user',
+        content: prompt,
+        metadata: inputChannel ? { ...(requestMetadata || {}), inputChannel } : requestMetadata
+      });
       const voiceIssue = (intent as any).voiceIssue as string | null | undefined;
       const reply = voiceIssue
         ? 'I think part of that sentence was transcribed incorrectly. Could you repeat just the last sentence?'
@@ -1327,23 +1364,41 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       // best effort — memory retrieval must never break direct chat
     }
 
+    // ONE conversation context object (§3) — runtime truth for the direct
+    // path: workspace, active/historical task, provider, capabilities, and
+    // previous-clarification state. Injected as a compact block so the model
+    // answers follow-ups and task questions from actual state, never canned.
+    let conversationContextPrompt = '';
+    try {
+      const { assembleConversationContext, contextToSystemPrompt } = await import('../domains/jarvis/conversationContext.js');
+      const ctx = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy) });
+      conversationContextPrompt = contextToSystemPrompt(ctx);
+    } catch {
+      // context optional — direct chat must never break on context failure
+    }
+
     const systemPrompt = [
       'You are Jarvis, the operational commander of Agentic OS.',
       'For normal conversation, answer directly and briefly.',
       'Do not claim reminders, messaging, calendar actions, or external services unless the prompt or Agentic OS registry explicitly provides them.',
       'If asked about system capabilities, describe Agentic OS capabilities: CodeX delegation, Agent Teams, workspace inspection/change through approval, runtime/tool/pipeline status, and research/search only when available.',
+      'AgenticOS CAN delegate engineering work through CodeX and Agent Teams. Do NOT say "I cannot modify the UI" or "I don\'t have the capability to change the interface" — you can inspect the UI/codebase and delegate changes to the engineering system per approval rules.',
       'Never narrate your internal reasoning; answer the user directly instead of describing your own thought process.',
       'Do not write phrases such as "the user is asking" or otherwise refer to the user in the third person.',
       'If you do not know something, say so explicitly ("I do not know") — never invent facts, values, prior decisions, or runtime state.',
       'AgenticOS has a persistent memory system (decisions, preferences, episodic records) and you receive this conversation\'s history. When the user says "please remember X", acknowledge it and keep it in the conversation; you can also recall from persistent memory when asked.',
       'Never claim that you are speaking, spoke, or will speak aloud, and never append delivery notes like "(spoken aloud)" — audio delivery is handled by the system outside your text. Just answer the question.',
+      'Never emit tool-call markup: do NOT output <tool_call>...</tool_call>, <invoke>...</invoke>, function-call syntax, or JSON code fences in your reply. If a request needs investigation or delegation, say so in plain words; the system performs it.',
       'Answer concisely and directly. Do not repeat yourself. Do not comment on your own responses. Do not announce or describe actions you did not take. For simple questions, answer simply.',
+      'Use the conversation history to keep the subject across turns: "that", "it", "this", "continue", "fix it" refer to the recent conversation subject — resolve them from prior turns instead of asking what they mean.',
+      'Never answer task-state questions ("Is Hermes finished?", "Is the task done?", "What happened?") with generic text — report the ACTUAL task state from the context block below, distinguishing ACTIVE vs HISTORICAL.',
       'Do not claim voice playback is working unless the runtime confirms audio playback started.',
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
         'The fact that this text reached you means microphone capture and transcription are working.',
         'Microphone input and voice output are separate capabilities; do not infer voice playback status from input being transcribed.'
       ] : []),
+      ...(conversationContextPrompt ? [conversationContextPrompt] : []),
       ...(persistentMemoryContext ? [persistentMemoryContext] : [])
     ].join('\n');
     logStreamStage(normalizedOperationId, 'provider/model selected', {
@@ -1461,7 +1516,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       }
     }
 
-    const finalReply = reply.trim();
+    // §18/§10: strip any tool-call markup the model emitted as literal text
+    // so the user never sees raw <tool_call>…</tool_call> plumbing.
+    const finalReply = stripToolCallMarkup(reply).trim();
     if (!finalReply) throw new Error('Jarvis returned an empty response.');
 
     logger.info('[JarvisTrace] provider-response', JSON.stringify({

@@ -88,6 +88,8 @@ export class JarvisOrchestrator {
         return this.handleHermes(conversationId, prompt, operationId);
       case 'memory':
         return this.handleMemory(conversationId, prompt, operationId);
+      case 'investigate':
+        return this.handleInvestigate(conversationId, prompt, operationId);
       case 'clarification_required':
         return this.handleClarification(conversationId, prompt, operationId);
       case 'direct':
@@ -316,23 +318,68 @@ export class JarvisOrchestrator {
     return { route: 'memory', status: 'unavailable', error: content, operationId };
   }
 
+  /**
+   * Evidence-based investigation (§6/§8). Problem reports — "the interface
+   * is wrong", "why is this still happening", "continue" after an
+   * investigation — run the READ-ONLY inspection pipeline and stream an
+   * evidence report. Never a generic "Could you clarify?" or a claim of
+   * success without inspection.
+   */
+  private async handleInvestigate(conversationId: string, prompt: string, operationId?: string) {
+    try {
+      const { investigateAgenticState } = await import('./investigation.js');
+      let reply: string;
+      try {
+        reply = await investigateAgenticState(conversationId, prompt);
+      } catch (err: any) {
+        reply = `I attempted a read-only inspection but it failed: ${err?.message || err}. Nothing was changed.`;
+      }
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(operationId ? { operationId } : {}), provider: 'agentic-os', model: 'registry', intent: { type: 'investigate' } }
+      });
+      return { route: 'investigate', operationId };
+    } catch (err: any) {
+      const content = `Investigation failed: ${err?.message}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content,
+        metadata: operationId ? { operationId } : undefined
+      });
+      return { route: 'investigate', error: content, operationId };
+    }
+  }
+
   private async handleDirect(conversationId: string, prompt: string, operationId?: string) {
     try {
-      // Capability-grounding: Jarvis has a LIVE INSPECTION pipeline that reads
-      // real runtime + frontend diagnostic state (active model/provider,
-      // gateway health, Hermes/Ollama/OpenRouter, UI display state, tasks,
-      // errors). The model must never claim it lacks that access — requests
-      // about current AgenticOS state are routed to INVESTIGATE, and any that
-      // reach direct chat should be answered from that capability.
+      // Capability-grounding + ONE conversation context object (§3/§7).
+      // The model receives real runtime context (workspace, active task,
+      // provider, capabilities) so it never claims it lacks a capability
+      // that AgenticOS actually has, and never answers follow-ups as if
+      // they were isolated questions.
+      const { assembleConversationContext, contextToSystemPrompt } = await import('./conversationContext.js');
+      let ctx: any = null;
+      try {
+        ctx = await assembleConversationContext(conversationId, prompt);
+      } catch { /* context optional */ }
+
       const systemPrompt = `You are Jarvis, the core orchestration agent of Agentic OS. Keep answers short, direct, and conversational.
 You have LIVE INSPECTION capability: AgenticOS tracks real runtime state (active model and provider, gateway-resolved model/provider, selected frontend model, what the UI is displaying, Hermes/Ollama/OpenRouter health, active and last streams, background tasks, recent errors) and exposes it through the investigation pipeline. Do NOT claim you lack access to inspect the current model configuration or UI state. If a request is about current AgenticOS runtime/UI state, say you will inspect it (or report what the investigation found) — the inspection pipeline handles those requests.
+AgenticOS can delegate engineering work through CodeX and Agent Teams. Do NOT say "I cannot modify the UI" or "I don't have the capability to change the interface": if the user asks to change something in the UI/codebase, you can inspect it and delegate the change to the engineering system per approval rules. Distinguish "I personally answer the conversation" from "I can delegate this change to the engineering system".
+You can also: inspect the selected workspace/repository, search/read repository files (CodeX), delegate research, use Hermes for background tasks, inspect task/run state, retrieve relevant memories, and request approval when required.
 If you do not know something, say so explicitly. Never invent facts, values, or prior decisions.
 Never claim that you are speaking, spoke, or will speak aloud, and never append delivery notes like "(spoken aloud)" — audio delivery is handled by the system outside your text. Just answer the question.
-Answer concisely and directly. Do not repeat yourself. Do not comment on your own responses. Do not announce or describe actions you did not take. For simple questions, answer simply.`;
-      // Conversation history (runtime root-cause fix): the direct-chat LLM
-      // must see the prior turns of this conversation, exactly like the
-      // streaming path — otherwise it cannot answer follow-up questions and
-      // hallucinates context.
+Never emit tool-call markup (do not include <tool_call>...</tool_call> or function-call syntax in your reply) — if a request needs an investigation or a delegation, describe it in plain words and the system will perform it.
+Answer concisely and directly. Do not repeat yourself. Do not comment on your own responses. Do not announce or describe actions you did not take. For simple questions, answer simply.
+Use the conversation history to keep the subject across turns: if the user says "that", "it", "this", "continue", "fix it", they are referring to the recent conversation subject — resolve it from the prior turns rather than asking what they mean.
+Never answer "Is Hermes finished?" / "Is the task done?" / "What happened?" with generic text — report the ACTUAL task state from the context block below, distinguishing ACTIVE vs HISTORICAL.${ctx ? contextToSystemPrompt(ctx) : ''}`;
+
+      // Conversation history (bounded window) — same as the streaming path.
       let history: { role: 'user' | 'assistant'; content: string }[] = [];
       try {
         const msgs = await conversationService.getMessages(conversationId);
@@ -353,10 +400,13 @@ Answer concisely and directly. Do not repeat yourself. Do not comment on your ow
       }
       const result = await llmChat({ systemPrompt, prompt, history });
 
+      // Strip any stray tool-call markup the model may still emit (§18).
+      const cleaned = stripToolCallMarkup(result.reply);
+
       await conversationService.appendMessage({
         conversationId,
         role: 'agent',
-        content: result.reply,
+        content: cleaned,
         routedAgent: 'jarvis',
         metadata: operationId ? { operationId } : undefined
       });
@@ -374,15 +424,46 @@ Answer concisely and directly. Do not repeat yourself. Do not comment on your ow
     }
   }
   private async handleClarification(conversationId: string, prompt: string, operationId?: string) {
+    // §5/§14: clarification is LAST RESORT. Before asking, check whether
+    // recent context now resolves the request (the user may have just
+    // supplied additional information after a previous clarification).
+    let reply = 'I didn\'t quite understand your request. Could you rephrase it?';
+    try {
+      const { assembleConversationContext } = await import('./conversationContext.js');
+      const ctx = await assembleConversationContext(conversationId, prompt);
+      // If the user gave new information and we previously asked, attempt
+      // interpretation instead of a second canned clarification.
+      if (ctx.previousWasClarification && ctx.previousUserMessage) {
+        reply = 'Got it — let me work with that new information rather than asking again.';
+      } else if (ctx.activeTask) {
+        reply = `I need a bit more detail before acting. Right now I'm ${ctx.activeTask.status.replace(/_/g, ' ')} on ${ctx.activeTask.title.slice(0, 60)} — could you clarify what you want me to do next?`;
+      }
+    } catch { /* keep default */ }
     await conversationService.appendMessage({
       conversationId,
       role: 'agent',
-      content: 'I didn\'t quite understand your request. Could you rephrase it?',
+      content: reply,
       routedAgent: 'jarvis',
       metadata: operationId ? { operationId } : undefined
     });
     return { route: 'clarification_required', operationId };
   }
+}
+
+/**
+ * Strip tool-call / function-call markup the model may emit as literal text.
+ * The system prompt forbids it; this is a safety net so the user never sees
+ * raw `<tool_call>…</tool_call>` in a reply (§18 — no fake success, no
+ * leaked plumbing).
+ */
+function stripToolCallMarkup(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+    .replace(/<invoke>[\s\S]*?<\/invoke>/gi, '')
+    .replace(/<function[^>]*>[\s\S]*?<\/function>/gi, '')
+    .replace(/```(?:json|xml)?\s*[\s\S]*?```/g, '')
+    .trim();
 }
 
 export const jarvisOrchestrator = new JarvisOrchestrator();

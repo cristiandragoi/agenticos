@@ -55,6 +55,7 @@ const SUBJECT_KEYWORDS: Array<[RegExp, string]> = [
   [/\bcard\b/i, 'Board card'],
   [/\bcodex\b/i, 'CodeX'],
   [/\bhermes\b/i, 'Hermes'],
+  [/\bfile\b|\bnot found\b|\bno such file\b/i, 'file/workspace path'],
   [/\boauth\b|\blogin\b/i, 'authentication'],
 ];
 
@@ -169,6 +170,40 @@ export async function investigateAgenticState(conversationId: string, prompt: st
     taskLines.push('unavailable');
   }
 
+  // 4b. Workspace/file-resolution evidence (§15 Case I: "Why does it keep
+  // saying file not found?"). Reports the canonical workspace root and, when
+  // the prompt names a file, whether that file exists — READ-ONLY.
+  const fileLines: string[] = [];
+  const fileTopic = /\bfile\b|\bnot found\b|\bno such file\b|\.(tsx?|jsx?|ts|js|json|md|css)\b/i.test(prompt);
+  if (fileTopic) {
+    try {
+      const { getWorkspaceRoot } = await import('../../services/workspaceStore.js');
+      const ws = await getWorkspaceRoot();
+      if (ws) {
+        fileLines.push(`Canonical workspace root: ${ws}`);
+        const match = prompt.match(/([A-Za-z0-9_./\-]+\.(tsx?|jsx?|ts|js|json|md|css))/i);
+        if (match) {
+          const candidate = match[1].replace(/[.,;:!?]$/, '');
+          const abs = candidate.startsWith('/') || /^[A-Za-z]:[\/]/.test(candidate)
+            ? candidate
+            : `${ws.replace(/[\/]+$/, '')}/${candidate}`;
+          let exists = false;
+          try {
+            const fs = await import('node:fs');
+            exists = fs.existsSync(abs);
+          } catch { /* keep false */ }
+          fileLines.push(`Referenced file "${candidate}" ${exists ? 'EXISTS' : 'DOES NOT EXIST'} at ${abs}`);
+        } else {
+          fileLines.push('No concrete file path found in this message — I can search the workspace for the referenced file.');
+        }
+      } else {
+        fileLines.push('No workspace selected — file resolution is not possible until a repository is chosen in the workspace bar.');
+      }
+    } catch {
+      fileLines.push('workspace store unavailable');
+    }
+  }
+
   // 5. Conversation context (deictic resolution).
   const contextLines = await recentContext(conversationId);
 
@@ -179,6 +214,8 @@ export async function investigateAgenticState(conversationId: string, prompt: st
     `• Active model routing: provider ${selectedProvider || 'unavailable'} · model ${selectedModel} (fallback ${fallbackModel})`,
     `• Background tasks: ${taskLines[0]}`,
     ...(taskLines.length > 1 ? taskLines.slice(1).map((l) => `  - ${l}`) : []),
+    ...(fileLines.length ? ['', 'Workspace / file resolution:'] : []),
+    ...(fileLines.length ? fileLines.map((l) => `  ${l}`) : []),
   ];
 
   if (contextLines.length > 0) {
