@@ -71,7 +71,11 @@ async function healthPollTick() {
   // Never overwrite authoritative Electron state with a derived poll.
   if (electronConnected) return;
   try {
-    const res = await fetch('/api/health', { signal: AbortSignal.timeout(2500) });
+    // file:// (production Electron loads dist/index.html) has no HTTP origin,
+    // so a relative '/api/health' resolves to file:///api/health and fails.
+    // Mirror the apiClient's file-aware base (default: localhost:4600/api).
+    const base = window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
+    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       consecutivePollFailures = 0;
       merge({

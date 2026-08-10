@@ -94,7 +94,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         apiClient.getResearchBriefs(),
         apiClient.getLeads(),
         apiClient.getSchedules(),
-        fetch('/api/settings/gateway/credentials-status').then(res => res.ok ? res.json() : {})
+        // file:// (production Electron loads dist/index.html) has no HTTP
+        // origin; a relative fetch would resolve to file:///api/... and fail,
+        // rejecting the whole Promise.all and trapping AppShell in the error
+        // gate even though the backend lifecycle is READY. Use the same
+        // file-aware base as apiClient.
+        fetch(`${window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api'}/settings/gateway/credentials-status`).then(res => res.ok ? res.json() : {})
       ]);
 
       setState(prev => ({

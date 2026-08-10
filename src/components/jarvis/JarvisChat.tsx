@@ -18,6 +18,12 @@ import { GatewayNotice } from '../gateway/GatewayNotice';
 import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
 import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
 import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
+
+// file:// (production Electron loads dist/index.html) has no HTTP origin, so
+// relative '/api' fetches resolve to file:///api/... and fail with
+// "Failed to fetch". Mirror the apiClient's file-aware base so Jarvis
+// requests reach the backend in production.
+const API_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
 import styles from '../../pages/JarvisStudio.module.css';
 
 /**
@@ -341,7 +347,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       return;
     }
     try {
-      const res = await fetch(`/api/jarvis/conversations/${conversationId}/messages`);
+      const res = await fetch(`${API_BASE}/jarvis/conversations/${conversationId}/messages`);
       const data = await res.json();
       if (Array.isArray(data)) {
         if (merge) {
@@ -605,7 +611,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     let targetConversationId = conversationId;
     if (!targetConversationId) {
       try {
-        const createRes = await fetch('/api/jarvis/conversations', {
+        const createRes = await fetch(`${API_BASE}/jarvis/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: text.slice(0, 40) || 'New Conversation' }),
@@ -670,7 +676,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       const fetchStartAt = Date.now();
       if (DEV_TIMING) console.debug('[JarvisChat:timing] fetch-start', { operationId, inputChannel, ms: fetchStartAt - t0 });
 
-      const res = await fetch(`/api/jarvis/conversations/${targetConversationId}/message/stream`, {
+      const res = await fetch(`${API_BASE}/jarvis/conversations/${targetConversationId}/message/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -778,7 +784,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {
-    const fallbackRes = await fetch(`/api/jarvis/conversations/${conversationId}/message`, {
+    const fallbackRes = await fetch(`${API_BASE}/jarvis/conversations/${conversationId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,

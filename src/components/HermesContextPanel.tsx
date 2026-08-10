@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AgentRuntimeSelector } from './agents/AgentRuntimeSelector';
 
+// file:// (production Electron loads dist/index.html) has no HTTP origin, so
+// relative '/api' fetches fail. Mirror the apiClient file-aware base.
+const API_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
+
 interface HermesContextPanelProps {}
 
 interface MemoryEntry {
@@ -17,8 +21,8 @@ const HermesContextPanel: React.FC<HermesContextPanelProps> = () => {
     const fetchMemory = async () => {
       try {
         const [wsRes, sessRes] = await Promise.all([
-          fetch('/api/memory/entries?scopeId=mem-workspace'),
-          fetch('/api/memory/entries?scopeId=mem-session')
+          fetch(`${API_BASE}/memory/entries?scopeId=mem-workspace`),
+          fetch(`${API_BASE}/memory/entries?scopeId=mem-session`)
         ]);
         const wsData = await wsRes.json();
         const sessData = await sessRes.json();

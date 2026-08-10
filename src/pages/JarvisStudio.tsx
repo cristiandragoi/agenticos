@@ -12,6 +12,11 @@ import type { MicState } from '../components/jarvis/JarvisComposer';
 import { JarvisComposer } from '../components/jarvis/JarvisComposer';
 import { ExecutionBar } from '../components/jarvis/ExecutionBar';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
+
+// file:// (production Electron loads dist/index.html) has no HTTP origin, so
+// relative '/api' fetches fail with "Failed to fetch". Mirror the apiClient's
+// file-aware base so the Jarvis page reaches the backend in production.
+const API_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
 import { useBackendLifecycle } from '../diagnostics/useBackendLifecycle';
 import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
@@ -353,7 +358,7 @@ export default function JarvisStudio() {
 
   const handleNewConversation = useCallback(async () => {
     try {
-      const res = await fetch('/api/jarvis/conversations', {
+      const res = await fetch(`${API_BASE}/jarvis/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'New Conversation' }),
@@ -371,7 +376,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/jarvis/conversations');
+        const res = await fetch(`${API_BASE}/jarvis/conversations`);
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled || !Array.isArray(data) || data.length === 0) return;
@@ -448,7 +453,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const check = async () => {
       try {
-        const res = await fetch('/api/hermes-api/status');
+        const res = await fetch(`${API_BASE}/hermes-api/status`);
         if (res.ok && !cancelled) setHermesStatus(await res.json());
       } catch { /* status chip shows offline */ }
     };
@@ -461,14 +466,14 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/hermes-api/runs');
+        const res = await fetch(`${API_BASE}/hermes-api/runs`);
         if (!res.ok) return;
         const runs: HermesRun[] = await res.json();
         if (cancelled) return;
         setHermesRuns(runs);
         const live = runs.find(r => ['waiting_for_approval', 'running', 'queued', 'stopping'].includes(r.status));
         if (live && live.id !== activeRun?.id) {
-          const detail = await fetch(`/api/hermes-api/runs/${live.id}`);
+          const detail = await fetch(`${API_BASE}/hermes-api/runs/${live.id}`);
           if (detail.ok && !cancelled) setActiveRun(await detail.json());
         } else if (!live) {
           // §4: ACTIVE RUN shows ONLY current work. A finished run is
@@ -501,7 +506,7 @@ export default function JarvisStudio() {
 
   const pollTasks = useCallback(async () => {
     try {
-      const res = await fetch('/api/background-tasks/summary');
+      const res = await fetch(`${API_BASE}/background-tasks/summary`);
       if (res.ok) setTaskSummary(await res.json());
     } catch { /* panel keeps last good state */ }
   }, []);
@@ -590,7 +595,7 @@ export default function JarvisStudio() {
     if (!selectedTaskId || taskControlBusy) return;
     setTaskControlBusy(true);
     try {
-      await fetch(`/api/background-tasks/${encodeURIComponent(selectedTaskId)}/${action}`, {
+      await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(selectedTaskId)}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -604,7 +609,7 @@ export default function JarvisStudio() {
     if (!activeRun || approvalChoiceBusy) return;
     setApprovalChoiceBusy(true);
     try {
-      await fetch(`/api/hermes-api/runs/${activeRun.id}/approval`, {
+      await fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice }),
@@ -619,7 +624,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/background-tasks/approvals');
+        const res = await fetch(`${API_BASE}/background-tasks/approvals`);
         if (res.ok && !cancelled) setTaskApprovals(await res.json());
       } catch { /* keep last known list */ }
     };
@@ -632,13 +637,13 @@ export default function JarvisStudio() {
     if (!pendingTaskApproval || approvalChoiceBusy) return;
     setApprovalChoiceBusy(true);
     try {
-      await fetch(`/api/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
+      await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice }),
       });
       // Refresh immediately so the modal clears when resolved.
-      const res = await fetch('/api/background-tasks/approvals');
+      const res = await fetch(`${API_BASE}/background-tasks/approvals`);
       if (res.ok) setTaskApprovals(await res.json());
     } catch { /* modal stays until the approval state changes */ }
     setApprovalChoiceBusy(false);
@@ -731,7 +736,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/health/system');
+        const res = await fetch(`${API_BASE}/health/system`);
         if (!res.ok) { if (!cancelled) setSys(null); return; }
         const data = await res.json();
         if (!cancelled) setSys(data);
