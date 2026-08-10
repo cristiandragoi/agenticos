@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../api/client';
 import { AgentRuntimeSelector } from './agents/AgentRuntimeSelector';
 
-// file:// (production Electron loads dist/index.html) has no HTTP origin, so
-// relative '/api' fetches fail. Mirror the apiClient file-aware base.
-const API_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
 
 interface HermesContextPanelProps {}
 

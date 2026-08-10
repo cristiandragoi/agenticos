@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 
-const API_BASE = "/api";
+import { apiFetch, apiUrl } from '../api/client';
+const API_BASE = apiUrl('/api');
 
 export function useBoards() {
   const [boards, setBoards] = useState([]);
   useEffect(() => {
-    fetch(`${API_BASE}/kanban/boards`).then(res => res.json()).then(setBoards);
+    apiFetch(`${API_BASE}/kanban/boards`).then(res => res.json()).then(setBoards);
   }, []);
   return boards;
 }
@@ -14,7 +15,7 @@ export function useColumns(boardId: string | undefined) {
   const [columns, setColumns] = useState([]);
   useEffect(() => {
     if (!boardId) return;
-    fetch(`${API_BASE}/kanban/boards/${boardId}/columns`).then(res => res.json()).then(setColumns);
+    apiFetch(`${API_BASE}/kanban/boards/${boardId}/columns`).then(res => res.json()).then(setColumns);
   }, [boardId]);
   return columns;
 }
@@ -23,7 +24,7 @@ export function useLanes(columnId: string | undefined) {
   const [lanes, setLanes] = useState([]);
   useEffect(() => {
     if (!columnId) return;
-    fetch(`${API_BASE}/kanban/columns/${columnId}/lanes`).then(res => res.json()).then(setLanes);
+    apiFetch(`${API_BASE}/kanban/columns/${columnId}/lanes`).then(res => res.json()).then(setLanes);
   }, [columnId]);
   return lanes;
 }
@@ -32,13 +33,13 @@ export function useCards(laneId: string | undefined) {
   const [cards, setCards] = useState<any[]>([]);
   useEffect(() => {
     if (!laneId) return;
-    fetch(`${API_BASE}/kanban/lanes/${laneId}/cards`).then(res => res.json()).then(setCards);
+    apiFetch(`${API_BASE}/kanban/lanes/${laneId}/cards`).then(res => res.json()).then(setCards);
   }, [laneId]);
   
   // We attach a reload function so mutations can force a refresh if needed
   // (In a real app we'd use SWR or React Query)
   const reload = () => {
-    fetch(`${API_BASE}/kanban/lanes/${laneId}/cards`).then(res => res.json()).then(setCards);
+    apiFetch(`${API_BASE}/kanban/lanes/${laneId}/cards`).then(res => res.json()).then(setCards);
   };
   
   return Object.assign(cards, { reload });
@@ -48,7 +49,7 @@ export function useRun(runId: string | undefined) {
   const [run, setRun] = useState<any>(null);
   useEffect(() => {
     if (!runId) return;
-    const fetchRun = () => fetch(`${API_BASE}/kanban/runs/${runId}`).then(res => res.json()).then(setRun);
+    const fetchRun = () => apiFetch(`${API_BASE}/kanban/runs/${runId}`).then(res => res.json()).then(setRun);
     fetchRun();
     const interval = setInterval(fetchRun, 2000); // simple polling
     return () => clearInterval(interval);
@@ -59,7 +60,7 @@ export function useRun(runId: string | undefined) {
 export function useKanbanMutations() {
   return {
     createBoard: async (data: any) => {
-      const res = await fetch(`${API_BASE}/kanban/boards`, {
+      const res = await apiFetch(`${API_BASE}/kanban/boards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -67,7 +68,7 @@ export function useKanbanMutations() {
       return res.json();
     },
     createColumn: async (data: any) => {
-      const res = await fetch(`${API_BASE}/kanban/columns`, {
+      const res = await apiFetch(`${API_BASE}/kanban/columns`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -75,7 +76,7 @@ export function useKanbanMutations() {
       return res.json();
     },
     createLane: async (data: any) => {
-      const res = await fetch(`${API_BASE}/kanban/lanes`, {
+      const res = await apiFetch(`${API_BASE}/kanban/lanes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -83,7 +84,7 @@ export function useKanbanMutations() {
       return res.json();
     },
     createCard: async (data: any) => {
-      const res = await fetch(`${API_BASE}/kanban/cards`, {
+      const res = await apiFetch(`${API_BASE}/kanban/cards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
@@ -91,7 +92,7 @@ export function useKanbanMutations() {
       return res.json();
     },
     moveCard: async (data: any) => {
-      const res = await fetch(`${API_BASE}/kanban/cards/${data.cardId}/move`, {
+      const res = await apiFetch(`${API_BASE}/kanban/cards/${data.cardId}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ toLaneId: data.toLaneId, toOrder: data.toOrder })
@@ -99,7 +100,7 @@ export function useKanbanMutations() {
       return res.json();
     },
     updateLaneConfig: async (laneId: string, config: any) => {
-      const res = await fetch(`${API_BASE}/kanban/lanes/${laneId}/config`, {
+      const res = await apiFetch(`${API_BASE}/kanban/lanes/${laneId}/config`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config)
@@ -109,7 +110,7 @@ export function useKanbanMutations() {
 
     /** Execute a card through the backend kanban adapter pipeline. Returns { runId, cardId }. */
     executeCard: async (cardId: string, prompt: string) => {
-      const res = await fetch(`${API_BASE}/kanban/cards/${cardId}/execute`, {
+      const res = await apiFetch(`${API_BASE}/kanban/cards/${cardId}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
@@ -126,7 +127,7 @@ export function useKanbanMutations() {
       cardTitle: string;
       cardBody: string;
     }) => {
-      const res = await fetch(`${API_BASE}/dispatch/dispatch`, {
+      const res = await apiFetch(`${API_BASE}/dispatch/dispatch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -139,7 +140,7 @@ export function useKanbanMutations() {
 export function useRevenueIntelligenceSummary() {
   const [summary, setSummary] = useState<any>(null);
   useEffect(() => {
-    fetch(`${API_BASE}/revenue/intelligence/summary`)
+    apiFetch(`${API_BASE}/revenue/intelligence/summary`)
       .then(res => res.json())
       .then(setSummary)
       .catch(console.error);
@@ -150,7 +151,7 @@ export function useRevenueIntelligenceSummary() {
 export function useRevenueIntelligenceAgents() {
   const [agents, setAgents] = useState<any[]>([]);
   useEffect(() => {
-    fetch(`${API_BASE}/revenue/intelligence/agents`)
+    apiFetch(`${API_BASE}/revenue/intelligence/agents`)
       .then(res => res.json())
       .then(setAgents)
       .catch(console.error);
@@ -161,7 +162,7 @@ export function useRevenueIntelligenceAgents() {
 export function useRevenueIntelligencePrompts() {
   const [prompts, setPrompts] = useState<any[]>([]);
   useEffect(() => {
-    fetch(`${API_BASE}/revenue/intelligence/prompts`)
+    apiFetch(`${API_BASE}/revenue/intelligence/prompts`)
       .then(res => res.json())
       .then(setPrompts)
       .catch(console.error);
@@ -172,7 +173,7 @@ export function useRevenueIntelligencePrompts() {
 export function useRevenueIntelligenceCampaigns() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   useEffect(() => {
-    fetch(`${API_BASE}/revenue/intelligence/campaigns`)
+    apiFetch(`${API_BASE}/revenue/intelligence/campaigns`)
       .then(res => res.json())
       .then(setCampaigns)
       .catch(console.error);

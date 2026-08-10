@@ -12,6 +12,7 @@ import {
 } from '../../presenters/executionStatus';
 import { getToolLabel } from '../../presenters/EventPresenter';
 import { normalizeExecutionEvent } from '../../utils/normalize';
+import { apiFetch, apiUrl } from '../../api/client';
 
 const CONNECTION_STYLE: Record<ConnectionState, { dot: string; text: string; label: string }> = {
   idle_connected: { dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'Ready' },
@@ -86,13 +87,13 @@ export const CurrentActionCard: React.FC<Props> = ({ goal }) => {
     setControlBusy(kind);
     try {
       if (kind === 'pause') {
-        await fetch(`/api/chat/agents/goal/${activeGoalId}/pause`, { method: 'POST' });
+        await apiFetch(`/api/chat/agents/goal/${activeGoalId}/pause`, { method: 'POST' });
         setGoalStatus('pause_requested');
       } else if (kind === 'resume') {
-        await fetch(`/api/chat/agents/goal/${activeGoalId}/resume`, { method: 'POST' });
+        await apiFetch(`/api/chat/agents/goal/${activeGoalId}/resume`, { method: 'POST' });
         setGoalStatus('queued');
       } else {
-        await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+        await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'abort' })

@@ -5,6 +5,7 @@ import { useData } from '../store/dataStore';
 import { JarvisOrb } from '../components/jarvis/JarvisOrb';
 import { JarvisConversationPanel } from '../components/jarvis/JarvisConversationPanel';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
+import { apiFetch, apiUrl } from '../api/client';
 
 function cleanError(message?: string | null) {
   if (!message) return 'No details available.';
@@ -86,7 +87,7 @@ const MissionControlPage: React.FC = () => {
     let cancelled = false;
     const checkHealth = async () => {
       try {
-        const res = await fetch('/api/health/gateway');
+        const res = await apiFetch('/api/health/gateway');
         if (!res.ok) {
           if (!cancelled) setBackendOffline(true);
           return;

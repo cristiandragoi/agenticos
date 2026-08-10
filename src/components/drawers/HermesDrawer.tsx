@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useData } from '../../store/dataStore';
 import { useDrawer } from '../../store/appStore';
 import DrawerShell from './DrawerShell';
+import { apiFetch, apiUrl } from '../../api/client';
 import {
   Terminal, Send, Loader2, Mic, MicOff, Trash2,
   Volume2, ChevronDown, Brain, Wrench, FileText,
@@ -87,7 +88,7 @@ const HermesDrawer: React.FC = () => {
 
   const speakText = async (text: string) => {
     try {
-      const res = await fetch('/api/voice/tts', {
+      const res = await apiFetch('/api/voice/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, agentId: 'agent-hermes' }),
@@ -125,7 +126,7 @@ const HermesDrawer: React.FC = () => {
     });
 
     try {
-      const res = await fetch('/api/voice/execute', {
+      const res = await apiFetch('/api/voice/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, agentId: 'agent-hermes', model: selectedModel.id }),
@@ -187,7 +188,7 @@ const HermesDrawer: React.FC = () => {
         try {
           const fd = new FormData();
           fd.append('audio', blob, 'audio.webm');
-          const transRes = await fetch('/api/voice/transcribe', { method: 'POST', body: fd });
+          const transRes = await apiFetch('/api/voice/transcribe', { method: 'POST', body: fd });
           if (transRes.ok) {
             const { text } = await transRes.json();
             if (text?.trim()) {

@@ -6,7 +6,8 @@ import {
   ChevronDown, ChevronRight, Copy
 } from 'lucide-react';
 
-const API = '/api/pipeline/welders';
+import { apiFetch, apiUrl } from '../api/client';
+const API = apiUrl('/api/pipeline/welders');
 
 const STEP_DEFS = [
   { id: 'jobDiscovery', name: 'Stage A: Job Discovery', desc: 'Find hiring companies in DE+NL via Apify' },

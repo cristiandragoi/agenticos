@@ -6,6 +6,7 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { useHermesStore } from '../store/hermesStore';
 import type { HermesTask, HermesTaskStatus } from '../store/hermesStore';
 import type { AgentSkill } from '../../shared/types/skill';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface HermesKanbanBoardProps {}
 
@@ -15,12 +16,12 @@ const HermesKanbanBoard: React.FC<HermesKanbanBoardProps> = () => {
   const [selectedTask, setSelectedTask] = useState<HermesTask | null>(null);
 
   useEffect(() => {
-    fetch('/api/skills')
+    apiFetch('/api/skills')
       .then(res => res.json())
       .then(data => setSkills(data || []))
       .catch(console.error);
       
-    fetch('/api/tasks')
+    apiFetch('/api/tasks')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setAllTasks(data);
@@ -43,7 +44,7 @@ const HermesKanbanBoard: React.FC<HermesKanbanBoardProps> = () => {
     moveTask(cardId, overLaneId as HermesTaskStatus);
     
     // Optimistic update to backend
-    fetch(`/api/tasks/${cardId}`, {
+    apiFetch(`/api/tasks/${cardId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: overLaneId })
@@ -150,7 +151,7 @@ function HermesCard({ card, skills, onClick }: { card: HermesTask, skills: Agent
     updateTaskStatus(card.id, 'in_progress');
     
     try {
-      const res = await fetch('/api/runs', {
+      const res = await apiFetch('/api/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -304,7 +305,7 @@ function TaskModal({ task, skills, onClose }: { task: HermesTask, skills: AgentS
     setExecuting(true);
     updateTaskStatus(task.id, 'in_progress');
     try {
-      await fetch('/api/runs', {
+      await apiFetch('/api/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

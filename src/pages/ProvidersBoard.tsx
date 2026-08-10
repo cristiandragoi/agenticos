@@ -6,6 +6,7 @@ import EntityCard from '../components/ui/EntityCard';
 import StatusBadge from '../components/ui/StatusBadge';
 import ContextChip from '../components/ui/ContextChip';
 import { loadProviderKeys, removeProviderKey } from '../store/providerKeys';
+import { apiFetch, apiUrl } from '../api/client';
 import {
   HardDrive, Cloud, Server, Key, CheckCircle, XCircle,
   AlertTriangle, Cpu, Globe, Shield, Activity, Wifi,
@@ -105,7 +106,7 @@ const ProvidersBoard: React.FC = () => {
       if (entry.keyValue) {
         const canonicalId = mapLegacyIdToCanonical(id);
         try {
-          const res = await fetch(`/api/settings/provider-credentials/${canonicalId}`, {
+          const res = await apiFetch(`/api/settings/provider-credentials/${canonicalId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ apiKey: entry.keyValue })

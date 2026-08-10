@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Layers, Plus, TerminalSquare, CheckCircle, XCircle } from 'lucide-react';
 import type { AgentSkill } from '../../shared/types/skill';
+import { apiFetch, apiUrl } from '../api/client';
 
 export default function Skills() {
   const [skills, setSkills] = useState<AgentSkill[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/skills')
+    apiFetch('/api/skills')
       .then(r => r.json())
       .then(data => {
         setSkills(data || []);

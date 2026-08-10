@@ -1,3 +1,4 @@
+import { apiUrl } from '../api/client';
 export function useAgentCommand() {
   const runAgentCommand = async (
     agentId: string, 
@@ -7,12 +8,12 @@ export function useAgentCommand() {
   ) => {
     try {
       // Map agent selections to their specific pipelines
-      let pipelineRoute = '/api/agentic/pipelines/jarvis-voice-pipeline/run';
+      let pipelineRoute = apiUrl('/api/agentic/pipelines/jarvis-voice-pipeline/run');
       
       if (agentId === 'agent-video') {
-        pipelineRoute = '/api/agentic/pipelines/loop-welders-pipeline/run';
+        pipelineRoute = apiUrl('/api/agentic/pipelines/loop-welders-pipeline/run');
       } else if (agentId === 'agent-qwythos') {
-        pipelineRoute = '/api/agentic/pipelines/qwythos-workspace-pipeline/run';
+        pipelineRoute = apiUrl('/api/agentic/pipelines/qwythos-workspace-pipeline/run');
       }
 
       // We use the actual pipeline endpoints instead of the non-existent /api/tools

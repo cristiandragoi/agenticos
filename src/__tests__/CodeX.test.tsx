@@ -24,16 +24,17 @@ describe('CodeX StudioChat Provider Configuration', () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith('/api/chat/agents/goal', expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('"providerOverride":"ollama"')
+        method: 'POST'
       }));
     });
     const targetCall = fetchSpy.mock.calls.find((call: any[]) => call[0] === '/api/chat/agents/goal');
     expect(targetCall).toBeDefined();
     
     const payload = JSON.parse(targetCall![1]?.body as string);
+    expect(payload.goal).toBe('Test plan');
+    expect(payload.agentId).toBe('agent-codex');
     expect(payload.executionOptions).toBeDefined();
-      expect(payload.executionOptions.disableFallback).toBe(true);
+    expect(payload.executionOptions.executionProviderId).toBe('auto');
 
     fetchSpy.mockRestore();
   });

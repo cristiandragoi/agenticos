@@ -12,6 +12,7 @@ import { useChat } from '../store/appStore';
 import { useNavigate } from 'react-router-dom';
 import { useKanbanMutations } from '../lib/dataport';
 import ReviewQueuePanel from '../components/revenue/ReviewQueuePanel';
+import { apiFetch, apiUrl } from '../api/client';
 
 /* ═══════════════════════════════════════════════
    TYPES
@@ -352,7 +353,7 @@ function ChatPanel({ showAdvanced }: { showAdvanced?: boolean }) {
     setIsSending(true);
 
     try {
-      const runRes = await fetch('/api/chat/message', {
+      const runRes = await apiFetch('/api/chat/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -372,7 +373,7 @@ function ChatPanel({ showAdvanced }: { showAdvanced?: boolean }) {
         id: agentMsgId, role: 'agent', content: '', timestamp: new Date().toISOString()
       }]);
 
-      const evtSource = new EventSource(`/api/chat/stream/${runId}`);
+      const evtSource = new EventSource(apiUrl(`/api/chat/stream/${runId}`));
       
       evtSource.addEventListener('chat_chunk', (e: any) => {
         try {
@@ -427,7 +428,7 @@ function ChatPanel({ showAdvanced }: { showAdvanced?: boolean }) {
         const fd = new FormData();
         fd.append('audio', blob, 'audio.webm');
         try {
-          const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd });
+          const res = await apiFetch('/api/voice/transcribe', { method: 'POST', body: fd });
           if (res.ok) {
             const { text } = await res.json();
             if (text) { setInput(text); sendMsg(text); }

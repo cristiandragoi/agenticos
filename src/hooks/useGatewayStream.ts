@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { GatewayUiEvent } from '../types';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface UseGatewayStreamProps {
   conversationId: string | null;
@@ -13,7 +14,7 @@ export function useGatewayStream({ conversationId, onMessage, onGatewayEvent }: 
   useEffect(() => {
     if (!conversationId || typeof EventSource === 'undefined') return;
 
-    const es = new EventSource(`/api/jarvis/stream/${conversationId}`);
+    const es = new EventSource(apiUrl(`/api/jarvis/stream/${conversationId}`));
     
     const isStale = (opId?: string) => {
       if (!opId) return false;

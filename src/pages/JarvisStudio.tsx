@@ -12,11 +12,8 @@ import type { MicState } from '../components/jarvis/JarvisComposer';
 import { JarvisComposer } from '../components/jarvis/JarvisComposer';
 import { ExecutionBar } from '../components/jarvis/ExecutionBar';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
+import { apiUrl, API_BASE } from '../api/client';
 
-// file:// (production Electron loads dist/index.html) has no HTTP origin, so
-// relative '/api' fetches fail with "Failed to fetch". Mirror the apiClient's
-// file-aware base so the Jarvis page reaches the backend in production.
-const API_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
 import { useBackendLifecycle } from '../diagnostics/useBackendLifecycle';
 import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
@@ -563,7 +560,7 @@ export default function JarvisStudio() {
   useEffect(() => {
     if (!selectedTaskId) return;
     let cancelled = false;
-    const es = new EventSource(`/api/background-tasks/${encodeURIComponent(selectedTaskId)}/events`);
+    const es = new EventSource(apiUrl(`/api/background-tasks/${encodeURIComponent(selectedTaskId)}/events`));
     const handler = (ev: MessageEvent) => {
       if (cancelled) return;
       try {

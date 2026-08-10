@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import DrawerShell from './DrawerShell';
 import StatusBadge from '../ui/StatusBadge';
 import ContextChip from '../ui/ContextChip';
-import { apiClient } from '../../api/client';
+import { apiClient, apiFetch, apiUrl } from '../../api/client';
 import {
   Key, Eye, EyeOff, CheckCircle, XCircle, Users, RefreshCw,
   Activity, Wifi, WifiOff, Monitor, Globe, Server, Cpu,
@@ -94,7 +94,7 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
   // Load server-side key status on mount
   useEffect(() => {
     if (provider && provider.authScheme !== 'none') {
-      fetch(`/api/settings/provider-credentials/${provider.id}`)
+      apiFetch(`/api/settings/provider-credentials/${provider.id}`)
         .then(res => res.json())
         .then(data => setServerKeyStatus({ hasKey: data.configured, maskedKey: data.maskedPreview, envVar: null }))
         .catch(() => {});
@@ -123,7 +123,7 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
     if (!trimmed) return;
     setSavingToServer(true);
     try {
-      const res = await fetch(`/api/settings/provider-credentials/${provider.id}`, {
+      const res = await apiFetch(`/api/settings/provider-credentials/${provider.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: trimmed })
@@ -144,7 +144,7 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
 
   const handleRemoveKey = async () => {
     try {
-      await fetch(`/api/settings/provider-credentials/${provider.id}`, { method: 'DELETE' });
+      await apiFetch(`/api/settings/provider-credentials/${provider.id}`, { method: 'DELETE' });
       setServerKeyStatus(null);
       setTestResult(null);
       refresh();
@@ -163,7 +163,7 @@ const ProviderDrawer: React.FC<ProviderDrawerProps> = ({
 
   const handleRefresh = async () => {
     try {
-      const res = await fetch(`/api/providers/${provider.id}/refresh`, {
+      const res = await apiFetch(`/api/providers/${provider.id}/refresh`, {
         method: 'POST',
       });
       if (res.ok) refresh();

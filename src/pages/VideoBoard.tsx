@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clapperboard, Plus, Clock, CheckCircle, XCircle, Film, Monitor, Zap, LayoutDashboard } from 'lucide-react';
 import StatusBadge from '../components/ui/StatusBadge';
+import { apiFetch, apiUrl } from '../api/client';
 
 type VideoFormat = 'vertical-short' | 'landscape-long' | 'animated' | 'screen-record';
 type VideoStage = 'scripting' | 'asset-gathering' | 'rendering' | 'review' | 'publish';
@@ -76,7 +77,7 @@ const VideoBoard: React.FC = () => {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch('/api/video/jobs');
+      const res = await apiFetch('/api/video/jobs');
       if (res.ok) setJobs(await res.json());
     } catch (err) {
       console.error('Failed to fetch video jobs', err);
@@ -95,7 +96,7 @@ const VideoBoard: React.FC = () => {
     jobs.filter(j => j.status === 'running').forEach(job => {
       const ctrl = new AbortController();
       controllers.push(ctrl);
-      const es = new EventSource(`/api/video/stream/${job.id}`);
+      const es = new EventSource(apiUrl(`/api/video/stream/${job.id}`));
       es.addEventListener('video_stage', (e) => {
         const data = JSON.parse(e.data);
         setJobs(prev => prev.map(j => j.id === job.id
@@ -113,7 +114,7 @@ const VideoBoard: React.FC = () => {
     if (!newPrompt.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch('/api/video/jobs', {
+      const res = await apiFetch('/api/video/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: newPrompt, format: newFormat, targetDurationSeconds: newDuration }),
@@ -124,7 +125,7 @@ const VideoBoard: React.FC = () => {
         setShowCreateModal(false);
         setNewPrompt('');
         // Subscribe to new job's SSE
-        const es = new EventSource(`/api/video/stream/${job.id}`);
+        const es = new EventSource(apiUrl(`/api/video/stream/${job.id}`));
         es.addEventListener('video_stage', (e) => {
           const data = JSON.parse(e.data);
           setJobs(prev => prev.map(j => j.id === job.id

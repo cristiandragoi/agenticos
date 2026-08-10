@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Cpu, Cloud, WifiOff, ChevronDown, Check } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 export interface RuntimeStatusWidgetProps {
   agent: 'CodeX' | 'Jarvis' | 'Ornith';
@@ -28,13 +29,13 @@ export const RuntimeStatusWidget: React.FC<RuntimeStatusWidgetProps> = ({ agent,
   }, [agent]);
 
   useEffect(() => {
-    fetch('/api/providers/runtime-status')
+    apiFetch('/api/providers/runtime-status')
       .then(res => res.json())
       .then(data => setStatus(data))
       .catch(console.error);
 
     const interval = setInterval(() => {
-      fetch('/api/providers/runtime-status')
+      apiFetch('/api/providers/runtime-status')
         .then(res => res.json())
         .then(data => setStatus(data))
         .catch(console.error);

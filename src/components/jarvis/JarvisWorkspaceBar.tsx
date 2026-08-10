@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FolderGit2, Loader2, AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { useCodexStore } from '../../store/codexStore';
+import { apiFetch, apiUrl } from '../../api/client';
 
 /**
  * Compact workspace + approval-policy bar for Jarvis.
@@ -22,7 +23,7 @@ export const JarvisWorkspaceBar: React.FC = () => {
     setIsDetecting(true);
     setWorkspaceError(null);
     try {
-      const res = await fetch('/api/workspace/detect', {
+      const res = await apiFetch('/api/workspace/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ basePath: requestedPath || undefined })
@@ -39,7 +40,7 @@ export const JarvisWorkspaceBar: React.FC = () => {
           setRunSettings(prev => ({ ...prev, folderTree: requestedPath || roots[0], workspacePath: roots[0] }));
           // §1: publish the confirmed repository to the canonical server
           // workspace store — every agent/worker resolves files against it.
-          void fetch('/api/workspace/select', {
+          void apiFetch('/api/workspace/select', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ workspaceRoot: roots[0] }),

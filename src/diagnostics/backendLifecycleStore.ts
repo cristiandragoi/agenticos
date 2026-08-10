@@ -12,6 +12,8 @@
  * connectivity from their own fetch failures.
  */
 
+import { API_BASE } from '../api/client';
+
 export type BackendMode = 'AUTO_MANAGED' | 'EXTERNAL' | 'UNKNOWN';
 export type BackendLifecycleStatus = 'starting' | 'ready' | 'reconnecting' | 'offline' | 'failed';
 
@@ -73,9 +75,8 @@ async function healthPollTick() {
   try {
     // file:// (production Electron loads dist/index.html) has no HTTP origin,
     // so a relative '/api/health' resolves to file:///api/health and fails.
-    // Mirror the apiClient's file-aware base (default: localhost:4600/api).
-    const base = window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
-    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2500) });
+    // API_BASE is the canonical file-aware base (default: localhost:4600/api).
+    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       consecutivePollFailures = 0;
       merge({

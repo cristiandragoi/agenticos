@@ -5,7 +5,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import ContextChip from '../components/ui/ContextChip';
 import { useChatManager } from '../hooks/useChatManager';
 import { useRevenueIntelligenceSummary } from '../lib/dataport';
-import { apiClient } from '../api/client';
+import { apiClient, apiFetch, apiUrl } from '../api/client';
 import {
   Send,
   Loader2,
@@ -1077,7 +1077,7 @@ const ControlRoom: React.FC = () => {
                 className="btn btn-primary"
                 onClick={() => {
                   if (!hgProjectName || !hgBrief) return;
-                  fetch('/api/heavy-gen/fugu', {
+                  apiFetch('/api/heavy-gen/fugu', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ projectName: hgProjectName, brief: hgBrief })
@@ -1096,7 +1096,7 @@ const ControlRoom: React.FC = () => {
                 className="btn btn-primary"
                 onClick={() => {
                   if (!hgProjectName || !hgBrief) return;
-                  fetch('/api/heavy-gen/fusion', {
+                  apiFetch('/api/heavy-gen/fusion', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ projectName: hgProjectName, brief: hgBrief })

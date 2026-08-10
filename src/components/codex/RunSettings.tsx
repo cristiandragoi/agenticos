@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings2, ChevronDown, ChevronRight, Loader2, FolderGit2 } from 'lucide-react';
 import { AgentRuntimeSelector } from '../agents/AgentRuntimeSelector';
+import { apiFetch, apiUrl } from '../../api/client';
 
 export interface RunSettingsValues {
   folderTree: string;
@@ -62,7 +63,7 @@ export const RunSettings: React.FC<Props> = ({
   const editable = !disabled && !!onChange;
 
   useEffect(() => {
-    fetch('/api/providers')
+    apiFetch('/api/providers')
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const body = await response.json();

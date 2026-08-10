@@ -3,6 +3,7 @@ import { Activity, FolderGit2, Cpu, MessageSquare, ChevronDown, ChevronRight } f
 import styles from '../../pages/JarvisStudio.module.css';
 import { useCodexStore } from '../../store/codexStore';
 import { providerLabel, approvalLabel } from '../codex/RunSettings';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface JarvisInspectorProps {
   activeConversation: any;
@@ -19,7 +20,7 @@ export const JarvisInspector: React.FC<JarvisInspectorProps> = ({ activeConversa
   const [diagOpen, setDiagOpen] = useState(false);
 
   useEffect(() => {
-    fetch('/api/jarvis/diagnostics')
+    apiFetch('/api/jarvis/diagnostics')
       .then(res => res.json())
       .then(setDiagnostics)
       .catch(console.error);

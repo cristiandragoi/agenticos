@@ -1,3 +1,5 @@
+import { apiFetch, apiUrl } from '../api/client';
+
 /**
  * LocalStorage-backed API key store for Agentic OS.
  * Keys are stored in localStorage under 'agenticos:provider-keys'.
@@ -78,7 +80,7 @@ export async function testProviderKey(providerId: string): Promise<{
 }> {
   try {
     const start = performance.now();
-    const res = await fetch(`/api/providers/${providerId}/test`, {
+    const res = await apiFetch(`/api/providers/${providerId}/test`, {
       method: 'POST',
     });
     const latencyMs = Math.round(performance.now() - start);

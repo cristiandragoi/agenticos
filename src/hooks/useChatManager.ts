@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAppDispatch } from '../store/appStore';
-import { apiClient } from '../api/client';
+import { apiClient, apiFetch } from '../api/client';
 import { subscribeToRun } from '../api/stream';
 
 export function useChatManager() {
@@ -75,7 +75,7 @@ export function useChatManager() {
                   });
 
                   // Execute the background job
-                  fetch(`/api/heavy-gen/${endpoint}`, {
+                  apiFetch(`/api/heavy-gen/${endpoint}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -93,7 +93,7 @@ export function useChatManager() {
                     type: 'UPDATE_MESSAGE_CONTENT',
                     payload: { id: agentMsgId, content: cleanContent || '*(Triggering Welders Lead Pipeline in the background)*' }
                   });
-                  fetch('/api/pipeline/welders/run', {
+                  apiFetch('/api/pipeline/welders/run', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                   }).catch(console.error);
@@ -110,7 +110,7 @@ export function useChatManager() {
                   // Trigger task creation for each task
                   if (Array.isArray(kanbanJson.tasks)) {
                     kanbanJson.tasks.forEach((t: any, i: number) => {
-                      fetch('/api/kanban/cards', {
+                      apiFetch('/api/kanban/cards', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

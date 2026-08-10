@@ -7,6 +7,7 @@ import { StudioRecovery } from './StudioRecovery';
 import { StudioPlan } from './StudioPlan';
 import { StudioFiles } from './StudioFiles';
 import { MessageSquare, LayoutList, Kanban, FolderCode, GitCompare, TerminalSquare, ShieldCheck, Activity, Save } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface Props {
   activeGoalId: string | null;
@@ -42,7 +43,7 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
 
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${activeGoalId}`);
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
         const data = await res.json();
         if (data.history) {
           setEvents(data.history);
@@ -69,8 +70,8 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
     }
 
     const streamUrl = lastSequence > 0
-      ? `/api/chat/agents/goal/stream/${activeGoalId}?lastEventId=${lastSequence}`
-      : `/api/chat/agents/goal/stream/${activeGoalId}`;
+      ? apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}?lastEventId=${lastSequence}`)
+      : apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}`);
     es = new EventSource(streamUrl);
     activeGoalStreams.set(activeGoalId, es);
 

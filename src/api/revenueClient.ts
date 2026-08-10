@@ -1,3 +1,5 @@
+import { apiFetch, apiUrl } from './client';
+
 export interface OpportunityEvidence {
   id: string;
   type: string;
@@ -143,8 +145,8 @@ export interface GeneratedAsset {
   updatedAt: string;
 }
 
-const API_BASE = '/api/revenue/opportunities';
-const BRIEF_API_BASE = '/api/revenue/production-briefs';
+const API_BASE = apiUrl('/api/revenue/opportunities');
+const BRIEF_API_BASE = apiUrl('/api/revenue/production-briefs');
 
 export const revenueClient = {
   async getOpportunities(params?: { stage?: string; approvalStatus?: string; opportunityType?: string }): Promise<RevenueOpportunity[]> {
@@ -156,25 +158,25 @@ export const revenueClient = {
     const qs = searchParams.toString();
     const url = qs ? `${API_BASE}?${qs}` : API_BASE;
 
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error('Failed to fetch opportunities');
     return res.json();
   },
 
   async getOpportunity(id: string): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}`);
+    const res = await apiFetch(`${API_BASE}/${id}`);
     if (!res.ok) throw new Error('Failed to fetch opportunity');
     return res.json();
   },
 
   async getEvents(id: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/${id}/events`);
+    const res = await apiFetch(`${API_BASE}/${id}/events`);
     if (!res.ok) throw new Error('Failed to fetch opportunity events');
     return res.json();
   },
 
   async checkDuplicate(sourceUrl?: string, title?: string, sourcePlatform?: string): Promise<{ duplicate: boolean; opportunity?: RevenueOpportunity }> {
-    const res = await fetch(`${API_BASE}/check-duplicate`, {
+    const res = await apiFetch(`${API_BASE}/check-duplicate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sourceUrl, title, sourcePlatform }),
@@ -184,7 +186,7 @@ export const revenueClient = {
   },
 
   async appendEvidence(id: string, evidence: OpportunityEvidence): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}/evidence`, {
+    const res = await apiFetch(`${API_BASE}/${id}/evidence`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evidence }),
@@ -194,7 +196,7 @@ export const revenueClient = {
   },
 
   async scoreOpportunity(id: string): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}/score`, { method: 'POST' });
+    const res = await apiFetch(`${API_BASE}/${id}/score`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to score opportunity');
@@ -203,7 +205,7 @@ export const revenueClient = {
   },
 
   async requestApproval(id: string): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}/request-approval`, { method: 'POST' });
+    const res = await apiFetch(`${API_BASE}/${id}/request-approval`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to request approval');
@@ -212,13 +214,13 @@ export const revenueClient = {
   },
 
   async getMetrics(): Promise<any> {
-    const res = await fetch('/api/revenue/metrics');
+    const res = await apiFetch('/api/revenue/metrics');
     if (!res.ok) throw new Error('Failed to fetch metrics');
     return res.json();
   },
 
   async createOpportunity(data: Partial<RevenueOpportunity>): Promise<RevenueOpportunity> {
-    const res = await fetch(API_BASE, {
+    const res = await apiFetch(API_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -228,7 +230,7 @@ export const revenueClient = {
   },
 
   async transition(id: string, stage: string): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}/transition`, {
+    const res = await apiFetch(`${API_BASE}/${id}/transition`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage }),
@@ -238,13 +240,13 @@ export const revenueClient = {
   },
 
   async approve(id: string): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}/approve`, { method: 'POST' });
+    const res = await apiFetch(`${API_BASE}/${id}/approve`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to approve opportunity');
     return res.json();
   },
 
   async reject(id: string, reason: string): Promise<RevenueOpportunity> {
-    const res = await fetch(`${API_BASE}/${id}/reject`, {
+    const res = await apiFetch(`${API_BASE}/${id}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
@@ -255,25 +257,25 @@ export const revenueClient = {
 
   // Production Brief Methods
   async createProductionBrief(opportunityId: string): Promise<ProductionBrief> {
-    const res = await fetch(`${API_BASE}/${opportunityId}/create-production-brief`, { method: 'POST' });
+    const res = await apiFetch(`${API_BASE}/${opportunityId}/create-production-brief`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to create production brief');
     return res.json();
   },
 
   async getOpportunityBriefs(opportunityId: string): Promise<ProductionBrief[]> {
-    const res = await fetch(`${API_BASE}/${opportunityId}/production-briefs`);
+    const res = await apiFetch(`${API_BASE}/${opportunityId}/production-briefs`);
     if (!res.ok) throw new Error('Failed to fetch opportunity production briefs');
     return res.json();
   },
 
   async getProductionBrief(briefId: string): Promise<ProductionBrief> {
-    const res = await fetch(`${BRIEF_API_BASE}/${briefId}`);
+    const res = await apiFetch(`${BRIEF_API_BASE}/${briefId}`);
     if (!res.ok) throw new Error('Failed to fetch production brief');
     return res.json();
   },
 
   async generateExecutionPlan(briefId: string): Promise<ProductionBrief> {
-    const res = await fetch(`${BRIEF_API_BASE}/${briefId}/generate-plan`, { method: 'POST' });
+    const res = await apiFetch(`${BRIEF_API_BASE}/${briefId}/generate-plan`, { method: 'POST' });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to generate execution plan');
@@ -282,13 +284,13 @@ export const revenueClient = {
   },
 
   async approveExecutionPlan(briefId: string): Promise<ProductionBrief> {
-    const res = await fetch(`${BRIEF_API_BASE}/${briefId}/approve-plan`, { method: 'POST' });
+    const res = await apiFetch(`${BRIEF_API_BASE}/${briefId}/approve-plan`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to approve execution plan');
     return res.json();
   },
 
   async rejectExecutionPlan(briefId: string, reason: string): Promise<ProductionBrief> {
-    const res = await fetch(`${BRIEF_API_BASE}/${briefId}/reject-plan`, {
+    const res = await apiFetch(`${BRIEF_API_BASE}/${briefId}/reject-plan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
@@ -298,13 +300,13 @@ export const revenueClient = {
   },
 
   async startGeneration(briefId: string): Promise<ProductionBrief> {
-    const res = await fetch(`${BRIEF_API_BASE}/${briefId}/start-generation`, { method: 'POST' });
+    const res = await apiFetch(`${BRIEF_API_BASE}/${briefId}/start-generation`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to start generation');
     return res.json();
   },
 
   async getBriefTasks(briefId: string): Promise<any[]> {
-    const res = await fetch(`${BRIEF_API_BASE}/${briefId}/tasks`);
+    const res = await apiFetch(`${BRIEF_API_BASE}/${briefId}/tasks`);
     if (!res.ok) throw new Error('Failed to fetch brief tasks');
     return res.json();
   },
@@ -319,19 +321,19 @@ export const revenueClient = {
     const qs = searchParams.toString();
     const url = qs ? `/api/revenue/generated-assets?${qs}` : '/api/revenue/generated-assets';
 
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error('Failed to fetch generated assets');
     return res.json();
   },
 
   async approveGeneratedAsset(assetId: string): Promise<GeneratedAsset> {
-    const res = await fetch(`/api/revenue/generated-assets/${assetId}/approve`, { method: 'POST' });
+    const res = await apiFetch(`/api/revenue/generated-assets/${assetId}/approve`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to approve asset');
     return res.json();
   },
 
   async rejectGeneratedAsset(assetId: string, reason: string): Promise<GeneratedAsset> {
-    const res = await fetch(`/api/revenue/generated-assets/${assetId}/reject`, {
+    const res = await apiFetch(`/api/revenue/generated-assets/${assetId}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
@@ -342,19 +344,19 @@ export const revenueClient = {
 
   // Revenue Intelligence
   async getIntelligenceSummary(): Promise<any> {
-    const res = await fetch('/api/revenue/intelligence/summary');
+    const res = await apiFetch('/api/revenue/intelligence/summary');
     if (!res.ok) throw new Error('Failed to fetch intelligence summary');
     return res.json();
   },
 
   async getAgentIntelligence(): Promise<any[]> {
-    const res = await fetch('/api/revenue/intelligence/agents');
+    const res = await apiFetch('/api/revenue/intelligence/agents');
     if (!res.ok) throw new Error('Failed to fetch agent intelligence');
     return res.json();
   },
 
   async getPromptIntelligence(): Promise<any[]> {
-    const res = await fetch('/api/revenue/intelligence/prompts');
+    const res = await apiFetch('/api/revenue/intelligence/prompts');
     if (!res.ok) throw new Error('Failed to fetch prompt intelligence');
     return res.json();
   }

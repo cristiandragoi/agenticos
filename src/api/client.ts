@@ -1,4 +1,81 @@
-const BASE_URL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api');
+/**
+ * Canonical backend API base for the renderer (single source of truth).
+ * - Web/dev (http origin, Vite): resolves to `/api` (same-origin) or the
+ *   configured VITE_API_URL override.
+ * - Electron production (file:// origin): resolves to the real backend HTTP
+ *   origin (`http://localhost:4600/api`), because a relative `/api` fetch
+ *   under file:// would resolve to file:///api/... and fail.
+ *
+ * All renderer callers should derive their request URLs from this module so
+ * the file:// detection and backend origin live in exactly one place.
+ */
+
+/** True for any absolute URL with a scheme (http, https, blob, data, file, …). */
+const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+/**
+ * Resolve the canonical backend API base from a window protocol.
+ *
+ * Isolated here so every renderer caller shares ONE backend-origin decision:
+ * - http(s) origin (web/dev Vite): same-origin `/api`
+ * - file:// origin (Electron production): real backend HTTP origin
+ * - any configured VITE_API_URL override wins
+ */
+export function resolveApiBase(protocol: string, envUrl?: string): string {
+  if (envUrl) return envUrl;
+  return protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
+}
+
+const BASE_URL = resolveApiBase(
+  typeof window !== 'undefined' ? window.location.protocol : '',
+  import.meta.env.VITE_API_URL as string | undefined
+);
+
+/** Canonical backend API base — read by all renderer API callers. */
+export const API_BASE = BASE_URL;
+
+/**
+ * Resolve a request path against the canonical backend API base.
+ *
+ * - Absolute http(s):// URLs are returned unchanged.
+ * - Relative paths (with or without a leading `/api`, with or without a
+ *   leading slash, with or without a trailing query string) are normalized
+ *   against API_BASE. A duplicate `/api/api/...` is impossible because any
+ *   leading `/api` segment is stripped before joining.
+ * - Non-http schemes (blob:, data:, file:) are passed through untouched.
+ *
+ * Examples (web/dev, API_BASE=`/api`):
+ *   apiUrl('/api/foo')      -> '/api/foo'
+ *   apiUrl('api/foo')       -> '/api/foo'
+ *   apiUrl('/foo')          -> '/api/foo'
+ *   apiUrl('foo')           -> '/api/foo'
+ *   apiUrl('/api/foo?q=1')  -> '/api/foo?q=1'
+ *   apiUrl('http://x/api')  -> 'http://x/api'
+ */
+export function apiUrl(path: string): string {
+  if (ABSOLUTE_URL_RE.test(path)) return path;
+  // Split off query/fragment at the FIRST '?' or '#' so everything after is
+  // preserved verbatim (including any additional '?'/'#' inside the value).
+  const markerIdx = path.search(/[?#]/);
+  const pathPart = markerIdx === -1 ? path : path.slice(0, markerIdx);
+  const suffix = markerIdx === -1 ? '' : path.slice(markerIdx);
+  let normalized = pathPart.trim();
+  // Strip a leading '/api' or 'api/' segment so joining never doubles it.
+  if (normalized.startsWith('/api')) normalized = normalized.slice(4);
+  else if (normalized.startsWith('api/')) normalized = normalized.slice(4);
+  if (!normalized.startsWith('/')) normalized = `/${normalized}`;
+  return `${API_BASE}${normalized}${suffix}`;
+}
+
+/**
+ * Canonical renderer fetch: like fetch, but the input is resolved through
+ * apiUrl so relative backend paths work under both web/dev and Electron
+ * file:// production. Response bodies are NOT inspected or consumed here —
+ * callers keep full control over streaming/JSON/error handling.
+ */
+export async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  return fetch(apiUrl(input), init);
+}
 
 import type { RunRecord } from '../types';
 

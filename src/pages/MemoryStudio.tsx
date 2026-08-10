@@ -8,6 +8,7 @@
  * created, confidence, derived-from) — no opaque memories.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiFetch, apiUrl } from '../api/client';
 
 type MemoryType = 'episodic' | 'semantic' | 'decision' | 'preference' | 'working';
 type MemoryStatus = 'active' | 'superseded' | 'stale' | 'archived';
@@ -33,7 +34,7 @@ const KIND_COLOR: Record<string, string> = {
 };
 
 const api = async (url: string, opts?: RequestInit) => {
-  const res = await fetch(`/api/memory${url}`, opts);
+  const res = await apiFetch(`/api/memory${url}`, opts);
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 };
@@ -120,7 +121,7 @@ function GraphView({ onSelect, flash, initialFocus = '' }: { onSelect: (id: stri
       return match?.id;
     };
     resolveFocus(focus).then((resolved) =>
-      api(`/graph${resolved ? `?focus=${encodeURIComponent(resolved)}` : ''}&depth=1&limit=80`)
+      api(`/graph${resolved ? `?focus=${encodeURIComponent(resolved)}&` : '?'}depth=1&limit=80`)
         .then((g: GraphData) => {
           setGraph(g);
           const center = { x: 0, y: 0 };

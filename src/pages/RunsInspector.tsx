@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Target, Search, Clock, Zap, CheckCircle2, XCircle, AlertCircle, RefreshCw, X, Box } from 'lucide-react';
 import type { AgentRun, RunStep } from '../../shared/types';
 import type { AgentSkill } from '../../shared/types/skill';
+import { apiFetch, apiUrl } from '../api/client';
 
 export default function RunsInspector() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
@@ -16,7 +17,7 @@ export default function RunsInspector() {
 
   const fetchSkills = async () => {
     try {
-      const res = await fetch('/api/skills');
+      const res = await apiFetch('/api/skills');
       const data = await res.json();
       setSkills(data || []);
     } catch (e) {
@@ -26,7 +27,7 @@ export default function RunsInspector() {
 
   const fetchRuns = async () => {
     try {
-      const res = await fetch('/api/runs');
+      const res = await apiFetch('/api/runs');
       const data = await res.json();
       setRuns(data || []);
     } catch (e) {
@@ -39,7 +40,7 @@ export default function RunsInspector() {
   const fetchRunDetails = async (id: string) => {
     setDetailsLoading(true);
     try {
-      const res = await fetch(`/api/runs/${id}`);
+      const res = await apiFetch(`/api/runs/${id}`);
       const data = await res.json();
       setRunDetails(data);
     } catch (e) {

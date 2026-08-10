@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FolderCode, FileText, GitCommit } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface Props {
   activeGoalId: string | null;
@@ -12,7 +13,7 @@ export const StudioFileList: React.FC<Props> = ({ activeGoalId }) => {
     if (!activeGoalId) return;
     const fetchDiffs = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${activeGoalId}/diff`);
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}/diff`);
         const data = await res.json();
         setDiffs(data || []);
       } catch (e) {}

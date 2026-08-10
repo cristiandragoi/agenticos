@@ -8,6 +8,7 @@ import { ExecutionTimeline } from './ExecutionTimeline';
 import { RunSettings } from './RunSettings';
 import { CODEX_REPOSITORY, isRepositoryOnlyTask } from '../../config/codexRuntime';
 import { buildCodexGoalPayload } from '../../features/codex/buildCodexGoalPayload';
+import { apiFetch } from '../../api/client';
 
 function formatElapsed(createdAt?: string): string {
   if (!createdAt) return '-';
@@ -116,7 +117,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
     if (activeGoalId) return;
     let cancelled = false;
     setConnectionState('connecting');
-    fetch('/api/chat/agents/goals')
+    apiFetch('/api/chat/agents/goals')
       .then(res => {
         if (cancelled) return;
         setConnectionState(res.ok ? 'idle_connected' : 'backend_unreachable');
@@ -136,7 +137,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
     let cancelled = false;
     const fetchGoal = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${activeGoalId}`);
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
           setGoal(data);
@@ -162,7 +163,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
       return;
     }
     let cancelled = false;
-    fetch(`/api/chat/agents/goal/${activeGoalId}/checkpoints`)
+    apiFetch(`/api/chat/agents/goal/${activeGoalId}/checkpoints`)
       .then(res => res.ok ? res.json() : [])
       .then(data => { if (!cancelled) setHasCheckpoint(Array.isArray(data) && data.length > 0); })
       .catch(() => { if (!cancelled) setHasCheckpoint(false); });
@@ -183,7 +184,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
   const handleNewTask = async () => {
     abortRef.current?.abort();
     if (activeGoalId && runIsActive) {
-      await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+      await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'abort' })
@@ -212,7 +213,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
     setConnectionState('connecting');
 
     try {
-      const res = await fetch('/api/chat/agents/goal', {
+      const res = await apiFetch('/api/chat/agents/goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -248,7 +249,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
     setGoalStatus('stopping');
     setConnectionState('idle_connected');
     if (activeGoalId) {
-      await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+      await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'abort' })
@@ -267,7 +268,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
 
   const handlePause = async () => {
     if (!activeGoalId) return;
-    await fetch(`/api/chat/agents/goal/${activeGoalId}/pause`, { method: 'POST' }).catch(() => undefined);
+    await apiFetch(`/api/chat/agents/goal/${activeGoalId}/pause`, { method: 'POST' }).catch(() => undefined);
     setGoalStatus('pause_requested');
   };
 
@@ -276,7 +277,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
     setError(null);
     setIsStarting(action === 'approve');
     try {
-      const res = await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+      const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action })
@@ -297,7 +298,7 @@ export const StudioChat = ({ activeGoalId, onGoalCreated }: { activeGoalId: stri
     setIsStarting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/chat/agents/goal/${activeGoalId}/resume`, { method: 'POST' });
+      const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}/resume`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to resume CodeX task.');
       setGoalStatus('queued');

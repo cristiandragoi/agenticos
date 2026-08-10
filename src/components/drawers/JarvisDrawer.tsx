@@ -19,6 +19,7 @@ import { useData } from '../../store/dataStore';
 import DrawerShell from './DrawerShell';
 import ThinkingOrb from '../ui/ThinkingOrb';
 import { useVoiceIO } from '../../hooks/useVoiceIO';
+import { apiFetch, apiUrl } from '../../api/client';
 
 export interface AgentResponseReadyDetail {
   messageId: string;
@@ -132,7 +133,7 @@ const JarvisDrawer: React.FC = () => {
     convExecAbortRef.current = controller;
     jarvis.setStatus('thinking');
     try {
-      const res = await fetch('/api/voice/execute', {
+      const res = await apiFetch('/api/voice/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
@@ -212,7 +213,7 @@ const JarvisDrawer: React.FC = () => {
       // Execute via voice pipeline (single POST, no SSE chain)
       jarvis.setStatus('thinking');
       try {
-        const res = await fetch('/api/voice/execute', {
+        const res = await apiFetch('/api/voice/execute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
@@ -229,7 +230,7 @@ const JarvisDrawer: React.FC = () => {
           });
           voice.speak(responseText).then(() => {
             // Confirm playback success in Activity Log (conversations)
-            fetch('/api/conversations', {
+            apiFetch('/api/conversations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${responseText.slice(0, 60)}"`, source: 'jarvis' })
@@ -238,7 +239,7 @@ const JarvisDrawer: React.FC = () => {
           }).catch((err) => {
             console.error('[Jarvis] Playback failed:', err);
             jarvis.setStatus('error');
-            fetch('/api/conversations', {
+            apiFetch('/api/conversations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })
@@ -409,7 +410,7 @@ const JarvisDrawer: React.FC = () => {
 
     jarvis.setStatus('thinking');
     try {
-      const res = await fetch('/api/voice/execute', {
+      const res = await apiFetch('/api/voice/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
@@ -426,7 +427,7 @@ const JarvisDrawer: React.FC = () => {
         });
         voice.speak(responseText).then(() => {
           // Confirm playback success in Activity Log (conversations)
-          fetch('/api/conversations', {
+          apiFetch('/api/conversations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${responseText.slice(0, 60)}"`, source: 'jarvis' })
@@ -435,7 +436,7 @@ const JarvisDrawer: React.FC = () => {
         }).catch((err) => {
           console.error('[Jarvis] Playback failed:', err);
           jarvis.setStatus('error');
-          fetch('/api/conversations', {
+          apiFetch('/api/conversations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })
@@ -533,13 +534,13 @@ const JarvisDrawer: React.FC = () => {
 
       const textToSpeak = text;
       voiceRef.current.speak(textToSpeak).then(() => {
-        fetch('/api/conversations', {
+        apiFetch('/api/conversations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${textToSpeak.slice(0, 60)}"`, source: 'jarvis' })
         }).catch(() => {});
       }).catch((err) => {
-        fetch('/api/conversations', {
+        apiFetch('/api/conversations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })

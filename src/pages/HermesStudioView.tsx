@@ -3,6 +3,7 @@ import { Play, Loader2, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useHermesStore } from '../store/hermesStore';
 import GatewayStatusChip from '../components/GatewayStatusChip';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { apiFetch, apiUrl } from '../api/client';
 
 const HermesStudioView: React.FC = () => {
   const { addTask } = useHermesStore();
@@ -48,7 +49,7 @@ const HermesStudioView: React.FC = () => {
       setResult('Calling OmniRoute...');
       setMetadata(null);
       try {
-        const res = await fetch('/api/chat/studio-card', {
+        const res = await apiFetch('/api/chat/studio-card', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cardId: wfId, prompt: 'Execute Jarvis Default Pipeline: decompose and run.' }),

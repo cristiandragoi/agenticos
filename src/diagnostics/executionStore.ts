@@ -1,3 +1,5 @@
+import { apiFetch, apiUrl } from '../api/client';
+
 /**
  * ONE frontend execution surface (coherence milestone).
  *
@@ -105,7 +107,7 @@ export const executionStore = {
   stop(): boolean {
     if (stopBusy || !state.current) return false;
     stopBusy = true;
-    void fetch('/api/execution/cancel', {
+    void apiFetch('/api/execution/cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ operationId: state.current.operationId }),
@@ -122,7 +124,7 @@ let pollTimer: number | null = null;
 export function startExecutionStream(): void {
   // Hydrate completions that happened while the app was closed/reloading —
   // the SSE only delivers LIVE events (task-completion milestone).
-  void fetch('/api/execution/completions')
+  void apiFetch('/api/execution/completions')
     .then((r) => (r.ok ? r.json() : []))
     .then((events: CompletionEvent[]) => {
       for (const evt of events) if (evt?.operationId) executionStore.addCompletion(evt);
@@ -130,7 +132,7 @@ export function startExecutionStream(): void {
     .catch(() => {});
   if (es) return;
   try {
-    es = new EventSource('/api/execution/stream');
+    es = new EventSource(apiUrl('/api/execution/stream'));
     const apply = (data: StoreState) => {
       if (data && Array.isArray(data.history)) { state = data; publish(); }
     };
@@ -147,7 +149,7 @@ export function startExecutionStream(): void {
       if (!pollTimer) {
         pollTimer = window.setInterval(async () => {
           try {
-            const res = await fetch('/api/execution/current');
+            const res = await apiFetch('/api/execution/current');
             if (res.ok) { state = await res.json(); publish(); }
           } catch { /* keep last state */ }
         }, 3000);
@@ -160,7 +162,7 @@ export function startExecutionStream(): void {
     // No SSE support — poll.
     pollTimer = window.setInterval(async () => {
       try {
-        const res = await fetch('/api/execution/current');
+        const res = await apiFetch('/api/execution/current');
         if (res.ok) { state = await res.json(); publish(); }
       } catch { /* keep last state */ }
     }, 3000);

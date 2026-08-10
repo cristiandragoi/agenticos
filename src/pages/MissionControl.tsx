@@ -7,6 +7,7 @@ import BoardColumn from '../components/ui/BoardColumn';
 import EntityCard from '../components/ui/EntityCard';
 import AgentAvatar from '../components/ui/AgentAvatar';
 import { AlertTriangle, HelpCircle, Cpu, Send, Loader2, X } from 'lucide-react';
+import { apiFetch, apiUrl } from '../api/client';
 
 /* ─── Tooltip Helper ─── */
 const HelpTip: React.FC<{ text: string }> = ({ text }) => (
@@ -34,7 +35,7 @@ const MissionControl: React.FC = () => {
     setGeminiLoading(true);
     setGeminiResponse('');
     try {
-      const res = await fetch('/api/gemini/chat', {
+      const res = await apiFetch('/api/gemini/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: geminiModel, prompt: geminiPrompt })

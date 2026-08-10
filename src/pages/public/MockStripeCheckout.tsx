@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Box, Lock, ShieldCheck, Check } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 const MockStripeCheckout: React.FC = () => {
   const { leadId } = useParams();
@@ -13,7 +14,7 @@ const MockStripeCheckout: React.FC = () => {
     setIsProcessing(true);
     setError(null);
     try {
-      const res = await fetch('/api/stripe/mock-pay', {
+      const res = await apiFetch('/api/stripe/mock-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadId: leadId || 'mock-id' })

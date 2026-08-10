@@ -1,4 +1,4 @@
-import { apiClient } from '../api/client';
+import { apiClient, apiFetch } from '../api/client';
 
 export type StageId =
   | 'input'
@@ -246,7 +246,7 @@ export async function runStage(
   const isQwableStage = stageId === 'code_generation' || stageId === 'preview_build' || stageId === 'save_workspace';
   if (isQwableStage) {
     try {
-      const res = await fetch('/api/agentic/pipelines/qwable-build-pipeline/run', {
+      const res = await apiFetch('/api/agentic/pipelines/qwable-build-pipeline/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: commandText, stageId })
@@ -270,7 +270,7 @@ export async function runStage(
     if (opts?.isTTS) {
       // Local TTS Logic via backend proxy
       const cleanText = commandText.replace(/\*\*(.*?)\*\*/g, '$1').replace(/#{1,6}\s/g, '').replace(/`{1,3}[^`]*`{1,3}/g, '');
-      const res = await fetch('/api/voice/speak', {
+      const res = await apiFetch('/api/voice/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: cleanText, voice: 'aura-orion-en' })

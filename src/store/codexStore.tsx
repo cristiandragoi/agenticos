@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ConnectionState } from '../presenters/executionStatus';
 import { CODEX_BASE_URL, CODEX_PROVIDER, CODEX_REPOSITORY } from '../config/codexRuntime';
+import { apiFetch, apiUrl } from '../api/client';
 
 export interface CodexRunSettings {
   folderTree: string;
@@ -95,7 +96,7 @@ function persistRunSettings(settings: CodexRunSettings) {
 async function publishWorkspaceSelection(workspaceRoot: string): Promise<void> {
   if (!workspaceRoot?.trim()) return;
   try {
-    await fetch('/api/workspace/select', {
+    await apiFetch('/api/workspace/select', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspaceRoot: workspaceRoot.trim() }),
@@ -146,7 +147,7 @@ export function CodexProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/workspace/current');
+        const res = await apiFetch('/api/workspace/current');
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;

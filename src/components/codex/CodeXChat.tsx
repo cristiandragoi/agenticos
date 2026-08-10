@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Send, Paperclip, Terminal, FileCode, ShieldCheck, AlertTriangle, Play, Loader2, Zap, Cog, Copy, Check } from 'lucide-react';
 import { useCodexStore } from '../../store/codexStore';
+import { apiFetch, apiUrl } from '../../api/client';
 import ReactMarkdown from 'react-markdown';
 
 const CopyButton = ({ text, label }: { text: string, label: string }) => {
@@ -79,7 +80,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
 
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${activeGoalId}`);
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
         const data = await res.json();
         if (data.history) {
           setEvents(data.history);
@@ -91,7 +92,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
     };
     fetchHistory();
     
-    const es = new EventSource(`/api/chat/agents/goal/stream/${activeGoalId}`);
+    const es = new EventSource(apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}`));
     es.addEventListener('goal_event', (e: any) => {
       try {
         const data = JSON.parse(e.data);
@@ -129,7 +130,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
           approvalPolicy: 'manual'
         };
         console.log('Sending fetch with payload:', JSON.stringify(payload));
-        const res = await fetch('/api/chat/agents/goal', {
+        const res = await apiFetch('/api/chat/agents/goal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -153,7 +154,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
       }
     } else {
       try {
-        await fetch(`/api/chat/agents/goal/${activeGoalId}/revise`, {
+        await apiFetch(`/api/chat/agents/goal/${activeGoalId}/revise`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ feedback: userPrompt, executionProvider: 'ollama' })
@@ -176,7 +177,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
     setIsStarting(true);
     if (activeGoalId) {
       try {
-        await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+        await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'resume' })
@@ -189,7 +190,7 @@ export const CodeXChat: React.FC<Props> = ({ activeGoalId, onGoalCreated }) => {
   const handleCancel = async () => {
     if (activeGoalId) {
       try {
-        await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+        await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'abort' })

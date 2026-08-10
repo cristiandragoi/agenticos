@@ -1,7 +1,7 @@
-const BASE_URL = '/api';
+import { apiUrl } from './client';
 
 export function subscribeToRun(runId: string, onChunk: (chunk: string) => void, onStatus: (status: string) => void) {
-  const eventSource = new EventSource(`${BASE_URL}/chat/stream/${runId}`);
+  const eventSource = new EventSource(apiUrl(`/api/chat/stream/${runId}`));
 
   eventSource.addEventListener('chat_chunk', (e) => {
     try {

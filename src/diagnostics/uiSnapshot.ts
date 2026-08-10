@@ -1,3 +1,5 @@
+import { apiFetch, apiUrl } from '../api/client';
+
 /**
  * UI Diagnostic Snapshot — READ-ONLY reporting of what the React UI is
  * currently rendering (and has last rendered).
@@ -72,7 +74,7 @@ function scheduleReport(): void {
     const payload = JSON.stringify(state);
     if (payload === lastSent) return;
     lastSent = payload;
-    fetch('/api/diagnostics/ui-snapshot', {
+    apiFetch('/api/diagnostics/ui-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payload,
@@ -92,7 +94,7 @@ export const uiDiagnostics = {
     initialized = true;
     void (async () => {
       try {
-        const res = await fetch('/api/settings/agent-provider-assignments/agent-jarvis');
+        const res = await apiFetch('/api/settings/agent-provider-assignments/agent-jarvis');
         if (res.ok) {
           const a = await res.json();
           if (a?.providerId || a?.modelId) {
@@ -101,7 +103,7 @@ export const uiDiagnostics = {
         }
       } catch { /* diagnostics only */ }
       try {
-        const res = await fetch('/api/health/gateway');
+        const res = await apiFetch('/api/health/gateway');
         if (res.ok) {
           const d = await res.json();
           uiDiagnostics.setGatewayRendered(

@@ -4,6 +4,7 @@
  * this conversation's executions; it never changes global AgenticOS routing.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 export interface RoutingOverrideValue {
   provider: string | null;
@@ -24,7 +25,7 @@ export const RoutingOverrideControl: React.FC<Props> = ({ value, onChange }) => 
     // Only show providers/models that are actually configured/available.
     (async () => {
       try {
-        const res = await fetch('/api/providers');
+        const res = await apiFetch('/api/providers');
         const providers = await res.json();
         const list: Array<{ provider: string; model: string | null }> = [];
         const arr = Array.isArray(providers) ? providers : (providers?.providers || []);

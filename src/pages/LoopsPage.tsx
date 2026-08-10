@@ -4,6 +4,7 @@ import { useDrawer } from '../store/appStore';
 import { useData } from '../store/dataStore';
 import { GitBranch, Play, CheckCircle, XCircle, Clock, ChevronRight, Plus } from 'lucide-react';
 import StatusBadge from '../components/ui/StatusBadge';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface LoopStep {
   id: string;
@@ -72,8 +73,8 @@ const LoopsPage: React.FC = () => {
   const fetchLoops = async () => {
     try {
       const [defRes, runsRes] = await Promise.all([
-        fetch('/api/loops'),
-        fetch('/api/loops/runs/all')
+        apiFetch('/api/loops'),
+        apiFetch('/api/loops/runs/all')
       ]);
       if (defRes.ok && runsRes.ok) {
         const defs: LoopDefinition[] = await defRes.json();
@@ -104,7 +105,7 @@ const LoopsPage: React.FC = () => {
     try {
       const payload = { maxIterations: configMaxIterations, stopCondition: configStopCondition };
       setRunConfigModal(null);
-      const res = await fetch(`/api/loops/${loop.id}/run`, { 
+      const res = await apiFetch(`/api/loops/${loop.id}/run`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -112,7 +113,7 @@ const LoopsPage: React.FC = () => {
       if (!res.ok) throw new Error('Failed to start loop');
       // Poll status every second until done
       const checkStatus = async () => {
-        const sRes = await fetch(`/api/loops/${loop.id}/status`);
+        const sRes = await apiFetch(`/api/loops/${loop.id}/status`);
         if (sRes.ok) {
           const { definition } = await sRes.json();
           setLoops(prev => prev.map(l => l.id === definition.id ? definition : l));

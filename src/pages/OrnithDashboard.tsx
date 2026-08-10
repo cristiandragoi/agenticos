@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Cpu, Terminal, Play, Loader2, Mic, MicOff, Power, Volume2, VolumeX, Activity } from 'lucide-react';
 import { runPipeline } from '../command/jarvisPipeline';
 import { RuntimeStatusWidget } from '../components/ui/RuntimeStatusWidget';
+import { apiFetch, apiUrl } from '../api/client';
 
 const ORNITH_SERVER_URL = 'http://localhost:11434/api/chat';
 
@@ -47,7 +48,7 @@ const OrnithDashboard: React.FC = () => {
             const formData = new FormData();
             formData.append('audio', blob, 'audio.webm');
             
-            const res = await fetch('/api/voice/transcribe', {
+            const res = await apiFetch('/api/voice/transcribe', {
               method: 'POST',
               body: formData
             });
@@ -185,7 +186,7 @@ const OrnithDashboard: React.FC = () => {
     const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/#{1,6}\s/g, '').replace(/`{1,3}[^`]*`{1,3}/g, '');
     
     try {
-      const res = await fetch('/api/voice/tts', {
+      const res = await apiFetch('/api/voice/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: cleanText, agentId: 'agent-jarvis' })

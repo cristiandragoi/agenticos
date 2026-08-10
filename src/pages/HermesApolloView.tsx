@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Send, AlertTriangle } from 'lucide-react';
 import { useHermesStore } from '../store/hermesStore';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface RunRecord {
   id: string;
@@ -24,7 +25,7 @@ const HermesApolloView: React.FC = () => {
   const bottom = useRef<HTMLDivElement>(null);
 
   const fetchRuns = () => {
-    fetch('/api/runs?agentId=agent-hermes')
+    apiFetch('/api/runs?agentId=agent-hermes')
       .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch runs');
         return res.json();
@@ -56,7 +57,7 @@ const HermesApolloView: React.FC = () => {
     
     try {
       // Send chat command
-      await fetch('/api/chat/hermes', {
+      await apiFetch('/api/chat/hermes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: text }),

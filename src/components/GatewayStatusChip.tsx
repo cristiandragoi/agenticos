@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface GatewayFallback {
   provider?: string;
@@ -23,7 +24,7 @@ const GatewayStatusChip: React.FC = () => {
   const fetchStatus = async () => {
     try {
       // Actually fetch the new endpoint that returns the gateway state from Phase 2
-      const res = await fetch('/api/health/gateway', { signal: AbortSignal.timeout(3000) });
+      const res = await apiFetch('/api/health/gateway', { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
         const data = await res.json();
         

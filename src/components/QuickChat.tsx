@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface Msg { role: 'user' | 'assistant'; text: string }
 
@@ -17,7 +18,7 @@ const QuickChat: React.FC = () => {
     setMsgs(m => [...m, { role: 'user', text }]);
     setLoading(true);
     try {
-      const res = await fetch('/api/chat/quick', {
+      const res = await apiFetch('/api/chat/quick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),

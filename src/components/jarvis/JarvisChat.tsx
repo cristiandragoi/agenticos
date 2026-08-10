@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { API_BASE } from '../../api/client';
 import { AlertCircle, Cpu, Server, User } from 'lucide-react';
 import { JarvisComposer } from './JarvisComposer';
 import type { MicState } from './JarvisComposer';
@@ -19,11 +20,6 @@ import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
 import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
 import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
 
-// file:// (production Electron loads dist/index.html) has no HTTP origin, so
-// relative '/api' fetches resolve to file:///api/... and fail with
-// "Failed to fetch". Mirror the apiClient's file-aware base so Jarvis
-// requests reach the backend in production.
-const API_BASE = typeof window !== 'undefined' && window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
 import styles from '../../pages/JarvisStudio.module.css';
 
 /**

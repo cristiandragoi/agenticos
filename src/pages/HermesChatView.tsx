@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Zap, AlertTriangle } from 'lucide-react';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface Msg { 
   role: 'user' | 'assistant'; 
@@ -22,7 +23,7 @@ const HermesChatView: React.FC = () => {
     setMsgs(m => [...m, { role: 'user', text }]);
     setLoading(true);
     try {
-      const res = await fetch('/api/chat/hermes', {
+      const res = await apiFetch('/api/chat/hermes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: text }),

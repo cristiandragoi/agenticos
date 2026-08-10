@@ -1,5 +1,6 @@
 import type { MemoryEntry } from '../types';
 import { obsidianAdapter } from './obsidianAdapter';
+import { API_BASE as BASE_URL, apiFetch } from './client';
 
 export type OSEventType = 'RUN_COMPLETED' | 'DECISION_MADE' | 'ARTIFACT_GENERATED' | 'MANUAL_NOTE';
 
@@ -9,7 +10,6 @@ export interface OSEvent {
   timestamp: string;
 }
 
-const BASE_URL = '/api';
 
 class OSEventPipeline {
   private listeners: ((event: OSEvent) => void)[] = [];
@@ -48,7 +48,7 @@ class OSEventPipeline {
 
     if (memoryEntry) {
       // POST directly to local backend for Obsidian Sync queueing
-      fetch(`${BASE_URL}/sync/queue`, {
+      apiFetch(`${BASE_URL}/sync/queue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

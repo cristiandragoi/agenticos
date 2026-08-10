@@ -4,7 +4,7 @@ import type {
   AgentDefinition, Runtime, ProviderDefinition, RunRecord, 
   MemoryScope, MemoryEntry, Artifact, Board, ToolDefinition, ResearchBrief, ServiceLead
 } from '../types';
-import { apiClient } from '../api/client';
+import { apiClient, API_BASE } from '../api/client';
 
 interface Schedule {
   id: string;
@@ -97,9 +97,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // file:// (production Electron loads dist/index.html) has no HTTP
         // origin; a relative fetch would resolve to file:///api/... and fail,
         // rejecting the whole Promise.all and trapping AppShell in the error
-        // gate even though the backend lifecycle is READY. Use the same
-        // file-aware base as apiClient.
-        fetch(`${window.location.protocol === 'file:' ? 'http://localhost:4600/api' : '/api'}/settings/gateway/credentials-status`).then(res => res.ok ? res.json() : {})
+        // gate even though the backend lifecycle is READY. API_BASE is the
+        // canonical file-aware base.
+        fetch(`${API_BASE}/settings/gateway/credentials-status`).then(res => res.ok ? res.json() : {})
       ]);
 
       setState(prev => ({

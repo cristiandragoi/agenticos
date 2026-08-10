@@ -1,6 +1,6 @@
 import type { ObsidianConfig } from '../types';
 
-const BASE_URL = '/api';
+import { API_BASE as BASE_URL, apiFetch, apiUrl } from './client';
 
 class ObsidianMemoryAdapter {
   private config: ObsidianConfig = {
@@ -25,7 +25,7 @@ class ObsidianMemoryAdapter {
   }
 
   private connectStatusStream() {
-    const sse = new EventSource(`${BASE_URL}/sync/status`);
+    const sse = new EventSource(apiUrl(`${BASE_URL}/sync/status`));
     sse.onmessage = (e) => {
       try {
         const status = JSON.parse(e.data);
@@ -67,7 +67,7 @@ class ObsidianMemoryAdapter {
   }
 
   async syncNow() {
-    await fetch(`${BASE_URL}/sync/now`, {
+    await apiFetch(`${BASE_URL}/sync/now`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ config: this.config })
@@ -75,7 +75,7 @@ class ObsidianMemoryAdapter {
   }
 
   async retryFailed() {
-    await fetch(`${BASE_URL}/sync/retry`, {
+    await apiFetch(`${BASE_URL}/sync/retry`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ config: this.config })

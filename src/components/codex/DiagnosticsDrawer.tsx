@@ -7,6 +7,7 @@ import { useCodexStore } from '../../store/codexStore';
 import { normalizeExecutionEvent } from '../../utils/normalize';
 import { getActivityPhrase } from '../../presenters/EventPresenter';
 import { exportJSON, generateMarkdownReport } from '../../utils/export';
+import { apiFetch, apiUrl } from '../../api/client';
 
 const TABS = [
   { id: 'Terminal', icon: TerminalSquare },
@@ -46,7 +47,7 @@ export const DiagnosticsDrawer: React.FC = () => {
     if (!isDrawerOpen) return;
     const fetchBreakers = async () => {
       try {
-        const res = await fetch('/api/chat/agents/circuit-breakers');
+        const res = await apiFetch('/api/chat/agents/circuit-breakers');
         const data = await res.json();
         setBreakers(Array.isArray(data) ? data : []);
       } catch (e) {}
@@ -61,7 +62,7 @@ export const DiagnosticsDrawer: React.FC = () => {
     if (!isDrawerOpen || !activeGoalId) return;
     const fetchGoal = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${activeGoalId}`);
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
         if (res.ok) setGoal(await res.json());
       } catch (e) {}
     };

@@ -27,6 +27,7 @@ import { useJarvis } from '../../store/appStore';
 import { useData } from '../../store/dataStore';
 import { useVoiceIO } from '../../hooks/useVoiceIO';
 import { JARVIS_ORB_EVENTS } from './jarvisOrbState';
+import { apiFetch, apiUrl } from '../../api/client';
 
 /* ── Session persistence keys ─────────────────────────────────────────────── */
 const CONV_MODE_KEY = 'agenticos:jarvis:conversationMode';
@@ -147,7 +148,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   /** Lazily create/reuse the Jarvis conversation for the streaming path. */
   const ensureConversationId = useCallback(async (): Promise<string> => {
     if (conversationIdRef.current) return conversationIdRef.current;
-    const res = await fetch('/api/jarvis/conversations', {
+    const res = await apiFetch('/api/jarvis/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Mission Control Cockpit' }),
@@ -188,7 +189,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
 
     try {
       const conversationId = await ensureConversationId();
-      const streamUrl = `/api/jarvis/conversations/${conversationId}/message/stream`;
+      const streamUrl = apiUrl(`/api/jarvis/conversations/${conversationId}/message/stream`);
       // TEMP DIAGNOSTIC — visible chain trace (remove after confirmation).
       setConvTrace((t) => ({ ...t, request: `POST ${streamUrl}` }));
       const res = await fetch(streamUrl, {

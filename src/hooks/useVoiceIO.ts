@@ -63,7 +63,7 @@ interface UseVoiceIOOptions {
   continuationWindowMs?: number;
 }
 
-const BACKEND = '/api';
+import { API_BASE as BACKEND, apiFetch } from '../api/client';
 
 // Per-agent TTS voice mapping (Deepgram Aura voices)
 const AGENT_VOICE: Record<string, string> = {
@@ -567,7 +567,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // 1. Transcribe
       const fd = new FormData();
       fd.append('audio', audioBlob, 'audio.webm');
-      const transcribeRes = await fetch(`${BACKEND}/voice/transcribe`, {
+      const transcribeRes = await apiFetch(`${BACKEND}/voice/transcribe`, {
         method: 'POST',
         body: fd,
       });
@@ -1170,7 +1170,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Visible voice selection wins over the per-agent default; the backend
       // validates/falls back to its configured default when unsupported.
       const voiceModel = voiceOverrideRef.current || AGENT_VOICE[agentId] || 'aura-helios-en';
-      const res = await fetch(`${BACKEND}/voice/tts`, {
+      const res = await apiFetch(`${BACKEND}/voice/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, agentId, voice: voiceModel }),

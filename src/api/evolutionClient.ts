@@ -1,4 +1,5 @@
-const API_URL = '/api/evolution';
+import { apiFetch, apiUrl } from './client';
+const API_URL = apiUrl('/api/evolution');
 
 export interface PromptVersion {
   id: string;
@@ -37,26 +38,26 @@ export interface RunEvaluation {
 
 export const evolutionClient = {
   getLeaderboard: async () => {
-    const res = await fetch(`${API_URL}/leaderboard`);
+    const res = await apiFetch(`${API_URL}/leaderboard`);
     if (!res.ok) throw new Error('Failed to fetch leaderboard');
     return res.json();
   },
 
   getExecutions: async (agentId?: string) => {
     const url = agentId ? `${API_URL}/executions?agentId=${agentId}` : `${API_URL}/executions`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) throw new Error('Failed to fetch executions');
     return res.json();
   },
 
   getAgentVersions: async (agentId: string): Promise<PromptVersion[]> => {
-    const res = await fetch(`${API_URL}/agents/${agentId}/versions`);
+    const res = await apiFetch(`${API_URL}/agents/${agentId}/versions`);
     if (!res.ok) throw new Error('Failed to fetch versions');
     return res.json();
   },
 
   createChallenger: async (agentId: string, author: string) => {
-    const res = await fetch(`${API_URL}/agents/${agentId}/challenger`, {
+    const res = await apiFetch(`${API_URL}/agents/${agentId}/challenger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ author })
@@ -66,7 +67,7 @@ export const evolutionClient = {
   },
 
   promoteVersion: async (versionId: string, author: string, reason: string) => {
-    const res = await fetch(`${API_URL}/versions/${versionId}/promote`, {
+    const res = await apiFetch(`${API_URL}/versions/${versionId}/promote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ author, reason })
@@ -76,7 +77,7 @@ export const evolutionClient = {
   },
 
   rollbackVersion: async (versionId: string, author: string, reason: string) => {
-    const res = await fetch(`${API_URL}/versions/${versionId}/rollback`, {
+    const res = await apiFetch(`${API_URL}/versions/${versionId}/rollback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ author, reason })

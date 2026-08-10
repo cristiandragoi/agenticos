@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, Volume2, Activity, Users, Zap, ChevronsRight, MessageCircle } from 'lucide-react';
 import JarvisAgentGraph from './JarvisAgentGraph';
 import { useChat, useJarvis, useDrawer } from '../../store/appStore';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface AgentData { id: string; name: string; color: string; description: string; status: string; }
 interface RunData { agentId: string; status: string; createdAt: string; }
@@ -23,8 +24,8 @@ const JarvisControlBoard: React.FC = () => {
   const fetchData = async () => {
     try {
       const [agentsRes, runsRes] = await Promise.all([
-        fetch('/api/agents'),
-        fetch('/api/runs'),
+        apiFetch('/api/agents'),
+        apiFetch('/api/runs'),
       ]);
       if (agentsRes.ok) setAgents(await agentsRes.json());
       if (runsRes.ok) {

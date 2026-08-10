@@ -1,5 +1,6 @@
 import React from 'react';
 import { Terminal, Play, Pause, AlertTriangle, Shield, Clock, PanelRightOpen, PanelBottomOpen, XCircle } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface Props {
   activeGoalId: string | null;
@@ -15,19 +16,19 @@ export const StudioHeader: React.FC<Props> = ({ activeGoalId, goalStatus, setGoa
 
   const handlePause = async () => {
     if (!activeGoalId) return;
-    await fetch(`/api/chat/agents/goal/${activeGoalId}/pause`, { method: 'POST' });
+    await apiFetch(`/api/chat/agents/goal/${activeGoalId}/pause`, { method: 'POST' });
     setGoalStatus('pause_requested');
   };
 
   const handleResume = async () => {
     if (!activeGoalId) return;
-    await fetch(`/api/chat/agents/goal/${activeGoalId}/resume`, { method: 'POST' });
+    await apiFetch(`/api/chat/agents/goal/${activeGoalId}/resume`, { method: 'POST' });
     setGoalStatus('queued');
   };
   
   const handleCancel = async () => {
     if (!activeGoalId) return;
-    await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+    await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'abort' })

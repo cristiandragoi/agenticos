@@ -4,6 +4,7 @@ import { DiagnosticsDrawer } from '../components/codex/DiagnosticsDrawer';
 
 import { useCodexStore } from '../store/codexStore';
 import './codex-studio.css';
+import { apiFetch, apiUrl } from '../api/client';
 
 export default function CodeXStudio() {
   const {
@@ -15,7 +16,7 @@ export default function CodeXStudio() {
 
   const fetchGoals = async () => {
     try {
-      const res = await fetch('/api/chat/agents/goals');
+      const res = await apiFetch('/api/chat/agents/goals');
       const data = await res.json();
       setGoals(data || []);
     } catch (e) {}

@@ -3,6 +3,7 @@ import { ExternalLink, CheckCircle2, XCircle, Loader2, Terminal, FileCode } from
 import styles from '../../pages/JarvisStudio.module.css';
 import { deriveCurrentAction, TERMINAL_GOAL_STATES, type ConnectionState, type RunStatusColor } from '../../presenters/executionStatus';
 import { normalizeExecutionEvent } from '../../utils/normalize';
+import { apiFetch, apiUrl } from '../../api/client';
 
 const COLOR_MAP: Record<RunStatusColor, string> = {
   green: 'var(--color-success)',
@@ -39,7 +40,7 @@ export const JarvisGoalCard: React.FC<JarvisGoalCardProps> = ({ goalId }) => {
     let cancelled = false;
     const fetchGoal = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${goalId}`);
+        const res = await apiFetch(`/api/chat/agents/goal/${goalId}`);
         if (!res.ok) throw new Error(`Goal lookup failed (${res.status})`);
         const data = await res.json();
         if (cancelled) return;
@@ -57,7 +58,7 @@ export const JarvisGoalCard: React.FC<JarvisGoalCardProps> = ({ goalId }) => {
   // Live event stream for this exact goalId.
   useEffect(() => {
     setConnection('reconnecting');
-    const es = new EventSource(`/api/chat/agents/goal/stream/${goalId}`);
+    const es = new EventSource(apiUrl(`/api/chat/agents/goal/stream/${goalId}`));
 
     es.onopen = () => setConnection('connected');
 
@@ -113,7 +114,7 @@ export const JarvisGoalCard: React.FC<JarvisGoalCardProps> = ({ goalId }) => {
     setBusy(actionKind === 'resume' ? 'approve' : 'cancel');
     setActionError(null);
     try {
-      const res = await fetch(`/api/chat/agents/goal/${goalId}/approve`, {
+      const res = await apiFetch(`/api/chat/agents/goal/${goalId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: actionKind })

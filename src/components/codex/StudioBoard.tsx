@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Server, Shield, CheckCircle, Circle, PlayCircle, AlertTriangle, Clock } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface Props {
   activeGoalId: string | null;
@@ -13,7 +14,7 @@ export const StudioBoard: React.FC<Props> = ({ activeGoalId }) => {
     
     const fetchSteps = async () => {
       try {
-        const res = await fetch(`/api/chat/agents/goal/${activeGoalId}/steps`);
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}/steps`);
         const data = await res.json();
         setSteps(Array.isArray(data) ? data : []);
       } catch (e) {}

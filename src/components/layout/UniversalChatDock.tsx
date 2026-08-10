@@ -8,6 +8,7 @@ import { useChatManager } from '../../hooks/useChatManager';
 import { useLocation } from 'react-router-dom';
 import { appendLog, runStage, getPipelineState } from '../../command/jarvisPipeline';
 import { useBackendLifecycle } from '../../diagnostics/useBackendLifecycle';
+import { apiFetch, apiUrl } from '../../api/client';
 
 const UniversalChatDock: React.FC = () => {
   const location = useLocation();
@@ -67,7 +68,7 @@ const UniversalChatDock: React.FC = () => {
       setAgentLoading(true);
       setAgentReply('');
       try {
-        const res = await fetch('/api/chat/agents/run', {
+        const res = await apiFetch('/api/chat/agents/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agent: selectedAgent?.name || target, message: text }),
@@ -155,7 +156,7 @@ const UniversalChatDock: React.FC = () => {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           const fd = new FormData();
           fd.append('audio', audioBlob, 'audio.webm');
-          const res = await fetch('/api/voice/transcribe', {
+          const res = await apiFetch('/api/voice/transcribe', {
             method: 'POST',
             body: fd
           });

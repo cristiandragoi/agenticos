@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Play, XSquare } from 'lucide-react';
+import { apiFetch, apiUrl } from '../../api/client';
 
 interface Props {
   activeGoalId: string;
@@ -10,7 +11,7 @@ export const StudioRecovery: React.FC<Props> = ({ activeGoalId }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/chat/agents/goal/${activeGoalId}/checkpoints`)
+    apiFetch(`/api/chat/agents/goal/${activeGoalId}/checkpoints`)
       .then(r => r.json())
       .then(data => setCheckpoints(data || []))
       .catch(() => {});
@@ -18,7 +19,7 @@ export const StudioRecovery: React.FC<Props> = ({ activeGoalId }) => {
 
   const handleApprove = async (action: 'resume' | 'abort') => {
     setLoading(true);
-    await fetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
+    await apiFetch(`/api/chat/agents/goal/${activeGoalId}/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action })

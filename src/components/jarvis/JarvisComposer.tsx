@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Mic, MicOff, Loader2, Square, AlertCircle } from 'lucide-react';
 import styles from '../../pages/JarvisStudio.module.css';
 import { JARVIS_ORB_EVENTS } from './jarvisOrbState';
+import { apiFetch, apiUrl } from '../../api/client';
 
 // Microphone state visible to the user
 export type MicState = 'idle' | 'requesting-permission' | 'listening' | 'transcribing' | 'error';
@@ -163,7 +164,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
     try {
       const fd = new FormData();
       fd.append('audio', blob, 'audio.webm');
-      const res = await fetch('/api/voice/transcribe', { method: 'POST', body: fd });
+      const res = await apiFetch('/api/voice/transcribe', { method: 'POST', body: fd });
       
       let data: any = {};
       try {

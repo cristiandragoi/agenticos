@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { apiFetch, apiUrl } from '../api/client';
 
 const Container = styled.div`
   padding: 24px;
@@ -164,7 +165,7 @@ export default function SystemDoctorPage() {
 
   const fetchSummary = async () => {
     try {
-      const res = await fetch('http://localhost:4600/api/diagnostics/summary');
+      const res = await apiFetch('/api/diagnostics/summary');
       if (res.ok) {
         const data = await res.json();
         setReport(data);
@@ -182,7 +183,7 @@ export default function SystemDoctorPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:4600/api/diagnostics/run', { method: 'POST' });
+      const res = await apiFetch('/api/diagnostics/run', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Failed to run diagnostics');
@@ -200,7 +201,7 @@ export default function SystemDoctorPage() {
     if (!window.confirm('Apply automatic repair for CodeX provider assignment?')) return;
     
     try {
-      const res = await fetch('http://localhost:4600/api/diagnostics/repair/fix-codex-assignment', {
+      const res = await apiFetch('/api/diagnostics/repair/fix-codex-assignment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newProviderId: 'prov-ollama', newModelId: 'qwen3.5:4b' })
