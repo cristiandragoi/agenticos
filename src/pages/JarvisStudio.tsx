@@ -7,6 +7,7 @@ import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
 import { JarvisCore } from '../components/jarvis/JarvisCore';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
+import type { SystemNode } from '../components/jarvis/visualization/JarvisState';
 import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
@@ -799,18 +800,25 @@ export default function JarvisStudio() {
   });
 
   // ── Neural-universe node activity (Phase 3): real runtime signals only. ──
+  // Authoritative structured signals first (orb state, active task, active
+  // project, live Hermes run), the runtime's OWN action text second. Never
+  // the user's prompt words. Nodes without a real signal stay inactive.
   const nodeActivity = useMemo(() => {
-    const act: Record<string, number> = {};
+    const act: Partial<Record<SystemNode, number>> = {};
     const a = (backendRuntime.activeTask?.action || '').toLowerCase();
-    if (/memory|recall|remember|retriev/.test(a)) act.memory = 1;
-    if (/research|knowledge|search|web|source/.test(a)) act.knowledge = 1;
-    if (/hermes|codex|delegat|agent team|assign/.test(a) || orbState === 'delegated') act.hermes = 1;
-    if (backendRuntime.activeTask) act.runs = 1;
-    if (/artifact|build|file|write|save|generate/.test(a)) act.artifacts = 1;
-    if (/vision|oracle|image|video|screen|see|look/.test(a)) act.vision = 1;
-    if (backendRuntime.activeProject) act.projects = 1;
+    const runLive = activeRun && ['running', 'queued', 'waiting_for_approval', 'stopping'].includes(activeRun.status);
+    if (/memory|recall|remember|retriev/.test(a)) act.Memory = 1;
+    if (backendRuntime.activeProject) act.Projects = 1;
+    if (/research|knowledge|search|web|source|review/.test(a)) act.Knowledge = 1;
+    if (orbState === 'delegated' || /delegat|agent team|assign|hermes/.test(a) || runLive) act.Hermes = 1;
+    // No structured CodeX run signal exists in /hermes-api/runs (no worker
+    // field) — the runtime's own action text is the only real signal.
+    if (/codex|coding|repo|commit|pull/.test(a)) act.CodeX = 1;
+    if (backendRuntime.activeTask || runLive) act.Runs = 1;
+    if (/artifact|build|file|write|save|generate/.test(a)) act.Artifacts = 1;
+    if (/vision|oracle|image|video|screen|see|look/.test(a)) act.Vision = 1;
     return act;
-  }, [backendRuntime.activeTask, backendRuntime.activeProject, orbState]);
+  }, [backendRuntime.activeTask, backendRuntime.activeProject, orbState, activeRun?.status]);
 
   // ── Activity line: REAL events only (voice transitions + Hermes events) ──
   const [activityLog, setActivityLog] = useState<{ t: number; text: string }[]>([]);

@@ -1,71 +1,42 @@
 /**
- * Holographic head color/state contract tests.
+ * Programmatic humanoid contract tests (Slice 0 correction).
  * Renders JarvisCore in each semantic state and asserts:
- *  - the canvas carries data-orb-state
- *  - the draw runs without throwing (non-blank canvas)
- *  - semantic state → color mapping matches the spec (§10)
+ *  - the wrapper carries data-orb-state
+ *  - the CENTRAL HUMANOID is SVG regions (face/eyes/brain/chest/halo), NOT raster
+ *  - no <img> is rendered anywhere in the visualization
+ *  - every state renders without throwing
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
 import { render, cleanup } from '@testing-library/react';
-import { JarvisCore, JARVIS_HEAD_COLORS } from '../components/jarvis/JarvisCore';
+import { JarvisCore } from '../components/jarvis/JarvisCore';
 
-// jsdom has no real canvas — stub getContext with a recording context.
-function stubCanvas() {
-  const calls: string[] = [];
-  const ctx: any = {
-    calls,
-    clearRect: vi.fn(), createRadialGradient: () => ({ addColorStop: vi.fn() }),
-    createLinearGradient: () => ({ addColorStop: vi.fn() }),
-    fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
-    bezierCurveTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
-    arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(), scale: vi.fn(),
-    save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
-    setLineDash: vi.fn(), fillText: vi.fn(), strokeText: vi.fn(),
-    drawImage: vi.fn(), filter: '',
-    createConicGradient: undefined,
-  };
-  const canvas = document.createElement('canvas');
-  canvas.getContext = vi.fn(() => ctx) as any;
-  canvas.width = 300; canvas.height = 300;
-  document.createElement = new Proxy(document.createElement, {
-    apply(target, thisArg, args) {
-      const el = Reflect.apply(target, thisArg, args);
-      if (args[0] === 'canvas') return canvas;
-      return el;
-    },
-  });
-  return { ctx, canvas };
-}
+const HUMAN_REGIONS = ['#face-path', '#eye-left', '#eye-right', '#brain-glow', '#chest-glow', '#halo-ring'];
 
-describe('JarvisCore holographic head', () => {
-  let stub: ReturnType<typeof stubCanvas>;
-  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+describe('JarvisCore programmatic humanoid', () => {
+  afterEach(() => { cleanup(); });
 
-  it('maps every semantic state to a spec color and renders without throwing', () => {
-    stub = stubCanvas();
-    const states: Array<[string, string]> = [
-      ['idle', '#00e5ff'], ['listening', '#3b82f6'], ['reasoning', '#e0f2fe'],
-      ['executing', '#00d4ff'], ['delegated', '#ec4899'], ['repairing', '#9333ea'],
-      ['warning', '#f59e0b'], ['error', '#ef4444'], ['completed', '#22c55e'],
-      ['speaking', '#a855f7'],
+  it('renders a programmatic SVG humanoid (no raster) for every state', () => {
+    const states = [
+      'idle', 'listening', 'reasoning', 'executing', 'delegated',
+      'repairing', 'warning', 'error', 'completed', 'speaking', 'offline',
     ];
-    for (const [state, expectMain] of states) {
-      const colors = JARVIS_HEAD_COLORS[state as keyof typeof JARVIS_HEAD_COLORS];
-      expect(colors.main.toLowerCase()).toBe(expectMain);
-      const { container } = render(<JarvisCore state={state as any} size={120} />);
-      const canvas = container.querySelector('canvas');
-      expect(canvas).toBeTruthy();
-      expect(canvas?.getAttribute('data-orb-state')).toBe(state);
-      // The draw ran (clearRect + at least one fill) — no throw.
-      expect(stub.ctx.clearRect).toHaveBeenCalled();
-      expect(stub.ctx.fill).toHaveBeenCalled();
+    for (const state of states) {
+      const { container } = render(<JarvisCore state={state} size={120} />);
+      const wrap = container.querySelector('[data-testid="jarvis-orb"]');
+      expect(wrap).toBeTruthy();
+      expect(wrap?.getAttribute('data-orb-state')).toBe(state);
+      // Central humanoid = SVG regions (independent, controllable layers).
+      for (const sel of HUMAN_REGIONS) {
+        expect(container.querySelector(sel)).toBeTruthy();
+      }
+      // Absolutely no raster <img> in the visualization.
+      expect(container.querySelector('img')).toBeNull();
       cleanup();
     }
   });
 
   it('does not crash on reduced motion', () => {
-    stub = stubCanvas();
     expect(() => render(<JarvisCore state="idle" size={120} reducedMotion />)).not.toThrow();
   });
 });
