@@ -1,11 +1,12 @@
 /**
- * Adapter behavior contracts (Slice 0): state mapping, node routing,
- * visible-node set. Pure functions — no rendering.
+ * Adapter behavior contracts (v2): state mapping, node routing (owned by
+ * v2's DEFAULT_NODES), active-node selection. Pure functions.
  */
 import { describe, it, expect } from 'vitest';
-import { mapAgenticState, NODE_ROUTES, VISIBLE_NODES, pickActiveNode } from '../components/jarvis/jarvisVisualizationAdapter';
+import { mapAgenticState, pickActiveNode } from '../components/jarvis/jarvisVisualizationAdapter';
+import { DEFAULT_NODES } from '../components/jarvis-visualization';
 
-describe('jarvisVisualizationAdapter', () => {
+describe('jarvisVisualizationAdapter (v2)', () => {
   it('maps every AgenticOS orb state to a package state', () => {
     const cases: Array<[string, string]> = [
       ['idle', 'idle'],
@@ -26,17 +27,13 @@ describe('jarvisVisualizationAdapter', () => {
     }
   });
 
-  it('every visible node routes to a real destination (no fake pages)', () => {
-    for (const node of VISIBLE_NODES) {
-      const route = NODE_ROUTES[node];
-      expect(route).toBeTruthy();
-      expect(route!.startsWith('#/')).toBe(true);
+  it('v2 DEFAULT_NODES: 8 nodes, every one routed to a real destination, no Oracle', () => {
+    expect(DEFAULT_NODES.length).toBe(8);
+    for (const node of DEFAULT_NODES) {
+      expect(node.route).toBeTruthy();
+      expect(node.route!.startsWith('#/')).toBe(true);
     }
-  });
-
-  it('Oracle has no destination yet, so it is NOT in the visible set', () => {
-    expect(VISIBLE_NODES).not.toContain('Oracle');
-    expect(NODE_ROUTES.Oracle).toBeUndefined();
+    expect(DEFAULT_NODES.some((n) => n.id === 'Oracle')).toBe(false);
   });
 
   it('picks the strongest active node above the 0.5 threshold', () => {

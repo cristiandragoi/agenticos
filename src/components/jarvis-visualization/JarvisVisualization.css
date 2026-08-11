@@ -1,99 +1,97 @@
-/**
- * Jarvis Humanoid Visualization — Styles
- * Minimal, performance-conscious CSS. No animations here;
- * all motion is driven by the animation engine via refs.
- */
-
-.jarvis-visualization {
-  color: var(--jarvis-theme-color, #00e5ff);
-  font-family: var(--kimi-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
-  background: transparent;
-  border-radius: 12px;
+.jhv-root {
+  --jarvis-color: #00eaff;
+  position: relative;
+  width: min(100%, 980px);
+  min-width: 320px;
+  aspect-ratio: 10 / 9;
+  overflow: visible;
   user-select: none;
-  -webkit-user-select: none;
+  isolation: isolate;
 }
 
-.jarvis-visualization svg {
+.jhv-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
   overflow: visible;
 }
 
-.jarvis-visualization text {
-  font-family: var(--kimi-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+.jhv-humanoid,
+.jhv-node,
+.jhv-status {
+  transition: color 220ms ease, opacity 220ms ease, filter 220ms ease;
 }
 
-/* ── HUD ── */
-.jarvis-hud {
+.jhv-shell {
+  opacity: calc(.78 + var(--breath, .5) * .18);
+}
+
+.jhv-face-neurons,
+.jhv-torso-neurons {
+  stroke-dasharray: 3 6;
+  stroke-dashoffset: calc(var(--pulse, .5) * -14px);
+}
+
+.jhv-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.jhv-node:hover circle,
+.jhv-node:focus-visible circle,
+.jhv-node.is-active circle {
+  filter: drop-shadow(0 0 10px currentColor);
+}
+
+.jhv-node-label {
+  fill: #aeeffc;
+  font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 1.25px;
+}
+
+.jhv-status {
   position: absolute;
-  bottom: 12px;
   left: 50%;
+  bottom: 1.8%;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.jarvis-hud-status {
-  font-size: 11px;
-  font-weight: 700;
+  gap: 9px;
+  color: var(--jarvis-color);
+  font: 700 12px/1 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 2px;
-  color: var(--jarvis-theme-color, #00e5ff);
-  text-shadow: 0 0 8px var(--jarvis-theme-color, #00e5ff);
-  opacity: 0.9;
-  transition: color 0.3s ease;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.jarvis-hud-connection {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  color: rgba(255, 255, 255, 0.5);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.jarvis-hud-dot {
-  width: 6px;
-  height: 6px;
+.jhv-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #ef4444;
-  box-shadow: 0 0 4px #ef4444;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.jhv-dot.online {
+  background: #55f59a;
+  box-shadow: 0 0 10px #55f59a;
+}
+.jhv-dot.offline {
+  background: #ff4d5f;
+  box-shadow: 0 0 10px #ff4d5f;
+}
+.jhv-agent {
+  color: #ff66d9;
 }
 
-.jarvis-hud-dot.connected {
-  background: #22c55e;
-  box-shadow: 0 0 4px #22c55e;
-}
-
-.jarvis-hud-agent {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: #f472b6;
-  text-shadow: 0 0 6px #f472b6;
-}
-
-/* ── System Node Hover ── */
-.jarvis-visualization [id^="node-"] {
-  transition: transform 0.15s ease;
-}
-
-.jarvis-visualization [id^="node-"]:hover {
-  transform: scale(1.15);
-}
-
-/* ── Responsive ── */
-@media (max-width: 400px) {
-  .jarvis-hud-status {
-    font-size: 9px;
-    letter-spacing: 1px;
+@media (max-width: 800px) {
+  .jhv-node-label {
+    font-size: 11px;
+    letter-spacing: .8px;
   }
-  .jarvis-hud-connection,
-  .jarvis-hud-agent {
-    font-size: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jhv-humanoid,
+  .jhv-node,
+  .jhv-status {
+    transition: none;
   }
 }

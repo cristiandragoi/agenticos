@@ -1,9 +1,9 @@
 /**
- * Jarvis visualization adapter — maps AgenticOS runtime state into the
- * programmatic package (Humanoid-JARVIS) contract, and owns the node→route
- * mapping for clickable neural nodes. Pure functions; no rendering.
+ * Jarvis visualization adapter (v2) — maps AgenticOS runtime state into the
+ * programmatic package (Humanoid-JARVIS v2) contract. v2's DEFAULT_NODES
+ * owns the node→route mapping (real destinations, no Oracle). Pure functions.
  */
-import type { JarvisState as PackageState, Severity, SystemNode } from '../jarvis-visualization';
+import type { JarvisState as PackageState, Severity, JarvisNodeId } from '../jarvis-visualization';
 
 export interface AgenticVisualState {
   state: PackageState;
@@ -12,7 +12,7 @@ export interface AgenticVisualState {
   thinkingIntensity: number;
 }
 
-/** AgenticOS orb state → package state/severity/connectivity. */
+/** AgenticOS orb state → v2 package state/severity/connectivity. */
 export function mapAgenticState(orbState: string, opts?: { thinkingIntensity?: number }): AgenticVisualState {
   const ti = opts?.thinkingIntensity ?? 0;
   switch (orbState) {
@@ -43,34 +43,12 @@ export function mapAgenticState(orbState: string, opts?: { thinkingIntensity?: n
   }
 }
 
-/** Real destinations for the neural nodes (existing routes only — no fake pages). */
-export const NODE_ROUTES: Partial<Record<SystemNode, string>> = {
-  Memory: '#/memory',
-  Projects: '#/mission-control',
-  Knowledge: '#/research',
-  Hermes: '#/hermes-studio',
-  CodeX: '#/codex',
-  Runs: '#/runs',
-  Artifacts: '#/builds',
-  Vision: '#/video',
-};
-
-/**
- * Nodes rendered around the humanoid. Oracle is NOT included: no real
- * destination exists yet, so it stays out of the visible set (per the rule
- * "do not create a fake page for a missing destination"). Add it here once
- * a real Oracle destination exists.
- */
-export const VISIBLE_NODES: SystemNode[] = [
-  'Memory', 'Projects', 'Knowledge', 'Hermes', 'CodeX', 'Runs', 'Artifacts', 'Vision',
-];
-
 /** The node with the strongest activity (>0.5) — drives the active-node highlight. */
-export function pickActiveNode(nodeActivity: Partial<Record<SystemNode, number>> | undefined): SystemNode | null {
+export function pickActiveNode(nodeActivity: Partial<Record<JarvisNodeId, number>> | undefined): JarvisNodeId | null {
   if (!nodeActivity) return null;
-  let best: SystemNode | null = null;
+  let best: JarvisNodeId | null = null;
   let bestV = 0;
-  for (const [node, v] of Object.entries(nodeActivity) as [SystemNode, number][]) {
+  for (const [node, v] of Object.entries(nodeActivity) as [JarvisNodeId, number][]) {
     if (v > bestV) { bestV = v; best = node; }
   }
   return bestV > 0.5 ? best : null;

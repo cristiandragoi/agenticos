@@ -7,7 +7,7 @@ import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
 import { JarvisCore } from '../components/jarvis/JarvisCore';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
-import type { SystemNode } from '../components/jarvis-visualization';
+import type { JarvisNodeId } from '../components/jarvis-visualization';
 import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
@@ -804,7 +804,7 @@ export default function JarvisStudio() {
   // project, live Hermes run), the runtime's OWN action text second. Never
   // the user's prompt words. Nodes without a real signal stay inactive.
   const nodeActivity = useMemo(() => {
-    const act: Partial<Record<SystemNode, number>> = {};
+    const act: Partial<Record<JarvisNodeId, number>> = {};
     const a = (backendRuntime.activeTask?.action || '').toLowerCase();
     const runLive = activeRun && ['running', 'queued', 'waiting_for_approval', 'stopping'].includes(activeRun.status);
     if (/memory|recall|remember|retriev/.test(a)) act.Memory = 1;

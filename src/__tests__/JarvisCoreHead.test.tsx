@@ -1,8 +1,8 @@
 /**
- * Programmatic humanoid contract tests (Slice 0 correction).
+ * Programmatic humanoid contract tests (Humanoid-JARVIS v2).
  * Renders JarvisCore in each semantic state and asserts:
  *  - the wrapper carries data-orb-state
- *  - the CENTRAL HUMANOID is SVG regions (face/eyes/brain/chest/halo), NOT raster
+ *  - the CENTRAL HUMANOID is SVG regions (eyes/brain/chest/shell), NOT raster
  *  - no <img> is rendered anywhere in the visualization
  *  - every state renders without throwing
  */
@@ -11,9 +11,9 @@ import React from 'react';
 import { render, cleanup } from '@testing-library/react';
 import { JarvisCore } from '../components/jarvis/JarvisCore';
 
-const HUMAN_REGIONS = ['#face-path', '#eye-left', '#eye-right', '#brain-glow', '#chest-glow', '#halo-ring'];
+const HUMAN_REGIONS = ['.jhv-humanoid', '.jhv-eyes', '.jhv-brain', '.jhv-chest', '.jhv-shell'];
 
-describe('JarvisCore programmatic humanoid', () => {
+describe('JarvisCore programmatic humanoid (v2)', () => {
   afterEach(() => { cleanup(); });
 
   it('renders a programmatic SVG humanoid (no raster) for every state', () => {
