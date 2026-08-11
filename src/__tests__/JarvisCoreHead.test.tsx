@@ -20,7 +20,8 @@ function stubCanvas() {
     fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
     bezierCurveTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
     arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(), scale: vi.fn(),
-    strokeStyle: '', fillStyle: '', lineWidth: 1, save: vi.fn(), restore: vi.fn(),
+    save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
+    setLineDash: vi.fn(),
     createConicGradient: undefined,
   };
   const canvas = document.createElement('canvas');

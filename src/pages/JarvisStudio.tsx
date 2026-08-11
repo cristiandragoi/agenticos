@@ -998,6 +998,7 @@ export default function JarvisStudio() {
                   state={orbState as JarvisCoreState}
                   inputLevel={orbState === 'listening' ? inputLevel : 0}
                   outputLevel={orbState === 'speaking' ? outputLevel : 0}
+                  activeAgent={backendRuntime.activeAgent}
                   size={orbSize}
                   testIdPrefix="jarvis-orb"
                 />
