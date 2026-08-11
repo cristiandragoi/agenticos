@@ -13,7 +13,7 @@
  * logged): env HERMES_API_KEY wins, else the Hermes profile .env file.
  *
  * No second server, no new port — this runs inside the existing backend
- * on port 4600 and is mounted by routers/hermesApi.ts.
+ * on port 4000 and is mounted by routers/hermesApi.ts.
  */
 
 import * as fs from 'node:fs';

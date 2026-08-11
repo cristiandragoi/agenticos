@@ -97,7 +97,7 @@ import { executionRouter } from './routers/execution.js';
 import diagnosticsRouter from './routers/diagnostics.js';
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4001;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
 
 /* ── Bootstrap ──────────────────────────────────────── */
 

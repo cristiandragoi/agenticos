@@ -3,7 +3,7 @@
  * - Web/dev (http origin, Vite): resolves to `/api` (same-origin) or the
  *   configured VITE_API_URL override.
  * - Electron production (file:// origin): resolves to the real backend HTTP
- *   origin (`http://localhost:4600/api`), because a relative `/api` fetch
+ *   origin (`http://localhost:4000/api`), because a relative `/api` fetch
  *   under file:// would resolve to file:///api/... and fail.
  *
  * All renderer callers should derive their request URLs from this module so
@@ -23,7 +23,7 @@ const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:/i;
  */
 export function resolveApiBase(protocol: string, envUrl?: string): string {
   if (envUrl) return envUrl;
-  return protocol === 'file:' ? 'http://localhost:4600/api' : '/api';
+  return protocol === 'file:' ? 'http://localhost:4000/api' : '/api';
 }
 
 const BASE_URL = resolveApiBase(

@@ -33,8 +33,8 @@ function baseState(overrides: Partial<BackendLifecycleState> = {}): BackendLifec
   return {
     mode: 'AUTO_MANAGED',
     status: 'starting',
-    backendUrl: 'http://127.0.0.1:4600',
-    port: 4600,
+    backendUrl: 'http://127.0.0.1:4000',
+    port: 4000,
     pid: null,
     owned: false,
     startedAt: null,
@@ -149,7 +149,7 @@ describe('BackendStatusIndicator', () => {
 
     act(() => bridge.push(baseState({ status: 'ready' })));
     expect(screen.getByTestId('backend-status-chip')).toHaveTextContent(/Connected/);
-    expect(screen.getByTestId('backend-status-chip')).toHaveTextContent(':4600');
+    expect(screen.getByTestId('backend-status-chip')).toHaveTextContent(':4000');
 
     act(() => bridge.push(baseState({ status: 'reconnecting', restartCount: 2 })));
     expect(screen.getByTestId('backend-status-chip')).toHaveTextContent(/Reconnecting/);
@@ -177,7 +177,7 @@ describe('BackendStatusIndicator', () => {
     const panel = await screen.findByTestId('backend-diagnostics-panel');
     expect(panel).toHaveTextContent('AUTO_MANAGED');
     expect(panel).toHaveTextContent('FAILED');
-    expect(panel).toHaveTextContent(':4600');
+    expect(panel).toHaveTextContent(':4000');
     expect(panel).toHaveTextContent('4242');
     expect(screen.getByTestId('backend-diagnostics-error')).toHaveTextContent('crashed 3 times');
     expect(screen.getByTestId('backend-diagnostics-log')).toHaveTextContent('[stderr] boom');

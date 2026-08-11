@@ -17,7 +17,7 @@ describe('resolveApiBase — canonical backend origin', () => {
   });
 
   it('file:// production origin resolves to the backend HTTP origin', () => {
-    expect(resolveApiBase('file:')).toBe('http://localhost:4600/api');
+    expect(resolveApiBase('file:')).toBe('http://localhost:4000/api');
   });
 
   it('VITE_API_URL override wins over protocol detection', () => {

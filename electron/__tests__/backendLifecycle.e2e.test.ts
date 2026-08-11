@@ -66,7 +66,12 @@ function makeManager(o: HarnessOpts): BackendLifecycleManager {
     entry: FIXTURE,
     cwd: TMP,
     nodeExec: process.execPath,
-    env: { ...process.env, PORT: String(o.port), E2E_MODE: o.fixtureMode, ...(o.extraEnv || {}) },
+    // NOTE: no PORT here on purpose — this mirrors electron/main.ts which
+    // passes process.env as-is. The spawned backend must get its port from
+    // the spawnBackendWithElectronNode PORT pin (regression: the lifecycle
+    // previously never pinned PORT, so the backend bound server/.env's port
+    // while the lifecycle probed config.port).
+    env: { ...process.env, E2E_MODE: o.fixtureMode, ...(o.extraEnv || {}) },
     healthPath: '/api/health',
     healthProbeTimeoutMs: 1500,
     readinessPollMs: 100,
@@ -304,9 +309,17 @@ describe('E2E real-process lifecycle', () => {
   /* ── config helper sanity ─────────────────────────────────────────── */
 
   it('readPortFromServerEnv honors server/.env PORT', () => {
-    // The real repo server/.env pins 4600 — read it through the helper.
+    // The helper must reflect whatever server/.env actually pins (canonical
+    // port moved to 4000 in the backend/electron connection fix).
     const repoRoot = path.resolve(__dirname, '..', '..');
-    expect(readPortFromServerEnv(repoRoot, 4600)).toBe(4600);
+    const envPath = path.join(repoRoot, 'server', '.env');
+    let expected = 4600;
+    try {
+      const text = fs.readFileSync(envPath, 'utf8');
+      const m = text.match(/^\s*PORT\s*=\s*(\d+)\s*$/m);
+      if (m) expected = parseInt(m[1], 10);
+    } catch { /* missing .env → fallback */ }
+    expect(readPortFromServerEnv(repoRoot, 4600)).toBe(expected);
     expect(readPortFromServerEnv(path.join(TMP, 'no-such-dir'), 4600)).toBe(4600);
   });
 });

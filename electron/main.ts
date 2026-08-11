@@ -108,7 +108,7 @@ function initBackendLifecycle(): BackendLifecycleManager {
   const appRoot = process.env.APP_ROOT as string;
   const port = process.env['AGENTICOS_BACKEND_PORT']
     ? parseInt(process.env['AGENTICOS_BACKEND_PORT'], 10)
-    : readPortFromServerEnv(appRoot, 4600);
+    : readPortFromServerEnv(appRoot, 4000);
   const manager = createBackendLifecycleManager({
     mode: BACKEND_MODE,
     host: '127.0.0.1',

@@ -38,8 +38,8 @@ export interface BackendLifecycleState {
 const FALLBACK_STATE: BackendLifecycleState = {
   mode: 'UNKNOWN',
   status: 'starting',
-  backendUrl: typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:4600',
-  port: 4600,
+  backendUrl: typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:4000',
+  port: 4000,
   pid: null,
   owned: false,
   startedAt: null,
@@ -75,7 +75,7 @@ async function healthPollTick() {
   try {
     // file:// (production Electron loads dist/index.html) has no HTTP origin,
     // so a relative '/api/health' resolves to file:///api/health and fails.
-    // API_BASE is the canonical file-aware base (default: localhost:4600/api).
+    // API_BASE is the canonical file-aware base (default: localhost:4000/api).
     const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       consecutivePollFailures = 0;

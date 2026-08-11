@@ -19,8 +19,8 @@ import { stopBackendLifecycleMonitor } from '../diagnostics/backendLifecycleStor
 function installReadyBridge() {
   (window as any).backendLifecycle = {
     getState: async () => ({
-      mode: 'AUTO_MANAGED', status: 'ready', backendUrl: 'http://127.0.0.1:4600',
-      port: 4600, pid: 1, owned: true, startedAt: Date.now(),
+      mode: 'AUTO_MANAGED', status: 'ready', backendUrl: 'http://127.0.0.1:4000',
+      port: 4000, pid: 1, owned: true, startedAt: Date.now(),
       lastHealthSuccessAt: Date.now(), lastHealthFailureAt: null,
       restartCount: 0, lastError: null, readinessMs: 1000, recentLog: [],
     }),

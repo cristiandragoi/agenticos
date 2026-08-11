@@ -1,6 +1,6 @@
 /**
  * Hermes Live-Run router — mounted at /api/hermes-api inside the existing
- * backend (port 4600). Thin HTTP surface over hermesApiService:
+ * backend (port 4000). Thin HTTP surface over hermesApiService:
  *   GET  /api/hermes-api/status                 — profile, gateway, STT/TTS truth
  *   POST /api/hermes-api/runs                   — create a live Hermes run
  *   GET  /api/hermes-api/runs                   — list runs

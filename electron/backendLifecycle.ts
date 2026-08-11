@@ -644,9 +644,12 @@ export function spawnBackendWithElectronNode(config: LifecycleConfig): BackendCh
     cwd: config.cwd,
     // Only ELECTRON_RUN_AS_NODE when we are actually using the Electron
     // binary as Node. A system `node` must NOT get ELECTRON_RUN_AS_NODE.
+    // Pin PORT explicitly so the spawned backend binds the lifecycle's
+    // configured port (the backend's index.ts re-applies an explicit PORT
+    // after dotenv's override:true — see server/src/index.ts explicitPort).
     env: usingElectronNode
-      ? { ...config.env, ELECTRON_RUN_AS_NODE: '1' }
-      : { ...config.env, ELECTRON_RUN_AS_NODE: undefined },
+      ? { ...config.env, PORT: String(config.port), ELECTRON_RUN_AS_NODE: '1' }
+      : { ...config.env, PORT: String(config.port), ELECTRON_RUN_AS_NODE: undefined },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
