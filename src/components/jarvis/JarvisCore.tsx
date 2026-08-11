@@ -1,21 +1,22 @@
 import React, { useEffect, useRef } from 'react';
 
-/* ── J.A.R.V.I.S — HOLOGRAPHIC PRESENCE V3 ─────────────────────────────
- * Canvas 2D (no Three.js/WebGL — performance contract). Visual-only
- * replacement: a LARGE futuristic humanoid head/bust whose subject is the
- * INTERNAL SYSTEM:
- *   - big cranium with temples / cheeks / jaw / chin (humanoid scale)
- *   - a clearly visible NEURAL CORE inside the cranial volume (left/right
- *     hemisphere micro-networks, branching dendrites, luminous pathways)
- *   - an agent constellation (JARVIS core + HERMES/CODEX/MEMORY/VISION/
- *     ORACLE/RESEARCH/TEAMS/AUTOMATION) around the head with subtle labels
- *   - four depth planes: back system field, mid cranial contours +
- *     networks, front holographic membrane, accent particles/signals
- *   - restrained technological facial geometry — never a cartoon face
- *   - state-driven color/motion from REAL runtime signals only
- *
- * One rAF loop, cached geometry per size, bounded particles, reduced-motion
- * static frame. Colors map 1:1 to the existing runtime state contract.
+/* ── J.A.R.V.I.S — HOLOGRAPHIC PRESENCE V3.1 ───────────────────────────
+ * Visual-only iteration (human review): the head is the HERO.
+ *   - LARGE humanoid head (~1.7x V3 area): cranial dome, temples, cheeks,
+ *     jaw, chin, subtle neck + restrained shoulder suggestion — never a
+ *     circular mask, never a realistic face
+ *   - the INTELLIGENCE lives in the SKULL: bright reasoning core in the
+ *     upper brain region, left/right hemisphere networks, branching
+ *     pathways, moving signals, depth layers — the visual focal point
+ *   - pedestal reduced ~60%: a faint holographic base, never competing
+ *     with the head
+ *   - agent constellation: idle = subtle points (labels subdued); delegated
+ *     = real agent prominent + pink + signal from the neural core;
+ *     executing = internal pathways activate
+ *   - state colors illuminate INTERNAL neural structures (the membrane
+ *     stays a dim holographic shell tinted by state)
+ * Canvas 2D only; one rAF loop; bounded particles; reduced-motion static.
+ * Runtime state source + color contract UNCHANGED.
  */
 
 export type JarvisCoreState =
@@ -33,8 +34,7 @@ interface JarvisCoreProps {
   reducedMotion?: boolean;
   size?: number;
   testIdPrefix?: string;
-  /** REAL delegated agent display name (e.g. "Hermes") — drives the
-   *  delegate path. Null/unknown → no fake delegation is drawn. */
+  /** REAL delegated agent display name — drives the delegate path. */
   activeAgent?: string | null;
 }
 
@@ -63,9 +63,9 @@ const rgba = (c: [number, number, number], a: number) => `rgba(${c[0] | 0},${c[1
 
 /* ── Real capability/agent constellation (mirror of the capability
  *    registry). JARVIS is the central core (the head itself); the others
- *    orbit as subtle node markers + labels in the surrounding field. */
+ *    are subtle field points that illuminate on activity/delegation. */
 const AGENTS = [
-  { id: 'JARVIS',     x: 0.00, y: 0.00 },  // central intelligence (the head)
+  { id: 'JARVIS',     x: 0.00, y: 0.00 },
   { id: 'HERMES',     x: 0.36, y: -0.26 },
   { id: 'CODEX',      x: 0.44, y: 0.10 },
   { id: 'TEAMS',      x: 0.36, y: 0.36 },
@@ -91,23 +91,23 @@ const AGENT_NODE_MAP: Record<string, string> = {
   Jarvis: 'JARVIS',
 };
 
-/* ── Left/right hemisphere micro-networks (INSIDE the cranium) ── */
+/* ── Left/right hemisphere micro-networks (INSIDE the cranial volume) ── */
 const HEMI_L = [
-  { x: -0.42, y: -0.18 }, { x: -0.34, y: -0.32 }, { x: -0.22, y: -0.26 },
-  { x: -0.30, y: -0.08 }, { x: -0.16, y: -0.10 }, { x: -0.10, y: -0.24 },
+  { x: -0.40, y: -0.22 }, { x: -0.30, y: -0.38 }, { x: -0.16, y: -0.32 },
+  { x: -0.28, y: -0.08 }, { x: -0.12, y: -0.12 }, { x: -0.05, y: -0.28 },
 ];
 const HEMI_R = [
-  { x: 0.42, y: -0.18 }, { x: 0.34, y: -0.32 }, { x: 0.22, y: -0.26 },
-  { x: 0.30, y: -0.08 }, { x: 0.16, y: -0.10 }, { x: 0.10, y: -0.24 },
+  { x: 0.40, y: -0.22 }, { x: 0.30, y: -0.38 }, { x: 0.16, y: -0.32 },
+  { x: 0.28, y: -0.08 }, { x: 0.12, y: -0.12 }, { x: 0.05, y: -0.28 },
 ];
 const HEMI_EDGES: Array<[number, number]> = [
   [0, 1], [1, 2], [2, 5], [0, 3], [3, 4], [4, 5], [0, 2], [3, 5],
 ];
-/** Branching dendrites from the core to the cranium rim. */
+/** Branching dendrites from the brain core to the cranium rim. */
 const DENDRITES = [
-  { ax: 0.00, ay: -0.42 }, { ax: 0.24, ay: -0.40 }, { ax: -0.24, ay: -0.40 },
-  { ax: 0.42, ay: -0.24 }, { ax: -0.42, ay: -0.24 }, { ax: 0.44, ay: 0.00 },
-  { ax: -0.44, ay: 0.00 }, { ax: 0.30, ay: 0.34 }, { ax: -0.30, ay: 0.34 },
+  { ax: 0.00, ay: -0.52 }, { ax: 0.26, ay: -0.48 }, { ax: -0.26, ay: -0.48 },
+  { ax: 0.46, ay: -0.26 }, { ax: -0.46, ay: -0.26 }, { ax: 0.50, ay: 0.04 },
+  { ax: -0.50, ay: 0.04 }, { ax: 0.34, ay: 0.40 }, { ax: -0.34, ay: 0.40 },
 ];
 
 interface Mote { x: number; y: number; r: number; sp: number; ph: number; }
@@ -148,18 +148,22 @@ export function JarvisCore({
     canvas.height = size * dpr;
     ctx.scale(dpr, dpr);
 
-    /* ── Cached geometry (once per size) ── */
+    /* ── Geometry (derived from the actual canvas size S) ── */
     const S = size;
     const cx = S / 2;
-    const cy = S * 0.24;                    // head center (cranium top ~3%)
-    const W = S * 0.26;                     // half head width
-    const H = S * 0.21;                     // half head height
+    const cy = S * 0.30;                     // head center (cranium top ~1%)
+    const W = S * 0.32;                      // half head width (head spans 18-82%)
+    const H = S * 0.29;                      // half head height (head spans 1-59%)
+
+    // Brain core position: the intelligence lives in the UPPER cranial region.
+    const brainX = cx;
+    const brainY = cy - H * 0.28;
 
     const agentPos = AGENTS.map((a) => ({
       id: a.id,
       x: cx + a.x * S,
-      y: cy + a.y * S,
-      r: S * 0.013,
+      y: cy + a.y * S * 0.42,
+      r: S * 0.008,
     }));
     const posOf = (id: string) => { const p = agentPos.find((q) => q.id === id)!; return [p.x, p.y] as [number, number]; };
     const agentEdgeCurve = AGENT_EDGES.map(([ia, ib]) => {
@@ -167,39 +171,37 @@ export function JarvisCore({
       const mx = (ax + bx) / 2, my = (ay + by) / 2;
       const dx = bx - ax, dy = by - ay;
       const len = Math.hypot(dx, dy) || 1;
-      const ox = -dy / len * W * 0.14, oy = dx / len * W * 0.14;
+      const ox = -dy / len * W * 0.10, oy = dx / len * W * 0.10;
       return { pair: [ia, ib] as [string, string], a: [ax, ay] as [number, number], b: [bx, by] as [number, number], c: [mx + ox, my + oy] as [number, number] };
     });
 
-    const hemiL = HEMI_L.map((n) => ({ x: cx + n.x * W, y: cy + n.y * H }));
-    const hemiR = HEMI_R.map((n) => ({ x: cx + n.x * W, y: cy + n.y * H }));
+    const hemiL = HEMI_L.map((n) => ({ x: brainX + n.x * W, y: brainY + n.y * H }));
+    const hemiR = HEMI_R.map((n) => ({ x: brainX + n.x * W, y: brainY + n.y * H }));
 
-    /* Humanoid head: cranium dome → temples → cheeks → jaw → chin. */
+    /* Humanoid head: wide cranial dome → temples → cheeks → jaw → chin. */
     function headPath(g: CanvasRenderingContext2D, ox: number, oy: number, sx = 1, sy = 1) {
       g.beginPath();
       g.moveTo(ox, oy - H * 1.0 * sy);
-      g.bezierCurveTo(ox + W * 0.55 * sx, oy - H * 1.04 * sy, ox + W * 1.02 * sx, oy - H * 0.72 * sy, ox + W * 1.0 * sx, oy - H * 0.32 * sy);
-      g.bezierCurveTo(ox + W * 0.99 * sx, oy - H * 0.12 * sy, ox + W * 0.92 * sx, oy + H * 0.10 * sy, ox + W * 0.86 * sx, oy + H * 0.28 * sy);
-      g.bezierCurveTo(ox + W * 0.80 * sx, oy + H * 0.48 * sy, ox + W * 0.68 * sx, oy + H * 0.68 * sy, ox + W * 0.38 * sx, oy + H * 0.87 * sy);
-      g.bezierCurveTo(ox + W * 0.16 * sx, oy + H * 0.99 * sy, ox + W * 0.04 * sx, oy + H * 1.0 * sy, ox, oy + H * 1.0 * sy);
-      g.bezierCurveTo(ox - W * 0.04 * sx, oy + H * 1.0 * sy, ox - W * 0.16 * sx, oy + H * 0.99 * sy, ox - W * 0.38 * sx, oy + H * 0.87 * sy);
-      g.bezierCurveTo(ox - W * 0.68 * sx, oy + H * 0.68 * sy, ox - W * 0.80 * sx, oy + H * 0.48 * sy, ox - W * 0.86 * sx, oy + H * 0.28 * sy);
-      g.bezierCurveTo(ox - W * 0.92 * sx, oy + H * 0.10 * sy, ox - W * 0.99 * sx, oy - H * 0.12 * sy, ox - W * 1.0 * sx, oy - H * 0.32 * sy);
-      g.bezierCurveTo(ox - W * 1.02 * sx, oy - H * 0.72 * sy, ox - W * 0.55 * sx, oy - H * 1.04 * sy, ox, oy - H * 1.0 * sy);
+      g.bezierCurveTo(ox + W * 0.42 * sx, oy - H * 1.06 * sy, ox + W * 0.94 * sx, oy - H * 0.90 * sy, ox + W * 0.97 * sx, oy - H * 0.44 * sy);
+      g.bezierCurveTo(ox + W * 0.99 * sx, oy - H * 0.24 * sy, ox + W * 0.88 * sx, oy - H * 0.04 * sy, ox + W * 0.79 * sx, oy + H * 0.10 * sy);
+      g.bezierCurveTo(ox + W * 0.70 * sx, oy + H * 0.30 * sy, ox + W * 0.60 * sx, oy + H * 0.46 * sy, ox + W * 0.40 * sx, oy + H * 0.62 * sy);
+      g.bezierCurveTo(ox + W * 0.22 * sx, oy + H * 0.80 * sy, ox + W * 0.09 * sx, oy + H * 0.92 * sy, ox, oy + H * 0.98 * sy);
+      g.bezierCurveTo(ox - W * 0.09 * sx, oy + H * 0.92 * sy, ox - W * 0.22 * sx, oy + H * 0.80 * sy, ox - W * 0.40 * sx, oy + H * 0.62 * sy);
+      g.bezierCurveTo(ox - W * 0.60 * sx, oy + H * 0.46 * sy, ox - W * 0.70 * sx, oy + H * 0.30 * sy, ox - W * 0.79 * sx, oy + H * 0.10 * sy);
+      g.bezierCurveTo(ox - W * 0.88 * sx, oy - H * 0.04 * sy, ox - W * 0.99 * sx, oy - H * 0.24 * sy, ox - W * 0.97 * sx, oy - H * 0.44 * sy);
+      g.bezierCurveTo(ox - W * 0.94 * sx, oy - H * 0.90 * sy, ox - W * 0.42 * sx, oy - H * 1.06 * sy, ox, oy - H * 1.0 * sy);
       g.closePath();
     }
 
-    /* Neck + shoulders / bust pedestal (establishes humanoid scale). */
+    /* Reduced pedestal: subtle neck + shoulder suggestion only. */
     function bustPath(g: CanvasRenderingContext2D, ox: number, oy: number) {
       g.beginPath();
-      g.moveTo(ox - W * 0.16, oy + H * 0.96);
-      g.quadraticCurveTo(ox - W * 0.30, oy + H * 1.35, ox - W * 0.52, oy + H * 1.75);
-      g.quadraticCurveTo(ox - W * 0.98, oy + H * 2.30, ox - W * 1.30, oy + H * 2.55);
-      g.quadraticCurveTo(ox - W * 1.52, oy + H * 2.74, ox - W * 1.44, oy + H * 3.05);
-      g.lineTo(ox + W * 1.44, oy + H * 3.05);
-      g.quadraticCurveTo(ox + W * 1.52, oy + H * 2.74, ox + W * 1.30, oy + H * 2.55);
-      g.quadraticCurveTo(ox + W * 0.98, oy + H * 2.30, ox + W * 0.52, oy + H * 1.75);
-      g.quadraticCurveTo(ox + W * 0.30, oy + H * 1.35, ox + W * 0.16, oy + H * 0.96);
+      g.moveTo(ox - W * 0.14, oy + H * 0.98);
+      g.quadraticCurveTo(ox - W * 0.26, oy + H * 1.28, ox - W * 0.44, oy + H * 1.55);
+      g.quadraticCurveTo(ox - W * 0.74, oy + H * 1.86, ox - W * 0.62, oy + H * 2.10);
+      g.lineTo(ox + W * 0.62, oy + H * 2.10);
+      g.quadraticCurveTo(ox + W * 0.74, oy + H * 1.86, ox + W * 0.44, oy + H * 1.55);
+      g.quadraticCurveTo(ox + W * 0.26, oy + H * 1.28, ox + W * 0.14, oy + H * 0.98);
       g.closePath();
     }
 
@@ -210,10 +212,10 @@ export function JarvisCore({
     const seed = Array.from({ length: 14 }, () => Math.random() * Math.PI * 2);
     const pulses: Pulse[] = [];
     const sparks: Spark[] = [];
-    const motes: Mote[] = Array.from({ length: 22 }, () => ({
+    const motes: Mote[] = Array.from({ length: 20 }, () => ({
       x: Math.random(), y: Math.random(),
-      r: 0.5 + Math.random() * 1.2,
-      sp: 0.006 + Math.random() * 0.016,
+      r: 0.5 + Math.random() * 1.1,
+      sp: 0.006 + Math.random() * 0.014,
       ph: Math.random() * Math.PI * 2,
     }));
 
@@ -237,147 +239,119 @@ export function JarvisCore({
       const st = stateRef.current;
       const ampIn = st === 'listening' ? Math.min(1, Math.max(0, inputRef.current)) : 0;
       const ampOut = st === 'speaking' ? Math.min(1, Math.max(0, outputRef.current)) : 0;
-      const breathe = 1 + Math.sin(t * 1.15) * 0.008;
+      const breathe = 1 + Math.sin(t * 1.15) * 0.007;
       const activeAgentId = st === 'delegated' ? (AGENT_NODE_MAP[agentRef.current ?? ''] ?? null) : null;
 
       ctx.clearRect(0, 0, S, S);
 
-      /* ═══ BACK LAYER — ambient system field (elliptical, deep) ═══ */
-      const haloR = W * 3.0 * breathe;
+      /* ═══ BACK — soft ambient field (deep, non-radar) ═══ */
+      const haloR = W * 2.6 * breathe;
       const halo = ctx.createRadialGradient(cx, cy, W * 0.3, cx, cy, haloR);
-      const glowA = st === 'error' ? 0.26 : st === 'offline' ? 0.10 : 0.18;
+      const glowA = st === 'error' ? 0.22 : st === 'offline' ? 0.09 : 0.15;
       halo.addColorStop(0, rgba(colMain, glowA * (1 + ampOut * 0.6)));
-      halo.addColorStop(0.45, rgba(colMain, glowA * 0.38));
+      halo.addColorStop(0.5, rgba(colMain, glowA * 0.34));
       halo.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = halo;
       ctx.fillRect(0, 0, S, S);
 
-      // wide elliptical system rings (back depth plane)
-      ctx.save();
-      ctx.translate(cx, S * 0.62);
-      ctx.rotate(Math.sin(t * 0.12) * 0.05);
-      for (let i = 0; i < 3; i++) {
-        const ringA = st === 'error' ? 0.05 : 0.085 - i * 0.02;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, W * (1.15 + i * 0.42), W * (0.34 + i * 0.14), 0, 0, Math.PI * 2);
-        ctx.strokeStyle = rgba(i === 1 ? colSoft : colMain, Math.max(0.02, ringA));
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-      // rotating orbit dashes
-      ctx.setLineDash([3, 9]);
-      ctx.lineDashOffset = -t * 14;
+      // faint wide projection base at the bottom (pedestal, subtle)
+      const baseY = S * 0.86;
+      const baseGrad = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, W * 1.1);
+      baseGrad.addColorStop(0, rgba(colRim, 0.10));
+      baseGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = baseGrad;
       ctx.beginPath();
-      ctx.ellipse(0, 0, W * 2.0, W * 0.55, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = rgba(colRim, 0.10);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
+      ctx.ellipse(cx, baseY, W * 1.1, W * 0.24, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-      /* ═══ BACK LAYER — drifting motes (quiet ambient data) ═══ */
-      const moteA = st === 'reasoning' || st === 'executing' ? 0.34 : st === 'delegated' ? 0.26 : 0.16;
+      // drifting motes
+      const moteA = st === 'reasoning' || st === 'executing' ? 0.30 : st === 'delegated' ? 0.22 : 0.13;
       for (const m of motes) {
         m.x += m.sp * dt * (st === 'reasoning' ? 2.0 : 1);
         m.y += Math.sin(t * 0.5 + m.ph) * 0.0001;
         if (m.x > 1.03) m.x = -0.03;
-        const px = cx + (m.x - 0.5) * W * 2.9;
-        const py = cy + (m.y - 0.5) * H * 4.6;
+        const px = cx + (m.x - 0.5) * W * 2.4;
+        const py = cy + (m.y - 0.5) * H * 3.0;
         ctx.beginPath();
         ctx.arc(px, py, m.r, 0, Math.PI * 2);
         ctx.fillStyle = rgba(colSoft, moteA * (0.5 + 0.5 * Math.sin(t * 1.3 + m.ph)));
         ctx.fill();
       }
 
-      /* ═══ MID LAYER — bust / neck / shoulders pedestal ═══ */
-      const neckGrad = ctx.createLinearGradient(0, cy + H * 0.8, 0, S);
-      neckGrad.addColorStop(0, rgba(colRim, 0.16));
-      neckGrad.addColorStop(0.5, rgba(colMain, 0.08));
+      /* ═══ MID — reduced neck/shoulder pedestal ═══ */
+      const neckGrad = ctx.createLinearGradient(0, cy + H * 0.9, 0, S * 0.82);
+      neckGrad.addColorStop(0, rgba(colRim, 0.10));
       neckGrad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = neckGrad;
       bustPath(ctx, cx, cy);
       ctx.fill();
-      // shoulder cap line
+      // shoulder hint line
       ctx.beginPath();
-      ctx.moveTo(cx - W * 0.52, cy + H * 1.75);
-      ctx.quadraticCurveTo(cx, cy + H * 1.9, cx + W * 0.52, cy + H * 1.75);
-      ctx.strokeStyle = rgba(colRim, 0.10);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      // chest midline
-      ctx.beginPath();
-      ctx.moveTo(cx, cy + H * 0.98);
-      ctx.quadraticCurveTo(cx + W * 0.08, cy + H * 1.6, cx, cy + H * 2.6);
-      ctx.strokeStyle = rgba(colSoft, 0.07);
+      ctx.moveTo(cx - W * 0.46, cy + H * 1.58);
+      ctx.quadraticCurveTo(cx, cy + H * 1.72, cx + W * 0.46, cy + H * 1.58);
+      ctx.strokeStyle = rgba(colRim, 0.07);
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      /* ═══ MID LAYER — cranial contours (depth inside the head) ═══ */
-      const cortexA = st === 'reasoning' || st === 'executing' || st === 'thinking' || st === 'transcribing' ? 0.34 : st === 'repairing' ? 0.24 : 0.15;
+      /* ═══ MID — THE SKULL: brain depth layers + neural architecture ═══ */
+      const brainA = st === 'reasoning' || st === 'executing' || st === 'thinking' || st === 'transcribing' ? 0.42 : st === 'repairing' ? 0.30 : st === 'idle' ? 0.18 : 0.26;
       for (let layer = 0; layer < 3; layer++) {
         const wob = 1 + Math.sin(t * 0.8 + layer * 1.9 + seed[layer]) * 0.05;
-        const sxs = (0.88 - layer * 0.14) * wob;
-        const sys = (0.88 - layer * 0.12) * wob;
+        const sxs = (0.86 - layer * 0.14) * wob;
+        const sys = (0.78 - layer * 0.12) * wob;
         ctx.beginPath();
-        ctx.ellipse(cx, cy - H * 0.06, W * sxs, H * sys, Math.sin(t * 0.22 + layer) * 0.10, 0, Math.PI * 2);
-        ctx.strokeStyle = rgba(layer === 1 ? colSoft : colMain, cortexA * (1 - layer * 0.22));
-        ctx.lineWidth = 1.1;
+        ctx.ellipse(brainX, brainY, W * sxs * 0.72, H * sys * 0.62, Math.sin(t * 0.22 + layer) * 0.08, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba(layer === 1 ? colSoft : colMain, brainA * (1 - layer * 0.22));
+        ctx.lineWidth = 1;
         ctx.stroke();
       }
-      // cranial midline
-      ctx.strokeStyle = rgba(colSoft, cortexA * 0.7);
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - H * 0.94);
-      ctx.quadraticCurveTo(cx + W * 0.05, cy, cx, cy + H * 0.90);
-      ctx.stroke();
 
-      /* ═══ MID LAYER — NEURAL CORE (the heart of Jarvis, clearly visible) ═══ */
-      const corePulse = 1 + Math.sin(t * (st === 'reasoning' ? 2.8 : st === 'executing' ? 2.2 : 1.5)) * (st === 'idle' ? 0.06 : 0.16);
-      const coreR = W * 0.20 * corePulse;
-      const coreGrad = ctx.createRadialGradient(cx, cy + H * 0.02, 0, cx, cy + H * 0.02, coreR * 2.6);
-      const coreA = st === 'reasoning' ? 0.9 : st === 'executing' ? 0.82 : st === 'delegated' ? 0.6 : st === 'error' ? 0.85 : st === 'listening' ? 0.6 : 0.42 + ampOut * 0.18;
+      // BRAIN CORE: the brightest element, in the upper cranial region
+      const corePulse = 1 + Math.sin(t * (st === 'reasoning' ? 2.8 : st === 'executing' ? 2.2 : 1.5)) * (st === 'idle' ? 0.05 : 0.15);
+      const coreR = W * 0.17 * corePulse;
+      const coreGrad = ctx.createRadialGradient(brainX, brainY, 0, brainX, brainY, coreR * 2.4);
+      const coreA = st === 'reasoning' ? 0.95 : st === 'executing' ? 0.88 : st === 'delegated' ? 0.7 : st === 'error' ? 0.9 : st === 'listening' ? 0.66 : 0.5 + ampOut * 0.15;
       coreGrad.addColorStop(0, rgba(colSoft, coreA));
-      coreGrad.addColorStop(0.30, rgba(colMain, coreA * 0.6));
+      coreGrad.addColorStop(0.30, rgba(colMain, coreA * 0.62));
       coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = coreGrad;
       ctx.beginPath();
-      ctx.arc(cx, cy + H * 0.02, coreR * 2.6, 0, Math.PI * 2);
+      ctx.arc(brainX, brainY, coreR * 2.4, 0, Math.PI * 2);
       ctx.fill();
-      // core shell (inner orb)
       ctx.beginPath();
-      ctx.arc(cx, cy + H * 0.02, coreR * 0.62, 0, Math.PI * 2);
-      ctx.fillStyle = rgba(colSoft, coreA * 0.55);
+      ctx.arc(brainX, brainY, coreR * 0.62, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(colSoft, coreA * 0.6);
       ctx.fill();
       ctx.strokeStyle = rgba(colRim, 0.55 + coreA * 0.4);
       ctx.lineWidth = 1.3;
       ctx.stroke();
-      // rotating core ring
+      // rotating core rings (brain activity)
       ctx.save();
-      ctx.translate(cx, cy + H * 0.02);
-      ctx.rotate(t * 0.7);
+      ctx.translate(brainX, brainY);
+      ctx.rotate(t * 0.6);
       ctx.beginPath();
-      ctx.ellipse(0, 0, coreR * 1.15, coreR * 0.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, coreR * 1.05, coreR * 0.48, 0, 0, Math.PI * 2);
       ctx.strokeStyle = rgba(colSoft, 0.5 * coreA);
-      ctx.lineWidth = 1.1;
-      ctx.stroke();
-      ctx.rotate(1.35);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, coreR * 0.9, coreR * 0.42, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = rgba(colMain, 0.4 * coreA);
       ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.rotate(1.4);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, coreR * 0.85, coreR * 0.40, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(colMain, 0.42 * coreA);
+      ctx.lineWidth = 0.9;
       ctx.stroke();
       ctx.restore();
 
-      /* ═══ MID LAYER — hemisphere micro-networks + dendrites ═══ */
-      const hemiA = st === 'reasoning' || st === 'executing' || st === 'thinking' ? 0.55 : st === 'listening' ? 0.5 : st === 'idle' ? 0.22 : 0.34;
+      // hemisphere micro-networks (left + right brain)
+      const hemiOn = st === 'reasoning' || st === 'executing' || st === 'thinking' || st === 'listening' || st === 'speaking';
+      const hemiA = hemiOn ? 0.62 : st === 'delegated' ? 0.45 : 0.26;
       for (const h of [hemiL, hemiR]) {
         for (const [ia, ib] of HEMI_EDGES) {
           const a = h[ia], b = h[ib];
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
-          ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 + H * 0.06, b.x, b.y);
-          ctx.strokeStyle = rgba(colMain, hemiA * 0.42);
+          ctx.quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 + H * 0.05, b.x, b.y);
+          ctx.strokeStyle = rgba(colMain, hemiA * 0.5);
           ctx.lineWidth = 0.8;
           ctx.stroke();
         }
@@ -392,16 +366,16 @@ export function JarvisCore({
           ctx.fill();
         }
       }
-      // dendrites: core → cranium rim
-      ctx.strokeStyle = rgba(colMain, hemiA * 0.5);
+      // branching dendrites from the brain core to the cranium rim
+      ctx.strokeStyle = rgba(colMain, brainA * 0.6);
       ctx.lineWidth = 1;
       for (const d of DENDRITES) {
         ctx.beginPath();
-        ctx.moveTo(cx + d.ax * 0.05, cy + H * 0.02 + d.ay * 0.08);
-        ctx.quadraticCurveTo(cx + d.ax * 0.55, cy + H * 0.02 + d.ay * 0.55, cx + d.ax, cy + H * 0.02 + d.ay);
+        ctx.moveTo(brainX + d.ax * 0.05, brainY + d.ay * 0.08);
+        ctx.quadraticCurveTo(brainX + d.ax * 0.55, brainY + d.ay * 0.55, brainX + d.ax, brainY + d.ay);
         ctx.stroke();
       }
-      // signal pulses along hemisphere edges (dense when processing)
+      // signal pulses along hemisphere edges
       if (st === 'reasoning' || st === 'executing' || st === 'delegated' || st === 'thinking' || st === 'listening' || st === 'speaking') {
         const rate = st === 'reasoning' ? 2.4 : st === 'executing' ? 1.9 : st === 'listening' ? 1.5 : 1.1;
         if (Math.random() < dt * rate && pulses.length < 9) {
@@ -427,25 +401,26 @@ export function JarvisCore({
         ctx.fill();
       }
 
-      /* ═══ FRONT LAYER — holographic head membrane ═══ */
+      /* ═══ FRONT — dim holographic head membrane (state-tinted, neutral) ═══ */
       headPath(ctx, cx, cy, breathe, breathe);
-      const headGrad = ctx.createRadialGradient(cx - W * 0.2, cy - H * 0.3, W * 0.1, cx, cy, W * 1.2);
-      const bodyA = st === 'offline' ? 0.05 : 0.13 + ampOut * 0.05;
-      headGrad.addColorStop(0, rgba(colSoft, bodyA * 1.7));
-      headGrad.addColorStop(0.55, rgba(colMain, bodyA * 0.85));
-      headGrad.addColorStop(1, rgba(colMain, bodyA * 0.30));
+      const headGrad = ctx.createRadialGradient(cx - W * 0.2, cy - H * 0.3, W * 0.1, cx, cy, W * 1.25);
+      const bodyA = st === 'offline' ? 0.04 : 0.10 + ampOut * 0.04;
+      headGrad.addColorStop(0, rgba(colSoft, bodyA * 1.5));
+      headGrad.addColorStop(0.55, rgba(colMain, bodyA * 0.8));
+      headGrad.addColorStop(1, rgba(colMain, bodyA * 0.26));
       ctx.fillStyle = headGrad;
       ctx.fill();
-      ctx.strokeStyle = rgba(colRim, 0.36 + ampIn * 0.16 + ampOut * 0.12);
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = rgba(colRim, 0.30 + ampIn * 0.14 + ampOut * 0.10);
+      ctx.lineWidth = 1.4;
       ctx.stroke();
-      // inner glow flicker
-      ctx.strokeStyle = rgba(colSoft, 0.09 + Math.sin(t * 1.6) * 0.03);
+      // inner shell flicker
+      ctx.strokeStyle = rgba(colSoft, 0.07 + Math.sin(t * 1.6) * 0.025);
       ctx.lineWidth = 3;
       headPath(ctx, cx, cy, 0.97, 0.97);
       ctx.stroke();
 
-      /* ═══ FRONT LAYER — agent constellation (labels subtle) ═══ */
+      /* ═══ FRONT — agent constellation: subtle by default, prominent when
+       *  active / delegated. Labels hidden or extremely subdued at idle. ═══ */
       const delegatedAgentId = activeAgentId;
       const activeSet = new Set<string>(['JARVIS']);
       if (st === 'listening') { activeSet.add('VISION'); activeSet.add('ORACLE'); }
@@ -459,186 +434,200 @@ export function JarvisCore({
         const aOn = activeSet.has(curve.pair[0]);
         const bOn = activeSet.has(curve.pair[1]);
         const on = (aOn && bOn) || st === 'executing' || st === 'delegated';
-        ctx.strokeStyle = rgba(colMain, on ? 0.14 : 0.04);
-        ctx.lineWidth = on ? 1 : 0.6;
+        ctx.strokeStyle = rgba(colMain, on ? 0.12 : 0.03);
+        ctx.lineWidth = on ? 0.9 : 0.5;
         ctx.beginPath();
         ctx.moveTo(curve.a[0], curve.a[1]);
         ctx.quadraticCurveTo(curve.c[0], curve.c[1], curve.b[0], curve.b[1]);
         ctx.stroke();
       }
-      // faint arcs from each agent node toward the head rim
-      ctx.strokeStyle = rgba(colMain, 0.06);
-      ctx.lineWidth = 0.7;
+      // faint arcs from each agent node toward the head
+      ctx.strokeStyle = rgba(colMain, 0.05);
+      ctx.lineWidth = 0.6;
       for (const a of agentPos) {
         if (a.id === 'JARVIS') continue;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
-        ctx.lineTo(cx + (a.x - cx) * 0.42, cy + (a.y - cy) * 0.42);
+        ctx.lineTo(cx + (a.x - cx) * 0.5, cy + (a.y - cy) * 0.5);
         ctx.stroke();
       }
 
-      ctx.font = `600 ${Math.max(7, Math.round(S * 0.030))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.font = `600 ${Math.max(7, Math.round(S * 0.026))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const a of agentPos) {
         if (a.id === 'JARVIS') continue;
         const isDelegate = a.id === delegatedAgentId;
         const isActive = activeSet.has(a.id);
+        if (!isActive && !isDelegate && st === 'idle') {
+          // idle: extremely subdued points, no labels
+          ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+          ctx.fillStyle = rgba(colMain, 0.22);
+          ctx.fill();
+          continue;
+        }
         const pulse = isActive || isDelegate ? 1 + Math.sin(t * 3 + seed[5]) * 0.22 : 1;
-        const r = a.r * 2.1 * pulse;
+        const r = a.r * (isDelegate ? 5.2 : isActive ? 3.4 : 2.2) * pulse;
         const nodeColor = isDelegate ? colMain : isActive ? colSoft : colMain;
-        const ng = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, r * 2.4);
-        ng.addColorStop(0, rgba(nodeColor, isActive || isDelegate ? 0.95 : 0.4));
-        ng.addColorStop(0.4, rgba(nodeColor, isActive || isDelegate ? 0.42 : 0.12));
+        const ng = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, r * 2.2);
+        ng.addColorStop(0, rgba(nodeColor, isActive || isDelegate ? 0.95 : 0.35));
+        ng.addColorStop(0.4, rgba(nodeColor, isActive || isDelegate ? 0.4 : 0.1));
         ng.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = ng;
-        ctx.beginPath(); ctx.arc(a.x, a.y, r * 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(a.x, a.y, r * 2.2, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(a.x, a.y, r * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = rgba(nodeColor, isActive || isDelegate ? 1 : 0.5);
+        ctx.fillStyle = rgba(nodeColor, isActive || isDelegate ? 1 : 0.45);
         ctx.fill();
         if (isDelegate) {
-          ctx.beginPath(); ctx.arc(a.x, a.y, r * 1.7, 0, Math.PI * 2);
-          ctx.strokeStyle = rgba(colMain, 0.6 + Math.sin(t * 4) * 0.3);
-          ctx.lineWidth = 1.4; ctx.stroke();
+          ctx.beginPath(); ctx.arc(a.x, a.y, r * 1.6, 0, Math.PI * 2);
+          ctx.strokeStyle = rgba(colMain, 0.65 + Math.sin(t * 4) * 0.3);
+          ctx.lineWidth = 1.5; ctx.stroke();
         }
-        ctx.fillStyle = rgba(colSoft, isActive || isDelegate ? 0.8 : 0.4);
-        ctx.fillText(a.id, a.x, a.y + r * 2.9);
+        // label: active/delegated prominent, otherwise subdued
+        ctx.fillStyle = rgba(colSoft, isDelegate ? 1 : isActive ? 0.75 : 0.3);
+        ctx.fillText(a.id, a.x, a.y + r * 3.0);
       }
 
-      // delegate beam: Jarvis core → real delegated agent (pink, visible travel)
+      // delegate beam: brain core → real delegated agent (pink, traveling)
       if (delegatedAgentId && delegatedAgentId !== 'JARVIS') {
-        const [jx, jy] = [cx, cy + H * 0.02];
+        const [bx, by] = [brainX, brainY];
         const [ax2, ay2] = posOf(delegatedAgentId);
         ctx.save();
         ctx.setLineDash([5, 8]);
         ctx.lineDashOffset = -t * 30;
-        ctx.strokeStyle = rgba(colMain, 0.75);
+        ctx.strokeStyle = rgba(colMain, 0.8);
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(jx, jy);
-        ctx.quadraticCurveTo((jx + ax2) / 2 + (ax2 - jx) * 0.12, (jy + ay2) / 2 - H * 0.35, ax2, ay2);
+        ctx.moveTo(bx, by);
+        ctx.quadraticCurveTo((bx + ax2) / 2 + (ax2 - bx) * 0.10, (by + ay2) / 2 - H * 0.30, ax2, ay2);
         ctx.stroke();
         ctx.restore();
-        // traveling pulse along the beam
         const pr = (t * 0.45) % 1;
-        const bx = jx + (ax2 - jx) * pr;
-        const by = jy + (ay2 - jy) * pr;
-        ctx.beginPath(); ctx.arc(bx, by, 2.2, 0, Math.PI * 2);
+        const qx = bx + (ax2 - bx) * pr;
+        const qy = by + (ay2 - by) * pr;
+        ctx.beginPath(); ctx.arc(qx, qy, 2.2, 0, Math.PI * 2);
         ctx.fillStyle = rgba(colSoft, 0.9);
         ctx.fill();
       }
 
-      /* ═══ ACCENT LAYER — facial details (restrained, technological) ═══ */
-      const eyeY = cy - H * 0.16;
-      const eyeGlow = st === 'listening' ? 0.9 + ampIn * 0.1 : st === 'error' ? 0.9 : st === 'reasoning' ? 0.65 : 0.45;
+      /* ═══ FRONT — restrained facial geometry ═══ */
+      const eyeY = cy + H * 0.16;
+      const eyeGlow = st === 'listening' ? 0.9 + ampIn * 0.1 : st === 'error' ? 0.85 : st === 'reasoning' ? 0.6 : 0.42;
       const eyeCol = st === 'listening' ? [59, 130, 246] as [number, number, number]
         : st === 'error' ? [239, 68, 68] as [number, number, number]
         : st === 'delegated' ? colMain : colSoft;
       for (const side of [-1, 1]) {
-        const ex = cx + side * W * 0.36;
-        const eg = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, W * 0.14);
-        eg.addColorStop(0, rgba(eyeCol, eyeGlow));
+        const ex = cx + side * W * 0.34;
+        const eg = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, W * 0.10);
+        eg.addColorStop(0, rgba(eyeCol, eyeGlow * 0.8));
         eg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = eg;
-        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.12, H * 0.05, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.085, H * 0.035, 0, 0, Math.PI * 2); ctx.fill();
         ctx.save();
         ctx.translate(ex, eyeY);
-        ctx.rotate(side * 0.15);
+        ctx.rotate(side * 0.12);
         ctx.beginPath();
-        ctx.moveTo(-W * 0.10, 0);
-        ctx.quadraticCurveTo(0, -H * 0.026 * (0.5 + eyeGlow), W * 0.10, 0);
-        ctx.strokeStyle = rgba(colSoft, 0.55 + eyeGlow * 0.45);
-        ctx.lineWidth = 1.3;
+        ctx.moveTo(-W * 0.075, 0);
+        ctx.quadraticCurveTo(0, -H * 0.02 * (0.5 + eyeGlow), W * 0.075, 0);
+        ctx.strokeStyle = rgba(colSoft, 0.5 + eyeGlow * 0.4);
+        ctx.lineWidth = 1.1;
         ctx.stroke();
         ctx.restore();
       }
-      // brow arcs
-      ctx.strokeStyle = rgba(colMain, 0.16 + (st === 'reasoning' ? 0.12 : 0));
-      ctx.lineWidth = 1;
+      // brow / temple contours
+      ctx.strokeStyle = rgba(colMain, 0.15 + (st === 'reasoning' ? 0.10 : 0));
+      ctx.lineWidth = 0.9;
       for (const side of [-1, 1]) {
         ctx.beginPath();
-        ctx.moveTo(cx + side * W * 0.20, cy - H * 0.30);
-        ctx.quadraticCurveTo(cx + side * W * 0.36, cy - H * 0.36, cx + side * W * 0.46, cy - H * 0.29);
+        ctx.moveTo(cx + side * W * 0.16, cy - H * 0.02);
+        ctx.quadraticCurveTo(cx + side * W * 0.32, cy - H * 0.08, cx + side * W * 0.44, cy - H * 0.02);
         ctx.stroke();
       }
-      // nasal bridge
-      ctx.strokeStyle = rgba(colMain, 0.12);
+      // nasal bridge (thin, restrained)
+      ctx.strokeStyle = rgba(colMain, 0.10);
+      ctx.lineWidth = 0.9;
       ctx.beginPath();
-      ctx.moveTo(cx, cy - H * 0.20);
-      ctx.lineTo(cx, cy + H * 0.10);
+      ctx.moveTo(cx, cy + H * 0.06);
+      ctx.lineTo(cx, cy + H * 0.42);
+      ctx.stroke();
+      // jaw / chin contour
+      ctx.strokeStyle = rgba(colMain, 0.08);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(cx - W * 0.30, cy + H * 0.78);
+      ctx.quadraticCurveTo(cx, cy + H * 0.92, cx + W * 0.30, cy + H * 0.78);
       ctx.stroke();
       // ear hints (audio regions)
-      const earGlow = st === 'listening' ? 0.6 + ampIn * 0.4 : st === 'speaking' ? 0.24 : 0.07;
+      const earGlow = st === 'listening' ? 0.55 + ampIn * 0.35 : st === 'speaking' ? 0.22 : 0.06;
       for (const side of [-1, 1]) {
-        const ex = cx + side * W * 1.02;
-        const ey = cy + H * 0.02;
-        const eg = ctx.createRadialGradient(ex, ey, 1, ex, ey, W * 0.14);
+        const ex = cx + side * W * 0.97;
+        const ey = cy + H * 0.05;
+        const eg = ctx.createRadialGradient(ex, ey, 1, ex, ey, W * 0.10);
         eg.addColorStop(0, rgba(st === 'listening' ? [59, 130, 246] : colMain, earGlow));
         eg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = eg;
-        ctx.beginPath(); ctx.arc(ex, ey, W * 0.14, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex, ey, W * 0.10, 0, Math.PI * 2); ctx.fill();
       }
 
-      /* ═══ ACCENT LAYER — mouth / output field (speaking) ═══ */
-      const mouthY = cy + H * 0.44;
-      const mouthOpen = st === 'speaking' ? 0.34 + ampOut * 0.55 : st === 'listening' ? 0.08 : 0.02;
+      /* ═══ ACCENT — mouth (small, subtle; output field when speaking) ═══ */
+      const mouthY = cy + H * 0.70;
+      const mouthOpen = st === 'speaking' ? 0.26 + ampOut * 0.4 : st === 'listening' ? 0.05 : 0.015;
       ctx.beginPath();
-      ctx.ellipse(cx, mouthY, W * 0.20, H * 0.03 + mouthOpen * H * 0.10, 0, 0, Math.PI);
-      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.8 + ampOut * 0.2 : 0.3);
-      ctx.lineWidth = st === 'speaking' ? 1.9 + ampOut * 1.5 : 1;
+      ctx.ellipse(cx, mouthY, W * 0.11, H * 0.02 + mouthOpen * H * 0.06, 0, 0, Math.PI);
+      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.8 + ampOut * 0.2 : 0.22);
+      ctx.lineWidth = st === 'speaking' ? 1.6 + ampOut * 1.2 : 0.9;
       ctx.stroke();
       if (st === 'speaking') {
         for (let i = -3; i <= 3; i++) {
-          const wx = cx + i * W * 0.075;
-          const wy = mouthY + H * 0.14 + Math.sin(t * 9 + i * 0.7) * H * 0.03 * (0.3 + ampOut);
-          ctx.beginPath(); ctx.arc(wx, wy, 1.2, 0, Math.PI * 2);
+          const wx = cx + i * W * 0.05;
+          const wy = mouthY + H * 0.09 + Math.sin(t * 9 + i * 0.7) * H * 0.02 * (0.3 + ampOut);
+          ctx.beginPath(); ctx.arc(wx, wy, 1.0, 0, Math.PI * 2);
           ctx.fillStyle = rgba(colRim, 0.55 + ampOut * 0.45);
           ctx.fill();
         }
-        // lower-face energy arcs (output field)
-        ctx.strokeStyle = rgba(colMain, 0.28 + ampOut * 0.3);
-        ctx.lineWidth = 1.1;
+        ctx.strokeStyle = rgba(colMain, 0.24 + ampOut * 0.26);
+        ctx.lineWidth = 1;
         for (const side of [-1, 1]) {
           ctx.beginPath();
-          ctx.moveTo(cx + side * W * 0.18, mouthY + H * 0.10);
-          ctx.quadraticCurveTo(cx + side * W * 0.30, mouthY + H * 0.22, cx + side * W * 0.38, mouthY + H * 0.30);
+          ctx.moveTo(cx + side * W * 0.10, mouthY + H * 0.07);
+          ctx.quadraticCurveTo(cx + side * W * 0.18, mouthY + H * 0.16, cx + side * W * 0.24, mouthY + H * 0.22);
           ctx.stroke();
         }
       }
 
-      /* ═══ ACCENT LAYER — listening incoming signals (blue, inward) ═══ */
+      /* ═══ ACCENT — listening inward signals (blue) ═══ */
       if (st === 'listening') {
         for (let i = 0; i < 4; i++) {
           const ang = (i / 4) * Math.PI * 2 + t * 0.6;
-          const ix = cx + Math.cos(ang) * W * 1.8;
-          const iy = cy + Math.sin(ang) * H * 1.9;
-          const px = cx + Math.cos(ang + Math.PI) * W * 1.3;
-          const py = cy + Math.sin(ang + Math.PI) * H * 1.3;
+          const ix = cx + Math.cos(ang) * W * 1.7;
+          const iy = cy + Math.sin(ang) * H * 1.7;
+          const px = cx + Math.cos(ang + Math.PI) * W * 1.25;
+          const py = cy + Math.sin(ang + Math.PI) * H * 1.25;
           const pr = 0.5 + ((t * 0.7 + i * 0.33) % 1);
           const qx = ix + (px - ix) * pr;
           const qy = iy + (py - iy) * pr;
-          ctx.beginPath(); ctx.arc(qx, qy, 1.7, 0, Math.PI * 2);
+          ctx.beginPath(); ctx.arc(qx, qy, 1.6, 0, Math.PI * 2);
           ctx.fillStyle = rgba([59, 130, 246], 0.75 * (1 - pr * 0.4));
           ctx.fill();
         }
-        ctx.strokeStyle = rgba([59, 130, 246], 0.16);
+        ctx.strokeStyle = rgba([59, 130, 246], 0.15);
         ctx.lineWidth = 1;
         for (let i = 0; i < 4; i++) {
           const ang = (i / 4) * Math.PI * 2 + t * 0.5;
-          const ix = cx + Math.cos(ang) * W * 1.65;
-          const iy = cy + Math.sin(ang) * H * 1.75;
-          const ex = cx + Math.cos(ang + Math.PI) * W * 1.15;
-          const ey = cy + Math.sin(ang + Math.PI) * H * 1.15;
+          const ix = cx + Math.cos(ang) * W * 1.55;
+          const iy = cy + Math.sin(ang) * H * 1.55;
+          const ex = cx + Math.cos(ang + Math.PI) * W * 1.1;
+          const ey = cy + Math.sin(ang + Math.PI) * H * 1.1;
           ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ex, ey); ctx.stroke();
         }
       }
 
-      /* ═══ ACCENT LAYER — cranial sparks (neural computation) ═══ */
+      /* ═══ ACCENT — cranial sparks (neural computation) ═══ */
       if (st === 'reasoning' || st === 'executing' || st === 'thinking') {
-        if (Math.random() < dt * (st === 'reasoning' ? 34 : 16) && sparks.length < 40) {
-          const nx = cx + (Math.random() - 0.5) * W * 1.6;
-          const ny = cy - H * 0.4 + Math.random() * H * 1.15;
-          sparks.push({ x: nx, y: ny, vx: (Math.random() - 0.5) * 24, vy: -5 - Math.random() * 18, life: 1 });
+        if (Math.random() < dt * (st === 'reasoning' ? 30 : 14) && sparks.length < 36) {
+          const nx = brainX + (Math.random() - 0.5) * W * 1.5;
+          const ny = brainY - H * 0.4 + Math.random() * H * 1.0;
+          sparks.push({ x: nx, y: ny, vx: (Math.random() - 0.5) * 22, vy: -5 - Math.random() * 16, life: 1 });
         }
       }
       for (let i = sparks.length - 1; i >= 0; i--) {
@@ -652,54 +641,52 @@ export function JarvisCore({
         ctx.fill();
       }
 
-      /* ═══ ACCENT LAYER — state overlays ═══ */
+      /* ═══ ACCENT — state overlays (internal illumination focus) ═══ */
       if (st === 'repairing') {
-        // purple reconstruction pathways (internal arcs)
         for (let i = 0; i < 4; i++) {
           const ang = t * 0.8 + (i * Math.PI) / 2;
-          const r1 = W * 0.3 + Math.sin(t * 2 + i) * W * 0.06;
+          const r1 = W * 0.26 + Math.sin(t * 2 + i) * W * 0.05;
           ctx.beginPath();
-          ctx.moveTo(cx + Math.cos(ang) * r1, cy + H * 0.02 + Math.sin(ang) * r1 * 0.7);
-          ctx.lineTo(cx + Math.cos(ang + 0.6) * r1 * 0.6, cy + H * 0.02 + Math.sin(ang + 0.6) * r1 * 0.5);
+          ctx.moveTo(brainX + Math.cos(ang) * r1, brainY + Math.sin(ang) * r1 * 0.7);
+          ctx.lineTo(brainX + Math.cos(ang + 0.6) * r1 * 0.6, brainY + Math.sin(ang + 0.6) * r1 * 0.5);
           ctx.strokeStyle = rgba(colMain, 0.4 + 0.25 * Math.abs(Math.sin(t * 2 + i)));
-          ctx.lineWidth = 1.4;
+          ctx.lineWidth = 1.3;
           ctx.stroke();
         }
       }
       if (st === 'warning') {
-        const pulseR = W * (1.0 + Math.sin(t * 1.4) * 0.05);
-        ctx.beginPath(); ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
-        ctx.strokeStyle = rgba([245, 158, 11], 0.30);
+        const pulseR = W * 0.85 + Math.sin(t * 1.4) * W * 0.04;
+        ctx.beginPath(); ctx.arc(brainX, brainY, pulseR, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba([245, 158, 11], 0.3);
         ctx.lineWidth = 1.5; ctx.stroke();
         const [mx, my] = posOf('MEMORY');
         ctx.beginPath();
-        ctx.moveTo(mx - W * 0.05, my - H * 0.06);
-        ctx.lineTo(mx + W * 0.05, my - H * 0.06);
-        ctx.lineTo(mx, my - H * 0.02);
+        ctx.moveTo(mx - W * 0.04, my - H * 0.05);
+        ctx.lineTo(mx + W * 0.04, my - H * 0.05);
+        ctx.lineTo(mx, my - H * 0.015);
         ctx.closePath();
         ctx.fillStyle = rgba([245, 158, 11], 0.7);
         ctx.fill();
       }
       if (st === 'completed') {
-        const pulseR = W * (0.82 + Math.sin(t * 3) * 0.15);
-        ctx.beginPath(); ctx.arc(cx, cy + H * 0.02, pulseR, 0, Math.PI * 2);
+        const pulseR = W * 0.72 + Math.sin(t * 3) * W * 0.12;
+        ctx.beginPath(); ctx.arc(brainX, brainY, pulseR, 0, Math.PI * 2);
         ctx.strokeStyle = rgba([34, 197, 94], 0.4);
-        ctx.lineWidth = 2.4; ctx.stroke();
-        ctx.beginPath(); ctx.arc(cx, cy + H * 0.02, pulseR * 0.8, 0, Math.PI * 2);
-        ctx.strokeStyle = rgba([34, 197, 94], 0.18);
-        ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.lineWidth = 2.2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(brainX, brainY, pulseR * 0.8, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba([34, 197, 94], 0.16);
+        ctx.lineWidth = 1.1; ctx.stroke();
       }
       if (st === 'error') {
-        // localized red disruption — NOT full-screen flashing
-        const pulseR = W * (0.92 + Math.sin(t * 2.2) * 0.07);
-        ctx.beginPath(); ctx.arc(cx, cy + H * 0.02, pulseR, 0, Math.PI * 2);
+        const pulseR = W * 0.85 + Math.sin(t * 2.2) * W * 0.06;
+        ctx.beginPath(); ctx.arc(brainX, brainY, pulseR, 0, Math.PI * 2);
         ctx.strokeStyle = rgba([239, 68, 68], 0.35);
         ctx.lineWidth = 2; ctx.stroke();
         for (let i = 0; i < 3; i++) {
           const ang = seed[6 + i] + t * 1.4;
-          const ex = cx + Math.cos(ang) * W * 1.35;
-          const ey = cy + Math.sin(ang) * H * 1.35;
-          ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(cx + Math.cos(ang) * W * 0.55, cy + Math.sin(ang) * H * 0.55);
+          const ex = brainX + Math.cos(ang) * W * 1.2;
+          const ey = brainY + Math.sin(ang) * H * 1.2;
+          ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(brainX + Math.cos(ang) * W * 0.5, brainY + Math.sin(ang) * H * 0.5);
           ctx.strokeStyle = rgba([239, 68, 68], 0.3);
           ctx.lineWidth = 1.2;
           ctx.stroke();
@@ -718,9 +705,6 @@ export function JarvisCore({
     if (reducedRef.current) {
       drawFrame(0.016);
     } else {
-      // Draw one frame synchronously at mount so the head is NEVER blank,
-      // even when rAF is throttled/blocked (hidden window, backgrounded
-      // Electron renderer). The rAF loop then continues animating.
       drawFrame(0.016);
       raf = requestAnimationFrame(loop);
     }
