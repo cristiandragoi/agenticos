@@ -242,10 +242,11 @@ export const backgroundTaskRepo = {
   /** Return the most recent OPERATIONAL events across ALL tasks (for Live Work panel).
    *  Excludes streaming token events (task.progress with detail.streaming=true)
    *  so the panel shows meaningful operational events only, not raw LLM chunks. */
-  listRecentEvents(limit = 30): Array<BackgroundTaskEvent & { taskTitle: string; taskWorker: string }> {
+  listRecentEvents(limit = 30): Array<BackgroundTaskEvent & { taskTitle: string; taskWorker: string; taskProjectId?: string | null; taskLinkedRunId?: string | null }> {
     ensureBackgroundTaskTables();
     const rows = rawDb.prepare(`
-      SELECT e.*, t.title AS task_title, t.worker AS task_worker
+      SELECT e.*, t.title AS task_title, t.worker AS task_worker,
+             t.project_id AS task_project_id, t.linked_run_id AS task_linked_run_id
       FROM background_task_events e
       JOIN background_tasks t ON t.task_id = e.task_id
       WHERE NOT (e.kind = 'task.progress' AND e.detail LIKE '%"streaming":true%')
@@ -257,6 +258,8 @@ export const backgroundTaskRepo = {
       ...rowToEvent(row),
       taskTitle: row.task_title || '',
       taskWorker: row.task_worker || '',
+      taskProjectId: row.task_project_id || null,
+      taskLinkedRunId: row.task_linked_run_id || null,
     }));
   },
 

@@ -619,6 +619,46 @@ export class BackgroundTaskManager extends EventEmitter {
     return { ok: true, task: updated || task };
   }
 
+  // ── Manual Board actions (Project Board explicit controls) ──────────────
+  // These are USER-driven state transitions from the Project Workspace board.
+  // They use the same guarded transition + real event store as worker events,
+  // so the board reflects real task state and Live Work shows real events.
+  // Manual completion is a user override: verificationState is 'skipped'
+  // (no build/test gate ran) and resultText explains it was board-completed.
+
+  startTask(taskId: string): { ok: boolean; error?: string; task?: BackgroundTaskRecord } {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Cannot start a ${task.status} task.`, task };
+    if (task.status === 'running' || task.status === 'planning') return { ok: true, task };
+    const updated = this.transition(taskId, 'running', { currentStage: 'started', blocker: null, progressMessage: 'Started from the Project Board.' });
+    this.appendEvent(taskId, 'task.started', 'Task started from the Project Board.', { source: 'project-board' });
+    return { ok: true, task: updated || task };
+  }
+
+  blockTask(taskId: string, reason = 'Blocked from the Project Board.'): { ok: boolean; error?: string; task?: BackgroundTaskRecord } {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Cannot block a ${task.status} task.`, task };
+    const updated = this.transition(taskId, 'blocked', { blocker: reason, currentStage: 'blocked' });
+    this.appendEvent(taskId, 'task.blocked', reason, { source: 'project-board' });
+    return { ok: true, task: updated || task };
+  }
+
+  completeTaskManual(taskId: string, reason = 'Completed from the Project Board.'): { ok: boolean; error?: string; task?: BackgroundTaskRecord } {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Task is already ${task.status}.`, task };
+    const updated = this.transition(taskId, 'completed', {
+      resultText: reason,
+      verificationState: 'skipped',
+      currentStage: 'completed',
+      progressMessage: reason,
+    });
+    this.appendEvent(taskId, 'task.completed', reason, { source: 'project-board', manual: true });
+    return { ok: true, task: updated || task };
+  }
+
   // ── Approvals (belong to the task, not the chat turn — requirement 11) ───
 
   requestApproval(taskId: string, request: Omit<TaskApprovalRequest, 'taskId'>): void {

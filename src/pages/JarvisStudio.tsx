@@ -190,7 +190,8 @@ export default function JarvisStudio() {
     state: string; activeAgent: string | null; activeProject: { id: string; name: string } | null;
     activeTask: { id: string; action: string | null; status: string } | null;
     provider: string | null; model: string | null; pendingTaskCount: number;
-  }>({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, provider: null, model: null, pendingTaskCount: 0 });
+    projectTasks: any[];
+  }>({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, provider: null, model: null, pendingTaskCount: 0, projectTasks: [] });
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
@@ -1199,6 +1200,14 @@ export default function JarvisStudio() {
                   <div className={cc.liveWorkKv}>
                     <span className={cc.liveWorkKvLabel}>PROJECT</span>
                     <span className={cc.liveWorkKvValue}>{backendRuntime.activeProject.name}</span>
+                    <button
+                      data-testid="jarvis-live-work-open-project"
+                      onClick={() => navigate(`/projects?project=${encodeURIComponent(backendRuntime.activeProject!.id)}`)}
+                      title="Open this project's workspace"
+                      style={{ marginLeft: 'auto', fontSize: 10, background: '#134e4a', color: '#5eead4', border: '1px solid #115e59', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      OPEN PROJECT
+                    </button>
                   </div>
                 )}
                 {backendRuntime.activeAgent && (
@@ -1219,6 +1228,28 @@ export default function JarvisStudio() {
                     <span className={cc.liveWorkKvValue}>{backendRuntime.pendingTaskCount} active task(s)</span>
                   </div>
                 )}
+                {/* Project tasks (from /api/jarvis/runtime-state, scoped to the active
+                    project) — each row can jump straight into the Project Board. */}
+                {backendRuntime.activeProject && Array.isArray(backendRuntime.projectTasks) && backendRuntime.projectTasks.length > 0 && (
+                  <div data-testid="jarvis-live-work-tasks" style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
+                    {backendRuntime.projectTasks.slice(0, 5).map((pt: any) => (
+                      <div key={pt.taskId} className={cc.liveWorkKv} style={{ borderLeft: '2px solid rgba(0,212,255,0.35)' }}>
+                        <span className={cc.liveWorkKvLabel}>{String(pt.status || '').toUpperCase()}</span>
+                        <span className={cc.liveWorkKvValue} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {(pt.title || pt.taskId).slice(0, 44)}
+                        </span>
+                        <button
+                          data-testid={`jarvis-live-work-open-task-${pt.taskId}`}
+                          onClick={() => navigate(`/projects?project=${encodeURIComponent(backendRuntime.activeProject!.id)}&task=${encodeURIComponent(pt.taskId)}`)}
+                          title="Open this task on the Project Board"
+                          style={{ marginLeft: 'auto', fontSize: 9, background: '#0e7490', color: '#cffafe', border: '1px solid #155e75', borderRadius: 6, padding: '2px 7px', cursor: 'pointer', fontWeight: 700, flex: '0 0 auto' }}
+                        >
+                          OPEN TASK
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className={cc.liveWorkEvents} data-testid="jarvis-live-work-events">
                   {liveWorkEvents.length === 0 ? (
                     <div className={cc.liveWorkEmpty}>No operational events yet.</div>
@@ -1228,6 +1259,36 @@ export default function JarvisStudio() {
                         <span className={cc.liveWorkEventKind}>{String(evt.kind).replace('task.', '')}</span>
                         <span className={cc.liveWorkEventSummary}>{evt.summary || evt.detail?.message || ''}</span>
                         {evt.taskTitle && <span className={cc.liveWorkEventTask}>{evt.taskTitle.slice(0, 40)}</span>}
+                        {(evt.taskId && (evt.taskProjectId || backendRuntime.activeProject)) && (
+                          <button
+                            data-testid={`jarvis-live-work-open-task-${evt.taskId}`}
+                            onClick={() => navigate(`/projects?project=${encodeURIComponent(evt.taskProjectId || backendRuntime.activeProject!.id)}&task=${encodeURIComponent(evt.taskId)}`)}
+                            title="Open this task on the Project Board"
+                            style={{ marginLeft: 'auto', fontSize: 9, background: 'transparent', color: '#67e8f9', border: '1px solid #155e75', borderRadius: 6, padding: '1px 6px', cursor: 'pointer', fontWeight: 700, flex: '0 0 auto' }}
+                          >
+                            OPEN TASK
+                          </button>
+                        )}
+                        {evt.taskLinkedRunId && (
+                          <button
+                            data-testid={`jarvis-live-work-open-run-${evt.taskLinkedRunId}`}
+                            onClick={() => navigate(`/projects?project=${encodeURIComponent(evt.taskProjectId || backendRuntime.activeProject!.id)}&run=${encodeURIComponent(evt.taskLinkedRunId)}`)}
+                            title="Open this run on the Project Runs tab"
+                            style={{ marginLeft: 'auto', fontSize: 9, background: 'transparent', color: '#bfdbfe', border: '1px solid #1e3a8a', borderRadius: 6, padding: '1px 6px', cursor: 'pointer', fontWeight: 700, flex: '0 0 auto' }}
+                          >
+                            OPEN RUN
+                          </button>
+                        )}
+                        {(evt.detail?.artifactId || evt.detail?.artifact_id) && (
+                          <button
+                            data-testid={`jarvis-live-work-open-artifact-${evt.detail?.artifactId || evt.detail?.artifact_id}`}
+                            onClick={() => navigate(`/projects?project=${encodeURIComponent(evt.taskProjectId || backendRuntime.activeProject!.id)}&artifact=${encodeURIComponent(evt.detail?.artifactId || evt.detail?.artifact_id)}`)}
+                            title="Open this artifact on the Project Artifacts tab"
+                            style={{ marginLeft: 'auto', fontSize: 9, background: 'transparent', color: '#a7f3d0', border: '1px solid #064e3b', borderRadius: 6, padding: '1px 6px', cursor: 'pointer', fontWeight: 700, flex: '0 0 auto' }}
+                          >
+                            OPEN ARTIFACT
+                          </button>
+                        )}
                       </div>
                     ))
                   )}

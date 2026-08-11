@@ -1,9 +1,17 @@
 // @ts-nocheck
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, Star, Archive, Trash2, ChevronRight, BookOpen, FileText, Tag, Circle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, FolderOpen, Star, Archive, Trash2, ChevronRight, BookOpen, FileText, Tag, Circle, MessageCircle } from 'lucide-react';
 import { useProjects } from '../store/projectStore';
 import type { Project, KnowledgeItem } from '../store/projectStore';
+import ProjectBoard from '../components/projects/ProjectBoard';
+import ProjectLiveWork from '../components/projects/ProjectLiveWork';
+import ProjectAgents from '../components/projects/ProjectAgents';
+import ProjectArtifacts from '../components/projects/ProjectArtifacts';
+import ProjectRuns from '../components/projects/ProjectRuns';
+import ProjectGraph from '../components/projects/ProjectGraph';
+import ProjectOverview from '../components/projects/ProjectOverview';
+import ProjectFiles from '../components/projects/ProjectFiles';
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#22c55e',
@@ -333,15 +341,52 @@ function KnowledgePanel({ projectId }: { projectId: string }) {
 
 export default function ProjectsPage() {
   const { projects, activeProjectId, activeProject, isLoading, refresh, setActiveProject, createProject, deleteProject } = useProjects();
+  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newColor, setNewColor] = useState('#00e5ff');
-  const [tab, setTab] = useState<'overview' | 'knowledge'>('overview');
+  const [tab, setTab] = useState<'overview' | 'board' | 'livework' | 'agents' | 'knowledge' | 'artifacts' | 'files' | 'runs' | 'graph'>('overview');
+  // Deep-link targets (from Jarvis / Mission Control navigation): /projects?project=X&task=T
+  const [searchParams] = useSearchParams();
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+  const [highlightRunId, setHighlightRunId] = useState<string | null>(null);
+  const [highlightArtifactId, setHighlightArtifactId] = useState<string | null>(null);
 
   // Re-sync from the server on page mount so external/active changes are shown.
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Apply navigation params: select the project (and make it active so Jarvis
+  // context follows), then switch to the tab that contains the referenced item.
+  const applyDeepLink = useCallback(() => {
+    const projectParam = searchParams.get('project');
+    const taskParam = searchParams.get('task');
+    const runParam = searchParams.get('run');
+    const artifactParam = searchParams.get('artifact');
+    if (projectParam && projects.some((p) => p.id === projectParam)) {
+      setSelectedId(projectParam);
+      if (activeProjectId !== projectParam) void setActiveProject(projectParam);
+    }
+    if (taskParam) {
+      setTab('board');
+      setHighlightTaskId(taskParam);
+      setHighlightRunId(null);
+      setHighlightArtifactId(null);
+    } else if (runParam) {
+      setTab('runs');
+      setHighlightRunId(runParam);
+      setHighlightTaskId(null);
+      setHighlightArtifactId(null);
+    } else if (artifactParam) {
+      setTab('artifacts');
+      setHighlightArtifactId(artifactParam);
+      setHighlightTaskId(null);
+      setHighlightRunId(null);
+    }
+  }, [searchParams, projects, activeProjectId, setActiveProject]);
+
+  useEffect(() => { applyDeepLink(); }, [applyDeepLink]);
 
   const selectedProject = projects.find((p) => p.id === selectedId) ?? activeProject ?? projects[0] ?? null;
 
@@ -496,6 +541,22 @@ export default function ProjectsPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      data-testid="project-open-in-jarvis"
+                      onClick={() => {
+                        void setActiveProject(selectedProject.id);
+                        navigate('/jarvis');
+                      }}
+                      title="Talk to Jarvis about this project (sets it active)"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        background: '#134e4a', color: '#5eead4', border: '1px solid #115e59', borderRadius: 6,
+                        padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      <MessageCircle size={12} /> Open in Jarvis
+                    </button>
                     {activeProjectId !== selectedProject.id ? (
                       <button
                         type="button"
@@ -526,69 +587,67 @@ export default function ProjectsPage() {
               </div>
 
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #1e293b' }}>
-                {(['overview', 'knowledge'] as const).map((t) => (
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #1e293b', overflowX: 'auto' }}>
+                {(['overview', 'board', 'livework', 'agents', 'knowledge', 'artifacts', 'files', 'runs', 'graph'] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
+                    data-testid={`project-tab-${t}`}
                     onClick={() => setTab(t)}
                     style={{
                       background: 'transparent',
                       border: 'none',
                       borderBottom: tab === t ? '2px solid #0891b2' : '2px solid transparent',
                       color: tab === t ? '#67e8f9' : '#64748b',
-                      padding: '8px 16px',
-                      fontSize: 12,
+                      padding: '8px 14px',
+                      fontSize: 11,
                       fontWeight: 600,
                       textTransform: 'uppercase',
                       letterSpacing: '0.08em',
                       cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {t === 'overview' ? <><FolderOpen size={12} style={{ display: 'inline', marginRight: 5 }} />Overview</> : <><BookOpen size={12} style={{ display: 'inline', marginRight: 5 }} />Knowledge</>}
+                    {t}
                   </button>
                 ))}
               </div>
 
               {/* Tab content */}
               {tab === 'overview' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ border: '1px solid #1e293b', borderRadius: 8, padding: '14px 16px', background: '#0f172a' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Details</div>
-                    <dl style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px 12px', fontSize: 13, margin: 0 }}>
-                      <dt style={{ color: '#475569' }}>ID</dt>
-                      <dd style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 11, margin: 0 }}>{selectedProject.id}</dd>
-                      <dt style={{ color: '#475569' }}>Status</dt>
-                      <dd style={{ color: STATUS_COLORS[selectedProject.status] || '#64748b', fontWeight: 600, margin: 0 }}>{selectedProject.status}</dd>
-                      <dt style={{ color: '#475569' }}>Created</dt>
-                      <dd style={{ color: '#94a3b8', margin: 0 }}>{new Date(selectedProject.createdAt).toLocaleString()}</dd>
-                      <dt style={{ color: '#475569' }}>Updated</dt>
-                      <dd style={{ color: '#94a3b8', margin: 0 }}>{new Date(selectedProject.updatedAt).toLocaleString()}</dd>
-                      {selectedProject.workspacePath && (
-                        <>
-                          <dt style={{ color: '#475569' }}>Workspace</dt>
-                          <dd style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 11, margin: 0 }}>{selectedProject.workspacePath}</dd>
-                        </>
-                      )}
-                    </dl>
-                  </div>
-                  {(selectedProject.tags || []).length > 0 && (
-                    <div style={{ border: '1px solid #1e293b', borderRadius: 8, padding: '14px 16px', background: '#0f172a' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Tags</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {(selectedProject.tags || []).map((tag: string) => (
-                          <span key={tag} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, background: '#1e293b', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Tag size={10} />{tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <ProjectOverview project={selectedProject} projectId={selectedProject.id} />
+              )}
+
+              {tab === 'board' && (
+                <ProjectBoard projectId={selectedProject.id} highlightTaskId={highlightTaskId} />
               )}
 
               {tab === 'knowledge' && (
                 <KnowledgePanel projectId={selectedProject.id} />
+              )}
+
+              {tab === 'livework' && (
+                <ProjectLiveWork projectId={selectedProject.id} />
+              )}
+
+              {tab === 'agents' && (
+                <ProjectAgents projectId={selectedProject.id} />
+              )}
+
+              {tab === 'artifacts' && (
+                <ProjectArtifacts projectId={selectedProject.id} highlightArtifactId={highlightArtifactId} />
+              )}
+
+              {tab === 'files' && (
+                <ProjectFiles projectId={selectedProject.id} />
+              )}
+
+              {tab === 'runs' && (
+                <ProjectRuns projectId={selectedProject.id} highlightRunId={highlightRunId} />
+              )}
+
+              {tab === 'graph' && (
+                <ProjectGraph projectId={selectedProject.id} />
               )}
             </div>
           ) : (

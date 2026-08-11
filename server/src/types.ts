@@ -391,6 +391,12 @@ export interface Artifact {
   tokenUsed?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // Project Workspace V2: project/task linkage + verification metadata.
+  projectId?: string;
+  taskId?: string;
+  verificationState?: 'pending' | 'running' | 'passed' | 'failed' | 'skipped';
+  location?: string;
+  createdBy?: string;
 }
 
 export interface Board {

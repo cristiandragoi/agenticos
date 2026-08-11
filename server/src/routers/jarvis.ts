@@ -1776,7 +1776,8 @@ router.get('/live-events', async (req, res) => {
     if (projectId) {
       // Scope events to tasks belonging to the specified project (operational only)
       const rows = (await import('../db/index.js')).rawDb.prepare(`
-        SELECT e.*, t.title AS task_title, t.worker AS task_worker
+        SELECT e.*, t.title AS task_title, t.worker AS task_worker,
+               t.project_id AS task_project_id, t.linked_run_id AS task_linked_run_id
         FROM background_task_events e
         JOIN background_tasks t ON t.task_id = e.task_id
         WHERE t.project_id = ?
@@ -1792,6 +1793,8 @@ router.get('/live-events', async (req, res) => {
         sequence: row.sequence,
         taskTitle: row.task_title || '',
         taskWorker: row.task_worker || '',
+        taskProjectId: row.task_project_id || null,
+        taskLinkedRunId: row.task_linked_run_id || null,
       }));
     } else {
       events = backgroundTaskRepo.listRecentEvents(limit);

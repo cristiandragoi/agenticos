@@ -40,6 +40,7 @@ interface ProjectState {
   createKnowledgeItem: (projectId: string, data: { title: string; content?: string; type?: string; tags?: string[] }) => Promise<KnowledgeItem | null>;
   updateKnowledgeItem: (projectId: string, id: string, data: Partial<KnowledgeItem>) => Promise<KnowledgeItem | null>;
   deleteKnowledgeItem: (projectId: string, id: string) => Promise<void>;
+  getProjectTasks: (projectId: string) => Promise<any[]>;
 }
 
 const ProjectContext = createContext<ProjectState | null>(null);
@@ -164,6 +165,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch { /* best effort */ }
   };
 
+  const getProjectTasks = async (projectId: string): Promise<any[]> => {
+    try {
+      const res = await apiFetch(`/api/background-tasks?projectId=${encodeURIComponent(projectId)}`);
+      if (!res.ok) return [];
+      return res.json();
+    } catch { return []; }
+  };
+
   return (
     <ProjectContext.Provider
       value={{
@@ -180,6 +189,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         createKnowledgeItem,
         updateKnowledgeItem,
         deleteKnowledgeItem,
+        getProjectTasks,
       }}
     >
       {children}

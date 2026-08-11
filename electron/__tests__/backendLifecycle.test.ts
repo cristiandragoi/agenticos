@@ -303,6 +303,34 @@ describe('backend lifecycle manager', () => {
     expect(m.getState().status).toBe('failed');
   });
 
+  it('failed → adopts an externally healthy backend on the slow recovery probe', async () => {
+    h.probeHealthy = false;
+    const m = h.create({ readyTimeoutMs: 500 });
+    void m.start();
+    await h.flush();
+    await h.advance(600); // readiness timeout → failed
+    expect(m.getState().status).toBe('failed');
+
+    // Backend becomes genuinely healthy again (e.g. restarted externally).
+    h.probeHealthy = true;
+    const spawnedBefore = h.spawned.length;
+    // Recovery cadence is healthIntervalMs * 5 = 5000, first tick at t≈5600.
+    await h.advance(1000);
+    await h.flush();
+    expect(m.getState().status).toBe('failed'); // still before the first slow tick
+    await h.advance(5000);
+    await h.flush();
+    expect(m.getState().status).toBe('ready');
+    // Adoption is NOT resurrection: never spawned, never owned, pid null.
+    expect(h.spawned).toHaveLength(spawnedBefore);
+    expect(m.getState().owned).toBe(false);
+    expect(m.getState().pid).toBeNull();
+    expect(m.getState().lastError).toBeNull();
+    // The recovery timer handed off to the normal monitor; status stays ready.
+    await h.advance(1000);
+    expect(m.getState().status).toBe('ready');
+  });
+
   it('retry after failure resets the budget and re-runs the startup flow', async () => {
     h.probeHealthy = false;
     const m = h.create({ readyTimeoutMs: 500 });

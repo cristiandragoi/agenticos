@@ -169,6 +169,31 @@ router.post('/:taskId/cancel', (req, res) => {
   res.json(result.task);
 });
 
+// ── Manual Board actions (Project Workspace explicit controls) ───────────
+router.post('/:taskId/start', (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const result = backgroundTaskManager.startTask(task.taskId);
+  if (!result.ok) return res.status(409).json({ error: result.error, task: result.task });
+  res.json(result.task);
+});
+
+router.post('/:taskId/block', (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const result = backgroundTaskManager.blockTask(task.taskId, req.body?.reason);
+  if (!result.ok) return res.status(409).json({ error: result.error, task: result.task });
+  res.json(result.task);
+});
+
+router.post('/:taskId/complete', (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const result = backgroundTaskManager.completeTaskManual(task.taskId, req.body?.reason);
+  if (!result.ok) return res.status(409).json({ error: result.error, task: result.task });
+  res.json(result.task);
+});
+
 router.post('/:taskId/approval', async (req, res) => {
   const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
   if (!task) return res.status(404).json({ error: 'Task not found' });

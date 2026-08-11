@@ -179,6 +179,7 @@ export function createBackendLifecycleManager(
   let discardNextExit = false;
   let readinessDeadline: unknown = null;
   let monitorTimer: unknown = null;
+  let recoveryTimer: unknown = null;
   let pendingRestartTimer: unknown = null;
   let consecutiveHealthFailures = 0;
   let crashTimestamps: number[] = [];
@@ -211,9 +212,11 @@ export function createBackendLifecycleManager(
 
   function stopMonitor() {
     if (monitorTimer !== null) { clearIntervalFn(monitorTimer); monitorTimer = null; }
+    if (recoveryTimer !== null) { clearIntervalFn(recoveryTimer); recoveryTimer = null; }
   }
 
   function startMonitor() {
+    if (recoveryTimer !== null) { clearIntervalFn(recoveryTimer); recoveryTimer = null; }
     if (monitorTimer !== null) return;
     monitorTimer = setIntervalFn(() => { void healthTick(); }, config.healthIntervalMs);
   }
@@ -295,6 +298,12 @@ export function createBackendLifecycleManager(
     if (readinessDeadline !== null) { clearTimeoutFn(readinessDeadline); readinessDeadline = null; }
     emit({ status: 'failed', lastError: reason });
     logLine(`[lifecycle] FAILED: ${reason}`);
+    // Keep a slow health re-probe so a genuinely-recovered backend is adopted
+    // truthfully (see failedRecoveryTick). The slow cadence guarantees the
+    // manager never hot-loops while the port is dead.
+    if (recoveryTimer === null) {
+      recoveryTimer = setIntervalFn(() => { void failedRecoveryTick(); }, config.healthIntervalMs * 5);
+    }
   }
 
   function scheduleSpawn(delayMs: number) {
@@ -351,7 +360,15 @@ export function createBackendLifecycleManager(
       settled = true;
       if (readinessDeadline !== null) { clearTimeoutFn(readinessDeadline); readinessDeadline = null; }
       emit(patch);
-      startMonitor();
+      if (patch.status === 'failed') {
+        // Terminal failure: same slow-recovery behavior as fail() — never
+        // spawn on our own, but adopt a genuinely healthy backend later.
+        if (recoveryTimer === null) {
+          recoveryTimer = setIntervalFn(() => { void failedRecoveryTick(); }, config.healthIntervalMs * 5);
+        }
+      } else {
+        startMonitor();
+      }
     };
     readinessDeadline = setTimeoutFn(() => {
       if (gen !== readinessGen) return; // superseded by a newer start
@@ -436,6 +453,30 @@ export function createBackendLifecycleManager(
     void spawnAndWaitForReadiness();
   }
 
+  /**
+   * Slow re-probe after a TERMINAL failure. `failed` means the manager's own
+   * restart budget is exhausted — it must never spawn again on its own. But a
+   * backend that becomes GENUINELY healthy again on the port (e.g. restarted
+   * externally) is adopted truthfully (owned:false, pid:null — the manager
+   * does not own or manage it). A dead/unhealthy backend keeps the chip at
+   * failed: this never masks a real outage, it just stops lying once health
+   * is actually back. This mirrors exactly what the user-facing Retry path
+   * does, without requiring a manual click.
+   */
+  async function failedRecoveryTick(): Promise<void> {
+    if (shuttingDown || spawnInFlight || state.status !== 'failed') return;
+    const probe = await probeOnce();
+    if (shuttingDown) return;
+    if (probe.healthy) {
+      emit({ status: 'ready', owned: false, pid: null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
+      logLine('[lifecycle] failed → adopted externally healthy backend (health recovered)');
+      stopMonitor();
+      startMonitor();
+      return;
+    }
+    // Still unhealthy: remain failed; the next slow tick re-probes.
+  }
+
   async function start(): Promise<void> {
     emit({ mode: config.mode, status: 'starting', lastError: null });
     logLine(`[lifecycle] start (mode=${config.mode}, port=${config.port}, entry=${config.entry})`);
@@ -511,6 +552,7 @@ export function createBackendLifecycleManager(
     if (state.status === 'ready') return { ok: true, reason: 'Backend already healthy.' };
     // Re-run the startup flow (probe → adopt / spawn / port-conflict).
     void (async () => {
+      if (recoveryTimer !== null) { clearIntervalFn(recoveryTimer); recoveryTimer = null; }
       if (child) { userRestartPending = true; killChild(); return; }
       emit({ status: 'starting' });
       const probe = await probeOnce();

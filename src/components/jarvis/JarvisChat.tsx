@@ -43,6 +43,7 @@ export const JARVIS_NAVIGATION_TARGETS = new Set<string>([
   '/models',
   '/automations',
   '/settings',
+  '/projects',
 ]);
 
 export interface JarvisChatProps {

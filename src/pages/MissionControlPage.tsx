@@ -1,6 +1,7 @@
 // @ts-nocheck
-import React, { useEffect, useState } from 'react';
-import { AlertTriangle, FolderOpen, CheckCircle, XCircle, Clock, Play, Pause } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, FolderOpen, CheckCircle, XCircle, Clock, Play, Pause, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../store/dataStore';
 import { useProjects } from '../store/projectStore';
 import { JarvisOrb } from '../components/jarvis/JarvisOrb';
@@ -53,7 +54,69 @@ function TaskStatusIcon({ status }: { status: string }) {
 
 const MissionControlPage: React.FC = () => {
   const { isLoading, error, refresh } = useData();
-  const { activeProject } = useProjects();
+  const { activeProject, projects } = useProjects();
+  const navigate = useNavigate();
+
+  // ── GLOBAL operations: cross-project visibility (Phase 9) ─────────────
+  // Mission Control is global ops; Projects is project-specific ops.
+  const [globalTasks, setGlobalTasks] = useState<any[]>([]);
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [globalLoading, setGlobalLoading] = useState(true);
+
+  const pollGlobal = useCallback(async () => {
+    try {
+      const [tasksRes, apprRes] = await Promise.all([
+        apiFetch('/api/background-tasks?limit=100'),
+        apiFetch('/api/background-tasks/approvals'),
+      ]);
+      if (tasksRes.ok) { const d = await tasksRes.json(); if (Array.isArray(d)) setGlobalTasks(d); }
+      if (apprRes.ok) { const d = await apprRes.json(); if (Array.isArray(d)) setApprovals(d); }
+    } catch { /* best effort */ }
+    setGlobalLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      await pollGlobal();
+    };
+    void tick();
+    const id = window.setInterval(tick, 5000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [pollGlobal]);
+
+  const projectName = (id?: string | null): string | null => {
+    if (!id) return null;
+    return projects.find((p) => p.id === id)?.name ?? null;
+  };
+  const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
+  const activeTasks = globalTasks.filter((t) => !TERMINAL.has(t.status));
+  const runningWork = activeTasks.filter((t) => t.status === 'running' || t.status === 'planning');
+  const blockedWork = activeTasks.filter((t) => ['blocked', 'waiting_approval', 'paused'].includes(t.status));
+  const queuedWork = activeTasks.filter((t) => t.status === 'queued');
+  const failures = globalTasks.filter((t) => t.status === 'failed');
+  const approvalTasks = approvals
+    .map((a) => globalTasks.find((t) => t.taskId === a.taskId))
+    .filter(Boolean) as any[];
+  const activeProjectIds = new Set(activeTasks.map((t) => t.projectId).filter(Boolean));
+  const activeProjects = projects.filter((p) => activeProjectIds.has(p.id));
+  const delegatedAgents = [...new Set(activeTasks.map((t) => t.worker).filter(Boolean))];
+
+  const openTask = (t: any) => {
+    if (!t.projectId) return;
+    navigate(`/projects?project=${encodeURIComponent(t.projectId)}&task=${encodeURIComponent(t.taskId)}`);
+  };
+  const openProject = (id: string) => navigate(`/projects?project=${encodeURIComponent(id)}`);
+  const resolveApproval = async (taskId: string, choice: 'allow' | 'deny') => {
+    try {
+      await apiFetch(`/api/background-tasks/${taskId}/approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ choice }),
+      });
+    } catch { /* best effort */ }
+  };
 
   // ── Jarvis orb wiring (real signals only) ────────────────────────────────
   const [playbackActive, setPlaybackActive] = useState(false);
@@ -281,9 +344,118 @@ const MissionControlPage: React.FC = () => {
             )}
           </section>
         )}
+
+        {/* ── GLOBAL OPERATIONS: cross-project visibility ── */}
+        <section
+          className="rounded-md border border-slate-800 bg-slate-950/40 p-4"
+          data-testid="mission-global-operations"
+        >
+          <div className="mb-3 flex items-center gap-2">
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#67e8f9' }}>
+              GLOBAL OPERATIONS
+            </span>
+            <span style={{ fontSize: 10, color: '#475569' }}>across all projects</span>
+            {globalLoading && <span style={{ fontSize: 10, color: '#475569' }}>loading…</span>}
+          </div>
+
+          {!globalLoading && (
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              {/* Active projects */}
+              <div style={{ border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px', background: 'rgba(15,23,42,0.6)' }} data-testid="mission-active-projects">
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                  Active Projects ({activeProjects.length})
+                </div>
+                {activeProjects.length === 0 && <div style={{ fontSize: 11, color: '#334155' }}>No project has active work.</div>}
+                {activeProjects.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', fontSize: 11 }}>
+                    <FolderOpen size={11} style={{ color: '#0891b2', flex: '0 0 auto' }} />
+                    <span style={{ color: '#cbd5e1', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <button type="button" data-testid={`mission-open-project-${p.id}`} onClick={() => openProject(p.id)} title="Open project workspace" style={linkBtn('#67e8f9')}>
+                      OPEN <ExternalLink size={9} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Delegated agents */}
+              <div style={{ border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px', background: 'rgba(15,23,42,0.6)' }} data-testid="mission-delegated-agents">
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#ec4899', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                  Delegated Agents ({delegatedAgents.length})
+                </div>
+                {delegatedAgents.length === 0 && <div style={{ fontSize: 11, color: '#334155' }}>No agents currently delegated.</div>}
+                {delegatedAgents.map((w) => {
+                  const t = activeTasks.find((x) => x.worker === w);
+                  return (
+                    <div key={w} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', fontSize: 11 }}>
+                      <Play size={10} style={{ color: '#ec4899', flex: '0 0 auto' }} />
+                      <span style={{ color: '#e2e8f0', fontWeight: 600, flex: '0 0 auto' }}>{w}</span>
+                      {t && <span style={{ color: '#64748b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {t.title?.slice(0, 32)}</span>}
+                      {t && t.projectId && <button type="button" data-testid={`mission-agent-open-${w}`} onClick={() => openTask(t)} title="Open task" style={linkBtn('#67e8f9')}>OPEN</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Task-state rows */}
+          {!globalLoading && (
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', marginTop: 10 }}>
+              {[
+                { key: 'running', label: 'Running Work', color: '#00d4ff', rows: runningWork },
+                { key: 'blocked', label: 'Blocked / Approval', color: '#f59e0b', rows: [...blockedWork, ...approvalTasks] },
+                { key: 'approvals', label: 'Approval Required', color: '#f59e0b', rows: approvalTasks, approvalsMode: true },
+                { key: 'failures', label: 'Failures', color: '#ef4444', rows: failures },
+                { key: 'queued', label: 'Queued Work', color: '#64748b', rows: queuedWork },
+              ].map((group) => (
+                <div key={group.key} style={{ border: '1px solid #1e293b', borderRadius: 8, padding: '10px 12px', background: 'rgba(15,23,42,0.6)' }} data-testid={`mission-group-${group.key}`}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: group.color, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                    {group.label} ({group.rows.length})
+                  </div>
+                  {group.rows.length === 0 && <div style={{ fontSize: 11, color: '#334155' }}>None.</div>}
+                  {group.rows.slice(0, 6).map((t: any) => {
+                    const proj = projectName(t.projectId);
+                    return (
+                      <div key={`${group.key}-${t.taskId}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '4px 0', fontSize: 11, borderBottom: '1px solid rgba(30,58,95,0.25)' }}>
+                        <TaskStatusIcon status={t.status} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title || t.taskId}</div>
+                          <div style={{ fontSize: 10, color: '#64748b' }}>
+                            <span style={{ color: group.color, fontWeight: 600 }}>{t.status}</span>
+                            {proj ? <span> · {proj}</span> : null}
+                            {t.worker ? <span> · {t.worker}</span> : null}
+                            {t.lastError ? <span style={{ color: '#f87171' }}> · {String(t.lastError).slice(0, 40)}</span> : null}
+                          </div>
+                        </div>
+                        {group.approvalsMode ? (
+                          <div style={{ display: 'flex', gap: 4, flex: '0 0 auto' }}>
+                            <button type="button" data-testid={`mission-approve-${t.taskId}`} onClick={() => void resolveApproval(t.taskId, 'allow').then(() => void pollGlobal())} style={{ background: '#14532d', color: '#86efac', border: '1px solid #166534', borderRadius: 5, padding: '2px 7px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>ALLOW</button>
+                            <button type="button" data-testid={`mission-deny-${t.taskId}`} onClick={() => void resolveApproval(t.taskId, 'deny').then(() => void pollGlobal())} style={{ background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: 5, padding: '2px 7px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>DENY</button>
+                          </div>
+                        ) : (
+                          t.projectId && (
+                            <button type="button" data-testid={`mission-open-task-${t.taskId}`} onClick={() => openTask(t)} title="Open in project workspace" style={linkBtn('#67e8f9')}>
+                              OPEN <ExternalLink size={9} />
+                            </button>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
 };
+
+const linkBtn = (color: string): React.CSSProperties => ({
+  display: 'flex', alignItems: 'center', gap: 3, flex: '0 0 auto',
+  background: 'transparent', color, border: `1px solid ${color}44`, borderRadius: 5,
+  padding: '1px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer',
+});
 
 export default MissionControlPage;

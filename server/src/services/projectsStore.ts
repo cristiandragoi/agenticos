@@ -1,7 +1,7 @@
 import { rawDb } from '../db/index.js';
 import { db } from '../db/index.js';
-import { projects, knowledgeItems } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { projects, knowledgeItems, entityLinks } from '../db/schema.js';
+import { eq, desc, and } from 'drizzle-orm';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -196,5 +196,46 @@ export const projectsStore = {
 
   deleteKnowledgeItem(id: string) {
     db.delete(knowledgeItems).where(eq(knowledgeItems.id, id)).run();
+  },
+
+  // ── Project agent assignments (entity_links: project → agent) ────────────
+
+  assignAgent(projectId: string, agentId: string) {
+    const existing = db.select().from(entityLinks)
+      .where(and(eq(entityLinks.fromId, projectId), eq(entityLinks.toId, agentId))).get();
+    if (existing) return existing;
+    const id = `link-${Math.random().toString(36).slice(2, 10)}`;
+    const now = new Date().toISOString();
+    db.insert(entityLinks).values({
+      id, fromId: projectId, fromType: 'project', toId: agentId, toType: 'agent',
+      relation: 'assigned', metadata: {}, createdAt: now,
+    }).run();
+    return this.getAgentAssignment(projectId, agentId);
+  },
+
+  unassignAgent(projectId: string, agentId: string) {
+    db.delete(entityLinks)
+      .where(and(eq(entityLinks.fromId, projectId), eq(entityLinks.toId, agentId), eq(entityLinks.relation, 'assigned')))
+      .run();
+  },
+
+  getAgentAssignment(projectId: string, agentId: string) {
+    return db.select().from(entityLinks)
+      .where(and(eq(entityLinks.fromId, projectId), eq(entityLinks.toId, agentId), eq(entityLinks.relation, 'assigned')))
+      .get() ?? null;
+  },
+
+  listAssignedAgents(projectId: string): string[] {
+    try {
+      const rows = db.select().from(entityLinks)
+        .where(and(eq(entityLinks.fromId, projectId), eq(entityLinks.toId, 'agent'), eq(entityLinks.relation, 'assigned')))
+        .all();
+      // Fall back to any project→agent links regardless of toType value.
+      const rows2 = db.select().from(entityLinks)
+        .where(and(eq(entityLinks.fromId, projectId), eq(entityLinks.relation, 'assigned')))
+        .all();
+      const ids = rows2.map((r) => r.toId);
+      return [...new Set(ids)];
+    } catch { return []; }
   },
 };
