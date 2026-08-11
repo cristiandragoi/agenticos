@@ -29,6 +29,7 @@ function makeRecordingCtx() {
     arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(),
     save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
     setLineDash: vi.fn(), fillText: vi.fn(), strokeText: vi.fn(), createConicGradient: undefined,
+    drawImage: vi.fn(), filter: '',
   };
   // Capture fillStyle assignments (Proxy set trap).
   const captured: string[] = [];
@@ -46,7 +47,7 @@ describe('JarvisCore holographic head — dominant color per state', () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
   const cases: Array<[string, string]> = [
-    ['idle', '#67e8f9'], ['listening', '#3b82f6'], ['reasoning', '#e0f2fe'],
+    ['idle', '#00e5ff'], ['listening', '#3b82f6'], ['reasoning', '#e0f2fe'],
     ['executing', '#00d4ff'], ['delegated', '#ec4899'], ['repairing', '#9333ea'],
     ['warning', '#f59e0b'], ['error', '#ef4444'], ['completed', '#22c55e'],
     ['speaking', '#a855f7'], ['transcribing', '#22c55e'], ['offline', '#7f1d1d'],
@@ -71,6 +72,7 @@ describe('JarvisCore holographic head — dominant color per state', () => {
         arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(),
         save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
         setLineDash: vi.fn(), fillText: vi.fn(), strokeText: vi.fn(), createConicGradient: undefined,
+        drawImage: vi.fn(), filter: '',
       };
       const captured2: string[] = [];
       const proxy = new Proxy(ctxObj, {
