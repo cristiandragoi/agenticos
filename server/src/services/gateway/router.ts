@@ -148,8 +148,13 @@ export class GatewayRouter {
 
     let targetProvider = overrides?.provider || req.preferredProvider || req.routing?.providerId;
     let routingMode = req.routing?.mode || 'automatic';
+    // An explicit provider override (CLI arg, conversation-level routing
+    // override, preferredProvider) takes precedence over the saved agent
+    // assignment — a manual "use LongCat for this turn" must not be silently
+    // re-routed to the assigned provider.
+    const hasExplicitOverride = Boolean(overrides?.provider || req.preferredProvider || req.routing?.providerId);
 
-    if (req.agentId) {
+    if (req.agentId && !hasExplicitOverride) {
       const assignment = await AgentProviderAssignmentService.getAssignment(req.agentId);
       if (assignment && assignment.enabled) {
         targetProvider = mapCatalogToGatewayId(assignment.providerId);

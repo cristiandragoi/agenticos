@@ -22,6 +22,7 @@ export function mapCatalogToGatewayId(catalogId: string): string {
     'prov-omni': 'omniroot',
     'prov-openrouter': 'OpenRouter',
     'prov-deepseek': 'DeepSeek',
+    'prov-longcat': 'openrouter',
     'prov-groq': 'Groq',
     'prov-fugu': 'Fugu Ultra',
     'prov-fusion': 'Fusion',

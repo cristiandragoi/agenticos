@@ -226,8 +226,14 @@ router.post('/agent-provider-assignments/:agentId/test', async (req, res) => {
         systemPrompt: 'You are a routing connectivity probe. Reply with exactly the word OK.',
         agentId: req.params.agentId,
         provider: configuredProvider || undefined,
+        // Pass the configured model explicitly: an explicit provider override
+        // takes precedence over the saved assignment in the gateway router, so
+        // the assignment's modelId is NOT auto-injected when provider is set.
+        model: configuredModel || undefined,
         timeoutMs: 15000,
-        maxTokens: 8,
+        // 64 output tokens: reasoning MoE models (e.g. LongCat 2.0) return an
+        // empty final message when capped at 8 — the probe would false-FAIL.
+        maxTokens: 64,
         disableFallback: true, // test what was CONFIGURED, not a silent fallback
       });
     } catch (err: any) {

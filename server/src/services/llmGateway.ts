@@ -16,6 +16,8 @@ export interface LlmChatOptions {
   jobId?: string;
   provider?: string;
   ollamaModel?: string;
+  /** Explicit model override (routed via ChatRequest.modelId). */
+  model?: string;
   requestId?: string;
   disableFallback?: boolean;
   signal?: AbortSignal;
@@ -93,7 +95,8 @@ function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
     signal: opts.signal,
     requestId: opts.requestId,
     taskProfile,
-    agentId: opts.agentId
+    agentId: opts.agentId,
+    modelId: opts.model
   };
 }
 

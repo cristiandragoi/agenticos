@@ -50,6 +50,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
   }
 
   public async chat(req: ChatRequest): Promise<ChatResponse> {
+    const model = req.routing?.modelId ?? req.modelId ?? this.definition.model;
     const messages = [];
     if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
     if (req.history) for (const h of req.history) messages.push({ role: h.role, content: h.content });
@@ -63,7 +64,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         'Content-Type': 'application/json',
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
       },
-      body: JSON.stringify({ model: this.definition.model, messages, max_tokens: req.maxTokens || 1024 }),
+      body: JSON.stringify({ model: model, messages, max_tokens: req.maxTokens || 1024 }),
       signal: req.signal || AbortSignal.timeout(req.timeoutMs || 30000)
     });
 
@@ -85,7 +86,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
     return { 
       reply, 
       provider: this.name, 
-      model: this.definition.model, 
+      model: model, 
       offline: false,
       promptTokens,
       completionTokens,
@@ -94,6 +95,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
   }
 
   public async *stream(req: ChatRequest): AsyncGenerator<ChatStreamChunk> {
+    const model = req.routing?.modelId ?? req.modelId ?? this.definition.model;
     const messages = [];
     if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
     if (req.history) for (const h of req.history) messages.push({ role: h.role, content: h.content });
@@ -108,7 +110,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
       },
       body: JSON.stringify({ 
-        model: this.definition.model, 
+        model: model, 
         messages, 
         max_tokens: req.maxTokens || 1024, 
         stream: true,
@@ -144,7 +146,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         if (!trimmed.startsWith('data:')) continue;
         sawSseData = true;
         const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
-        if (delta) yield { type: 'token', content: delta, provider: this.name, model: this.definition.model };
+        if (delta) yield { type: 'token', content: delta, provider: this.name, model: model };
       }
     }
 
@@ -156,7 +158,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
       if (!trimmed.startsWith('data:')) continue;
       sawSseData = true;
       const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
-      if (delta) yield { type: 'token', content: delta, provider: this.name, model: this.definition.model };
+      if (delta) yield { type: 'token', content: delta, provider: this.name, model: model };
     }
 
     // Non-streaming OpenAI-style JSON body (no SSE `data:` lines seen): emit
@@ -167,14 +169,14 @@ export class OpenAICompatibleGateway implements ModelGateway {
         const parsed = JSON.parse(rawBody);
         const content = parsed?.choices?.[0]?.message?.content;
         if (typeof content === 'string' && content.length > 0) {
-          yield { type: 'token', content, provider: this.name, model: this.definition.model };
+          yield { type: 'token', content, provider: this.name, model: model };
         }
       } catch {
         // Not JSON either; downstream empty-stream handling applies.
       }
     }
 
-    yield { type: 'done', provider: this.name, model: this.definition.model };
+    yield { type: 'done', provider: this.name, model: model };
   }
 
   // Capabilities

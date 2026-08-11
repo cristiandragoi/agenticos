@@ -516,6 +516,23 @@ export const mockProviders: ProviderDefinition[] = [
     usedByAgentDefaults: ["agent-hermes", "agent-jarvis"],
   },
   {
+    id: "prov-longcat",
+    name: "LongCat",
+    kind: "llm",
+    category: "remote",
+    adapter: "openrouter-adapter",
+    authScheme: "key",
+    status: "connected",
+    scopes: ["chat", "completion"],
+    description: "Meituan LongCat 2.0 — sparse MoE (48B active / 1.6T total), coding, repo-level changes and agentic workflows. Reached via OpenRouter (provider-confirmed model id: meituan/longcat-2.0).",
+    lastActivity: "just now",
+    defaultModel: "meituan/longcat-2.0",
+    models: [
+      { id: "meituan/longcat-2.0", name: "LongCat 2.0", contextLength: 1048756 },
+    ],
+    usedByAgentDefaults: ["agent-jarvis"],
+  },
+  {
     id: "prov-minimax",
     name: "MiniMax",
     kind: "llm",
