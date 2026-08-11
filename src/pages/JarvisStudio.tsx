@@ -6,6 +6,7 @@ import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
 import { JarvisCore } from '../components/jarvis/JarvisCore';
+import { JarvisInsights } from '../components/jarvis/JarvisInsights';
 import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
@@ -261,6 +262,10 @@ export default function JarvisStudio() {
     if (chunk) voiceRef.current?.speakProgressive?.(chunk);
   }, []);
 
+  /** Insights (Phase 3): last REAL user prompt + last REAL assistant reply. */
+  const [lastUserPrompt, setLastUserPrompt] = useState<string | null>(null);
+  const [lastReply, setLastReply] = useState<string | null>(null);
+
   /** Streamed assistant deltas → sentence chunks → sequential TTS queue.
    *  Direct-chat replies are spoken whenever voice output is enabled,
    *  regardless of input channel (typed OR voice) — the user must never get
@@ -275,6 +280,7 @@ export default function JarvisStudio() {
 
   const handleAssistantDone = useCallback((text: string, channel: 'typed' | 'voice') => {
     void channel;
+    setLastReply(text);
     // EMERGENCY FIX: a reply that was served WITHOUT streaming deltas (e.g.
     // the first reply of a fresh conversation takes the non-streaming path)
     // never reaches speakProgressive — flush() finds an empty buffer and the
@@ -1084,6 +1090,21 @@ export default function JarvisStudio() {
             </div>
           </div>
 
+          {/* ── JARVIS INSIGHTS (Phase 3 slice 2): every row is a REAL runtime
+              signal (last prompt/reply, runtime state, active task, delegation,
+              error/approval) — never filler; rows render '—' when absent. ── */}
+          {workspaceDockOpen && (
+            <div style={{ margin: '0 12px 10px' }}>
+              <JarvisInsights
+                runtimeStatus={runtimeStatus}
+                backendRuntime={backendRuntime}
+                orbState={orbState}
+                lastUserPrompt={lastUserPrompt}
+                lastReply={lastReply}
+              />
+            </div>
+          )}
+
           <div className={cc.workspaceControls}>
 
             {/* ── Command bar: mode selector + voice controls (always visible) ── */}
@@ -1410,6 +1431,7 @@ export default function JarvisStudio() {
               // EMERGENCY FIX: a NEW user message re-arms speech after a
               // STOP SPEAKING kill — subsequent voice output must work again.
               voiceRef.current?.armSpeech?.();
+              setLastUserPrompt(text);
               chatRef.current?.sendMessage(text, channel ?? 'typed');
             }}
             isProcessing={['thinking', 'understanding', 'planning', 'delegating', 'executing', 'reviewing', 'streaming'].includes(runtimeStatus.state)}
