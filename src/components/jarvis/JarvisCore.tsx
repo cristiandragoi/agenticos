@@ -90,14 +90,14 @@ export function JarvisCore({
     canvas.height = size * dpr;
     ctx.scale(dpr, dpr);
 
-    /* ── HUMAN GEOMETRY (derived from the actual canvas size S) ──
-     * Head: spans y 0.02S–0.62S, x 0.27S–0.73S (normal human proportions,
-     * ~46% wide × 60% tall of the canvas). Bust fills to 0.96S. */
+    /* ── GEOMETRY MATCHING THE REFERENCE (image 5): a LARGE front-facing
+     * humanoid head (head ≈ 83% of the figure height), high-set eyes,
+     * nose midline, low mouth near the chin, short neck/shoulders. ── */
     const S = size;
     const cx = S / 2;
-    const cy = S * 0.32;                     // head center
-    const W = S * 0.23;                      // half head width
-    const H = S * 0.30;                      // half head height
+    const cy = S * 0.40;                     // head center (cranium top ~2%)
+    const W = S * 0.28;                      // half head width (head spans 22-78%)
+    const H = S * 0.38;                      // half head height (head spans 2-78%)
 
     /* Human head silhouette: rounded cranium → forehead → temples →
      * cheekbones → cheeks → jaw taper → rounded chin. */
@@ -126,17 +126,17 @@ export function JarvisCore({
       g.closePath();
     }
 
-    /* Visible neck + subtle shoulders (human bust scale, restrained). */
+    /* Short neck + subtle shoulders (17% of the figure — reference scale). */
     function bustPath(g: CanvasRenderingContext2D, ox: number, oy: number) {
       g.beginPath();
-      g.moveTo(ox - W * 0.12, oy + H * 0.98);
-      g.quadraticCurveTo(ox - W * 0.20, oy + H * 1.30, ox - W * 0.30, oy + H * 1.60);
-      g.quadraticCurveTo(ox - W * 0.70, oy + H * 1.90, ox - W * 1.08, oy + H * 2.08);
-      g.quadraticCurveTo(ox - W * 1.18, oy + H * 2.14, ox - W * 1.10, oy + H * 2.18);
-      g.lineTo(ox + W * 1.10, oy + H * 2.18);
-      g.quadraticCurveTo(ox + W * 1.18, oy + H * 2.14, ox + W * 1.08, oy + H * 2.08);
-      g.quadraticCurveTo(ox + W * 0.70, oy + H * 1.90, ox + W * 0.30, oy + H * 1.60);
-      g.quadraticCurveTo(ox + W * 0.20, oy + H * 1.30, ox + W * 0.12, oy + H * 0.98);
+      g.moveTo(ox - W * 0.10, oy + H * 0.96);
+      g.quadraticCurveTo(ox - W * 0.17, oy + H * 1.12, ox - W * 0.24, oy + H * 1.22);
+      g.quadraticCurveTo(ox - W * 0.52, oy + H * 1.34, ox - W * 0.78, oy + H * 1.42);
+      g.quadraticCurveTo(ox - W * 0.86, oy + H * 1.45, ox - W * 0.80, oy + H * 1.48);
+      g.lineTo(ox + W * 0.80, oy + H * 1.48);
+      g.quadraticCurveTo(ox + W * 0.86, oy + H * 1.45, ox + W * 0.78, oy + H * 1.42);
+      g.quadraticCurveTo(ox + W * 0.52, oy + H * 1.34, ox + W * 0.24, oy + H * 1.22);
+      g.quadraticCurveTo(ox + W * 0.17, oy + H * 1.12, ox + W * 0.10, oy + H * 0.96);
       g.closePath();
     }
 
@@ -192,32 +192,43 @@ export function JarvisCore({
       ctx.strokeStyle = rgba(colRim, 0.10);
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(cx - W * 1.08, cy + H * 2.08);
-      ctx.quadraticCurveTo(cx, cy + H * 2.16, cx + W * 1.08, cy + H * 2.08);
+      ctx.moveTo(cx - W * 0.78, cy + H * 1.42);
+      ctx.quadraticCurveTo(cx, cy + H * 1.47, cx + W * 0.78, cy + H * 1.42);
       ctx.stroke();
       // neck midline hint
       ctx.strokeStyle = rgba(colSoft, 0.10);
       ctx.lineWidth = 0.8;
       ctx.beginPath();
-      ctx.moveTo(cx, cy + H * 1.02);
-      ctx.quadraticCurveTo(cx + W * 0.05, cy + H * 1.5, cx, cy + H * 2.05);
+      ctx.moveTo(cx, cy + H * 0.98);
+      ctx.quadraticCurveTo(cx + W * 0.05, cy + H * 1.2, cx, cy + H * 1.40);
       ctx.stroke();
 
       /* ── translucent holographic head shell ── */
       headPath(ctx, cx, cy, breathe, breathe);
       const headGrad = ctx.createRadialGradient(cx - W * 0.2, cy - H * 0.3, W * 0.1, cx, cy, W * 1.3);
-      const bodyA = st === 'offline' ? 0.04 : 0.11 + ampOut * 0.04;
-      headGrad.addColorStop(0, rgba(colSoft, bodyA * 1.4));
-      headGrad.addColorStop(0.55, rgba(colMain, bodyA * 0.75));
-      headGrad.addColorStop(1, rgba(colMain, bodyA * 0.24));
+      const bodyA = st === 'offline' ? 0.06 : 0.18 + ampOut * 0.04;
+      headGrad.addColorStop(0, rgba(colSoft, bodyA * 1.7));
+      headGrad.addColorStop(0.55, rgba(colMain, bodyA * 0.95));
+      headGrad.addColorStop(1, rgba(colMain, bodyA * 0.34));
       ctx.fillStyle = headGrad;
       ctx.fill();
+      // luminous FACE mass (like the reference: the face is the brightest
+      // part of the head — a soft bright glow over the facial plane)
+      const faceGlow = ctx.createRadialGradient(cx, cy - H * 0.15, W * 0.05, cx, cy - H * 0.15, W * 0.85);
+      const faceA = st === 'offline' ? 0.06 : 0.24 + ampOut * 0.08 + ampIn * 0.05;
+      faceGlow.addColorStop(0, rgba(colSoft, faceA));
+      faceGlow.addColorStop(0.5, rgba(colMain, faceA * 0.55));
+      faceGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = faceGlow;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - H * 0.15, W * 0.88, H * 0.92, 0, 0, Math.PI * 2);
+      ctx.fill();
       // crisp human rim
-      ctx.strokeStyle = rgba(colRim, 0.34 + ampIn * 0.14 + ampOut * 0.10);
+      ctx.strokeStyle = rgba(colRim, 0.38 + ampIn * 0.14 + ampOut * 0.10);
       ctx.lineWidth = 1.5;
       ctx.stroke();
       // inner shell glow
-      ctx.strokeStyle = rgba(colSoft, 0.08 + Math.sin(t * 1.5) * 0.025);
+      ctx.strokeStyle = rgba(colSoft, 0.09 + Math.sin(t * 1.5) * 0.025);
       ctx.lineWidth = 3;
       headPath(ctx, cx, cy, 0.97, 0.97);
       ctx.stroke();
@@ -226,33 +237,33 @@ export function JarvisCore({
       // forehead plane
       ctx.fillStyle = rgba(colSoft, 0.055);
       ctx.beginPath();
-      ctx.ellipse(cx, cy - H * 0.46, W * 0.52, H * 0.26, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy - H * 0.66, W * 0.52, H * 0.22, 0, 0, Math.PI * 2);
       ctx.fill();
       // cheek planes
       for (const side of [-1, 1]) {
         ctx.fillStyle = rgba(colMain, 0.06);
         ctx.beginPath();
-        ctx.ellipse(cx + side * W * 0.44, cy + H * 0.16, W * 0.28, H * 0.24, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + side * W * 0.44, cy + H * 0.02, W * 0.28, H * 0.20, 0, 0, Math.PI * 2);
         ctx.fill();
       }
       // jaw/chin plane
       ctx.fillStyle = rgba(colMain, 0.05);
       ctx.beginPath();
-      ctx.ellipse(cx, cy + H * 0.62, W * 0.32, H * 0.22, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + H * 0.55, W * 0.32, H * 0.20, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      /* ── HUMAN FACE FEATURES: eyes, nose, mouth — clearly readable on
-       *  the holographic head (translucent but visible, never cartoon). ── */
-      const eyeY = cy - H * 0.10;                  // eyes at the vertical center of the head
+      /* ── HUMAN FACE FEATURES: eyes, nose, mouth — positioned like the
+       *  reference (high-set eyes, nose midline, low mouth near the chin). ── */
+      const eyeY = cy - H * 0.42;                  // HIGH eye line (reference)
       const eyeGlow = st === 'listening' ? 0.95 + ampIn * 0.05 : st === 'error' ? 0.9 : st === 'reasoning' ? 0.7 : 0.55;
       const eyeCol = st === 'listening' ? [59, 130, 246] as [number, number, number]
         : st === 'error' ? [239, 68, 68] as [number, number, number]
         : st === 'delegated' ? colMain : colSoft;
       for (const side of [-1, 1]) {
-        const ex = cx + side * W * 0.33;
+        const ex = cx + side * W * 0.40;
         // eye socket shadow (depth behind the eye)
-        ctx.fillStyle = rgba([2, 8, 20], 0.16);
-        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.13, H * 0.055, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = rgba([2, 8, 20], 0.18);
+        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.13, H * 0.05, 0, 0, Math.PI * 2); ctx.fill();
         // eye glow plane
         const eg = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, W * 0.11);
         eg.addColorStop(0, rgba(eyeCol, eyeGlow * 0.8));
@@ -276,21 +287,21 @@ export function JarvisCore({
         ctx.fillStyle = rgba(colSoft, 0.55 + eyeGlow * 0.45);
         ctx.fill();
       }
-      // brows / brow ridge — defined but restrained
+      // brows / brow ridge — just above the high eye line
       ctx.strokeStyle = rgba(colMain, 0.34 + (st === 'reasoning' ? 0.10 : 0));
       ctx.lineWidth = 1.2;
       for (const side of [-1, 1]) {
         ctx.beginPath();
-        ctx.moveTo(cx + side * W * 0.18, cy - H * 0.21);
-        ctx.quadraticCurveTo(cx + side * W * 0.33, cy - H * 0.27, cx + side * W * 0.45, cy - H * 0.20);
+        ctx.moveTo(cx + side * W * 0.24, cy - H * 0.52);
+        ctx.quadraticCurveTo(cx + side * W * 0.40, cy - H * 0.58, cx + side * W * 0.52, cy - H * 0.51);
         ctx.stroke();
       }
-      // NOSE — bridge from the eye line to the tip, defined tip + nostril hints
+      // NOSE — bridge from between the eyes to the tip, defined tip + nostrils
       ctx.strokeStyle = rgba(colMain, 0.30);
       ctx.lineWidth = 1.1;
       ctx.beginPath();
-      ctx.moveTo(cx, cy - H * 0.04);
-      ctx.quadraticCurveTo(cx + W * 0.02, cy + H * 0.10, cx, cy + H * 0.26);
+      ctx.moveTo(cx, cy - H * 0.30);
+      ctx.quadraticCurveTo(cx + W * 0.02, cy - H * 0.05, cx, cy + H * 0.26);
       ctx.stroke();
       // nose tip + wings
       ctx.beginPath();
@@ -309,12 +320,12 @@ export function JarvisCore({
       // shadow under the nose (face depth)
       ctx.fillStyle = rgba([2, 8, 20], 0.10);
       ctx.beginPath();
-      ctx.ellipse(cx, cy + H * 0.335, W * 0.09, H * 0.035, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + H * 0.36, W * 0.09, H * 0.035, 0, 0, Math.PI * 2);
       ctx.fill();
-      // mouth (human position, clearly readable) — LIP-SYNC: opening follows
-      // the REAL playback amplitude (outputLevel) while speaking; calm line
-      // otherwise. No fake animation — silence = closed mouth.
-      const mouthY = cy + H * 0.46;
+      // mouth (human position, low on the face like the reference) —
+      // LIP-SYNC: opening follows the REAL playback amplitude (outputLevel)
+      // while speaking; calm line otherwise.
+      const mouthY = cy + H * 0.62;
       const mouthTarget = st === 'speaking' ? 0.22 + ampOut * 0.6 : 0.015;
       mouthOpen = smooth(mouthOpen, mouthTarget, Math.min(1, dt * 16));
       if (mouthOpen > 0.03) {
@@ -348,14 +359,14 @@ export function JarvisCore({
       ctx.strokeStyle = rgba(colMain, 0.10);
       ctx.lineWidth = 0.9;
       ctx.beginPath();
-      ctx.moveTo(cx - W * 0.30, cy + H * 0.78);
-      ctx.quadraticCurveTo(cx, cy + H * 0.88, cx + W * 0.30, cy + H * 0.78);
+      ctx.moveTo(cx - W * 0.30, cy + H * 0.82);
+      ctx.quadraticCurveTo(cx, cy + H * 0.92, cx + W * 0.30, cy + H * 0.82);
       ctx.stroke();
       // ear hints (audio regions, at human ear height)
       const earGlow = st === 'listening' ? 0.5 + ampIn * 0.35 : st === 'speaking' ? 0.20 : 0.06;
       for (const side of [-1, 1]) {
         const ex = cx + side * W * 0.95;
-        const ey = cy + H * 0.04;
+        const ey = cy - H * 0.30;
         const eg = ctx.createRadialGradient(ex, ey, 1, ex, ey, W * 0.10);
         eg.addColorStop(0, rgba(st === 'listening' ? [59, 130, 246] : colMain, earGlow));
         eg.addColorStop(1, 'rgba(0,0,0,0)');
