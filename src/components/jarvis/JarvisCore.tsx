@@ -148,6 +148,8 @@ export function JarvisCore({
     let t = 0;
     let last = performance.now();
     let running = true;
+    /** Mouth opening 0..1 — follows the REAL playback amplitude (lip sync). */
+    let mouthOpen = 0;
 
     const smooth = (a: number, b: number, k: number) => a + (b - a) * k;
 
@@ -285,13 +287,39 @@ export function JarvisCore({
       ctx.moveTo(cx - W * 0.05, cy + H * 0.26);
       ctx.quadraticCurveTo(cx, cy + H * 0.31, cx + W * 0.05, cy + H * 0.26);
       ctx.stroke();
-      // mouth (human position, calm)
-      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.7 : 0.24);
-      ctx.lineWidth = st === 'speaking' ? 1.4 : 1;
+      // mouth (human position) — LIP-SYNC: opening follows the REAL playback
+      // amplitude (outputLevel from the audio analyser) while speaking;
+      // calm line otherwise. No fake animation — silence = closed mouth.
+      const mouthY = cy + H * 0.46;
+      const mouthTarget = st === 'speaking' ? 0.22 + ampOut * 0.6 : 0.015;
+      mouthOpen = smooth(mouthOpen, mouthTarget, Math.min(1, dt * 16));
+      if (mouthOpen > 0.03) {
+        // mouth cavity (dark interior that opens with the audio)
+        ctx.beginPath();
+        ctx.ellipse(cx, mouthY, W * 0.16, H * 0.015 + mouthOpen * H * 0.12, 0, 0, Math.PI);
+        ctx.fillStyle = rgba([2, 8, 20], 0.55);
+        ctx.fill();
+      }
+      // upper lip
       ctx.beginPath();
-      ctx.moveTo(cx - W * 0.16, cy + H * 0.46);
-      ctx.quadraticCurveTo(cx, cy + H * 0.50, cx + W * 0.16, cy + H * 0.46);
+      ctx.ellipse(cx, mouthY, W * 0.16, H * 0.015 + mouthOpen * H * 0.12, 0, 0, Math.PI);
+      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.75 + mouthOpen * 0.25 : 0.24);
+      ctx.lineWidth = st === 'speaking' ? 1.3 + mouthOpen * 2.2 : 1;
       ctx.stroke();
+      // lower lip hint
+      ctx.beginPath();
+      ctx.ellipse(cx, mouthY, W * 0.16, H * 0.008 + mouthOpen * H * 0.09, 0, Math.PI, Math.PI * 2);
+      ctx.strokeStyle = rgba(colMain, st === 'speaking' ? 0.35 + mouthOpen * 0.3 : 0.08);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // speaking glow under the mouth (output energy)
+      if (st === 'speaking' && mouthOpen > 0.02) {
+        const mg = ctx.createRadialGradient(cx, mouthY + H * 0.07, 0, cx, mouthY + H * 0.07, W * 0.26);
+        mg.addColorStop(0, rgba(colRim, 0.28 + ampOut * 0.4));
+        mg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = mg;
+        ctx.beginPath(); ctx.arc(cx, mouthY + H * 0.07, W * 0.26, 0, Math.PI * 2); ctx.fill();
+      }
       // jaw / chin contour
       ctx.strokeStyle = rgba(colMain, 0.10);
       ctx.lineWidth = 0.9;
