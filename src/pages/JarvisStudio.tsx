@@ -273,9 +273,20 @@ export default function JarvisStudio() {
     flushSpeechBuffer(false);
   }, [flushSpeechBuffer]);
 
-  const handleAssistantDone = useCallback((_text: string, channel: 'typed' | 'voice') => {
+  const handleAssistantDone = useCallback((text: string, channel: 'typed' | 'voice') => {
     void channel;
+    // EMERGENCY FIX: a reply that was served WITHOUT streaming deltas (e.g.
+    // the first reply of a fresh conversation takes the non-streaming path)
+    // never reaches speakProgressive — flush() finds an empty buffer and the
+    // user gets text but no voice. If nothing was buffered/spoken and the
+    // reply actually contains text, speak it directly (the engine's VOICE
+    // ON/OFF gate still applies inside speak()).
+    const buffered = speechBufferRef.current;
     flushSpeechBuffer(true);
+    const after = speechBufferRef.current;
+    if (!buffered && !after && text && text.trim().length > 0) {
+      voiceRef.current?.speak?.(text);
+    }
   }, [flushSpeechBuffer]);
 
   const voice = useVoiceIO({
@@ -1326,7 +1337,15 @@ export default function JarvisStudio() {
                 ref={chatRef}
                 conversationId={activeConversationId}
                 onConversationCreated={(id) => setActiveConversationId(id)}
-                onStatusChange={setRuntimeStatus}
+                onStatusChange={(status) => {
+                  setRuntimeStatus(status);
+                  // EMERGENCY FIX: short replies without punctuation never
+                  // reached a progressive flush point — at turn end the
+                  // buffered remainder must be spoken once (no-op when the
+                  // buffer is already empty; non-streamed replies take the
+                  // onAssistantResponse path instead).
+                  if (status.state === 'completed') flushSpeechBuffer(true);
+                }}
                 composerText={composerText}
                 onComposerTextChange={handleComposerTextChange}
                 onMicStateChange={setMicState}
@@ -1370,6 +1389,9 @@ export default function JarvisStudio() {
                 manualEditSinceVoiceRef.current = false;
                 setVoiceInterimTranscript('');
               }
+              // EMERGENCY FIX: a NEW user message re-arms speech after a
+              // STOP SPEAKING kill — subsequent voice output must work again.
+              voiceRef.current?.armSpeech?.();
               chatRef.current?.sendMessage(text, channel ?? 'typed');
             }}
             isProcessing={['thinking', 'understanding', 'planning', 'delegating', 'executing', 'reviewing', 'streaming'].includes(runtimeStatus.state)}

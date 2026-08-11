@@ -298,6 +298,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const streamedTextByOpRef = useRef<Record<string, string>>({});
   const onAssistantResponseRef = useRef(onAssistantResponse);
   const onStreamDeltaRef = useRef(onStreamDelta);
+  /** operationId → conversationId used for that stream (first turn of a fresh
+   *  conversation creates a NEW id that the prop hasn't propagated yet). */
+  const opConversationRef = useRef<Record<string, string>>({});
   useEffect(() => {
     onAssistantResponseRef.current = onAssistantResponse;
   }, [onAssistantResponse]);
@@ -629,6 +632,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     voiceTracePush('conversation', 'ok', `Conversation ${targetConversationId} (channel ${inputChannel})`);
 
     const operationId = `jarvis-${targetConversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Guaranteed non-null here (created above when missing), but TS can't
+    // narrow a `let` through the await — record the actual id for the TTS
+    // fallback fetch of non-streamed replies.
+    opConversationRef.current[operationId] = targetConversationId || '';
     lastOperationIdRef.current = operationId;
     if (abortControllerRef.current) {
       logAbort('new_request', abortControllerRef.current, requestStartedAtRef.current, operationId);
@@ -909,11 +916,34 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         //    Delegated (CodeX/team), telemetry and system messages never reach
         //    this point with streamed text; the consumer gates on the channel. ──
         const finalText = (streamedTextByOpRef.current[operationId] || '').trim();
+        const hadStreamedText = finalText.length > 0;
         delete streamedTextByOpRef.current[operationId];
-        if (finalText && (!data.route || data.route === 'direct')) {
-          // One-shot TTS only when the page did NOT take the progressive path.
-          if (!onStreamDeltaRef.current) {
-            onAssistantResponseRef.current?.(finalText, pendingChannelRef.current);
+        if (!data.route || data.route === 'direct') {
+          if (hadStreamedText) {
+            // One-shot TTS only when the page did NOT take the progressive path.
+            if (!onStreamDeltaRef.current) {
+              onAssistantResponseRef.current?.(finalText, pendingChannelRef.current);
+            }
+          } else if (onStreamDeltaRef.current) {
+            // EMERGENCY FIX: a DIRECT reply served WITHOUT streamed chunks
+            // (e.g. the first reply of a fresh conversation) produced no
+            // deltas, so the progressive path never fired and the one-shot
+            // was skipped — the user gets text but never a spoken reply.
+            // The reply text is persisted; load it and speak ONCE (the
+            // consumer's VOICE ON/OFF gate still applies inside speak()).
+            void (async () => {
+              try {
+                const convId = opConversationRef.current[operationId] || conversationId;
+                delete opConversationRef.current[operationId];
+                const res = await fetch(`${API_BASE}/jarvis/conversations/${convId}/messages`);
+                const msgs = await res.json();
+                if (Array.isArray(msgs)) {
+                  const lastAgent = msgs.slice().reverse().find((m: any) => m?.role === 'assistant' || m?.role === 'agent');
+                  const t = lastAgent ? String(lastAgent.content || '').trim() : '';
+                  if (t) onAssistantResponseRef.current?.(t, pendingChannelRef.current);
+                }
+              } catch { /* best effort — visible text already delivered */ }
+            })();
           }
         }
         if (data.goalId) setCreatedGoalId(data.goalId);

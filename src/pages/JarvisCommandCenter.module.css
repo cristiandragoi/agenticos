@@ -117,8 +117,31 @@
   height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* EMERGENCY FIX: the CENTER Jarvis workspace is its own vertical scroll
+     domain (scroll domain A). The stage, controls, Live Work, Voice Trace
+     and transcript flow inside it; when their combined height exceeds the
+     viewport the user scrolls the center to reach everything. The composer
+     stays OUTSIDE (sticky bottom of mainColumn), the transcript and the
+     right History keep their OWN internal scrollbars (domains B and C). */
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(103, 232, 249, 0.35) rgba(15, 23, 42, 0.3);
+}
+.centerScroll::-webkit-scrollbar {
+  width: 9px;
+}
+.centerScroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+}
+.centerScroll::-webkit-scrollbar-thumb {
+  background: rgba(103, 232, 249, 0.38);
+  border-radius: 6px;
+  border: 2px solid rgba(15, 23, 42, 0.35);
+}
+.centerScroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(103, 232, 249, 0.6);
 }
 
 .jarvisStage {
@@ -151,18 +174,15 @@
 
 .workspace {
   position: relative;
-  /* Jarvis-layout fix: the workspace band fills the REMAINING center-column
-     height (flex 1 1 auto) instead of a fixed 54vh cap. A fixed max-height
-     starves the transcript when the hero + controls + composer already
-     consume the viewport: the transcript dock inside was shrinking to 0.
-     The band is still NOT a scroll container — its tall children (Voice
-     Trace diagnostics, transcript dock) are flex-shrinkable with
-     min-height:0 and scroll INSIDE themselves. */
-  flex: 1 1 auto;
+  /* EMERGENCY FIX: content-sized (flex 0 0 auto) and overflow VISIBLE so the
+     CENTER scroll container can scroll the whole lower band — controls, Live
+     Work, Voice Trace and transcript are ALWAYS reachable, never clipped.
+     Tall children (Voice Trace, transcript) keep their own internal scroll. */
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   padding-bottom: 10px;
   background: linear-gradient(to bottom, rgba(2, 6, 23, 0.55), rgba(2, 6, 23, 0.92));
   border-top: 1px solid rgba(30, 58, 95, 0.5);

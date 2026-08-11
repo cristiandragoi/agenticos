@@ -257,10 +257,14 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const stopSpeaking = useCallback(() => {
     if (!playbackActiveRef.current && !speakingRef.current) return;
     haltPlayback();
+    // EMERGENCY FIX: the speaking STATE must end too — isSpeaking derives
+    // from voiceState, so the STOP SPEAKING button and primary control must
+    // not stay armed after playback was halted.
+    setVoiceState('idle');
     window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
       detail: { agentId },
     }));
-  }, [agentId, haltPlayback]);
+  }, [agentId, haltPlayback, setVoiceState]);
 
   /** Lazily attach an AnalyserNode to the real playback audio element.
    *  createMediaElementSource may only be called once per element, so the
@@ -1106,8 +1110,17 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const setVoiceEnabled = useCallback((enabled: boolean) => {
     voiceEnabledRef.current = enabled;
     if (enabled) unlockAudio();
-    if (!enabled) haltPlayback();
-  }, [haltPlayback, unlockAudio]);
+    if (!enabled) {
+      haltPlayback();
+      // EMERGENCY FIX: the orb and speaking UI must leave SPEAKING when
+      // voice output is disabled mid-playback — haltPlayback alone only
+      // clears internal refs, not the playbackActive event state.
+      setVoiceState('idle');
+      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+        detail: { agentId },
+      }));
+    }
+  }, [agentId, haltPlayback, setVoiceState, unlockAudio]);
 
   const fallbackSpeak = useCallback((text: string) => {
     window.speechSynthesis?.cancel();
@@ -1328,10 +1341,13 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       ttsAbortControllerRef.current = null;
     }
     haltPlayback();
+    // EMERGENCY FIX: the speaking STATE must end with the playback — the orb
+    // and the STOP SPEAKING / primary controls read isSpeaking (voiceState).
+    setVoiceState('idle');
     window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
       detail: { agentId },
     }));
-  }, [agentId, haltPlayback]);
+  }, [agentId, haltPlayback, setVoiceState]);
 
   /** Re-arm speech for a NEW run/turn (after a kill). */
   const armSpeech = useCallback(() => {
