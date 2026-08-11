@@ -241,55 +241,79 @@ export function JarvisCore({
       ctx.ellipse(cx, cy + H * 0.62, W * 0.32, H * 0.22, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      /* ── restrained human face landmarks ── */
+      /* ── HUMAN FACE FEATURES: eyes, nose, mouth — clearly readable on
+       *  the holographic head (translucent but visible, never cartoon). ── */
       const eyeY = cy - H * 0.10;                  // eyes at the vertical center of the head
-      const eyeGlow = st === 'listening' ? 0.85 + ampIn * 0.1 : st === 'error' ? 0.8 : st === 'reasoning' ? 0.55 : 0.4;
+      const eyeGlow = st === 'listening' ? 0.95 + ampIn * 0.05 : st === 'error' ? 0.9 : st === 'reasoning' ? 0.7 : 0.55;
       const eyeCol = st === 'listening' ? [59, 130, 246] as [number, number, number]
         : st === 'error' ? [239, 68, 68] as [number, number, number]
         : st === 'delegated' ? colMain : colSoft;
       for (const side of [-1, 1]) {
         const ex = cx + side * W * 0.33;
+        // eye socket shadow (depth behind the eye)
+        ctx.fillStyle = rgba([2, 8, 20], 0.16);
+        ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.13, H * 0.055, 0, 0, Math.PI * 2); ctx.fill();
         // eye glow plane
         const eg = ctx.createRadialGradient(ex, eyeY, 0, ex, eyeY, W * 0.11);
-        eg.addColorStop(0, rgba(eyeCol, eyeGlow * 0.7));
+        eg.addColorStop(0, rgba(eyeCol, eyeGlow * 0.8));
         eg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = eg;
         ctx.beginPath(); ctx.ellipse(ex, eyeY, W * 0.11, H * 0.045, 0, 0, Math.PI * 2); ctx.fill();
-        // eye slit (human position, gentle angle)
+        // eye slit — clearly visible, gentle angle (human position)
         ctx.save();
         ctx.translate(ex, eyeY);
         ctx.rotate(side * 0.10);
         ctx.beginPath();
-        ctx.moveTo(-W * 0.075, 0);
-        ctx.quadraticCurveTo(0, -H * 0.016 * (0.5 + eyeGlow), W * 0.075, 0);
-        ctx.strokeStyle = rgba(colSoft, 0.5 + eyeGlow * 0.4);
-        ctx.lineWidth = 1.2;
+        ctx.moveTo(-W * 0.085, 0);
+        ctx.quadraticCurveTo(0, -H * 0.020 * (0.5 + eyeGlow), W * 0.085, 0);
+        ctx.strokeStyle = rgba(colSoft, 0.7 + eyeGlow * 0.3);
+        ctx.lineWidth = 1.4;
         ctx.stroke();
         ctx.restore();
+        // iris core (bright point of the eye)
+        ctx.beginPath();
+        ctx.arc(ex + side * W * 0.015, eyeY, Math.max(1, W * 0.020), 0, Math.PI * 2);
+        ctx.fillStyle = rgba(colSoft, 0.55 + eyeGlow * 0.45);
+        ctx.fill();
       }
-      // brows / brow ridge
-      ctx.strokeStyle = rgba(colMain, 0.20 + (st === 'reasoning' ? 0.08 : 0));
-      ctx.lineWidth = 1;
+      // brows / brow ridge — defined but restrained
+      ctx.strokeStyle = rgba(colMain, 0.34 + (st === 'reasoning' ? 0.10 : 0));
+      ctx.lineWidth = 1.2;
       for (const side of [-1, 1]) {
         ctx.beginPath();
-        ctx.moveTo(cx + side * W * 0.20, cy - H * 0.20);
-        ctx.quadraticCurveTo(cx + side * W * 0.34, cy - H * 0.25, cx + side * W * 0.45, cy - H * 0.19);
+        ctx.moveTo(cx + side * W * 0.18, cy - H * 0.21);
+        ctx.quadraticCurveTo(cx + side * W * 0.33, cy - H * 0.27, cx + side * W * 0.45, cy - H * 0.20);
         ctx.stroke();
       }
-      // nose bridge + subtle nose geometry
-      ctx.strokeStyle = rgba(colMain, 0.14);
-      ctx.lineWidth = 0.9;
+      // NOSE — bridge from the eye line to the tip, defined tip + nostril hints
+      ctx.strokeStyle = rgba(colMain, 0.30);
+      ctx.lineWidth = 1.1;
       ctx.beginPath();
       ctx.moveTo(cx, cy - H * 0.04);
-      ctx.quadraticCurveTo(cx + W * 0.015, cy + H * 0.10, cx, cy + H * 0.26);
+      ctx.quadraticCurveTo(cx + W * 0.02, cy + H * 0.10, cx, cy + H * 0.26);
       ctx.stroke();
+      // nose tip + wings
       ctx.beginPath();
-      ctx.moveTo(cx - W * 0.05, cy + H * 0.26);
-      ctx.quadraticCurveTo(cx, cy + H * 0.31, cx + W * 0.05, cy + H * 0.26);
+      ctx.moveTo(cx - W * 0.055, cy + H * 0.24);
+      ctx.quadraticCurveTo(cx, cy + H * 0.31, cx + W * 0.055, cy + H * 0.24);
       ctx.stroke();
-      // mouth (human position) — LIP-SYNC: opening follows the REAL playback
-      // amplitude (outputLevel from the audio analyser) while speaking;
-      // calm line otherwise. No fake animation — silence = closed mouth.
+      // nostrils (two small angled hints)
+      ctx.strokeStyle = rgba(colMain, 0.20);
+      ctx.lineWidth = 0.9;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + side * W * 0.045, cy + H * 0.27);
+        ctx.quadraticCurveTo(cx + side * W * 0.085, cy + H * 0.29, cx + side * W * 0.075, cy + H * 0.315);
+        ctx.stroke();
+      }
+      // shadow under the nose (face depth)
+      ctx.fillStyle = rgba([2, 8, 20], 0.10);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + H * 0.335, W * 0.09, H * 0.035, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // mouth (human position, clearly readable) — LIP-SYNC: opening follows
+      // the REAL playback amplitude (outputLevel) while speaking; calm line
+      // otherwise. No fake animation — silence = closed mouth.
       const mouthY = cy + H * 0.46;
       const mouthTarget = st === 'speaking' ? 0.22 + ampOut * 0.6 : 0.015;
       mouthOpen = smooth(mouthOpen, mouthTarget, Math.min(1, dt * 16));
@@ -297,13 +321,13 @@ export function JarvisCore({
         // mouth cavity (dark interior that opens with the audio)
         ctx.beginPath();
         ctx.ellipse(cx, mouthY, W * 0.16, H * 0.015 + mouthOpen * H * 0.12, 0, 0, Math.PI);
-        ctx.fillStyle = rgba([2, 8, 20], 0.55);
+        ctx.fillStyle = rgba([2, 8, 20], 0.6);
         ctx.fill();
       }
       // upper lip
       ctx.beginPath();
       ctx.ellipse(cx, mouthY, W * 0.16, H * 0.015 + mouthOpen * H * 0.12, 0, 0, Math.PI);
-      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.75 + mouthOpen * 0.25 : 0.24);
+      ctx.strokeStyle = rgba(st === 'speaking' ? colRim : colSoft, st === 'speaking' ? 0.75 + mouthOpen * 0.25 : 0.42);
       ctx.lineWidth = st === 'speaking' ? 1.3 + mouthOpen * 2.2 : 1;
       ctx.stroke();
       // lower lip hint
