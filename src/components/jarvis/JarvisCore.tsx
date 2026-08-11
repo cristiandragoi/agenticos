@@ -26,7 +26,32 @@ export interface JarvisCoreProps {
   size?: number;
   reducedMotion?: boolean;
   testIdPrefix?: string;
+  /** 0..1 per neural-node id — real runtime activity drives the pulse. */
+  nodeActivity?: Record<string, number>;
 }
+
+/* Neural-universe nodes around the humanoid (Phase 3). Each node is a REAL
+ * destination (route) with activity illumination driven by runtime state.
+ * Positions are fractions of the canvas S (geometry contract) — the nodes
+ * sit OUTSIDE the bust silhouette (head x≈0.20–0.80, y≈0.13–0.87). */
+export interface NeuralNodeDef {
+  id: string;
+  label: string;
+  route: string;
+  icon: string;
+  x: number; // fraction of S (canvas center cx=S/2)
+  y: number; // fraction of S
+}
+export const NEURAL_NODES: NeuralNodeDef[] = [
+  { id: 'memory',    label: 'Memory',    route: '#/memory',          icon: '◈', x: 0.125, y: 0.14 },
+  { id: 'projects',  label: 'Projects',  route: '#/mission-control', icon: '▦', x: 0.875, y: 0.14 },
+  { id: 'knowledge', label: 'Knowledge', route: '#/research',        icon: '❋', x: 0.05,  y: 0.44 },
+  { id: 'hermes',    label: 'Hermes',    route: '#/hermes-studio',   icon: '⧉', x: 0.95,  y: 0.44 },
+  { id: 'runs',      label: 'Runs',      route: '#/runs',            icon: '▶', x: 0.125, y: 0.74 },
+  { id: 'artifacts', label: 'Artifacts', route: '#/builds',          icon: '◇', x: 0.875, y: 0.74 },
+  { id: 'vision',    label: 'Vision',    route: '#/video',           icon: '◉', x: 0.50,  y: 0.94 },
+];
+
 
 /* Runtime state → color contract (spec §6). main = identity, soft = tint,
  * rim = edge. The base asset is turquoise; filters shift the whole
@@ -80,6 +105,7 @@ export function JarvisCore({
   size = 220,
   reducedMotion = false,
   testIdPrefix = 'jarvis-orb',
+  nodeActivity = {},
 }: JarvisCoreProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef(state);
@@ -87,10 +113,14 @@ export function JarvisCore({
   const outRef = useRef(outputLevel);
   const inRef = useRef(inputLevel);
   const motionRef = useRef(reducedMotion);
+  const activityRef = useRef(nodeActivity);
+  const hitRef = useRef<{ id: string; cx: number; cy: number; r: number }[]>([]);
+  const hoverRef = useRef<string | null>(null);
   stateRef.current = state;
   agentRef.current = activeAgent;
   outRef.current = outputLevel;
   inRef.current = inputLevel;
+  activityRef.current = nodeActivity;
 
   /* Load the reference humanoid asset once. */
   const [humanoid, setHumanoid] = React.useState<HTMLImageElement | null>(null);
@@ -181,6 +211,62 @@ export function JarvisCore({
       ctx.ellipse(cx, S * 0.90, S * 0.26, S * 0.03, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      /* ── NEURAL-UNIVERSE NODES (Phase 3) — real destinations, activity-illuminated ── */
+      const hits: { id: string; cx: number; cy: number; r: number }[] = [];
+      const activity = activityRef.current || {};
+      const nodeR = S * 0.030;
+      for (let i = 0; i < NEURAL_NODES.length; i++) {
+        const nd = NEURAL_NODES[i];
+        const nx = nd.x * S;
+        const ny = nd.y * S;
+        const act = clamp01(activity[nd.id] || 0);
+        const pulse = act > 0 ? 0.5 + 0.5 * Math.sin(t * 3 + i * 1.1) : 0;
+        const alpha = 0.55 + act * 0.35 + pulse * 0.2 * act;
+        /* connector (flowing neural path) toward the head core */
+        ctx.save();
+        ctx.strokeStyle = rgba(colRim, 0.10 + act * 0.25);
+        ctx.lineWidth = Math.max(1, S * 0.004);
+        ctx.setLineDash([S * 0.02, S * 0.016]);
+        ctx.lineDashOffset = -t * S * 0.05;
+        ctx.beginPath();
+        ctx.moveTo(nx, ny);
+        ctx.quadraticCurveTo((nx + cx) / 2, (ny + S * 0.42) / 2 - S * 0.05, cx, S * 0.42);
+        ctx.stroke();
+        ctx.restore();
+        /* activity glow */
+        if (act > 0.02) {
+          const g = ctx.createRadialGradient(nx, ny, nodeR * 0.2, nx, ny, nodeR * 2.6);
+          g.addColorStop(0, rgba(colSoft, 0.35 * act + pulse * 0.25 * act));
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(nx, ny, nodeR * 2.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        /* chip */
+        ctx.fillStyle = rgba(colMain, 0.10 + act * 0.35);
+        ctx.strokeStyle = rgba(colRim, alpha);
+        ctx.lineWidth = Math.max(1, S * 0.006);
+        ctx.beginPath();
+        ctx.arc(nx, ny, nodeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        /* icon glyph */
+        ctx.fillStyle = rgba(colSoft, 0.85 + act * 0.15);
+        ctx.font = `${Math.round(S * 0.038)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(nd.icon, nx, ny);
+        /* label */
+        ctx.fillStyle = rgba(colSoft, 0.55 + act * 0.35);
+        ctx.font = `${Math.round(S * 0.040)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(nd.label, nx, ny + nodeR + S * 0.010);
+        hits.push({ id: nd.id, cx: nx, cy: ny, r: nodeR + S * 0.012 });
+      }
+      hitRef.current = hits;
+
       if (!reducedMotion) {
         raf = requestAnimationFrame(drawFrame);
       }
@@ -201,7 +287,27 @@ export function JarvisCore({
       data-testid={testIdPrefix}
       data-orb-state={state}
       data-active-agent={activeAgent || ''}
-      style={{ width: size, height: size, display: 'block' }}
+      style={{ width: size, height: size, display: 'block', cursor: 'default' }}
+      onPointerMove={(e) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hit = hitRef.current.find((h) => (x - h.cx) ** 2 + (y - h.cy) ** 2 <= h.r * h.r);
+        hoverRef.current = hit ? hit.id : null;
+        if (canvasRef.current) canvasRef.current.style.cursor = hit ? 'pointer' : 'default';
+      }}
+      onClick={(e) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hit = hitRef.current.find((h) => (x - h.cx) ** 2 + (y - h.cy) ** 2 <= h.r * h.r);
+        if (hit) {
+          const node = NEURAL_NODES.find((n) => n.id === hit.id);
+          if (node) window.location.hash = node.route;
+        }
+      }}
     />
   );
 }

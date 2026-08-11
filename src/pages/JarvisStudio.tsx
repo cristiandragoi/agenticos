@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { JarvisChat } from '../components/jarvis/JarvisChat';
@@ -792,6 +792,20 @@ export default function JarvisStudio() {
     backendOffline,
   });
 
+  // ── Neural-universe node activity (Phase 3): real runtime signals only. ──
+  const nodeActivity = useMemo(() => {
+    const act: Record<string, number> = {};
+    const a = (backendRuntime.activeTask?.action || '').toLowerCase();
+    if (/memory|recall|remember|retriev/.test(a)) act.memory = 1;
+    if (/research|knowledge|search|web|source/.test(a)) act.knowledge = 1;
+    if (/hermes|codex|delegat|agent team|assign/.test(a) || orbState === 'delegated') act.hermes = 1;
+    if (backendRuntime.activeTask) act.runs = 1;
+    if (/artifact|build|file|write|save|generate/.test(a)) act.artifacts = 1;
+    if (/vision|oracle|image|video|screen|see|look/.test(a)) act.vision = 1;
+    if (backendRuntime.activeProject) act.projects = 1;
+    return act;
+  }, [backendRuntime.activeTask, backendRuntime.activeProject, orbState]);
+
   // ── Activity line: REAL events only (voice transitions + Hermes events) ──
   const [activityLog, setActivityLog] = useState<{ t: number; text: string }[]>([]);
   const pushActivity = useCallback((text: string) => {
@@ -1015,6 +1029,7 @@ export default function JarvisStudio() {
                   activeAgent={backendRuntime.activeAgent}
                   size={orbSize}
                   testIdPrefix="jarvis-orb"
+                  nodeActivity={nodeActivity}
                 />
               </div>
             </div>
