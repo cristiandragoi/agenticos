@@ -876,7 +876,7 @@ export default function JarvisStudio() {
       const rect = region.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       // Reserve ~70px inside the region for the state label + primary control.
-      const next = Math.max(180, Math.min(340, Math.round(Math.min(rect.height - 70, rect.width) - 16)));
+      const next = Math.max(190, Math.min(440, Math.round(Math.min(rect.height - 70, rect.width) - 8)));
       setOrbSize((prev) => (prev === next ? prev : next));
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
@@ -909,7 +909,10 @@ export default function JarvisStudio() {
       const saved = Number(sessionStorage.getItem('jarvis.transcriptHeight'));
       if (Number.isFinite(saved) && saved >= TRANSCRIPT_MIN && saved <= TRANSCRIPT_MAX) return saved;
     } catch { /* storage unavailable */ }
-    return 280;
+    // V3: 210 default (was 280) — the hero stage gets the freed height so
+    // the holographic presence occupies 55-70% of the stage at desktop
+    // sizes. Still user-resizable 160-420; transcript scroll unchanged.
+    return 210;
   });
   const handleTranscriptResizeStart = (e: React.PointerEvent) => {
     e.preventDefault();

@@ -21,7 +21,7 @@ function stubCanvas() {
     bezierCurveTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
     arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(), scale: vi.fn(),
     save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
-    setLineDash: vi.fn(),
+    setLineDash: vi.fn(), fillText: vi.fn(), strokeText: vi.fn(),
     createConicGradient: undefined,
   };
   const canvas = document.createElement('canvas');

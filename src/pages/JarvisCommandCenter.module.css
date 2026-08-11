@@ -161,13 +161,15 @@
      always receives the REMAINING center-column height. A greedy flex:1
      stage consumed the whole viewport and pushed the transcript dock +
      composer off-screen (the overlap blocker). */
-  flex: 0 1 auto;
-  /* Jarvis-layout fix: floor is viewport-relative and yields hard at short
-     heights (max(180px, 26vh)) — at a 540px window the 240px floor left the
-     workspace only ~115px, crushing the transcript dock to 1px and letting
-     the composer overlap it. The orb is responsive (180-340px), so it sizes
-     down to fit the smaller stage. */
-  min-height: max(180px, 26vh);
+  /* V3: the stage is GREEDY (flex 1 1 auto) — it fills the center scroll
+     column's remaining space below the content-sized workspace band, so
+     the orb region grows and Jarvis occupies 55-70% of the stage at
+     normal desktop sizes. When the lower dock is collapsed the freed
+     space goes to the stage (Jarvis becomes even larger); when the dock
+     is expanded or the workspace is tall, the stage yields to the
+     min-height floor and the center column scrolls (b1d5304 behavior). */
+  flex: 1 1 auto;
+  min-height: max(200px, 30vh);
   overflow: hidden;
   padding: 8px 0 14px;
 }

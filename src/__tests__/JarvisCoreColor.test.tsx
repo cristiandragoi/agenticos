@@ -28,7 +28,7 @@ function makeRecordingCtx() {
     bezierCurveTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
     arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(),
     save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
-    setLineDash: vi.fn(), createConicGradient: undefined,
+    setLineDash: vi.fn(), fillText: vi.fn(), strokeText: vi.fn(), createConicGradient: undefined,
   };
   // Capture fillStyle assignments (Proxy set trap).
   const captured: string[] = [];
@@ -70,7 +70,7 @@ describe('JarvisCore holographic head — dominant color per state', () => {
         bezierCurveTo: vi.fn(), closePath: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
         arc: vi.fn(), ellipse: vi.fn(), quadraticCurveTo: vi.fn(),
         save: vi.fn(), restore: vi.fn(), translate: vi.fn(), rotate: vi.fn(),
-        setLineDash: vi.fn(), createConicGradient: undefined,
+        setLineDash: vi.fn(), fillText: vi.fn(), strokeText: vi.fn(), createConicGradient: undefined,
       };
       const captured2: string[] = [];
       const proxy = new Proxy(ctxObj, {
