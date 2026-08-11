@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import JarvisVisualization from './visualization/JarvisVisualization';
-import type { SystemNode } from './visualization/JarvisState';
+import { JarvisVisualization } from '../jarvis-visualization';
+import type { SystemNode } from '../jarvis-visualization';
 import { mapAgenticState, NODE_ROUTES, VISIBLE_NODES, pickActiveNode } from './jarvisVisualizationAdapter';
 
 /* ── J.A.R.V.I.S — PROGRAMMATIC HUMANOID (Slice 0 correction) ───────────

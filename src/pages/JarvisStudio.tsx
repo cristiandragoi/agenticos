@@ -7,7 +7,7 @@ import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
 import { JarvisCore } from '../components/jarvis/JarvisCore';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
-import type { SystemNode } from '../components/jarvis/visualization/JarvisState';
+import type { SystemNode } from '../components/jarvis-visualization';
 import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';

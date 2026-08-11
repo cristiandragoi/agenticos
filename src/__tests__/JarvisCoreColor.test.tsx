@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { mapAgenticState } from '../components/jarvis/jarvisVisualizationAdapter';
-import { STATE_CHANNEL_MAP, CHANNEL_COLORS } from '../components/jarvis/visualization/JarvisState';
+import { STATE_CHANNEL_MAP, CHANNEL_COLORS } from '../components/jarvis-visualization';
 import { JARVIS_HEAD_COLORS } from '../components/jarvis/JarvisCore';
 
 describe('Jarvis programmatic humanoid — state → color contract', () => {

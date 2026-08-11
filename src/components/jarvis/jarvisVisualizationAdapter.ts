@@ -3,7 +3,7 @@
  * programmatic package (Humanoid-JARVIS) contract, and owns the node→route
  * mapping for clickable neural nodes. Pure functions; no rendering.
  */
-import type { JarvisState as PackageState, Severity, SystemNode } from './visualization/JarvisState';
+import type { JarvisState as PackageState, Severity, SystemNode } from '../jarvis-visualization';
 
 export interface AgenticVisualState {
   state: PackageState;

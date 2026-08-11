@@ -1,0 +1,83 @@
+/* Jarvis visualization — DEMO harness styles (dev only) */
+.jv-demo {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  padding: 24px;
+  font-family: var(--kimi-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  color: #d9fbff;
+  background: radial-gradient(circle at 50% 30%, rgba(0, 229, 255, 0.06), transparent 70%);
+}
+
+.jv-demo-stage {
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(2, 12, 18, 0.6);
+}
+
+.jv-demo-panel {
+  flex: 1 1 320px;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jv-demo-panel h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #00e5ff;
+}
+
+.jv-demo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.jv-demo-row select,
+.jv-demo-row input[type='range'] {
+  font-size: 12px;
+  background: rgba(0, 229, 255, 0.08);
+  color: #d9fbff;
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
+.jv-demo-row button {
+  font-size: 12px;
+  cursor: pointer;
+  background: rgba(0, 229, 255, 0.12);
+  color: #d9fbff;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.jv-demo-row button:hover {
+  background: rgba(0, 229, 255, 0.22);
+}
+
+.jv-demo-log {
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 90px;
+  font-family: var(--kimi-font-mono, monospace);
+  font-size: 11px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.jv-demo-note {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.7);
+  margin: 0;
+}
