@@ -118,8 +118,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchData();
+    // Interval refetch runs even while the window is hidden: otherwise a
+    // failed initial load (backend still booting) would never self-heal
+    // until the user returns and visibility changes. inFlightRef already
+    // prevents overlapping loads.
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchData();
+      void fetchData();
     }, DATA_REFRESH_INTERVAL_MS);
 
     const onVisibilityChange = () => {

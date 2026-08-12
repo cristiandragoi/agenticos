@@ -67,8 +67,11 @@ export function JarvisInsights({ runtimeStatus, backendRuntime, orbState, lastUs
       data-testid="jarvis-insights"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-        gap: 8,
+        // Responsive: 7 columns when the dock is wide; wraps to 2+ rows on
+        // narrower viewports so headings never collide. Min 150px per cell
+        // keeps labels readable (no microscopic text).
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: '8px 14px',
         width: '100%',
         padding: '8px 12px',
         background: 'rgba(2, 12, 18, 0.55)',
@@ -83,7 +86,7 @@ export function JarvisInsights({ runtimeStatus, backendRuntime, orbState, lastUs
         const blocked = key === 'blocked' && active;
         return (
           <div key={key} style={{ minWidth: 0 }} data-insight={key}>
-            <div style={{ fontSize: 10, letterSpacing: '0.08em', color: blocked ? '#fca5a5' : 'rgba(0,229,255,0.65)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.08em', color: blocked ? '#fca5a5' : 'rgba(0,229,255,0.65)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {label}
             </div>
             <div
@@ -95,8 +98,9 @@ export function JarvisInsights({ runtimeStatus, backendRuntime, orbState, lastUs
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 display: '-webkit-box',
-                WebkitLineClamp: 2,
+                WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
+                wordBreak: 'break-word',
               }}
             >
               {v}

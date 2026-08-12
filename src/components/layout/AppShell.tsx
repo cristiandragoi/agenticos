@@ -18,7 +18,7 @@ const AppShell: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const { isLoading, error } = useData();
+  const { isLoading, error, refresh } = useData();
   // ONE backend connection state (backend lifecycle milestone): the startup
   // and error screens render from the lifecycle manager, never from a guess.
   const lifecycle = useBackendLifecycle();
@@ -122,7 +122,12 @@ const AppShell: React.FC = () => {
           <div data-testid="app-backend-error-reason" className="text-muted" style={{ fontSize: 11, maxWidth: 560, textAlign: 'center', opacity: 0.85 }}>{lifecycle.lastError}</div>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary" data-testid="app-backend-retry" onClick={() => { void backendLifecycleStore.retry(); }}>Retry connection</button>
+          <button className="btn btn-primary" data-testid="app-backend-retry" onClick={() => {
+            // Re-probe the backend lifecycle AND re-run the registry data
+            // load: the health probe alone does not clear the data error.
+            void backendLifecycleStore.retry();
+            void refresh();
+          }}>Retry connection</button>
           <button className="btn" data-testid="app-backend-restart" onClick={() => { void backendLifecycleStore.restart(); }}>Restart backend</button>
         </div>
       </div>
