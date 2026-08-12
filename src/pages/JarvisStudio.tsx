@@ -208,6 +208,12 @@ export default function JarvisStudio() {
     const id = window.setInterval(poll, 3000);
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
+  // ACTIVE truth: the backend's effective execution path (resolved
+  // provider/model from executionState), falling back to the stream-side
+  // status. ASSIGNED (settings) and ACTIVE (effective) differ only when a
+  // fallback serves the turn.
+  const activeProvider = backendRuntime.provider || runtimeStatus.provider || null;
+  const activeModel = backendRuntime.model || runtimeStatus.model || null;
   // Map the backend semantic state to the stream vocabulary the orb consumes.
   // 'delegated' is the only state the stream can NOT produce itself (it only
   // sees the active turn); the backend derives it from live background tasks.
@@ -1023,7 +1029,7 @@ export default function JarvisStudio() {
               They differ only when a fallback serves the turn — the UI says
               so instead of silently showing one or the other. */}
           {statusChip('ASSIGNED', jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—')}
-          {statusChip('ACTIVE', runtimeStatus.provider ? `${runtimeStatus.provider}/${runtimeStatus.model ?? '—'}` : '—', !!runtimeStatus.provider)}
+          {statusChip('ACTIVE', activeProvider ? `${activeProvider}/${activeModel ?? '—'}` : '—', !!activeProvider)}
           {statusChip('HERMES', hermesStatus?.gateway?.reachable ? 'ONLINE' : 'OFFLINE', !!hermesStatus?.gateway?.reachable)}
           {statusChip('STT', hermesStatus?.stt?.configured ? hermesStatus.stt.provider : 'none', !!hermesStatus?.stt?.configured)}
           {statusChip('TTS', hermesStatus?.tts?.configured ? hermesStatus.tts.provider : 'none', !!hermesStatus?.tts?.configured)}
@@ -1488,7 +1494,7 @@ export default function JarvisStudio() {
           <div className={cc.kv}><span className={cc.kvLabel}>GPU</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{sys?.gpu || '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>BACKEND</span><span className={cc.kvValue} style={{ color: backendOffline ? '#fca5a5' : '#4ade80' }}>{backendOffline ? 'OFFLINE' : 'ONLINE'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>ASSIGNED</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—'}</span></div>
-          <div className={cc.kv}><span className={cc.kvLabel}>ACTIVE</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{runtimeStatus.provider ? `${runtimeStatus.provider}/${runtimeStatus.model ?? '—'}` : '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>ACTIVE</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{activeProvider ? `${activeProvider}/${activeModel ?? '—'}` : '—'}</span></div>
         </motion.div>
 
         {/* ── ACTIVE RUN (bottom-right, real Hermes events) ── */}
