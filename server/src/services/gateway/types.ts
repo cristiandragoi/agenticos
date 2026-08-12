@@ -16,6 +16,10 @@ export interface ChatRequest {
   requiredCapabilities?: string[];
   preferredProvider?: string;
   modelId?: string;
+  // P4 — planning escalation: a stronger sibling model on the same provider,
+  // used by the provider adapter ONLY when the base model exhausts its output
+  // budget without producing content (EMPTY_CONTENT_AFTER_REASONING).
+  escalationModel?: string;
   
   // Workspace Context
   taskObjective?: string;

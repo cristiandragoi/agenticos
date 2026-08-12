@@ -51,6 +51,7 @@ function extractResultCount(result: string | null | undefined): number | null {
   return null;
 }
 import { routingLedger } from '../routingLedger.js';
+import { db as jsonDb } from '../../services/db.js';
 
 export interface CreateTaskInput {
   title: string;
@@ -422,8 +423,6 @@ export class BackgroundTaskManager extends EventEmitter {
     if (!['completed', 'blocked', 'failed'].includes(task.status)) return;
     if (task.metadata?.handoffWritten) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { db: jsonDb } = require('../db.js');
       const events = backgroundTaskRepo.getEvents(task.taskId);
       const decisions = events
         .filter(e => e.kind === 'task.approval_resolved' || e.kind === 'task.approval_requested')

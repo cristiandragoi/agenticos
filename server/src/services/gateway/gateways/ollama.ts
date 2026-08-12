@@ -82,79 +82,156 @@ export class OllamaGateway implements ModelGateway {
       ? `${req.systemPrompt}${historyText ? `\n\n${historyText}` : ''}\n\nUser: ${req.prompt}\nAssistant:`
       : `${historyText ? `${historyText}\n\n` : ''}${req.prompt}`;
 
-    const model = req.routing?.modelId ?? req.modelId ?? this.definition.model;
+    const baseModel = req.routing?.modelId ?? req.modelId ?? this.definition.model;
     const timeout = req.timeoutMs ?? 120000;
-    
+    // P1 — the request layer expresses the output budget. A planning request
+    // (large maxTokens) gets a proportional generation cap; a retry gets a
+    // strictly larger budget so a thinking-constrained generation can finish.
+    const baseBudget = req.maxTokens ?? 512;
+    const retryBudget = Math.max(baseBudget * 3, 2048);
+    // P4 — planning escalation: the request may name a stronger sibling model
+    // on the same provider (e.g. qwen3.5:cloud) used ONLY when the local
+    // model exhausts its budget without producing content.
+    const escalationModel = req.escalationModel;
+
     console.log(JSON.stringify({
       diagnostic: 'OllamaGateway.chat entry',
-      resolvedModel: model,
-      outboundUrl: `${this.definition.baseUrl}/api/generate`
-    }));
-    
-    let res: Response;
-    try {
-      res = await fetch(`${this.definition.baseUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt: ollamaPrompt, stream: false }),
-        signal: req.signal ?? AbortSignal.timeout(timeout)
-      });
-    } catch (err: any) {
-      const msg = err.message.toLowerCase();
-      if (msg.includes('timeout') || msg.includes('aborted')) throw new Error(`timeout: ${err.message}`);
-      if (msg.includes('econnrefused') || msg.includes('fetch')) throw new Error(`ollama-unreachable: ${err.message}`);
-      throw new Error(`fetch failure: ${err.message}`);
-    }
-
-    console.log(JSON.stringify({
-      diagnostic: 'OllamaGateway.chat response',
-      status: res.status,
-      ok: res.ok
+      resolvedModel: baseModel,
+      outboundUrl: `${this.definition.baseUrl}/api/chat`,
+      promptLength: ollamaPrompt.length,
+      baseBudget,
+      retryBudget,
+      escalationModel: escalationModel || null
     }));
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      const bodyLower = body.toLowerCase();
-      if (res.status === 404 || bodyLower.includes('not found')) throw new Error(`model-not-found: ${body}`);
-      throw new Error(`HTTP ${res.status}: ${body}`);
+    const attempts: { model: string; budget: number }[] = [
+      { model: baseModel, budget: baseBudget },
+      { model: baseModel, budget: retryBudget },
+    ];
+    const hasEscalation = Boolean(escalationModel && escalationModel !== baseModel);
+    if (escalationModel && escalationModel !== baseModel) {
+      attempts.push({ model: escalationModel, budget: retryBudget });
     }
 
-    let data: any;
-    try {
-      data = await res.json();
-    } catch (err: any) {
-      throw new Error(`malformed-response: ${err.message}`);
-    }
-
-    console.log(JSON.stringify({
-      diagnostic: 'OllamaGateway.chat parsed',
-      shape: Object.keys(data || {})
-    }));
-
-    const promptTokens = data.prompt_eval_count || 0;
-    const completionTokens = data.eval_count || 0;
-
-    const normalized = { 
-      reply: data.response || '', 
-      provider: this.name, 
-      model, 
-      offline: false,
-      promptTokens,
-      completionTokens,
-      totalTokens: promptTokens + completionTokens
-    };
-
-    console.log(JSON.stringify({
-      diagnostic: 'OllamaGateway.chat returning',
-      normalized: {
-        provider: normalized.provider,
-        model: normalized.model,
-        promptTokens: normalized.promptTokens,
-        completionTokens: normalized.completionTokens
+    let emptyDiagnostic = '';
+    for (let attempt = 0; attempt < attempts.length; attempt++) {
+      const { model, budget } = attempts[attempt];
+      const attemptStart = Date.now();
+      // When an escalation model is configured, the base local attempts are
+      // short probes: the local model either returns fast (empty or content)
+      // or hangs — a 20s cap bounds the hang so the escalation model (the
+      // real generator) is reached promptly. The escalation attempt itself
+      // gets the full timeout.
+      const attemptTimeoutMs = hasEscalation && model !== escalationModel ? Math.min(timeout, 20000) : timeout;
+      let res: Response;
+      let fetchError: string | null = null;
+      try {
+        res = await fetch(`${this.definition.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // num_predict must be sent: without a cap the model generates an
+          // unbounded reasoning block and blows the timeout.
+          // think:false (top-level, NOT options) disables the reasoning block
+          // so the reply arrives in message.content instead of thinking-only.
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: ollamaPrompt }], stream: false, think: false, options: { num_predict: budget } }),
+          // Compose the caller's cancellation signal WITH the timeout — when a
+          // signal is present the timeout must still fire.
+          signal: req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(attemptTimeoutMs)]) : AbortSignal.timeout(attemptTimeoutMs)
+        });
+      } catch (err: any) {
+        const msg = err.message.toLowerCase();
+        // A timeout is ALSO an incomplete-generation condition: continue to
+        // the next attempt (larger budget / escalation) instead of failing
+        // the whole request on a hung local model.
+        if (msg.includes('timeout') || msg.includes('aborted')) {
+          fetchError = `timeout: ${err.message}`;
+        } else if (msg.includes('econnrefused') || msg.includes('fetch')) {
+          fetchError = `ollama-unreachable: ${err.message}`;
+        } else {
+          fetchError = `fetch failure: ${err.message}`;
+        }
       }
-    }));
 
-    return normalized;
+      if (fetchError) {
+        emptyDiagnostic = `attempt=${attempt + 1} model=${model} ${fetchError}`;
+        console.log(JSON.stringify({
+          diagnostic: 'OllamaGateway.chat attempt-failed',
+          attempt: attempt + 1,
+          model,
+          budget,
+          error: fetchError,
+          durationMs: Date.now() - attemptStart
+        }));
+        continue;
+      }
+
+      if (!res!.ok) {
+        const body = await res!.text().catch(() => '');
+        const bodyLower = body.toLowerCase();
+        if (res!.status === 404 || bodyLower.includes('not found')) throw new Error(`model-not-found: ${body}`);
+        throw new Error(`HTTP ${res!.status}: ${body}`);
+      }
+
+      let data: any;
+      try {
+        data = await res!.json();
+      } catch (err: any) {
+        throw new Error(`malformed-response: ${err.message}`);
+      }
+
+      const content: string = data.message?.content || '';
+      const thinking: string = data.message?.thinking || '';
+      const promptTokens = data.prompt_eval_count || 0;
+      const completionTokens = data.eval_count || 0;
+
+      // P2 — EMPTY CONTENT is a distinct retryable condition: HTTP 200 alone
+      // is NOT success. The model consumed its budget on reasoning (or
+      // stopped) without producing an answer.
+      if (!content.trim()) {
+        emptyDiagnostic = `attempt=${attempt + 1} model=${model} budget=${budget} eval=${completionTokens} thinkingLen=${thinking.length}`;
+        console.log(JSON.stringify({
+          diagnostic: 'OllamaGateway.chat empty-content',
+          attempt: attempt + 1,
+          model,
+          budget,
+          evalCount: completionTokens,
+          thinkingLen: thinking.length,
+          durationMs: Date.now() - attemptStart
+        }));
+        continue;
+      }
+
+      // Success — report the ACTUAL model that produced the reply (P5 truth).
+      const normalized = {
+        reply: content,
+        provider: this.name,
+        model,
+        offline: false,
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens
+      };
+      console.log(JSON.stringify({
+        diagnostic: 'OllamaGateway.chat returning',
+        normalized: {
+          provider: normalized.provider,
+          model: normalized.model,
+          attempt: attempt + 1,
+          promptTokens: normalized.promptTokens,
+          completionTokens: normalized.completionTokens,
+          replyLength: normalized.reply.length,
+          replyPreview: normalized.reply.slice(0, 160)
+        }
+      }));
+      return normalized;
+    }
+
+    // P2 final — distinct retryable marker, never silently "success".
+    console.log(JSON.stringify({
+      diagnostic: 'OllamaGateway.chat exhausted',
+      reason: emptyDiagnostic || 'all attempts produced no content'
+    }));
+    throw new Error(`EMPTY_CONTENT_AFTER_REASONING: ${emptyDiagnostic || 'all attempts produced no content'}`);
   }
 
   public async *stream(req: ChatRequest): AsyncGenerator<ChatStreamChunk> {
@@ -169,7 +246,7 @@ export class OllamaGateway implements ModelGateway {
     const timeout = (req.timeoutMs ?? 120000) * 2;
 
     // Resolve the configured model against the installed Ollama model list
-    // before calling /api/generate. The resolved full name is used for the
+    // before calling /api/chat. The resolved full name is used for the
     // request body, emitted token chunks, and the final done chunk.
     const model = await this.resolveModel(configuredModel);
 
@@ -187,10 +264,10 @@ export class OllamaGateway implements ModelGateway {
 
     let res: Response;
     try {
-      res = await fetch(`${this.definition.baseUrl}/api/generate`, {
+      res = await fetch(`${this.definition.baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt: ollamaPrompt, stream: true }),
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: ollamaPrompt }], stream: true, think: false, options: { num_predict: req.maxTokens ?? 512 } }),
         signal: headersController.signal
       });
     } catch (err: any) {
@@ -246,8 +323,8 @@ export class OllamaGateway implements ModelGateway {
         }
         
         if (chunk.error) throw new Error(`Ollama stream error: ${chunk.error}`);
-        if (typeof chunk.response === 'string' && chunk.response) {
-          yield { type: 'token', content: chunk.response, provider: this.name, model };
+        if (typeof chunk.message?.content === 'string' && chunk.message.content) {
+          yield { type: 'token', content: chunk.message.content, provider: this.name, model };
         }
       }
     }
@@ -258,8 +335,8 @@ export class OllamaGateway implements ModelGateway {
       try {
         const chunk: any = JSON.parse(finalLine);
         if (chunk.error) throw new Error(`Ollama stream error: ${chunk.error}`);
-        if (typeof chunk.response === 'string' && chunk.response) {
-           yield { type: 'token', content: chunk.response, provider: this.name, model };
+        if (typeof chunk.message?.content === 'string' && chunk.message.content) {
+           yield { type: 'token', content: chunk.message.content, provider: this.name, model };
         }
       } catch (err: any) {
         if (!err.message.includes('Ollama stream error')) {

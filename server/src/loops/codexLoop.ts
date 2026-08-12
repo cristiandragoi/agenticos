@@ -678,11 +678,27 @@ ${m.content}`).join('\n\n');
             agentId: 'agent-codex',
             disableFallback,
             timeoutMs,
+            // P1 — planning output budget: the CodeX loop is the planning
+            // context, so it requests a generous generation cap. The Ollama
+            // adapter uses this as num_predict and, on EMPTY_CONTENT, retries
+            // once with 3× and then the escalation model.
             maxTokens: 2048,
+            // P4 — planning escalation: the local 4B model cannot produce the
+            // full CodeX planning grammar (verified by exact-prompt replay:
+            // empty content at any budget) — the stronger configured sibling
+            // (qwen3.5:cloud, reachable + working: 1.4s tool-call JSON) is
+            // used ONLY when the local model exhausts its output.
+            ...(isLocalPlanningProvider ? { escalationModel: (process.env.CODEX_PLANNING_ESCALATION_MODEL || 'qwen3.5:cloud') } : {}),
             // Stop/pause must interrupt an in-flight model request — not just
             // wait for the next loop-top check.
             signal: controller.signal,
-            ...(effectiveProvider ? { provider: effectiveProvider } : {})
+            ...(effectiveProvider ? { provider: effectiveProvider } : {}),
+            // The ASSIGNED model must flow to the request. Without it the
+            // gateway resolves the provider's DEFAULT model (e.g. ollama →
+            // llama3.2:3b) instead of the assignment (qwen3.5:4b), and the
+            // whole chain falls back into failure (observed live: offline
+            // mode after ollama→openrouter→deepseek all failed).
+            ...(currentModel && currentModel !== 'unassigned' ? { model: currentModel } : {})
           };
 
           // temperature is not supported by LlmChatOptions; strict JSON retry is handled via effectiveSystemPrompt
@@ -705,6 +721,7 @@ ${m.content}`).join('\n\n');
             endsWithBrace,
             provider: llmResult.provider,
             model: llmResult.model || 'unknown',
+            error: llmResult.error?.slice(0, 400) || null,
             rawResponsePreview: llmResult.reply?.slice(0, 300)
           }));
 
@@ -985,6 +1002,10 @@ ${m.content}`).join('\n\n');
         });
         goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
         goalStore.update(goalId, { status: 'completed' });
+        // Clear the execution-state slot — the final-answer completion path
+        // previously left ACTIVE RUN stale (WAITING_FOR_MODEL) after the goal
+        // was already completed.
+        endGoalExec('COMPLETED', (finalAnswerText || toolResult || '').slice(0, 500));
         break;
       }
 
