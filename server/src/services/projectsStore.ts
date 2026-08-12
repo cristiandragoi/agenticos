@@ -139,7 +139,9 @@ export const projectsStore = {
 
   getActiveProject() {
     if (!_activeProjectId) return null;
-    return this.getProject(_activeProjectId);
+    // Never resolve to a ghost: an active id that matches no real project is
+    // treated as no active project (callers must not see undefined either).
+    return this.getProject(_activeProjectId) ?? null;
   },
 
   // ── Knowledge items ──────────────────────────────────────────────────────

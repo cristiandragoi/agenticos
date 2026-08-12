@@ -8,7 +8,11 @@ const router = Router();
 router.get('/', (_req, res) => {
   try {
     const list = projectsStore.listProjects();
-    const activeProjectId = projectsStore.getActiveProjectId();
+    // Active-project truth: the raw stored id is only reported when it
+    // resolves to a REAL project. A stale/ghost id must never be exposed as
+    // the active project.
+    const rawId = projectsStore.getActiveProjectId();
+    const activeProjectId = rawId && projectsStore.getProject(rawId) ? rawId : null;
     res.json({ projects: list, activeProjectId });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
