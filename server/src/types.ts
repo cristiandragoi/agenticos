@@ -452,6 +452,10 @@ export interface ExecutionOptions {
   providerOverride?: string;
   disableFallback?: boolean;
   executionProviderId?: 'auto' | 'none' | string;
+  /** Policy gate (Stage 2): planning escalation to a cloud sibling model is
+   *  only injected when this is true. Defaults true for legacy callers;
+   *  localOnly / approvalRequired policies set it false at dispatch. */
+  allowCloudEscalation?: boolean;
 }
 
 export interface AgentInvocation {

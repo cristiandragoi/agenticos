@@ -89,6 +89,38 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
   if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
   const mgr = backgroundTaskManager;
   try {
+    // Policy enforcement (Stage 2): a Hermes run executes on the profile's
+    // cloud-backed provider stack — the prompt WILL leave the machine. If the
+    // project policy forbids that (localOnly / secret privacy), the dispatch
+    // is rejected BEFORE any content is sent. Never silently escalate.
+    const { policyStore } = await import('../policy/policyStore.js');
+    const { mayLeaveMachine } = await import('../policy/policyService.js');
+    const policy = policyStore.getPolicy(task.projectId);
+    const policyTruth = {
+      privacy: policy.privacy,
+      runtime: policy.runtime,
+      cloudEscalation: policy.cloudEscalation,
+      escalationAllowed: mayLeaveMachine(policy),
+      localOnly: policy.runtime === 'localOnly',
+      recordedAt: new Date().toISOString(),
+    };
+    backgroundTaskRepo.updateTask(task.taskId, {
+      metadata: { ...(task.metadata || {}), policy: policyTruth },
+    });
+    if (!mayLeaveMachine(policy)) {
+      const reason = policy.runtime === 'localOnly'
+        ? 'Policy violation blocked: runtime=localOnly but the Hermes worker executes on a cloud-backed profile.'
+        : `Policy violation blocked: privacy=${policy.privacy} content may not leave the machine.`;
+      mgr.appendEvent(task.taskId, 'task.progress', reason, { policy: policyTruth });
+      mgr.transition(task.taskId, 'blocked', {
+        currentStage: 'policy-block',
+        progressMessage: reason,
+        blocker: reason,
+        resumable: true,
+      });
+      return { ok: false, error: reason };
+    }
+    mgr.appendEvent(task.taskId, 'task.progress', `Policy: privacy=${policy.privacy}, runtime=${policy.runtime}, escalation=${policy.cloudEscalation}`, { policy: policyTruth });
     // §2/§12: the canonical workspace root travels with the delegation. The
     // Hermes API server runs in ITS OWN directory, so the repository we want
     // work done in must be stated explicitly in the run instructions.
@@ -246,6 +278,25 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
   const mgr = backgroundTaskManager;
   try {
     mgr.transition(task.taskId, 'planning', { currentStage: 'dispatching', progressMessage: 'Creating CodeX goal…' });
+    // Policy enforcement (Stage 2): resolve the project's privacy/runtime
+    // policy ONCE at dispatch. It controls whether local failure may
+    // escalate to cloud and is persisted as execution truth for RunLedger.
+    const { policyStore } = await import('../policy/policyStore.js');
+    const { chatPolicyFlags } = await import('../policy/policyService.js');
+    const policy = policyStore.getPolicy(task.projectId);
+    const policyFlags = chatPolicyFlags(policy);
+    const policyTruth = {
+      privacy: policy.privacy,
+      runtime: policy.runtime,
+      cloudEscalation: policy.cloudEscalation,
+      escalationAllowed: policyFlags.allowEscalation,
+      localOnly: policy.runtime === 'localOnly',
+      recordedAt: new Date().toISOString(),
+    };
+    backgroundTaskRepo.updateTask(task.taskId, {
+      metadata: { ...(task.metadata || {}), policy: policyTruth },
+    });
+    mgr.appendEvent(task.taskId, 'task.progress', `Policy: privacy=${policy.privacy}, runtime=${policy.runtime}, escalation=${policy.cloudEscalation}`, { policy: policyTruth });
     const approvalPolicy = (task.metadata?.approvalPolicy as string) === 'auto' ? 'auto' : 'manual';
     const goalId = await codexService.createGoal(
       task.objective || task.originalRequest,
@@ -253,6 +304,13 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
       approvalPolicy,
       undefined,
       task.conversationId || undefined,
+      undefined,
+      // Policy-driven execution options: disableFallback keeps localOnly
+      // content local; allowCloudEscalation gates the planning escalation.
+      {
+        disableFallback: policyFlags.disableFallback,
+        allowCloudEscalation: policyFlags.allowEscalation,
+      },
     );
 
     backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: goalId, resumable: true });

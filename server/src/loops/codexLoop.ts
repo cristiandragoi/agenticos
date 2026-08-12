@@ -688,7 +688,11 @@ ${m.content}`).join('\n\n');
             // empty content at any budget) — the stronger configured sibling
             // (qwen3.5:cloud, reachable + working: 1.4s tool-call JSON) is
             // used ONLY when the local model exhausts its output.
-            ...(isLocalPlanningProvider ? { escalationModel: (process.env.CODEX_PLANNING_ESCALATION_MODEL || 'qwen3.5:cloud') } : {}),
+            // POLICY GATE (Stage 2): escalation sends content to a cloud
+            // provider — localOnly / approvalRequired policies suppress it.
+            ...(isLocalPlanningProvider && goal.executionOptions?.allowCloudEscalation !== false
+              ? { escalationModel: (process.env.CODEX_PLANNING_ESCALATION_MODEL || 'qwen3.5:cloud') }
+              : {}),
             // Stop/pause must interrupt an in-flight model request — not just
             // wait for the next loop-top check.
             signal: controller.signal,

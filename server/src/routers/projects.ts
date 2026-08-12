@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { projectsStore } from '../services/projectsStore.js';
+import { policyStore } from '../services/policy/policyStore.js';
 import { randomUUID } from 'crypto';
 
 const router = Router();
@@ -85,6 +86,31 @@ router.delete('/:id', (req, res) => {
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/projects/:id/policy — effective privacy/runtime policy (default
+// when unset; never throws).
+router.get('/:id/policy', (req, res) => {
+  try {
+    const project = projectsStore.getProject(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.json({ projectId: req.params.id, policy: policyStore.getPolicy(req.params.id) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/projects/:id/policy — validate + persist. Invalid or contradictory
+// policies are rejected with 400 (policyService.validatePolicy).
+router.put('/:id/policy', (req, res) => {
+  try {
+    const project = projectsStore.getProject(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const policy = policyStore.setPolicy(req.params.id, req.body);
+    res.json({ projectId: req.params.id, policy });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
   }
 });
 

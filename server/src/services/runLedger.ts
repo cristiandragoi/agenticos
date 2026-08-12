@@ -31,6 +31,18 @@ export interface RunLedgerEntry {
   assignedModel?: string;
   effectiveProvider?: string;
   effectiveModel?: string;
+  /** Policy execution truth (Stage 2): the privacy/runtime policy that was
+   *  in force for this run, whether cloud escalation was permitted by it,
+   *  and whether an escalation/fallback actually occurred. Never includes
+   *  prompt content. */
+  policy?: {
+    privacy: string;
+    runtime: string;
+    cloudEscalation: string;
+    escalationAllowed: boolean;
+    localOnly: boolean;
+  };
+  escalationOccurred?: boolean;
   taskText?: string;
   status: RunLedgerStatus;
   startedAt?: string;
@@ -98,6 +110,16 @@ function entryFromTask(t: BackgroundTaskRecord): RunLedgerEntry {
   let assignedModel = m.assignedModel || m.agentModel || undefined;
   let effectiveProvider = m.effectiveProvider || m.resolvedProvider || undefined;
   let effectiveModel = m.effectiveModel || m.resolvedModel || undefined;
+  // Policy execution truth (Stage 2): persisted by the adapter at dispatch.
+  const rawPolicy = m.policy;
+  const policy = rawPolicy && typeof rawPolicy === 'object' ? {
+    privacy: String((rawPolicy as any).privacy || 'internal'),
+    runtime: String((rawPolicy as any).runtime || 'auto'),
+    cloudEscalation: String((rawPolicy as any).cloudEscalation || 'allowed'),
+    escalationAllowed: Boolean((rawPolicy as any).escalationAllowed),
+    localOnly: Boolean((rawPolicy as any).localOnly),
+  } : undefined;
+  let escalationOccurred: boolean | undefined;
   if (!effectiveProvider && t.linkedRunId) {
     try {
       if (t.worker === 'codex') {
@@ -107,6 +129,7 @@ function entryFromTask(t: BackgroundTaskRecord): RunLedgerEntry {
           assignedModel = assignedModel || rec.requestedModel || undefined;
           effectiveProvider = effectiveProvider || rec.resolvedProvider || undefined;
           effectiveModel = effectiveModel || rec.resolvedModel || undefined;
+          escalationOccurred = rec.fallbackUsed;
         }
       } else if (t.worker === 'hermes') {
         const rec = hermesApiService.getRun?.(t.linkedRunId);
@@ -141,10 +164,12 @@ function entryFromTask(t: BackgroundTaskRecord): RunLedgerEntry {
     projectId: t.projectId || undefined,
     agentId: t.selectedAgent || t.worker,
     workerType: t.worker,
-    assignedProvider: m.assignedProvider || m.agentProvider || undefined,
-    assignedModel: m.assignedModel || m.agentModel || undefined,
-    effectiveProvider: m.effectiveProvider || m.resolvedProvider || undefined,
-    effectiveModel: m.effectiveModel || m.resolvedModel || undefined,
+    assignedProvider,
+    assignedModel,
+    effectiveProvider,
+    effectiveModel,
+    policy,
+    escalationOccurred,
     taskText: t.objective || t.originalRequest || undefined,
     status: toLedgerStatus(t),
     startedAt: t.startedAt || undefined,
