@@ -46,7 +46,11 @@ rawDb.exec(`
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dataDir = path.resolve(__dirname, '..', '..', 'data');
+// Env-overridable data dir (tests isolate the active-project file); defaults
+// to the repo's server/data in production.
+const dataDir = process.env.AGENTICOS_DATA_DIR
+  ? path.resolve(process.env.AGENTICOS_DATA_DIR)
+  : path.resolve(__dirname, '..', '..', 'data');
 const activeProjectFile = path.join(dataDir, 'active-project.json');
 
 function readActiveProjectId(): string | null {
@@ -139,9 +143,17 @@ export const projectsStore = {
 
   getActiveProject() {
     if (!_activeProjectId) return null;
-    // Never resolve to a ghost: an active id that matches no real project is
-    // treated as no active project (callers must not see undefined either).
-    return this.getProject(_activeProjectId) ?? null;
+    const project = this.getProject(_activeProjectId);
+    if (!project) {
+      // SELF-HEAL: a stale/ghost active id is never authoritative. Clear it
+      // in memory and persist the cleared state so no caller (endpoint, jarvis
+      // context, project scoping) can ever resolve it to a phantom. This does
+      // NOT auto-select another project — the user must pick one.
+      _activeProjectId = null;
+      writeActiveProjectId(null);
+      return null;
+    }
+    return project;
   },
 
   // ── Knowledge items ──────────────────────────────────────────────────────
