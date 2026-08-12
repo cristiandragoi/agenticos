@@ -66,6 +66,7 @@ checkTeamRecovery();
 
 // Routers
 import healthRouter from './routers/health.js';
+import systemRouter from './routers/system.js';
 import agentsRouter from './routers/agents.js';
 import providersRouter from './routers/providers.js';
 import runtimesRouter from './routers/runtimes.js';
@@ -202,12 +203,13 @@ app.use(legacyHeadersMiddleware);
 // Auth is bypassed in dev, enforced in production
 app.use('/api', (req, res, next) => {
   logger.info(`[BACKEND] INCOMING: ${req.method} ${req.url}`);
-  if (req.path === '/health' || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline')) return next(); // public for now
+  if (req.path === '/health' || req.path.startsWith('/health/') || req.path.startsWith('/system/') || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline')) return next(); // public for now
   return authMiddleware(req, res, next);
 });
 
 /* ── Routes ─────────────────────────────────────────── */
 app.use('/api/health', healthRouter);
+app.use('/api/system', systemRouter);
 app.use('/api/gemini', authMiddleware, geminiRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/providers', providersRouter);
