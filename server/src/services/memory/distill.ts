@@ -61,6 +61,7 @@ export function createMemory(
 export function distillFromExecution(rec: ExecutionRecord, ctx: {
   taskId?: string | null;
   conversationId?: string | null;
+  projectId?: string | null;
   niche?: string | null;
   city?: string | null;
   requestedCount?: number | null;
@@ -76,6 +77,12 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
     worker: rec.worker,
     sourceType: 'task',
   };
+  // P1 — authoritative project association: when the task record carries a
+  // real projectId, the distilled memory lands in that project's namespace
+  // (scope 'project:<id>'). Without a project the previous global/general
+  // behavior is kept. The project is NEVER inferred from prompt text — only
+  // from the task's own association.
+  const scopeFor = (fallback: string) => (ctx.projectId ? `project:${ctx.projectId}` : fallback);
 
   if (rec.status === 'COMPLETED' && rec.worker === 'revenue') {
     const count = ctx.resultCount ?? rec.qualifiedCount ?? null;
@@ -87,17 +94,17 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
       type: 'episodic',
       title: `Revenue search completed — ${count ?? '?'} qualified ${niche ?? ''} leads${city ? ` (${city})` : ''}`.trim(),
       summary: `A revenue search for ${niche ?? 'business'}${city ? ` in ${city}` : ''} completed with ${count ?? 0} qualified lead(s).`,
-      content: `Completed under operation ${rec.operationId}${ctx.taskId ? ` (task ${ctx.taskId})` : ''}. Requested ${ctx.requestedCount ?? '?'}, returned ${count ?? 0} qualified lead(s).${top ? ` Top prospect: ${top}.` : ''} No outreach was performed (dry-run by default).`,
-      scope: 'revenue',
+      content: `Completed under operation ${rec.operationId}${ctx.taskId ? ` (task ${ctx.taskId})` : ''}${ctx.projectId ? ` for project ${ctx.projectId}` : ''}. Requested ${ctx.requestedCount ?? '?'}, returned ${count ?? 0} qualified lead(s).${top ? ` Top prospect: ${top}.` : ''} No outreach was performed (dry-run by default).`,
+      scope: scopeFor('revenue'),
       entities,
-      tags: ['revenue', 'search', niche ?? 'business', city ?? 'city'],
+      tags: ['revenue', 'search', niche ?? 'business', city ?? 'city', ctx.projectId ? 'project' : null].filter(Boolean) as string[],
       confidence: 0.9,
       source,
     });
     created.push(m.id);
     link(m.id, entityId(top || 'unknown-prospect'), 'TOP_PROSPECT_OF');
     // Link the no-outreach decision (decision memory consulted by later runs).
-    const decision = memoryStore.list({ type: 'decision', scope: 'revenue', status: 'active', limit: 10 }).items
+    const decision = memoryStore.list({ type: 'decision', scope: ctx.projectId ? `project:${ctx.projectId}` : 'revenue', status: 'active', limit: 10 }).items
       .find((d) => d.title.toLowerCase().includes('outreach'));
     if (decision) link(m.id, decision.id, 'DECIDED_IN');
     if (top) { upsertEntity(top, Date.now(), 'company'); link(m.id, entityId(top), 'MENTIONS_ENTITY'); }
@@ -105,11 +112,11 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
     const m = createMemory({
       type: 'episodic',
       title: 'CodeX inspection completed',
-      summary: `CodeX inspection finished under ${rec.operationId}.`,
-      content: ctx.resultCount != null ? `CodeX found ${ctx.resultCount} issue(s) during the inspection. No files were changed.` : 'CodeX completed a read-only inspection.',
-      scope: 'codex',
-      entities: [],
-      tags: ['codex', 'inspection'],
+      summary: `CodeX inspection finished under ${rec.operationId}${ctx.projectId ? ` for project ${ctx.projectId}` : ''}.`,
+      content: ctx.resultCount != null ? `CodeX found ${ctx.resultCount} issue(s) during the inspection. No files were changed.${ctx.projectId ? ` Project: ${ctx.projectId}` : ''}` : `CodeX completed a read-only inspection.${ctx.projectId ? ` Project: ${ctx.projectId}` : ''}`,
+      scope: scopeFor('codex'),
+      entities: ctx.projectId ? [ctx.projectId] : [],
+      tags: ['codex', 'inspection', ctx.projectId ? 'project' : null].filter(Boolean) as string[],
       confidence: 0.85,
       source,
     });
@@ -119,10 +126,10 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
       type: 'episodic',
       title: `Task failed — ${rec.worker}`,
       summary: `A ${rec.worker} task failed${ctx.detail ? `: ${ctx.detail.slice(0, 120)}` : ''}.`,
-      content: `Task ${ctx.taskId ?? rec.operationId} failed under worker ${rec.worker}.${ctx.detail ? `\nReason: ${ctx.detail}` : ''}`,
-      scope: rec.worker === 'revenue' ? 'revenue' : 'general',
-      entities: [],
-      tags: ['failure', rec.worker],
+      content: `Task ${ctx.taskId ?? rec.operationId} failed under worker ${rec.worker}.${ctx.detail ? `\nReason: ${ctx.detail}` : ''}${ctx.projectId ? `\nProject: ${ctx.projectId}` : ''}`,
+      scope: ctx.projectId ? scopeFor('general') : rec.worker === 'revenue' ? 'revenue' : 'general',
+      entities: ctx.projectId ? [ctx.projectId] : [],
+      tags: ['failure', rec.worker, ctx.projectId ? 'project' : null].filter(Boolean) as string[],
       confidence: 0.95,
       source,
     });
@@ -132,10 +139,10 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
       type: 'episodic',
       title: `Task cancelled — ${rec.worker}`,
       summary: `A ${rec.worker} task was cancelled by the user.`,
-      content: `Task ${ctx.taskId ?? rec.operationId} was cancelled.`,
-      scope: 'general',
-      entities: [],
-      tags: ['cancelled', rec.worker],
+      content: `Task ${ctx.taskId ?? rec.operationId} was cancelled.${ctx.projectId ? `\nProject: ${ctx.projectId}` : ''}`,
+      scope: scopeFor('general'),
+      entities: ctx.projectId ? [ctx.projectId] : [],
+      tags: ['cancelled', rec.worker, ctx.projectId ? 'project' : null].filter(Boolean) as string[],
       confidence: 0.9,
       source,
     });

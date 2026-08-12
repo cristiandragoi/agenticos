@@ -1086,6 +1086,38 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // investigate/question branches so recall is not swallowed as a task.
     // Guarded: if the memory store is unavailable (e.g. a test env mocking
     // the db), fall through to the normal direct handling.
+    // P2 — DETERMINISTIC active-project answers. Exact factual state questions
+    // are answered from projectsStore directly — never routed through the
+    // local model (which regurgitates injected context). NARROW pattern: only
+    // the plain project-state question forms; anything with extra intent
+    // ("what did we decide about the project", "create a plan for the
+    // project") falls through to normal routing.
+    try {
+      const projStarted = Date.now();
+      const { isDeterministicProjectQuestion, formatProjectStateAnswer } = await import('../domains/jarvis/projectMemory.js');
+      if (isDeterministicProjectQuestion(prompt)) {
+        const { projectsStore } = await import('../services/projectsStore.js');
+        let pid: string | null = projectsStore.getActiveProjectId();
+        if (pid && !projectsStore.getProject(pid)) pid = null;
+        const { reply, projectId } = formatProjectStateAnswer(pid);
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { intent: 'project_state_answer', operationId: normalizedOperationId, provider: 'agentic-os', model: 'registry', projectId },
+        });
+        endStreamExecution('COMPLETED', reply);
+        logStreamStage(normalizedOperationId, 'project_state_answer');
+        writeSse(res, 'done', {
+          route: 'project_state_answer', category: 'context', operationId: normalizedOperationId,
+          provider: 'agentic-os', model: 'registry', firstTokenMs: 0, totalMs: Date.now() - projStarted,
+        });
+        return res.end();
+      }
+    } catch { /* deterministic answer unavailable — normal handling */ }
+
     // P7 — "continue where we left off" must resolve project/task/memory
     // records even when the intent router classifies the phrase as
     // investigate — the deterministic continuation pattern wins over the

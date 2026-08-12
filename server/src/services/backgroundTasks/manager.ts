@@ -350,6 +350,7 @@ export class BackgroundTaskManager extends EventEmitter {
                 distillFromExecution(rec, {
                   taskId: task.taskId,
                   conversationId: task.conversationId ?? null,
+                  projectId: task.projectId ?? null,
                   niche: meta.niche ?? null,
                   city: meta.city ?? null,
                   requestedCount,

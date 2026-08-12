@@ -58,6 +58,24 @@ export function isContinuationRequest(prompt: string): boolean {
   return CONTINUATION_RE.test(prompt.trim());
 }
 
+// ── P2 — deterministic active-project answers ───────────────────────────────
+// NARROW: only the plain project-state question forms ("What project are we
+// working on?", "Which project is active?", "What's the current project?").
+// Anything with extra intent falls through to normal routing — this must not
+// become a broad keyword interception.
+const PROJECT_STATE_RE =
+  /^(?:what('?s| is)\s+(the\s+|our\s+)?(current\s+|active\s+)?project\b|what\s+project\s+(are|is)\b|which\s+(the\s+)?(current\s+|active\s+)?project\b)/i;
+export function isDeterministicProjectQuestion(prompt: string): boolean {
+  return PROJECT_STATE_RE.test(prompt.trim());
+}
+
+export function formatProjectStateAnswer(activeProjectId: string | null): { reply: string; projectId: string | null } {
+  if (!activeProjectId) return { reply: 'No project is currently selected.', projectId: null };
+  const project = projectsStore.getProject(activeProjectId);
+  if (!project) return { reply: 'No project is currently selected.', projectId: null };
+  return { reply: `We're currently working on ${project.name}.`, projectId: activeProjectId };
+}
+
 // ── P5 — explicit project-memory write ──────────────────────────────────────
 export function storeProjectMemory(
   projectId: string,
@@ -238,26 +256,25 @@ function awaitImportRunStore(): any {
 export function formatContinuation(r: ContinuationResult): string {
   if (r.insufficient) return r.insufficient;
   const lines: string[] = [];
-  lines.push(`We are working on ${r.project?.name}.`);
+  if (r.project) lines.push(`Project: ${r.project.name}`);
   if (r.lastTask) {
-    const when = r.lastTask.updatedAt ? ` (last activity ${new Date(r.lastTask.updatedAt).toLocaleString()})` : '';
     if (r.lastTask.status === 'completed') {
-      lines.push(`The last completed step was "${r.lastTask.title}" by ${r.lastTask.worker || 'the worker'}${when}.`);
+      lines.push(`Last completed: ${r.lastTask.title}`);
     } else if (r.lastTask.status === 'failed' || r.lastTask.status === 'blocked') {
-      lines.push(`The last step "${r.lastTask.title}" did not complete (${r.lastTask.status})${when}.${r.lastTask.blocker ? ` Blocker: ${r.lastTask.blocker}` : ''}`);
+      lines.push(`Last attempt: ${r.lastTask.title} (${r.lastTask.status})`);
     } else {
-      lines.push(`The latest step is "${r.lastTask.title}" (${r.lastTask.status})${when}.`);
+      lines.push(`Current activity: ${r.lastTask.title} (${r.lastTask.status})`);
     }
+    const blocker = r.lastTask.blocker;
+    if (blocker) lines.push(`Current blocker: ${blocker.slice(0, 200)}`);
   } else if (r.lastRun) {
-    lines.push(`The last recorded run (${r.lastRun.agent || 'agent'}) finished with status ${r.lastRun.status}.`);
+    lines.push(`Last run: ${r.lastRun.agent || 'agent'} finished with status ${r.lastRun.status}`);
   }
-  if (r.lastMemory) {
-    lines.push(`Recent project note: ${r.lastMemory.title}${r.lastMemory.summary ? ` — ${r.lastMemory.summary.slice(0, 160)}` : ''}`);
-  }
+  if (r.lastMemory) lines.push(`Next recorded priority: ${r.lastMemory.title}`);
   if (!r.lastTask && !r.lastMemory && !r.lastRun) {
-    lines.push('There is no recorded project activity yet. What would you like to start with?');
+    lines.push('No recorded project activity yet. What would you like to start with?');
   } else {
-    lines.push('I do not have a recorded next step beyond this. Tell me what you want to pick up next, or ask me to inspect the project for a concrete starting point.');
+    lines.push('No recorded next step beyond this — tell me what to pick up next.');
   }
   return lines.join('\n');
 }
