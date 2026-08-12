@@ -68,6 +68,10 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
   resultCount?: number | null;
   topResult?: string | null;
   detail?: string | null;
+  /** GateRunner v1 (P19): verification truth — never distill unverified
+   *  output as a successful milestone. */
+  verificationState?: string | null;
+  gateResults?: Array<{ gateId: string; status: string; passed: boolean }> | null;
 } = {}): string[] {
   const created: string[] = [];
   const source: MemorySource = {
@@ -109,11 +113,34 @@ export function distillFromExecution(rec: ExecutionRecord, ctx: {
     if (decision) link(m.id, decision.id, 'DECIDED_IN');
     if (top) { upsertEntity(top, Date.now(), 'company'); link(m.id, entityId(top), 'MENTIONS_ENTITY'); }
   } else if (rec.status === 'COMPLETED' && rec.worker === 'codex') {
+    // P19 — verification truth: a completed goal whose required gates FAILED
+    // is a blocker, not a successful milestone.
+    if (ctx.verificationState === 'failed') {
+      const gates = (ctx.gateResults || []).filter((g) => g.status === 'failed').map((g) => g.gateId).join(', ');
+      const m = createMemory({
+        type: 'episodic',
+        title: `CodeX work blocked by verification — ${gates || 'gates failed'}`,
+        summary: `CodeX produced work but verification failed${ctx.projectId ? ` for project ${ctx.projectId}` : ''}.`,
+        content: `CodeX goal ${rec.operationId} completed execution but required gate(s) ${gates || 'unknown'} failed. Task ${ctx.taskId ?? rec.operationId} was NOT completed.${ctx.detail ? `\nReason: ${ctx.detail.slice(0, 160)}` : ''}`,
+        scope: scopeFor('codex'),
+        entities: ctx.projectId ? [ctx.projectId] : [],
+        tags: ['codex', 'blocker', 'verification', ctx.projectId ? 'project' : null].filter(Boolean) as string[],
+        confidence: 0.95,
+        source,
+      });
+      created.push(m.id);
+      return created;
+    }
+    const verified = ctx.verificationState === 'passed' || ctx.verificationState === 'skipped' || !ctx.verificationState;
+    if (!verified) return created; // pending/unknown — do not distill as success
+    const gateNote = (ctx.gateResults || []).filter((g) => g.status === 'passed').map((g) => g.gateId).join(', ');
     const m = createMemory({
       type: 'episodic',
       title: 'CodeX inspection completed',
       summary: `CodeX inspection finished under ${rec.operationId}${ctx.projectId ? ` for project ${ctx.projectId}` : ''}.`,
-      content: ctx.resultCount != null ? `CodeX found ${ctx.resultCount} issue(s) during the inspection. No files were changed.${ctx.projectId ? ` Project: ${ctx.projectId}` : ''}` : `CodeX completed a read-only inspection.${ctx.projectId ? ` Project: ${ctx.projectId}` : ''}`,
+      content: ctx.resultCount != null
+        ? `CodeX found ${ctx.resultCount} issue(s) during the inspection. No files were changed.${ctx.projectId ? ` Project: ${ctx.projectId}` : ''}${gateNote ? ` Verification: passed (${gateNote}).` : ''}`
+        : `CodeX completed a read-only inspection.${ctx.projectId ? ` Project: ${ctx.projectId}` : ''}${gateNote ? ` Verification: passed (${gateNote}).` : ''}`,
       scope: scopeFor('codex'),
       entities: ctx.projectId ? [ctx.projectId] : [],
       tags: ['codex', 'inspection', ctx.projectId ? 'project' : null].filter(Boolean) as string[],

@@ -1923,10 +1923,10 @@ router.get('/runtime-state', async (_req, res) => {
     const FRESH_QUEUE_MS = 2 * 60 * 1000;
     const nowMs = Date.now();
     const inFlightTasks = tasks.filter((t: any) => {
-      if (t.status === 'running') {
+      if (t.status === 'running' || t.status === 'verifying') {
         const updated = new Date(String(t.updatedAt)).getTime();
         const ageMs = Number.isFinite(updated) ? nowMs - updated : Number.MAX_SAFE_INTEGER;
-        return ageMs < 10 * 60 * 1000; // running task updated within 10 min
+        return ageMs < 10 * 60 * 1000; // running/verifying task updated within 10 min
       }
       if (t.status === 'queued') {
         const created = new Date(String(t.createdAt)).getTime();
@@ -1971,7 +1971,14 @@ router.get('/runtime-state', async (_req, res) => {
       state,
       activeAgent,
       activeProject: activeProject ? { id: activeProject.id, name: activeProject.name } : null,
-      activeTask: current ? { id: current.operationId, action: current.currentAction, status: current.status } : null,
+      // P16 — verification truth: when the live execution record is idle but a
+      // task is VERIFYING, the ACTIVE RUN panel shows the gate status instead
+      // of "No active run".
+      activeTask: current
+        ? { id: current.operationId, action: current.currentAction, status: current.status }
+        : (scopedTasks.find((t: any) => t.status === 'verifying') ?? null)
+          ? { id: (scopedTasks.find((t: any) => t.status === 'verifying') as any).taskId, action: (scopedTasks.find((t: any) => t.status === 'verifying') as any).progressMessage || 'Verifying…', status: 'VERIFYING' }
+          : null,
       activeTool: current?.currentAction || null,
       provider: current?.resolvedProvider || current?.requestedProvider || null,
       model: current?.resolvedModel || current?.requestedModel || null,

@@ -169,7 +169,20 @@ export class OllamaGateway implements ModelGateway {
         const body = await res!.text().catch(() => '');
         const bodyLower = body.toLowerCase();
         if (res!.status === 404 || bodyLower.includes('not found')) throw new Error(`model-not-found: ${body}`);
-        throw new Error(`HTTP ${res!.status}: ${body}`);
+        // A 500/EOF is a transient server-side failure (the local model crashed
+        // mid-generation). Record it and continue to the next attempt (larger
+        // budget / escalation) — bounded by the attempts array; the final
+        // exhausted throw covers the all-failed case.
+        emptyDiagnostic = `attempt=${attempt + 1} model=${model} http=${res!.status} ${body.slice(0, 120)}`;
+        console.log(JSON.stringify({
+          diagnostic: 'OllamaGateway.chat attempt-failed',
+          attempt: attempt + 1,
+          model,
+          budget,
+          error: `HTTP ${res!.status}: ${body.slice(0, 160)}`,
+          durationMs: Date.now() - attemptStart,
+        }));
+        continue;
       }
 
       let data: any;

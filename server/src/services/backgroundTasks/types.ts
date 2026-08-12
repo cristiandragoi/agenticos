@@ -10,6 +10,7 @@ export type TaskStatus =
   | 'queued'
   | 'planning'
   | 'running'
+  | 'verifying'
   | 'waiting_approval'
   | 'paused'
   | 'review'
@@ -51,7 +52,12 @@ export type TaskEventKind =
   | 'task.verified'
   | 'task.completed'
   | 'task.blocked'
-  | 'task.failed';
+  | 'task.failed'
+  | 'task.gate_started'
+  | 'task.gate_passed'
+  | 'task.gate_failed'
+  | 'task.verification_started'
+  | 'task.verification_completed';
 
 export interface BackgroundTaskRecord {
   taskId: string;
@@ -130,7 +136,7 @@ export const TASK_LIMITS = {
 };
 
 export function isActiveStatus(s: TaskStatus): boolean {
-  return s === 'queued' || s === 'planning' || s === 'running' || s === 'waiting_approval' || s === 'review';
+  return s === 'queued' || s === 'planning' || s === 'running' || s === 'verifying' || s === 'waiting_approval' || s === 'review';
 }
 
 export function taskShortId(taskId: string): string {

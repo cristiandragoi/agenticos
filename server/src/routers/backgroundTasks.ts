@@ -217,4 +217,40 @@ router.post('/:taskId/approval', async (req, res) => {
   res.json({ ok: true });
 });
 
+// P20 — explicit human approval for a pending human-approval gate. Completes
+// the task only when every required gate has passed. Nothing auto-passes.
+router.post('/:taskId/gates/:gateId/approve', async (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  try {
+    const { approveGate } = await import('../services/gates/gateRunner.js');
+    const r = await approveGate(task.taskId, req.params.gateId);
+    if (!r.ok) return res.status(409).json({ error: r.reason });
+    res.json(r);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// P23 — re-run the gate set after a rework attempt (or on a blocked task).
+// If all required gates now pass, the task completes via verifyCompletion.
+router.post('/:taskId/gates/verify', async (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  try {
+    const { runTaskGates } = await import('../services/gates/gateRunner.js');
+    const set = await runTaskGates(task.taskId);
+    if (set.allRequiredPassed) {
+      backgroundTaskManager.verifyCompletion(task.taskId, {
+        resultText: task.resultText || 'Re-verification passed.',
+        readOnly: false,
+        verificationNote: `Completed and verified on re-run: ${set.results.filter((r) => r.status === 'passed').map((r) => r.gateId).join(', ')}.`,
+      });
+    }
+    res.json({ taskId: task.taskId, allRequiredPassed: set.allRequiredPassed, results: set.results });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
 export default router;

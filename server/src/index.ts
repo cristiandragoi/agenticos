@@ -233,6 +233,8 @@ import tasksRouter from './routers/tasks.js';
 app.use('/api/tasks', tasksRouter);
 import backgroundTasksRouter from './routers/backgroundTasks.js';
 app.use('/api/background-tasks', backgroundTasksRouter);
+import { runLedgerRouter } from './routers/runLedger.js';
+app.use('/api/run-ledger', runLedgerRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/heavy-gen', heavyGenRouter);
 import { connectorRouter } from './routers/connectorRouter.js';

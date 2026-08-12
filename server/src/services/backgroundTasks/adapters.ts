@@ -117,12 +117,36 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
       const current = backgroundTaskRepo.getTask(task.taskId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return;
       if (rec.status === 'completed') {
-        // Requirement 13: completion is gated on verification, not worker "done".
-        mgr.verifyCompletion(task.taskId, {
-          resultText: rec.finalText || 'Hermes completed without a text result.',
-          readOnly: true,
-          verificationNote: 'Hermes run completed — result text verified.',
-        });
+        // Requirement 13 + GateRunner v1 (P10): completion is gated on
+        // verification — Hermes "done" is not completion when gates exist.
+        void (async () => {
+          const { runTaskGates, parseGateConfigs } = await import('../gates/gateRunner.js');
+          const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;
+          if (!hasRequired) {
+            mgr.verifyCompletion(task.taskId, {
+              resultText: rec.finalText || 'Hermes completed without a text result.',
+              readOnly: true,
+              verificationNote: 'Hermes run completed — result text verified.',
+            });
+            return;
+          }
+          mgr.appendEvent(task.taskId, 'task.verification_started', 'Hermes execution finished — running required gates.', {});
+          try {
+            const set = await runTaskGates(task.taskId);
+            if (set.allRequiredPassed) {
+              const gateSummary = set.results.filter((r) => r.status === 'passed').map((r) => r.gateId).join(', ');
+              mgr.verifyCompletion(task.taskId, {
+                resultText: rec.finalText || 'Hermes completed without a text result.',
+                readOnly: true,
+                verificationNote: `Hermes run completed — verified: ${gateSummary}.`,
+              });
+            } else {
+              mgr.appendEvent(task.taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', { allRequiredPassed: false });
+            }
+          } catch (e: any) {
+            mgr.transition(task.taskId, 'blocked', { verificationState: 'failed', blocker: `Verification error: ${e?.message}`, resumable: true });
+          }
+        })();
       } else if (rec.status === 'failed' || rec.status === 'cancelled') {
         mgr.transition(task.taskId, rec.status === 'cancelled' ? 'cancelled' : 'failed', {
           lastError: rec.errorMessage || rec.finalText || `Hermes run ${rec.status}.`,
@@ -223,11 +247,44 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
       const mapped = goalStateToTaskStatus(goal.status);
       if (!mapped) return;
       if (mapped === 'completed') {
-        mgr.verifyCompletion(task.taskId, {
-          resultText: goal.runSummary?.summary || 'CodeX goal completed.',
-          readOnly: false,
-          verificationNote: 'CodeX goal completed.',
-        });
+        // GateRunner v1 (P9): execution finished → VERIFYING → required gates
+        // → only then completion. The goal's summary is NOT sufficient.
+        void (async () => {
+          const { runTaskGates } = await import('../gates/gateRunner.js');
+          const { parseGateConfigs } = await import('../gates/gateRunner.js');
+          const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;
+          if (!hasRequired) {
+            mgr.verifyCompletion(task.taskId, {
+              resultText: goal.runSummary?.summary || 'CodeX goal completed.',
+              readOnly: false,
+              verificationNote: 'CodeX goal completed.',
+            });
+            return;
+          }
+          mgr.appendEvent(task.taskId, 'task.verification_started', 'Execution finished — running required gates.', {});
+          try {
+            const set = await runTaskGates(task.taskId);
+            if (set.allRequiredPassed) {
+              const gateSummary = set.results.filter((r) => r.status === 'passed').map((r) => r.gateId).join(', ');
+              mgr.verifyCompletion(task.taskId, {
+                resultText: goal.runSummary?.summary || 'CodeX goal completed.',
+                readOnly: false,
+                verificationNote: `Completed and verified: ${gateSummary || 'gates passed'}.`,
+              });
+            } else {
+              // GateRunner already transitioned to blocked/failed with evidence.
+              mgr.appendEvent(task.taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', {
+                allRequiredPassed: false,
+              });
+            }
+          } catch (e: any) {
+            mgr.transition(task.taskId, 'blocked', {
+              verificationState: 'failed',
+              blocker: `Verification error: ${e?.message}`,
+              resumable: true,
+            });
+          }
+        })();
         return;
       }
       if (mapped !== current.status) {

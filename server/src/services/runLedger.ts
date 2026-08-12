@@ -1,0 +1,207 @@
+/**
+ * RunLedger v1 — one normalized truth surface over the EXISTING authoritative
+ * stores (background_tasks + background_task_events + goalStore + runStore +
+ * executionState). No new table: this is a read-view + normalizer.
+ *
+ * Every meaningful execution is inspectable as a RunLedgerEntry with
+ * parent/child chains, model truth, artifacts, gates and verification state.
+ */
+import { backgroundTaskRepo, ensureBackgroundTaskTables } from './backgroundTasks/store.js';
+import { TERMINAL_STATUSES } from './backgroundTasks/types.js';
+import type { BackgroundTaskRecord, TaskEventKind } from './backgroundTasks/types.js';
+import type { GateResult } from './gates/types.js';
+
+export type RunLedgerStatus =
+  | 'queued' | 'planning' | 'running' | 'waiting' | 'verifying'
+  | 'completed' | 'failed' | 'cancelled' | 'blocked';
+
+export interface RunLedgerEntry {
+  runId: string;
+  taskId?: string;
+  parentRunId?: string;
+  parentTaskId?: string;
+  operationId?: string;
+  conversationId?: string;
+  projectId?: string;
+  agentId: string;
+  workerType: string;
+  assignedProvider?: string;
+  assignedModel?: string;
+  effectiveProvider?: string;
+  effectiveModel?: string;
+  taskText?: string;
+  status: RunLedgerStatus;
+  startedAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  artifactIds?: string[];
+  gateResults?: GateResult[];
+  verificationState?: 'not_required' | 'pending' | 'passed' | 'failed';
+  failureReason?: string;
+}
+
+export type RunLedgerEventKind =
+  | 'run.created' | 'run.started' | 'run.planning' | 'run.executing' | 'run.waiting'
+  | 'run.artifact.created' | 'run.gate.started' | 'run.gate.passed' | 'run.gate.failed'
+  | 'run.verification.started' | 'run.verification.passed' | 'run.verification.failed'
+  | 'run.completed' | 'run.failed' | 'run.cancelled';
+
+/** P4 — map authoritative existing task event kinds into the stable run
+ *  vocabulary. Preserves original IDs; never manufactures events. */
+export function normalizeEventKind(kind: TaskEventKind | string): RunLedgerEventKind | string {
+  switch (kind) {
+    case 'task.created': case 'task.queued': return 'run.created';
+    case 'task.started': case 'task.agent_selected': return 'run.started';
+    case 'task.stage_changed': return 'run.planning';
+    case 'task.progress': case 'task.file_changed': case 'task.run_linked': return 'run.executing';
+    case 'task.build_started': case 'task.build_passed': case 'task.build_failed':
+    case 'task.test_started': case 'task.test_passed': case 'task.test_failed': return 'run.executing';
+    case 'task.gate_started': return 'run.gate.started';
+    case 'task.gate_passed': return 'run.gate.passed';
+    case 'task.gate_failed': return 'run.gate.failed';
+    case 'task.verification_started': return 'run.verification.started';
+    case 'task.verified': return 'run.verification.passed';
+    case 'task.completed': return 'run.completed';
+    case 'task.failed': return 'run.failed';
+    case 'task.cancelled': return 'run.cancelled';
+    default: return kind;
+  }
+}
+
+const meta = (t: BackgroundTaskRecord) => (t.metadata || {}) as Record<string, any>;
+
+function toLedgerStatus(t: BackgroundTaskRecord): RunLedgerStatus {
+  switch (t.status) {
+    case 'queued': return 'queued';
+    case 'planning': return 'planning';
+    case 'verifying': return 'verifying';
+    case 'waiting_approval': return 'waiting';
+    case 'blocked': return 'blocked';
+    case 'completed': return 'completed';
+    case 'failed': return 'failed';
+    case 'cancelled': return 'cancelled';
+    default: return 'running';
+  }
+}
+
+function entryFromTask(t: BackgroundTaskRecord): RunLedgerEntry {
+  const m = meta(t);
+  const gateResults: GateResult[] | undefined = Array.isArray(m.gateResults) ? m.gateResults : undefined;
+  return {
+    runId: t.linkedRunId || t.taskId,
+    taskId: t.taskId,
+    parentTaskId: t.parentTaskId || undefined,
+    parentRunId: undefined, // resolved lazily via getParent
+    operationId: m.operationId || undefined,
+    conversationId: t.conversationId || undefined,
+    projectId: t.projectId || undefined,
+    agentId: t.selectedAgent || t.worker,
+    workerType: t.worker,
+    assignedProvider: m.assignedProvider || m.agentProvider || undefined,
+    assignedModel: m.assignedModel || m.agentModel || undefined,
+    effectiveProvider: m.effectiveProvider || m.resolvedProvider || undefined,
+    effectiveModel: m.effectiveModel || m.resolvedModel || undefined,
+    taskText: t.objective || t.originalRequest || undefined,
+    status: toLedgerStatus(t),
+    startedAt: t.startedAt || undefined,
+    updatedAt: t.updatedAt || undefined,
+    completedAt: t.completedAt || undefined,
+    artifactIds: Array.isArray(t.filesChanged) ? t.filesChanged : [],
+    gateResults,
+    verificationState: (t.verificationState === 'skipped' ? 'not_required' : t.verificationState) as RunLedgerEntry['verificationState'],
+    failureReason: t.lastError || t.blocker || undefined,
+  };
+}
+
+function allTasks(): BackgroundTaskRecord[] {
+  ensureBackgroundTaskTables();
+  return backgroundTaskRepo.listTasks({ limit: 500 });
+}
+
+export const runLedger = {
+  /** One normalized record for a run id (the linked run) or a task id. */
+  getRun(runId: string): RunLedgerEntry | null {
+    const tasks = allTasks();
+    const byRun = tasks.find((t) => (t.linkedRunId || t.taskId) === runId);
+    const byTask = tasks.find((t) => t.taskId === runId);
+    const t = byRun || byTask;
+    if (!t) return null;
+    const entry = entryFromTask(t);
+    const parent = t.parentTaskId ? tasks.find((x) => x.taskId === t.parentTaskId) : null;
+    if (parent) entry.parentRunId = parent.linkedRunId || parent.taskId;
+    return entry;
+  },
+
+  getTaskRun(taskId: string): RunLedgerEntry | null {
+    const t = allTasks().find((x) => x.taskId === taskId);
+    return t ? entryFromTask(t) : null;
+  },
+
+  getChildren(runOrTaskId: string): RunLedgerEntry[] {
+    const tasks = allTasks();
+    const self = tasks.find((t) => (t.linkedRunId || t.taskId) === runOrTaskId || t.taskId === runOrTaskId);
+    if (!self) return [];
+    const kids = tasks.filter((t) => t.parentTaskId === self.taskId);
+    return kids.map((t) => entryFromTask(t));
+  },
+
+  getParent(runOrTaskId: string): RunLedgerEntry | null {
+    const tasks = allTasks();
+    const self = tasks.find((t) => (t.linkedRunId || t.taskId) === runOrTaskId || t.taskId === runOrTaskId);
+    if (!self || !self.parentTaskId) return null;
+    const parent = tasks.find((t) => t.taskId === self.parentTaskId);
+    if (!parent) return null;
+    const entry = entryFromTask(parent);
+    entry.parentRunId = undefined;
+    return entry;
+  },
+
+  getActiveRuns(projectId?: string | null): RunLedgerEntry[] {
+    return allTasks()
+      .filter((t) => !TERMINAL_STATUSES.has(t.status) && (!projectId || t.projectId === projectId))
+      .map((t) => entryFromTask(t));
+  },
+
+  getRecentRuns(projectId?: string | null, limit = 20): RunLedgerEntry[] {
+    return allTasks()
+      .filter((t) => !projectId || t.projectId === projectId)
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+      .slice(0, limit)
+      .map((t) => entryFromTask(t));
+  },
+
+  getLastCompletedRun(projectId?: string | null): RunLedgerEntry | null {
+    const t = allTasks()
+      .filter((x) => x.status === 'completed' && (!projectId || x.projectId === projectId))
+      .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime())[0];
+    return t ? entryFromTask(t) : null;
+  },
+
+  getLastFailedRun(projectId?: string | null): RunLedgerEntry | null {
+    const t = allTasks()
+      .filter((x) => x.status === 'failed' && (!projectId || x.projectId === projectId))
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())[0];
+    return t ? entryFromTask(t) : null;
+  },
+
+  getLastCancelledRun(projectId?: string | null): RunLedgerEntry | null {
+    const t = allTasks()
+      .filter((x) => x.status === 'cancelled' && (!projectId || x.projectId === projectId))
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())[0];
+    return t ? entryFromTask(t) : null;
+  },
+
+  /** Evidence: task events normalized into the run vocabulary. */
+  getRunEvidence(runId: string): Array<{ kind: string; ts: string; summary: string; detail: Record<string, unknown>; sequence: number }> {
+    const tasks = allTasks();
+    const t = tasks.find((x) => (x.linkedRunId || x.taskId) === runId || x.taskId === runId);
+    if (!t) return [];
+    return backgroundTaskRepo.getEvents(t.taskId).map((e) => ({
+      kind: normalizeEventKind(e.kind),
+      ts: e.ts,
+      summary: e.summary,
+      detail: e.detail,
+      sequence: e.sequence,
+    }));
+  },
+};

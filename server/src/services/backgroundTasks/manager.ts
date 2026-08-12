@@ -84,6 +84,7 @@ const STATUS_TO_LANE: Record<TaskStatus, string> = {
   queued: 'l-hermes-backlog',
   planning: 'l-hermes-inprogress-hermes',
   running: 'l-hermes-inprogress-hermes',
+  verifying: 'l-hermes-review',
   waiting_approval: 'l-hermes-blocked',
   paused: 'l-hermes-blocked',
   review: 'l-hermes-review',
@@ -357,6 +358,8 @@ export class BackgroundTaskManager extends EventEmitter {
                   resultCount,
                   topResult,
                   detail: status === 'failed' ? (updated.blocker || updated.lastError || null) : null,
+                  verificationState: updated.verificationState ?? null,
+                  gateResults: Array.isArray(updated.metadata?.gateResults) ? updated.metadata.gateResults : null,
                 });
               }
             } catch { /* completion event + distillation must never break the transition */ }
