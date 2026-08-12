@@ -314,6 +314,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   }, [isProcessing]);
   const runtimeStateRef = useRef<JarvisRuntimeState>('idle');
   const firstTokenMsRef = useRef<number | null>(null);
+  // Durable error for the BLOCKED/ATTENTION surface: the status clock re-emits
+  // status every 250ms and must not clobber a model/provider failure with a
+  // null error between ticks. Cleared explicitly when a new request starts.
+  const errorRef = useRef<string | null>(null);
   const lastOperationIdRef = useRef<string | null>(null);
   const [routingOverride, setRoutingOverride] = useState<{ provider: string | null; model: string | null; mode: 'auto' | 'manual' }>({ provider: null, model: null, mode: 'auto' });
 
@@ -329,13 +333,16 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     const elapsedMs = requestStartedAtRef.current ? Date.now() - requestStartedAtRef.current : 0;
     if (patch.state) runtimeStateRef.current = patch.state;
     if (patch.firstTokenMs !== undefined) firstTokenMsRef.current = patch.firstTokenMs ?? null;
+    // Persist an explicit error (and explicit null clears it); the clock ticks
+    // that only carry { state } must not erase a surfaced failure.
+    if (patch.error !== undefined) errorRef.current = patch.error;
     onStatusChange?.({
       state: 'idle',
       elapsedMs,
       firstTokenMs: firstTokenMsRef.current,
       provider: null,
       model: null,
-      error: null,
+      error: errorRef.current,
       ...patch
     });
   };
@@ -649,6 +656,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     setCreatedGoalId(null);
     setIsProcessing(true);
     setSendError(null);
+    errorRef.current = null;
     clearResponseTimers();
     startStatusClock('thinking');
 
@@ -754,7 +762,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       if (controller.signal.aborted && !responseTimedOutRef.current) {
         appendStreamingAssistantText(operationId, '\n\n[Response cancelled]', true);
         delete streamedTextByOpRef.current[operationId];
-        emitStatus({ state: 'cancelled' });
+        emitStatus({ state: 'cancelled', error: null });
       } else if (!sendError) {
         const message = `Could not reach the backend: ${e.message || e}`;
         setSendError({ message, operationId });
@@ -899,6 +907,15 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           provider: data.provider ?? null,
           model: data.model ?? null
         });
+        // Model/provider failure (HTTP 402 etc.) arrives as a token chunk
+        // whose content starts with "[Stream Error: …]" (llmGateway swallows
+        // the router failure into a token). Surface it in the runtime error
+        // state so the BLOCKED/ATTENTION row shows the failure durably until
+        // the next request — the transcript copy is the chunk itself.
+        if (typeof data.delta === 'string' && data.delta.includes('[Stream Error:')) {
+          const errMsg = data.delta.replace(/^[\s\n]*\[Stream Error:\s*/, '').replace(/\]\s*$/, '').trim() || 'Stream error.';
+          emitStatus({ state: 'error', error: errMsg.slice(0, 200) });
+        }
         // Diagnostic: report what the UI is streaming (current active stream).
         uiDiagnostics.setStreamActive(data.provider ?? null, data.model ?? null, operationId);
         appendStreamingAssistantText(operationId, data.delta || '');
@@ -980,7 +997,12 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         uiDiagnostics.setStreamEnded(operationId);
         if (nextState === 'completed') {
           window.setTimeout(() => {
-            if (!abortControllerRef.current) emitStatus(idleStatus);
+            if (!abortControllerRef.current) {
+              // Reset to idle (recovery shown — never stuck in the error
+              // state) but preserve a surfaced model/provider failure so the
+              // BLOCKED/ATTENTION row keeps showing it until the next request.
+              emitStatus({ ...idleStatus, error: errorRef.current });
+            }
           }, 1200);
         }
         if (data.route !== 'direct' || !nextSawTextChunk) await fetchMessages(true);
