@@ -1086,19 +1086,68 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // investigate/question branches so recall is not swallowed as a task.
     // Guarded: if the memory store is unavailable (e.g. a test env mocking
     // the db), fall through to the normal direct handling.
+    // P7 — "continue where we left off" must resolve project/task/memory
+    // records even when the intent router classifies the phrase as
+    // investigate — the deterministic continuation pattern wins over the
+    // heuristic route. Checked before the route gate below.
+    try {
+      const contStarted = Date.now();
+      let contProjectId: string | null = null;
+      try {
+        const { projectsStore } = await import('../services/projectsStore.js');
+        contProjectId = projectsStore.getActiveProjectId();
+        if (contProjectId && !projectsStore.getProject(contProjectId)) contProjectId = null;
+      } catch { /* project store unavailable */ }
+      const { isContinuationRequest, resolveContinuation, formatContinuation, recordMemoryActivity } = await import('../domains/jarvis/projectMemory.js');
+      if (isContinuationRequest(prompt)) {
+        recordMemoryActivity({ kind: 'memory.lookup.started', projectId: contProjectId, category: 'continuation', operationId: normalizedOperationId });
+        updateStreamExecution({ status: 'RUNNING', currentAction: contProjectId ? 'Retrieving project memory' : 'No active project — asking for context' });
+        const contResult = resolveContinuation(contProjectId);
+        const contReply = formatContinuation(contResult);
+        recordMemoryActivity({ kind: 'memory.lookup.completed', projectId: contProjectId, category: 'continuation', resultCount: contResult.lastMemory ? 1 : 0, operationId: normalizedOperationId });
+        streamTextAsChunks(res, contReply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: contReply,
+          routedAgent: 'jarvis',
+          metadata: { intent: 'continuation', operationId: normalizedOperationId, provider: 'agentic-os', model: 'registry', projectId: contProjectId },
+        });
+        endStreamExecution('COMPLETED', contReply);
+        logStreamStage(normalizedOperationId, 'continuation');
+        writeSse(res, 'done', {
+          route: 'continuation', category: 'memory', operationId: normalizedOperationId,
+          provider: 'agentic-os', model: 'registry', firstTokenMs: 0, totalMs: Date.now() - contStarted,
+        });
+        return res.end();
+      }
+    } catch { /* continuation unavailable — normal handling */ }
+
     if (intent.route !== 'investigate' && intent.route !== 'clarification_required') {
       try {
         const startedAt = Date.now();
+        // Resolve the ACTIVE PROJECT once — project-scoped memory/continuation
+        // answers use it (never inferred; null when none selected).
+        let activeProjectId: string | null = null;
+        try {
+          const { projectsStore } = await import('../services/projectsStore.js');
+          activeProjectId = projectsStore.getActiveProjectId();
+          if (activeProjectId && !projectsStore.getProject(activeProjectId)) activeProjectId = null;
+        } catch { /* project store unavailable — global memory only */ }
         const { isMemoryStore, handleMemoryStore, isMemoryRecall, isDecisionStatement, handleMemoryRecall, handleDecisionStatement } = await import('../domains/jarvis/memoryRecall.js');
+        const { recordMemoryActivity } = await import('../domains/jarvis/projectMemory.js');
+
         if (isMemoryStore(prompt)) {
-          const { reply } = handleMemoryStore(prompt);
+          recordMemoryActivity({ kind: 'memory.write.started', projectId: activeProjectId, category: 'store', operationId: normalizedOperationId });
+          const { reply } = handleMemoryStore(prompt, activeProjectId);
+          recordMemoryActivity({ kind: 'memory.write.completed', projectId: activeProjectId, category: 'store', operationId: normalizedOperationId });
           streamTextAsChunks(res, reply, normalizedOperationId);
           await conversationService.appendMessage({
             conversationId: req.params.id,
             role: 'agent',
             content: reply,
             routedAgent: 'jarvis',
-            metadata: { intent: 'memory_store', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory' },
+            metadata: { intent: 'memory_store', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory', projectId: activeProjectId },
           });
           endStreamExecution('COMPLETED', reply);
           logStreamStage(normalizedOperationId, 'memory_store');
@@ -1109,42 +1158,46 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           return res.end();
         }
         if (isDecisionStatement(prompt)) {
-        const reply = await handleDecisionStatement(prompt);
-        streamTextAsChunks(res, reply, normalizedOperationId);
-        await conversationService.appendMessage({
-          conversationId: req.params.id,
-          role: 'agent',
-          content: reply,
-          routedAgent: 'jarvis',
-          metadata: { intent: 'decision_statement', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory' },
-        });
-        endStreamExecution('COMPLETED', reply);
-        logStreamStage(normalizedOperationId, 'decision_statement');
-        writeSse(res, 'done', {
-          route: 'decision_statement', category: 'memory', operationId: normalizedOperationId,
-          provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
-        });
-        return res.end();
-      }
-      if (isMemoryRecall(prompt)) {
-        updateStreamExecution({ status: 'RUNNING', currentAction: 'Recalling related memories' });
-        const reply = await handleMemoryRecall(prompt);
-        streamTextAsChunks(res, reply, normalizedOperationId);
-        await conversationService.appendMessage({
-          conversationId: req.params.id,
-          role: 'agent',
-          content: reply,
-          routedAgent: 'jarvis',
-          metadata: { intent: 'memory_recall', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory' },
-        });
-        endStreamExecution('COMPLETED', reply);
-        logStreamStage(normalizedOperationId, 'memory_recall');
-        writeSse(res, 'done', {
-          route: 'memory_recall', category: 'memory', operationId: normalizedOperationId,
-          provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
-        });
-        return res.end();
-      }
+          recordMemoryActivity({ kind: 'memory.write.started', projectId: activeProjectId, category: 'decision', operationId: normalizedOperationId });
+          const reply = await handleDecisionStatement(prompt, activeProjectId);
+          recordMemoryActivity({ kind: 'memory.write.completed', projectId: activeProjectId, category: 'decision', operationId: normalizedOperationId });
+          streamTextAsChunks(res, reply, normalizedOperationId);
+          await conversationService.appendMessage({
+            conversationId: req.params.id,
+            role: 'agent',
+            content: reply,
+            routedAgent: 'jarvis',
+            metadata: { intent: 'decision_statement', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory', projectId: activeProjectId },
+          });
+          endStreamExecution('COMPLETED', reply);
+          logStreamStage(normalizedOperationId, 'decision_statement');
+          writeSse(res, 'done', {
+            route: 'decision_statement', category: 'memory', operationId: normalizedOperationId,
+            provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
+          });
+          return res.end();
+        }
+        if (isMemoryRecall(prompt)) {
+          recordMemoryActivity({ kind: 'memory.lookup.started', projectId: activeProjectId, category: activeProjectId ? 'project-recall' : 'recall', operationId: normalizedOperationId });
+          updateStreamExecution({ status: 'RUNNING', currentAction: activeProjectId ? 'Retrieving project memory' : 'Recalling related memories' });
+          const reply = await handleMemoryRecall(prompt, activeProjectId);
+          recordMemoryActivity({ kind: 'memory.lookup.completed', projectId: activeProjectId, category: activeProjectId ? 'project-recall' : 'recall', operationId: normalizedOperationId });
+          streamTextAsChunks(res, reply, normalizedOperationId);
+          await conversationService.appendMessage({
+            conversationId: req.params.id,
+            role: 'agent',
+            content: reply,
+            routedAgent: 'jarvis',
+            metadata: { intent: 'memory_recall', operationId: normalizedOperationId, provider: 'agentic-os', model: 'memory', projectId: activeProjectId },
+          });
+          endStreamExecution('COMPLETED', reply);
+          logStreamStage(normalizedOperationId, 'memory_recall');
+          writeSse(res, 'done', {
+            route: 'memory_recall', category: 'memory', operationId: normalizedOperationId,
+            provider: 'agentic-os', model: 'memory', firstTokenMs: 0, totalMs: Date.now() - startedAt,
+          });
+          return res.end();
+        }
       } catch { /* memory store unavailable — normal direct handling */ }
     }
 
@@ -1802,6 +1855,19 @@ router.get('/live-events', async (req, res) => {
     res.json(events);
   } catch (err: any) {
     res.json([]);
+  }
+});
+
+// GET /api/jarvis/memory-activity
+// P12 — recent memory.lookup.* / memory.write.* activity (safe metadata only,
+// no hidden reasoning). Drives the future cognitive Memory node.
+router.get('/memory-activity', async (_req, res) => {
+  try {
+    const { listMemoryActivity } = await import('../domains/jarvis/projectMemory.js');
+    const limit = Math.max(1, Math.min(100, Number(_req.query.limit) || 30));
+    res.json(listMemoryActivity(limit));
+  } catch (err: any) {
+    res.status(500).json({ error: 'Memory activity unavailable', details: err?.message });
   }
 });
 

@@ -41,13 +41,27 @@ function provenanceLine(m: Pick<MemoryRecord, 'title' | 'createdAt' | 'source'>)
 }
 
 /** Answer a recall question from stored memory + provenance. */
-export async function handleMemoryRecall(prompt: string): Promise<string> {
+export async function handleMemoryRecall(prompt: string, projectId?: string | null): Promise<string> {
   const terms = prompt
     .replace(/[^a-z0-9 ]/gi, ' ')
     .split(/\s+/)
     .filter((t) => t.length > 3 && !['what', 'happened', 'remember', 'remembered', 'about', 'from', 'with', 'your', 'have', 'last', 'search', 'run', 'inspection', 'task', 'decision', 'find', 'doing', 'were', 'the', 'did', 'our', 'you'].includes(t.toLowerCase()))
     .slice(0, 4);
   const q = terms.join(' ');
+
+  // Project-scoped recall first when an active project exists (P6/P10) —
+  // cross-project contamination is avoided by the hard scope filter.
+  if (projectId) {
+    const { retrieveProjectMemory } = await import('./projectMemory.js');
+    const scoped = retrieveProjectMemory(projectId, q, { limit: 3 });
+    if (scoped.hits.length) {
+      const lines = ['I remember (from this project):'];
+      for (const hit of scoped.hits.slice(0, 3)) {
+        lines.push(`• ${hit.memory.title} — ${hit.memory.summary} ${provenanceLine(hit.memory)}`);
+      }
+      return lines.join('\n');
+    }
+  }
 
   const episodic = q ? memoryStore.search(q, { type: 'episodic', status: 'active', limit: 3 }) : [];
   const decisions = q ? memoryStore.search(q, { type: 'decision', status: 'active', limit: 2 }) : [];
@@ -77,18 +91,22 @@ export async function handleMemoryRecall(prompt: string): Promise<string> {
 }
 
 /** Store a user-stated decision + reply with the transparency indicator. */
-export async function handleDecisionStatement(prompt: string): Promise<string> {
+export async function handleDecisionStatement(prompt: string, projectId?: string | null): Promise<string> {
   const p = prompt.trim();
   const isOutreach = /outreach|contact|email|cold|prospect/i.test(p);
   const title = p.replace(/\.$/, '');
+  // Project-scoped decisions (P5): when an active project exists the decision
+  // is stored in that project's namespace, not the general bucket.
+  const scope = projectId ? `project:${projectId}` : isOutreach ? 'revenue' : 'general';
+  const tags = ['decision', projectId ? 'project' : isOutreach ? 'outreach' : 'general'];
   const m = createMemory({
     type: 'decision',
     title: title.slice(0, 120),
     summary: title.slice(0, 200),
-    content: `User decision: ${p}\nRecorded from conversation; this decision is consulted before future ${isOutreach ? 'revenue/outreach' : ''} actions.`,
-    scope: isOutreach ? 'revenue' : 'general',
-    entities: isOutreach ? ['outreach'] : [],
-    tags: ['decision', isOutreach ? 'outreach' : 'general'],
+    content: `User decision: ${p}\nRecorded from conversation${projectId ? ` for project ${projectId}` : ''}; this decision is consulted before future ${isOutreach ? 'revenue/outreach' : ''} actions.`,
+    scope,
+    entities: isOutreach ? ['outreach'] : projectId ? [projectId] : [],
+    tags,
     confidence: 0.95,
     source: { sourceType: 'conversation' },
   });
@@ -121,26 +139,30 @@ export function isMemoryStore(prompt: string): boolean {
   return /\b(remember|store|save|note down|keep in mind)\b/i.test(p);
 }
 
-export function handleMemoryStore(prompt: string): { reply: string; memoryId: string } {
+export function handleMemoryStore(prompt: string, projectId?: string | null): { reply: string; memoryId: string } {
   const p = prompt.trim().replace(/[.!?]+$/, '');
   let fact = p.replace(STORE_PREFIX_RE, '').replace(STORE_VERB_RE, '').trim();
   if (!fact || fact.length < 2) fact = p;
   // Drop a trailing conversational tail ("...for this conversation", "...ok?")
   fact = fact.replace(/\s+(for|in)\s+(this|the|our)\s+(conversation|chat|session)\b.*$/i, '').trim();
   const title = fact.slice(0, 120);
+  // Project-scoped store (P5): when an active project exists the remembered
+  // fact lands in the project namespace, not the user bucket.
+  const scope = projectId ? `project:${projectId}` : 'user';
+  const tags = ['preference', 'remembered', projectId ? 'project' : 'user'];
   const m = createMemory({
     type: 'preference',
     title,
     summary: fact.slice(0, 200),
-    content: `User preference/remembered fact: ${fact}\nStored from conversation (STORE request). Available to Jarvis in future conversations via relevant-memory retrieval.`,
-    scope: 'user',
-    entities: [],
-    tags: ['preference', 'remembered'],
+    content: `User preference/remembered fact: ${fact}\nStored from conversation (STORE request)${projectId ? ` for project ${projectId}` : ''}. Available to Jarvis in future conversations via relevant-memory retrieval.`,
+    scope,
+    entities: projectId ? [projectId] : [],
+    tags,
     confidence: 0.9,
     source: { sourceType: 'conversation' },
   });
   return {
-    reply: `I've saved that to memory: ${fact}. (preference memory, scope user — available in future conversations)`,
+    reply: `I've saved that to memory: ${fact}. (preference memory, scope ${scope} — available in future conversations)`,
     memoryId: m.id,
   };
 }

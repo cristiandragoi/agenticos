@@ -313,15 +313,50 @@ export class JarvisOrchestrator {
   }
 
   private async handleMemory(conversationId: string, prompt: string, operationId?: string) {
-    const content = 'Memory indexing service is currently offline.';
-    await conversationService.appendMessage({
-      conversationId,
-      role: 'system',
-      messageType: 'error',
-      content,
-      metadata: operationId ? { operationId } : undefined
-    });
-    return { route: 'memory', status: 'unavailable', error: content, operationId };
+    try {
+      let activeProjectId: string | null = null;
+      try {
+        const { projectsStore } = await import('../../services/projectsStore.js');
+        activeProjectId = projectsStore.getActiveProjectId();
+        if (activeProjectId && !projectsStore.getProject(activeProjectId)) activeProjectId = null;
+      } catch { /* project store unavailable — global memory only */ }
+      const {
+        isMemoryStore, handleMemoryStore, isMemoryRecall, isDecisionStatement,
+        handleMemoryRecall, handleDecisionStatement,
+      } = await import('./memoryRecall.js');
+      const { isContinuationRequest, resolveContinuation, formatContinuation } = await import('./projectMemory.js');
+
+      let reply: string;
+      if (isContinuationRequest(prompt)) {
+        reply = formatContinuation(resolveContinuation(activeProjectId));
+      } else if (isMemoryStore(prompt)) {
+        reply = handleMemoryStore(prompt, activeProjectId).reply;
+      } else if (isDecisionStatement(prompt)) {
+        reply = await handleDecisionStatement(prompt, activeProjectId);
+      } else if (isMemoryRecall(prompt)) {
+        reply = await handleMemoryRecall(prompt, activeProjectId);
+      } else {
+        reply = 'I do not have a memory matching that yet. Try "remember that …" to store a fact, or ask "what do you remember about …".';
+      }
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(operationId ? { operationId } : {}), provider: 'agentic-os', model: 'memory', intent: { type: 'memory' } }
+      });
+      return { route: 'memory', status: 'completed', operationId };
+    } catch (err: any) {
+      const content = `Memory lookup failed: ${err?.message}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content,
+        metadata: operationId ? { operationId } : undefined
+      });
+      return { route: 'memory', status: 'failed', error: content, operationId };
+    }
   }
 
   /**
