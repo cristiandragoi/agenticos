@@ -122,6 +122,38 @@ function resolveHermesApiKey(): string {
   }
 }
 
+/**
+ * Model-truth resolution (read-only, best effort). Runs created with
+ * `model: <profile>` use the profile's configured provider/model — this
+ * reads that pair from the profile config so RunLedger can report the
+ * ACTUAL provider/model instead of the profile alias. Env overrides
+ * (HERMES_RUN_PROVIDER/HERMES_RUN_MODEL) win when set. No secrets touched.
+ */
+export function resolveHermesModelTruth(): { provider: string | null; model: string | null } {
+  if (process.env.HERMES_RUN_PROVIDER || process.env.HERMES_RUN_MODEL) {
+    return {
+      provider: process.env.HERMES_RUN_PROVIDER || null,
+      model: process.env.HERMES_RUN_MODEL || null,
+    };
+  }
+  try {
+    const localAppData = process.env.LOCALAPPDATA || '';
+    if (!localAppData) return { provider: null, model: null };
+    const cfgPath = path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, 'config.yaml');
+    if (!fs.existsSync(cfgPath)) return { provider: null, model: null };
+    const content = fs.readFileSync(cfgPath, 'utf8');
+    // CRLF-tolerant: Windows config files carry \r\n.
+    const modelBlock = content.match(/^model:\r?\n((?:[ \t]+[^\r\n]*\r?\n|\r?\n)*)/m);
+    if (!modelBlock) return { provider: null, model: null };
+    const block = modelBlock[1];
+    const provider = block.match(/^[ \t]+provider:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || null;
+    const model = block.match(/^[ \t]+default:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || null;
+    return { provider, model };
+  } catch {
+    return { provider: null, model: null };
+  }
+}
+
 class HermesApiService extends EventEmitter {
   private runs = new Map<string, HermesRunRecord>();
   private seq = 0;

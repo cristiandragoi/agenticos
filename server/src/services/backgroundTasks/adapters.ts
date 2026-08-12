@@ -120,6 +120,27 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
         // Requirement 13 + GateRunner v1 (P10): completion is gated on
         // verification — Hermes "done" is not completion when gates exist.
         void (async () => {
+          // Model truth snapshot (smallest fix): the hermes run record stores
+          // the PROFILE alias (`model: backend-engineer`, provider '') — the
+          // actual provider/model come from the profile config (read-only
+          // resolver). Persist that truth into the task record so RunLedger
+          // reports it even after restarts (hermes run records are in-memory).
+          try {
+            const { resolveHermesModelTruth } = await import('../hermesApiService.js');
+            const truth = resolveHermesModelTruth();
+            const live = backgroundTaskRepo.getTask(task.taskId);
+            if (live && !TERMINAL_STATUSES.has(live.status) && (truth.provider || truth.model)) {
+              backgroundTaskRepo.updateTask(task.taskId, {
+                metadata: {
+                  ...(live.metadata || {}),
+                  assignedProvider: (live.metadata as any)?.assignedProvider || truth.provider || null,
+                  assignedModel: (live.metadata as any)?.assignedModel || truth.model || null,
+                  effectiveProvider: (live.metadata as any)?.effectiveProvider || truth.provider || null,
+                  effectiveModel: (live.metadata as any)?.effectiveModel || truth.model || null,
+                },
+              });
+            }
+          } catch { /* truth snapshot is best-effort */ }
           const { runTaskGates, parseGateConfigs } = await import('../gates/gateRunner.js');
           const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;
           if (!hasRequired) {
@@ -250,6 +271,28 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
         // GateRunner v1 (P9): execution finished → VERIFYING → required gates
         // → only then completion. The goal's summary is NOT sufficient.
         void (async () => {
+          // Model truth snapshot (smallest fix): persist the routingLedger
+          // requested/resolved provider+model into the task record so
+          // RunLedger reports the truth even after restarts (routingLedger
+          // itself is in-memory only).
+          try {
+            const { routingLedger } = await import('../routingLedger.js');
+            const rec = routingLedger.get(goalId);
+            if (rec) {
+              const live = backgroundTaskRepo.getTask(task.taskId);
+              if (live && !TERMINAL_STATUSES.has(live.status)) {
+                backgroundTaskRepo.updateTask(task.taskId, {
+                  metadata: {
+                    ...(live.metadata || {}),
+                    assignedProvider: (live.metadata as any)?.assignedProvider || rec.requestedProvider || null,
+                    assignedModel: (live.metadata as any)?.assignedModel || rec.requestedModel || null,
+                    effectiveProvider: (live.metadata as any)?.effectiveProvider || rec.resolvedProvider || null,
+                    effectiveModel: (live.metadata as any)?.effectiveModel || rec.resolvedModel || null,
+                  },
+                });
+              }
+            }
+          } catch { /* truth snapshot is best-effort */ }
           const { runTaskGates } = await import('../gates/gateRunner.js');
           const { parseGateConfigs } = await import('../gates/gateRunner.js');
           const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;

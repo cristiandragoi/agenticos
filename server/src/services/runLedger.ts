@@ -10,6 +10,8 @@ import { backgroundTaskRepo, ensureBackgroundTaskTables } from './backgroundTask
 import { TERMINAL_STATUSES } from './backgroundTasks/types.js';
 import type { BackgroundTaskRecord, TaskEventKind } from './backgroundTasks/types.js';
 import type { GateResult } from './gates/types.js';
+import { routingLedger } from './routingLedger.js';
+import { hermesApiService, resolveHermesModelTruth } from './hermesApiService.js';
 
 export type RunLedgerStatus =
   | 'queued' | 'planning' | 'running' | 'waiting' | 'verifying'
@@ -87,6 +89,48 @@ function toLedgerStatus(t: BackgroundTaskRecord): RunLedgerStatus {
 function entryFromTask(t: BackgroundTaskRecord): RunLedgerEntry {
   const m = meta(t);
   const gateResults: GateResult[] | undefined = Array.isArray(m.gateResults) ? m.gateResults : undefined;
+  // Model truth (smallest fix): task metadata carries it for Jarvis-routed
+  // delegations. REST-created tasks have it recorded elsewhere by the
+  // authoritative subsystems — read it back, never invent it:
+  //   - CodeX goals: routingLedger (requested/resolved provider+model per goal)
+  //   - Hermes runs: the hermes run record itself (provider + model)
+  let assignedProvider = m.assignedProvider || m.agentProvider || undefined;
+  let assignedModel = m.assignedModel || m.agentModel || undefined;
+  let effectiveProvider = m.effectiveProvider || m.resolvedProvider || undefined;
+  let effectiveModel = m.effectiveModel || m.resolvedModel || undefined;
+  if (!effectiveProvider && t.linkedRunId) {
+    try {
+      if (t.worker === 'codex') {
+        const rec = routingLedger.get(t.linkedRunId);
+        if (rec) {
+          assignedProvider = assignedProvider || rec.requestedProvider || undefined;
+          assignedModel = assignedModel || rec.requestedModel || undefined;
+          effectiveProvider = effectiveProvider || rec.resolvedProvider || undefined;
+          effectiveModel = effectiveModel || rec.resolvedModel || undefined;
+        }
+      } else if (t.worker === 'hermes') {
+        const rec = hermesApiService.getRun?.(t.linkedRunId);
+        if (rec) {
+          assignedProvider = assignedProvider || rec.provider || undefined;
+          assignedModel = assignedModel || rec.model || undefined;
+          effectiveProvider = effectiveProvider || rec.provider || undefined;
+          effectiveModel = effectiveModel || rec.model || undefined;
+        }
+        // The hermes run record stores the PROFILE alias (model:
+        // <profile>, provider: '') — the ACTUAL provider/model come from the
+        // profile config. Resolve whenever concrete values are still missing
+        // (also covers post-restart queries when the in-memory run record is
+        // gone and no snapshot exists yet).
+        if (!effectiveProvider || !effectiveModel) {
+          const truth = resolveHermesModelTruth();
+          assignedProvider = assignedProvider || truth.provider || undefined;
+          assignedModel = assignedModel || truth.model || undefined;
+          effectiveProvider = truth.provider || effectiveProvider || undefined;
+          effectiveModel = truth.model || effectiveModel || undefined;
+        }
+      }
+    } catch { /* truth unavailable — leave metadata values as-is */ }
+  }
   return {
     runId: t.linkedRunId || t.taskId,
     taskId: t.taskId,
