@@ -693,15 +693,25 @@ export class IntentRouter {
     if (isProjectStateQuestion) {
       return direct('conversation', 0.62, 'Project/task status question — direct conversation');
     }
+    // Only ACTIONABLE project/plan commands route to the Hermes orchestration
+    // worker. A bare keyword mention ("My project codename is Atlas.",
+    // "What is the goal?") is conversation — the action verb is what makes it
+    // an orchestration command ("create a plan", "update the milestone",
+    // "track execution").
+    const projectActionSignal =
+      hasWriteVerb ||
+      hasAny('track', 'plan', 'schedule', 'assign', 'start', 'stop', 'pause', 'resume', 'execute', 'show', 'list', 'create a plan', 'update the') ||
+      /\b(status of|set up|setup)\b/i.test(p);
     if (
-      p.includes('project') ||
-      p.includes('goal') ||
-      p.includes('milestone') ||
-      p.includes('task') ||
-      p.includes('dependency') ||
-      p.includes('dependencies') ||
-      p.includes('track execution') ||
-      p.includes('status of the plan')
+      projectActionSignal &&
+      (p.includes('project') ||
+        p.includes('goal') ||
+        p.includes('milestone') ||
+        p.includes('task') ||
+        p.includes('dependency') ||
+        p.includes('dependencies') ||
+        p.includes('track execution') ||
+        p.includes('status of the plan'))
     ) {
       return operational('hermes', 'pipeline_operation', 0.90, 'Project/pipeline orchestration command detected', 'Jarvis', ['Check orchestration service availability', 'Route to project execution subsystem'], false, hasWriteVerb);
     }

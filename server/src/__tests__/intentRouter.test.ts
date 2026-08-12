@@ -55,6 +55,25 @@ describe('IntentRouter — required routing cases', () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.8);
   });
 
+  it('does NOT route a conversational project mention to Hermes (no unnecessary delegation)', async () => {
+    const result = await router.routeIntent('My project codename is Atlas.');
+    expect(result.route).not.toBe('hermes');
+    expect(result.route).toBe('direct');
+    expect(result.mode).toBe('direct_conversation');
+  });
+
+  it('does NOT route a bare goal statement to Hermes (conversation, not orchestration)', async () => {
+    const result = await router.routeIntent('My goal is to ship the dashboard this quarter.');
+    expect(result.route).toBe('direct');
+  });
+
+  it('still routes ACTIONABLE project commands to Hermes', async () => {
+    const r1 = await router.routeIntent('Create a plan for the AgenticOS project');
+    expect(r1.route).toBe('hermes');
+    const r2 = await router.routeIntent('Track execution of the Q3 milestone');
+    expect(r2.route).toBe('hermes');
+  });
+
   it('routes clear Memory request', async () => {
     const result = await router.routeIntent('Remember my preferences for dark mode');
     expect(result.route).toBe('memory');
