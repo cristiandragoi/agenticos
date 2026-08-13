@@ -80,9 +80,13 @@ export class CodexService {
     const startTime = Date.now();
     try {
       const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
+      // Recovery/execution pinning (RecoveryPolicy V1): the goal's explicit
+      // overrides WIN over the assignment — EFFECTIVE model truth, never a
+      // rewrite of the ASSIGNED model.
+      const execOpts = goalStore.get(goalId)?.executionOptions || {};
       if (assignment) {
-        currentProvider = assignment.providerId;
-        currentModel = assignment.modelId || 'auto';
+        currentProvider = execOpts.providerOverride || assignment.providerId;
+        currentModel = execOpts.modelOverride || assignment.modelId || 'auto';
       }
 
       const systemPrompt = `You are a CodeX agent. Keep plans, explanations, reports, and execution summaries strictly in English unless the user explicitly requests another language.
@@ -93,7 +97,11 @@ Do not execute the steps yet, just outline the plan.`;
         systemPrompt, 
         prompt: `User Request: ${prompt}\nWorkspace: ${workspacePath}`, 
         agentId: 'agent-codex',
-        timeoutMs: 3000000
+        timeoutMs: 3000000,
+        // Pinning: pass the recovery-effective provider/model into the REAL
+        // LLM call (llmChat routes ChatRequest.modelId when model is set).
+        ...(execOpts.providerOverride ? { provider: execOpts.providerOverride } : {}),
+        ...(execOpts.modelOverride ? { model: execOpts.modelOverride } : {}),
       });
       
       const durationMs = Date.now() - startTime;

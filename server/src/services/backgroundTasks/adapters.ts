@@ -133,6 +133,17 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
       prompt: task.objective || task.originalRequest,
       cardId: task.linkedBoardCardId || undefined,
       instructions: `Report your findings concisely. Do not ask questions.\n${workspaceInstruction}`,
+      // Recovery pinning (P4/P6): pass the recovery-effective provider/model
+      // when present (revalidated against policy below — Hermes dispatch is
+      // already refused outright when mayLeaveMachine is false).
+      ...(() => {
+        const pin = resolveRecoveryPin(task, { allowEscalation: mayLeaveMachine(policy), disableFallback: !mayLeaveMachine(policy) });
+        if ('blockedReason' in pin) return {};
+        return {
+          ...(pin.providerOverride ? { provider: pin.providerOverride } : {}),
+          ...(pin.modelOverride ? { model: pin.modelOverride } : {}),
+        };
+      })(),
     });
 
     backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: record.id });
@@ -195,14 +206,28 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
               });
             } else {
               mgr.appendEvent(task.taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', { allRequiredPassed: false });
+              // LocalHarness (P6/P7): bounded gate rework — structured
+              // evidence to the worker, rework ONLY if budget remains.
+              const failedGate = set.results.filter((r) => r.status === 'failed')[0];
+              void mgr.recoverAfterFailure(task.taskId, { code: 'GATE_FAILURE', message: `Gate failed: ${failedGate?.gateId ?? 'required-gate'}` }, {
+                gateEvidence: failedGate
+                  ? { gateId: failedGate.gateId, reason: failedGate.reason || 'required gate failed', attempt: failedGate.attempt ?? 1 }
+                  : undefined,
+              });
             }
           } catch (e: any) {
             mgr.transition(task.taskId, 'blocked', { verificationState: 'failed', blocker: `Verification error: ${e?.message}`, resumable: true });
           }
         })();
-      } else if (rec.status === 'failed' || rec.status === 'cancelled') {
-        mgr.transition(task.taskId, rec.status === 'cancelled' ? 'cancelled' : 'failed', {
-          lastError: rec.errorMessage || rec.finalText || `Hermes run ${rec.status}.`,
+      } else if (rec.status === 'failed') {
+        // LocalHarness (P2): Hermes execution failures route through the same
+        // recovery entry point as CodeX. recoverAfterFailure decides within
+        // budget/privacy bounds — retry/escalate → re-queued, otherwise →
+        // blocked with a truthful reason. Never completes on failure.
+        void mgr.recoverAfterFailure(task.taskId, rec.errorMessage || rec.finalText || 'Hermes run failed.');
+      } else if (rec.status === 'cancelled') {
+        mgr.transition(task.taskId, 'cancelled', {
+          lastError: rec.errorMessage || rec.finalText || 'Hermes run cancelled.',
         });
       }
     };
@@ -259,6 +284,34 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
 
 // ── CODEX ADAPTER ───────────────────────────────────────────────────────────
 
+/**
+ * Recovery pinning (RecoveryPolicy V1, P4/P7): extract the recovery-effective
+ * provider/model from task metadata for re-dispatch, REVALIDATING against the
+ * runtime/privacy policy. A pinned 'cloud' marker is only honored when the
+ * policy allows escalation; otherwise the pin is refused (never dispatched).
+ * Returns the override map, or { blockedReason } when the pin violates policy.
+ */
+export function resolveRecoveryPin(
+  task: BackgroundTaskRecord,
+  policyFlags: { allowEscalation: boolean; disableFallback: boolean },
+): { providerOverride?: string; modelOverride?: string } | { blockedReason: string } {
+  const rec = ((task.metadata || {}).recovery || {}) as Record<string, any>;
+  const effProvider = typeof rec.effectiveProvider === 'string' ? rec.effectiveProvider : null;
+  const effModel = typeof rec.effectiveModel === 'string' ? rec.effectiveModel : null;
+  if (!effProvider && !effModel) return {};
+
+  // 'cloud' is the harness marker for the gateway's policy-permitted
+  // escalation chain (no literal cloud model id is known to the harness).
+  const cloudPinned = effProvider === 'cloud' || String(effModel || '').startsWith('cloud');
+  if (cloudPinned && !policyFlags.allowEscalation) {
+    return { blockedReason: `Recovery pinning rejected by policy: cloud escalation is forbidden (${effProvider}/${effModel}).` };
+  }
+  return {
+    ...(effProvider && effProvider !== 'cloud' ? { providerOverride: effProvider } : {}),
+    ...(effModel && !String(effModel).startsWith('cloud') ? { modelOverride: effModel } : {}),
+  };
+}
+
 function goalStateToTaskStatus(state: string): BackgroundTaskRecord['status'] | null {
   switch (state) {
     case 'queued': return 'queued';
@@ -298,6 +351,19 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
     });
     mgr.appendEvent(task.taskId, 'task.progress', `Policy: privacy=${policy.privacy}, runtime=${policy.runtime}, escalation=${policy.cloudEscalation}`, { policy: policyTruth });
     const approvalPolicy = (task.metadata?.approvalPolicy as string) === 'auto' ? 'auto' : 'manual';
+    // Recovery pinning (P4/P5/P7): the recovery-effective model must ACTUALLY
+    // be used by the re-run. Policy revalidation happens here — a pinned
+    // cloud model is refused when escalation is forbidden.
+    const pin = resolveRecoveryPin(task, policyFlags);
+    if ('blockedReason' in pin) {
+      mgr.appendEvent(task.taskId, 'task.progress', pin.blockedReason, {});
+      mgr.transition(task.taskId, 'blocked', {
+        blocker: pin.blockedReason,
+        currentStage: 'blocked',
+        resumable: true,
+      });
+      return { ok: false, error: pin.blockedReason };
+    }
     const goalId = await codexService.createGoal(
       task.objective || task.originalRequest,
       workspacePath,
@@ -307,9 +373,13 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
       undefined,
       // Policy-driven execution options: disableFallback keeps localOnly
       // content local; allowCloudEscalation gates the planning escalation.
+      // Recovery overrides (providerOverride/modelOverride) pin the
+      // recovery-effective model into the actual goal run.
       {
         disableFallback: policyFlags.disableFallback,
         allowCloudEscalation: policyFlags.allowEscalation,
+        ...(pin.providerOverride ? { providerOverride: pin.providerOverride } : {}),
+        ...(pin.modelOverride ? { modelOverride: pin.modelOverride } : {}),
       },
     );
 
@@ -498,13 +568,16 @@ export async function dispatchResearchTask(task: BackgroundTaskRecord): Promise<
     mgr.transition(task.taskId, 'running', { currentStage: 'running', progressMessage: 'Research brief executing.' });
 
     // The workflow runs async; poll the brief for terminal status.
+    // Recovery semantics (P3): the research pipeline exposes NO
+    // model/provider/runtime override surface, so recovery can only classify
+    // and block honestly — escalation is RECOVERY UNSUPPORTED FOR research.
     executeResearchBriefWorkflow(briefId, runId)
       .then(() => {
         const brief = jsonDb.researchBriefs.get(briefId) as any;
         const current = backgroundTaskRepo.getTask(task.taskId);
         if (!current || TERMINAL_STATUSES.has(current.status)) return;
         if (brief?.status === 'failed') {
-          mgr.transition(task.taskId, 'failed', { lastError: 'Research brief failed.' });
+          void mgr.recoverAfterFailure(task.taskId, 'Research brief failed.');
         } else {
           mgr.verifyCompletion(task.taskId, {
             resultText: `Research brief "${task.title}" completed (status: ${brief?.status || 'exported'}).`,
@@ -516,7 +589,7 @@ export async function dispatchResearchTask(task: BackgroundTaskRecord): Promise<
       .catch((err: any) => {
         const current = backgroundTaskRepo.getTask(task.taskId);
         if (!current || TERMINAL_STATUSES.has(current.status)) return;
-        mgr.transition(task.taskId, 'failed', { lastError: `Research workflow error: ${err?.message}` });
+        void mgr.recoverAfterFailure(task.taskId, `Research workflow error: ${err?.message}`);
       });
 
     return { ok: true };
@@ -552,14 +625,52 @@ export async function dispatchTeamTask(task: BackgroundTaskRecord, workspacePath
       const mapped = goalStateToTaskStatus(goal.status);
       if (!mapped || mapped === current.status) return;
       if (mapped === 'completed') {
-        mgr.verifyCompletion(task.taskId, {
-          resultText: goal.runSummary?.summary || 'Agent Team completed.',
-          readOnly: false,
-          verificationNote: 'Agent Team goal completed.',
-        });
-      } else {
-        mgr.transition(task.taskId, mapped, { currentStage: goal.status });
+        // GateRunner v1 (P7): team completion is gated the same way as CodeX —
+        // execution finished → VERIFYING → required gates → only then complete.
+        void (async () => {
+          const { runTaskGates, parseGateConfigs } = await import('../gates/gateRunner.js');
+          const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;
+          if (!hasRequired) {
+            mgr.verifyCompletion(task.taskId, {
+              resultText: goal.runSummary?.summary || 'Agent Team completed.',
+              readOnly: false,
+              verificationNote: 'Agent Team goal completed.',
+            });
+            return;
+          }
+          mgr.appendEvent(task.taskId, 'task.verification_started', 'Agent Team execution finished — running required gates.', {});
+          try {
+            const set = await runTaskGates(task.taskId);
+            if (set.allRequiredPassed) {
+              const gateSummary = set.results.filter((r) => r.status === 'passed').map((r) => r.gateId).join(', ');
+              mgr.verifyCompletion(task.taskId, {
+                resultText: goal.runSummary?.summary || 'Agent Team completed.',
+                readOnly: false,
+                verificationNote: `Agent Team completed and verified: ${gateSummary || 'gates passed'}.`,
+              });
+            } else {
+              mgr.appendEvent(task.taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', { allRequiredPassed: false });
+              const failedGate = set.results.filter((r) => r.status === 'failed')[0];
+              void mgr.recoverAfterFailure(task.taskId, { code: 'GATE_FAILURE', message: `Gate failed: ${failedGate?.gateId ?? 'required-gate'}` }, {
+                gateEvidence: failedGate
+                  ? { gateId: failedGate.gateId, reason: failedGate.reason || 'required gate failed', attempt: failedGate.attempt ?? 1 }
+                  : undefined,
+              });
+            }
+          } catch (e: any) {
+            mgr.transition(task.taskId, 'blocked', { verificationState: 'failed', blocker: `Verification error: ${e?.message}`, resumable: true });
+          }
+        })();
+        return;
       }
+      if (mapped === 'failed') {
+        // LocalHarness (P3): team goals are codex-backed — recovery via the
+        // same entry point as CodeX (retry/escalate → re-queued, else blocked).
+        const err = goal.lastError || goal.error || goal.runSummary?.error || 'Agent Team goal failed';
+        void mgr.recoverAfterFailure(task.taskId, err);
+        return;
+      }
+      mgr.transition(task.taskId, mapped, { currentStage: goal.status });
     };
     goalStore.on('goal:updated', goalListener);
 

@@ -522,13 +522,17 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   }
 
   if (codexAssignment) {
-    currentProvider = codexAssignment.providerId;
-    currentModel = codexAssignment.modelId || 'auto';
+    // Recovery/execution pinning (RecoveryPolicy V1): explicit overrides WIN
+    // over the normal assignment — this is the EFFECTIVE model used by the
+    // run. The original ASSIGNMENT is never rewritten (RunLedger truth
+    // shows assigned vs effective). Policy revalidation happens at dispatch.
+    currentProvider = goal.executionOptions?.providerOverride || codexAssignment.providerId;
+    currentModel = goal.executionOptions?.modelOverride || codexAssignment.modelId || 'auto';
   }
 
   // Detect whether the assigned provider is a local Ollama model based on resolved planning provider.
-  const resolvedPlanningProviderId = codexAssignment?.providerId
-    ? mapCatalogToGatewayId(codexAssignment.providerId)
+  const resolvedPlanningProviderId = (goal.executionOptions?.providerOverride || codexAssignment?.providerId)
+    ? mapCatalogToGatewayId(goal.executionOptions?.providerOverride || codexAssignment!.providerId)
     : undefined;
   const isLocalPlanningProvider = resolvedPlanningProviderId === 'ollama';
 

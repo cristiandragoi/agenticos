@@ -869,6 +869,8 @@ export class BackgroundTaskManager extends EventEmitter {
       startedAtMs: used.startedAtMs,
       lastDecision: decision.kind,
       lastReason: decision.reason,
+      requestedProvider: decision.effectiveProvider ?? null,
+      requestedModel: decision.effectiveModel ?? null,
       effectiveProvider: decision.effectiveProvider ?? m.effectiveProvider ?? null,
       effectiveModel: decision.effectiveModel ?? m.effectiveModel ?? null,
       escalationOccurred: m.escalationOccurred ?? decision.escalationOccurred,
@@ -909,6 +911,16 @@ export class BackgroundTaskManager extends EventEmitter {
       });
       // Re-dispatch through the existing worker queue.
       void this.pumpQueuedForWorker(task.worker);
+      // ACTIVE RUN truth (P9): surface the recovery state through the
+      // existing executionState surface — no new UI.
+      try {
+        const opId = (task.metadata as any)?.operationId || `${task.conversationId}:${task.worker}`;
+        executionState.update(opId, {
+          status: 'WAITING_FOR_MODEL',
+          currentAction: recoveryStatusLabel(decision),
+          note: decision.reason,
+        });
+      } catch { /* best effort */ }
       this.appendEvent(taskId, 'run.recovery.completed', `Recovery step scheduled: ${decision.kind}.`, {
         nextAttempt: nextUsed.executionAttempts,
       });
@@ -928,7 +940,8 @@ export class BackgroundTaskManager extends EventEmitter {
       });
       // ACTIVE RUN truth — clear the shared execution record for this op.
       try {
-        if (task.conversationId) executionState.end(`${task.conversationId}:${task.worker}`, 'FAILED', decision.reason);
+        const opId = (task.metadata as any)?.operationId || `${task.conversationId}:${task.worker}`;
+        executionState.end(opId, 'FAILED', decision.reason);
       } catch { /* best effort */ }
       return decision;
     }

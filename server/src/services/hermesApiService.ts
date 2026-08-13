@@ -202,12 +202,18 @@ class HermesApiService extends EventEmitter {
    * b-hermes "Hermes Workspace", In Progress lane), and attach the SSE
    * event consumer. Returns the AgenticOS run record.
    */
-  async createRun(opts: { prompt: string; cardId?: string; instructions?: string }): Promise<HermesRunRecord> {
+  async createRun(opts: { prompt: string; cardId?: string; instructions?: string; provider?: string; model?: string }): Promise<HermesRunRecord> {
     const key = resolveHermesApiKey();
     if (!key) throw new Error('HERMES_API_KEY / API_SERVER_KEY not configured');
     const baseUrl = await resolveHermesUrl();
     const prompt = (opts.prompt || '').trim();
     if (!prompt) throw new Error('prompt is required');
+
+    // Per-run override (RecoveryPolicy V1): a caller-provided provider/model
+    // (e.g. the recovery-effective model) wins over the process env defaults.
+    // Never rewritten: the ASSIGNED model stays on the task record.
+    const provider = opts.provider || HERMES_RUN_PROVIDER || undefined;
+    const model = opts.model || HERMES_RUN_MODEL || undefined;
 
     const body: Record<string, unknown> = {
       input: prompt,
@@ -215,8 +221,8 @@ class HermesApiService extends EventEmitter {
       // provider) so the profile's configured provider/model is used. An
       // explicit provider is only sent when the operator sets one — an
       // unknown provider name fails at run start.
-      ...(HERMES_RUN_PROVIDER ? { provider: HERMES_RUN_PROVIDER } : {}),
-      model: HERMES_RUN_MODEL,
+      ...(provider ? { provider } : {}),
+      ...(model ? { model } : {}),
     };
     if (opts.instructions) body.instructions = opts.instructions;
 
