@@ -7,11 +7,17 @@
  * surface). The fix uses Node fs APIs only: regex semantics on every OS,
  * no shell, spaces/special chars safe, bounded.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { searchFilesTool } from '../services/agent/tools/fileTool.js';
+import { searchFilesTool, resolveBoundedSearchPath } from '../services/agent/tools/fileTool.js';
+
+// The tool's workspace boundary resolves against workspaceStore; mock the
+// authoritative root to the test fixture so escape cases are deterministic.
+vi.mock('../services/workspaceStore.js', () => ({
+  getWorkspaceRoot: () => fixtureRoot,
+}));
 
 let fixtureRoot = '';
 
@@ -106,5 +112,75 @@ describe('search_files files — glob name search', () => {
     const res = await run({ target: 'files', pattern: '*', path: fixtureRoot, limit: 1 });
     expect(res.matches.length).toBeLessThanOrEqual(1);
     expect(res.truncated).toBe(true);
+  });
+});
+
+describe('search_files workspace boundary (security follow-up)', () => {
+  it('1. normal path inside workspace → allowed', async () => {
+    const res = await run({ target: 'content', pattern: 'gamma', path: path.join(fixtureRoot, 'nested') });
+    expect(res.error).toBeUndefined();
+    expect(res.matches.some((m: string) => m.includes('gamma.ts'))).toBe(true);
+  });
+
+  it('2. ../ traversal → denied', async () => {
+    const res = await run({ target: 'content', pattern: 'gamma', path: '..' });
+    expect(res.error).toMatch(/outside the workspace/i);
+  });
+
+  it('3. absolute path outside workspace → denied', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'filetool-outside-'));
+    try {
+      const res = await run({ target: 'content', pattern: 'x', path: outside });
+      expect(res.error).toMatch(/outside the workspace/i);
+    } finally {
+      try { fs.rmSync(outside, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
+  it('4. symlink escape → denied (walker never follows symlinks)', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'filetool-link-'));
+    fs.writeFileSync(path.join(outside, 'secret.txt'), 'linkEscapeMarker\n', 'utf-8');
+    const linkPath = path.join(fixtureRoot, 'escape-link');
+    let linkCreated = false;
+    try {
+      fs.symlinkSync(outside, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+      linkCreated = true;
+    } catch {
+      // No symlink privilege — the walker still must not crash or escape.
+    }
+    try {
+      const res = await run({ target: 'content', pattern: 'linkEscapeMarker', path: fixtureRoot });
+      expect(res.error).toBeUndefined();
+      // lstat-based dirents: symlinked dirs are never descended into.
+      expect(res.matches.some((m: string) => m.includes('escape-link'))).toBe(false);
+    } finally {
+      if (linkCreated) { try { fs.rmSync(linkPath, { recursive: true, force: true }); } catch { /* ignore */ } }
+      try { fs.rmSync(outside, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
+  it('5. Windows path variant outside workspace → denied', async () => {
+    const rootDrive = path.parse(fixtureRoot).root; // e.g. C:\
+    const otherDrive = rootDrive.toLowerCase() === 'c:\\' ? 'D:\\' : 'C:\\';
+    const res = await run({ target: 'content', pattern: 'x', path: path.join(otherDrive, 'somewhere') });
+    expect(res.error).toMatch(/outside the workspace/i);
+  });
+
+  it('6. WSL/POSIX path variant outside workspace → denied', async () => {
+    const res = await run({ target: 'content', pattern: 'x', path: '/mnt/c/Windows' });
+    expect(res.error).toMatch(/outside the workspace/i);
+  });
+
+  it('resolveBoundedSearchPath: relative anchors at root; root itself allowed', () => {
+    const inside = resolveBoundedSearchPath('nested', fixtureRoot);
+    expect('searchPath' in inside).toBe(true);
+    if ('searchPath' in inside) expect(inside.searchPath).toBe(path.resolve(fixtureRoot, 'nested'));
+
+    const rootItself = resolveBoundedSearchPath(undefined, fixtureRoot);
+    expect('searchPath' in rootItself).toBe(true);
+    if ('searchPath' in rootItself) expect(rootItself.searchPath).toBe(fixtureRoot);
+
+    const escaped = resolveBoundedSearchPath(path.join(fixtureRoot, '..'), fixtureRoot);
+    expect('error' in escaped).toBe(true);
   });
 });

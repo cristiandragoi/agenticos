@@ -2,6 +2,35 @@
  * File I/O tool — read and write text files on the host filesystem.
  */
 import { readFile, writeFile, access } from 'node:fs/promises';
+import path from 'node:path';
+import { getWorkspaceRoot } from '../../workspaceStore.js';
+
+/**
+ * Resolve the search_files path argument against the authoritative
+ * workspace root (workspaceStore.getWorkspaceRoot — same source as
+ * WorkspaceIndexer). Relative paths anchor at the root; absolute paths are
+ * allowed only when they resolve INSIDE the root; traversal and outside
+ * paths are denied. Returns the bounded search path or a truthful error.
+ */
+export function resolveBoundedSearchPath(requested: string | undefined, workspaceRoot: string):
+  { searchPath: string } | { error: string } {
+  if (!workspaceRoot) {
+    // No authoritative workspace configured — nothing to bound against.
+    // Preserve the legacy cwd-relative default; agents operate inside a
+    // configured workspace in practice (workspaceStore always resolves a
+    // root via selection → env → git detection).
+    return { searchPath: (requested || '').trim() || '.' };
+  }
+  const req = (requested || '').trim();
+  if (!req) return { searchPath: workspaceRoot };
+  const resolved = path.isAbsolute(req) ? path.normalize(req) : path.resolve(workspaceRoot, req);
+  const rel = path.relative(workspaceRoot, resolved);
+  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  if (!inside) {
+    return { error: `Path outside the workspace is not allowed: ${requested}` };
+  }
+  return { searchPath: resolved };
+}
 
 export const readFileTool = {
   name: 'read_file',
@@ -76,11 +105,17 @@ export const searchFilesTool = {
   handler: async (args: Record<string, unknown>): Promise<string> => {
     const pattern = args.pattern as string;
     const target = (args.target as string) || 'content';
-    const searchPath = (args.path as string) || '.';
     const limit = Math.min((args.limit as number) || 50, 200);
     const fileGlob = args.file_glob as string | undefined;
 
     if (!pattern) return JSON.stringify({ error: 'No pattern provided' });
+
+    // Workspace boundary (same authoritative semantics as WorkspaceIndexer):
+    // relative paths anchor at the workspace root; absolute paths must be
+    // inside it; traversal/outside paths are denied with a truthful error.
+    const boundary = resolveBoundedSearchPath(args.path as string | undefined, getWorkspaceRoot());
+    if ('error' in boundary) return JSON.stringify({ error: boundary.error });
+    const searchPath = boundary.searchPath;
 
     // Cross-platform content search: the pattern is ALWAYS a regex, on every
     // OS (previously Windows used findstr /c: literal while Unix used grep
