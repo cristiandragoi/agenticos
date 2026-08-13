@@ -79,21 +79,43 @@ async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0])
   for (let attempt = 0; attempt <= 1; attempt++) {
     let sawError = false;
     let errorChunk: any = null;
-    for await (const chunk of llmChatStream(opts)) {
-      if (chunk.type === 'error') {
-        sawError = true;
-        errorChunk = chunk;
-        break;
+    try {
+      for await (const chunk of llmChatStream(opts)) {
+        if (chunk.type === 'error') {
+          sawError = true;
+          errorChunk = chunk;
+          break;
+        }
+        // llmChatStream surfaces provider failures as a *token* chunk whose
+        // content starts with '[Stream Error: ' (see llmGateway catch) —
+        // detect that marker and treat it as a retryable-error boundary.
+        if (chunk.type === 'token' && typeof chunk.content === 'string' && chunk.content.includes('[Stream Error:')) {
+          sawError = true;
+          errorChunk = { type: 'error', error: chunk.content.replace(/^[\s\S]*\[Stream Error: /, '').replace(/\]\s*$/, '') };
+          break;
+        }
+        yield chunk;
+        if (chunk.type === 'done') return;
       }
-      yield chunk;
-      if (chunk.type === 'done') return;
+      if (sawError && attempt < 1 && RETRYABLE.test(String(errorChunk?.error || errorChunk?.message || errorChunk?.content || ''))) {
+        logStreamStage(opts.requestId || 'jarvis', 'transient provider error (chunk) — retrying request', { attempt: attempt + 1, error: String(errorChunk?.error || errorChunk?.message || '').slice(0, 160) });
+        continue;
+      }
+      if (sawError && errorChunk) yield errorChunk;
+      return;
+    } catch (err: any) {
+      // Provider exhaustion/transient failures surface as THROWN errors from
+      // llmChatStream (not error chunks). Catch them at this recovery
+      // boundary: one bounded retry of the SAME real request. Non-retryable
+      // and abort/terminal errors rethrow unchanged so the caller's error
+      // handling (and cancellation semantics) is preserved.
+      const msg = String(err?.message || err || '');
+      if (attempt < 1 && RETRYABLE.test(msg)) {
+        logStreamStage(opts.requestId || 'jarvis', 'transient provider error (thrown) — retrying request', { attempt: attempt + 1, error: msg.slice(0, 160) });
+        continue;
+      }
+      throw err;
     }
-    if (sawError && attempt < 1 && RETRYABLE.test(String(errorChunk?.error || errorChunk?.message || errorChunk?.content || ''))) {
-      logStreamStage(opts.requestId || 'jarvis', 'transient provider error — retrying request', { attempt: attempt + 1, error: String(errorChunk?.error || errorChunk?.message || '').slice(0, 160) });
-      continue;
-    }
-    if (sawError && errorChunk) yield errorChunk;
-    return;
   }
 }
 

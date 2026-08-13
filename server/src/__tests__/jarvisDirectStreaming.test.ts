@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   selectedAgent: 'Jarvis' as any,
   plan: [] as string[],
   orchestratorResult: null as any,
-  streamMode: 'success' as 'success' | 'never' | 'throw' | 'slowFirst' | 'idleAfterFirst',
+  streamMode: 'success' as 'success' | 'never' | 'throw' | 'throwOnce' | 'slowFirst' | 'idleAfterFirst',
   streamCalls: 0,
   streamOptions: [] as any[],
   delegationTaskId: 'abc123de'
@@ -88,6 +88,7 @@ vi.mock('../services/llmGateway.js', () => ({
     mocks.streamOptions.push(opts);
     if (mocks.streamMode === 'never') await new Promise(() => {});
     if (mocks.streamMode === 'throw') throw new Error('Provider connection refused');
+    if (mocks.streamMode === 'throwOnce' && mocks.streamCalls === 1) throw new Error('fetch failed: simulated transient provider failure');
     if (mocks.streamMode === 'slowFirst') await new Promise(resolve => setTimeout(resolve, 35));
     yield { type: 'token', content: 'Hello ', provider: 'omniRoute' };
     if (mocks.streamMode === 'idleAfterFirst') await new Promise(() => {});
@@ -286,6 +287,35 @@ describe('Jarvis direct streaming', () => {
     expect(res.text).toContain('event: chunk');
     expect(res.text).toContain('event: done');
     expect(res.text).not.toContain('timed out before first token');
+  });
+
+  it('retries once when the underlying stream THROWS a retryable provider error, then streams the real result', async () => {
+    mocks.streamMode = 'throwOnce';
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'what model are you using', operationId: 'op-throw-retry' })
+      .expect(200);
+
+    expect(mocks.streamCalls).toBe(2); // attempt 1 threw, attempt 2 executed
+    expect(res.text).toContain('Hello ');
+    expect(res.text).toContain('there.');
+    expect(res.text).toContain('event: done');
+    // Only ONE assistant message must be persisted (retry must not duplicate).
+    const assistant = mocks.appended.filter((m: any) => m.role === 'agent');
+    expect(assistant).toHaveLength(1);
+  });
+
+  it('does NOT retry a non-retryable thrown error', async () => {
+    mocks.streamMode = 'throw'; // 'Provider connection refused' is not in the retryable set
+    const app = await buildApp();
+    const res = await request(app)
+      .post('/api/jarvis/conversations/conv-test/message/stream')
+      .send({ prompt: 'hello jarvis', operationId: 'op-nonretry' })
+      .expect(200);
+
+    expect(mocks.streamCalls).toBe(1); // single attempt only
+    expect(res.text).toContain('Provider connection refused');
   });
 
   it('delegates non-direct routes without entering direct streaming generation', async () => {
