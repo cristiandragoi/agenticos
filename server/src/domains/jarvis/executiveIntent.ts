@@ -49,7 +49,7 @@ const STATUS_VERBS = /\b(status|how is|how are|doing|working on|using|what model
 const FEEDBACK_VERBS = /\b(feedback|assessment|evaluate|review|audit|assess|how (good|well)|report on)\b/;
 const NAV_VERBS = /\b(open|go to|take me to|navigate to|launch|show me the page|switch to)\b/;
 const DELEGATE_VERBS =
-  /\b(ask|have|tell|get|make|delegate|instruct|send|request|ask the|tell the|use the)\b/;
+  /\b(ask|have|tell|get|make|delegate|instruct|send|request|ask the|tell the|use the|create|add|queue|file|raise|log)\b/;
 const TASK_WORDS = /\b(inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build|trace|read|investigate|report|find|look at|examine|check)\b/;
 const READ_ONLY_CONSTRAINTS = /\b(do not modify|do not change|do not write|without modifying|without changing|read-only|readonly|no file changes|no changes|do not edit|do not touch)\b/;
 
@@ -152,7 +152,12 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   // gateway/frontend/stream/task state. Runs BEFORE the broad delegation
   // branch (a mere worker mention is an OBJECT, not delegation), but AFTER an
   // EXPLICIT worker-target cue ("Ask Hermes to inspect X") which still wins.
-  const explicitWorkerTargetCue = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex)\b/.test(p);
+  // Explicit worker-target cue: "ask/tell/have Hermes do X" OR an explicit
+  // task-creation instruction naming the worker ("create a task for Hermes
+  // to inspect X"). Both must win over the live-system investigation
+  // fall-through — the user asked for WORK, not a status inspection.
+  const explicitWorkerTargetCue = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex)\b/.test(p) ||
+    /\b(create|add|queue|file|raise|log)\s+(a|an|the|one|new)?\s*(task|job|issue|ticket|goal)\s+(for|to|with)\s+(hermes|codex)\b/.test(p);
   if (isLiveSystemInvestigationRequest(prompt) && !explicitWorkerTargetCue) {
     return null;
   }
@@ -165,7 +170,15 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
     /\b(ask|tell|have|get|make|delegate)\s+(hermes|codex)\b/.test(p) ||
     (cap.taskWorkerKind !== null && TASK_WORDS.test(p) && /^(ask|tell|have|get|make|delegate|instruct)/.test(p.trim()));
 
-  if (isDelegation && cap.taskWorkerKind) {
+  // "create a daily automation" / "add a board" / "set up a memory" are
+  // requests to CREATE the capability itself — NOT worker delegation. The
+  // task-creation verbs (create/add/queue/...) must still delegate when a
+  // real worker is named ("create a task for Hermes to inspect X"), so only
+  // self-capability creation requests are excluded here.
+  const capSelfCreation = /^(create|add|queue|make|set up|file|raise|log)\s+(a|an|the|new\s+)?([a-z]+\s+){0,2}(automation|automations|board|boards|memory|memor[yie]s|goal|goals)\b/.test(p.trim());
+  if (capSelfCreation && cap && ['automations', 'boards', 'memory', 'goals'].includes(cap.id)) {
+    // fall through to capability-specific handling (automation_request, ...)
+  } else if (isDelegation && cap.taskWorkerKind) {
     const readOnly = READ_ONLY_CONSTRAINTS.test(p);
     return {
       intent: 'worker_delegation',

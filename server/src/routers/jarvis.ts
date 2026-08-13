@@ -66,6 +66,26 @@ async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; 
   return { selectedProvider, selectedModel, fallbackModel };
 }
 
+/**
+ * Authoritative Jarvis runtime identity (P3): the EFFECTIVE provider/model of
+ * the LAST completed Jarvis turn, read from the persisted agent-message
+ * metadata (the direct branch stores the gateway-resolved values per turn).
+ * Falls back to the assigned/selected values when no turn has completed yet.
+ */
+async function resolveEffectiveJarvisIdentity(conversationId: string): Promise<{ effectiveProvider: string | null; effectiveModel: string | null }> {
+  try {
+    const msgs = await conversationService.getMessages(conversationId);
+    const arr = Array.isArray(msgs) ? msgs : [];
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const meta = (arr[i]?.metadata || {}) as Record<string, unknown>;
+      const p = typeof meta.provider === 'string' && meta.provider ? meta.provider : null;
+      const m = typeof meta.model === 'string' && meta.model ? meta.model : null;
+      if (p || m) return { effectiveProvider: p, effectiveModel: m };
+    }
+  } catch { /* best effort — assigned values are the fallback */ }
+  return { effectiveProvider: null, effectiveModel: null };
+}
+
 /** Recent conversation text for contextual routing (best effort). */
 async function buildRecentConversationText(conversationId: string): Promise<string> {
   try {
@@ -190,7 +210,7 @@ function writeSse(res: any, event: string, data: any) {
   res.flush?.();
 }
 
-function buildLiveCapabilityAnswer(workspacePath: string | undefined) {
+function buildLiveCapabilityAnswer(workspacePath: string | undefined, identity?: { selectedProvider: string; selectedModel: string; fallbackModel: string; effectiveProvider: string | null; effectiveModel: string | null }) {
   const activeAgents = mockAgents.filter(agent => agent.status === 'active');
   const healthyRuntimes = mockRuntimes.filter(runtime => runtime.health?.status === 'healthy');
   const connectedProviders = mockProviders.filter(provider => provider.status === 'connected');
@@ -219,7 +239,9 @@ function buildLiveCapabilityAnswer(workspacePath: string | undefined) {
     `Healthy runtimes: ${healthyRuntimes.length}/${mockRuntimes.length}`,
     `Connected providers: ${connectedProviders.length}/${mockProviders.length}`,
     `Tools available: ${tools.join(', ') || 'none registered'}`,
-    `Current provider/model for direct chat: omniRoute / auto with Ollama fallback`,
+    // P3 — runtime truth, never canned: report the REAL effective provider/model
+    // (recovery/fallback-aware), falling back to the assigned selection.
+    `Current provider/model for direct chat: effective=${identity?.effectiveProvider || identity?.selectedProvider || 'unknown'} / ${identity?.effectiveModel || identity?.selectedModel || 'unknown'} (assigned: ${identity?.selectedProvider || 'unknown'} / ${identity?.selectedModel || 'unknown'}${identity?.fallbackModel ? `, fallback ${identity?.fallbackModel}` : ''})`,
     `Voice status: experimental/unavailable for reliable typed chat`,
     '',
     jarvis
@@ -1423,14 +1445,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
     if (intent.category === 'system_status') {
       const startedAt = Date.now();
-      const reply = buildLiveCapabilityAnswer(workspacePath || undefined);
+      const identity = await resolveEffectiveJarvisIdentity(req.params.id);
+      const reply = buildLiveCapabilityAnswer(workspacePath || undefined, {
+        selectedProvider, selectedModel, fallbackModel,
+        effectiveProvider: identity.effectiveProvider, effectiveModel: identity.effectiveModel,
+      });
       streamTextAsChunks(res, reply, normalizedOperationId);
       await conversationService.appendMessage({
         conversationId: req.params.id,
         role: 'agent',
         content: reply,
         routedAgent: 'jarvis',
-        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'registry', intent }
+        metadata: { ...(requestMetadata || {}), provider: identity.effectiveProvider || selectedProvider, model: identity.effectiveModel || selectedModel, intent }
       });
       writeSse(res, 'done', {
         route: 'direct',
@@ -1480,6 +1506,16 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       // context optional — direct chat must never break on context failure
     }
 
+    // Authoritative runtime identity (P3): assigned (from the assignment)
+    // vs effective (what actually served the last completed Jarvis turn).
+    // Injected so the model answers "what model are you using?" from runtime
+    // truth, never from guesswork or its own generated text.
+    let runtimeIdentityPrompt = '';
+    try {
+      const identity = await resolveEffectiveJarvisIdentity(req.params.id);
+      runtimeIdentityPrompt = `Runtime identity (authoritative — do not guess, do not substitute your training knowledge): assigned provider=${selectedProvider}, assigned model=${selectedModel}; effective provider=${identity.effectiveProvider || selectedProvider}, effective model=${identity.effectiveModel || selectedModel}. When asked what model you are using, answer with the EFFECTIVE provider and model (the effective values reflect recovery/fallback that may differ from the assigned values).`;
+    } catch { /* best effort */ }
+
     const systemPrompt = [
       'You are Jarvis, the operational commander of Agentic OS.',
       'For normal conversation, answer directly and briefly.',
@@ -1501,6 +1537,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         'The fact that this text reached you means microphone capture and transcription are working.',
         'Microphone input and voice output are separate capabilities; do not infer voice playback status from input being transcribed.'
       ] : []),
+      ...(runtimeIdentityPrompt ? [runtimeIdentityPrompt] : []),
       ...(conversationContextPrompt ? [conversationContextPrompt] : []),
       ...(persistentMemoryContext ? [persistentMemoryContext] : [])
     ].join('\n');

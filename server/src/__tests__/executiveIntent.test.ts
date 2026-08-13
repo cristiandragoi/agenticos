@@ -71,6 +71,41 @@ describe('executive intent classification', () => {
     expect(r?.capability.id).toBe('codex');
   });
 
+  // P4 — explicit task creation must WIN over the investigation fall-through.
+  it('Create a task for Hermes to inspect the backend tests → worker_delegation (hermes)', () => {
+    const r = classifyExecutiveIntent('Create a task for Hermes to inspect the backend tests');
+    expect(r?.intent).toBe('worker_delegation');
+    expect(r?.workerKind).toBe('hermes');
+  });
+
+  it('Add a task for CodeX to review the UI → worker_delegation (codex)', () => {
+    const r = classifyExecutiveIntent('Add a task for CodeX to review the UI');
+    expect(r?.intent).toBe('worker_delegation');
+    expect(r?.workerKind).toBe('codex');
+  });
+
+  it('Queue a task for Hermes to trace the startup path → worker_delegation (hermes)', () => {
+    const r = classifyExecutiveIntent('Queue a task for Hermes to trace the startup path');
+    expect(r?.intent).toBe('worker_delegation');
+    expect(r?.workerKind).toBe('hermes');
+  });
+
+  // P4 — discussion/evaluation must NEVER delegate without execution intent.
+  it('I am thinking about adding a recruiting agent → null (discussion stays direct)', () => {
+    const r = classifyExecutiveIntent('I am thinking about adding a recruiting agent. What do you think?');
+    expect(r).toBeNull();
+  });
+
+  it('Dont implement it. Just explain your reasoning → null (no delegation)', () => {
+    const r = classifyExecutiveIntent("Don't implement it. Just explain your reasoning.");
+    expect(r).toBeNull();
+  });
+
+  it('What model are you using? → null (Jarvis direct conversation)', () => {
+    const r = classifyExecutiveIntent('What model are you using?');
+    expect(r).toBeNull();
+  });
+
   it('Ask Hermes to inspect the Boards integration → worker_delegation with read-only constraint', () => {
     const r = classifyExecutiveIntent('Ask Hermes to inspect the Boards integration');
     expect(r?.intent).toBe('worker_delegation');
