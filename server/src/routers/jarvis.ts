@@ -1513,10 +1513,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     let runtimeIdentityPrompt = '';
     try {
       const identity = await resolveEffectiveJarvisIdentity(req.params.id);
-      runtimeIdentityPrompt = `Runtime identity (authoritative — do not guess, do not substitute your training knowledge): assigned provider=${selectedProvider}, assigned model=${selectedModel}; effective provider=${identity.effectiveProvider || selectedProvider}, effective model=${identity.effectiveModel || selectedModel}. When asked what model you are using, answer with the EFFECTIVE provider and model (the effective values reflect recovery/fallback that may differ from the assigned values).`;
+      const effProvider = identity.effectiveProvider || selectedProvider;
+      const effModel = identity.effectiveModel || selectedModel;
+      runtimeIdentityPrompt = `FACT — your current runtime identity (this is the ONLY correct answer when asked): provider is exactly '${effProvider}', model is exactly '${effModel}'. Assigned provider is '${selectedProvider}', assigned model is '${selectedModel}'. Do NOT invent provider names (never say openrouter/openai/deepseek unless they are exactly the values above). If asked "what model are you using", answer verbatim: "I'm running on ${effProvider} using ${effModel}."`;
     } catch { /* best effort */ }
 
     const systemPrompt = [
+      ...(runtimeIdentityPrompt ? [runtimeIdentityPrompt] : []),
       'You are Jarvis, the operational commander of Agentic OS.',
       'For normal conversation, answer directly and briefly.',
       'Do not claim reminders, messaging, calendar actions, or external services unless the prompt or Agentic OS registry explicitly provides them.',
@@ -1537,7 +1540,6 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         'The fact that this text reached you means microphone capture and transcription are working.',
         'Microphone input and voice output are separate capabilities; do not infer voice playback status from input being transcribed.'
       ] : []),
-      ...(runtimeIdentityPrompt ? [runtimeIdentityPrompt] : []),
       ...(conversationContextPrompt ? [conversationContextPrompt] : []),
       ...(persistentMemoryContext ? [persistentMemoryContext] : [])
     ].join('\n');
