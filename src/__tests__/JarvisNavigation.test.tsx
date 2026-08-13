@@ -8,6 +8,7 @@ import JarvisStudio from '../pages/JarvisStudio';
 import { AppProvider } from '../store/appStore';
 import { DataProvider } from '../store/dataStore';
 import { CodexProvider } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 
 /* ── Navigation restoration cycle ──────────────────────────────────────────
  * /jarvis must render the compact navigation rail alongside the dominant
@@ -73,6 +74,7 @@ function renderShell(initial = '/jarvis') {
     <DataProvider>
       <AppProvider>
         <CodexProvider>
+          <ProjectProvider>
           <MemoryRouter initialEntries={[initial]}>
             <Routes>
               <Route path="/" element={<AppShell />}>
@@ -91,6 +93,7 @@ function renderShell(initial = '/jarvis') {
               </Route>
             </Routes>
           </MemoryRouter>
+          </ProjectProvider>
         </CodexProvider>
       </AppProvider>
     </DataProvider>
@@ -299,8 +302,9 @@ describe('Single voice owner on /jarvis', () => {
     expect(screen.getAllByTestId('jarvis-mic-button')).toHaveLength(1);
     // ONE composer (text input + Send preserved)
     expect(screen.getAllByTestId('jarvis-composer')).toHaveLength(1);
-    // ONE reactive core canvas (one visual voice surface)
-    expect(document.querySelectorAll('canvas[data-testid="jarvis-orb"]')).toHaveLength(1);
+    // ONE reactive core (one visual voice surface — JarvisCore renders the
+    // orb on a div with data-testid, not a canvas element)
+    expect(document.querySelectorAll('[data-testid="jarvis-orb"]')).toHaveLength(1);
     // No drawer-based duplicate voice controller on /jarvis
     expect(document.querySelector('[class*="inspector-drawer"]')).toBeNull();
   });

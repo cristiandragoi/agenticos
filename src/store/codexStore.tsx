@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ConnectionState } from '../presenters/executionStatus';
 import { CODEX_BASE_URL, CODEX_PROVIDER, CODEX_REPOSITORY } from '../config/codexRuntime';
 import { apiFetch, apiUrl } from '../api/client';
@@ -123,7 +123,12 @@ export function CodexProvider({ children }: { children: ReactNode }) {
   const [isPlanning, setIsPlanning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
 
-  const setRunSettings: React.Dispatch<React.SetStateAction<CodexRunSettings>> = updater => {
+  // Harness-critical: the setter identity must be STABLE. Components and
+  // tests legitimately use it as a useEffect dependency; an inline function
+  // creates a new identity on every render → infinite effect loop → event
+  // loop saturation (worker hang). useCallback preserves the exact updater
+  // semantics while fixing the identity.
+  const setRunSettings: React.Dispatch<React.SetStateAction<CodexRunSettings>> = useCallback(updater => {
     setRunSettingsState(prev => {
       const next = typeof updater === 'function'
         ? (updater as (prev: CodexRunSettings) => CodexRunSettings)(prev)
@@ -131,7 +136,7 @@ export function CodexProvider({ children }: { children: ReactNode }) {
       persistRunSettings(next);
       return next;
     });
-  };
+  }, []);
 
   const setWorkspacePath = (path: string) => {
     setRunSettings(prev => ({ ...prev, workspacePath: path, folderTree: prev.folderTree || path }));

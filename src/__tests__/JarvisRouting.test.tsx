@@ -13,6 +13,7 @@ import AppShell from '../components/layout/AppShell';
 import { AppProvider } from '../store/appStore';
 import { DataProvider } from '../store/dataStore';
 import { CodexProvider } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 
 describe('JarvisRouting', () => {
   let fetchSpy: any;
@@ -44,9 +45,11 @@ describe('JarvisRouting', () => {
         <DataProvider>
           <AppProvider>
             <CodexProvider>
-              <MemoryRouter initialEntries={['/jarvis']}>
-                <AppShell />
-              </MemoryRouter>
+              <ProjectProvider>
+                <MemoryRouter initialEntries={['/jarvis']}>
+                  <AppShell />
+                </MemoryRouter>
+              </ProjectProvider>
             </CodexProvider>
           </AppProvider>
         </DataProvider>
@@ -62,9 +65,11 @@ describe('JarvisRouting', () => {
         <DataProvider>
           <AppProvider>
             <CodexProvider>
-              <MemoryRouter initialEntries={['/jarvis']}>
-                <AppShell />
-              </MemoryRouter>
+              <ProjectProvider>
+                <MemoryRouter initialEntries={['/jarvis']}>
+                  <AppShell />
+                </MemoryRouter>
+              </ProjectProvider>
             </CodexProvider>
           </AppProvider>
         </DataProvider>
@@ -79,9 +84,11 @@ describe('JarvisRouting', () => {
         <DataProvider>
           <AppProvider>
             <CodexProvider>
-              <MemoryRouter initialEntries={['/jarvis']}>
-                <AppShell />
-              </MemoryRouter>
+              <ProjectProvider>
+                <MemoryRouter initialEntries={['/jarvis']}>
+                  <AppShell />
+                </MemoryRouter>
+              </ProjectProvider>
             </CodexProvider>
           </AppProvider>
         </DataProvider>

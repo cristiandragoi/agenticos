@@ -1281,7 +1281,7 @@ export default function JarvisStudio() {
               <span className={cc.liveWorkTitle}>
                 <span className={cc.liveWorkDot} />
                 LIVE WORK
-                {backendRuntime.state !== 'idle' && (
+                {backendRuntime.state && backendRuntime.state !== 'idle' && (
                   <span className={cc.liveWorkStateBadge}>{backendRuntime.state.toUpperCase()}</span>
                 )}
               </span>
@@ -1520,12 +1520,12 @@ export default function JarvisStudio() {
           <div className={cc.kv}><span className={cc.kvLabel}>CPU</span><span className={cc.kvValue}>{sys?.cpuLoadPct != null ? `${sys.cpuLoadPct}%` : '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>RAM</span><span className={cc.kvValue}>{sys?.ramUsedMb != null && sys?.ramTotalMb != null ? `${(sys.ramUsedMb / 1024).toFixed(1)} / ${(sys.ramTotalMb / 1024).toFixed(1)} GB` : '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>GPU</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{sys?.gpu || '—'}</span></div>
-          {/* ── LOCAL HARDWARE (HardwareProfiler V1 truth; null → "—") ── */}
+          {/* ── LOCAL HARDWARE (HardwareProfiler V1 truth; null/absent → "—") ── */}
           <div className={cc.panelTitle} style={{ marginTop: 8, marginBottom: 4, fontSize: 9 }}>LOCAL HARDWARE</div>
-          <div className={cc.kv}><span className={cc.kvLabel}>OS</span><span className={cc.kvValue}>{hwProfile ? `${hwProfile.platform.hostOs}${hwProfile.platform.wsl === 'true' ? ` (WSL${hwProfile.platform.wslVersion ? hwProfile.platform.wslVersion : ''})` : ''}` : '—'}</span></div>
-          <div className={cc.kv}><span className={cc.kvLabel}>VRAM</span><span className={cc.kvValue}>{hwProfile?.gpu.vramBytes != null ? `${(hwProfile.gpu.vramBytes / 1024 ** 3).toFixed(0)} GB${hwProfile.gpu.cudaAvailable === 'true' ? ' · CUDA' : ''}` : '—'}</span></div>
-          <div className={cc.kv}><span className={cc.kvLabel}>OLLAMA</span><span className={cc.kvValue}>{hwProfile ? (hwProfile.ollama.reachable ? `online${hwProfile.ollama.version ? ` v${hwProfile.ollama.version}` : ''}` : 'offline') : '—'}</span></div>
-          <div className={cc.kv}><span className={cc.kvLabel}>MODELS</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{hwProfile ? (hwProfile.ollama.models.length > 0 ? hwProfile.ollama.models.map((m) => m.id).join(', ') : 'none') : '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>OS</span><span className={cc.kvValue}>{hwProfile?.platform?.hostOs ? `${hwProfile.platform.hostOs}${hwProfile.platform.wsl === 'true' ? ` (WSL${hwProfile.platform.wslVersion ? hwProfile.platform.wslVersion : ''})` : ''}` : '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>VRAM</span><span className={cc.kvValue}>{hwProfile?.gpu?.vramBytes != null ? `${(hwProfile.gpu.vramBytes / 1024 ** 3).toFixed(0)} GB${hwProfile.gpu.cudaAvailable === 'true' ? ' · CUDA' : ''}` : '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>OLLAMA</span><span className={cc.kvValue}>{hwProfile?.ollama ? (hwProfile.ollama.reachable ? `online${hwProfile.ollama.version ? ` v${hwProfile.ollama.version}` : ''}` : 'offline') : '—'}</span></div>
+          <div className={cc.kv}><span className={cc.kvLabel}>MODELS</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{hwProfile?.ollama?.models ? (hwProfile.ollama.models.length > 0 ? hwProfile.ollama.models.map((m) => m.id).join(', ') : 'none') : '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>TIER</span><span className={cc.kvValue} style={{ textTransform: 'uppercase' }}>{hwProfile?.capabilityTier || '—'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>BACKEND</span><span className={cc.kvValue} style={{ color: backendOffline ? '#fca5a5' : '#4ade80' }}>{backendOffline ? 'OFFLINE' : 'ONLINE'}</span></div>
           <div className={cc.kv}><span className={cc.kvLabel}>ASSIGNED</span><span className={cc.kvValue} style={{ maxWidth: 150 }}>{jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—'}</span></div>
