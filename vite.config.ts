@@ -41,6 +41,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: './src/setupTests.ts'
+    setupFiles: './src/setupTests.ts',
+    // Frontend harness only: exclude the server test tree (it runs under its
+    // own node-environment config in server/). Without this, the bare 'src/'
+    // positional filter substring-matches server/src/__tests__ too, so
+    // `npm test -- <anything>` sweeps server tests into the jsdom runner.
+    exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', 'server/**']
   }
 })
