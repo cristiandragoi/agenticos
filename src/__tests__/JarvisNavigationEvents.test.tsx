@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JarvisStudio from '../pages/JarvisStudio';
@@ -135,6 +135,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 
@@ -208,7 +209,9 @@ describe('Jarvis navigation SSE events', () => {
       await waitFor(() => expect(screen.getByTestId(testid)).toBeInTheDocument());
       unmount();
     }
-  });
+    // 8 full render→send→stream→navigate cycles in jsdom exceed the default
+    // 5s test timeout; give this loop a bounded window instead.
+  }, 30000);
 
   it('Open Hermes navigates to the existing Hermes route', async () => {
     navEvents = [

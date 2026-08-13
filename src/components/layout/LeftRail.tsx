@@ -87,7 +87,7 @@ const LeftRail: React.FC = () => {
           </div>
           {!collapsed && <span className="font-medium text-purple-500/90 tracking-wide">AGENT TEAMS</span>}
         </NavLink>
-        <NavLink to="/memory" data-testid="nav-memory" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Memory">
+        <NavLink to="/memory" data-testid="nav-memory-agents" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Memory">
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-cyan-500/30 bg-cyan-500/20">
             <Brain size={12} className="text-cyan-400" />
           </div>

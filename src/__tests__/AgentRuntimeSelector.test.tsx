@@ -127,7 +127,7 @@ describe('AgentRuntimeSelector', () => {
       if (url.includes('agent-provider-assignments/agent-hermes')) {
         return { ok: false, status: 404, text: async () => '', json: async () => ({}) } as unknown as Response;
       }
-      if (url.includes('/api/providers')) {
+      if (url.endsWith('/api/providers')) {
         return {
           ok: true, status: 200,
           json: async () => [{ id: 'prov-ollama', name: 'Ollama' }],

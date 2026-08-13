@@ -27,6 +27,8 @@ import { render, screen, act, fireEvent } from '@testing-library/react';
 import MissionControlPage from '../pages/MissionControlPage';
 import JarvisConversationPanel from '../components/jarvis/JarvisConversationPanel';
 import { AppProvider } from '../store/appStore';
+import { ProjectProvider } from '../store/projectStore';
+import { MemoryRouter } from 'react-router-dom';
 
 /* ─── dataStore mock for the full-page render ─── */
 vi.mock('../store/dataStore', () => ({
@@ -94,6 +96,8 @@ class MockAudio {
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
   pause = vi.fn();
+  load = vi.fn();
+  removeAttribute = vi.fn();
   play = vi.fn(() => {
     const self = this;
     if (self.src) Promise.resolve().then(() => self.onplay?.());
@@ -255,7 +259,11 @@ describe('Mission Control cockpit — conversation integration', () => {
   it('1. the main cockpit page exposes Manual and Conversation modes', () => {
     render(
       <AppProvider>
-        <MissionControlPage />
+        <ProjectProvider>
+          <MemoryRouter initialEntries={['/mission-control']}>
+            <MissionControlPage />
+          </MemoryRouter>
+        </ProjectProvider>
       </AppProvider>,
     );
     expect(screen.getByTestId('mission-control-cockpit')).toBeTruthy();

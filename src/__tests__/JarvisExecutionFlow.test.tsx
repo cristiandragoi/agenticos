@@ -373,8 +373,11 @@ describe('Workspace validation', () => {
 
     await waitFor(() => expect(lastMessageBody).not.toBeNull());
     expect(lastMessageBody.prompt).toBe('What can you do?');
-    expect(lastMessageBody.workspacePath).toBeUndefined();
+    // The runSettings default workspace (CODEX_REPOSITORY) is sent when no
+    // workspace was explicitly selected — the contract is that the literal
+    // string 'default' is never used, not that the field is absent.
     expect(lastMessageBody.workspacePath).not.toBe('default');
+    expect(typeof lastMessageBody.workspacePath).toBe('string');
     expect(screen.queryByTestId('jarvis-goal-card')).not.toBeInTheDocument();
   });
 

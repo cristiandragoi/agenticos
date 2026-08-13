@@ -82,7 +82,9 @@ function renderCockpit() {
   return render(
     <AppProvider>
       <ProjectProvider>
-        <MissionControlPage />
+        <MemoryRouter initialEntries={['/mission-control']}>
+          <MissionControlPage />
+        </MemoryRouter>
       </ProjectProvider>
     </AppProvider>,
   );

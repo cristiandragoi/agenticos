@@ -536,7 +536,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
           </b>
         </span>
         <span data-testid="mission-conv-state" style={chip}>
-          STATE <b style={{ color: '#cbd5e1' }}>{mode === 'conversation' ? voice.voiceState.toUpperCase() : 'MANUAL'}</b>
+          STATE <b style={{ color: '#cbd5e1' }}>{mode === 'conversation' ? (voice.voiceState ? voice.voiceState.toUpperCase() : '—') : 'MANUAL'}</b>
         </span>
         <span style={chip}>
           {dot(!backendOffline)} {backendOffline ? 'BACKEND OFFLINE' : 'CONNECTED'}
@@ -825,7 +825,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
           <span className="flex items-center gap-1.5">
             <Zap size={11} />
             Live Work
-            {runtimeState.state !== 'idle' && (
+            {runtimeState.state && runtimeState.state !== 'idle' && (
               <span style={{
                 marginLeft: 4, fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 8,
                 background: runtimeState.state === 'error' ? 'rgba(239,68,68,0.2)' : 'rgba(0,229,255,0.1)',

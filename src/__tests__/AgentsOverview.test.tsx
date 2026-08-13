@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AgentsGallery from '../pages/AgentsGallery';
 import LeftRail from '../components/layout/LeftRail';
 import { AppProvider } from '../store/appStore';
+import { ProjectProvider } from '../store/projectStore';
 
 const dataState = vi.hoisted(() => ({
   current: {
@@ -298,13 +299,15 @@ describe('Agents Overview', () => {
   it('AI AGENTS sidebar heading still links to /agents', () => {
     render(
       <AppProvider>
-        <MemoryRouter initialEntries={['/mission-control']}>
-          <LeftRail />
-          <Routes>
-            <Route path="/mission-control" element={<div>Mission Control</div>} />
-            <Route path="/agents" element={<div>Agents Route</div>} />
-          </Routes>
-        </MemoryRouter>
+        <ProjectProvider>
+          <MemoryRouter initialEntries={['/mission-control']}>
+            <LeftRail />
+            <Routes>
+              <Route path="/mission-control" element={<div>Mission Control</div>} />
+              <Route path="/agents" element={<div>Agents Route</div>} />
+            </Routes>
+          </MemoryRouter>
+        </ProjectProvider>
       </AppProvider>,
     );
 

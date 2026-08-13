@@ -1,4 +1,12 @@
 import '@testing-library/jest-dom';
+import { configure } from '@testing-library/dom';
+
+// Load-sensitive jsdom suite: waitFor/findBy default to a 1000ms wall-clock
+// window, which races under parallel workers on a busy machine (observed
+// cross-file flakiness — different tests fail per run). Raise the bounded
+// default so async streams/timers complete deterministically; assertions
+// still verify real conditions (this is a bound, not a retry mask).
+configure({ asyncUtilTimeout: 5000 });
 
 /** EventSource mock with the full listener API used by useGatewayStream. */
 class MockEventSource {
