@@ -5,7 +5,7 @@ import { JarvisChat } from '../components/jarvis/JarvisChat';
 import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '../components/jarvis/JarvisChat';
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
-import { JarvisHumanoidStage, NODE_ROUTES } from '../components/jarvis-visualization-v2/JarvisHumanoidStage';
+import { JarvisNeuralBlob, NODE_ROUTES } from '../components/jarvis/JarvisNeuralBlob';
 import type { NeuralNodeId } from '../components/jarvis/neuralBlobState';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
 import type { JarvisNodeId } from '../components/jarvis-visualization';
@@ -1200,7 +1200,7 @@ export default function JarvisStudio() {
           <div data-testid="jarvis-dashboard" className={cc.coreWrap}>
             <div data-testid="jarvis-orb-wrapper" style={{ position: 'relative' }}>
               <div data-testid="jarvis-orb-core" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <JarvisHumanoidStage
+                <JarvisNeuralBlob
                   state={orbState}
                   inputLevel={orbState === 'listening' ? inputLevel : 0}
                   outputLevel={orbState === 'speaking' ? outputLevel : 0}
