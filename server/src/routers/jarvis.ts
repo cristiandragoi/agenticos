@@ -67,6 +67,39 @@ async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; 
 }
 
 /**
+ * Bounded recovery wrapper (GAP1 closeout): the streaming gateway does not
+ * thread per-call escalation into the provider's stream attempts, so a
+ * transient provider failure (connection reset, 429, Ollama EOF) surfaces as
+ * an error chunk. Retry the SAME real request ONCE — the second execution is
+ * a genuine LLM call — before surfacing the error. Mirrors RecoveryPolicy's
+ * same-model-retry semantics at the smallest layer.
+ */
+async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0]) {
+  const RETRYABLE = /unreachable|fetch failed|econnrefused|timeout|429|eof|all configured providers failed/i;
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    let sawError = false;
+    let errorChunk: any = null;
+    for await (const chunk of llmChatStream(opts)) {
+      if (chunk.type === 'error') {
+        sawError = true;
+        errorChunk = chunk;
+        break;
+      }
+      yield chunk;
+      if (chunk.type === 'done') return;
+    }
+    if (sawError && attempt < 1 && RETRYABLE.test(String(errorChunk?.error || errorChunk?.message || errorChunk?.content || ''))) {
+      logStreamStage(opts.requestId || 'jarvis', 'transient provider error — retrying request', { attempt: attempt + 1, error: String(errorChunk?.error || errorChunk?.message || '').slice(0, 160) });
+      continue;
+    }
+    if (sawError && errorChunk) yield errorChunk;
+    return;
+  }
+}
+
+export { llmChatStreamRetrying }; // test seam
+
+/**
  * Authoritative Jarvis runtime identity (P3): the EFFECTIVE provider/model of
  * the LAST completed Jarvis turn, read from the persisted agent-message
  * metadata (the direct branch stores the gateway-resolved values per turn).
@@ -1569,7 +1602,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       userPromptExact: prompt,
       messageCount: history.length + 2
     }, null, 2));
-    const stream = llmChatStream({
+    const stream = llmChatStreamRetrying({
       systemPrompt,
       prompt,
       history,
