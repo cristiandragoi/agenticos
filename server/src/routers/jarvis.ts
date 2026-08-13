@@ -1586,7 +1586,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       // picked a provider/model in the chat routing control. Auto mode leaves
       // the gateway's routing untouched.
       ...(overrideProvider ? { provider: overrideProvider } : {}),
-      ...(overrideModel ? { model: overrideModel } : {})
+      ...(overrideModel ? { model: overrideModel } : {}),
+      // Recovery (GAP1 closeout — real defect found): a transient provider
+      // failure (connection reset, 429, Ollama EOF) must retry the SAME
+      // request on the configured fallback model instead of failing the turn.
+      // The gateway's attempts chain is bounded (base + fallback); the second
+      // execution is a real LLM call.
+      ...(fallbackModel ? { escalationModel: fallbackModel } : {})
     });
     updateStreamExecution({ status: 'WAITING_FOR_MODEL', currentAction: `Waiting for ${selectedProvider} / ${selectedModel}` });
     logStreamStage(normalizedOperationId, 'provider call started', {

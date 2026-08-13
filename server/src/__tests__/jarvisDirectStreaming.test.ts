@@ -175,6 +175,12 @@ describe('Jarvis direct streaming', () => {
       .send({ prompt: 'hello jarvis', operationId: 'op-1' })
       .expect(200);
 
+    // Recovery wiring (GAP1 closeout): the direct stream call must carry the
+    // configured fallback as escalationModel so transient provider failures
+    // retry the same request on the fallback model instead of failing the turn.
+    const streamOpts = mocks.streamOptions[mocks.streamOptions.length - 1];
+    expect(streamOpts?.escalationModel).toBe(process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b');
+
     expect(res.headers['content-type']).toContain('text/event-stream');
     expect(res.text).toContain('event: status');
     expect(res.text.indexOf('event: status')).toBeLessThan(res.text.indexOf('event: chunk'));
