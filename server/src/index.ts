@@ -67,6 +67,7 @@ checkTeamRecovery();
 // Routers
 import healthRouter from './routers/health.js';
 import systemRouter from './routers/system.js';
+import workspaceIndexRouter from './routers/workspaceIndex.js';
 import agentsRouter from './routers/agents.js';
 import providersRouter from './routers/providers.js';
 import runtimesRouter from './routers/runtimes.js';
@@ -210,6 +211,7 @@ app.use('/api', (req, res, next) => {
 /* ── Routes ─────────────────────────────────────────── */
 app.use('/api/health', healthRouter);
 app.use('/api/system', systemRouter);
+app.use('/api/workspace-index', workspaceIndexRouter);
 app.use('/api/gemini', authMiddleware, geminiRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/providers', providersRouter);
