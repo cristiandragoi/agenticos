@@ -309,18 +309,33 @@ describe('E2E real-process lifecycle', () => {
   /* ── config helper sanity ─────────────────────────────────────────── */
 
   it('readPortFromServerEnv honors server/.env PORT', () => {
-    // The helper must reflect whatever server/.env actually pins (canonical
-    // port moved to 4000 in the backend/electron connection fix).
+    // The helper must reflect whatever server/.env actually pins. The
+    // canonical port is 4000: renderer file: fallback (src/api/client.ts),
+    // server index.ts fallback, and electron/main.ts default all agree.
     const repoRoot = path.resolve(__dirname, '..', '..');
     const envPath = path.join(repoRoot, 'server', '.env');
-    let expected = 4600;
+    let expected = 4000;
     try {
       const text = fs.readFileSync(envPath, 'utf8');
       const m = text.match(/^\s*PORT\s*=\s*(\d+)\s*$/m);
       if (m) expected = parseInt(m[1], 10);
     } catch { /* missing .env → fallback */ }
-    expect(readPortFromServerEnv(repoRoot, 4600)).toBe(expected);
-    expect(readPortFromServerEnv(path.join(TMP, 'no-such-dir'), 4600)).toBe(4600);
+    expect(readPortFromServerEnv(repoRoot, 4000)).toBe(expected);
+    expect(readPortFromServerEnv(path.join(TMP, 'no-such-dir'), 4000)).toBe(4000);
+  });
+
+  it('Electron lifecycle and the production renderer resolve the SAME endpoint (canonical 4000)', () => {
+    // The renderer (src/api/client.ts) falls back to http://localhost:4000/api
+    // under the file: protocol. The lifecycle must resolve the same port from
+    // the real server/.env — otherwise Electron starts the backend on a port
+    // the renderer never polls ("Backend Disconnected").
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    const envPath = path.join(repoRoot, 'server', '.env');
+    const text = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+    const m = text.match(/^PORT\s*=\s*(\d+)\s*$/m);
+    const envPort = m ? parseInt(m[1], 10) : 4000;
+    expect(envPort).toBe(4000);
+    expect(readPortFromServerEnv(repoRoot, 4000)).toBe(4000);
   });
 });
 
