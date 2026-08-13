@@ -78,11 +78,15 @@
   gap: 10px;
   z-index: 4;
   pointer-events: none; /* children re-enable */
-  /* Fixed-stage contract: the orb region fills the stage space BELOW the
-     wordmark + status strip (flex:1, min-height:0). The orb is sized from
-     this region, so it always fits and centers — never clipped. */
+  /* V3 render-fix: NO min-height:0 here. The region (and with it the stage's
+     content minimum) must never collapse below the orb + label + control —
+     a 0px region was clipping the canvas top (the head) at real window
+     sizes. min-height:auto is NOT a safe floor here: with overflow:hidden
+     the automatic minimum resolves to 0 (CSS flexbox spec). Use an explicit
+     max-content floor so the region is at least its own content. The orb is
+     sized from this region, so it always fits. */
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: max-content;
   width: 100%;
   overflow: hidden;
 }
@@ -161,15 +165,16 @@
      always receives the REMAINING center-column height. A greedy flex:1
      stage consumed the whole viewport and pushed the transcript dock +
      composer off-screen (the overlap blocker). */
-  /* V3: the stage is GREEDY (flex 1 1 auto) — it fills the center scroll
-     column's remaining space below the content-sized workspace band, so
-     the orb region grows and Jarvis occupies 55-70% of the stage at
-     normal desktop sizes. When the lower dock is collapsed the freed
-     space goes to the stage (Jarvis becomes even larger); when the dock
-     is expanded or the workspace is tall, the stage yields to the
-     min-height floor and the center column scrolls (b1d5304 behavior). */
+  /* V3 render-fix: the stage stays GREEDY (flex 1 1 auto) so the orb grows
+     when space allows, with an explicit max-content FLOOR. min-height:auto
+     would NOT protect the content here — with overflow:hidden the automatic
+     minimum resolves to 0 (CSS flexbox spec), which let the stage crush to
+     the leftover space and clip the canvas top (the head) at real window
+     sizes. With min-height:max-content the stage is never smaller than its
+     own content; when the workspace below is tall, the stage stays
+     content-sized and the center column scrolls (b1d5304 behavior). */
   flex: 1 1 auto;
-  min-height: max(200px, 30vh);
+  min-height: max-content;
   overflow: hidden;
   padding: 8px 0 14px;
 }

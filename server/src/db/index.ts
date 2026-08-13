@@ -27,3 +27,18 @@ export const db = drizzle(sqlite, { schema });
 export const sqliteDbPath = dbPath;
 /** Raw connection for idempotent DDL (background task manager tables). */
 export const rawDb = sqlite;
+
+// Auto-migrate on every startup (idempotent — drizzle tracks applied
+// migrations). Path is cwd-independent so the packaged desktop backend
+// (spawned with cwd=resources/server) migrates the fresh DB exactly like
+// the dev backend. Without this, a fresh packaged DB has no tables and the
+// backend crashes at the first query (e.g. team_runs).
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+try {
+  migrate(db, { migrationsFolder: path.resolve(repoServerRoot, 'drizzle') });
+} catch (migrateErr) {
+  // Never hide a real startup failure — surface it so the lifecycle can
+  // report FAILED instead of a silent half-initialized backend.
+  console.error('[db] migration failed:', migrateErr);
+  throw migrateErr;
+}

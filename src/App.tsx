@@ -9,6 +9,7 @@ import AppShell from './components/layout/AppShell';
 /* ─── Pages ─── */
 import MissionControl from './pages/MissionControlPage';
 import JarvisStudio from './pages/JarvisStudio';
+import { JarvisV2Demo } from './components/jarvis-visualization-v2';
 import MemoryStudio from './pages/MemoryStudio';
 import AgentsGallery from './pages/AgentsGallery';
 import AgentDetail from './pages/AgentDetail';
@@ -83,6 +84,7 @@ function App() {
                 <Route path="loops" element={<LoopsPage />} />
                 <Route path="video" element={<VideoBoard />} />
                 <Route path="warm-mode" element={<WarmMode />} />
+                <Route path="jarvis-v2-demo" element={<JarvisV2Demo />} />
                 <Route path="kanban/:boardId" element={<KanbanBoardPage />} />
                 <Route path="welders" element={<WeldersPipelinePage />} />
                 <Route path="hermes-studio" element={<HermesStudioHub />} />
