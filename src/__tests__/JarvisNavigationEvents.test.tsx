@@ -171,7 +171,15 @@ async function typeAndSend(text: string) {
   fireEvent.change(input, { target: { value: text } });
   const sendBtn = screen.getByRole('button', { name: /send message/i });
   await waitFor(() => expect(sendBtn).not.toBeDisabled());
-  fireEvent.click(sendBtn);
+  // The send handler's async stream continuation calls navigate() from a
+  // promise chain. Under parallel-worker load React can defer that commit
+  // past the assertion window (observed flake). Running the click + a
+  // microtask drain inside act() flushes it deterministically; the test's
+  // waitFor then observes the committed route.
+  await act(async () => {
+    fireEvent.click(sendBtn);
+    await new Promise(r => setTimeout(r, 20));
+  });
 }
 
 /* ── Tests ────────────────────────────────────────────────── */
