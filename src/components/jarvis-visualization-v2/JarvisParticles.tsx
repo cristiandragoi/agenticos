@@ -10,7 +10,7 @@ interface Props {
 /** Ambient neural dust: soft background points + sparse foreground sparkles. */
 export const JarvisParticles: React.FC<Props> = ({ color, layer }) => {
   const rand = makeRand(layer === 'bg' ? 90210 : 31337);
-  const n = layer === 'bg' ? 70 : 22;
+  const n = layer === 'bg' ? 92 : 26;
   const pts = [];
   for (let i = 0; i < n; i++) {
     pts.push({

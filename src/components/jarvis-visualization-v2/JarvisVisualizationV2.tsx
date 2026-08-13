@@ -19,24 +19,60 @@ export interface JarvisVisualizationV2Props {
   speakingLevel?: number;
   thinkingIntensity?: number;
   className?: string;
+  /** Stage mode: omit the dark background rect so an outer neural layer can
+   *  sit behind the figure (JarvisHumanoidStage). Default false (demo keeps
+   *  the full backdrop). */
+  transparentBackground?: boolean;
+  /** Stage mode: hide the built-in status strip (the page owns the label). */
+  showStatus?: boolean;
 }
 
 /**
  * ONE central programmatic humanoid (standalone, pre-integration).
  * All regions share the SAME figure; state changes region colors locally.
  */
-export const JarvisVisualizationV2: React.FC<JarvisVisualizationV2Props> = ({
-  state,
-  severity = 'none',
-  speakingLevel = 0,
-  thinkingIntensity = 0,
-  className = '',
-}) => {
+export const JarvisVisualizationV2: React.FC<JarvisVisualizationV2Props> = React.memo(
+  function JarvisVisualizationV2Inner({
+    state,
+    severity = 'none',
+    speakingLevel = 0,
+    thinkingIntensity = 0,
+    className = '',
+    transparentBackground = false,
+    showStatus = true,
+  }: JarvisVisualizationV2Props) {
   const animation = useJarvisAnimationV2(state, speakingLevel, thinkingIntensity);
-  const [frame, setFrame] = React.useState({ pulse: 0, breath: 0, scan: 0, eye: 0 });
+  const [frame, setFrame] = React.useState({ pulse: 0.5, breath: 0.5, scan: 0.25, eye: 0.35 });
   React.useEffect(() => {
-    const unsubscribe = animation.subscribe(setFrame);
-    return () => { unsubscribe(); };
+    // Animate ONLY while the window has focus. The visuals are slow sine
+    // drifts (1.3s–6.3s periods); flushing React state every rAF would
+    // re-render the whole SVG subtree at 60fps — pure waste on integrated
+    // GPUs and it starves the event loop in jsdom tests (which never focus).
+    // When focused, flush ~3fps (motion indistinguishable; cost ~20x lower);
+    // the continuous feel comes from SMIL/CSS inside the SVG.
+    let unsub: (() => void) | null = null;
+    let last = 0;
+    const start = () => {
+      if (unsub) return;
+      unsub = animation.subscribe((f) => {
+        const now = performance.now();
+        if (now - last < 330) return;
+        last = now;
+        setFrame(f);
+      });
+    };
+    const stop = () => {
+      unsub?.();
+      unsub = null;
+    };
+    if (typeof document !== 'undefined' && document.hasFocus()) start();
+    window.addEventListener('focus', start);
+    window.addEventListener('blur', stop);
+    return () => {
+      window.removeEventListener('focus', start);
+      window.removeEventListener('blur', stop);
+      stop();
+    };
   }, [animation]);
   const { pulse, breath } = frame;
 
@@ -66,7 +102,9 @@ export const JarvisVisualizationV2: React.FC<JarvisVisualizationV2Props> = ({
           </filter>
         </defs>
 
-        <rect width="1000" height="1250" fill="url(#jv2-bg)" />
+        {!transparentBackground && (
+          <rect width="1000" height="1250" fill="url(#jv2-bg)" />
+        )}
 
         <JarvisParticles color={identity} layer="bg" />
 
@@ -86,12 +124,12 @@ export const JarvisVisualizationV2: React.FC<JarvisVisualizationV2Props> = ({
         <JarvisParticles color={identity} layer="fg" />
       </svg>
 
-      <div className="jv2-status">
+      <div className="jv2-status" style={showStatus ? undefined : { display: 'none' }}>
         <span className="jv2-dot" />
         <strong>{STATE_LABELS[state]}</strong>
       </div>
     </div>
   );
-};
+});
 
 export default JarvisVisualizationV2;

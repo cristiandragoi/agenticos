@@ -5,7 +5,8 @@ import { JarvisChat } from '../components/jarvis/JarvisChat';
 import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '../components/jarvis/JarvisChat';
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
-import { JarvisNeuralBlob, NODE_ROUTES } from '../components/jarvis/JarvisNeuralBlob';
+import { JarvisHumanoidStage, NODE_ROUTES } from '../components/jarvis-visualization-v2/JarvisHumanoidStage';
+import type { NeuralNodeId } from '../components/jarvis/neuralBlobState';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
 import type { JarvisNodeId } from '../components/jarvis-visualization';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
@@ -876,6 +877,80 @@ export default function JarvisStudio() {
 
   const latestActivity = activityLog.length > 0 ? activityLog[activityLog.length - 1] : null;
 
+  // ── Activity → neural modules (Live Activity milestone): REAL Hermes run /
+  // execution events illuminate the humanoid's modules. A run.created lights
+  // HERMES+RUNS, terminal commands light RUNS, file changes light ARTIFACTS,
+  // memory/knowledge words light MEMORY/KNOWLEDGE, mic capture lights VISION.
+  // Only events that actually happened drive light — never timers.
+  const activityPulses = useMemo(() => {
+    const p: Partial<Record<string, number>> = {};
+    const evs = activeRun?.events || [];
+    for (const e of evs.slice(-8)) {
+      const k = e.kind;
+      const s = (e.summary || '').toLowerCase();
+      if (k === 'run.created') {
+        p.Hermes = Math.max(p.Hermes || 0, 0.85);
+        p.Runs = Math.max(p.Runs || 0, 0.6);
+      } else if (k === 'terminal.command') {
+        p.Runs = Math.max(p.Runs || 0, 0.8);
+      } else if (k === 'file.changed') {
+        p.Artifacts = Math.max(p.Artifacts || 0, 0.8);
+      } else if (k === 'approval.request') {
+        p.Projects = Math.max(p.Projects || 0, 0.7);
+      } else if (k === 'run.completed') {
+        p.Runs = Math.max(p.Runs || 0, 0.9);
+      } else if (k === 'error' || k === 'tool.failed') {
+        p.Runs = Math.max(p.Runs || 0, 0.6);
+      }
+      if (/memory|recall|remember|retriev/.test(s)) p.Memory = Math.max(p.Memory || 0, 0.8);
+      if (/research|knowledge|search|web|inspect|review/.test(s)) p.Knowledge = Math.max(p.Knowledge || 0, 0.8);
+    }
+    if (orbState === 'listening' || orbState === 'transcribing') p.Vision = Math.max(p.Vision || 0, 0.7);
+    return p;
+  }, [activeRun?.events, orbState]);
+
+  const stageNodeActivity = useMemo(
+    () => ({ ...nodeActivity, ...activityPulses }),
+    [nodeActivity, activityPulses],
+  );
+
+  // Stable module click handler (memoized so the heavy stage is not
+  // re-rendered on unrelated page updates): each module routes to its
+  // real AgenticOS destination.
+  const handleNodeClick = useCallback(
+    (node: NeuralNodeId) => {
+      const target = NODE_ROUTES[node];
+      if (target) navigate(target);
+    },
+    [navigate],
+  );
+
+  // ── Real prompt/reply events into the activity line (Live Activity): a
+  // user request actually submitted and a response actually completed.
+  // The push is deferred one macrotask so a send-handler re-render inside
+  // the composer's async act() window cannot stall test/detached flushes.
+  const lastPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastUserPrompt || lastUserPrompt === lastPromptRef.current) return;
+    lastPromptRef.current = lastUserPrompt;
+    const text = `REQUEST RECEIVED — ${lastUserPrompt.slice(0, 64)}`;
+    const id = window.setTimeout(() => pushActivity(text), 0);
+    return () => window.clearTimeout(id);
+  }, [lastUserPrompt, pushActivity]);
+
+  const lastReplyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastReply || lastReply === lastReplyRef.current) return;
+    lastReplyRef.current = lastReply;
+    const id = window.setTimeout(() => pushActivity('RESPONSE COMPLETE'), 0);
+    return () => window.clearTimeout(id);
+  }, [lastReply, pushActivity]);
+
+  // ── Unified activity stream (Live Activity): real Hermes run events +
+  // real local pipeline events (voice transitions, request received,
+  // response complete), merged chronologically with source/status. Defined
+  // AFTER recentActivity below (it consumes it). ──
+
   // ── Real host telemetry (never faked; null → "—") ──
   const [sys, setSys] = useState<SystemStats | null>(null);
   useEffect(() => {
@@ -999,6 +1074,62 @@ export default function JarvisStudio() {
     .slice(-10)
     .reverse();
 
+  // ── Unified activity stream (Live Activity): real Hermes run events +
+  // real local pipeline events (voice transitions, request received,
+  // response complete), merged chronologically with source/status. ──
+  const ACTIVITY_SOURCE: Record<string, string> = {
+    'run.created': 'HERMES', 'approval.request': 'HERMES', error: 'JARVIS',
+    'tool.failed': 'TOOL', 'run.completed': 'HERMES', 'terminal.command': 'TOOL',
+    'file.changed': 'TOOL',
+  };
+  const ACTIVITY_STATUS: Record<string, string> = {
+    'run.created': 'started', 'approval.request': 'waiting', error: 'failed',
+    'tool.failed': 'failed', 'run.completed': 'completed', 'terminal.command': 'running',
+    'file.changed': 'running',
+  };
+  const localSource = (text: string): string => {
+    const t = text.toUpperCase();
+    if (t.includes('REQUEST RECEIVED') || t.includes('RESPONSE')) return 'JARVIS';
+    if (t.includes('TRANSCRIPTION')) return 'JARVIS';
+    if (t.includes('APPROVAL')) return 'HERMES';
+    return 'JARVIS';
+  };
+  const localStatus = (text: string): string => {
+    const t = text.toUpperCase();
+    if (t.includes('ERROR')) return 'failed';
+    if (t.includes('COMPLETE')) return 'completed';
+    if (t.includes('LISTENING') || t.includes('TRANSCRIBING') || t.includes('SPEAKING') || t.includes('THINKING')) return 'running';
+    if (t.includes('REQUEST')) return 'started';
+    return 'running';
+  };
+  const mergedActivity = useMemo(() => {
+    const runEvts = recentActivity.map((e) => ({
+      id: `run-${e.id}`,
+      t: e.ts,
+      source: ACTIVITY_SOURCE[e.kind] || 'SYSTEM',
+      status: ACTIVITY_STATUS[e.kind] || 'running',
+      text: e.summary,
+    }));
+    const local = activityLog.map((l) => ({
+      id: `local-${l.t}-${l.text.slice(0, 10)}`,
+      t: l.t,
+      source: localSource(l.text),
+      status: localStatus(l.text),
+      text: l.text,
+    }));
+    return [...runEvts, ...local].sort((a, b) => a.t - b.t).slice(-14).reverse();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentActivity, activityLog]);
+
+  const STATUS_COLOR: Record<string, string> = {
+    started: '#94a3b8', running: '#38bdf8', waiting: '#fbbf24',
+    completed: '#4ade80', failed: '#f87171', cancelled: '#64748b', queued: '#94a3b8',
+  };
+  const SOURCE_COLOR: Record<string, string> = {
+    JARVIS: '#67e8f9', HERMES: '#f0abfc', MEMORY: '#a78bfa', TOOL: '#fbbf24',
+    GATEWAY: '#fb923c', SYSTEM: '#64748b', PROJECT: '#86efac', CODEX: '#fca5a5',
+  };
+
   const filesChanged = (activeRun?.events || []).filter(e => e.kind === 'file.changed').length;
 
   const statusChip = (label: string, value: string, ok?: boolean) => (
@@ -1069,7 +1200,7 @@ export default function JarvisStudio() {
           <div data-testid="jarvis-dashboard" className={cc.coreWrap}>
             <div data-testid="jarvis-orb-wrapper" style={{ position: 'relative' }}>
               <div data-testid="jarvis-orb-core" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <JarvisNeuralBlob
+                <JarvisHumanoidStage
                   state={orbState}
                   inputLevel={orbState === 'listening' ? inputLevel : 0}
                   outputLevel={orbState === 'speaking' ? outputLevel : 0}
@@ -1077,8 +1208,8 @@ export default function JarvisStudio() {
                   model={activeModel}
                   size={orbSize}
                   testIdPrefix="jarvis-orb"
-                  nodeActivity={nodeActivity}
-                  onNodeClick={(node) => navigate(NODE_ROUTES[node])}
+                  nodeActivity={stageNodeActivity}
+                  onNodeClick={handleNodeClick}
                 />
               </div>
             </div>
@@ -1585,6 +1716,7 @@ export default function JarvisStudio() {
                 <div className={cc.kv}><span className={cc.kvLabel}>QUEUE</span><span className={cc.kvValue}>Active {currentExec.activeCount ?? 0}/{currentExec.limit}{currentExec.queuePosition != null ? ` · Position ${currentExec.queuePosition}` : ''}</span></div>
               )}
               <div className={cc.kv}><span className={cc.kvLabel}>ELAPSED</span><span className={cc.kvValue}>{Math.max(0, Math.round((Date.now() - currentExec.startedAt) / 1000))}s</span></div>
+              <div className={cc.kv}><span className={cc.kvLabel}>START</span><span className={cc.kvValue}>{currentExec.startedAt ? new Date(currentExec.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}</span></div>
               <div className={cc.kv}><span className={cc.kvLabel}>OPERATION</span><span className={cc.kvValue} style={{ fontVariantNumeric: 'tabular-nums' }}>{currentExec.operationId.slice(-16)}</span></div>
                 </>
               )}
@@ -1616,13 +1748,15 @@ export default function JarvisStudio() {
           </button>
           {activityOpen && (
             <div data-testid="jarvis-activity-stream" style={{ maxHeight: 160, overflowY: 'auto', marginTop: 4 }}>
-              {recentActivity.length === 0 && (
+              {mergedActivity.length === 0 && (
                 <div style={{ fontSize: 10.5, color: '#475569', padding: '2px 0' }}>No activity yet.</div>
               )}
-              {recentActivity.map((e) => (
-                <div key={e.id} style={{ display: 'flex', gap: 6, padding: '2px 0', fontSize: 10.5, borderBottom: '1px solid rgba(30,41,59,0.5)' }}>
-                  <span style={{ color: '#475569', flexShrink: 0 }}>{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                  <span style={{ color: e.kind === 'error' || e.kind === 'tool.failed' ? '#fca5a5' : '#94a3b8', overflowWrap: 'anywhere' }}>{e.summary}</span>
+              {mergedActivity.map((e) => (
+                <div key={e.id} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', padding: '3px 0', fontSize: 10.5, borderBottom: '1px solid rgba(30,41,59,0.5)' }}>
+                  <span style={{ color: '#475569', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{new Date(e.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                  <span style={{ color: SOURCE_COLOR[e.source] || '#94a3b8', fontWeight: 700, flexShrink: 0, fontSize: 9.5, letterSpacing: 0.8 }}>{e.source}</span>
+                  <span style={{ color: STATUS_COLOR[e.status] || '#94a3b8', flexShrink: 0, fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.6 }}>{e.status}</span>
+                  <span style={{ color: e.status === 'failed' ? '#fca5a5' : '#94a3b8', overflowWrap: 'anywhere' }}>{e.text}</span>
                 </div>
               ))}
             </div>

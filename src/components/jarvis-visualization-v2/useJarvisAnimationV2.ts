@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { JarvisStateV2 } from './JarvisStateV2';
 
 export interface JarvisAnimationFrameV2 {
@@ -37,11 +37,18 @@ export function useJarvisAnimationV2(
     return () => cancelAnimationFrame(raf);
   }, [state, speakingLevel, thinkingIntensity]);
 
-  return {
-    frameRef,
-    subscribe(fn: (f: JarvisAnimationFrameV2) => void) {
-      listeners.current.add(fn);
-      return () => listeners.current.delete(fn);
-    },
-  };
+  return useMemo(
+    () => ({
+      frameRef,
+      subscribe(fn: (f: JarvisAnimationFrameV2) => void) {
+        listeners.current.add(fn);
+        return () => listeners.current.delete(fn);
+      },
+    }),
+    // Stable identity across renders: both members are refs. Without this,
+    // every parent render re-runs the subscriber effect and resets any
+    // throttling inside the subscription (observed: 60fps React re-renders
+    // that starved the event loop in jsdom and wasted GPU time in prod).
+    [],
+  );
 }

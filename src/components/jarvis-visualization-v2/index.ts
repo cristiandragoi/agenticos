@@ -14,6 +14,8 @@ export { JarvisTorso } from './JarvisTorso';
 export { JarvisChestCore } from './JarvisChestCore';
 export { NeuralField, scatterEllipse, buildConnections, makeRand } from './JarvisNeuralMesh';
 export { JarvisParticles } from './JarvisParticles';
+export { JarvisNeuralSystems, NEURAL_MODULES } from './JarvisNeuralSystems';
+export { JarvisHumanoidStage, orbStateToV2 } from './JarvisHumanoidStage';
 export { JarvisV2Demo } from './JarvisV2Demo';
 export { useJarvisAnimationV2 } from './useJarvisAnimationV2';
 export * from './JarvisStateV2';

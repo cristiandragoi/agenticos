@@ -48,3 +48,30 @@
 @media (prefers-reduced-motion: reduce) {
   .jv2-region { transition: none; }
 }
+
+/* ── Neural module animations (CSS — no per-frame React) ── */
+.jv2-module-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jv2-module-spin 26s linear infinite;
+}
+
+.jv2-module-halo {
+  animation: jv2-module-halo 3.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jv2-module-spin,
+  .jv2-module-halo {
+    animation: none;
+  }
+}
+
+@keyframes jv2-module-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes jv2-module-halo {
+  0%, 100% { opacity: 0.32; }
+  50% { opacity: 0.72; }
+}
