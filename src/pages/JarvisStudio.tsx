@@ -5,10 +5,9 @@ import { JarvisChat } from '../components/jarvis/JarvisChat';
 import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '../components/jarvis/JarvisChat';
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
-import { JarvisCore } from '../components/jarvis/JarvisCore';
+import { JarvisNeuralBlob, NODE_ROUTES } from '../components/jarvis/JarvisNeuralBlob';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
 import type { JarvisNodeId } from '../components/jarvis-visualization';
-import type { JarvisCoreState } from '../components/jarvis/JarvisCore';
 import { deriveJarvisOrbState, JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { JarvisComposer } from '../components/jarvis/JarvisComposer';
@@ -1070,14 +1069,16 @@ export default function JarvisStudio() {
           <div data-testid="jarvis-dashboard" className={cc.coreWrap}>
             <div data-testid="jarvis-orb-wrapper" style={{ position: 'relative' }}>
               <div data-testid="jarvis-orb-core" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <JarvisCore
-                  state={orbState as JarvisCoreState}
+                <JarvisNeuralBlob
+                  state={orbState}
                   inputLevel={orbState === 'listening' ? inputLevel : 0}
                   outputLevel={orbState === 'speaking' ? outputLevel : 0}
-                  activeAgent={backendRuntime.activeAgent}
+                  provider={activeProvider}
+                  model={activeModel}
                   size={orbSize}
                   testIdPrefix="jarvis-orb"
                   nodeActivity={nodeActivity}
+                  onNodeClick={(node) => navigate(NODE_ROUTES[node])}
                 />
               </div>
             </div>
