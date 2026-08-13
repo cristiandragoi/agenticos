@@ -106,15 +106,19 @@ function logElectron(message: string, data?: unknown) {
  */
 function initBackendLifecycle(): BackendLifecycleManager {
   const appRoot = process.env.APP_ROOT as string;
+  // Packaged mode: the backend runtime ships under resources/server (via
+  // electron-builder extraResources), NOT inside resources/app — native
+  // node_modules must live outside the app dir. Dev mode: repo root.
+  const backendRoot = app.isPackaged ? process.resourcesPath : appRoot;
   const port = process.env['AGENTICOS_BACKEND_PORT']
     ? parseInt(process.env['AGENTICOS_BACKEND_PORT'], 10)
-    : readPortFromServerEnv(appRoot, 4000);
+    : readPortFromServerEnv(backendRoot, 4000);
   const manager = createBackendLifecycleManager({
     mode: BACKEND_MODE,
     host: '127.0.0.1',
     port,
-    entry: path.join(appRoot, 'server', 'dist', 'index.js'),
-    cwd: path.join(appRoot, 'server'),
+    entry: path.join(backendRoot, 'server', 'dist', 'index.js'),
+    cwd: path.join(backendRoot, 'server'),
     // The Electron binary itself runs the backend as plain Node — the
     // packaged app ships no separate node executable.
     nodeExec: process.execPath,

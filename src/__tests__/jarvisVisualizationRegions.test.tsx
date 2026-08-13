@@ -9,7 +9,7 @@ import JarvisVisualization from '../components/jarvis-visualization/JarvisVisual
 
 const pump = async (n = 12) => {
   for (let i = 0; i < n; i++) {
-    await new Promise((r) => requestAnimationFrame(() => r()));
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
   }
 };
 
@@ -29,7 +29,7 @@ describe('JarvisVisualization v2 — independent region response', () => {
   afterEach(() => { cleanup(); });
 
   it('brain region surges when THINKING; eyes stay near base', async () => {
-    const { container } = render(<JarvisVisualization state="thinking" thinkingIntensity={0.8} width={500} height={450} />);
+    const { container } = render(<JarvisVisualization state="thinking" thinkingIntensity={0.8} />);
     await pump();
     const r = read(container);
     expect(r.brain).toBeGreaterThan(0.9);   // 0.65 + 0.72 + pulse*0.35 -> clamps ~1
@@ -37,7 +37,7 @@ describe('JarvisVisualization v2 — independent region response', () => {
   });
 
   it('eyes brighten to full when LISTENING; brain stays low', async () => {
-    const { container } = render(<JarvisVisualization state="listening" width={500} height={450} />);
+    const { container } = render(<JarvisVisualization state="listening" />);
     await pump();
     const r = read(container);
     expect(r.eyes).toBeGreaterThan(0.95);   // listening -> eyes = 1
@@ -45,10 +45,10 @@ describe('JarvisVisualization v2 — independent region response', () => {
   });
 
   it('mouth opens when SPEAKING (face region) and closes at rest', async () => {
-    const speaking = render(<JarvisVisualization state="speaking" speakingLevel={0.8} width={500} height={450} />);
+    const speaking = render(<JarvisVisualization state="speaking" speakingLevel={0.8} />);
     await pump();
     const sr = read(speaking.container);
-    const idle = render(<JarvisVisualization state="idle" width={500} height={450} />);
+    const idle = render(<JarvisVisualization state="idle" />);
     await pump();
     const ir = read(idle.container);
     // mouth open = 3 + speakingLevel*7 => Q 500 428.6 at speaking vs 422 at idle

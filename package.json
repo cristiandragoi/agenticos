@@ -76,11 +76,14 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "server/dist/**/*",
-      "server/node_modules/**/*",
-      "server/package.json",
-      "server/.env",
       "agentos-config.json"
+    ],
+    "extraResources": [
+      { "from": "server/dist", "to": "server/dist" },
+      { "from": "server/node_modules", "to": "server/node_modules" },
+      { "from": "server/package.json", "to": "server/package.json" },
+      { "from": "server/.env", "to": "server/.env" },
+      { "from": "server/drizzle", "to": "server/drizzle" }
     ]
   }
 }
