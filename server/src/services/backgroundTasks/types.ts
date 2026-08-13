@@ -57,7 +57,15 @@ export type TaskEventKind =
   | 'task.gate_passed'
   | 'task.gate_failed'
   | 'task.verification_started'
-  | 'task.verification_completed';
+  | 'task.verification_completed'
+  | 'run.recovery.started'
+  | 'run.recovery.classified'
+  | 'run.recovery.retry'
+  | 'run.recovery.escalated'
+  | 'run.recovery.rework_started'
+  | 'run.recovery.exhausted'
+  | 'run.recovery.blocked_by_policy'
+  | 'run.recovery.completed';
 
 export interface BackgroundTaskRecord {
   taskId: string;

@@ -58,7 +58,10 @@ export type RunLedgerEventKind =
   | 'run.created' | 'run.started' | 'run.planning' | 'run.executing' | 'run.waiting'
   | 'run.artifact.created' | 'run.gate.started' | 'run.gate.passed' | 'run.gate.failed'
   | 'run.verification.started' | 'run.verification.passed' | 'run.verification.failed'
-  | 'run.completed' | 'run.failed' | 'run.cancelled';
+  | 'run.completed' | 'run.failed' | 'run.cancelled'
+  | 'run.recovery.started' | 'run.recovery.classified' | 'run.recovery.retry'
+  | 'run.recovery.escalated' | 'run.recovery.rework_started' | 'run.recovery.exhausted'
+  | 'run.recovery.blocked_by_policy' | 'run.recovery.completed';
 
 /** P4 — map authoritative existing task event kinds into the stable run
  *  vocabulary. Preserves original IDs; never manufactures events. */
@@ -78,6 +81,15 @@ export function normalizeEventKind(kind: TaskEventKind | string): RunLedgerEvent
     case 'task.completed': return 'run.completed';
     case 'task.failed': return 'run.failed';
     case 'task.cancelled': return 'run.cancelled';
+    // Recovery events pass through with the same stable vocabulary.
+    case 'run.recovery.started': return 'run.recovery.started';
+    case 'run.recovery.classified': return 'run.recovery.classified';
+    case 'run.recovery.retry': return 'run.recovery.retry';
+    case 'run.recovery.escalated': return 'run.recovery.escalated';
+    case 'run.recovery.rework_started': return 'run.recovery.rework_started';
+    case 'run.recovery.exhausted': return 'run.recovery.exhausted';
+    case 'run.recovery.blocked_by_policy': return 'run.recovery.blocked_by_policy';
+    case 'run.recovery.completed': return 'run.recovery.completed';
     default: return kind;
   }
 }

@@ -28,6 +28,15 @@ import {
 } from './types.js';
 import { localDataPort } from '../../adapters/localDataPort.js';
 import { logger } from '../../utils/logger.js';
+import { policyStore } from '../policy/policyStore.js';
+import { getHardwareProfile } from '../system/hardwareProfiler.js';
+import {
+  classifyAndDecide, applyDecisionToBudget, recoveryStatusLabel,
+  type LocalHarnessContext,
+} from '../recovery/localHarness.js';
+import {
+  DEFAULT_RECOVERY_POLICY, newBudgetUsage, type RecoveryBudgetUsage, type RecoveryDecision,
+} from '../recovery/policy.js';
 import { getWorkspaceRoot } from '../workspaceStore.js';
 import * as executionState from '../executionState.js';
 
@@ -756,6 +765,175 @@ export class BackgroundTaskManager extends EventEmitter {
       readOnly: evidence.readOnly || false,
     });
     return updated;
+  }
+
+  // ── LocalHarness / RecoveryPolicy V1 ──────────────────────────────────
+  // Bounded autonomous recovery on the EXISTING dispatch/gate infrastructure.
+  // NEVER completes a task; only retries/escalates/reworks/blocks within the
+  // declared policy, with privacy/cancellation/approval as hard stops.
+
+  /** Read the recovery budget usage persisted on the task (default = fresh). */
+  private recoveryUsage(task: BackgroundTaskRecord): RecoveryBudgetUsage {
+    const m = (task.metadata || {}) as Record<string, any>;
+    const r = m.recovery;
+    if (r && typeof r === 'object' && typeof r.executionAttempts === 'number') {
+      return {
+        executionAttempts: r.executionAttempts,
+        gateReworkAttempts: r.gateReworkAttempts ?? 0,
+        sameModelRetries: r.sameModelRetries ?? 0,
+        modelEscalations: r.modelEscalations ?? 0,
+        startedAtMs: r.startedAtMs ?? Date.now(),
+      };
+    }
+    return newBudgetUsage();
+  }
+
+  /**
+   * Classify an execution/gate failure and apply the bounded next recovery
+   * step. Returns the decision taken (or null when the task is terminal or
+   * cancellation already dominates). Emits run.recovery.* events.
+   */
+  async recoverAfterFailure(
+    taskId: string,
+    error: unknown,
+    opts: { gateEvidence?: { gateId: string; reason: string; attempt: number } } = {},
+  ): Promise<RecoveryDecision | null> {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task || TERMINAL_STATUSES.has(task.status)) return null;
+    if (task.cancellationRequested) {
+      this.appendEvent(taskId, 'run.recovery.started', 'Recovery skipped — cancellation requested.', {});
+      return { kind: 'cancelled', reason: 'CANCELLED: cancellation dominates recovery', escalationOccurred: false, budgetRemaining: false };
+    }
+
+    const used = this.recoveryUsage(task);
+    const m = (task.metadata || {}) as Record<string, any>;
+    const projectPolicy = task.projectId ? policyStore.getPolicy(task.projectId) : null;
+
+    // Hardware truth (cached, advisory-only for local escalation).
+    let hardwareTier: 'lite' | 'balanced' | 'quality' | 'unknown' | undefined;
+    let localModels: Array<{ id: string; size?: number | null }> | undefined;
+    try {
+      const profile = await getHardwareProfile(false);
+      hardwareTier = profile.capabilityTier;
+      localModels = profile.ollama.models ?? [];
+    } catch { /* hardware unavailable — local escalation stays unknown */ }
+
+    const ctx: LocalHarnessContext = {
+      policy: DEFAULT_RECOVERY_POLICY,
+      projectPolicy,
+      localModels,
+      hardwareTier,
+      assignedProvider: m.assignedProvider ?? m.agentProvider ?? null,
+      assignedModel: m.assignedModel ?? null,
+      used,
+      taskStatus: task.status,
+      cancellationRequested: task.cancellationRequested,
+      gateEvidence: opts.gateEvidence ?? null,
+    };
+
+    this.appendEvent(taskId, 'run.recovery.started', `Recovery started for ${taskShortId(taskId)}.`, {
+      status: task.status, worker: task.worker,
+    });
+
+    const { classification, decision } = classifyAndDecide(error, ctx);
+    this.appendEvent(taskId, 'run.recovery.classified', `Failure classified as ${classification.cls}.`, {
+      cls: classification.cls, reason: classification.reason, attempt: used.executionAttempts,
+    });
+
+    // Cancellation dominates — no further autonomous action.
+    if (decision.kind === 'cancelled') {
+      this.appendEvent(taskId, 'run.recovery.started', 'Recovery stopped (cancellation).', {});
+      return decision;
+    }
+
+    // Human approval stops autonomous recovery for this branch.
+    if (decision.kind === 'wait_for_approval') {
+      if (task.status !== 'waiting_approval') {
+        this.transition(taskId, 'waiting_approval', {
+          blocker: decision.reason,
+          currentStage: 'waiting_approval',
+        });
+      }
+      this.appendEvent(taskId, 'run.recovery.started', 'Recovery stopped (human approval required).', {
+        reason: decision.reason,
+      });
+      return decision;
+    }
+
+    const nextUsed = applyDecisionToBudget(used, decision);
+    const recoveryMeta = {
+      executionAttempts: nextUsed.executionAttempts,
+      gateReworkAttempts: nextUsed.gateReworkAttempts,
+      sameModelRetries: nextUsed.sameModelRetries,
+      modelEscalations: nextUsed.modelEscalations,
+      startedAtMs: used.startedAtMs,
+      lastDecision: decision.kind,
+      lastReason: decision.reason,
+      effectiveProvider: decision.effectiveProvider ?? m.effectiveProvider ?? null,
+      effectiveModel: decision.effectiveModel ?? m.effectiveModel ?? null,
+      escalationOccurred: m.escalationOccurred ?? decision.escalationOccurred,
+      escalationReason: decision.escalationReason ?? m.escalationReason ?? null,
+      previousProvider: decision.previousProvider ?? m.assignedProvider ?? null,
+      previousModel: decision.previousModel ?? m.assignedModel ?? null,
+    };
+
+    // RETRY / ESCALATE / REWORK: reuse the existing dispatch machinery.
+    if (decision.kind === 'retry_same_model' || decision.kind === 'escalate_local_model'
+        || decision.kind === 'escalate_cloud_model' || decision.kind === 'rework_after_gate_failure') {
+      const eventKind = decision.kind === 'retry_same_model' ? 'run.recovery.retry'
+        : decision.kind === 'rework_after_gate_failure' ? 'run.recovery.rework_started'
+        : 'run.recovery.escalated';
+      this.appendEvent(taskId, eventKind, decision.reason, {
+        attempt: decision.attempt ?? nextUsed.executionAttempts,
+        effectiveProvider: recoveryMeta.effectiveProvider,
+        effectiveModel: recoveryMeta.effectiveModel,
+        escalationOccurred: decision.escalationOccurred,
+        escalationReason: decision.escalationReason ?? null,
+      });
+      // Model truth must never rewrite the ASSIGNED model.
+      const metadata = {
+        ...m,
+        assignedProvider: m.assignedProvider ?? m.agentProvider ?? null,
+        assignedModel: m.assignedModel ?? null,
+        effectiveProvider: recoveryMeta.effectiveProvider,
+        effectiveModel: recoveryMeta.effectiveModel,
+        escalationOccurred: decision.escalationOccurred || m.escalationOccurred === true,
+        escalationReason: decision.escalationReason ?? m.escalationReason ?? null,
+        recovery: recoveryMeta,
+      };
+      this.transition(taskId, 'queued', {
+        attempt: nextUsed.executionAttempts,
+        lastError: classification.reason,
+        blocker: null,
+        metadata,
+      });
+      // Re-dispatch through the existing worker queue.
+      void this.pumpQueuedForWorker(task.worker);
+      this.appendEvent(taskId, 'run.recovery.completed', `Recovery step scheduled: ${decision.kind}.`, {
+        nextAttempt: nextUsed.executionAttempts,
+      });
+      return decision;
+    }
+
+    // BLOCKED (budget exhausted / policy / non-retryable).
+    if (decision.kind === 'blocked') {
+      const isPolicy = decision.blockedByPolicy === true || /POLICY_BLOCKED/i.test(decision.reason);
+      this.appendEvent(taskId, isPolicy ? 'run.recovery.blocked_by_policy' : 'run.recovery.exhausted',
+        decision.reason, { attempt: used.executionAttempts });
+      this.transition(taskId, 'blocked', {
+        blocker: decision.reason,
+        currentStage: 'blocked',
+        lastError: decision.reason,
+        metadata: { ...m, recovery: recoveryMeta },
+      });
+      // ACTIVE RUN truth — clear the shared execution record for this op.
+      try {
+        if (task.conversationId) executionState.end(`${task.conversationId}:${task.worker}`, 'FAILED', decision.reason);
+      } catch { /* best effort */ }
+      return decision;
+    }
+
+    return decision;
   }
 
   // ── Board linkage (existing Boards system — requirement 10) ─────────────

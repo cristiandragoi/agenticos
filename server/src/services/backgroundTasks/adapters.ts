@@ -377,6 +377,14 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
               mgr.appendEvent(task.taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', {
                 allRequiredPassed: false,
               });
+              // LocalHarness (P6/P7): bounded gate rework — structured
+              // evidence to the worker, rework ONLY if budget remains.
+              const failedGate = set.results.filter((r) => r.status === 'failed')[0];
+              void mgr.recoverAfterFailure(task.taskId, { code: 'GATE_FAILURE', message: `Gate failed: ${failedGate?.gateId ?? 'required-gate'}` }, {
+                gateEvidence: failedGate
+                  ? { gateId: failedGate.gateId, reason: failedGate.reason || 'required gate failed', attempt: failedGate.attempt ?? 1 }
+                  : undefined,
+              });
             }
           } catch (e: any) {
             mgr.transition(task.taskId, 'blocked', {
@@ -386,6 +394,15 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
             });
           }
         })();
+        return;
+      }
+      if (mapped === 'failed') {
+        // LocalHarness (RecoveryPolicy V1): intercept execution failure
+        // BEFORE the terminal transition. recoverAfterFailure decides within
+        // budget/privacy bounds — retry/escalate → re-queued, otherwise →
+        // blocked with a truthful reason. Never completes on failure.
+        const err = goal.lastError || goal.error || goal.runSummary?.error || 'CodeX goal failed';
+        void mgr.recoverAfterFailure(task.taskId, err);
         return;
       }
       if (mapped !== current.status) {
