@@ -17,6 +17,7 @@ import { backgroundTaskManager } from '../services/backgroundTasks/manager.js';
 import {
   dispatchCodexTask, dispatchHermesTask, dispatchResearchTask, dispatchTeamTask, resolveRecoveryPin,
 } from '../services/backgroundTasks/adapters.js';
+import * as adaptersModule from '../services/backgroundTasks/adapters.js';
 import { codexService } from '../domains/codex/service.js';
 import { hermesApiService } from '../services/hermesApiService.js';
 import { goalStore } from '../services/goalStore.js';
@@ -204,7 +205,7 @@ describe('Hermes wiring', () => {
       id: 'run-fail', hermesRunId: 'h-fail', status: 'queued',
     } as any);
     const task = insert({ worker: 'hermes', status: 'running', attempt: 1 });
-    const pump = vi.spyOn(backgroundTaskManager, 'pumpQueuedForWorker').mockResolvedValue(undefined as any);
+    const dispatch = vi.spyOn(adaptersModule, 'dispatchTask').mockResolvedValue({ ok: true });
     await dispatchHermesTask(task, 'C:\\work\\ws');
 
     // Emit the upstream failure the way the SSE consumer would.
@@ -214,7 +215,7 @@ describe('Hermes wiring', () => {
     const after = backgroundTaskRepo.getTask(task.taskId)!;
     expect(after.status).toBe('queued'); // retry_same_model re-queued it
     expect(after.attempt).toBe(2);
-    expect(pump).toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalled(); // recovery re-dispatched through the production dispatcher
   });
 });
 

@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } 
 import { backgroundTaskRepo, ensureBackgroundTaskTables } from '../services/backgroundTasks/store.js';
 import type { BackgroundTaskRecord } from '../services/backgroundTasks/types.js';
 import { backgroundTaskManager } from '../services/backgroundTasks/manager.js';
+import * as adaptersModule from '../services/backgroundTasks/adapters.js';
 import { classifyFailure } from '../services/recovery/classifier.js';
 import { classifyAndDecide, pickStrongerLocalModel } from '../services/recovery/localHarness.js';
 import { DEFAULT_RECOVERY_POLICY, newBudgetUsage, type RecoveryBudgetUsage } from '../services/recovery/policy.js';
@@ -130,12 +131,12 @@ afterAll(() => {
 });
 
 async function noPump() {
-  // Prevent real worker dispatch during recovery tests.
-  vi.spyOn(backgroundTaskManager, 'pumpQueuedForWorker').mockResolvedValue(undefined as any);
+  // Prevent real worker dispatch during recovery tests (the recovery path
+  // re-dispatches via the production dispatcher — spy it out).
+  vi.spyOn(adaptersModule, 'dispatchTask').mockResolvedValue({ ok: true });
 }
 async function expectPumpCalled() {
-  const spy = vi.spyOn(backgroundTaskManager, 'pumpQueuedForWorker').mockResolvedValue(undefined as any);
-  return spy;
+  return vi.spyOn(adaptersModule, 'dispatchTask').mockResolvedValue({ ok: true });
 }
 
 describe('FailureClassifier', () => {

@@ -39,6 +39,11 @@ function markDispatched(taskId: string): boolean {
   return true;
 }
 
+/** Allow a recovery re-dispatch: clear the dispatch-once guard for the task. */
+export function clearDispatchGuard(taskId: string): void {
+  dispatched.delete(taskId);
+}
+
 // ── HERMES ADAPTER ──────────────────────────────────────────────────────────
 
 /** Map upstream Hermes activity events → canonical task events. */

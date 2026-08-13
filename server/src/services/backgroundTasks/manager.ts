@@ -909,8 +909,24 @@ export class BackgroundTaskManager extends EventEmitter {
         blocker: null,
         metadata,
       });
-      // Re-dispatch through the existing worker queue.
-      void this.pumpQueuedForWorker(task.worker);
+      // Re-dispatch through the EXISTING production dispatcher (like the
+      // router does). The pump only handles concurrency-blocked tasks, so
+      // the re-queued task must be dispatched explicitly; the dispatch-once
+      // guard is cleared so the recovery attempt actually runs.
+      try {
+        const { dispatchTask, clearDispatchGuard } = await import('./adapters.js');
+        clearDispatchGuard(taskId);
+        const latest = backgroundTaskRepo.getTask(taskId);
+        if (latest) {
+          void dispatchTask(latest).then((r) => {
+            if (!r.ok && backgroundTaskRepo.getTask(taskId)?.status === 'queued') {
+              this.transition(taskId, 'blocked', { lastError: r.error || 'Re-dispatch failed' });
+            }
+          });
+        }
+      } catch (e: any) {
+        logger.warn(`[bg-task] recovery re-dispatch failed for ${taskId}: ${e?.message}`);
+      }
       // ACTIVE RUN truth (P9): surface the recovery state through the
       // existing executionState surface — no new UI.
       try {
