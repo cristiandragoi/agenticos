@@ -9,7 +9,7 @@ vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
 const mocks = vi.hoisted(() => ({
   appended: [] as any[],
   orchestratorCalls: [] as any[],
-  route: 'direct' as 'direct' | 'codex' | 'agent_teams',
+  route: 'direct' as 'direct' | 'codex' | 'agent_teams' | 'clarification_required' | 'investigate',
   category: 'conversation' as any,
   mode: 'direct_conversation' as any,
   requiresWorkspace: false as boolean,

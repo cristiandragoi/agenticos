@@ -263,13 +263,21 @@ export class OllamaGateway implements ModelGateway {
     // request body, emitted token chunks, and the final done chunk.
     const model = await this.resolveModel(configuredModel);
 
-    // Headers timeout: bound the request-to-headers phase with
-    // OLLAMA_HEADERS_TIMEOUT_MS. The timer is cleared as soon as response
-    // headers arrive so it never aborts the body stream.
-    const headersTimeoutMs = parseInt(process.env.OLLAMA_HEADERS_TIMEOUT_MS ?? '', 10);
+    // Headers timeout: bound the request-to-headers phase so a hung local
+    // model cannot stall the whole turn. OLLAMA_HEADERS_TIMEOUT_MS overrides;
+    // default is the per-attempt budget (req.timeoutMs) — a stale default of
+    // `parseInt('') = NaN` previously disabled the timer entirely and the
+    // fallback turn waited for the caller's outer backstop before erroring.
+    // Headers arrive quickly on a healthy local daemon even while the model
+    // loads, so this only cuts genuine hangs — the body stream is separately
+    // bounded by the caller's idle/total timers.
+    const envHeadersTimeout = parseInt(process.env.OLLAMA_HEADERS_TIMEOUT_MS ?? '', 10);
+    const headersTimeoutMs = (Number.isFinite(envHeadersTimeout) && envHeadersTimeout > 0)
+      ? envHeadersTimeout
+      : (req.timeoutMs ?? 30000);
     const headersController = new AbortController();
     let headersTimer: ReturnType<typeof setTimeout> | undefined;
-    if (Number.isFinite(headersTimeoutMs) && headersTimeoutMs > 0) {
+    if (headersTimeoutMs > 0) {
       headersTimer = setTimeout(() => headersController.abort(), headersTimeoutMs);
     }
     const onRequestAbort = () => headersController.abort();

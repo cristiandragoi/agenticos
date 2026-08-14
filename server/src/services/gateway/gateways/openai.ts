@@ -27,6 +27,23 @@ export class ProviderRateLimitError extends Error {
   }
 }
 
+/**
+ * Per-attempt request signal: combine the caller's abort signal (client
+ * cancel / stream stop) with an internal per-attempt budget WHEN the caller
+ * explicitly sets timeoutMs. Without the internal budget, a caller that
+ * passes its own signal (e.g. the Jarvis direct stream) had NO timeout of
+ * its own — a hung provider stalled until the caller's consumer-side guard
+ * aborted, which could not fall back. Callers that pass no timeoutMs keep
+ * the legacy behavior (external signal only, else a 30s default).
+ */
+function buildRequestSignal(req: ChatRequest): AbortSignal {
+  if (req.signal && req.timeoutMs) {
+    return AbortSignal.any([req.signal, AbortSignal.timeout(req.timeoutMs)]);
+  }
+  if (req.signal) return req.signal;
+  return AbortSignal.timeout(req.timeoutMs || 30000);
+}
+
 export class OpenAICompatibleGateway implements ModelGateway {
   name: string;
   definition: ProviderDefinition;
@@ -65,7 +82,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
       },
       body: JSON.stringify({ model: model, messages, max_tokens: req.maxTokens || 1024 }),
-      signal: req.signal || AbortSignal.timeout(req.timeoutMs || 30000)
+      signal: buildRequestSignal(req)
     });
 
     if (!res.ok) {
@@ -116,7 +133,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
         stream: true,
         // stream_options: { include_usage: true } // Standard OpenAI feature for tokens in stream
       }),
-      signal: req.signal || AbortSignal.timeout(req.timeoutMs || 30000)
+      signal: buildRequestSignal(req)
     });
 
     if (!res.ok) {
