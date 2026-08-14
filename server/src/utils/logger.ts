@@ -47,10 +47,10 @@ export function redactSensitiveData(value: unknown): unknown {
 
 export const logger = {
   info(message: string, meta?: any, ...args: any[]) {
-    console.log(JSON.stringify({ level: 'info', message, meta: redactSensitiveData(meta) }));
+    console.log(JSON.stringify({ level: 'info', message, meta: redactSensitiveData(meta), ...(args.length ? { detail: redactSensitiveData(args.length === 1 ? args[0] : args) } : {}) }));
   },
   warn(message: string, meta?: any, ...args: any[]) {
-    console.warn(JSON.stringify({ level: 'warn', message, meta: redactSensitiveData(meta) }));
+    console.warn(JSON.stringify({ level: 'warn', message, meta: redactSensitiveData(meta), ...(args.length ? { detail: redactSensitiveData(args.length === 1 ? args[0] : args) } : {}) }));
   },
   error(message: string, error?: unknown, meta?: any) {
     let errInfo = error;
@@ -61,7 +61,7 @@ export const logger = {
   },
   debug(message: string, meta?: any, ...args: any[]) {
     if (process.env.DEBUG) {
-      console.debug(JSON.stringify({ level: 'debug', message, meta: redactSensitiveData(meta) }));
+      console.debug(JSON.stringify({ level: 'debug', message, meta: redactSensitiveData(meta), ...(args.length ? { detail: redactSensitiveData(args.length === 1 ? args[0] : args) } : {}) }));
     }
   }
 };

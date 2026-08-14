@@ -1663,6 +1663,10 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     let reply = '';
     let provider: string | undefined;
     let model: string | undefined;
+    // ERROR BOUNDARY: when a provider/gateway failure chunk arrives we surface
+    // the real cause to the client instead of silently dropping it and later
+    // throwing the generic "Jarvis returned an empty response."
+    let surfacedError: string | null = null;
     totalTimer = setTimeout(() => {
       logStreamStage(normalizedOperationId, 'total-response timeout', { timeoutMs: totalTimeoutMs, provider, model });
       abortController.abort();
@@ -1713,7 +1717,31 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         }
         reply += chunk.content;
         writeSse(res, 'chunk', { delta: chunk.content, provider, model, operationId: normalizedOperationId });
-      } else if (chunk.type !== 'done' && chunk.type !== 'error') {
+      } else if (chunk.type === 'error') {
+        // ERROR BOUNDARY: never silently drop a provider/gateway failure.
+        // The previous code swallowed error chunks and then threw the generic
+        // "Jarvis returned an empty response." — hiding the real cause. Keep
+        // the reason, surface it to the client, and remember it so the final
+        // empty-reply guard below does not overwrite it.
+        const errText = String((chunk as any)?.error || (chunk as any)?.message || chunk.content || 'Jarvis provider failed');
+        surfacedError = errText.slice(0, 500);
+        logStreamStage(normalizedOperationId, 'provider error surfaced', {
+          error: surfacedError,
+          provider,
+          model,
+          fallbackProvider,
+          fallbackModel
+        });
+        writeSse(res, 'error', {
+          error: surfacedError,
+          provider,
+          model,
+          fallbackProvider,
+          fallbackModel,
+          reason: surfacedError,
+          operationId: normalizedOperationId
+        });
+      } else if (chunk.type !== 'done') {
         // Forward gateway events exactly as received
         writeSse(res, chunk.type, { ...chunk, operationId: normalizedOperationId, id: `assistant-${normalizedOperationId}` });
       }
@@ -1722,7 +1750,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // §18/§10: strip any tool-call markup the model emitted as literal text
     // so the user never sees raw <tool_call>…</tool_call> plumbing.
     const finalReply = stripToolCallMarkup(reply).trim();
-    if (!finalReply) throw new Error('Jarvis returned an empty response.');
+    if (!finalReply) {
+      if (surfacedError) {
+        // A real provider/gateway error was already emitted above — finish the
+        // stream honestly instead of overwriting it with the generic message.
+        logStreamStage(normalizedOperationId, 'stream ended after surfaced provider error', { error: surfacedError });
+        completed = true;
+        updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+        endStreamExecution('FAILED', surfacedError);
+        return res.end();
+      }
+      throw new Error('Jarvis returned an empty response.');
+    }
 
     logger.info('[JarvisTrace] provider-response', JSON.stringify({
       requestId: normalizedOperationId,

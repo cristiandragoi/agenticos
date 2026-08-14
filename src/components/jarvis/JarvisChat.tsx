@@ -183,6 +183,26 @@ const idleStatus: JarvisRuntimeStatus = {
   error: null
 };
 
+/**
+ * Classify the runtime state after a stream `done` event.
+ *
+ * Synchronous terminal conversation routes (direct, memory_store,
+ * memory_recall, decision_statement, continuation, project_state_answer,
+ * clarification_required, and investigate replies without a delegation
+ * status) are COMPLETED — they release the composer. Only genuine
+ * delegations carry a status (from execution_* events) and stay
+ * 'executing' until execution_completed/execution_failed arrives.
+ */
+export function classifyDoneState(data: { route?: string; status?: string | null }): JarvisRuntimeState {
+  const isTerminalConversation =
+    !data.route ||
+    data.route === 'direct' ||
+    data.route === 'clarification_required' ||
+    (data.route === 'investigate' && !data.status) ||
+    !data.status;
+  return isTerminalConversation ? 'completed' : runtimeStateForDelegatedStatus(data.status ?? undefined);
+}
+
 const runtimeStateForDelegatedStatus = (status?: string): JarvisRuntimeState => {
   if (status === 'waiting_for_approval' || status === 'awaiting_approval') return 'approval_required';
   if (status === 'planning' || status === 'queued') return 'executing';
@@ -980,13 +1000,12 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         // Same for a SYNCHRONOUS 'investigate' reply (registry state report):
         // its done frame carries no status and ends the stream — it is
         // completed, not a still-executing delegation. (Async delegations —
-        // codex/hermes — carry data.status from execution_* events.)
-        const isTerminalConversation = !data.route || data.route === 'direct' ||
-          data.route === 'clarification_required' ||
-          (data.route === 'investigate' && !data.status);
-        const nextState = isTerminalConversation
-          ? 'completed'
-          : runtimeStateForDelegatedStatus(data.status);
+        // codex/hermes — carry data.status from execution_* events.) The
+        // classifier also treats every route WITHOUT a delegation status as
+        // terminal — memory_store / memory_recall / decision_statement /
+        // continuation / project_state_answer all complete synchronously and
+        // must release the composer.
+        const nextState = classifyDoneState(data);
         emitStatus({
           state: nextState,
           firstTokenMs: typeof data.firstTokenMs === 'number' ? data.firstTokenMs : firstTokenMsRef.current,
