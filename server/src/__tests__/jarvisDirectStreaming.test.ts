@@ -569,9 +569,13 @@ describe('Jarvis direct streaming', () => {
       .send({ prompt: 'What can you do right now?', operationId: 'op-status' })
       .expect(200);
 
-    expect(res.text).toContain('CodeX available');
-    expect(res.text).toContain('Agent Teams available');
-    expect(res.text).toContain('Tools available');
+    expect(res.text).toContain('I\'m Jarvis, the operational commander of Agentic OS.');
+    // Natural runtime-identity line: friendly provider/model + fallback.
+    expect(res.text).toContain('OpenRouter');
+    expect(res.text).toContain('Llama 3.2');
+    // No mock-registry boilerplate and no generic LLM guesswork.
+    expect(res.text).not.toContain('CodeX available');
+    expect(res.text).not.toContain('Healthy runtimes');
     expect(res.text).not.toContain('reminders, searching for information, sending messages');
     expect(mocks.streamCalls).toBe(0);
   });

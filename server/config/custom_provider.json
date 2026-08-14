@@ -2,7 +2,7 @@
   "providerName": "ollama",
   "baseUrl": "http://127.0.0.1:11434",
   "apiKey": "",
-  "defaultModel": "laguna-xs-2.1",
+  "defaultModel": "llama3.2:3b",
   "maxTokens": 4096,
   "temperature": 0.2
 }

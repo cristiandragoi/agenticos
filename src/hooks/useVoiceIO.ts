@@ -61,6 +61,12 @@ interface UseVoiceIOOptions {
   /** Conversation mode: hold an incomplete utterance this long (ms) while
    *  waiting for a continuation segment before submitting it as-is. */
   continuationWindowMs?: number;
+  /** VAD liveness watchdog: if the analysis loop claims Listening but
+   *  produces no tick for this many ms, cancel the stale rAF id and re-arm
+   *  (background/occlusion recovery). Default 3000ms. */
+  vadWatchdogMs?: number;
+  /** How often the VAD liveness watchdog checks (ms). Default 1000ms. */
+  vadWatchdogIntervalMs?: number;
 }
 
 import { API_BASE as BACKEND, apiFetch } from '../api/client';
@@ -85,7 +91,15 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     maxSegmentMs = 20000,
     bargeInGraceMs = 250,
     continuationWindowMs = 2500,
+    vadWatchdogMs = 3000,
+    vadWatchdogIntervalMs = 1000,
   } = options;
+
+  // VAD liveness thresholds (multi-turn voice hardening): if the analysis
+  // loop claims to be Listening but produces no tick for this long, the
+  // rAF loop has been frozen (background/occlusion) and must be re-armed.
+  const VAD_WATCHDOG_MS = vadWatchdogMs;
+  const VAD_WATCHDOG_INTERVAL_MS = vadWatchdogIntervalMs;
 
   const [voiceState, setVoiceStateInternal] = useState<VoiceState>('idle');
   const [lastTranscript, setLastTranscript] = useState('');
@@ -122,6 +136,14 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const convCtxRef = useRef<AudioContext | null>(null);
   const convAnalyserRef = useRef<AnalyserNode | null>(null);
   const vadRafRef = useRef<number | null>(null);
+  // ── VAD liveness (multi-turn voice hardening) ──
+  // The analysis loop is the ONLY thing that turns microphone audio into a
+  // user turn. Chromium may pause rAF (background/occlusion/suspension), so
+  // we track the last real tick and let a watchdog recover a stalled loop.
+  const lastVadTickAtRef = useRef(0);
+  const vadWatchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const vadErrorShownRef = useRef(false);
+  const lastVadWarnAtRef = useRef(0);
   const convRecorderRef = useRef<MediaRecorder | null>(null);
   const convChunksRef = useRef<Blob[]>([]);
   const turnActiveRef = useRef(false);
@@ -847,6 +869,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }
       const rms = Math.sqrt(sum / data.length);
       const now = Date.now();
+      // Liveness heartbeat: the watchdog uses this to detect a stalled
+      // rAF loop (background/occlusion throttling) and recover it.
+      lastVadTickAtRef.current = now;
 
       // Real playback amplitude broadcast (orb) while a turn is recording.
       if (turnActiveRef.current) {
@@ -910,6 +935,87 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     };
     vadRafRef.current = requestAnimationFrame(tick);
   }, [speechThreshold, minSpeechMs, endSpeechSilenceMs, maxSegmentMs, bargeInGraceMs, startTurnRecording, stopTurnRecording, stopSpeaking, setVoiceState]);
+
+  /** Watchdog for the conversation VAD loop (multi-turn voice hardening).
+   *
+   *  The VAD loop is driven by requestAnimationFrame, which Chromium pauses
+   *  while the window is hidden/occluded even with backgroundThrottling off
+   *  (OS suspension, devtools, platform quirks). If the UI believes it is
+   *  Listening but no analysis tick has happened for a while, the loop is
+   *  dead — cancel any stale rAF id and re-arm. Idempotent by construction:
+   *  startConversationListeningInternal refuses to start while a rAF id is
+   *  live, so this can never create a second analysis loop. At most one
+   *  watchdog interval runs per hook instance. */
+  const startVadWatchdog = useCallback(() => {
+    if (vadWatchdogRef.current !== null) return; // at most one watchdog
+    vadWatchdogRef.current = setInterval(() => {
+      if (!conversationActiveRef.current) return;
+      if (voiceStateRef.current !== 'listening') return;
+      const deadMs = Date.now() - lastVadTickAtRef.current;
+      if (deadMs < VAD_WATCHDOG_MS) return;
+      // Stalled while claiming to listen. Recover deterministically.
+      if (vadRafRef.current !== null) {
+        try { cancelAnimationFrame(vadRafRef.current); } catch { /* stale id */ }
+        vadRafRef.current = null;
+      }
+      if (!convAnalyserRef.current || !streamRef.current) {
+        // The mic/analyser are gone — the loop cannot run. Surface a truthful
+        // state instead of a permanent fake "Listening"; keep retrying on
+        // later watchdog ticks so recovery is automatic when the mic returns.
+        if (!vadErrorShownRef.current) {
+          vadErrorShownRef.current = true;
+          voiceTracePush('mic_unavailable', 'fail', 'Microphone analysis unavailable — reconnecting');
+          setVoiceState('error');
+        }
+        return;
+      }
+      // Throttle the warn so a genuinely frozen window doesn't spam the trace.
+      if (Date.now() - lastVadWarnAtRef.current > 10000) {
+        lastVadWarnAtRef.current = Date.now();
+        voiceTracePush('vad_watchdog', 'warn', `VAD loop stalled ${Math.round(deadMs / 1000)}s — re-arming`);
+      }
+      if (vadErrorShownRef.current) {
+        vadErrorShownRef.current = false;
+        setVoiceState('listening');
+      }
+      startConversationListeningInternal();
+    }, VAD_WATCHDOG_INTERVAL_MS);
+  }, [setVoiceState, startConversationListeningInternal]);
+
+  const stopVadWatchdog = useCallback(() => {
+    if (vadWatchdogRef.current !== null) {
+      clearInterval(vadWatchdogRef.current);
+      vadWatchdogRef.current = null;
+    }
+  }, []);
+
+  // Visibility/focus recovery: when the window regains visibility or focus,
+  // deterministically re-arm the analysis loop if it stalled while hidden.
+  // Never duplicates: re-arm is idempotent (vadRafRef guard).
+  useEffect(() => {
+    const ensureVadAlive = () => {
+      if (!conversationActiveRef.current) return;
+      if (voiceStateRef.current !== 'listening') return;
+      if (vadRafRef.current === null) {
+        startConversationListeningInternal();
+        return;
+      }
+      if (Date.now() - lastVadTickAtRef.current > VAD_WATCHDOG_MS) {
+        // The rAF id may be stale (loop suspended mid-flight).
+        try { cancelAnimationFrame(vadRafRef.current); } catch { /* stale id */ }
+        vadRafRef.current = null;
+        startConversationListeningInternal();
+      }
+    };
+    const onVisibility = () => { if (document.visibilityState === 'visible') ensureVadAlive(); };
+    const onFocus = () => { ensureVadAlive(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [startConversationListeningInternal]);
 
   /** Re-arm the mic inside the continuation window. */
   const rearmListening = useCallback(() => {
@@ -1013,10 +1119,11 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     unlockAudioElement();
     setVoiceState('listening');
     startConversationListeningInternal();
+    startVadWatchdog();
     // TEMP DIAGNOSTIC — conversation session confirmed live (remove after confirmation)
     console.log('[ConvTrace] startConversation OK — VAD armed');
     return true;
-  }, [openConversationMic, setVoiceState, startConversationListeningInternal, unlockAudioElement]);
+  }, [openConversationMic, setVoiceState, startConversationListeningInternal, startVadWatchdog, unlockAudioElement]);
 
   /** End conversation mode: stop mic capture, VAD loop, timers, recorder. */
   const endConversation = useCallback(() => {
@@ -1027,11 +1134,12 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     conversationSessionIdRef.current = null;
     setConversationSessionId(null);
     setConversationActive(false);
+    stopVadWatchdog();
     closeConversationMic();
     if (!playbackActiveRef.current && !speakingRef.current) {
       setVoiceState('idle');
     }
-  }, [closeConversationMic, setVoiceState]);
+  }, [closeConversationMic, setVoiceState, stopVadWatchdog]);
 
   /** Start listening (manual single-segment capture; in conversation mode it
    *  simply re-arms the continuous loop). */
@@ -1043,6 +1151,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }
       setVoiceState('listening');
       startConversationListeningInternal();
+      startVadWatchdog();
       return;
     }
     if (voiceState === 'listening') return;
@@ -1415,6 +1524,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }
       conversationActiveRef.current = false;
       conversationSessionIdRef.current = null;
+      stopVadWatchdog();
       closeConversationMic();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

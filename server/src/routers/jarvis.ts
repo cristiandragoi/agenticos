@@ -11,7 +11,6 @@ import { conversations, teams, teamRuns } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { llmChatStream } from '../services/llmGateway.js';
 import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../services/agent/assignments.js';
-import { mockAgents, mockProviders, mockRuntimes, mockTools } from '../data.js';
 
 const router = Router();
 
@@ -265,44 +264,52 @@ function writeSse(res: any, event: string, data: any) {
   res.flush?.();
 }
 
+/** Friendly display names for runtime identity (self-knowledge milestone).
+ *  The RAW provider/model identifiers are always the truth anchor; these
+ *  only make conversational answers natural. Unknown ids fall back to the
+ *  raw value so nothing is ever invented. */
+function friendlyProviderName(provider: string | null | undefined): string {
+  const p = String(provider || '').toLowerCase();
+  if (p.includes('openrouter')) return 'OpenRouter';
+  if (p.includes('ollama')) return 'Ollama';
+  if (p.includes('deepseek')) return 'DeepSeek';
+  if (p.includes('anthropic')) return 'Anthropic';
+  if (p.includes('omni')) return 'OmniRoute';
+  if (!p) return 'unknown';
+  return provider as string;
+}
+
+function friendlyModelName(model: string | null | undefined): string {
+  const m = String(model || '').toLowerCase();
+  if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
+  if (m.includes('laguna-xs')) return 'Laguna XS';
+  if (m.includes('llama3.2')) return 'Llama 3.2';
+  if (m.includes('llama')) return 'Llama';
+  if (m.includes('qwen3.5')) return 'Qwen 3.5';
+  if (m.includes('qwen')) return 'Qwen';
+  if (m.includes('deepseek')) return 'DeepSeek';
+  if (m.includes('gpt-4o')) return 'GPT-4o';
+  if (m.includes('gpt-')) return 'GPT';
+  if (m.includes('claude')) return 'Claude';
+  if (m.includes('gemini')) return 'Gemini';
+  if (m.includes('longcat')) return 'LongCat';
+  if (m.includes('kimi')) return 'Kimi';
+  if (m.includes('minimax')) return 'MiniMax';
+  if (!m) return 'unknown';
+  return model as string;
+}
+
 function buildLiveCapabilityAnswer(workspacePath: string | undefined, identity?: { selectedProvider: string; selectedModel: string; fallbackModel: string; effectiveProvider: string | null; effectiveModel: string | null }) {
-  const activeAgents = mockAgents.filter(agent => agent.status === 'active');
-  const healthyRuntimes = mockRuntimes.filter(runtime => runtime.health?.status === 'healthy');
-  const connectedProviders = mockProviders.filter(provider => provider.status === 'connected');
-  const codex = activeAgents.find(agent => agent.id === 'agent-codex');
-  const jarvis = activeAgents.find(agent => agent.id === 'agent-jarvis');
-  const tools = mockTools
-    .filter(tool => [
-      'tool-file-system',
-      'tool-code-runner',
-      'tool-browser',
-      'tool-search',
-      'tool-trigger-build',
-      'tool-deploy',
-      'tool-read-config',
-      'tool-write-config'
-    ].includes(tool.id))
-    .map(tool => tool.name)
-    .slice(0, 8);
+  const effProvider = identity?.effectiveProvider || identity?.selectedProvider || 'unknown';
+  const effModel = identity?.effectiveModel || identity?.selectedModel || 'unknown';
+  const fallbackModel = identity?.fallbackModel || '';
 
   return [
-    'I am Jarvis, the operational orchestrator for Agentic OS.',
-    '',
-    `CodeX available: ${codex ? 'yes' : 'no'}`,
-    `Agent Teams available: yes`,
-    `Repository selected: ${workspacePath?.trim() || 'none'}`,
-    `Healthy runtimes: ${healthyRuntimes.length}/${mockRuntimes.length}`,
-    `Connected providers: ${connectedProviders.length}/${mockProviders.length}`,
-    `Tools available: ${tools.join(', ') || 'none registered'}`,
-    // P3 — runtime truth, never canned: report the REAL effective provider/model
-    // (recovery/fallback-aware), falling back to the assigned selection.
-    `Current provider/model for direct chat: effective=${identity?.effectiveProvider || identity?.selectedProvider || 'unknown'} / ${identity?.effectiveModel || identity?.selectedModel || 'unknown'} (assigned: ${identity?.selectedProvider || 'unknown'} / ${identity?.selectedModel || 'unknown'}${identity?.fallbackModel ? `, fallback ${identity?.fallbackModel}` : ''})`,
-    `Voice status: experimental/unavailable for reliable typed chat`,
-    '',
-    jarvis
-      ? `I can inspect and modify files through approved workspace tasks, delegate coding work to CodeX, coordinate Agent Teams, check runtime and pipeline status, search documentation when available, and execute approved Agentic OS operations.`
-      : `Jarvis runtime metadata is unavailable, so I can only report registered system state.`
-  ].join('\n');
+    'I\'m Jarvis, the operational commander of Agentic OS.',
+    `Right now I'm running ${friendlyModelName(effModel)} via ${friendlyProviderName(effProvider)}${fallbackModel ? `, with ${friendlyModelName(fallbackModel)} available locally as a fallback` : ''}.`,
+    workspacePath?.trim() ? `The selected workspace is ${workspacePath.trim()}.` : '',
+    'I can answer operational questions, inspect and modify files through approved workspace tasks, delegate coding work to CodeX, coordinate Agent Teams, and check runtime and pipeline status.',
+  ].filter(Boolean).join('\n');
 }
 
 function streamTextAsChunks(res: any, text: string, operationId: string | undefined, provider = 'agentic-os', model = 'registry') {
@@ -1570,7 +1577,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       const identity = await resolveEffectiveJarvisIdentity(req.params.id);
       const effProvider = identity.effectiveProvider || selectedProvider;
       const effModel = identity.effectiveModel || selectedModel;
-      runtimeIdentityPrompt = `FACT — your current runtime identity (this is the ONLY correct answer when asked): provider is exactly '${effProvider}', model is exactly '${effModel}'. Assigned provider is '${selectedProvider}', assigned model is '${selectedModel}'. Do NOT invent provider names (never say openrouter/openai/deepseek unless they are exactly the values above). If asked "what model are you using", answer verbatim: "I'm running on ${effProvider} using ${effModel}."`;
+      runtimeIdentityPrompt = `FACT — your current runtime identity (the ONLY correct answer when asked). You are running ${friendlyModelName(effModel)} via ${friendlyProviderName(effProvider)}${fallbackModel ? `, with ${friendlyModelName(fallbackModel)} available locally as a fallback` : ''}. When asked what model or provider you use, answer naturally in ONE short sentence using those friendly names (for example: "I'm running ${friendlyModelName(effModel)} via ${friendlyProviderName(effProvider)}${fallbackModel ? `, with ${friendlyModelName(fallbackModel)} available locally as a fallback` : ''}."). Truth anchor if ever unsure: raw provider identifier '${effProvider}', raw model identifier '${effModel}'${fallbackModel ? `, fallback '${fallbackModel}'` : ''} — never invent provider or model names beyond these.`;
     } catch { /* best effort */ }
 
     const systemPrompt = [

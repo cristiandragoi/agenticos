@@ -412,7 +412,10 @@ export const mockProviders: ProviderDefinition[] = [
     scopes: ["chat", "completion", "coding"],
     description: "Local Ollama runtime. Hosts coding-specialist and general-purpose models. No API key required. Models run entirely on-device.",
     lastActivity: "just now",
-    defaultModel: "laguna-xs-2.1",
+    // Consolidated to the model actually installed in the local Ollama
+    // (verified: llama3.2:3b present; laguna-xs-2.1 was NOT) — matches the
+    // gateway fallback (OLLAMA_FALLBACK_MODEL || 'llama3.2:3b').
+    defaultModel: "llama3.2:3b",
     models: [
       { id: "laguna-xs-2.1", name: "Laguna XS 2.1", displayName: "Laguna XS 2.1 (Local)", contextLength: 32768, inputCost: 0, outputCost: 0 },
       { id: "qwen2.5-coder:14b", name: "Qwen2.5 Coder 14B", displayName: "Qwen2.5-Coder 14B (Local)", contextLength: 32768, inputCost: 0, outputCost: 0 },

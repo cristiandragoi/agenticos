@@ -836,20 +836,26 @@ export default function JarvisStudio() {
   // the user's prompt words. Nodes without a real signal stay inactive.
   const nodeActivity = useMemo(() => {
     const act: Partial<Record<JarvisNodeId, number>> = {};
+    // Only treat runtime state as "delegation-active" when the backend says a
+    // turn/task is genuinely executing or delegated. A stale activeTask from
+    // a finished turn (or a lingering poll) must NOT light delegation nodes
+    // (Runs/Vision/Hermes) while Jarvis is merely idle/listening — the user
+    // saw exactly that false signal during failed voice turns.
+    const runtimeActive = backendRuntime.state === 'executing' || backendRuntime.state === 'delegated';
     const a = (backendRuntime.activeTask?.action || '').toLowerCase();
     const runLive = activeRun && ['running', 'queued', 'waiting_for_approval', 'stopping'].includes(activeRun.status);
-    if (/memory|recall|remember|retriev/.test(a)) act.Memory = 1;
+    if (runtimeActive && /memory|recall|remember|retriev/.test(a)) act.Memory = 1;
     if (backendRuntime.activeProject) act.Projects = 1;
-    if (/research|knowledge|search|web|source|review/.test(a)) act.Knowledge = 1;
-    if (orbState === 'delegated' || /delegat|agent team|assign|hermes/.test(a) || runLive) act.Hermes = 1;
+    if (runtimeActive && /research|knowledge|search|web|source|review/.test(a)) act.Knowledge = 1;
+    if (orbState === 'delegated' || (runtimeActive && /delegat|agent team|assign|hermes/.test(a)) || runLive) act.Hermes = 1;
     // No structured CodeX run signal exists in /hermes-api/runs (no worker
     // field) — the runtime's own action text is the only real signal.
-    if (/codex|coding|repo|commit|pull/.test(a)) act.CodeX = 1;
-    if (backendRuntime.activeTask || runLive) act.Runs = 1;
-    if (/artifact|build|file|write|save|generate/.test(a)) act.Artifacts = 1;
-    if (/vision|oracle|image|video|screen|see|look/.test(a)) act.Vision = 1;
+    if (runtimeActive && /codex|coding|repo|commit|pull/.test(a)) act.CodeX = 1;
+    if ((runtimeActive && backendRuntime.activeTask) || runLive) act.Runs = 1;
+    if (runtimeActive && /artifact|build|file|write|save|generate/.test(a)) act.Artifacts = 1;
+    if (runtimeActive && /vision|oracle|image|video|screen|see|look/.test(a)) act.Vision = 1;
     return act;
-  }, [backendRuntime.activeTask, backendRuntime.activeProject, orbState, activeRun?.status]);
+  }, [backendRuntime.activeTask, backendRuntime.activeProject, backendRuntime.state, orbState, activeRun?.status]);
 
   // ── Activity line: REAL events only (voice transitions + Hermes events) ──
   const [activityLog, setActivityLog] = useState<{ t: number; text: string }[]>([]);

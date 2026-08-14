@@ -163,6 +163,12 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      // Jarvis conversation VAD must stay operational while the window is
+      // occluded/unfocused: the voice loop is driven by requestAnimationFrame,
+      // which Chromium pauses for hidden windows unless background throttling
+      // is disabled. Without this, speaking while the app is covered or
+      // unfocused leaves the UI stuck on "Listening" with a dead mic pipeline.
+      backgroundThrottling: false,
     },
   });
 
