@@ -162,15 +162,24 @@ export async function assembleConversationContext(
  * Compact factual block for the direct-chat LLM system prompt. Kept SHORT —
  * the current user message and recent turns carry the conversational weight;
  * this adds only what the model cannot know from history.
+ *
+ * Prompt hierarchy (§prompt-hierarchy): operational state (active/recent task,
+ * capabilities) is ONLY included when `includeOperational` is true — i.e. the
+ * current user message actually asks about tasks/runtime. For ordinary
+ * conversation the block is limited to static facts (workspace, provider,
+ * approval mode) so task state never becomes the default subject and cannot
+ * pull a simple question into a runtime-inspection tangent.
  */
-export function contextToSystemPrompt(ctx: ConversationContext): string {
+export function contextToSystemPrompt(ctx: ConversationContext, opts: { includeOperational?: boolean } = {}): string {
   const lines: string[] = [];
   if (ctx.workspaceRoot) lines.push(`Selected workspace/repository: ${ctx.workspaceRoot}`);
-  if (ctx.activeTask) {
-    lines.push(`Active task: ${ctx.activeTask.worker} ${ctx.activeTask.status} — "${ctx.activeTask.title.slice(0, 70)}" (${ctx.activeTask.id.slice(0, 12)})`);
-  }
-  if (ctx.recentTask && !ctx.activeTask) {
-    lines.push(`Most recent task (HISTORICAL, not active): ${ctx.recentTask.worker} ${ctx.recentTask.status} — "${ctx.recentTask.title.slice(0, 70)}" (${ctx.recentTask.id.slice(0, 12)})`);
+  if (opts.includeOperational) {
+    if (ctx.activeTask) {
+      lines.push(`Active task: ${ctx.activeTask.worker} ${ctx.activeTask.status} — "${ctx.activeTask.title.slice(0, 70)}" (${ctx.activeTask.id.slice(0, 12)})`);
+    }
+    if (ctx.recentTask && !ctx.activeTask) {
+      lines.push(`Most recent task (HISTORICAL, not active): ${ctx.recentTask.worker} ${ctx.recentTask.status} — "${ctx.recentTask.title.slice(0, 70)}" (${ctx.recentTask.id.slice(0, 12)})`);
+    }
   }
   lines.push(`Provider/model: ${ctx.providers.provider}/${ctx.providers.model} (fallback ${ctx.providers.fallbackProvider}/${ctx.providers.fallbackModel})`);
   lines.push(`Approval mode: ${ctx.approvalMode}`);

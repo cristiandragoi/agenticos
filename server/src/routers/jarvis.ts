@@ -188,6 +188,16 @@ export function buildConversationHistory(
   const arr = Array.isArray(messages) ? messages : [];
   const history: { role: 'user' | 'assistant'; content: string }[] = [];
   let chars = 0;
+  // Relevance window (§prompt-hierarchy): keep only turns that share a
+  // significant token with the current prompt OR are within the last 2 turns
+  // (continuity anchors for "that"/"it"/"continue"). Stale debugging churn —
+  // dozens of unrelated "are you there?"/"what model" exchanges — is excluded
+  // so it can neither drown the current user message nor teach the model to
+  // repeat old refusals/runtime tangents.
+  const currentTokens = new Set<string>(
+    currentPrompt.toLowerCase().split(/\W+/).filter((w: string) => w.length >= 3)
+  );
+  let skippedForRelevance = 0;
   for (let i = arr.length - 1; i >= 0; i--) {
     const m = arr[i];
     const role = m?.role;
@@ -197,11 +207,28 @@ export function buildConversationHistory(
     if (role === 'system') continue; // never surface bookkeeping system rows
     if (role === 'user' && content === currentPrompt) continue; // current turn
     if (role !== 'user' && role !== 'agent') continue;
+    const distanceFromEnd = arr.length - 1 - i;
+    const turnTokens = new Set<string>(
+      content.toLowerCase().split(/\W+/).filter((w: string) => w.length >= 3)
+    );
+    let shared = 0;
+    turnTokens.forEach((tok) => {
+      if (currentTokens.has(tok)) shared++;
+    });
+    const isContinuityAnchor = distanceFromEnd <= 1; // the immediately-previous user/assistant turn
+    const isRelevant = shared >= 1 || isContinuityAnchor;
+    if (!isRelevant) {
+      skippedForRelevance++;
+      continue;
+    }
     const mapped = role === 'agent' ? 'assistant' : 'user';
     if (chars + content.length > maxChars) continue;
     history.unshift({ role: mapped, content });
     chars += content.length;
     if (history.length >= maxTurns) break;
+  }
+  if (skippedForRelevance > 0) {
+    logStreamStage('history', 'relevance filter', { kept: history.length, skipped: skippedForRelevance });
   }
   return history;
 }
@@ -211,6 +238,20 @@ function logStreamStage(operationId: string | undefined, stage: string, details:
     operationId,
     ...details
   });
+}
+
+/**
+ * Prompt-hierarchy gate (§prompt-hierarchy): decides whether operational state
+ * (active/recent tasks, runtime status) is injected into the direct-chat
+ * system prompt. Only TRUE when the current user message genuinely asks about
+ * tasks, agents, or runtime state. Ordinary conversation must never receive
+ * task-state directives — that was the root cause of "Are you there?" being
+ * answered with a Hermes-gateway inspection tangent.
+ */
+const OPERATIONAL_QUESTION_RE = /\b(task|tasks|run|runs|codex|hermes|agent team|agent teams|background|status|execution|goal|goals|active|what('s| is)? (happening|running|going on)|is .*(done|finished|complete)|how .*(going|progress))\b/i;
+function isOperationalQuestion(text: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  return OPERATIONAL_QUESTION_RE.test(text.slice(0, 400));
 }
 
 /**
@@ -1570,11 +1611,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // path: workspace, active/historical task, provider, capabilities, and
     // previous-clarification state. Injected as a compact block so the model
     // answers follow-ups and task questions from actual state, never canned.
+    // PROMPT HIERARCHY (§prompt-hierarchy): active/recent TASK state is only
+    // included when the current user message is an operational question —
+    // ordinary conversation gets static facts only (workspace, provider,
+    // approval mode), so task state cannot hijack a simple question.
     let conversationContextPrompt = '';
+    let operationalContextInjected = false;
     try {
       const { assembleConversationContext, contextToSystemPrompt } = await import('../domains/jarvis/conversationContext.js');
       const ctx = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy) });
-      conversationContextPrompt = contextToSystemPrompt(ctx);
+      const includeOperational = isOperationalQuestion(prompt);
+      conversationContextPrompt = contextToSystemPrompt(ctx, { includeOperational });
+      operationalContextInjected = includeOperational;
     } catch {
       // context optional — direct chat must never break on context failure
     }
@@ -1594,6 +1642,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     const systemPrompt = [
       ...(runtimeIdentityPrompt ? [runtimeIdentityPrompt] : []),
       'You are Jarvis, the operational commander of Agentic OS.',
+      // PROMPT HIERARCHY (§prompt-hierarchy): the CURRENT user message is the
+      // primary instruction. History and runtime context exist only to help
+      // answer it; they must never override it or pull the reply into task
+      // inspection the user did not ask for.
+      'The user message at the end of this prompt is your PRIMARY instruction. Answer it first and directly. Prior turns and context blocks are supporting material only — never let them change the subject or trigger unrequested runtime reports.',
       'For normal conversation, answer directly and briefly.',
       'Do not claim reminders, messaging, calendar actions, or external services unless the prompt or Agentic OS registry explicitly provides them.',
       'If asked about system capabilities, describe Agentic OS capabilities: CodeX delegation, Agent Teams, workspace inspection/change through approval, runtime/tool/pipeline status, and research/search only when available.',
@@ -1605,8 +1658,15 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'Never claim that you are speaking, spoke, or will speak aloud, and never append delivery notes like "(spoken aloud)" — audio delivery is handled by the system outside your text. Just answer the question.',
       'Never emit tool-call markup: do NOT output <tool_call>...</tool_call>, <invoke>...</invoke>, function-call syntax, or JSON code fences in your reply. If a request needs investigation or delegation, say so in plain words; the system performs it.',
       'Answer concisely and directly. Do not repeat yourself — EXCEPT when the user explicitly asks you to repeat or echo a phrase (for example "repeat after me", "say exactly X", "repeat this sentence"): in that case obey the user verbatim and output ONLY the requested phrase, no commentary, no refusal, no surrounding text. Do not comment on your own responses. Do not announce or describe actions you did not take. For simple questions, answer simply.',
+      'Do not ask "How can I help you today?" or similar generic openers when the user asked a specific question — answer that question.',
       'Use the conversation history to keep the subject across turns: "that", "it", "this", "continue", "fix it" refer to the recent conversation subject — resolve them from prior turns instead of asking what they mean.',
-      'Never answer task-state questions ("Is Hermes finished?", "Is the task done?", "What happened?") with generic text — report the ACTUAL task state from the context block below, distinguishing ACTIVE vs HISTORICAL.',
+      // Task-state directive is CONDITIONAL (§prompt-hierarchy): only injected
+      // when the current user message is an operational question. For ordinary
+      // conversation it is omitted entirely so the model cannot drift into
+      // runtime reports.
+      ...(operationalContextInjected ? [
+        'You received a question about tasks/runtime state. Report the ACTUAL state from the context block below, distinguishing ACTIVE vs HISTORICAL — never answer such questions with generic text.'
+      ] : []),
       'Do not claim voice playback is working unless the runtime confirms audio playback started.',
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
