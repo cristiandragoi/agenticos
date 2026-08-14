@@ -217,6 +217,28 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, []);
 
+  /** Mute/unmute the live conversation mic.
+   *
+   *  ROOT-CAUSE FIX (multi-turn voice): while Jarvis is speaking (TTS
+   *  playback), the mic MUST NOT interpret Jarvis's own voice. Without this,
+   *  the VAD treats the speaker output picked up by the mic as user speech:
+   *  echo recordings get transcribed and auto-submitted as fake user turns
+   *  ("Jarvis hears itself" loop) or rejected by Deepgram as noSpeech while
+   *  the user's real turn is silently dropped. Mute on playback start,
+   *  unmute on playback end, then re-arm listening. */
+  const setConversationMicEnabled = useCallback((enabled: boolean) => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    // getAudioTracks is standard, but defensive fallback keeps the helper
+    // safe for any stream shape (incl. test mocks with getTracks only).
+    const tracks = typeof stream.getAudioTracks === 'function'
+      ? stream.getAudioTracks()
+      : stream.getTracks();
+    tracks.forEach((t) => {
+      try { t.enabled = enabled; } catch { /* track may already be ended */ }
+    });
+  }, []);
+
   /** Stop playback WITHOUT dispatching playbackEnded. Internal primitive;
    *  callers decide whether the orb/consumers must be notified. */
   const haltPlayback = useCallback(() => {
@@ -242,7 +264,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     stopPlaybackLevelMonitor();
     playbackActiveRef.current = false;
     speakingRef.current = false;
-  }, [stopPlaybackLevelMonitor]);
+    // ROOT-CAUSE FIX (multi-turn voice): any halt (stop button, abort, voice
+    // disable) must never leave the conversation mic muted.
+    setConversationMicEnabled(true);
+  }, [stopPlaybackLevelMonitor, setConversationMicEnabled]);
 
   /** Public stop: halt + notify listeners (orb, drawer resume handler). */
   const stopAudio = useCallback(() => {
@@ -379,6 +404,11 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         playbackActiveRef.current = true;
         speakingRef.current = true;
         playbackStartedAtRef.current = Date.now();
+        // ROOT-CAUSE FIX (multi-turn voice): Jarvis is now speaking — mute the
+        // conversation mic so the VAD cannot interpret Jarvis's own voice as
+        // a user turn (echo self-loop / noSpeech drops). Unmuted on playback
+        // end (onended/onerror) before the mic loop re-arms.
+        setConversationMicEnabled(false);
         // §6: playback recovered — clear any leftover FAILED banner.
         setPlaybackError(null);
         ensurePlaybackAnalyser();
@@ -398,6 +428,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         stopPlaybackLevelMonitor();
         playbackActiveRef.current = false;
         speakingRef.current = false;
+        // ROOT-CAUSE FIX (multi-turn voice): Jarvis finished speaking — re-arm
+        // the mic BEFORE the conversation loop re-arms, so the next USER turn
+        // is heard at full gain (echo cancellation / AGC must not suppress it).
+        setConversationMicEnabled(true);
         window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
           detail: { agentId },
         }));
@@ -409,6 +443,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         stopPlaybackLevelMonitor();
         playbackActiveRef.current = false;
         speakingRef.current = false;
+        // ROOT-CAUSE FIX (multi-turn voice): playback failed — never leave the
+        // conversation mic muted; the recovery path re-arms listening.
+        setConversationMicEnabled(true);
         const err = audio.error?.message || 'Audio element playback error';
         setPlaybackError(err);
         setVoiceState('error');
@@ -445,7 +482,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         reject(new Error(errMsg));
       });
     });
-  }, [agentId, setVoiceState, ensurePlaybackAnalyser, startPlaybackLevelMonitor, stopPlaybackLevelMonitor, afterPlaybackEnd]);
+  }, [agentId, setVoiceState, ensurePlaybackAnalyser, startPlaybackLevelMonitor, stopPlaybackLevelMonitor, afterPlaybackEnd, setConversationMicEnabled]);
 
   /**
    * Start silence detection using Web Audio API.
@@ -596,6 +633,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Benign "no speech" outcome: valid audio, nothing to transcribe.
       // Not an error — conversation re-arms; manual returns to idle.
       if (!transcribeRes.ok && transcribeData?.noSpeech === true) {
+        voiceTracePush('no_speech', 'warn', `No speech detected in ${(audioBlob.size / 1024).toFixed(1)} KB audio — re-arming`);
         if (fromConversation || conversationActiveRef.current) {
           setVoiceState('listening');
           startConversationListeningInternal();
@@ -1134,6 +1172,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       speakingRef.current = true;
       playbackActiveRef.current = true;
       playbackStartedAtRef.current = Date.now();
+      // ROOT-CAUSE FIX (multi-turn voice): fallback TTS is still Jarvis's
+      // voice — mute the conversation mic so it is not heard back as a turn.
+      setConversationMicEnabled(false);
       setVoiceState('speaking');
       window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
         detail: { agentId },
@@ -1142,6 +1183,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     utterance.onend = () => {
       speakingRef.current = false;
       playbackActiveRef.current = false;
+      setConversationMicEnabled(true);
       window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
         detail: { agentId },
       }));
@@ -1150,6 +1192,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     utterance.onerror = () => {
       speakingRef.current = false;
       playbackActiveRef.current = false;
+      setConversationMicEnabled(true);
       setVoiceState('error');
       window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
         detail: { agentId },
@@ -1166,7 +1209,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }
     };
     window.speechSynthesis?.speak(utterance);
-  }, [agentId, setVoiceState, afterPlaybackEnd, startConversationListeningInternal]);
+  }, [agentId, setVoiceState, afterPlaybackEnd, startConversationListeningInternal, setConversationMicEnabled]);
 
   /** Speak a text string directly using pure TTS.
    *  NOTE: the 'speaking' voice state is NOT set here — it is set only when
