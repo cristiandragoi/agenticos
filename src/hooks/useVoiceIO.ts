@@ -442,7 +442,6 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         // Conversation mode: keep the VAD loop armed DURING playback so a
         // real user voice can barge in (stop audio, open a new turn).
         if (conversationActiveRef.current) startConversationListeningInternal();
-        resolve();
       };
 
       audio.onended = () => {
@@ -458,6 +457,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
           detail: { agentId },
         }));
         afterPlaybackEnd();
+        resolve();
       };
 
       audio.onerror = () => {
@@ -1269,55 +1269,63 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
   }, [agentId, haltPlayback, setVoiceState, unlockAudio]);
 
-  const fallbackSpeak = useCallback((text: string) => {
-    window.speechSynthesis?.cancel();
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current.src = '';
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    // Speaking is confirmed by the real utterance start event, not eagerly.
-    (utterance as any).onstart = () => {
-      speakingRef.current = true;
-      playbackActiveRef.current = true;
-      playbackStartedAtRef.current = Date.now();
-      // ROOT-CAUSE FIX (multi-turn voice): fallback TTS is still Jarvis's
-      // voice — mute the conversation mic so it is not heard back as a turn.
-      setConversationMicEnabled(false);
-      setVoiceState('speaking');
-      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
-        detail: { agentId },
-      }));
-    };
-    utterance.onend = () => {
-      speakingRef.current = false;
-      playbackActiveRef.current = false;
-      setConversationMicEnabled(true);
-      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
-        detail: { agentId },
-      }));
-      afterPlaybackEnd();
-    };
-    utterance.onerror = () => {
-      speakingRef.current = false;
-      playbackActiveRef.current = false;
-      setConversationMicEnabled(true);
-      setVoiceState('error');
-      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
-        detail: { agentId },
-      }));
-      if (conversationActiveRef.current) {
-        if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
-        recoverTimerRef.current = setTimeout(() => {
-          recoverTimerRef.current = null;
-          if (conversationActiveRef.current) {
-            setVoiceState('listening');
-            startConversationListeningInternal();
-          }
-        }, 1500);
+  const fallbackSpeak = useCallback((text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || !window.speechSynthesis) {
+        resolve();
+        return;
       }
-    };
-    window.speechSynthesis?.speak(utterance);
+      window.speechSynthesis?.cancel();
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.src = '';
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      // Speaking is confirmed by the real utterance start event, not eagerly.
+      (utterance as any).onstart = () => {
+        speakingRef.current = true;
+        playbackActiveRef.current = true;
+        playbackStartedAtRef.current = Date.now();
+        // ROOT-CAUSE FIX (multi-turn voice): fallback TTS is still Jarvis's
+        // voice — mute the conversation mic so it is not heard back as a turn.
+        setConversationMicEnabled(false);
+        setVoiceState('speaking');
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
+          detail: { agentId },
+        }));
+      };
+      utterance.onend = () => {
+        speakingRef.current = false;
+        playbackActiveRef.current = false;
+        setConversationMicEnabled(true);
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+          detail: { agentId },
+        }));
+        afterPlaybackEnd();
+        resolve();
+      };
+      utterance.onerror = () => {
+        speakingRef.current = false;
+        playbackActiveRef.current = false;
+        setConversationMicEnabled(true);
+        setVoiceState('error');
+        window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
+          detail: { agentId },
+        }));
+        if (conversationActiveRef.current) {
+          if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+          recoverTimerRef.current = setTimeout(() => {
+            recoverTimerRef.current = null;
+            if (conversationActiveRef.current) {
+              setVoiceState('listening');
+              startConversationListeningInternal();
+            }
+          }, 1500);
+        }
+        resolve();
+      };
+      window.speechSynthesis?.speak(utterance);
+    });
   }, [agentId, setVoiceState, afterPlaybackEnd, startConversationListeningInternal, setConversationMicEnabled]);
 
   /** Speak a text string directly using pure TTS.
@@ -1344,8 +1352,6 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }));
       return;
     }
-
-    stopAudio();
 
     const controller = new AbortController();
     ttsAbortControllerRef.current = controller;
@@ -1388,7 +1394,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Synthesis failed — fall back to the browser voice (best effort).
       // TEMP DIAGNOSTIC (remove once root cause confirmed)
       console.log('[VoiceDiag] synthesis failed → speechSynthesis fallback', { agentId });
-      fallbackSpeak(text);
+      await fallbackSpeak(text);
       return;
     }
 
@@ -1404,7 +1410,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Playback failure: playbackError already carries one understandable
       // message; the text response remains untouched. No duplicate speech.
     }
-  }, [agentId, playAudio, fallbackSpeak, stopAudio, setVoiceState]);
+  }, [agentId, playAudio, fallbackSpeak, setVoiceState]);
 
   // ── Progressive sequential speech queue (one audio at a time) ──
   // Chunks are synthesised + played strictly in order; the next chunk is

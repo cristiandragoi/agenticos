@@ -22,6 +22,8 @@ import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
 import { executionStore, startExecutionStream, completionNotifiedAt } from '../diagnostics/executionStore';
 import type { ExecutionRecord, CompletionEvent } from '../diagnostics/executionStore';
 import { CompletionCard } from '../components/jarvis/CompletionCard';
+import { GoldenPathPanel } from '../components/jarvis/GoldenPathPanel';
+import type { GoldenPathPanelHandle } from '../components/jarvis/GoldenPathPanel';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import VoiceTracePanel from '../components/jarvis/VoiceTracePanel';
 import { useVoiceIO } from '../hooks/useVoiceIO';
@@ -317,9 +319,20 @@ export default function JarvisStudio() {
     flushSpeechBuffer(true);
     const after = speechBufferRef.current;
     if (!buffered && !after && text && text.trim().length > 0) {
-      voiceRef.current?.speak?.(text);
+      voiceRef.current?.speakProgressive?.(text);
     }
   }, [flushSpeechBuffer]);
+
+  // GOLDEN-PATH DIAGNOSTIC (development-only, hidden by default): the panel
+  // and the voice→golden control exist only when enabled explicitly via
+  //   ?jarvisDiag=1   or   localStorage['jarvisDiag']='1'
+  // The default packaged UI never shows it — the normal Jarvis layout is
+  // untouched. The core typed/golden pipeline is known-good; this isolates
+  // the voice capture/transcription layer against that control.
+  const diagEnabled = typeof window !== 'undefined'
+    && (new URLSearchParams(window.location.search).get('jarvisDiag') === '1'
+        || (typeof localStorage !== 'undefined' && localStorage.getItem('jarvisDiag') === '1'));
+  const goldenPathRef = useRef<GoldenPathPanelHandle>(null);
 
   const voice = useVoiceIO({
     agentId: 'agent-jarvis',
@@ -334,6 +347,16 @@ export default function JarvisStudio() {
         // the voice turn silently either: surface the transcript as a preview
         // so the user knows it was heard but not submitted (they can Send it).
         setVoiceInterimTranscript(text);
+        return;
+      }
+      // VOICE→GOLDEN CONTROL (dev-only): when enabled, a successfully
+      // transcribed voice turn is sent into the golden stream (typed-text
+      // control) instead of the full Jarvis route — separating
+      //   voice capture/transcription/auto-submit
+      // from
+      //   full Jarvis intent/context/TTS.
+      if (diagEnabled && goldenPathRef.current?.isVoiceRoutingEnabled()) {
+        goldenPathRef.current.runPrompt(text);
         return;
       }
       chatRef.current?.sendMessage(text, 'voice');
@@ -1609,6 +1632,10 @@ export default function JarvisStudio() {
             VIEW STATE ONLY: composerText/draft survive because the component
             stays mounted. ── */}
         <div className={`${cc.stickyComposer} ${workspaceDockOpen ? '' : cc.composerCollapsed}`} data-testid="jarvis-sticky-composer" style={workspaceDockOpen ? undefined : { display: 'none' }}>
+          {/* GOLDEN-PATH DIAGNOSTIC (development-only, hidden by default —
+              enable via ?jarvisDiag=1 or localStorage). The default packaged
+              UI shows the normal Jarvis layout only. */}
+          {diagEnabled && <GoldenPathPanel ref={goldenPathRef} />}
           {voiceInterimTranscript && (
             <div className={cc.voiceInterimPreview} data-testid="jarvis-voice-interim" aria-live="polite">
               <span className={cc.voiceInterimLabel}>Voice preview</span>
