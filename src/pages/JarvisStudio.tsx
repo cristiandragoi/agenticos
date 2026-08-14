@@ -25,6 +25,7 @@ import { CompletionCard } from '../components/jarvis/CompletionCard';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import VoiceTracePanel from '../components/jarvis/VoiceTracePanel';
 import { useVoiceIO } from '../hooks/useVoiceIO';
+import { shouldMarkManualVoiceOwnership } from '../utils/voiceOwnership';
 import styles from './JarvisStudio.module.css';
 import cc from './JarvisCommandCenter.module.css';
 
@@ -165,12 +166,21 @@ export default function JarvisStudio() {
   const manualEditSinceVoiceRef = useRef(false);
   const handleComposerTextChange = useCallback((text: string) => {
     setComposerText(text);
-    // A user edit takes ownership — notify the voice engine so stale STT is
-    // dropped. Emptying the field via the clear action is ALSO an edit (the
-    // user actively took ownership), but programmatic voice writes must not
-    // mark manual ownership (they are voice-owned writes).
-    manualEditSinceVoiceRef.current = true;
-    voiceRef.current?.notifyManualEdit?.();
+    // A user edit with CONTENT takes ownership — notify the voice engine so
+    // stale STT is dropped and the typed text is never overwritten. Program-
+    // matic clears (NOTABLY the post-send composer clear at JarvisComposer's
+    // handleSend/handleKeyDown → setText('')) must NOT mark manual ownership:
+    // they ran immediately after every typed send, leaving the flag stuck
+    // true and silently dropping every subsequent voice auto-submit at the
+    // onAutoSubmit guard — the 'Transcribing → Ready → no response' symptom.
+    // An empty field has nothing to protect, so voice-owned writes may take
+    // it again.
+    if (shouldMarkManualVoiceOwnership(text)) {
+      manualEditSinceVoiceRef.current = true;
+      voiceRef.current?.notifyManualEdit?.();
+    } else {
+      manualEditSinceVoiceRef.current = false;
+    }
   }, []);
   const handleVoiceTranscript = useCallback((text: string) => {
     // Only voice-owned writes may enter the composer, and only when the user
@@ -319,7 +329,13 @@ export default function JarvisStudio() {
       // §9 input ownership: a manual edit since the capture began means the
       // voice turn is stale; the engine already dropped it at the source, but
       // this guard is the final deterministic barrier.
-      if (manualEditSinceVoiceRef.current) return;
+      if (manualEditSinceVoiceRef.current) {
+        // Typed text owns the composer — never overwrite it, but never drop
+        // the voice turn silently either: surface the transcript as a preview
+        // so the user knows it was heard but not submitted (they can Send it).
+        setVoiceInterimTranscript(text);
+        return;
+      }
       chatRef.current?.sendMessage(text, 'voice');
     },
     onTranscript: handleVoiceTranscript, // Manual mode: ownership-guarded
