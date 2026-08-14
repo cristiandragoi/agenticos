@@ -1659,16 +1659,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
-    // Relevance-gated persistent-memory injection (user-acceptance
-    // stabilization): active PREFERENCE/DECISION memories matching the
-    // current prompt are surfaced to the LLM so "What is my favorite color?"
     // Persistent memory injection (§3): durable preferences, decisions, and goals
     let persistentMemoryContext = '';
     const isPriorTurnRecall = /^(what did i|what was my|what did you|what was the last|what did i just)/i.test(prompt.trim());
     if (!isPriorTurnRecall) {
       try {
         const { retrieveRelevantPreferences } = await import('../domains/jarvis/memoryRecall.js');
-        const relevant = retrieveRelevantPreferences(prompt, 6);
+        const relevant = retrieveRelevantPreferences(prompt, 5);
         if (relevant.length) {
           persistentMemoryContext = '\n\nPersistent Memory (durable user preferences, working rules, and Agentic OS goals):\n' +
             relevant.map((r) => `* [${r.type.toUpperCase()}] ${r.title}: ${r.content}`).join('\n');
@@ -1710,18 +1707,14 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
     const systemPrompt = [
       'You are Jarvis, the operational commander of Agentic OS.',
-      'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately.',
-      'For normal conversation, answer directly without unrequested operational summaries or internal status.',
-      'If the user asks about their goals, working preferences, or how they asked you to behave, answer from the Persistent Memory section below.',
-      'When user instructions are incomplete or ambiguous, use the stored user preferences, current conversation, and available Agentic OS context to infer intent and take constructive next steps before asking to rephrase.',
+      'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately without unrequested operational summaries or internal status narration.',
+      'Persistent memory informs relevant user goals, working preferences, and stored rules across conversations. When asked about them, answer from Persistent Memory.',
+      'When user instructions are incomplete or ambiguous, use stored preferences, current conversation, and available Agentic OS state to infer reasonable intent and take constructive action before asking to rephrase.',
+      'Use conversation history to resolve contextual pronouns and references ("that", "it", "this", "again", "the previous one").',
+      'PRIOR TURN RECALL: When the user asks what they just said, asked, or told you previously, quote the prior user message from conversation history before the current turn. NEVER quote the current question back to the user.',
+      'If the user explicitly asks you to repeat or echo a phrase (e.g. "repeat after me", "say exactly X", "repeat this sentence"), obey verbatim and output ONLY the requested phrase without commentary.',
       'If the user specifically asks what model or provider you are using, state: "I\'m running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ', with ' + fallbackModelName + ' available locally as a fallback.' : '.') + '" Do not repeat this model identity unless explicitly asked.',
-      'PRIOR TURN RECALL: When the user asks "what did I just say?", "what did I ask you?", "what was my last message?", or asks what they asked earlier, look at the prior user turns in the conversation history that occurred BEFORE this current turn. Quote that previous user message from history. NEVER quote the current question ("What did I just say?") back to the user. For example, if the previous user turn in history was "Repeat exactly: SYSTEM READY", answer "SYSTEM READY".',
-      'If the user explicitly asks you to repeat or echo a phrase (e.g. "repeat after me", "say exactly X", "repeat this sentence"), obey verbatim and output ONLY the requested phrase with no commentary or extra words.',
-      'Use the conversation history to understand pronouns and references ("that", "it", "this", "what should I check first?").',
-      'Do not claim reminders, messaging, calendar actions, or external services unless the prompt or Agentic OS registry explicitly provides them.',
-      'AgenticOS CAN delegate engineering work through CodeX and Agent Teams.',
       'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
-      'Never narrate your internal reasoning; answer the user directly.',
       'Do not ask "How can I help you today?" when the user asked a specific question — answer that question.',
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
