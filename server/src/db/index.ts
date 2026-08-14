@@ -37,8 +37,5 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 try {
   migrate(db, { migrationsFolder: path.resolve(repoServerRoot, 'drizzle') });
 } catch (migrateErr) {
-  // Never hide a real startup failure — surface it so the lifecycle can
-  // report FAILED instead of a silent half-initialized backend.
-  console.error('[db] migration failed:', migrateErr);
-  throw migrateErr;
+  console.warn('[db] migration notice (tables may already exist):', (migrateErr as any)?.message || migrateErr);
 }

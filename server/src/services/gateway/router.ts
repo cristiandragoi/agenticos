@@ -373,38 +373,15 @@ export class GatewayRouter {
 
       const attemptStart = Date.now();
       let streamBufferedTokens = 0;
-      const bufferTokens = this.config.streamBufferTokens;
-      const bufferMs = liveConfig.degradedLatencyMs;
-      const bufferedChunks: ChatStreamChunk[] = [];
       let streamFailed = false;
 
       try {
         for await (const chunk of provider.stream(req)) {
           if (chunk.type === 'token' && chunk.content) {
-             streamBufferedTokens++;
-             
-             // Phase 2: Buffer until threshold (tokens OR ms)
-             const elapsedMs = Date.now() - attemptStart;
-             const withinThreshold = streamBufferedTokens <= bufferTokens && elapsedMs <= bufferMs;
-             
-             if (withinThreshold) {
-               bufferedChunks.push(chunk);
-               // Once we cross the threshold, we release the buffer to the client
-               if (streamBufferedTokens === bufferTokens || elapsedMs >= bufferMs) {
-                 for (const buffered of bufferedChunks) yield buffered;
-                 bufferedChunks.length = 0; // clear
-               }
-             } else {
-               // Beyond threshold, stream directly to client
-               yield chunk;
-             }
+            streamBufferedTokens++;
+            yield chunk;
           } else {
-             // done chunk, flush buffer if it hasn't been flushed
-             if (bufferedChunks.length > 0) {
-               for (const buffered of bufferedChunks) yield buffered;
-               bufferedChunks.length = 0;
-             }
-             yield chunk;
+            yield chunk;
           }
         }
         
@@ -489,16 +466,25 @@ export class GatewayRouter {
           responseMetadata: { error: error.message }
         });
 
-        // Phase 2: Option A Failover Strategy (Checking thresholds)
-        const elapsedMs = Date.now() - attemptStart;
-        if (streamBufferedTokens < bufferTokens && elapsedMs < bufferMs) {
-          // Failure happened before threshold, transparent fallback allowed
+        // Phase 2: Option A Failover Strategy.
+        // The client-visible signal is streamBufferedTokens, NOT elapsed time:
+        // a provider that failed before emitting ANY token (hung first token,
+        // HTTP 429/5xx, connection reset, empty stream) is always safe to
+        // transparently fall back to the next provider — the client has seen
+        // nothing. The previous ms-threshold gate treated every failure after
+        // degradedLatencyMs as "client already saw tokens", which refused
+        // fallback for zero-token stalls (observed live: 20s silence, no
+        // reply, no fallback). Once any token has been buffered/delivered,
+        // fallback would produce a second answer — never do that.
+        if (streamBufferedTokens === 0) {
+          // Zero tokens emitted — transparent fallback allowed
           fallbackCount++;
           this.emit({ type: 'gateway.fallback', from: providerName, requestId: req.requestId });
           yield { type: 'gateway.fallback', provider: providerName, requestId: req.requestId, error: error.message };
           continue; // Try next provider
         } else {
-          // Failure happened after threshold, client already saw tokens. We MUST NOT fallback.
+          // Tokens WERE emitted — the client saw partial content. Never restart
+          // from another provider (no double answers); abort the turn.
           this.emit({ type: 'gateway.stream_aborted', provider: providerName, requestId: req.requestId, reason: 'Mid-stream disconnect' });
           yield { type: 'streaming_interruption', provider: providerName, requestId: req.requestId };
           yield { type: 'error', provider: providerName, error: `[Stream aborted mid-way: ${error.message}]`, aborted: true };

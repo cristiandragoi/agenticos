@@ -13,9 +13,12 @@ import type { MemoryRecord } from '../../services/memory/types.js';
 
 const RECALL_RE = /\b(what happened|what did we (do|decide|find|learn)|do you remember|do we remember|what do you remember|what did (i|you|we) (say|decide|do) about|whats? our (last|most recent)|our last .{0,60} (search|run|inspection|task|decision))\b/i;
 
+const PRIOR_CONVERSATION_RE = /^(what did (i|you) (just |recently )?(say|ask|tell)|what was (my|your) (last|previous) (message|question|prompt)|what did i ask you)/i;
+
 const DECISION_STATEMENT_RE = /\b(never .{0,80}(unless|without|automatically)|always (ask|require|confirm|get approval)|do not .{0,80} by default|as a rule|we? decided (that|to))\b/i;
 
 export function isMemoryRecall(prompt: string): boolean {
+  if (PRIOR_CONVERSATION_RE.test(prompt.trim())) return false;
   return RECALL_RE.test(prompt);
 }
 
@@ -129,14 +132,16 @@ export async function handleDecisionStatement(prompt: string, projectId?: string
 const STORE_PREFIX_RE = /^(please\s+|from now on\s+|can you\s+|try to\s+|hey jarvis[\s,]*|jarvis[\s,]*)*/i;
 const STORE_VERB_RE = /^\s*(remember|store|save|note|keep in mind|note down)\s*(that\s+)?/i;
 
+const PREFERENCE_DIRECTIVE_RE = /\b(when my instruction is|jarvis should behave|resolve words such as|my main agentic os goal is|my main goal for agentic os|do not delegate simple conversation|always infer from|never ask me to rephrase unless|my working preference is|as my working preference)\b/i;
+
 export function isMemoryStore(prompt: string): boolean {
   const p = prompt.trim();
   if (!p || p.length < 10) return false;
   // RECALL forms are never STORE.
-  if (/\b(do you remember|do we remember|what do you remember|what did i|what happened|whats? our|did you remember)\b/i.test(p)) return false;
-  // A direct question like "Remember to..." is not a store either.
-  if (/^(do|did|can|could|will|would|are|is|have|has)\b/i.test(p) && /\?$/.test(p)) return false;
-  return /\b(remember|store|save|note down|keep in mind)\b/i.test(p);
+  if (/\b(do you remember|do we remember|what do you remember|what did i|what happened|whats? our|did you remember|what is my main goal|what are my preferences)\b/i.test(p)) return false;
+  // Direct questions are not store
+  if (/^(do|did|can|could|will|would|are|is|have|has|what|why|who|where|when|how)\b/i.test(p) && /\?$/.test(p)) return false;
+  return /\b(remember|store|save|note down|keep in mind)\b/i.test(p) || PREFERENCE_DIRECTIVE_RE.test(p);
 }
 
 export function handleMemoryStore(prompt: string, projectId?: string | null): { reply: string; memoryId: string } {
@@ -149,41 +154,98 @@ export function handleMemoryStore(prompt: string, projectId?: string | null): { 
   // Project-scoped store (P5): when an active project exists the remembered
   // fact lands in the project namespace, not the user bucket.
   const scope = projectId ? `project:${projectId}` : 'user';
-  const tags = ['preference', 'remembered', projectId ? 'project' : 'user'];
+  const isDecision = /^(never|always|do not|as a rule|we decided)\b/i.test(fact);
+  const type = isDecision ? 'decision' : 'preference';
+  const tags = [type, 'working_rule', projectId ? 'project' : 'user'];
   const m = createMemory({
-    type: 'preference',
+    type,
     title,
     summary: fact.slice(0, 200),
-    content: `User preference/remembered fact: ${fact}\nStored from conversation (STORE request)${projectId ? ` for project ${projectId}` : ''}. Available to Jarvis in future conversations via relevant-memory retrieval.`,
+    content: fact,
     scope,
-    entities: projectId ? [projectId] : [],
+    entities: projectId ? [projectId] : ['agenticos'],
     tags,
-    confidence: 0.9,
+    confidence: 0.95,
     source: { sourceType: 'conversation' },
   });
   return {
-    reply: `I've saved that to memory: ${fact}. (preference memory, scope ${scope} — available in future conversations)`,
+    reply: `I've saved that to memory: ${fact}. (${type} memory, scope ${scope} — active across conversations)`,
     memoryId: m.id,
   };
 }
 
 /** Relevant active preferences/decisions for the direct-chat prompt
- *  (relevance-gated persistent-memory injection). Episodic records are NOT
- *  injected — only durable user preferences and decisions. */
-export function retrieveRelevantPreferences(prompt: string, limit = 2): { type: string; title: string; content: string }[] {
-  const terms = prompt
-    .replace(/[^a-z0-9 ]/gi, ' ')
-    .split(/\s+/)
-    .filter((t) => t.length > 3 && !['what', 'is', 'are', 'the', 'my', 'your', 'please', 'remember', 'about', 'from', 'with'].includes(t.toLowerCase()))
-    .slice(0, 4)
-    .join(' ');
-  if (!terms) return [];
+ *  (relevance-gated persistent-memory injection).
+ *  Combines durable user preferences/goals and prompt-specific semantic hits. */
+export function retrieveRelevantPreferences(prompt: string, limit = 5): { type: string; title: string; content: string }[] {
   try {
-    const hits = memoryStore.search(terms, { status: 'active', limit });
-    return hits
-      .filter((h) => h.memory.type === 'preference' || h.memory.type === 'decision')
-      .slice(0, limit)
-      .map((h) => ({ type: h.memory.type, title: h.memory.title, content: h.memory.content }));
+    const listRes = memoryStore.list({ status: 'active', limit: 100 });
+    const allActive = listRes.items.filter(
+      (m) =>
+        (m.type === 'preference' || m.type === 'decision' || m.type === 'semantic') &&
+        m.status === 'active'
+    );
+
+    const promptTokens = (prompt || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/gi, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 2 && !['what', 'is', 'are', 'the', 'my', 'your', 'please', 'remember', 'about', 'from', 'with', 'and', 'how', 'have', 'asked', 'tell'].includes(t));
+
+    const scored = allActive.map((m) => {
+      let score = 0;
+      // Baseline priority: user and general preferences/decisions are durable foundations
+      if (m.scope === 'user' || m.scope === 'general') {
+        score += 1.0;
+        if (m.type === 'preference') score += 0.5;
+        if (m.type === 'decision') score += 0.4;
+      }
+
+      const fullText = `${m.title} ${m.summary} ${m.content} ${(m.tags || []).join(' ')}`.toLowerCase();
+      let matchCount = 0;
+      for (const tok of promptTokens) {
+        if (fullText.includes(tok)) matchCount++;
+      }
+      score += matchCount * 2.0;
+      if (m.pinned) score += 1.5;
+
+      return { m, score };
+    });
+
+    // Also query FTS for any prompt-specific hits across all memory records
+    if (promptTokens.length > 0) {
+      const q = promptTokens.slice(0, 5).join(' ');
+      const searchHits = memoryStore.search(q, { status: 'active', limit: 5 });
+      for (const hit of searchHits) {
+        const existing = scored.find((s) => s.m.id === hit.memory.id);
+        if (existing) {
+          existing.score += hit.score;
+        } else {
+          scored.push({ m: hit.memory, score: hit.score });
+        }
+      }
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+
+    const selected: { type: string; title: string; content: string }[] = [];
+    let totalChars = 0;
+
+    for (const item of scored) {
+      if (item.score < 0.5) continue;
+      const m = item.m;
+      const cleanContent = (m.content || m.summary || m.title).trim();
+      if (totalChars + cleanContent.length > 1800) continue;
+      selected.push({
+        type: m.type,
+        title: m.title,
+        content: cleanContent
+      });
+      totalChars += cleanContent.length;
+      if (selected.length >= limit) break;
+    }
+
+    return selected;
   } catch {
     return [];
   }

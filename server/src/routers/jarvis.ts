@@ -178,55 +178,118 @@ async function buildRecentConversationText(conversationId: string): Promise<stri
  *   - routing_event/system bookkeeping messages (never user-visible),
  *   - everything beyond the bounded window (last 12 turns) and a sane char
  *     budget, so context windows are never blown by long histories.
+ *   - REMEMBER: You have access to prior turn history. Explicitly lookup 
+ *     facts from prior turns if the user asks a follow-up or references past context.
+ */
+const COMMON_ENGLISH_STOPWORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', "aren't", 'as', 'at',
+  'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can', "can't", 'cannot',
+  'could', "couldn't", 'did', "didn't", 'do', 'does', "doesn't", 'doing', "don't", 'down', 'during', 'each',
+  'few', 'for', 'from', 'further', 'had', "hadn't", 'has', "hasn't", 'have', "haven't", 'having', 'he', "he'd",
+  "he'll", "he's", 'her', 'here', "here's", 'hers', 'herself', 'him', 'himself', 'his', 'how', "how's", 'i', "i'd",
+  "i'll", "i'm", "i've", 'if', 'in', 'into', 'is', "isn't", 'it', "it's", 'its', 'itself', "let's", 'me', 'more',
+  'most', "mustn't", 'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought',
+  'our', 'ours', 'ourselves', 'out', 'over', 'own', 'same', "shan't", 'she', "she'd", "she'll", "she's", 'should',
+  "shouldn't", 'so', 'some', 'such', 'than', 'that', "that's", 'the', 'their', 'theirs', 'them', 'themselves',
+  'then', 'there', "there's", 'these', 'they', "they'd", "they'll", "they're", "they've", 'this', 'those',
+  'through', 'to', 'too', 'under', 'until', 'up', 'very', 'was', "wasn't", 'we', "we'd", "we'll", "we're",
+  "we've", 'were', "weren't", 'what', "what's", 'when', "when's", 'where', "where's", 'which', 'while', 'who',
+  "who's", 'whom', 'why', "why's", 'with', "won't", 'would', "wouldn't", 'you', "you'd", "you'll", "you're",
+  "you've", 'your', 'yours', 'yourself', 'yourselves'
+]);
+
+/**
+ * Build the LLM conversation history for the direct-chat call.
+ *
+ * Excluded from history:
+ *   - the current prompt itself,
+ *   - routing_event/system bookkeeping messages,
+ *   - old turns that do not share meaningful non-stopword tokens with the prompt,
+ *   - noisy internal diagnostic dumps from past assistant messages.
  */
 export function buildConversationHistory(
   messages: any[],
   currentPrompt: string,
   maxTurns = 12,
-  maxChars = 14000,
+  maxChars = 10000,
 ): { role: 'user' | 'assistant'; content: string }[] {
-  const arr = Array.isArray(messages) ? messages : [];
+  const raw = Array.isArray(messages) ? [...messages] : [];
+  // If the last persisted message is the current user turn, pop it from history
+  if (raw.length > 0) {
+    const last = raw[raw.length - 1];
+    if (last?.role === 'user' && typeof last?.content === 'string' && last.content.trim() === currentPrompt.trim()) {
+      raw.pop();
+    }
+  }
+
   const history: { role: 'user' | 'assistant'; content: string }[] = [];
   let chars = 0;
-  // Relevance window (§prompt-hierarchy): keep only turns that share a
-  // significant token with the current prompt OR are within the last 2 turns
-  // (continuity anchors for "that"/"it"/"continue"). Stale debugging churn —
-  // dozens of unrelated "are you there?"/"what model" exchanges — is excluded
-  // so it can neither drown the current user message nor teach the model to
-  // repeat old refusals/runtime tangents.
+
+  // Extract non-stopword tokens from the current prompt
   const currentTokens = new Set<string>(
-    currentPrompt.toLowerCase().split(/\W+/).filter((w: string) => w.length >= 3)
+    currentPrompt
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((w: string) => w.length >= 3 && !COMMON_ENGLISH_STOPWORDS.has(w))
   );
+
   let skippedForRelevance = 0;
-  for (let i = arr.length - 1; i >= 0; i--) {
-    const m = arr[i];
+  let validTurnCount = 0;
+
+  for (let i = raw.length - 1; i >= 0; i--) {
+    const m = raw[i];
     const role = m?.role;
-    const content = typeof m?.content === 'string' ? m.content : '';
+    let content = typeof m?.content === 'string' ? m.content : '';
     if (!content) continue;
-    if (role === 'system' && m?.messageType === 'routing_event') continue;
     if (role === 'system') continue; // never surface bookkeeping system rows
-    if (role === 'user' && content === currentPrompt) continue; // current turn
     if (role !== 'user' && role !== 'agent') continue;
-    const distanceFromEnd = arr.length - 1 - i;
+
+    // Sanitize past assistant messages so system errors/dumps don't become instructions
+    if (role === 'agent') {
+      if (content.includes('[Stream Error:')) continue; // skip error turns
+      if (
+        content.includes('Jarvis is currently executing') ||
+        content.includes('CodeX is currently') ||
+        content.includes('Hermes gateway') ||
+        content.includes('Runtime diagnostics') ||
+        content.includes('I inspected the active AgenticOS state')
+      ) {
+        // truncate operational dumps to keep context clean
+        content = content.split('\n')[0].slice(0, 150);
+      }
+    }
+
+    const turnIndex = validTurnCount;
+    validTurnCount++;
+
     const turnTokens = new Set<string>(
-      content.toLowerCase().split(/\W+/).filter((w: string) => w.length >= 3)
+      content
+        .toLowerCase()
+        .split(/\W+/)
+        .filter((w: string) => w.length >= 3 && !COMMON_ENGLISH_STOPWORDS.has(w))
     );
+
     let shared = 0;
     turnTokens.forEach((tok) => {
       if (currentTokens.has(tok)) shared++;
     });
-    const isContinuityAnchor = distanceFromEnd <= 1; // the immediately-previous user/assistant turn
+
+    // Continuity anchor: keep the last 6 valid turns (3 full user-assistant turn pairs)
+    const isContinuityAnchor = turnIndex < 6;
     const isRelevant = shared >= 1 || isContinuityAnchor;
+
     if (!isRelevant) {
       skippedForRelevance++;
       continue;
     }
+
     const mapped = role === 'agent' ? 'assistant' : 'user';
     if (chars + content.length > maxChars) continue;
     history.unshift({ role: mapped, content });
     chars += content.length;
     if (history.length >= maxTurns) break;
   }
+
   if (skippedForRelevance > 0) {
     logStreamStage('history', 'relevance filter', { kept: history.length, skipped: skippedForRelevance });
   }
@@ -1539,6 +1602,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         ...providerDiagnostics(result, delegatedDefaults)
       });
       completed = true;
+      // END the parent execution record: a delegated turn (codex/team/
+      // memory route) must not leave the execution panel stuck at ROUTING
+      // forever. The guarded endStreamExecution only ends stream-owned
+      // records (worker 'jarvis', no task/goal note), so a record already
+      // adopted by the orchestrator's task keeps its own lifecycle.
+      endStreamExecution('COMPLETED', result?.goalId ?? null);
       return res.end();
     }
 
@@ -1593,18 +1662,20 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // Relevance-gated persistent-memory injection (user-acceptance
     // stabilization): active PREFERENCE/DECISION memories matching the
     // current prompt are surfaced to the LLM so "What is my favorite color?"
-    // in a NEW conversation can answer from a previously stored fact.
-    // Episodic records are never injected (avoids stale revenue memories).
+    // Persistent memory injection (§3): durable preferences, decisions, and goals
     let persistentMemoryContext = '';
-    try {
-      const { retrieveRelevantPreferences } = await import('../domains/jarvis/memoryRecall.js');
-      const relevant = retrieveRelevantPreferences(prompt, 2);
-      if (relevant.length) {
-        persistentMemoryContext = '\n\nPersistent memory relevant to this request (from AgenticOS memory, may be stale — the user/current state wins):\n' +
-          relevant.map((r) => `- [${r.type}] ${r.title}`).join('\n');
+    const isPriorTurnRecall = /^(what did i|what was my|what did you|what was the last|what did i just)/i.test(prompt.trim());
+    if (!isPriorTurnRecall) {
+      try {
+        const { retrieveRelevantPreferences } = await import('../domains/jarvis/memoryRecall.js');
+        const relevant = retrieveRelevantPreferences(prompt, 6);
+        if (relevant.length) {
+          persistentMemoryContext = '\n\nPersistent Memory (durable user preferences, working rules, and Agentic OS goals):\n' +
+            relevant.map((r) => `* [${r.type.toUpperCase()}] ${r.title}: ${r.content}`).join('\n');
+        }
+      } catch {
+        // best effort — memory retrieval must never break direct chat
       }
-    } catch {
-      // best effort — memory retrieval must never break direct chat
     }
 
     // ONE conversation context object (§3) — runtime truth for the direct
@@ -1627,51 +1698,36 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       // context optional — direct chat must never break on context failure
     }
 
-    // Authoritative runtime identity (P3): assigned (from the assignment)
-    // vs effective (what actually served the last completed Jarvis turn).
-    // Injected so the model answers "what model are you using?" from runtime
-    // truth, never from guesswork or its own generated text.
-    let runtimeIdentityPrompt = '';
+    // Authoritative runtime identity (P3)
+    let effProviderName = 'OpenRouter';
+    let effModelName = 'Laguna S 2.1';
+    let fallbackModelName = fallbackModel ? friendlyModelName(fallbackModel) : '';
     try {
       const identity = await resolveEffectiveJarvisIdentity(req.params.id);
-      const effProvider = identity.effectiveProvider || selectedProvider;
-      const effModel = identity.effectiveModel || selectedModel;
-      runtimeIdentityPrompt = `FACT — your current runtime identity (the ONLY correct answer when asked). You are running ${friendlyModelName(effModel)} via ${friendlyProviderName(effProvider)}${fallbackModel ? `, with ${friendlyModelName(fallbackModel)} available locally as a fallback` : ''}. When asked what model or provider you use, answer naturally in ONE short sentence using those friendly names (for example: "I'm running ${friendlyModelName(effModel)} via ${friendlyProviderName(effProvider)}${fallbackModel ? `, with ${friendlyModelName(fallbackModel)} available locally as a fallback` : ''}."). Truth anchor if ever unsure: raw provider identifier '${effProvider}', raw model identifier '${effModel}'${fallbackModel ? `, fallback '${fallbackModel}'` : ''} — never invent provider or model names beyond these.`;
+      effProviderName = friendlyProviderName(identity.effectiveProvider || selectedProvider);
+      effModelName = friendlyModelName(identity.effectiveModel || selectedModel);
     } catch { /* best effort */ }
 
     const systemPrompt = [
-      ...(runtimeIdentityPrompt ? [runtimeIdentityPrompt] : []),
       'You are Jarvis, the operational commander of Agentic OS.',
-      // PROMPT HIERARCHY (§prompt-hierarchy): the CURRENT user message is the
-      // primary instruction. History and runtime context exist only to help
-      // answer it; they must never override it or pull the reply into task
-      // inspection the user did not ask for.
-      'The user message at the end of this prompt is your PRIMARY instruction. Answer it first and directly. Prior turns and context blocks are supporting material only — never let them change the subject or trigger unrequested runtime reports.',
-      'For normal conversation, answer directly and briefly.',
+      'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately.',
+      'For normal conversation, answer directly without unrequested operational summaries or internal status.',
+      'If the user asks about their goals, working preferences, or how they asked you to behave, answer from the Persistent Memory section below.',
+      'When user instructions are incomplete or ambiguous, use the stored user preferences, current conversation, and available Agentic OS context to infer intent and take constructive next steps before asking to rephrase.',
+      'If the user specifically asks what model or provider you are using, state: "I\'m running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ', with ' + fallbackModelName + ' available locally as a fallback.' : '.') + '" Do not repeat this model identity unless explicitly asked.',
+      'PRIOR TURN RECALL: When the user asks "what did I just say?", "what did I ask you?", "what was my last message?", or asks what they asked earlier, look at the prior user turns in the conversation history that occurred BEFORE this current turn. Quote that previous user message from history. NEVER quote the current question ("What did I just say?") back to the user. For example, if the previous user turn in history was "Repeat exactly: SYSTEM READY", answer "SYSTEM READY".',
+      'If the user explicitly asks you to repeat or echo a phrase (e.g. "repeat after me", "say exactly X", "repeat this sentence"), obey verbatim and output ONLY the requested phrase with no commentary or extra words.',
+      'Use the conversation history to understand pronouns and references ("that", "it", "this", "what should I check first?").',
       'Do not claim reminders, messaging, calendar actions, or external services unless the prompt or Agentic OS registry explicitly provides them.',
-      'If asked about system capabilities, describe Agentic OS capabilities: CodeX delegation, Agent Teams, workspace inspection/change through approval, runtime/tool/pipeline status, and research/search only when available.',
-      'AgenticOS CAN delegate engineering work through CodeX and Agent Teams. Do NOT say "I cannot modify the UI" or "I don\'t have the capability to change the interface" — you can inspect the UI/codebase and delegate changes to the engineering system per approval rules.',
-      'Never narrate your internal reasoning; answer the user directly instead of describing your own thought process.',
-      'Do not write phrases such as "the user is asking" or otherwise refer to the user in the third person.',
-      'If you do not know something, say so explicitly ("I do not know") — never invent facts, values, prior decisions, or runtime state.',
-      'AgenticOS has a persistent memory system (decisions, preferences, episodic records) and you receive this conversation\'s history. When the user says "please remember X", acknowledge it and keep it in the conversation; you can also recall from persistent memory when asked.',
-      'Never claim that you are speaking, spoke, or will speak aloud, and never append delivery notes like "(spoken aloud)" — audio delivery is handled by the system outside your text. Just answer the question.',
-      'Never emit tool-call markup: do NOT output <tool_call>...</tool_call>, <invoke>...</invoke>, function-call syntax, or JSON code fences in your reply. If a request needs investigation or delegation, say so in plain words; the system performs it.',
-      'Answer concisely and directly. Do not repeat yourself — EXCEPT when the user explicitly asks you to repeat or echo a phrase (for example "repeat after me", "say exactly X", "repeat this sentence"): in that case obey the user verbatim and output ONLY the requested phrase, no commentary, no refusal, no surrounding text. Do not comment on your own responses. Do not announce or describe actions you did not take. For simple questions, answer simply.',
-      'Do not ask "How can I help you today?" or similar generic openers when the user asked a specific question — answer that question.',
-      'Use the conversation history to keep the subject across turns: "that", "it", "this", "continue", "fix it" refer to the recent conversation subject — resolve them from prior turns instead of asking what they mean.',
-      // Task-state directive is CONDITIONAL (§prompt-hierarchy): only injected
-      // when the current user message is an operational question. For ordinary
-      // conversation it is omitted entirely so the model cannot drift into
-      // runtime reports.
-      ...(operationalContextInjected ? [
-        'You received a question about tasks/runtime state. Report the ACTUAL state from the context block below, distinguishing ACTIVE vs HISTORICAL — never answer such questions with generic text.'
-      ] : []),
-      'Do not claim voice playback is working unless the runtime confirms audio playback started.',
+      'AgenticOS CAN delegate engineering work through CodeX and Agent Teams.',
+      'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
+      'Never narrate your internal reasoning; answer the user directly.',
+      'Do not ask "How can I help you today?" when the user asked a specific question — answer that question.',
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
-        'The fact that this text reached you means microphone capture and transcription are working.',
-        'Microphone input and voice output are separate capabilities; do not infer voice playback status from input being transcribed.'
+      ] : []),
+      ...(operationalContextInjected ? [
+        'You received a question about tasks/runtime state. Report the ACTUAL state from the context block below (distinguishing active vs historical).'
       ] : []),
       ...(conversationContextPrompt ? [conversationContextPrompt] : []),
       ...(persistentMemoryContext ? [persistentMemoryContext] : [])
@@ -2208,6 +2264,103 @@ router.get('/runtime-state', async (_req, res) => {
     });
   } catch (_err: any) {
     res.json({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, activeTool: null, provider: null, model: null, pendingTaskCount: 0 });
+  }
+});
+
+/**
+ * GOLDEN-PATH DIAGNOSTIC (development-only) — isolates the core UI→backend→
+ * provider→stream chain with ONE correlation ID and NOTHING else:
+ *   no intent routing, no memory/context, no delegation, no persistence,
+ *   no TTS, no node-state signaling, no history refresh.
+ * The provider call is REAL (configured gateway → OpenRouter/Laguna with the
+ * Ollama fallback). Nothing is faked or hard-coded.
+ */
+router.post('/diag/stream', async (req, res) => {
+  const { prompt, operationId } = (req.body || {}) as { prompt?: unknown; operationId?: unknown };
+  const normalizedOperationId = typeof operationId === 'string' && operationId.trim()
+    ? operationId
+    : `jarvis-diag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ error: 'prompt required', operationId: normalizedOperationId });
+  }
+
+  const { selectedProvider, selectedModel, fallbackModel } = await resolveDirectChatMetadata();
+  const fallbackProvider = 'ollama';
+  const startedAt = Date.now();
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const abortController = new AbortController();
+  const totalTimer = setTimeout(() => abortController.abort(), getDirectChatOverallTimeoutMs());
+
+  writeSse(res, 'status', {
+    provider: selectedProvider, model: selectedModel,
+    fallbackProvider, fallbackModel,
+    operationId: normalizedOperationId, state: 'routing', elapsedMs: 0,
+  });
+  logger.info('[JarvisDiag] request', JSON.stringify({
+    operationId: normalizedOperationId,
+    prompt: prompt.slice(0, 120),
+    provider: selectedProvider, model: selectedModel, fallbackProvider, fallbackModel,
+  }));
+
+  const systemPrompt = 'You are Jarvis, a concise, truthful assistant. Answer the user directly in as few sentences as needed.';
+  let firstTokenMs: number | null = null;
+  let provider: string | undefined;
+  let model: string | undefined;
+  let sawContent = false;
+  try {
+    const stream = llmChatStream({
+      systemPrompt,
+      prompt,
+      history: [],
+      agentId: 'agent-jarvis',
+      timeoutMs: getDirectChatConnectTimeoutMs(),
+      ollamaTimeoutMs: getDirectChatOverallTimeoutMs(),
+      signal: abortController.signal,
+      requestId: normalizedOperationId,
+      escalationModel: fallbackModel,
+    });
+    for await (const chunk of stream) {
+      provider = chunk.provider || provider;
+      model = chunk.model || model;
+      if (chunk.type === 'token' && chunk.content) {
+        if (firstTokenMs === null) {
+          firstTokenMs = Date.now() - startedAt;
+          writeSse(res, 'timing', { marker: 'first_token', elapsedMs: firstTokenMs, provider, model, operationId: normalizedOperationId });
+        }
+        sawContent = true;
+        writeSse(res, 'chunk', { delta: chunk.content, provider, model, operationId: normalizedOperationId });
+      } else if (chunk.type === 'error') {
+        const errText = String((chunk as any)?.error || (chunk as any)?.message || chunk.content || 'provider failed').slice(0, 500);
+        writeSse(res, 'error', { error: errText, provider, model, fallbackProvider, fallbackModel, reason: errText, operationId: normalizedOperationId });
+      }
+      // gateway lifecycle events (selected/completed/…) intentionally not
+      // forwarded — the golden path has exactly one consumer signal: deltas.
+    }
+    writeSse(res, 'done', {
+      route: 'diag',
+      operationId: normalizedOperationId,
+      provider: provider || selectedProvider,
+      model: model || selectedModel,
+      firstTokenMs,
+      totalMs: Date.now() - startedAt,
+      sawContent,
+    });
+    logger.info('[JarvisDiag] done', JSON.stringify({
+      operationId: normalizedOperationId,
+      provider: provider || selectedProvider,
+      model: model || selectedModel,
+      firstTokenMs, totalMs: Date.now() - startedAt, sawContent,
+    }));
+  } catch (err: any) {
+    writeSse(res, 'error', { error: String(err?.message || err).slice(0, 500), operationId: normalizedOperationId, totalMs: Date.now() - startedAt });
+    logger.error('[JarvisDiag] failed', JSON.stringify({ operationId: normalizedOperationId, error: String(err?.message || err) }));
+  } finally {
+    clearTimeout(totalTimer);
+    res.end();
   }
 });
 

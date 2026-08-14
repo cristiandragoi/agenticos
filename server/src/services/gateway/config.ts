@@ -115,7 +115,7 @@ export function loadGatewayConfig(): GatewayConfig {
     logsPath,
 
     // Phase 2 New Configuration
-    streamBufferTokens: parseInt(process.env.GATEWAY_STREAM_BUFFER_TOKENS || '100', 10),
+    streamBufferTokens: parseInt(process.env.GATEWAY_STREAM_BUFFER_TOKENS || '0', 10),
     streamBufferMilliseconds: parseInt(process.env.GATEWAY_STREAM_BUFFER_MS || '2000', 10),
     streamRecoveryPolicy: (process.env.GATEWAY_STREAM_RECOVERY_POLICY as any) || 'buffer',
     providerScoring: process.env.GATEWAY_PROVIDER_SCORING !== 'false',

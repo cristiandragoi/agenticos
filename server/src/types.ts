@@ -450,6 +450,7 @@ export interface RuntimeEvent {
 export interface ExecutionOptions {
   modelOverride?: string;
   providerOverride?: string;
+  executionModelId?: string;
   disableFallback?: boolean;
   executionProviderId?: 'auto' | 'none' | string;
   /** Policy gate (Stage 2): planning escalation to a cloud sibling model is
