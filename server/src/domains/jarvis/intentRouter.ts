@@ -1,5 +1,5 @@
 export interface IntentResult {
-  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams' | 'investigate';
+  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams' | 'investigate' | 'magnitude';
   category:
     | 'conversation'
     | 'repository_analysis'
@@ -11,7 +11,8 @@ export interface IntentResult {
     | 'research'
     | 'system_status'
     | 'approval_required'
-    | 'investigation';
+    | 'investigation'
+    | 'browser_automation';
   mode: 'direct_conversation' | 'operational_execution';
   confidence: number;
   reason: string;
@@ -535,6 +536,25 @@ export class IntentRouter {
       );
     }
 
+    // ── MAGNITUDE BROWSER & WEB INSPECTION CHECK ──
+    const hasUrl = /https?:\/\/[^\s"'<>]+/i.test(prompt);
+    const mentionsMagnitude = /\bmagnitude\b/i.test(p);
+    const isBrowserInspect = /\b(open|browse|navigate|visit|inspect|scrape|read|check|view|fetch|tell me what is on|what is on)\b/i.test(p) &&
+      (/\b(page|site|website|webpage|web page|url|dom|web)\b/i.test(p) || hasUrl);
+
+    if (mentionsMagnitude || (hasUrl && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on)\b/i.test(p)) || (hasUrl && isBrowserInspect)) {
+      return operational(
+        'magnitude',
+        'browser_automation',
+        0.96,
+        'Browser automation and web inspection request routed to Magnitude',
+        'Jarvis',
+        ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
+        false,
+        false
+      );
+    }
+
     // 1. Memory checks — only genuine memory QUERIES route to memory.
     // A bare "remember" in an ordinary statement ("Please remember that…",
     // "I remember when…") is NOT a memory operation: it is conversational
@@ -544,9 +564,12 @@ export class IntentRouter {
     // Bare "what happened?" (no subject) is a conversational follow-up — the
     // continuation resolver routes it against recent context; only subject-
     // bearing recall ("what happened in our last search") is a memory query.
-    const isMemoryQuery = p.includes('what did i say') || p.includes('my preferences')
+    const isPriorTurnRecall = /^(what did (i|you) (just |recently )?(say|ask|tell)|what was (my|your) (last|previous) (message|question|prompt)|what did i ask you)/i.test(p);
+    const isMemoryQuery = !isPriorTurnRecall && (
+      p.includes('my preferences')
       || /\b(what (do|does) (you|we) remember|do you remember|do we remember|what did we (do|decide|find|learn)|whats? our (last|most recent))\b/i.test(p)
-      || (/\bwhat happened\b/i.test(p) && !/^what happened[?!.]*$/i.test(p.trim()));
+      || (/\bwhat happened\b/i.test(p) && !/^what happened[?!.]*$/i.test(p.trim()))
+    );
     if (isMemoryQuery) {
       return operational('memory', 'file_operation', 0.9, 'Explicit memory operation detected', 'Jarvis', ['Validate memory service availability', 'Route the request to memory tooling'], false, hasWriteVerb);
     }

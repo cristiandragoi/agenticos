@@ -6,6 +6,7 @@ import { coordinatorService } from '../teams/coordinatorService.js';
 import { detectGitRepository } from '../../utils/workspaceValidation.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
 import { getWorkspaceRoot } from '../../services/workspaceStore.js';
+import { magnitudeService } from '../magnitude/service.js';
 
 import { z } from 'zod';
 
@@ -82,6 +83,8 @@ export class JarvisOrchestrator {
           operationId,
           intent.requiresApproval === false
         );
+      case 'magnitude':
+        return this.handleMagnitude(conversationId, prompt, operationId);
       case 'agent_teams':
         return this.handleAgentTeams(conversationId, prompt, workspacePath, approvalPolicy, operationId);
       case 'hermes':
@@ -488,6 +491,86 @@ Never answer "Is Hermes finished?" / "Is the task done?" / "What happened?" with
       metadata: operationId ? { operationId } : undefined
     });
     return { route: 'clarification_required', operationId };
+  }
+
+  private async handleMagnitude(conversationId: string, prompt: string, operationId?: string): Promise<OrchestratorResult> {
+    const requestMetadata = operationId ? { operationId } : undefined;
+    const { url, error: urlError } = magnitudeService.extractAndValidateUrl(prompt);
+
+    if (urlError || !url) {
+      const errorContent = `Magnitude cannot proceed: ${urlError || 'No valid HTTP/HTTPS URL provided in prompt.'}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content: errorContent,
+        metadata: requestMetadata
+      });
+      return { route: 'magnitude', status: 'failed', error: errorContent, operationId };
+    }
+
+    // 1. Emit live status in conversation
+    await conversationService.appendMessage({
+      conversationId,
+      role: 'system',
+      messageType: 'system_status',
+      content: `Magnitude: Launching browser worker to inspect ${url}...`,
+      metadata: requestMetadata
+    });
+
+    try {
+      // 2. Create Magnitude Run
+      const run = magnitudeService.createRun(prompt, 'inspect', conversationId);
+
+      // 3. Execute Browser Inspection
+      const result = await magnitudeService.executeInspect(run.id);
+
+      // 4. Build rich response
+      const resultMarkdown = [
+        `### Magnitude Browser Inspection Result`,
+        `**Page Title:** ${result.title}`,
+        `**Final URL:** ${result.finalUrl}`,
+        `**Duration:** ${(result.durationMs / 1000).toFixed(1)}s`,
+        '',
+        `#### Extracted Content:`,
+        result.text || '(No visible text extracted)',
+      ].join('\n');
+
+      // 5. Append assistant response
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        routedAgent: 'jarvis',
+        content: resultMarkdown,
+        metadata: {
+          runId: run.id,
+          result,
+          ...(requestMetadata || {})
+        }
+      });
+
+      return {
+        route: 'magnitude',
+        goalId: run.id,
+        status: 'completed',
+        operationId
+      };
+    } catch (err: any) {
+      const errorMsg = `Magnitude execution failed: ${err.message || 'Browser inspection error'}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content: errorMsg,
+        metadata: requestMetadata
+      });
+      return {
+        route: 'magnitude',
+        status: 'failed',
+        error: errorMsg,
+        operationId
+      };
+    }
   }
 }
 
