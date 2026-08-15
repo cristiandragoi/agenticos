@@ -105,10 +105,9 @@ function fallbackToolCallAfterParseFailure(goalText: string, response: string, a
 }
 
 function shouldRequestFinalAnswerAfterTool(goalText: string, tool: string, toolStepCount: number = 1): boolean {
-  if (!isReadOnlyGoal(goalText)) return false;
-  if (['readFile', 'searchFiles', 'search_files'].includes(tool)) return true;
-  if (toolStepCount >= 2) return true;
-  return false;
+  // Never force final answer prematurely. Allow the model to inspect multiple files naturally.
+  // Only suggest synthesis if step count is very high (>= 15 steps) to prevent runaway loops.
+  return toolStepCount >= 15;
 }
 
 function looksLikeExplicitToolCall(response: string): boolean {
@@ -1305,8 +1304,8 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
           const boundedResult = boundToolResult(toolResult);
           executedToolsCount++;
-          const maxAllowedTools = isReadOnlyGoal(goal.originalGoal) ? 3 : 20;
-          if (shouldRequestFinalAnswerAfterTool(goal.originalGoal, toolCall.tool, executedToolsCount) || executedToolsCount >= maxAllowedTools) {
+          const maxAllowedTools = 20;
+          if (executedToolsCount >= maxAllowedTools) {
             conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}` });
             conversation.push({ role: 'user', content: buildFinalAnswerPrompt(boundedResult) });
             responseExpectation = 'final_answer';
