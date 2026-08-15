@@ -1037,7 +1037,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           payload: { finalAnswer: finalAnswerText, responseExpectation: 'final_answer' }
         });
         goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
-        goalStore.update(goalId, { status: 'completed' });
+        goalStore.update(goalId, { status: 'completed', runSummary: { finalAnswer: finalAnswerText, message: toolResult } as any });
         // Clear the execution-state slot — the final-answer completion path
         // previously left ACTIVE RUN stale (WAITING_FOR_MODEL) after the goal
         // was already completed.
@@ -1284,13 +1284,14 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
             pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for final step`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
 
-            const finishPayload: any = { handoff: handoffObj };
+            const finalMessageText = args.message || toolResult || '';
+            const finishPayload: any = { handoff: handoffObj, finalAnswer: finalMessageText };
             if (context?.role === 'Verifier') finishPayload.verificationReport = verificationReport;
 
             pushEventToWriter(writer, 'agent_completed', toolResult, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: `CodeX finished the task successfully.`, eventType: 'agent_completed', provider: currentProvider, model: currentModel, payload: finishPayload });
 
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
-            goalStore.update(goalId, { status: 'completed' });
+            goalStore.update(goalId, { status: 'completed', runSummary: { finalAnswer: finalMessageText, message: toolResult } as any });
           endGoalExec('COMPLETED', toolResult?.slice(0, 500));
             break;
           }

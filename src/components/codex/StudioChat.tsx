@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, FileCode, Pause, Play, RefreshCw, RotateCcw, Send, Square, Target, Terminal, WifiOff, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, FileCode, Pause, Play, RefreshCw, RotateCcw, Send, Square, Target, Terminal, WifiOff, XCircle, Copy, Check } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useCodexStore } from '../../store/codexStore';
 import { normalizeExecutionEvent } from '../../utils/normalize';
 import { TERMINAL_GOAL_STATES, pairToolExecutions } from '../../presenters/executionStatus';
@@ -23,6 +24,71 @@ function formatElapsed(createdAt?: string): string {
   return `${secs}s`;
 }
 
+const CopyButton = ({ text, label }: { text: string; label: string }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  };
+
+  return (
+    <button 
+      onClick={handleCopy} 
+      className="px-2 py-0.5 text-[10px] flex items-center gap-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60 transition-colors"
+      aria-label={label}
+      title={label}
+    >
+      {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+      <span>{copied ? 'Copied' : 'Copy'}</span>
+    </button>
+  );
+};
+
+const MarkdownComponents = {
+  pre({ children, ...props }: any) {
+    const codeElement = children as React.ReactElement<any>;
+    const codeText = codeElement?.props?.children || '';
+    return (
+      <div className="relative my-2">
+        <div className="absolute top-2 right-2 z-10">
+          <CopyButton text={String(codeText).replace(/\n$/, '')} label="Copy code" />
+        </div>
+        <pre className="bg-[#090C10] p-3 pt-6 rounded border border-slate-800 overflow-x-auto text-[11px] font-mono text-slate-300" {...props}>
+          {children}
+        </pre>
+      </div>
+    );
+  },
+  code({ className, children, ...props }: any) {
+    return <code className={`${className || ''} bg-[#090C10] px-1.5 py-0.5 rounded text-[11px] font-mono text-purple-300 border border-slate-800`} {...props}>{children}</code>;
+  },
+  h1({ children, ...props }: any) {
+    return <h1 className="text-[14px] font-bold text-slate-100 mt-3 mb-1.5 border-b border-slate-700/40 pb-1" {...props}>{children}</h1>;
+  },
+  h2({ children, ...props }: any) {
+    return <h2 className="text-[13px] font-bold text-slate-200 mt-2.5 mb-1" {...props}>{children}</h2>;
+  },
+  h3({ children, ...props }: any) {
+    return <h3 className="text-[12px] font-bold text-emerald-400 mt-2 mb-1" {...props}>{children}</h3>;
+  },
+  p({ children, ...props }: any) {
+    return <p className="mb-1.5 leading-relaxed text-slate-300" {...props}>{children}</p>;
+  },
+  ul({ children, ...props }: any) {
+    return <ul className="list-disc list-inside mb-2 space-y-0.5 text-slate-300" {...props}>{children}</ul>;
+  },
+  ol({ children, ...props }: any) {
+    return <ol className="list-decimal list-inside mb-2 space-y-0.5 text-slate-300" {...props}>{children}</ol>;
+  },
+  li({ children, ...props }: any) {
+    return <li className="text-[12px] leading-relaxed" {...props}>{children}</li>;
+  }
+};
+
 const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events: any[] }> = ({ goalStatus, goal, events }) => {
   const status = (goalStatus || '').toLowerCase();
   if (!TERMINAL_GOAL_STATES.includes(status)) return null;
@@ -32,8 +98,16 @@ const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events:
   const toolsFailed = executions.filter(e => e.state === 'failed').length;
   const filesTouched = Array.from(new Set(executions.map(e => e.filePath).filter(Boolean)));
   const lastError = [...events].reverse().find(e => e.error)?.error;
-  const finishEvent = [...events].reverse().find(e => e.eventType === 'agent_completed' || e.eventType === 'task_completed');
-  const finishMessage = (finishEvent?.message || '').replace(/^Goal finished:\s*/, '');
+  
+  const finishEvent = [...events].reverse().find(e => 
+    e.eventType === 'agent_completed' || 
+    e.eventType === 'task_completed' || 
+    e.state === 'completed' || 
+    e.tool === 'finish' ||
+    e.payload?.finalAnswer
+  );
+  const rawFinishMessage = finishEvent?.payload?.finalAnswer || finishEvent?.message || goal?.runSummary || goal?.finalAnswer || '';
+  const finishMessage = rawFinishMessage.replace(/^Goal finished:\s*/i, '').trim();
 
   const isCompleted = status === 'completed';
   const isFailed = status === 'failed' || status === 'timed_out';
@@ -41,13 +115,13 @@ const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events:
   return (
     <div
       data-testid="codex-final-summary"
-      className={`border rounded-lg p-4 ${
+      className={`border rounded-lg p-4 flex flex-col gap-3 ${
         isCompleted ? 'border-blue-500/40 bg-blue-500/5' :
         isFailed ? 'border-rose-500/40 bg-rose-500/5' :
         'border-slate-600/50 bg-slate-700/10'
       }`}
     >
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2">
         {isCompleted ? <CheckCircle2 size={16} className="text-blue-400" /> :
          isFailed ? <XCircle size={16} className="text-rose-400" /> :
          <AlertTriangle size={16} className="text-slate-400" />}
@@ -59,8 +133,23 @@ const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events:
         </span>
       </div>
 
-      {isCompleted && finishMessage && <p className="text-[13px] text-slate-300 mb-3 whitespace-pre-wrap">{finishMessage}</p>}
-      {isFailed && lastError && <p className="text-[13px] text-rose-300 mb-3 break-all">{lastError}</p>}
+      {isCompleted && finishMessage && (
+        <div className="bg-[#0A0F16] border border-blue-500/30 rounded-md p-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-blue-400 flex items-center gap-1.5">
+              <CheckCircle2 size={13} /> Final Result
+            </span>
+            <CopyButton text={finishMessage} label="Copy result" />
+          </div>
+          <div className="text-[13px] text-slate-200 leading-relaxed font-sans overflow-x-auto">
+            <ReactMarkdown components={MarkdownComponents}>
+              {finishMessage}
+            </ReactMarkdown>
+          </div>
+        </div>
+      )}
+
+      {isFailed && lastError && <p className="text-[13px] text-rose-300 mb-1 break-all">{lastError}</p>}
 
       <div className="grid grid-cols-3 gap-2 text-[11px]">
         <div className="bg-[#0A0F16] border border-slate-700/40 rounded p-2 flex flex-col">
