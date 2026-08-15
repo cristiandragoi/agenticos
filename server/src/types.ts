@@ -453,6 +453,7 @@ export interface ExecutionOptions {
   executionModelId?: string;
   disableFallback?: boolean;
   executionProviderId?: 'auto' | 'none' | string;
+  requiresApproval?: boolean;
   /** Policy gate (Stage 2): planning escalation to a cloud sibling model is
    *  only injected when this is true. Defaults true for legacy callers;
    *  localOnly / approvalRequired policies set it false at dispatch. */

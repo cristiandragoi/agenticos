@@ -613,6 +613,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   let stepCounter = goal.history.length;
 
   const usedReadFallbacks = new Set<string>();
+  const recentToolFingerprints = new Map<string, number>();
   let responseExpectation: ResponseExpectation = 'tool_decision';
   let executedToolsCount = 0;
 
@@ -1302,15 +1303,22 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel, payload: { result: toolResult } });
           await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
-          const boundedResult = boundToolResult(toolResult);
+          let boundedResult = boundToolResult(toolResult);
           executedToolsCount++;
-          const maxAllowedTools = 20;
-          if (executedToolsCount >= maxAllowedTools) {
+          const toolFingerprint = `${toolCall.tool}:${args.path || args.cmd || ''}`;
+          const repeatCount = (recentToolFingerprints.get(toolFingerprint) || 0) + 1;
+          recentToolFingerprints.set(toolFingerprint, repeatCount);
+
+          const maxAllowedTools = 15;
+          if (repeatCount >= 3 || executedToolsCount >= maxAllowedTools) {
             conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}` });
             conversation.push({ role: 'user', content: buildFinalAnswerPrompt(boundedResult) });
             responseExpectation = 'final_answer';
           } else {
-            conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}\n\nIf the task is complete, call finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Summary of completed work" } }. Otherwise, emit the next tool call.` });
+            const repeatNotice = repeatCount > 1
+              ? `\n\n[Notice: You have inspected "${args.path || toolFingerprint}" ${repeatCount} times. If you have enough evidence, emit the finish tool call now: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Your complete answer" } }]`
+              : '';
+            conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}${repeatNotice}\n\nIf the task is complete, call finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Summary of completed work" } }. Otherwise, emit the next tool call.` });
           }
 
         } catch (err: any) {

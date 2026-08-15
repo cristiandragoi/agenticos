@@ -36,7 +36,7 @@ export class CodexService {
     // Normalize the UI vocabulary ('auto' | 'strict') to backend values.
     // Anything that is not an explicit 'auto' requires manual approval —
     // actions needing review must never be silently auto-approved.
-    const policy: 'manual' | 'auto' = approvalPolicy === 'auto' || isReadOnlyCodexTask(prompt) ? 'auto' : 'manual';
+    const policy: 'manual' | 'auto' = approvalPolicy === 'auto' || isReadOnlyCodexTask(prompt) || executionOptions?.requiresApproval === false ? 'auto' : 'manual';
 
     // The `executionProvider` parameter must ACTUALLY route the goal: the
     // loop reads goal.executionOptions.executionProviderId. Merge it in so a

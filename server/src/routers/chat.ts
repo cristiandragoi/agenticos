@@ -266,10 +266,9 @@ const handleCreateGoal = async (req: any, res: any) => {
       disableFallback: !!disableFallback
     });
 
-    if (!prompt) return res.status(400).json({ error: 'Describe what you want CodeX to do.' });
-
+    const effectiveApprovalPolicy = approvalPolicy || (req.body.requiresApproval === false ? 'auto' : undefined);
     const execProvider = executionOptions?.executionProviderId || req.body.providerOverride;
-    const goalId = await codexService.createGoal(prompt, targetWorkspace, approvalPolicy, execProvider, conversationId, workspaceId, executionOptions);
+    const goalId = await codexService.createGoal(prompt, targetWorkspace, effectiveApprovalPolicy, execProvider, conversationId, workspaceId, executionOptions);
     res.json({ goalId, id: goalId });
   } catch (err: any) {
     logger.error('ERROR IN POST /agents/goal', err);
