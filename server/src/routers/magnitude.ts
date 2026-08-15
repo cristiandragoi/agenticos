@@ -75,6 +75,23 @@ magnitudeRouter.post('/runs/:id/stop', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/magnitude/runs/:id/approval
+ * Approve or reject an active Magnitude approval request.
+ */
+magnitudeRouter.post('/runs/:id/approval', async (req: Request, res: Response) => {
+  const { approved, reason, responder } = req.body;
+  if (typeof approved !== 'boolean') {
+    return res.status(400).json({ error: 'approved boolean field is required.' });
+  }
+  try {
+    const success = await magnitudeService.respondApproval(req.params.id, approved, reason, responder);
+    return res.json({ success });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/magnitude/runs/:id/stream
  * Server-Sent Events stream for a Magnitude run.
  */

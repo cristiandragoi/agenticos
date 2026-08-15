@@ -2,7 +2,15 @@ import { EventEmitter } from 'events';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { rawDb } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
-import type { MagnitudeRunRecord, MagnitudeEvent, MagnitudeEventType, MagnitudeInspectResult, MagnitudeRunStatus } from './types.js';
+import type {
+  MagnitudeRunRecord,
+  MagnitudeEvent,
+  MagnitudeEventType,
+  MagnitudeInspectResult,
+  MagnitudeRunStatus,
+  MagnitudeApprovalRequest,
+  RiskLevel
+} from './types.js';
 
 /**
  * Initialize Magnitude SQLite tables idempotently.
@@ -23,6 +31,7 @@ function initMagnitudeTables() {
         duration_ms INTEGER,
         result TEXT,
         error TEXT,
+        approval TEXT,
         conversation_id TEXT
       );
 
@@ -39,6 +48,11 @@ function initMagnitudeTables() {
 
       CREATE INDEX IF NOT EXISTS idx_magnitude_events_run ON magnitude_events(run_id, sequence);
     `);
+
+    // Ensure approval column exists if table was previously created without it
+    try {
+      rawDb.exec(`ALTER TABLE magnitude_runs ADD COLUMN approval TEXT;`);
+    } catch {}
   } catch (err: any) {
     logger.warn('[Magnitude] Failed to init tables:', err.message);
   }
@@ -50,6 +64,7 @@ export class MagnitudeService extends EventEmitter {
   private activeRuns = new Map<string, {
     abortController: AbortController;
     cleanup: () => Promise<void>;
+    approvalResolver?: (approved: boolean) => void;
   }>();
 
   /**
@@ -93,7 +108,7 @@ export class MagnitudeService extends EventEmitter {
     const runId = `mag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     const now = new Date().toISOString();
 
-    const { url, error: urlError } = this.extractAndValidateUrl(goal);
+    const { url } = this.extractAndValidateUrl(goal);
     const initialStatus: MagnitudeRunStatus = 'queued';
 
     const stmt = rawDb.prepare(`
@@ -147,7 +162,89 @@ export class MagnitudeService extends EventEmitter {
   }
 
   /**
-   * Get full details for a run including all historical events.
+   * Request human approval for a risky action (Phase 5).
+   */
+  public async requestApproval(
+    runId: string,
+    actionType: 'click' | 'fill' | 'navigate' | 'download' | 'submit',
+    targetUrl: string,
+    description: string,
+    riskLevel: RiskLevel = 'medium'
+  ): Promise<boolean> {
+    const run = this.getRun(runId);
+    if (!run) throw new Error(`Run ${runId} not found`);
+
+    const approvalId = `appr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const approvalRequest: MagnitudeApprovalRequest = {
+      id: approvalId,
+      runId,
+      targetUrl,
+      actionType,
+      description,
+      riskLevel,
+      status: 'pending',
+      createdAt: now
+    };
+
+    rawDb.prepare(`UPDATE magnitude_runs SET status = 'waiting_for_approval', approval = ?, updated_at = ? WHERE id = ?`)
+      .run(JSON.stringify(approvalRequest), now, runId);
+
+    const seq = (run.events?.length || 0) + 1;
+    this.appendEvent(runId, seq, 'approval_requested', `Approval required for ${actionType.toUpperCase()}: ${description} (${riskLevel} risk)`, {
+      approvalRequest
+    });
+
+    return new Promise<boolean>((resolve) => {
+      const active = this.activeRuns.get(runId);
+      if (active) {
+        active.approvalResolver = resolve;
+      } else {
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * Respond to an approval request (approve / reject).
+   */
+  public async respondApproval(runId: string, approved: boolean, reason?: string, responder = 'user'): Promise<boolean> {
+    const run = this.getRun(runId);
+    if (!run || !run.approval || run.approval.status !== 'pending') {
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const updatedApproval: MagnitudeApprovalRequest = {
+      ...run.approval,
+      status: approved ? 'approved' : 'rejected',
+      respondedAt: now,
+      responder,
+      reason
+    };
+
+    const nextStatus: MagnitudeRunStatus = approved ? 'running' : 'stopped';
+    rawDb.prepare(`UPDATE magnitude_runs SET status = ?, approval = ?, updated_at = ? WHERE id = ?`)
+      .run(nextStatus, JSON.stringify(updatedApproval), now, runId);
+
+    const seq = (run.events?.length || 0) + 1;
+    const eventType: MagnitudeEventType = approved ? 'approval_granted' : 'approval_rejected';
+    this.appendEvent(runId, seq, eventType, approved ? 'Approval granted. Continuing execution.' : `Approval rejected: ${reason || 'Denied by user'}`, {
+      approval: updatedApproval
+    });
+
+    const active = this.activeRuns.get(runId);
+    if (active?.approvalResolver) {
+      active.approvalResolver(approved);
+      delete active.approvalResolver;
+    }
+
+    return true;
+  }
+
+  /**
+   * Get full details for a run including all historical events and approval payload.
    */
   public getRun(runId: string): MagnitudeRunRecord | null {
     const row: any = rawDb.prepare(`SELECT * FROM magnitude_runs WHERE id = ?`).get(runId);
@@ -170,6 +267,7 @@ export class MagnitudeService extends EventEmitter {
       requestedUrl: row.requested_url,
       actionType: row.action_type,
       status: row.status as MagnitudeRunStatus,
+      approval: row.approval ? JSON.parse(row.approval) : undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       startedAt: row.started_at,
@@ -193,6 +291,7 @@ export class MagnitudeService extends EventEmitter {
       requestedUrl: row.requested_url,
       actionType: row.action_type,
       status: row.status as MagnitudeRunStatus,
+      approval: row.approval ? JSON.parse(row.approval) : undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       startedAt: row.started_at,
@@ -212,12 +311,16 @@ export class MagnitudeService extends EventEmitter {
     const active = this.activeRuns.get(runId);
     if (!active) {
       const run = this.getRun(runId);
-      if (run && run.status === 'running') {
+      if (run && (run.status === 'running' || run.status === 'waiting_for_approval' || run.status === 'queued')) {
         this.updateRunStatus(runId, 'stopped', undefined, 'Run stopped by user.');
         this.appendEvent(runId, 999, 'magnitude_stopped', 'Execution stopped.');
         return true;
       }
       return false;
+    }
+
+    if (active.approvalResolver) {
+      active.approvalResolver(false);
     }
 
     active.abortController.abort();
@@ -326,7 +429,6 @@ export class MagnitudeService extends EventEmitter {
 
       // Extract visible text cleanly
       const textContent = await page.evaluate(() => {
-        // Remove script, style, noscript, svg
         const scripts = document.querySelectorAll('script, style, noscript, svg, nav, footer, header');
         scripts.forEach(s => s.remove());
         const bodyText = document.body ? document.body.innerText : '';

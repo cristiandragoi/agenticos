@@ -1,4 +1,4 @@
-export type MagnitudeRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'stopped';
+export type MagnitudeRunStatus = 'queued' | 'running' | 'waiting_for_approval' | 'completed' | 'failed' | 'stopped';
 
 export type MagnitudeEventType =
   | 'magnitude_started'
@@ -10,9 +10,29 @@ export type MagnitudeEventType =
   | 'inspection_completed'
   | 'action_started'
   | 'action_completed'
+  | 'approval_requested'
+  | 'approval_granted'
+  | 'approval_rejected'
   | 'magnitude_completed'
   | 'magnitude_failed'
   | 'magnitude_stopped';
+
+export type RiskLevel = 'read_only' | 'low' | 'medium' | 'high';
+export type ApprovalStatus = 'not_required' | 'pending' | 'approved' | 'rejected';
+
+export interface MagnitudeApprovalRequest {
+  id: string;
+  runId: string;
+  targetUrl: string;
+  actionType: 'click' | 'fill' | 'navigate' | 'download' | 'submit';
+  description: string;
+  riskLevel: RiskLevel;
+  status: ApprovalStatus;
+  createdAt: string;
+  respondedAt?: string;
+  responder?: string;
+  reason?: string;
+}
 
 export interface MagnitudeEvent {
   id: string;
@@ -41,6 +61,7 @@ export interface MagnitudeRunRecord {
   requestedUrl: string;
   actionType: 'inspect' | 'click' | 'search';
   status: MagnitudeRunStatus;
+  approval?: MagnitudeApprovalRequest;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;
