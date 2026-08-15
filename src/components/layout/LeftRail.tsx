@@ -10,7 +10,7 @@ import {
   Package, Radio, BookOpen, Settings, Cpu, Layers, Box,
   GitBranch, Clapperboard, Mic, Terminal, Wrench,
   Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight, Brain,
-  FolderOpen, Plus, Circle
+  FolderOpen, Plus, Circle, Compass
 } from 'lucide-react';
 
 /** Session persistence for the collapsed rail state (survives navigation,
@@ -80,6 +80,12 @@ const LeftRail: React.FC = () => {
             <Terminal size={12} className="text-emerald-400" />
           </div>
           {!collapsed && <span className="font-medium text-emerald-500/90 tracking-wide">CODEX</span>}
+        </NavLink>
+        <NavLink to="/magnitude" data-testid="nav-magnitude" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Magnitude">
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-amber-500/30 bg-amber-500/20">
+            <Compass size={12} className="text-amber-400" />
+          </div>
+          {!collapsed && <span className="font-medium text-amber-500/90 tracking-wide">MAGNITUDE</span>}
         </NavLink>
         <NavLink to="/teams" data-testid="nav-teams" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Agent Teams">
           <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-purple-500/30 bg-purple-500/20">

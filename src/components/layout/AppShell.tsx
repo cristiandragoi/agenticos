@@ -27,6 +27,7 @@ const AppShell: React.FC = () => {
   const hideGlobalChatDock =
     location.pathname === '/jarvis' ||
     location.pathname === '/codex' ||
+    location.pathname === '/magnitude' ||
     location.pathname === '/mission-control';
 
   const { setActiveGoalId } = useCodexStore();
@@ -35,6 +36,7 @@ const AppShell: React.FC = () => {
     let targetAgentId = 'agent-jarvis';
     if (location.pathname.startsWith('/hermes')) targetAgentId = 'agent-hermes';
     else if (location.pathname.startsWith('/codex')) targetAgentId = 'agent-codex';
+    else if (location.pathname.startsWith('/magnitude')) targetAgentId = 'agent-magnitude';
     else if (location.pathname.startsWith('/jarvis')) targetAgentId = 'agent-jarvis';
     
     console.log('[ChatRoute]', { route: location.pathname, routeOwnedAgentId: targetAgentId, selectedAgentId: targetAgentId });
@@ -61,6 +63,7 @@ const AppShell: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && e.key === '1') { e.preventDefault(); navigate('/jarvis'); }
       if ((e.ctrlKey || e.metaKey) && e.key === '2') { e.preventDefault(); navigate('/hermes-studio'); }
       if ((e.ctrlKey || e.metaKey) && e.key === '3') { e.preventDefault(); navigate('/codex'); }
+      if ((e.ctrlKey || e.metaKey) && e.key === '4') { e.preventDefault(); navigate('/magnitude'); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
