@@ -93,56 +93,62 @@ export class OpenAICompatibleGateway implements ModelGateway {
       const isQwenMax = model.toLowerCase().includes('qwen3.8-max');
       const maxTokens = isQwenMax ? Math.min(req.maxTokens || 120, 120) : (req.maxTokens || 2048);
 
-      try {
-        const bodyPayload: any = {
-          model: model,
-          messages,
-          max_tokens: maxTokens,
-          temperature: 0
-        };
-        if (isQwenMax) {
-          bodyPayload.reasoning = { effort: 'none' };
-        }
-
-        const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-          },
-          body: JSON.stringify(bodyPayload),
-          signal: buildRequestSignal(req)
-        });
-
-        if (!res.ok) {
-          const body = await res.text().catch(() => '');
-          if (res.status === 429) {
-            throw new ProviderRateLimitError(`HTTP 429: ${body}`, res.headers.get('retry-after') ?? undefined);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const bodyPayload: any = {
+            model: model,
+            messages,
+            max_tokens: maxTokens,
+            temperature: 0
+          };
+          if (isQwenMax) {
+            bodyPayload.reasoning = { effort: 'none' };
           }
-          throw new Error(`HTTP ${res.status}: ${body}`);
+
+          const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+            },
+            body: JSON.stringify(bodyPayload),
+            signal: buildRequestSignal(req)
+          });
+
+          if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            if (res.status === 429) {
+              throw new ProviderRateLimitError(`HTTP 429: ${body}`, res.headers.get('retry-after') ?? undefined);
+            }
+            throw new Error(`HTTP ${res.status}: ${body}`);
+          }
+
+          const data: any = await res.json();
+          const reply = data.choices?.[0]?.message?.content || '';
+
+          if (!reply || reply.trim().length === 0) {
+            throw new Error(`Empty response from model ${model}`);
+          }
+
+          const promptTokens = data.usage?.prompt_tokens || 0;
+          const completionTokens = data.usage?.completion_tokens || 0;
+
+          return { 
+            reply, 
+            provider: this.name, 
+            model: model, 
+            offline: false,
+            promptTokens,
+            completionTokens,
+            totalTokens: promptTokens + completionTokens
+          };
+        } catch (err: any) {
+          lastError = err;
+          if (attempt === 0 && !err?.name?.includes('Abort')) {
+            await new Promise(r => setTimeout(r, 800));
+            continue;
+          }
         }
-
-        const data: any = await res.json();
-        const reply = data.choices?.[0]?.message?.content || '';
-
-        if (!reply || reply.trim().length === 0) {
-          throw new Error(`Empty response from model ${model}`);
-        }
-
-        const promptTokens = data.usage?.prompt_tokens || 0;
-        const completionTokens = data.usage?.completion_tokens || 0;
-
-        return { 
-          reply, 
-          provider: this.name, 
-          model: model, 
-          offline: false,
-          promptTokens,
-          completionTokens,
-          totalTokens: promptTokens + completionTokens
-        };
-      } catch (err: any) {
-        lastError = err;
       }
     }
 
