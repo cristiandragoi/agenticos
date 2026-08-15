@@ -269,7 +269,13 @@ ipcMain.on('window-maximize', () => {
   if (win?.isMaximized()) win?.unmaximize();
   else win?.maximize();
 });
-ipcMain.on('window-close', () => win?.close());
+ipcMain.on('window-close', () => {
+  if (win && !win.isDestroyed()) {
+    win.destroy();
+    win = null;
+  }
+  app.quit();
+});
 
 ipcMain.on('agenticos:renderer-diagnostics', (_event, payload) => {
   logElectron('[AgenticOS Electron] renderer-diagnostics', {
@@ -332,12 +338,12 @@ app.on('before-quit', (event) => {
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
-  logElectron('Another instance is already running. Quitting this instance.');
-  app.quit();
+  logElectron('Another instance is already running. Quitting this instance immediately.');
+  app.exit(0);
 } else {
   app.on('second-instance', () => {
-    logElectron('Second instance requested. Focusing existing window.');
-    if (win) {
+    logElectron('Second instance requested. Focusing or creating window.');
+    if (win && !win.isDestroyed()) {
       if (win.isMinimized()) win.restore();
       win.show();
       win.focus();

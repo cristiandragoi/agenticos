@@ -73,9 +73,6 @@ async function healthPollTick() {
   // Never overwrite authoritative Electron state with a derived poll.
   if (electronConnected) return;
   try {
-    // file:// (production Electron loads dist/index.html) has no HTTP origin,
-    // so a relative '/api/health' resolves to file:///api/health and fails.
-    // API_BASE is the canonical file-aware base (default: localhost:4000/api).
     const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       consecutivePollFailures = 0;
@@ -103,6 +100,7 @@ async function healthPollTick() {
 
 export const backendLifecycleStore = {
   get(): BackendLifecycleState { return state; },
+  getState(): BackendLifecycleState { return state; },
   subscribe(fn: () => void): () => void {
     listeners.add(fn);
     return () => { listeners.delete(fn); };
@@ -119,7 +117,6 @@ export const backendLifecycleStore = {
   async retry(): Promise<{ ok: boolean; reason?: string }> {
     const bridge = (window as any).backendLifecycle;
     if (bridge?.retry) return bridge.retry();
-    // Browser mode: retry = re-run the health probe immediately.
     await healthPollTick();
     return { ok: true };
   },
@@ -142,7 +139,6 @@ export function startBackendLifecycleMonitor(): () => void {
 function connect(): void {
   const bridge = (window as any).backendLifecycle;
   if (bridge?.onState && bridge?.getState) {
-    // Electron mode: authoritative lifecycle state from the main process.
     electronConnected = true;
     electronUnsub = bridge.onState((next: BackendLifecycleState) => {
       if (next && typeof next === 'object') {

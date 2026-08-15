@@ -238,7 +238,13 @@ export function createBackendLifecycleManager(
 
   function killChild(): void {
     if (!child) return;
-    try { child.kill(); } catch { /* already gone */ }
+    const target = child;
+    if (target.pid && process.platform === 'win32') {
+      try {
+        execFileSync('taskkill', ['/F', '/T', '/PID', String(target.pid)], { windowsHide: true, stdio: 'ignore' });
+      } catch { /* already exited */ }
+    }
+    try { target.kill(); } catch { /* already gone */ }
   }
 
   function handleChildExit(code: number | null, signal: string | null) {
@@ -514,10 +520,15 @@ export function createBackendLifecycleManager(
       const target = child;
       child = null;
       logLine(`[lifecycle] shutting down owned backend pid=${target.pid ?? '?'}`);
+      if (target.pid && process.platform === 'win32') {
+        try {
+          execFileSync('taskkill', ['/F', '/T', '/PID', String(target.pid)], { windowsHide: true, stdio: 'ignore' });
+        } catch { /* already exited */ }
+      }
       try { target.kill('SIGTERM'); } catch { /* already gone */ }
       // On Windows kill() terminates immediately; elsewhere give a brief grace
       // window, then force-kill so no orphan survives the app exit.
-      await sleep(300);
+      await sleep(100);
       try { target.kill('SIGKILL'); } catch { /* already gone */ }
       emit({ pid: null, status: 'offline', lastError: null });
     }
