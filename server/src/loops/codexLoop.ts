@@ -16,8 +16,8 @@ import { db } from '../db/index.js';
 import { providerCircuitBreakers, agentTeamArtifacts, verificationReports, agentTeamHandoffs } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 const CODEX_LLM_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS ?? '60000', 10);
-  return Number.isNaN(parsed) ? 60000 : parsed;
+  const parsed = Number.parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS ?? '90000', 10);
+  return Number.isNaN(parsed) ? 90000 : parsed;
 })();
 
 const CODEX_LEASE_DURATION_MS = CODEX_LLM_TIMEOUT_MS + 30000;
@@ -124,6 +124,38 @@ Tool result:
 ${toolResult}`;
 }
 
+function boundToolResult(result: string, maxLength: number = 3000): string {
+  if (!result || result.length <= maxLength) return result;
+  const headLen = Math.floor(maxLength * 0.6);
+  const tailLen = Math.floor(maxLength * 0.35);
+  const truncatedChars = result.length - (headLen + tailLen);
+  return `${result.substring(0, headLen)}\n\n...[Truncated ${truncatedChars} characters for context efficiency]...\n\n${result.substring(result.length - tailLen)}`;
+}
+
+function buildBoundedPrompt(conversation: Array<{ role: string; content: string }>, maxPromptChars: number = 35000): string {
+  if (conversation.length <= 4) {
+    const full = conversation.map(m => `${m.role.toUpperCase()}:\n${m.content}`).join('\n\n');
+    if (full.length <= maxPromptChars) return full;
+  }
+
+  const first = conversation[0];
+  const tail: Array<{ role: string; content: string }> = [];
+  let currentLen = `${first.role.toUpperCase()}:\n${first.content}`.length;
+
+  for (let i = conversation.length - 1; i >= 1; i--) {
+    const item = conversation[i];
+    const itemStr = `${item.role.toUpperCase()}:\n${item.content}`;
+    if (currentLen + itemStr.length > maxPromptChars && tail.length >= 2) {
+      break;
+    }
+    tail.unshift(item);
+    currentLen += itemStr.length;
+  }
+
+  const selected = [first, ...tail];
+  return selected.map(m => `${m.role.toUpperCase()}:\n${m.content}`).join('\n\n');
+}
+
 const DEFAULT_SYSTEM_PROMPT = `You are CodeX, a Restricted Process Runner. Achieve the user's goal autonomously.
 CRITICAL: You MUST respond with exactly one valid JSON tool call object and NOTHING ELSE.
 Do not use XML tags.
@@ -135,15 +167,17 @@ Respond to the user in English. Keep plans, explanations, reports, and execution
 Native tool rules (mandatory):
 - To create or modify a file, ALWAYS use the writeFile tool.
 - To read or inspect a file, ALWAYS use the readFile tool.
+- To discover files in a directory, use listDirectory.
 - Use runCommand only for commands that genuinely require a process (builds, tests, package managers, git).
 - NEVER use echo, printf, cat, type, Get-Content, PowerShell redirection, or shell redirection for normal file reads/writes. They are blocked by the sandbox.
 
 Tools:
 1. writeFile: { "type": "tool_call", "tool": "writeFile", "arguments": { "path": "relative/path/to/file", "content": "file contents" } }
 2. readFile: { "type": "tool_call", "tool": "readFile", "arguments": { "path": "relative/path/to/file" } }
-3. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["install", "express"] } }
-4. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }
-5. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Goal completed." } }
+3. listDirectory: { "type": "tool_call", "tool": "listDirectory", "arguments": { "path": "relative/path" } }
+4. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["test"] } }
+5. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }
+6. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Goal completed." } }
 `;
 
 const STRICT_JSON_SYSTEM_PROMPT_SUFFIX = `
@@ -153,7 +187,7 @@ CRITICAL RETRY INSTRUCTION: You must return exactly one valid JSON object and no
 Required structure:
 {
   "type": "tool_call",
-  "tool": "writeFile | readFile | runCommand | reasoningQuery | finish",
+  "tool": "writeFile | readFile | listDirectory | runCommand | reasoningQuery | finish",
   "arguments": {}
 }
 
@@ -410,7 +444,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   }
 
   let systemPrompt = context?.instructions || DEFAULT_SYSTEM_PROMPT;
-  let allowedTools = context?.allowedTools || ['writeFile', 'readFile', 'runCommand', 'reasoningQuery', 'finish'];
+  let allowedTools = context?.allowedTools || ['writeFile', 'readFile', 'listDirectory', 'listFiles', 'runCommand', 'reasoningQuery', 'finish'];
   let readScopes = context?.readScopes;
   let writeScopes = context?.writeScopes;
 
@@ -484,7 +518,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
         : { type: 'tool_call', tool: event.tool || 'reasoningQuery', arguments: {} };
       conversation.push({ role: 'assistant', content: JSON.stringify(toolPayload) });
     } else if (event.message.startsWith('Tool Result:')) {
-      conversation.push({ role: 'system', content: event.message });
+      conversation.push({ role: 'system', content: boundToolResult(event.message) });
     } else if (event.state === 'user_action_required') {
       conversation.push({ role: 'user', content: event.message });
     }
@@ -631,8 +665,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
         break;
       }
 
-      const prompt = conversation.map(m => `${m.role.toUpperCase()}:
-${m.content}`).join('\n\n');
+      const prompt = buildBoundedPrompt(conversation);
 
       let llmResult;
       let toolCall: any = null;
@@ -1055,6 +1088,25 @@ ${m.content}`).join('\n\n');
             }
             if (readSourceNote && toolResult) toolResult += `\n${readSourceNote}`;
           }
+          else if ((toolCall.tool === 'listDirectory' || toolCall.tool === 'listFiles') && args.path !== undefined) {
+            const targetRel = args.path || '.';
+            let absolutePath = resolveWorkspacePath(targetRel, workspaceRoot);
+            if (!fs.existsSync(absolutePath)) {
+              const directPath = path.resolve(workspaceRoot || process.cwd(), targetRel);
+              if (fs.existsSync(directPath)) absolutePath = directPath;
+            }
+            if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isDirectory()) {
+              const IGNORED = new Set(['node_modules', '.git', 'dist', 'dist-electron', 'release', '.agentic', 'out', 'build', '.tmp', 'resources']);
+              const entries = fs.readdirSync(absolutePath, { withFileTypes: true });
+              const filtered = entries
+                .filter(e => !IGNORED.has(e.name))
+                .slice(0, 50)
+                .map(e => `${e.isDirectory() ? '[DIR] ' : '[FILE]'} ${e.name}`);
+              toolResult = `Directory contents of "${targetRel}":\n` + (filtered.length > 0 ? filtered.join('\n') : '(empty directory)');
+            } else {
+              toolResult = `Error: Path "${targetRel}" is not a valid directory.`;
+            }
+          }
           else if (toolCall.tool === 'runCommand' && args.cmd && args.args) {
             // Shell file I/O (echo/cat/type/Get-Content/redirection) is blocked by
             // sandbox policy — and unnecessary, because native tools exist.
@@ -1246,16 +1298,17 @@ ${m.content}`).join('\n\n');
           pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel, payload: { result: toolResult } });
           await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
+          const boundedResult = boundToolResult(toolResult);
           if (shouldRequestFinalAnswerAfterTool(goal.originalGoal, toolCall.tool)) {
-            conversation.push({ role: 'system', content: `Tool Result:\n${toolResult}` });
-            conversation.push({ role: 'user', content: buildFinalAnswerPrompt(toolResult) });
+            conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}` });
+            conversation.push({ role: 'user', content: buildFinalAnswerPrompt(boundedResult) });
             responseExpectation = 'final_answer';
           } else {
-            conversation.push({ role: 'system', content: `Tool Result:\n${toolResult}\n\nIf the task is complete, call finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Summary of completed work" } }. Otherwise, emit the next tool call.` });
+            conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}\n\nIf the task is complete, call finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Summary of completed work" } }. Otherwise, emit the next tool call.` });
           }
 
         } catch (err: any) {
-          conversation.push({ role: 'system', content: `Tool Error: ${err.message}` });
+          conversation.push({ role: 'system', content: `Tool Error: ${boundToolResult(err.message)}` });
           if (controller.signal.aborted) {
             goalStore.upsertStep(goalId, stepCounter, 'interrupted', undefined, undefined, err.message);
           } else {

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const ToolCallSchema = z.object({
   type: z.literal('tool_call'),
-  tool: z.enum(['writeFile', 'readFile', 'runCommand', 'reasoningQuery', 'finish']),
+  tool: z.enum(['writeFile', 'readFile', 'listDirectory', 'listFiles', 'runCommand', 'reasoningQuery', 'finish']),
   arguments: z.record(z.string(), z.any())
 });
 
@@ -23,11 +23,14 @@ interface ToolCallParseResult {
  */
 export function normalizeToolCallCandidate(candidate: any): any {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
+  if (candidate.tool_call && typeof candidate.tool_call === 'object') {
+    return normalizeToolCallCandidate(candidate.tool_call);
+  }
   if (Array.isArray(candidate.tool_calls) && candidate.tool_calls.length > 0) {
     return normalizeToolCallCandidate(candidate.tool_calls[0]);
   }
   if (candidate.function && typeof candidate.function === 'object') {
-    const rawArgs = candidate.function.arguments;
+    const rawArgs = candidate.function.arguments ?? candidate.function.parameters;
     let args = rawArgs;
     if (typeof rawArgs === 'string') {
       try {
@@ -41,16 +44,39 @@ export function normalizeToolCallCandidate(candidate: any): any {
       arguments: args
     });
   }
-  if (typeof candidate.name === 'string' && candidate.arguments && typeof candidate.arguments === 'object') {
+  if (typeof candidate.name === 'string' && (candidate.arguments || candidate.parameters) && typeof (candidate.arguments || candidate.parameters) === 'object') {
     return normalizeToolCallCandidate({
       tool: candidate.name,
-      arguments: candidate.arguments
+      arguments: candidate.arguments || candidate.parameters
     });
   }
-  if (candidate.type === 'tool_call') return candidate;
-  if (typeof candidate.tool !== 'string') return candidate;
-  const { tool, arguments: args, ...rest } = candidate;
-  let normalizedArgs = args;
+  if (candidate.type === 'tool_call' && typeof candidate.tool === 'string') {
+    const rawArgs = candidate.arguments ?? candidate.parameters ?? {};
+    let args = rawArgs;
+    if (typeof rawArgs === 'string') {
+      try { args = JSON.parse(rawArgs); } catch { args = {}; }
+    }
+    const toolAliases: Record<string, ParsedToolCall['tool']> = {
+      read_file: 'readFile',
+      write_file: 'writeFile',
+      list_directory: 'listDirectory',
+      list_files: 'listDirectory',
+      listDirectory: 'listDirectory',
+      listFiles: 'listDirectory',
+      run_command: 'runCommand',
+      reasoning_query: 'reasoningQuery',
+      final: 'finish'
+    };
+    return {
+      type: 'tool_call',
+      tool: toolAliases[candidate.tool] || candidate.tool,
+      arguments: typeof args === 'object' && !Array.isArray(args) ? args : {}
+    };
+  }
+  const toolProp = candidate.tool || candidate.action;
+  if (typeof toolProp !== 'string') return candidate;
+  const { tool, action, arguments: args, parameters, ...rest } = candidate;
+  let normalizedArgs = args ?? parameters;
   if (typeof normalizedArgs === 'string') {
     try {
       normalizedArgs = JSON.parse(normalizedArgs);
@@ -61,14 +87,18 @@ export function normalizeToolCallCandidate(candidate: any): any {
   const toolAliases: Record<string, ParsedToolCall['tool']> = {
     read_file: 'readFile',
     write_file: 'writeFile',
+    list_directory: 'listDirectory',
+    list_files: 'listDirectory',
+    listDirectory: 'listDirectory',
+    listFiles: 'listDirectory',
     run_command: 'runCommand',
     reasoning_query: 'reasoningQuery',
     final: 'finish'
   };
-  const normalizedTool = toolAliases[tool] || tool;
+  const effectiveTool = toolAliases[toolProp] || toolProp;
   return {
     type: 'tool_call',
-    tool: normalizedTool,
+    tool: effectiveTool,
     arguments: {
       ...(normalizedArgs && typeof normalizedArgs === 'object' && !Array.isArray(normalizedArgs) ? normalizedArgs : {}),
       ...rest
@@ -180,12 +210,39 @@ export function parseToolCall(response: string): ToolCallParseResult {
     errors.push(`embedded JSON: ${embedded.parseError}`);
   }
 
-  // Strategy 4: <tool_call> tags
+  // Strategy 4: <tool_call> tags (JSON inside tags)
   const tagMatch = trimmed.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
   if (tagMatch) {
     const tagged = validateToolCallJson(tagMatch[1].trim());
     if (tagged.toolCall) return { toolCall: tagged.toolCall, parseError: '', rawResponsePreview: preview };
     errors.push(`tool_call tags: ${tagged.parseError}`);
+  }
+
+  // Strategy 5: Laguna/Hermes XML-style tool calls (<arg_key>/<arg_value>)
+  const lagunaMatch = trimmed.match(/<tool_call>([a-zA-Z0-9_]+)([\s\S]*?)<\/tool_call>/i);
+  if (lagunaMatch) {
+    const toolName = lagunaMatch[1].trim();
+    const rest = lagunaMatch[2];
+    const args: Record<string, any> = {};
+    const argRegex = /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = argRegex.exec(rest)) !== null) {
+      const k = m[1].trim();
+      let v: any = m[2].trim();
+      try {
+        v = JSON.parse(v);
+      } catch {}
+      args[k] = v;
+    }
+    const candidate = normalizeToolCallCandidate({
+      tool: toolName,
+      arguments: args
+    });
+    const result = ToolCallSchema.safeParse(candidate);
+    if (result.success) {
+      return { toolCall: result.data, parseError: '', rawResponsePreview: preview };
+    }
+    errors.push(`laguna XML tool call: ${result.error.message}`);
   }
 
   return { toolCall: null, parseError: errors.join(' | ') || 'No JSON tool call found in response', rawResponsePreview: preview };

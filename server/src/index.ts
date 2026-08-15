@@ -28,7 +28,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // lifecycle manager pinning the managed backend's port) survives dotenv —
 // .env keeps governing every other value (and PORT when not provided).
 const explicitPort = process.env.PORT;
-dotenv.config({ path: path.resolve(__dirname, '..', '.env'), override: true });
+const envPaths = [
+  path.resolve(__dirname, '..', '.env'),
+  path.resolve(process.cwd(), 'server', '.env'),
+  path.resolve(process.cwd(), '.env'),
+  'B:/AgenticOS/server/.env'
+];
+for (const p of envPaths) {
+  dotenv.config({ path: p, override: false });
+}
 if (explicitPort !== undefined) process.env.PORT = explicitPort;
 
 import express from 'express';
