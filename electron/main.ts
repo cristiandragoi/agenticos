@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session, screen } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -79,7 +79,7 @@ if (REMOTE_DEBUGGING_PORT) {
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
-let win: BrowserWindow | null;
+let win: BrowserWindow | null = null;
 let backendLifecycle: BackendLifecycleManager | null = null;
 let backendShutdownStarted = false;
 
@@ -148,30 +148,68 @@ function initBackendLifecycle(): BackendLifecycleManager {
 
 function createWindow() {
   logElectron('Creating main window...');
+
+  let width = 1240;
+  let height = 640;
+  let x: number | undefined = undefined;
+  let y: number | undefined = undefined;
+
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: workWidth, height: workHeight, x: workX, y: workY } = primaryDisplay.workArea;
+    width = Math.min(1360, Math.max(960, workWidth - 40));
+    height = Math.min(840, Math.max(580, workHeight - 30));
+    x = workX + Math.max(0, Math.floor((workWidth - width) / 2));
+    y = workY + Math.max(0, Math.floor((workHeight - height) / 2));
+    logElectron('Calculated window bounds for primary display:', { width, height, x, y, workWidth, workHeight });
+  } catch (err: any) {
+    logElectron('Display bounds calculation error:', err?.message || String(err));
+  }
+
   win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width,
+    height,
+    ...(x !== undefined && y !== undefined ? { x, y } : {}),
+    minWidth: 800,
+    minHeight: 500,
     title: 'Agentic OS',
     icon: path.join(process.env.VITE_PUBLIC, 'logo.jpg'),
     frame: false,
-    show: false, // Wait until ready-to-show or fallback timer
+    show: true, // Always start visible so the window is never lost
     backgroundColor: '#0a0a0d', // Solid dark color to prevent Windows transparency bugs
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      // Jarvis conversation VAD must stay operational while the window is
-      // occluded/unfocused: the voice loop is driven by requestAnimationFrame,
-      // which Chromium pauses for hidden windows unless background throttling
-      // is disabled. Without this, speaking while the app is covered or
-      // unfocused leaves the UI stuck on "Listening" with a dead mic pipeline.
       backgroundThrottling: false,
     },
   });
 
   win.setMenuBarVisibility(false);
   win.webContents.setAudioMuted(false);
+  win.show();
+  win.focus();
   logElectron('[AgenticOS Electron] BrowserWindow count after create', { count: BrowserWindow.getAllWindows().length });
+
+  win.on('closed', () => {
+    win = null;
+  });
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    logElectron('[AgenticOS Electron] render-process-gone', details);
+    if (details.reason !== 'clean-exit' && win && !win.isDestroyed()) {
+      logElectron('[AgenticOS Electron] Recovering crashed renderer...');
+      setTimeout(() => {
+        if (win && !win.isDestroyed()) {
+          win.reload();
+        }
+      }, 500);
+    }
+  });
+
+  win.webContents.on('unresponsive', () => {
+    logElectron('[AgenticOS Electron] Window became unresponsive.');
+  });
 
   win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     logElectron('[AgenticOS Renderer console]', { level, message, line, sourceId });
@@ -202,24 +240,12 @@ function createWindow() {
   });
 
   win.once('ready-to-show', () => {
-    logElectron('Window ready-to-show triggered. Centering and showing...');
+    logElectron('Window ready-to-show triggered.');
     win?.webContents.setAudioMuted(false);
-    win?.center();
     win?.show();
     win?.focus();
     logElectron('[AgenticOS Electron] Window visible state', { isVisible: win?.isVisible(), bounds: win?.getBounds() });
   });
-
-  // Fallback: Ensure window is visible even if ready-to-show is delayed
-  setTimeout(() => {
-    if (win && !win.isVisible()) {
-      logElectron('Fallback window show triggered.');
-      win.webContents.setAudioMuted(false);
-      win.center();
-      win.show();
-      win.focus();
-    }
-  }, 800);
 
   if (VITE_DEV_SERVER_URL) {
     const targetUrl = `${VITE_DEV_SERVER_URL}${ELECTRON_RENDERER_ROUTE}`;
@@ -293,7 +319,12 @@ app.on('before-quit', (event) => {
   backendShutdownStarted = true;
   event.preventDefault();
   logElectron('Shutting down backend via lifecycle manager...');
+  const forceExit = setTimeout(() => {
+    logElectron('Backend shutdown timed out, forcing exit.');
+    app.exit(0);
+  }, 2500);
   void backendLifecycle.shutdown().finally(() => {
+    clearTimeout(forceExit);
     logElectron('Backend shutdown complete.');
     app.exit(0);
   });
@@ -310,6 +341,9 @@ if (!gotTheLock) {
       if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
+      win.moveTop();
+    } else {
+      createWindow();
     }
   });
 

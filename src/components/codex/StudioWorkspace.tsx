@@ -8,6 +8,7 @@ import { StudioPlan } from './StudioPlan';
 import { StudioFiles } from './StudioFiles';
 import { MessageSquare, LayoutList, Kanban, FolderCode, GitCompare, TerminalSquare, ShieldCheck, Activity, Save } from 'lucide-react';
 import { apiFetch, apiUrl } from '../../api/client';
+import ErrorBoundary from '../ErrorBoundary';
 
 interface Props {
   activeGoalId: string | null;
@@ -15,13 +16,25 @@ interface Props {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onGoalCreated?: (id: string) => void;
+  goals?: any[];
+  onSelectGoal?: (id: string) => void;
+  onNewGoal?: () => void;
 }
 
 /** No events for this long while a run is active => treat stream as disconnected. */
 const HEARTBEAT_TIMEOUT_MS = 45000;
 const activeGoalStreams = new Map<string, EventSource>();
 
-export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, activeTab, setActiveTab, onGoalCreated }) => {
+export const StudioWorkspace: React.FC<Props> = ({
+  activeGoalId,
+  goalStatus,
+  activeTab,
+  setActiveTab,
+  onGoalCreated,
+  goals = [],
+  onSelectGoal,
+  onNewGoal
+}) => {
 
   const { setEvents, setGoalStatus, setConnectionState, streamNonce } = useCodexStore();
   const lastEventAtRef = useRef<number>(Date.now());
@@ -95,12 +108,9 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
           lastSequenceRef.current = lastSequence;
         }
         setEvents(prev => {
-          // Events are uniquely identified by their sequence number.
           if (data.sequence !== undefined && prev.find(p => p.sequence === data.sequence)) return prev;
           return [...prev, data].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
         });
-        // The server ends the stream at terminal states; close cleanly so
-        // EventSource does not flap into reconnect loops after completion.
         if (data.state && TERMINAL_GOAL_STATES.includes(String(data.state).toLowerCase())) {
           closed = true;
           es?.close();
@@ -110,7 +120,6 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
 
     es.onerror = () => {
       if (closed) return;
-      // EventSource auto-retries: reflect that as "reconnecting".
       console.debug('[CodeX SSE] error', {
         goalId: activeGoalId,
         readyState: es?.readyState,
@@ -119,7 +128,7 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
       setConnectionState(es?.readyState === EventSource.CLOSED ? 'disconnected' : 'reconnecting');
     };
 
-    // Watchdog: a silent stream during an active run is surfaced as disconnected.
+    // Watchdog
     const watchdog = setInterval(() => {
       if (closed) return;
       const currentStatus = (statusRef.current || '').toLowerCase();
@@ -152,32 +161,49 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
   ];
 
   return (
-    <div className="flex flex-col h-full w-full relative">
-      <div className="flex bg-[#252526] shrink-0 overflow-x-auto hide-scrollbar">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-3 py-2 text-[13px] border-r border-[#333333] transition-colors whitespace-nowrap min-w-[120px] max-w-[200px] ${
-              activeTab === tab.id 
-                ? 'bg-[#1e1e1e] text-emerald-400 border-t-[2px] border-t-emerald-500 shadow-[0_-1px_0_#1e1e1e]' 
-                : 'bg-[#2d2d2d] text-[#858585] hover:bg-[#333333] border-t-[2px] border-t-transparent'
-            }`}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </div>
-      
-      <div className="flex-1 relative overflow-hidden bg-[#1e1e1e]">
-        <>
-            {activeTab === 'chat' && <StudioChat activeGoalId={activeGoalId} onGoalCreated={onGoalCreated} />}
+    <ErrorBoundary name="StudioWorkspace">
+      <div className="flex flex-col h-full w-full relative">
+        <div className="flex bg-[#252526] shrink-0 overflow-x-auto hide-scrollbar">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-3 py-2 text-[13px] border-r border-[#333333] transition-colors whitespace-nowrap min-w-[120px] max-w-[200px] ${
+                activeTab === tab.id 
+                  ? 'bg-[#1e1e1e] text-emerald-400 border-t-[2px] border-t-emerald-500 shadow-[0_-1px_0_#1e1e1e]' 
+                  : 'bg-[#2d2d2d] text-[#858585] hover:bg-[#333333] border-t-[2px] border-t-transparent'
+              }`}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex-1 relative overflow-hidden bg-[#1e1e1e]">
+          <>
+            {activeTab === 'chat' && (
+              <StudioChat
+                activeGoalId={activeGoalId}
+                onGoalCreated={onGoalCreated}
+                goals={goals}
+                onSelectGoal={onSelectGoal}
+                onNewGoal={onNewGoal}
+              />
+            )}
             {activeTab === 'plan' && <StudioPlan activeGoalId={activeGoalId} />}
             {activeTab === 'board' && <StudioBoard activeGoalId={activeGoalId} />}
             {activeTab === 'files' && <StudioFiles activeGoalId={activeGoalId} />}
             
             {activeTab === 'diff' && <StudioFiles activeGoalId={activeGoalId} />}
-            {activeTab === 'events' && <StudioChat activeGoalId={activeGoalId} />}
+            {activeTab === 'events' && (
+              <StudioChat
+                activeGoalId={activeGoalId}
+                onGoalCreated={onGoalCreated}
+                goals={goals}
+                onSelectGoal={onSelectGoal}
+                onNewGoal={onNewGoal}
+              />
+            )}
             
             {['terminal', 'validation', 'checkpoints'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center h-full text-slate-500 font-mono text-sm space-y-4">
@@ -194,12 +220,13 @@ export const StudioWorkspace: React.FC<Props> = ({ activeGoalId, goalStatus, act
                 )}
               </div>
             )}
-        </>
-      </div>
+          </>
+        </div>
 
-      {goalStatus === 'interrupted_requires_review' && (
-        <StudioRecovery activeGoalId={activeGoalId!} />
-      )}
-    </div>
+        {goalStatus === 'interrupted_requires_review' && (
+          <StudioRecovery activeGoalId={activeGoalId!} />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 };

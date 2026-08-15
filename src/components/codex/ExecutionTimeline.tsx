@@ -5,6 +5,7 @@ import type { GoalEvent } from '../../../server/src/types';
 import { pairToolExecutions, type ToolExecution } from '../../presenters/executionStatus';
 import { getActivityPhrase, getStatusPresentation } from '../../presenters/EventPresenter';
 import { ToolExecutionCard } from './ToolExecutionCard';
+import ErrorBoundary from '../ErrorBoundary';
 
 function formatTime(ts?: string): string {
   if (!ts) return '--:--:--';
@@ -81,7 +82,12 @@ const MarkdownComponents = {
 /** Compact, readable one-line activity entry with rich expandable result support. */
 const ActivityLine: React.FC<{ event: GoalEvent }> = ({ event }) => {
   const isCompletion = event.eventType === 'agent_completed' || event.eventType === 'task_completed' || event.tool === 'finish' || event.state === 'completed';
-  const finalAnswer = (event.payload?.finalAnswer || (event.message && !event.message.startsWith('Executing') ? event.message.replace(/^Goal finished:\s*/i, '') : '')).trim();
+  const rawAnswer = typeof event.payload?.finalAnswer === 'string'
+    ? event.payload.finalAnswer
+    : typeof event.message === 'string' && !event.message.startsWith('Executing')
+      ? event.message.replace(/^Goal finished:\s*/i, '')
+      : '';
+  const finalAnswer = String(rawAnswer || '').trim();
   
   const [expanded, setExpanded] = useState(isCompletion && !!finalAnswer);
   const colors = getStatusPresentation(event.normalizedStatus || 'idle');
@@ -122,7 +128,9 @@ const ActivityLine: React.FC<{ event: GoalEvent }> = ({ event }) => {
                   <CopyButton text={finalAnswer} label="Copy result" />
                 </div>
                 <div className="text-[12px] text-slate-200 leading-relaxed font-sans overflow-x-auto">
-                  <ReactMarkdown components={MarkdownComponents}>{finalAnswer}</ReactMarkdown>
+                  <ErrorBoundary name="FinalAnswerMarkdown">
+                    <ReactMarkdown components={MarkdownComponents}>{finalAnswer}</ReactMarkdown>
+                  </ErrorBoundary>
                 </div>
               </div>
             )}
@@ -163,42 +171,67 @@ export const ExecutionTimeline: React.FC<Props> = ({ events, runIsActive }) => {
     return set;
   }, [executions]);
 
-  const executionByStart = useMemo(() => {
-    const map = new Map<number, ToolExecution>();
-    for (const ex of executions) map.set(ex.startSequence, ex);
-    return map;
-  }, [executions]);
+  // Merge unpaired events with tool executions in chronological order
+  const timelineItems = useMemo(() => {
+    type Item =
+      | { type: 'event'; sequence: number; event: GoalEvent }
+      | { type: 'execution'; sequence: number; execution: ToolExecution };
 
-  const latestRunningId = useMemo(() => {
-    for (let i = executions.length - 1; i >= 0; i--) {
-      if (executions[i].state === 'running') return executions[i].id;
+    const items: Item[] = [];
+
+    for (const event of events) {
+      if (event.sequence === undefined || !consumedSequences.has(event.sequence)) {
+        items.push({
+          type: 'event',
+          sequence: event.sequence ?? Number.MAX_SAFE_INTEGER,
+          event
+        });
+      }
     }
-    return null;
-  }, [executions]);
+
+    for (const execution of executions) {
+      items.push({
+        type: 'execution',
+        sequence: execution.startSequence,
+        execution
+      });
+    }
+
+    return items.sort((a, b) => a.sequence - b.sequence);
+  }, [events, executions, consumedSequences]);
 
   if (events.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-600">
-        <span className="text-sm">No execution events yet.</span>
-        <span className="text-xs mt-1 opacity-70">Activity will appear here as CodeX works.</span>
+      <div data-testid="codex-timeline" className="text-center py-6 text-slate-600 text-xs font-mono">
+        Awaiting execution events...
       </div>
     );
   }
 
   return (
-    <div data-testid="codex-timeline" className="flex flex-col gap-2.5">
-      {events.map((event) => {
-        const toolCard = executionByStart.get(event.sequence);
-        if (toolCard) {
-          return (
-            <div key={`tool-${event.sequence}`} className="pl-[74px]">
-              <ToolExecutionCard execution={toolCard} isLatest={toolCard.id === latestRunningId} />
-            </div>
-          );
-        }
-        if (consumedSequences.has(event.sequence)) return null;
-        return <ActivityLine key={`ev-${event.sequence}`} event={event} />;
-      })}
-    </div>
+    <ErrorBoundary name="ExecutionTimeline">
+      <div data-testid="codex-timeline" className="space-y-3 font-sans">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+          Execution Timeline ({events.length} events)
+        </div>
+        <div className="space-y-2.5 border-l border-slate-800/80 ml-2 pl-3">
+          {timelineItems.map((item, idx) => {
+            if (item.type === 'event') {
+              return (
+                <ActivityLine
+                  key={`evt-${item.event.sequence ?? idx}-${item.event.timestamp || idx}`}
+                  event={item.event}
+                />
+              );
+            }
+            return (
+              <div key={`exec-${item.execution.startSequence}-${idx}`}>
+                <ToolExecutionCard execution={item.execution} isLatest={idx === timelineItems.length - 1} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ErrorBoundary>
   );
 };

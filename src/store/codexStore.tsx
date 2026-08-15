@@ -57,6 +57,7 @@ interface CodexState {
 
 const CodexContext = createContext<CodexState | null>(null);
 const RUN_SETTINGS_STORAGE_KEY = 'agenticos:codex-run-settings';
+const ACTIVE_GOAL_STORAGE_KEY = 'agenticos:codex-active-goal-id';
 
 const defaultRunSettings: CodexRunSettings = {
   folderTree: '',
@@ -85,9 +86,20 @@ function readPersistedRunSettings(): CodexRunSettings {
   }
 }
 
+function readPersistedActiveGoalId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(ACTIVE_GOAL_STORAGE_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
 function persistRunSettings(settings: CodexRunSettings) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(RUN_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  try {
+    window.localStorage.setItem(RUN_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {}
 }
 
 /** §1: publish a repository selection to the canonical server workspace
@@ -105,10 +117,20 @@ async function publishWorkspaceSelection(workspaceRoot: string): Promise<void> {
 }
 
 export function CodexProvider({ children }: { children: ReactNode }) {
-  const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
+  const [activeGoalId, setActiveGoalIdState] = useState<string | null>(() => readPersistedActiveGoalId());
   const [goalStatus, setGoalStatus] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('chat');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const setActiveGoalId = useCallback((id: string | null) => {
+    setActiveGoalIdState(id);
+    if (typeof window !== 'undefined') {
+      try {
+        if (id) window.localStorage.setItem(ACTIVE_GOAL_STORAGE_KEY, id);
+        else window.localStorage.removeItem(ACTIVE_GOAL_STORAGE_KEY);
+      } catch {}
+    }
+  }, []);
 
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [streamNonce, setStreamNonce] = useState(0);
@@ -123,11 +145,7 @@ export function CodexProvider({ children }: { children: ReactNode }) {
   const [isPlanning, setIsPlanning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
 
-  // Harness-critical: the setter identity must be STABLE. Components and
-  // tests legitimately use it as a useEffect dependency; an inline function
-  // creates a new identity on every render → infinite effect loop → event
-  // loop saturation (worker hang). useCallback preserves the exact updater
-  // semantics while fixing the identity.
+  // Harness-critical: the setter identity must be STABLE.
   const setRunSettings: React.Dispatch<React.SetStateAction<CodexRunSettings>> = useCallback(updater => {
     setRunSettingsState(prev => {
       const next = typeof updater === 'function'
@@ -140,9 +158,6 @@ export function CodexProvider({ children }: { children: ReactNode }) {
 
   const setWorkspacePath = (path: string) => {
     setRunSettings(prev => ({ ...prev, workspacePath: path, folderTree: prev.folderTree || path }));
-    // §1/§9: publish the selection to the canonical server store so ALL
-    // agents/workers (Jarvis, Hermes, CodeX, background tasks) resolve files
-    // against the same root.
     void publishWorkspaceSelection(path);
   };
 
@@ -201,7 +216,7 @@ export function CodexProvider({ children }: { children: ReactNode }) {
     isStarting, setIsStarting,
     resetForNewTask
   }), [
-    activeGoalId, goalStatus, activeTab, isDrawerOpen,
+    activeGoalId, setActiveGoalId, goalStatus, activeTab, isDrawerOpen,
     connectionState, streamNonce, runSettingsState, events,
     localChat, input, showSettings, isPlanning, isStarting
   ]);

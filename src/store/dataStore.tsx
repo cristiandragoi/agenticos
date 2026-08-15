@@ -5,6 +5,7 @@ import type {
   MemoryScope, MemoryEntry, Artifact, Board, ToolDefinition, ResearchBrief, ServiceLead
 } from '../types';
 import { apiClient, API_BASE } from '../api/client';
+import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
 
 interface Schedule {
   id: string;
@@ -73,6 +74,7 @@ const DATA_REFRESH_INTERVAL_MS = 60_000;
 export function DataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DataState>(initialState);
   const inFlightRef = useRef(false);
+  const retryTimeoutRef = useRef<any>(null);
 
   const fetchData = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -94,13 +96,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         apiClient.getResearchBriefs(),
         apiClient.getLeads(),
         apiClient.getSchedules(),
-        // file:// (production Electron loads dist/index.html) has no HTTP
-        // origin; a relative fetch would resolve to file:///api/... and fail,
-        // rejecting the whole Promise.all and trapping AppShell in the error
-        // gate even though the backend lifecycle is READY. API_BASE is the
-        // canonical file-aware base.
         fetch(`${API_BASE}/settings/gateway/credentials-status`).then(res => res.ok ? res.json() : {})
       ]);
+
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
 
       setState(prev => ({
         ...prev,
@@ -111,17 +113,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
     } catch (err) {
       setState(prev => ({ ...prev, isLoading: false, error: err instanceof Error ? err.message : 'Failed to fetch' }));
+      // Quick auto-retry for transient startup boot delay
+      if (!retryTimeoutRef.current) {
+        retryTimeoutRef.current = setTimeout(() => {
+          retryTimeoutRef.current = null;
+          void fetchData();
+        }, 2000);
+      }
     } finally {
       inFlightRef.current = false;
     }
   }, []);
 
+  // Listen for backend lifecycle ready events to immediately self-heal
+  useEffect(() => {
+    const unsub = backendLifecycleStore.subscribe(() => {
+      const current = backendLifecycleStore.getState();
+      if (current.status === 'ready') {
+        void fetchData();
+      }
+    });
+    return unsub;
+  }, [fetchData]);
+
   useEffect(() => {
     fetchData();
-    // Interval refetch runs even while the window is hidden: otherwise a
-    // failed initial load (backend still booting) would never self-heal
-    // until the user returns and visibility changes. inFlightRef already
-    // prevents overlapping loads.
     const interval = setInterval(() => {
       void fetchData();
     }, DATA_REFRESH_INTERVAL_MS);
@@ -133,6 +149,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(interval);
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [fetchData]);
@@ -143,4 +160,3 @@ export function DataProvider({ children }: { children: ReactNode }) {
 export function useData() {
   return useContext(DataContext);
 }
-
