@@ -118,7 +118,7 @@ const MarkdownComponents = {
 };
 
 const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events: any[] }> = ({ goalStatus, goal, events }) => {
-  const status = (goalStatus || '').toLowerCase();
+  const status = (goalStatus || goal?.status || '').toLowerCase();
   if (!TERMINAL_GOAL_STATES.includes(status)) return null;
 
   const finishEvent = [...events].reverse().find(e => 
@@ -126,23 +126,34 @@ const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events:
     e.eventType === 'task_completed' || 
     e.state === 'completed' || 
     e.tool === 'finish' ||
-    e.payload?.finalAnswer
+    (typeof e.payload === 'object' && e.payload?.finalAnswer) ||
+    (typeof e.payload === 'string' && e.payload.includes('finalAnswer'))
   );
   
-  const rawFinishMessage = typeof finishEvent?.payload?.finalAnswer === 'string'
-    ? finishEvent.payload.finalAnswer
-    : typeof finishEvent?.message === 'string'
-      ? finishEvent.message
-      : typeof goal?.runSummary?.finalAnswer === 'string'
-        ? goal.runSummary.finalAnswer
-        : typeof goal?.runSummary?.message === 'string'
-          ? goal.runSummary.message
-          : typeof goal?.finalAnswer === 'string'
-            ? goal.finalAnswer
+  let payloadObj = finishEvent?.payload;
+  if (typeof payloadObj === 'string') {
+    try { payloadObj = JSON.parse(payloadObj); } catch {}
+  }
+  
+  let runSummaryObj = goal?.runSummary;
+  if (typeof runSummaryObj === 'string') {
+    try { runSummaryObj = JSON.parse(runSummaryObj); } catch {}
+  }
+
+  const rawFinishMessage = typeof payloadObj?.finalAnswer === 'string'
+    ? payloadObj.finalAnswer
+    : typeof runSummaryObj?.finalAnswer === 'string'
+      ? runSummaryObj.finalAnswer
+      : typeof runSummaryObj?.message === 'string'
+        ? runSummaryObj.message
+        : typeof goal?.finalAnswer === 'string'
+          ? goal.finalAnswer
+          : typeof finishEvent?.message === 'string' && !finishEvent.message.startsWith('Executing')
+            ? finishEvent.message
             : typeof goal?.runSummary === 'string'
               ? goal.runSummary
               : '';
-              
+               
   const finishMessage = String(rawFinishMessage || '').replace(/^Goal finished:\s*/i, '').trim();
 
   const isCompleted = status === 'completed';
@@ -171,10 +182,10 @@ const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events:
         </div>
 
         {isCompleted && finishMessage && (
-          <div className="bg-[#0A0F16] border border-blue-500/30 rounded-md p-4 flex flex-col gap-2">
+          <div data-testid="codex-final-result-card" className="bg-[#0A0F16] border border-blue-500/30 rounded-md p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="text-[11px] font-bold uppercase tracking-widest text-blue-400 flex items-center gap-1.5">
-                <CheckCircle2 size={13} /> Final Result
+                <CheckCircle2 size={13} /> FINAL RESULT
               </span>
               <CopyButton text={finishMessage} label="Copy result" />
             </div>
@@ -327,6 +338,21 @@ export const StudioChat: React.FC<StudioChatProps> = ({
   const normalizedEvents = useMemo(() => events.map(normalizeExecutionEvent), [events]);
   const status = (goalStatus || '').toLowerCase();
   const isTerminal = TERMINAL_GOAL_STATES.includes(status);
+
+  // Re-fetch full goal when goalStatus transitions to terminal state so runSummary is populated
+  useEffect(() => {
+    if (!activeGoalId || !isTerminal) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setGoal(data);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [activeGoalId, isTerminal, goalStatus]);
   const runIsActive = !!activeGoalId && !isTerminal && status !== 'paused';
 
   const approvalVisible = status === 'waiting_for_approval';

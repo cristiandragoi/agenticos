@@ -45,6 +45,7 @@ export const StudioWorkspace: React.FC<Props> = ({
   useEffect(() => {
     if (!activeGoalId) {
       setEvents([]);
+      setGoalStatus(null);
       setConnectionState('idle_connected');
       lastSequenceRef.current = 0;
       return;
@@ -52,29 +53,7 @@ export const StudioWorkspace: React.FC<Props> = ({
 
     let es: EventSource | null = null;
     let closed = false;
-    let lastSequence = lastSequenceRef.current;
-
-    const fetchHistory = async () => {
-      try {
-        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
-        const data = await res.json();
-        if (data.history) {
-          setEvents(data.history);
-        }
-        if (data.status) {
-          setGoalStatus(data.status);
-        }
-      } catch (e) {}
-    };
-    fetchHistory();
-
-    lastEventAtRef.current = Date.now();
-    const currentStatus = (statusRef.current || '').toLowerCase();
-    if (TERMINAL_GOAL_STATES.includes(currentStatus) || ['paused', 'waiting_for_approval'].includes(currentStatus)) {
-      setConnectionState('idle_connected');
-      return () => {};
-    }
-    setConnectionState('reconnecting');
+    lastSequenceRef.current = 0;
 
     const existing = activeGoalStreams.get(activeGoalId);
     if (existing) {
@@ -82,51 +61,70 @@ export const StudioWorkspace: React.FC<Props> = ({
       activeGoalStreams.delete(activeGoalId);
     }
 
-    const streamUrl = lastSequence > 0
-      ? apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}?lastEventId=${lastSequence}`)
-      : apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}`);
-    es = new EventSource(streamUrl);
-    activeGoalStreams.set(activeGoalId, es);
-
-    es.onopen = () => {
-      setConnectionState('connected');
-      console.debug('[CodeX SSE] open', {
-        goalId: activeGoalId,
-        readyState: es?.readyState,
-        lastEventSequence: lastSequence
-      });
-    };
-
-    es.addEventListener('goal_event', (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        lastEventAtRef.current = Date.now();
-        setConnectionState('connected');
-        if (data.state) setGoalStatus(data.state);
-        if (typeof data.sequence === 'number') {
-          lastSequence = Math.max(lastSequence, data.sequence);
-          lastSequenceRef.current = lastSequence;
-        }
-        setEvents(prev => {
-          if (data.sequence !== undefined && prev.find(p => p.sequence === data.sequence)) return prev;
-          return [...prev, data].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-        });
-        if (data.state && TERMINAL_GOAL_STATES.includes(String(data.state).toLowerCase())) {
-          closed = true;
-          es?.close();
-        }
-      } catch (err) {}
-    });
-
-    es.onerror = () => {
+    const connectStream = (fromSequence: number) => {
       if (closed) return;
-      console.debug('[CodeX SSE] error', {
-        goalId: activeGoalId,
-        readyState: es?.readyState,
-        lastEventSequence: lastSequence
+      const streamUrl = fromSequence > 0
+        ? apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}?lastEventId=${fromSequence}`)
+        : apiUrl(`/api/chat/agents/goal/stream/${activeGoalId}`);
+      es = new EventSource(streamUrl);
+      activeGoalStreams.set(activeGoalId, es);
+
+      es.onopen = () => {
+        setConnectionState('connected');
+      };
+
+      es.addEventListener('goal_event', (e: any) => {
+        try {
+          const data = JSON.parse(e.data);
+          lastEventAtRef.current = Date.now();
+          setConnectionState('connected');
+          if (data.state) setGoalStatus(data.state);
+          if (typeof data.sequence === 'number') {
+            lastSequenceRef.current = Math.max(lastSequenceRef.current, data.sequence);
+          }
+          setEvents(prev => {
+            if (data.sequence !== undefined && prev.find(p => p.sequence === data.sequence)) return prev;
+            return [...prev, data].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+          });
+          if (data.state && TERMINAL_GOAL_STATES.includes(String(data.state).toLowerCase())) {
+            closed = true;
+            es?.close();
+            activeGoalStreams.delete(activeGoalId);
+            setConnectionState('idle_connected');
+          }
+        } catch (err) {}
       });
-      setConnectionState(es?.readyState === EventSource.CLOSED ? 'disconnected' : 'reconnecting');
+
+      es.onerror = () => {
+        if (closed) return;
+        setConnectionState('reconnecting');
+      };
     };
+
+    const fetchHistory = async () => {
+      try {
+        const res = await apiFetch(`/api/chat/agents/goal/${activeGoalId}`);
+        const data = await res.json();
+        if (data.history) {
+          setEvents(data.history);
+          const maxSeq = data.history.reduce((max: number, e: any) => Math.max(max, e.sequence ?? 0), 0);
+          lastSequenceRef.current = maxSeq;
+        }
+        if (data.status) {
+          setGoalStatus(data.status);
+          if (TERMINAL_GOAL_STATES.includes(String(data.status).toLowerCase())) {
+            setConnectionState('idle_connected');
+            return;
+          }
+        }
+        connectStream(lastSequenceRef.current);
+      } catch (e) {
+        connectStream(0);
+      }
+    };
+
+    setConnectionState('connecting');
+    fetchHistory();
 
     // Watchdog
     const watchdog = setInterval(() => {

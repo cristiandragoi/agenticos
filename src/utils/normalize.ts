@@ -9,8 +9,16 @@ export function normalizeExecutionEvent(rawEvent: any): GoalEvent {
   const lifecycleState = rawEvent.lifecycleState || 'idle';
   const eventType = rawEvent.eventType || 'unknown';
 
+  let payload = rawEvent.payload;
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch {}
+  }
+
   return {
     ...rawEvent,
+    payload,
     eventSchemaVersion,
     normalizedStatus,
     lifecycleState,

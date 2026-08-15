@@ -68,8 +68,11 @@ class GoalStore extends EventEmitter {
       workspacePath: row.workspacePath || undefined,
       conversationId: row.conversationId || undefined,
       workspaceId: row.workspaceId || undefined,
-      history: events as unknown as GoalEvent[],
-      runSummary: row.runSummary as any
+      history: events.map(e => ({
+        ...e,
+        payload: typeof e.payload === 'string' ? (() => { try { return JSON.parse(e.payload); } catch { return e.payload; } })() : e.payload
+      })) as unknown as GoalEvent[],
+      runSummary: typeof row.runSummary === 'string' ? (() => { try { return JSON.parse(row.runSummary); } catch { return row.runSummary; } })() : (row.runSummary as any)
     };
   }
 
@@ -305,6 +308,21 @@ class GoalStore extends EventEmitter {
 
   getUnfinishedGoals() {
     return db.select().from(goals).where(sql`${goals.status} IN ('queued', 'planning', 'executing', 'reasoning', 'retrying')`).all();
+  }
+
+  getAllGoals(limit = 100) {
+    const rows = db.select().from(goals).orderBy(desc(goals.updatedAt)).limit(limit).all();
+    return rows.map(r => ({
+      ...r,
+      executionOptions: r.executionOptions ? JSON.parse(r.executionOptions) : undefined,
+      runSummary: typeof r.runSummary === 'string' ? (() => { try { return JSON.parse(r.runSummary); } catch { return r.runSummary; } })() : r.runSummary
+    }));
+  }
+
+  getGoalsByStatus(statuses: string[], limit = 100) {
+    if (!statuses.length) return this.getAllGoals(limit);
+    const placeholders = statuses.map(() => '?').join(',');
+    return db.select().from(goals).where(sql`${goals.status} IN (${sql.raw(statuses.map(s => `'${s}'`).join(','))})`).orderBy(desc(goals.updatedAt)).limit(limit).all();
   }
 }
 
