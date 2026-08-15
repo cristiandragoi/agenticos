@@ -45,11 +45,12 @@ const FILE_PATH_RE = /\b(?:[A-Za-z]:[\\/])?(?:[A-Za-z0-9_.-]+[\\/])+[A-Za-z0-9_.
 
 function removeProtectiveNegations(text: string): string {
   return text
-    .replace(/\bdo not\s+(?:modify|write|edit|change|create|delete|remove|patch|replace|append|insert|run|execute)\b[^.?!]*/gi, '')
+    .replace(/\b(?:do not|does not|don't|doesn't|never|no)\s+(?:require|modify|write|edit|change|create|delete|remove|patch|replace|append|insert|run|execute)\b[^.?!]*/gi, '')
     .replace(/\bwithout\s+(?:modifying|writing|editing|changing|creating|deleting|removing|patching|replacing|appending|inserting|running|executing)\b[^.?!]*/gi, '');
 }
 
 function isReadOnlyGoal(goalText: string): boolean {
+  if (/\bread-only\b/i.test(goalText)) return true;
   const intentText = removeProtectiveNegations(goalText);
   return READ_INTENT_RE.test(goalText) && !WRITE_INTENT_RE.test(intentText);
 }
@@ -103,8 +104,11 @@ function fallbackToolCallAfterParseFailure(goalText: string, response: string, a
   return null;
 }
 
-function shouldRequestFinalAnswerAfterTool(goalText: string, tool: string): boolean {
-  return isReadOnlyGoal(goalText) && ['readFile', 'searchFiles', 'search_files'].includes(tool);
+function shouldRequestFinalAnswerAfterTool(goalText: string, tool: string, toolStepCount: number = 1): boolean {
+  if (!isReadOnlyGoal(goalText)) return false;
+  if (['readFile', 'searchFiles', 'search_files'].includes(tool)) return true;
+  if (toolStepCount >= 2) return true;
+  return false;
 }
 
 function looksLikeExplicitToolCall(response: string): boolean {
@@ -611,6 +615,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
 
   const usedReadFallbacks = new Set<string>();
   let responseExpectation: ResponseExpectation = 'tool_decision';
+  let executedToolsCount = 0;
 
   // Bounded parse-failure budget: a model that repeatedly returns output that
   // cannot be parsed into a tool call must NOT cycle planning phases forever.
@@ -1299,7 +1304,9 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
           const boundedResult = boundToolResult(toolResult);
-          if (shouldRequestFinalAnswerAfterTool(goal.originalGoal, toolCall.tool)) {
+          executedToolsCount++;
+          const maxAllowedTools = isReadOnlyGoal(goal.originalGoal) ? 3 : 20;
+          if (shouldRequestFinalAnswerAfterTool(goal.originalGoal, toolCall.tool, executedToolsCount) || executedToolsCount >= maxAllowedTools) {
             conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}` });
             conversation.push({ role: 'user', content: buildFinalAnswerPrompt(boundedResult) });
             responseExpectation = 'final_answer';
