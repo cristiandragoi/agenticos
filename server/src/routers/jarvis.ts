@@ -1235,7 +1235,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // routing event and the execution path always describe the route actually used.
     const delegationSignals = detectDelegationSignals(prompt);
     let intent: IntentResult = classified;
-    if (classified.route !== 'direct' && delegationSignals.explicitNonDelegationRequested) {
+    if (
+      classified.route !== 'direct' &&
+      ((delegationSignals.globalNonDelegationRequested && !delegationSignals.explicitWorkerRequested) ||
+       delegationSignals.prohibitedWorkers.includes(classified.route as any))
+    ) {
       intent = {
         ...classified,
         route: 'direct',

@@ -12,6 +12,7 @@ export type CapabilityId =
   | 'jarvis'
   | 'hermes'
   | 'codex'
+  | 'magnitude'
   | 'research'
   | 'agent_teams'
   | 'boards'
@@ -19,7 +20,7 @@ export type CapabilityId =
   | 'automations'
   | 'revenue_pipeline';
 
-export type TaskWorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | null;
+export type TaskWorkerKind = 'hermes' | 'codex' | 'magnitude' | 'research' | 'team' | 'automation' | 'revenue' | null;
 
 export interface Capability {
   id: CapabilityId;
@@ -95,6 +96,23 @@ export const CAPABILITY_REGISTRY: Capability[] = [
     taskWorkerKind: 'codex',
     route: '/codex',
     limitations: 'Requires a selected repository and approval for writes. Pause/resume supported via CodeX checkpoints.',
+  },
+  {
+    id: 'magnitude',
+    displayName: 'Magnitude',
+    aliases: ['magnitude', 'magnitude agent', 'the magnitude agent', 'browser', 'browser agent', 'browser worker'],
+    responsibilities:
+      'Magnitude is the browser automation and web inspection worker. It navigates to URLs, inspects page titles, extracts DOM text and links, and returns structured page results.',
+    supportedActions: [
+      'open and inspect web pages',
+      'extract page title, text and metadata',
+      'verify live URLs and web content'
+    ],
+    statusSource: 'Magnitude Service + magnitude_runs table',
+    assignmentAgentId: 'agent-magnitude',
+    taskWorkerKind: 'magnitude',
+    route: '/magnitude',
+    limitations: 'HTTP and HTTPS only. Gated by approval for non-inspect mutations.',
   },
   {
     id: 'research',
@@ -188,17 +206,21 @@ export function getCapability(id: CapabilityId): Capability | undefined {
 /** Resolve a natural-language mention (e.g. "codex", "hermes agent", "the board") to a capability. */
 export function resolveCapability(text: string): Capability | undefined {
   const p = text.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  // First check if an explicit worker is targeted with an action verb (use/ask/tell/have/delegate to)
+  const explicitTarget = CAPABILITY_REGISTRY.find(c =>
+    c.aliases.some(alias => new RegExp(`\\b(?:use|ask|tell|have|get|make|delegate to)\\s+${alias}\\b`).test(p))
+  );
+  if (explicitTarget) return explicitTarget;
+
   let best: Capability | undefined;
   let bestLen = 0;
   let bestPriority = -1;
   for (const cap of CAPABILITY_REGISTRY) {
-    // Priority: real worker kinds (hermes/codex/research/team/automation) beat
-    // generic aliases like 'jarvis'/'you' (which can appear inside file paths),
-    // and boards/memory sit above the orchestrator alias.
-    // The revenue pipeline is an orchestrated workflow, NOT a worker you "ask"
-    // to do something — priority 1 so an explicit worker mention ("Ask Hermes
-    // to audit the revenue pipeline code") always resolves to the worker.
-    const priority = cap.id === 'revenue_pipeline' ? 1 : cap.taskWorkerKind ? 2 : cap.id === 'boards' || cap.id === 'memory' || cap.id === 'automations' ? 1 : 0;
+    // Priority: core workers (codex/hermes/magnitude/research/agent_teams) beat
+    // auxiliary capabilities (automations/boards/memory/revenue_pipeline)
+    const isCoreWorker = ['codex', 'hermes', 'magnitude', 'research', 'agent_teams'].includes(cap.id);
+    const priority = isCoreWorker ? 3 : cap.id === 'revenue_pipeline' ? 1 : cap.id === 'automations' || cap.id === 'boards' || cap.id === 'memory' ? 1 : 0;
     for (const alias of cap.aliases) {
       if (p.includes(alias) && (priority > bestPriority || (priority === bestPriority && alias.length > bestLen))) {
         best = cap;

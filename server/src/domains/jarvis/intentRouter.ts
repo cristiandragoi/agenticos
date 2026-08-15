@@ -27,21 +27,59 @@ export interface IntentResult {
 
 export interface DelegationSignals {
   explicitDelegationRequested: boolean;
-  explicitNonDelegationRequested: boolean;
+  globalNonDelegationRequested: boolean;
+  explicitWorkerRequested?: 'codex' | 'hermes' | 'magnitude' | 'agent_teams';
+  prohibitedWorkers: ('codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'automations')[];
+  explicitNonDelegationRequested: boolean; // backwards compatibility
 }
 
 export function detectDelegationSignals(prompt: string): DelegationSignals {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  const prohibitedWorkers: ('codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'automations')[] = [];
+  if (/\b(?:do not use|don't use|without|no)\s+codex\b/.test(p) || /\bno\s+codex\s+goal\b/.test(p)) {
+    prohibitedWorkers.push('codex');
+  }
+  if (/\b(?:do not use|don't use|without|no)\s+hermes\b/.test(p)) {
+    prohibitedWorkers.push('hermes');
+  }
+  if (/\b(?:do not use|don't use|without|no)\s+magnitude\b/.test(p)) {
+    prohibitedWorkers.push('magnitude');
+  }
+  if (/\b(?:do not use|don't use|without|no)\s+(?:teams?|agent teams?|multi-agent)\b/.test(p)) {
+    prohibitedWorkers.push('agent_teams');
+  }
+  if (/\b(?:do not|don't|no|without|never)\s+(?:create|register|set up|add|schedule)?\s*(?:an?\s+)?automation\b/.test(p)) {
+    prohibitedWorkers.push('automations');
+  }
+
+  let explicitWorkerRequested: 'codex' | 'hermes' | 'magnitude' | 'agent_teams' | undefined;
+  if (/\b(?:use|ask|have|delegate to)\s+magnitude\b/.test(p)) {
+    explicitWorkerRequested = 'magnitude';
+  } else if (/\b(?:use|ask|have|delegate to)\s+codex\b/.test(p)) {
+    explicitWorkerRequested = 'codex';
+  } else if (/\b(?:use|ask|have|delegate to)\s+hermes\b/.test(p)) {
+    explicitWorkerRequested = 'hermes';
+  } else if (/\b(?:use|ask|have|delegate to)\s+(?:teams?|agent teams?)\b/.test(p)) {
+    explicitWorkerRequested = 'agent_teams';
+  }
+
+  const globalNonDelegationRequested =
+    /\banswer directly\b/.test(p) ||
+    /\bdo not delegate\b/.test(p) ||
+    /\bdon't delegate\b/.test(p) ||
+    /\bno\s+agent\b/.test(p);
+
+  const explicitDelegationRequested = !!explicitWorkerRequested || (
+    /\bcodex\b/.test(p) && /\b(?:inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build)\b/.test(p) && !prohibitedWorkers.includes('codex')
+  );
+
   return {
-    explicitDelegationRequested: /\b(?:use|ask|have|delegate to)\s+codex\b/.test(p) ||
-      /\bcodex\b/.test(p) && /\b(?:inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build)\b/.test(p),
-    explicitNonDelegationRequested: /\bdo not use\s+codex\b/.test(p) ||
-      /\bdon't use\s+codex\b/.test(p) ||
-      /\banswer directly\b/.test(p) ||
-      /\bdo not delegate\b/.test(p) ||
-      /\bdon't delegate\b/.test(p) ||
-      /\bno\s+codex\s+goal\b/.test(p) ||
-      /\bno\s+agent\b/.test(p)
+    explicitDelegationRequested,
+    globalNonDelegationRequested,
+    explicitWorkerRequested,
+    prohibitedWorkers,
+    explicitNonDelegationRequested: globalNonDelegationRequested && !explicitWorkerRequested
   };
 }
 
@@ -526,33 +564,94 @@ export class IntentRouter {
     const hasReadVerb = hasAny('inspect', 'find', 'trace', 'read', 'search in', 'look through', 'why', 'analyze', 'analyse', 'review');
     const isReadOnlyRepositoryRequest = hasReadOnlyConstraint || (hasReadVerb && !effectiveHasWriteVerb);
 
-    if (delegationSignals.explicitNonDelegationRequested) {
+    // ── 0. EXPLICIT WORKER & DELEGATION PRECEDENCE ──
+
+    // 0A. Global non-delegation ("answer directly", "do not delegate")
+    if (delegationSignals.globalNonDelegationRequested && !delegationSignals.explicitWorkerRequested) {
       return direct(
         hasFileTarget || hasAny('branch', 'commit', 'repository', 'repo')
           ? 'repository_analysis'
           : 'conversation',
         0.99,
-        'Explicit non-delegation instruction requires Jarvis direct handling'
+        'Explicit direct handling requested'
       );
     }
 
-    // ── MAGNITUDE BROWSER & WEB INSPECTION CHECK ──
-    const hasUrl = /https?:\/\/[^\s"'<>]+/i.test(prompt);
-    const mentionsMagnitude = /\bmagnitude\b/i.test(p);
-    const isBrowserInspect = /\b(open|browse|navigate|visit|inspect|scrape|read|check|view|fetch|tell me what is on|what is on)\b/i.test(p) &&
-      (/\b(page|site|website|webpage|web page|url|dom|web)\b/i.test(p) || hasUrl);
-
-    if (mentionsMagnitude || (hasUrl && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on)\b/i.test(p)) || (hasUrl && isBrowserInspect)) {
+    // 0B. Explicit Magnitude delegation ("use magnitude...", "ask magnitude...")
+    if (delegationSignals.explicitWorkerRequested === 'magnitude' && !delegationSignals.prohibitedWorkers.includes('magnitude')) {
       return operational(
         'magnitude',
         'browser_automation',
-        0.96,
-        'Browser automation and web inspection request routed to Magnitude',
+        0.98,
+        'Explicit Magnitude browser inspection requested',
         'Jarvis',
         ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
         false,
         false
       );
+    }
+
+    // 0C. Explicit CodeX delegation ("use codex...", "ask codex...")
+    if (delegationSignals.explicitWorkerRequested === 'codex' && !delegationSignals.prohibitedWorkers.includes('codex')) {
+      return operational(
+        'codex',
+        isReadOnlyRepositoryRequest ? 'repository_analysis' : 'repository_change',
+        0.98,
+        'Explicit CodeX delegation requested',
+        'CodeX',
+        ['Confirm selected repository', 'Prepare CodeX goal', 'Execute and report findings'],
+        true,
+        !isReadOnlyRepositoryRequest
+      );
+    }
+
+    // 0D. Explicit Hermes delegation ("use hermes...", "ask hermes...")
+    if (delegationSignals.explicitWorkerRequested === 'hermes' && !delegationSignals.prohibitedWorkers.includes('hermes')) {
+      return operational(
+        'hermes',
+        'pipeline_operation',
+        0.98,
+        'Explicit Hermes delegation requested',
+        'Jarvis',
+        ['Inspect pipeline registry', 'Report current status'],
+        false,
+        false
+      );
+    }
+
+    // 0E. Explicit Agent Teams delegation ("use teams...", "delegate to agent teams...")
+    if (delegationSignals.explicitWorkerRequested === 'agent_teams' && !delegationSignals.prohibitedWorkers.includes('agent_teams')) {
+      return operational(
+        'agent_teams',
+        'agent_team_execution',
+        0.98,
+        'Explicit Agent Teams delegation requested',
+        'Agent Teams',
+        ['Design Team Sheet', 'Create role-specific plan', 'Request approval before execution'],
+        true,
+        true
+      );
+    }
+
+    // ── MAGNITUDE BROWSER & WEB INSPECTION CHECK (Pattern-based) ──
+    const hasUrl = /https?:\/\/[^\s"'<>]+/i.test(prompt);
+    const mentionsMagnitude = /\bmagnitude\b/i.test(p);
+    const isBrowserInspect = /\b(open|browse|navigate|visit|inspect|scrape|read|check|view|fetch|tell me what is on|what is on)\b/i.test(p) &&
+      (/\b(page|site|website|webpage|web page|url|dom|web)\b/i.test(p) || hasUrl);
+
+    if (!delegationSignals.prohibitedWorkers.includes('magnitude')) {
+      if (mentionsMagnitude || (hasUrl && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on)\b/i.test(p)) || (hasUrl && isBrowserInspect)) {
+        return operational(
+          'magnitude',
+          'browser_automation',
+          0.96,
+          'Browser automation and web inspection request routed to Magnitude',
+          'Jarvis',
+          ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
+          false,
+          false
+        );
+      }
     }
 
     // 1. Memory checks — only genuine memory QUERIES route to memory.
@@ -587,15 +686,15 @@ export class IntentRouter {
     const hasExecutionVerb = p.includes('build') || p.includes('create') || p.includes('implement') || p.includes('investigate') || p.includes('execute') || p.includes('analyze') || p.includes('assemble') || p.includes('verify');
     const isConversational = p.includes('what is') || p.includes('explain') || p.includes('who') || p.includes('which') || p.includes('write a message to') || p.includes('what are');
 
-    if (hasAgentKeyword && hasExecutionVerb && !isConversational) {
+    if (!delegationSignals.prohibitedWorkers.includes('agent_teams') && hasAgentKeyword && hasExecutionVerb && !isConversational) {
       return operational('agent_teams', 'agent_team_execution', 0.95, 'Request benefits from explicit multi-agent execution', 'Agent Teams', ['Design Team Sheet', 'Create role-specific plan', 'Request approval before execution'], true, true);
     }
 
-    if (hasAny('builder and verifier', 'researcher and analyst', 'architect and implementer', 'implementer and reviewer')) {
+    if (!delegationSignals.prohibitedWorkers.includes('agent_teams') && hasAny('builder and verifier', 'researcher and analyst', 'architect and implementer', 'implementer and reviewer')) {
       return operational('agent_teams', 'agent_team_execution', 0.92, 'Request names multiple execution roles', 'Agent Teams', ['Create role-based team', 'Prepare handoffs', 'Request approval before execution'], true, true);
     }
 
-    if (hasAny('ask codex', 'have codex', 'delegate to codex')) {
+    if (!delegationSignals.prohibitedWorkers.includes('codex') && hasAny('ask codex', 'have codex', 'delegate to codex')) {
       if (isReadOnlyRepositoryRequest) {
         return operational('codex', 'repository_analysis', 0.96, 'Explicit read-only CodeX delegation request', 'CodeX', ['Package read-only request for CodeX', 'Attach selected repository', 'Create CodeX inspection goal'], true, false);
       }
@@ -673,35 +772,37 @@ export class IntentRouter {
       };
     }
 
-    if (hasFileTarget && isReadOnlyRepositoryRequest) {
-      return operational('codex', 'repository_analysis', 0.9, 'Read-only repository analysis request', 'CodeX', ['Confirm selected repository', 'Inspect relevant files', 'Report findings'], true, false);
-    }
+    if (!delegationSignals.prohibitedWorkers.includes('codex')) {
+      if (hasFileTarget && isReadOnlyRepositoryRequest) {
+        return operational('codex', 'repository_analysis', 0.9, 'Read-only repository analysis request', 'CodeX', ['Confirm selected repository', 'Inspect relevant files', 'Report findings'], true, false);
+      }
 
-    if (hasFileTarget && effectiveHasWriteVerb) {
-      const destructive = hasAny('delete', 'remove', 'overwrite');
-      return operational(
-        'codex',
-        destructive ? 'approval_required' : 'repository_change',
-        destructive ? 0.96 : 0.93,
-        destructive ? 'Destructive repository operation requires approval' : 'Repository change request',
-        'CodeX',
-        ['Confirm selected repository', 'Prepare implementation plan', 'Request approval before file changes'],
-        true,
-        true
-      );
-    }
+      if (hasFileTarget && effectiveHasWriteVerb) {
+        const destructive = hasAny('delete', 'remove', 'overwrite');
+        return operational(
+          'codex',
+          destructive ? 'approval_required' : 'repository_change',
+          destructive ? 0.96 : 0.93,
+          destructive ? 'Destructive repository operation requires approval' : 'Repository change request',
+          'CodeX',
+          ['Confirm selected repository', 'Prepare implementation plan', 'Request approval before file changes'],
+          true,
+          true
+        );
+      }
 
-    // 3. CodeX checks (build, deploy, code, ui, app)
-    if (
-      p.includes('build a') ||
-      p.includes('make a') ||
-      p.includes('create a new') ||
-      p.includes('deploy') ||
-      p.includes('refactor') ||
-      p.includes('fix the bug') ||
-      (p.includes('code') && p.includes('write'))
-    ) {
-      return operational('codex', 'repository_change', 0.95, 'Explicit software engineering request', 'CodeX', ['Confirm selected repository', 'Create CodeX goal', 'Request approval before side effects'], true, true);
+      // 3. CodeX checks (build, deploy, code, ui, app)
+      if (
+        p.includes('build a') ||
+        p.includes('make a') ||
+        p.includes('create a new') ||
+        p.includes('deploy') ||
+        p.includes('refactor') ||
+        p.includes('fix the bug') ||
+        (p.includes('code') && p.includes('write'))
+      ) {
+        return operational('codex', 'repository_change', 0.95, 'Explicit software engineering request', 'CodeX', ['Confirm selected repository', 'Create CodeX goal', 'Request approval before side effects'], true, true);
+      }
     }
 
     // 4. Hermes checks (projects, goals, plans, milestones, tasks, dependencies, execution tracking)

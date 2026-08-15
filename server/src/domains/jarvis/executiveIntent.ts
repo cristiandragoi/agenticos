@@ -123,11 +123,15 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   // conversation, never an executive worker query. Let direct chat handle them.
   if (cap.id === 'jarvis') return null;
 
-  // Explicit non-delegation ("Do not use CodeX", "answer directly") must fall
-  // through to the existing router's non-delegation handling — never delegate.
-  if (
-    /\b(do not use|don't use|do not delegate|don't delegate|answer directly|do not ask|don't ask|no codex|without codex|no agent)\b/.test(p)
-  ) {
+  // Magnitude delegations are handled directly by the intentRouter
+  if (cap.id === 'magnitude') return null;
+
+  // Global non-delegation or capability-specific prohibition:
+  // "answer directly", "do not delegate", or prohibition targeting this specific capability
+  const isCapProhibited =
+    /\b(do not delegate|don't delegate|answer directly|no agent)\b/.test(p) ||
+    cap.aliases.some(alias => new RegExp(`\\b(?:do not|don't|no|without|never)\\s+(?:create|register|set up|add|schedule|use|ask|have)?\\s*(?:an?\\s+)?${alias}\\b`).test(p));
+  if (isCapProhibited) {
     return null;
   }
 
@@ -217,6 +221,9 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
     };
   }
   if (cap.id === 'automations') {
+    if (/\b(?:do not|don't|no|without|never)\s+(?:create|register|set up|add|schedule)?\s*(?:an?\s+)?automation\b/i.test(p)) {
+      return null;
+    }
     return {
       intent: 'automation_request',
       capability: cap,

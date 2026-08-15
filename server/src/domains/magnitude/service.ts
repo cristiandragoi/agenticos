@@ -80,6 +80,9 @@ export class MagnitudeService extends EventEmitter {
     const urlMatch = trimmed.match(/https?:\/\/[^\s"'<>]+/i);
     let candidate = urlMatch ? urlMatch[0] : trimmed;
 
+    // Strip trailing natural language punctuation (e.g. "https://example.com," -> "https://example.com")
+    candidate = candidate.replace(/[.,;:!?)]+$/, '');
+
     // Reject dangerous/unsupported schemes
     if (/^(file|javascript|data|chrome|chrome-extension|about|blob):/i.test(candidate)) {
       return { url: '', error: 'Forbidden URL scheme. Only HTTP and HTTPS are permitted.' };
