@@ -17,7 +17,7 @@ export function buildCodexGoalPayload(input: BuildCodexGoalPayloadInput): any {
   const payload: any = {
     goal: input.goal,
     repositoryRoot: input.repositoryRoot,
-    approvalPolicy: input.approvalPolicy || 'strict',
+    approvalPolicy: input.approvalPolicy || 'auto',
     agentId: 'agent-codex'
   };
 

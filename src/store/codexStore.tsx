@@ -64,8 +64,8 @@ const defaultRunSettings: CodexRunSettings = {
   workspacePath: CODEX_REPOSITORY,
   baseUrl: CODEX_BASE_URL,
   valProvider: 'auto',
-  approvalPolicy: 'strict',
-  executionProviderId: 'none'
+  approvalPolicy: 'auto',
+  executionProviderId: 'prov-deepseek'
 };
 
 function readPersistedRunSettings(): CodexRunSettings {
@@ -79,7 +79,9 @@ function readPersistedRunSettings(): CodexRunSettings {
       ...parsed,
       folderTree: typeof parsed.folderTree === 'string' ? parsed.folderTree : '',
       workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : CODEX_REPOSITORY,
-      baseUrl: CODEX_BASE_URL
+      baseUrl: CODEX_BASE_URL,
+      approvalPolicy: 'auto',
+      executionProviderId: 'prov-deepseek'
     };
   } catch {
     return defaultRunSettings;
