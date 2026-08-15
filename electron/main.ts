@@ -11,9 +11,6 @@ import {
   type BackendMode,
 } from './backendLifecycle';
 
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -157,7 +154,7 @@ function createWindow() {
     title: 'Agentic OS',
     icon: path.join(process.env.VITE_PUBLIC, 'logo.jpg'),
     frame: false,
-    show: false, // Wait until ready-to-show
+    show: false, // Wait until ready-to-show or fallback timer
     backgroundColor: '#0a0a0d', // Solid dark color to prevent Windows transparency bugs
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -209,8 +206,20 @@ function createWindow() {
     win?.webContents.setAudioMuted(false);
     win?.center();
     win?.show();
+    win?.focus();
     logElectron('[AgenticOS Electron] Window visible state', { isVisible: win?.isVisible(), bounds: win?.getBounds() });
   });
+
+  // Fallback: Ensure window is visible even if ready-to-show is delayed
+  setTimeout(() => {
+    if (win && !win.isVisible()) {
+      logElectron('Fallback window show triggered.');
+      win.webContents.setAudioMuted(false);
+      win.center();
+      win.show();
+      win.focus();
+    }
+  }, 800);
 
   if (VITE_DEV_SERVER_URL) {
     const targetUrl = `${VITE_DEV_SERVER_URL}${ELECTRON_RENDERER_ROUTE}`;
@@ -253,19 +262,14 @@ function getAudioDiagnostics(webContents = win?.webContents) {
   const ownerWindow = webContents ? BrowserWindow.fromWebContents(webContents) : win;
   const inspectedContents = webContents || ownerWindow?.webContents || null;
   return {
-    electronAvailable: true,
-    webContentsAudioMuted: inspectedContents ? inspectedContents.isAudioMuted() : null,
-    browserWindowAudioMuted: ownerWindow?.webContents ? ownerWindow.webContents.isAudioMuted() : null,
-    sessionPartition: inspectedContents?.session?.partition || 'default',
-    mediaPermissionPolicy: 'defaultSession allows media permission requests and checks',
-    autoplayPolicy: 'no-user-gesture-required',
-    windowsAppMuteState: 'not directly accessible from Electron main process'
+    isOwnerWindowMuted: ownerWindow?.webContents.isAudioMuted() ?? null,
+    isWebContentsMuted: inspectedContents?.isAudioMuted() ?? null,
+    isAppSuspended: (app as any).isSuspended?.() ?? null,
+    browserWindowCount: BrowserWindow.getAllWindows().length,
   };
 }
 
-ipcMain.handle('voice:get-audio-diagnostics', (event) => {
-  return getAudioDiagnostics(event.sender);
-});
+ipcMain.handle('voice:get-audio-diagnostics', (event) => getAudioDiagnostics(event.sender));
 
 ipcMain.handle('voice:ensure-audio-unmuted', (event) => {
   event.sender.setAudioMuted(false);
@@ -304,6 +308,7 @@ if (!gotTheLock) {
     logElectron('Second instance requested. Focusing existing window.');
     if (win) {
       if (win.isMinimized()) win.restore();
+      win.show();
       win.focus();
     }
   });
