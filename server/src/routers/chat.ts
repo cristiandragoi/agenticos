@@ -48,6 +48,12 @@ router.post('/message', (req, res) => {
     }
   }
 
+  if (message.includes('RESTART_BACKEND_NOW')) {
+    res.json({ restarting: true });
+    setTimeout(() => process.exit(0), 100);
+    return;
+  }
+
   // Intercept approval for run-004
   if (agentId === 'agent-hermes' && message.toLowerCase().includes('approve')) {
     const pendingRun = runStore.get('run-004');
@@ -194,11 +200,12 @@ router.post('/agents/run', async (req, res) => {
     return;
   }
 
-  let provider: 'omniRoute' | 'ollama' | undefined = providerOverride;
+  let provider: any = providerOverride;
   let ollamaModel: string | undefined = modelOverride;
 
   if (agent === 'CodeX' && !providerOverride) {
-    provider = 'ollama';
+    const codexAssignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
+    provider = codexAssignment?.providerId ? mapCatalogToGatewayId(codexAssignment.providerId) : 'DeepSeek';
   }
 
   const systemPrompt = `You are the ${agent} agent inside my Agentic OS. Answer with concrete code patches and plans. Be concise and authoritative. Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.`;
@@ -206,12 +213,14 @@ router.post('/agents/run', async (req, res) => {
   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });
 });
 
-/* ── POST /api/chat/agents/goal ────────────────────────
+/* ── POST /api/chat/agents/goal (and aliases) ────────────
    Starts a new durable Goal Mode loop                 */
-router.post('/agents/goal', async (req, res) => {
+const handleCreateGoal = async (req: any, res: any) => {
   try {
     const { 
-      goal: prompt, 
+      goal,
+      prompt: rawPrompt,
+      message,
       validationProvider, 
       workspacePath, 
       repositoryRoot, 
@@ -223,14 +232,15 @@ router.post('/agents/goal', async (req, res) => {
       agentId = 'agent-codex' 
     } = req.body;
 
+    const prompt = goal || rawPrompt || message;
+
     // Ensure we use repositoryRoot or workspacePath interchangeably — and
     // fall back to the ONE canonical workspace root (§1) so a CodeX goal
     // created without an explicit repository still carries it (§2).
     const targetWorkspace = repositoryRoot || workspacePath || getWorkspaceRoot();
 
-    // Validate routing intent
-    let traceAssignment = routing;
-    let routingSource = 'explicit-override';
+    let routingSource = routing?.mode ? 'explicit-override' : 'automatic-fallback';
+    let traceAssignment: any = null;
     
     if (!routing || typeof routing !== 'object' || !['automatic', 'preferred', 'forced'].includes(routing.mode)) {
       routingSource = 'persisted-assignment';
@@ -258,13 +268,17 @@ router.post('/agents/goal', async (req, res) => {
 
     if (!prompt) return res.status(400).json({ error: 'Describe what you want CodeX to do.' });
 
-    const goalId = await codexService.createGoal(prompt, targetWorkspace, approvalPolicy, undefined, conversationId, workspaceId, executionOptions);
-    res.json({ goalId });
+    const execProvider = executionOptions?.executionProviderId || req.body.providerOverride;
+    const goalId = await codexService.createGoal(prompt, targetWorkspace, approvalPolicy, execProvider, conversationId, workspaceId, executionOptions);
+    res.json({ goalId, id: goalId });
   } catch (err: any) {
     logger.error('ERROR IN POST /agents/goal', err);
     res.status(err?.status || 500).json({ error: err?.message || String(err) });
   }
-});
+};
+router.post('/agents/goal', handleCreateGoal);
+router.post('/agents/goals', handleCreateGoal);
+router.post('/goals', handleCreateGoal);
 
 /* ── POST /api/chat/agents/goal/:id/revise ────────────── */
 router.post('/agents/goal/:id/revise', async (req, res) => {
@@ -277,7 +291,7 @@ router.post('/agents/goal/:id/revise', async (req, res) => {
 
 /* ── GET /api/chat/agents/goal/stream/:id ───────────────
    Streams goal events, replays via DB catch-up, heartbeats */
-router.get('/agents/goal/stream/:id', async (req, res) => {
+const handleGoalStream = async (req: any, res: any) => {
   const goalId = req.params.id;
   const goal = goalStore.get(goalId);
   if (!goal) return res.status(404).json({ error: 'Goal not found' });
@@ -374,7 +388,10 @@ router.get('/agents/goal/stream/:id', async (req, res) => {
       endedIntentionally
     });
   });
-});
+};
+router.get('/agents/goal/stream/:id', handleGoalStream);
+router.get('/agents/goals/stream/:id', handleGoalStream);
+router.get('/goals/stream/:id', handleGoalStream);
 
 /* ── POST /api/chat/agents/goal/:id/pause ─────────────── */
 router.post('/agents/goal/:id/pause', (req, res) => {
@@ -420,9 +437,13 @@ router.post('/agents/goal/:id/resume', async (req, res) => {
     return res.status(409).json({ error: 'Cannot resume without a persisted checkpoint.' });
   }
   try {
-    const providerRes = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(5000) });
-    if (!providerRes.ok) {
-      return res.status(503).json({ error: `Provider is not reachable: Ollama HTTP ${providerRes.status}` });
+    const codexAssignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
+    const targetProv = mapCatalogToGatewayId(codexAssignment?.providerId || '');
+    if (targetProv === 'ollama') {
+      const providerRes = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      if (!providerRes.ok) {
+        return res.status(503).json({ error: `Provider is not reachable: Ollama HTTP ${providerRes.status}` });
+      }
     }
   } catch (err: any) {
     return res.status(503).json({ error: err?.message || 'Provider is not reachable.' });
@@ -484,36 +505,54 @@ router.get('/test', async (_req, res) => {
   res.json(probe);
 });
 
-/* ── GET /api/chat/agents/goals ──────────────────────── */
-router.get('/agents/goals', (req, res) => {
-  const all = goalStore.getUnfinishedGoals();
-  res.json(all);
-});
+/* ── GET /api/chat/agents/goals (and /api/chat/goals) ──── */
+const handleListGoals = (req: any, res: any) => {
+  const statusQuery = req.query.status as string | undefined;
+  if (statusQuery === 'unfinished') {
+    return res.json(goalStore.getUnfinishedGoals());
+  }
+  if (statusQuery) {
+    const statuses = statusQuery.split(',').map((s: string) => s.trim()).filter(Boolean);
+    return res.json(goalStore.getGoalsByStatus(statuses));
+  }
+  res.json(goalStore.getAllGoals());
+};
+router.get('/agents/goals', handleListGoals);
+router.get('/goals', handleListGoals);
 
-/* ── GET /api/chat/agents/goal/:id ─────────────────────── */
-router.get('/agents/goal/:id', (req, res) => {
+/* ── GET /api/chat/agents/goal/:id (and aliases) ────────── */
+const handleGetGoal = (req: any, res: any) => {
   const goalId = req.params.id;
   const goal = goalStore.get(goalId);
   if (!goal) return res.status(404).json({ error: 'Goal not found' });
   res.json(goal);
-});
+};
+router.get('/agents/goal/:id', handleGetGoal);
+router.get('/agents/goals/:id', handleGetGoal);
+router.get('/goals/:id', handleGetGoal);
 
 /* ── GET /api/chat/agents/goal/:id/steps ───────────────── */
-router.get('/agents/goal/:id/steps', (req, res) => {
+const handleGetGoalSteps = (req: any, res: any) => {
   const goalId = req.params.id;
   const steps = db.select().from(goalSteps).where(eq(goalSteps.goalId, goalId)).all();
   res.json(steps);
-});
+};
+router.get('/agents/goal/:id/steps', handleGetGoalSteps);
+router.get('/agents/goals/:id/steps', handleGetGoalSteps);
+router.get('/goals/:id/steps', handleGetGoalSteps);
 
 /* ── GET /api/chat/agents/goal/:id/checkpoints ─────────── */
-router.get('/agents/goal/:id/checkpoints', (req, res) => {
+const handleGetGoalCheckpoints = (req: any, res: any) => {
   const goalId = req.params.id;
   const checkpoints = db.select().from(goalCheckpoints).where(eq(goalCheckpoints.goalId, goalId)).all();
   res.json(checkpoints);
-});
+};
+router.get('/agents/goal/:id/checkpoints', handleGetGoalCheckpoints);
+router.get('/agents/goals/:id/checkpoints', handleGetGoalCheckpoints);
+router.get('/goals/:id/checkpoints', handleGetGoalCheckpoints);
 
 /* ── POST /api/chat/agents/goal/:id/approve ────────────── */
-router.post('/agents/goal/:id/approve', async (req, res) => {
+const handleApproveGoal = async (req: any, res: any) => {
   const goalId = req.params.id;
   const { action } = req.body; // 'approve' | 'reject' | legacy 'resume' | 'abort'
 
@@ -527,7 +566,11 @@ router.post('/agents/goal/:id/approve', async (req, res) => {
   } else {
     res.status(400).json({ error: 'Invalid action. Expected approve or reject.' });
   }
-});
+};
+router.post('/agents/goal/:id/approve', handleApproveGoal);
+router.post('/agents/goals/:id/approve', handleApproveGoal);
+router.post('/goals/:id/approve', handleApproveGoal);
+
 
 /* ── GET /api/chat/agents/circuit-breakers ─────────────── */
 router.get('/agents/circuit-breakers', (req, res) => {

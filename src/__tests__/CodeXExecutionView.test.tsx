@@ -77,7 +77,7 @@ describe('deriveCurrentAction status mapping', () => {
     const events = [makeEvent({ eventType: 'planning_started', lifecycleState: 'planning', normalizedStatus: 'planning' })];
     const action = deriveCurrentAction('executing', events, 'connected');
     expect(action.color).toBe('yellow');
-    expect(action.message).toMatch(/waiting for local model response/i);
+    expect(action.message).toMatch(/waiting for.*model response/i);
   });
 
   it('shows PURPLE while reviewing the previous result', () => {

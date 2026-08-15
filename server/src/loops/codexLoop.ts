@@ -16,8 +16,8 @@ import { db } from '../db/index.js';
 import { providerCircuitBreakers, agentTeamArtifacts, verificationReports, agentTeamHandoffs } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 const CODEX_LLM_TIMEOUT_MS = (() => {
-  const parsed = Number.parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS ?? '300000', 10);
-  return Number.isNaN(parsed) ? 300000 : parsed;
+  const parsed = Number.parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS ?? '60000', 10);
+  return Number.isNaN(parsed) ? 60000 : parsed;
 })();
 
 const CODEX_LEASE_DURATION_MS = CODEX_LLM_TIMEOUT_MS + 30000;
@@ -527,8 +527,10 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     // over the normal assignment — this is the EFFECTIVE model used by the
     // run. The original ASSIGNMENT is never rewritten (RunLedger truth
     // shows assigned vs effective). Policy revalidation happens at dispatch.
-    currentProvider = goal.executionOptions?.providerOverride || goal.executionOptions?.executionProviderId || codexAssignment.providerId;
-    currentModel = goal.executionOptions?.modelOverride || goal.executionOptions?.executionModelId || codexAssignment.modelId || 'auto';
+    const explicitProvider = goal.executionOptions?.providerOverride 
+      || (goal.executionOptions?.executionProviderId && !['auto', 'none'].includes(goal.executionOptions.executionProviderId) ? goal.executionOptions.executionProviderId : undefined);
+    currentProvider = explicitProvider || codexAssignment.providerId;
+    currentModel = goal.executionOptions?.modelOverride || goal.executionOptions?.executionModelId || codexAssignment.modelId || 'deepseek-v4-flash';
   }
 
   // Detect whether the assigned provider is a local Ollama model based on resolved planning provider.
@@ -655,8 +657,8 @@ ${m.content}`).join('\n\n');
           // Bounded timeout: local (ollama) models get a SHORT cap so a hung
           // request resolves to a truthful failure instead of "Waiting for
           // local model response" for the full cloud timeout. Env-overridable.
-          const configuredTimeout = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '300000');
-          const localTimeout = parseInt(process.env.AGENT_TEAMS_LOCAL_TIMEOUT_MS || '120000');
+          const configuredTimeout = parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '60000', 10);
+          const localTimeout = parseInt(process.env.AGENT_TEAMS_LOCAL_TIMEOUT_MS || '30000', 10);
           const timeoutMs = isLocalPlanningProvider ? Math.min(configuredTimeout, localTimeout) : configuredTimeout;
           const disableFallback = goal.executionOptions?.disableFallback === true;
           const effectiveProvider = executionRouting.providerId;

@@ -100,7 +100,10 @@ export function getActivityPhrase(event: GoalEvent): string {
   switch (event.eventType) {
     case 'task_resumed': return 'Resuming the task from the last checkpoint…';
     case 'task_started': return 'Starting execution…';
-    case 'planning_started': return 'Waiting for the local model response…';
+    case 'planning_started': {
+      const providerLabel = event.provider && !['unassigned', 'auto'].includes(event.provider) ? event.provider : 'model';
+      return `Waiting for the ${providerLabel} response…`;
+    }
     case 'model_request_started': return 'Waiting for the model response…';
     case 'model_request_completed': return 'The model responded.';
     case 'model_request_timed_out': return 'The model did not respond in time.';

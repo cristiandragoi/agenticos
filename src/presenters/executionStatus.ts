@@ -290,11 +290,12 @@ export function deriveCurrentAction(
     }
 
     if (last.eventType === 'model_request_started' || last.eventType === 'planning_started') {
+      const providerLabel = last.provider && !['unassigned', 'auto'].includes(last.provider) ? last.provider : 'model';
       return {
         ...base,
         color: 'yellow',
         statusLabel: 'Waiting',
-        message: 'Waiting for local model response',
+        message: `Waiting for ${providerLabel} response`,
         isActive: true,
         nextAction: 'Parse the model response and run the next tool.'
       };
