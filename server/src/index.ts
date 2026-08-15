@@ -259,6 +259,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/routing', routingRouter);
 app.use('/api/execution', executionRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
+import { magnitudeRouter } from './routers/magnitude.js';
+app.use('/api/magnitude', magnitudeRouter);
 
 app.use('/api/agentic', agenticRouter);
 

@@ -352,6 +352,26 @@ export const mockAgents: AgentDefinition[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
+  {
+    id: "agent-magnitude",
+    name: "Magnitude",
+    slug: "magnitude",
+    avatar: "M",
+    color: "#f59e0b",
+    runtimeId: "rt-jarvis",
+    kind: "first-class",
+    status: "active",
+    capabilities: ["browser_automation", "web_inspection", "dom_analysis", "scraping"],
+    toolIds: ["tool-browser"],
+    memoryScopes: ["mem-global"],
+    providerIds: ["prov-playwright"],
+    defaultBoardId: "board-mission-control",
+    visibility: "public",
+    description: "Browser automation and computer-use agent. Navigates, inspects, and extracts structured web data using Playwright.",
+    recentActivity: "Ready for browser tasks",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 /* ──────────────────────────────────────────────────────────
@@ -475,6 +495,8 @@ export const mockProviders: ProviderDefinition[] = [
     defaultModel: "poolside/laguna-s-2.1:free",
     models: [
       { id: "poolside/laguna-s-2.1:free", name: "Poolside Laguna S 2.1 Free" },
+      { id: "meituan/longcat-2.0", name: "LongCat 2.0 (Experimental)" },
+      { id: "qwen/qwen3.8-max", name: "Qwen 3.8 Max (Experimental)" },
       { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
       { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash" },
     ],
