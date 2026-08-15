@@ -48,9 +48,9 @@ export class AgentProviderAssignmentService {
     if (agentId === 'agent-codex') {
       return {
         agentId: 'agent-codex',
-        providerId: 'prov-openrouter',
-        modelId: 'qwen/qwen3.8-max',
-        routingMode: 'preferred',
+        providerId: 'prov-deepseek',
+        modelId: 'deepseek-v4-flash',
+        routingMode: 'forced',
         enabled: true,
         updatedAt: new Date().toISOString()
       };
