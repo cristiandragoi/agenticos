@@ -80,11 +80,10 @@ function isUsefulPlainTextAnalysis(response: string): boolean {
 }
 
 function fallbackToolCallAfterParseFailure(goalText: string, response: string, allowedTools: string[], usedReadFallbacks: Set<string>, workspaceRoot?: string): ParsedToolCall | null {
-  const normalizedAllowedTools = allowedTools.map((t: string) => t === 'write_file' ? 'writeFile' : t === 'read_file' ? 'readFile' : t === 'terminal' ? 'runCommand' : t);
   if (!isReadOnlyGoal(goalText)) return null;
 
   const explicitPath = extractExplicitReadPath(goalText, workspaceRoot);
-  if (explicitPath && responseRequestsFileInspection(response) && normalizedAllowedTools.includes('readFile') && !usedReadFallbacks.has(explicitPath)) {
+  if (explicitPath && allowedTools.includes('readFile') && !usedReadFallbacks.has(explicitPath) && responseRequestsFileInspection(response)) {
     usedReadFallbacks.add(explicitPath);
     return {
       type: 'tool_call',
@@ -93,7 +92,7 @@ function fallbackToolCallAfterParseFailure(goalText: string, response: string, a
     };
   }
 
-  if (isUsefulPlainTextAnalysis(response) && normalizedAllowedTools.includes('finish')) {
+  if (isUsefulPlainTextAnalysis(response)) {
     return {
       type: 'tool_call',
       tool: 'finish',
@@ -110,7 +109,7 @@ function shouldRequestFinalAnswerAfterTool(goalText: string, tool: string): bool
 
 function looksLikeExplicitToolCall(response: string): boolean {
   const trimmed = response.trim();
-  return trimmed.startsWith('{') || trimmed.startsWith('```') || trimmed.startsWith('<tool_call>');
+  return trimmed.startsWith('{') || trimmed.startsWith('```');
 }
 
 function isAllowedReadOnlyToolCall(toolCall: ParsedToolCall): boolean {
@@ -118,17 +117,18 @@ function isAllowedReadOnlyToolCall(toolCall: ParsedToolCall): boolean {
 }
 
 function buildFinalAnswerPrompt(toolResult: string): string {
-  return `Using the tool result below, provide the final answer to the user.
-Return normal explanatory text.
-Do not return a tool call.
-Do not return JSON unless the user explicitly requested JSON.
+  return `Using the tool result below, emit the finish tool call with your complete answer and summary:
+{ "type": "tool_call", "tool": "finish", "arguments": { "message": "Your complete answer and summary here" } }
 
 Tool result:
 ${toolResult}`;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are CodeX, a Restricted Process Runner. Achieve the user's goal autonomously.
-Use JSON inside <tool_call> tags. Wait for the tool result before proceeding.
+CRITICAL: You MUST respond with exactly one valid JSON tool call object and NOTHING ELSE.
+Do not use XML tags.
+Do not use markdown code fences.
+Do not include conversational preamble or explanations before or after the JSON.
 
 Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.
 
@@ -139,16 +139,16 @@ Native tool rules (mandatory):
 - NEVER use echo, printf, cat, type, Get-Content, PowerShell redirection, or shell redirection for normal file reads/writes. They are blocked by the sandbox.
 
 Tools:
-1. writeFile: { "tool": "writeFile", "path": "relative/path/to/file", "content": "file contents" }
-2. readFile: { "tool": "readFile", "path": "relative/path/to/file" }
-3. runCommand: { "tool": "runCommand", "cmd": "npm", "args": ["install", "express"] }
-4. reasoningQuery: { "tool": "reasoningQuery", "prompt": "ask OmniRoute for validation" }
-5. finish: { "tool": "finish", "message": "Goal completed." }
+1. writeFile: { "type": "tool_call", "tool": "writeFile", "arguments": { "path": "relative/path/to/file", "content": "file contents" } }
+2. readFile: { "type": "tool_call", "tool": "readFile", "arguments": { "path": "relative/path/to/file" } }
+3. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["install", "express"] } }
+4. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }
+5. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Goal completed." } }
 `;
 
 const STRICT_JSON_SYSTEM_PROMPT_SUFFIX = `
 
-CRITICAL: You must return exactly one valid JSON object and nothing else.
+CRITICAL RETRY INSTRUCTION: You must return exactly one valid JSON object and nothing else.
 
 Required structure:
 {
@@ -157,30 +157,28 @@ Required structure:
   "arguments": {}
 }
 
-Do not use markdown.
-Do not use code fences.
-Do not include explanations before or after the JSON.
-Do not return plain conversational text.
+Do not use XML tags.
+Do not use markdown code fences.
+Do not include conversational preamble or explanations before or after the JSON.
 Use the finish tool only when the requested task has actually been completed.
 `;
 
 function buildAgentPrompt(agent: any, originalGoal: string): string {
   const toolsList = agent.allowedTools.map((t: string, i: number) => {
-    if (t === 'writeFile' || t === 'write_file') return `${i + 1}. writeFile: { "tool": "writeFile", "path": "relative/path/to/file", "content": "file contents" }`;
-    if (t === 'readFile' || t === 'read_file') return `${i + 1}. readFile: { "tool": "readFile", "path": "relative/path/to/file" }`;
-    if (t === 'runCommand' || t === 'terminal') return `${i + 1}. runCommand: { "tool": "runCommand", "cmd": "npm", "args": ["install", "express"] }`;
-    if (t === 'reasoningQuery') return `${i + 1}. reasoningQuery: { "tool": "reasoningQuery", "prompt": "ask OmniRoute for validation" }`;
+    if (t === 'writeFile' || t === 'write_file') return `${i + 1}. writeFile: { "type": "tool_call", "tool": "writeFile", "arguments": { "path": "relative/path/to/file", "content": "file contents" } }`;
+    if (t === 'readFile' || t === 'read_file') return `${i + 1}. readFile: { "type": "tool_call", "tool": "readFile", "arguments": { "path": "relative/path/to/file" } }`;
+    if (t === 'runCommand' || t === 'terminal') return `${i + 1}. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["install", "express"] } }`;
+    if (t === 'reasoningQuery') return `${i + 1}. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }`;
     if (t === 'finish') {
       if (agent.role === 'Verifier') {
-        return `${i + 1}. finish: { "tool": "finish", "message": "Verification complete.", "handoff": { "agentId": "verifier", "status": "completed", "summary": "...", "decisions": [], "artifacts": [], "openIssues": [], "recommendedNextActions": [] }, "verificationReport": { "passed": true, "summary": "...", "checks": [{ "name": "...", "passed": true, "evidence": "..." }], "blockingIssues": [], "recommendedFixes": [] } }`;
+        return `${i + 1}. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Verification complete.", "handoff": { "agentId": "verifier", "status": "completed", "summary": "...", "decisions": [], "artifacts": [], "openIssues": [], "recommendedNextActions": [] }, "verificationReport": { "passed": true, "summary": "...", "checks": [{ "name": "...", "passed": true, "evidence": "..." }], "blockingIssues": [], "recommendedFixes": [] } } }`;
       }
-      return `${i + 1}. finish: { "tool": "finish", "message": "Goal completed.", "handoff": { "agentId": "${agent.id}", "status": "completed", "summary": "...", "decisions": [], "artifacts": [], "openIssues": [], "recommendedNextActions": [] } }`;
+      return `${i + 1}. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Goal completed.", "handoff": { "agentId": "${agent.id}", "status": "completed", "summary": "...", "decisions": [], "artifacts": [], "openIssues": [], "recommendedNextActions": [] } } }`;
     }
     return '';
   }).filter(Boolean);
 
   return `You are ${agent.name} (${agent.role}). Achieve the user's goal autonomously.
-Use JSON inside <tool_call> tags. Wait for the tool result before proceeding.
 Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.
 
 Goal Context:
@@ -194,7 +192,7 @@ ${agent.responsibilities.join('\n')}
 
 Tools:
 ${toolsList.join('\n')}
-${agent.allowedTools.length + 1}. finish: { "tool": "finish", "message": "Verification report or summary" }
+${agent.allowedTools.length + 1}. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Verification report or summary" } }
 `;
 }
 
@@ -481,7 +479,10 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
 
   for (const event of safeHistory) {
     if (event.state === 'executing' || event.state === 'reasoning') {
-      conversation.push({ role: 'assistant', content: `<tool_call>{"tool": "${event.tool}"}</tool_call>` });
+      const toolPayload = event.payload && typeof event.payload === 'object' && event.payload.tool
+        ? event.payload
+        : { type: 'tool_call', tool: event.tool || 'reasoningQuery', arguments: {} };
+      conversation.push({ role: 'assistant', content: JSON.stringify(toolPayload) });
     } else if (event.message.startsWith('Tool Result:')) {
       conversation.push({ role: 'system', content: event.message });
     } else if (event.state === 'user_action_required') {
@@ -526,8 +527,8 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
     // over the normal assignment — this is the EFFECTIVE model used by the
     // run. The original ASSIGNMENT is never rewritten (RunLedger truth
     // shows assigned vs effective). Policy revalidation happens at dispatch.
-    currentProvider = goal.executionOptions?.providerOverride || codexAssignment.providerId;
-    currentModel = goal.executionOptions?.modelOverride || codexAssignment.modelId || 'auto';
+    currentProvider = goal.executionOptions?.providerOverride || goal.executionOptions?.executionProviderId || codexAssignment.providerId;
+    currentModel = goal.executionOptions?.modelOverride || goal.executionOptions?.executionModelId || codexAssignment.modelId || 'auto';
   }
 
   // Detect whether the assigned provider is a local Ollama model based on resolved planning provider.
@@ -797,9 +798,9 @@ ${m.content}`).join('\n\n');
 
         const response = llmResult.reply;
         logger.info(`[codexLoop] LLM Response (attempt ${attempt}): ${response}`);
-        conversation.push({ role: 'assistant', content: response });
 
         if (executionRouting.mode === 'disabled') {
+          conversation.push({ role: 'assistant', content: response });
           const planningOutput = response.trim();
           const userMsg = 'Planning completed. Select an execution provider to apply changes.';
           
@@ -835,48 +836,66 @@ ${m.content}`).join('\n\n');
           break; // Break the attempt loop; the outer while loop will exit because goal.status === 'waiting_for_approval'
         }
 
-        if (responseExpectation === 'final_answer') {
-          if (looksLikeExplicitToolCall(response)) {
-            const parseResult = parseToolCall(response);
-            toolCall = parseResult.toolCall;
-            parseError =
-  parseResult.parseError ??
-  'No JSON tool call found in response';
-            if (toolCall && toolCall.type === 'tool_call' && isAllowedReadOnlyToolCall(toolCall)) {
-              responseExpectation = 'tool_decision';
-              break;
-            }
+        // Step 0: In final_answer phase, if the response is plain text, accept it directly
+        if (responseExpectation === 'final_answer' && !looksLikeExplicitToolCall(response)) {
+          const trimmedText = response.replace(/<[^>]+>/g, '').trim();
+          if (trimmedText.length > 0) {
+            finalAnswerText = trimmedText;
+            conversation.push({ role: 'assistant', content: JSON.stringify({ type: 'tool_call', tool: 'finish', arguments: { message: finalAnswerText } }) });
+            break;
           }
-
-          finalAnswerText = response.trim();
-          if (!finalAnswerText) {
-            pushEventToWriter(
-              writer,
-              'failed',
-              'Final answer was empty.',
-              undefined,
-              'Final answer was empty.',
-              {
-                normalizedStatus: 'failed',
-                lifecycleState: 'failed',
-                userMessage: 'CodeX received an empty final answer from the model.',
-                eventType: 'task_failed',
-                provider: currentProvider,
-                model: currentModel,
-                errorCode: 'CODEX_EMPTY_FINAL_ANSWER'
-              }
-            );
-            goalStore.update(goalId, { status: 'failed' });
-            throw new Error('CODEX_EMPTY_FINAL_ANSWER');
-          }
-          break;
         }
 
+        // Step 1: Normalize response and check for tool action FIRST
         const parseResult = parseToolCall(response);
         toolCall = parseResult.toolCall;
-        parseError =
-  parseResult.parseError ??
-  'No JSON tool call found in response';
+        parseError = parseResult.parseError ?? 'No JSON tool call found in response';
+
+        // Step 2: If a valid tool call was found, execute it!
+        if (toolCall && toolCall.type === 'tool_call') {
+          conversation.push({ role: 'assistant', content: JSON.stringify(toolCall) });
+          if (toolCall.tool === 'finish') {
+            const finishMsg = (toolCall.arguments?.message || '').trim();
+            if (finishMsg) {
+              finalAnswerText = finishMsg;
+              break;
+            }
+          } else {
+            break; // Valid tool action found (readFile, writeFile, runCommand, etc.)
+          }
+        }
+
+        // Step 3: If responseExpectation === 'final_answer' and tool call was not returned, accept text
+        if (responseExpectation === 'final_answer') {
+          const trimmedText = response.replace(/<[^>]+>/g, '').trim();
+          if (trimmedText.length > 0) {
+            finalAnswerText = trimmedText;
+            conversation.push({ role: 'assistant', content: JSON.stringify({ type: 'tool_call', tool: 'finish', arguments: { message: finalAnswerText } }) });
+            break;
+          }
+        }
+
+        // Step 4: Check for TRULY empty response (no text, no tool call)
+        if (!response || response.trim().length === 0) {
+          pushEventToWriter(
+            writer,
+            'failed',
+            'Final answer was empty.',
+            undefined,
+            'Final answer was empty.',
+            {
+              normalizedStatus: 'failed',
+              lifecycleState: 'failed',
+              userMessage: 'CodeX received an empty final answer from the model.',
+              eventType: 'task_failed',
+              provider: currentProvider,
+              model: currentModel,
+              errorCode: 'CODEX_EMPTY_FINAL_ANSWER'
+            }
+          );
+          goalStore.update(goalId, { status: 'failed' });
+          throw new Error('CODEX_EMPTY_FINAL_ANSWER');
+        }
 
         if (toolCall && toolCall.type === 'tool_call') {
           break; // Valid tool call found — exit retry loop
@@ -912,33 +931,7 @@ ${m.content}`).join('\n\n');
           logger.error(`[CodeX] Tool parsing failed on attempt ${attempt + 1}:`, parseError);
           logger.error(`[CodeX] Raw LLM response (attempt ${attempt + 1}):`, response);
 
-          // Cloud model failure path — try read-only fallback or fatal failure
-          const fallbackToolCall = fallbackToolCallAfterParseFailure(goal.originalGoal, response, allowedTools, usedReadFallbacks, workspaceRoot);
-          if (fallbackToolCall) {
-            toolCall = fallbackToolCall;
-            pushEventToWriter(
-              writer,
-              'planning',
-              fallbackToolCall.tool === 'readFile'
-                ? `Using safe readFile fallback for ${fallbackToolCall.arguments.path}.`
-                : 'Using plain-text read-only analysis as the final result.',
-              fallbackToolCall.tool,
-              undefined,
-              {
-                normalizedStatus: 'planning',
-                lifecycleState: 'planning',
-                userMessage: fallbackToolCall.tool === 'readFile'
-                  ? `The model did not emit tool JSON, so CodeX is safely reading ${fallbackToolCall.arguments.path}.`
-                  : 'The model returned a read-only analysis instead of tool JSON; CodeX is completing with that analysis.',
-                eventType: 'planning_started',
-                provider: currentProvider,
-                model: currentModel,
-                payload: { fallback: true, fallbackTool: fallbackToolCall.tool }
-              }
-            );
-            break;
-          }
-
+          // Strict Tool Protocol: No fake finish fallback or prose hacks. Fail honestly.
           pushEventToWriter(
             writer,
             'failed',
@@ -948,21 +941,16 @@ ${m.content}`).join('\n\n');
             {
               normalizedStatus: 'failed',
               lifecycleState: 'failed',
-              userMessage: 'CodeX received an invalid response from the model after retrying. Start again with a clearer task.',
+              userMessage: 'CodeX received an invalid structured response from the model after retrying.',
               eventType: 'task_failed',
               provider: currentProvider,
               model: currentModel,
               errorCode: 'CODEX_TOOL_PARSE_FAILED',
-              errorDetails: parseError,
-              payload: {
-                responseLength: response.length,
-                rawResponsePreview: response.replace(/\s+/g, ' ').trim().slice(0, 1000)
-              }
+              errorDetails: parseError
             }
           );
-
           goalStore.update(goalId, { status: 'failed' });
-          throw new Error('CODEX_TOOL_PARSE_FAILED');
+          throw new Error(`CODEX_TOOL_PARSE_FAILED: ${parseError}`);
         }
       }
       // --- End retry loop ---
@@ -1251,15 +1239,17 @@ ${m.content}`).join('\n\n');
             toolResult = `Error: Invalid tool call`;
           }
 
-          conversation.push({ role: 'system', content: `Tool Result:\n${toolResult}` });
           goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
           const durationMs = Date.now() - startTime;
           pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel, payload: { result: toolResult } });
           await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
           if (shouldRequestFinalAnswerAfterTool(goal.originalGoal, toolCall.tool)) {
+            conversation.push({ role: 'system', content: `Tool Result:\n${toolResult}` });
             conversation.push({ role: 'user', content: buildFinalAnswerPrompt(toolResult) });
             responseExpectation = 'final_answer';
+          } else {
+            conversation.push({ role: 'system', content: `Tool Result:\n${toolResult}\n\nIf the task is complete, call finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Summary of completed work" } }. Otherwise, emit the next tool call.` });
           }
 
         } catch (err: any) {

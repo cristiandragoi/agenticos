@@ -45,8 +45,17 @@ export class AgentProviderAssignmentService {
         updatedAt: record.updatedAt
       };
     }
-    
-    // Do not rely on hardcoded CodeX-to-NineRouter branch
+    if (agentId === 'agent-codex') {
+      return {
+        agentId: 'agent-codex',
+        providerId: 'prov-openrouter',
+        modelId: 'qwen/qwen3.8-max',
+        routingMode: 'preferred',
+        enabled: true,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
     return null;
   }
 

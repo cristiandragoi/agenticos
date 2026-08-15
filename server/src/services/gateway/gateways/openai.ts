@@ -67,7 +67,10 @@ export class OpenAICompatibleGateway implements ModelGateway {
   }
 
   public async chat(req: ChatRequest): Promise<ChatResponse> {
-    const model = req.routing?.modelId ?? req.modelId ?? this.definition.model;
+    const primaryModel = req.routing?.modelId ?? req.modelId ?? this.definition.model;
+    const fallbackModel = (req as any).fallbackModel || (primaryModel.includes('qwen') ? 'deepseek/deepseek-v4-flash' : undefined);
+    const candidateModels = [primaryModel, ...(fallbackModel && fallbackModel !== primaryModel ? [fallbackModel] : [])];
+
     const messages = [];
     if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
     if (req.history) for (const h of req.history) messages.push({ role: h.role, content: h.content });
@@ -75,40 +78,75 @@ export class OpenAICompatibleGateway implements ModelGateway {
 
     const dbKey = await ProviderCredentialService.getCredential(this.name);
     const apiKey = dbKey || this.definition.apiKey;
-    const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-      },
-      body: JSON.stringify({ model: model, messages, max_tokens: req.maxTokens || 1024 }),
-      signal: buildRequestSignal(req)
-    });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      if (res.status === 429) {
-        throw new ProviderRateLimitError(`HTTP 429: ${body}`, res.headers.get('retry-after') ?? undefined);
+    let lastError: Error | null = null;
+    for (const rawModel of candidateModels) {
+      const isDeepSeekDirect = this.definition.baseUrl.includes('deepseek.com');
+      let model = rawModel;
+      if (isDeepSeekDirect) {
+        if (rawModel.includes('deepseek-v4-flash') || rawModel.includes('v4-flash') || rawModel === 'auto') {
+          model = 'deepseek-chat';
+        } else if (rawModel.startsWith('deepseek/')) {
+          model = rawModel.replace('deepseek/', '');
+        }
       }
-      throw new Error(`HTTP ${res.status}: ${body}`);
+      const isQwenMax = model.toLowerCase().includes('qwen3.8-max');
+      const maxTokens = isQwenMax ? Math.min(req.maxTokens || 120, 120) : (req.maxTokens || 2048);
+
+      try {
+        const bodyPayload: any = {
+          model: model,
+          messages,
+          max_tokens: maxTokens,
+          temperature: 0
+        };
+        if (isQwenMax) {
+          bodyPayload.reasoning = { effort: 'none' };
+        }
+
+        const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+          },
+          body: JSON.stringify(bodyPayload),
+          signal: buildRequestSignal(req)
+        });
+
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          if (res.status === 429) {
+            throw new ProviderRateLimitError(`HTTP 429: ${body}`, res.headers.get('retry-after') ?? undefined);
+          }
+          throw new Error(`HTTP ${res.status}: ${body}`);
+        }
+
+        const data: any = await res.json();
+        const reply = data.choices?.[0]?.message?.content || '';
+
+        if (!reply || reply.trim().length === 0) {
+          throw new Error(`Empty response from model ${model}`);
+        }
+
+        const promptTokens = data.usage?.prompt_tokens || 0;
+        const completionTokens = data.usage?.completion_tokens || 0;
+
+        return { 
+          reply, 
+          provider: this.name, 
+          model: model, 
+          offline: false,
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens
+        };
+      } catch (err: any) {
+        lastError = err;
+      }
     }
 
-    const data: any = await res.json();
-    const reply = data.choices?.[0]?.message?.content || '';
-    
-    // Phase 2: Token Accounting
-    const promptTokens = data.usage?.prompt_tokens || 0;
-    const completionTokens = data.usage?.completion_tokens || 0;
-
-    return { 
-      reply, 
-      provider: this.name, 
-      model: model, 
-      offline: false,
-      promptTokens,
-      completionTokens,
-      totalTokens: promptTokens + completionTokens
-    };
+    throw lastError || new Error('All candidate models failed');
   }
 
   public async *stream(req: ChatRequest): AsyncGenerator<ChatStreamChunk> {
