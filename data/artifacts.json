@@ -1,0 +1,63 @@
+[
+  {
+    "id": "art-schema-diff",
+    "type": "document",
+    "title": "API Schema Change Proposal",
+    "preview": "Proposed 3 breaking changes to the REST API schema affecting auth and user endpoints.",
+    "sourceRunId": "run-004",
+    "linkedAgentId": "agent-hermes",
+    "version": "1.2",
+    "status": "review"
+  },
+  {
+    "id": "art-unit-tests",
+    "type": "code",
+    "title": "Payment Module Unit Tests",
+    "preview": "14 unit tests covering all public methods in the payment processing module. 100% branch coverage.",
+    "sourceRunId": "run-006",
+    "linkedAgentId": "agent-hermes",
+    "version": "1.0",
+    "status": "done"
+  },
+  {
+    "id": "art-staging-build",
+    "type": "build",
+    "title": "Staging Build v2.4.1",
+    "preview": "Production-ready build with database migration scripts. Includes auth module updates.",
+    "sourceRunId": "run-002",
+    "linkedAgentId": "agent-jarvis",
+    "version": "2.4.1",
+    "status": "active"
+  },
+  {
+    "id": "art-e2e-report",
+    "type": "report",
+    "title": "E2E Test Report",
+    "preview": "Full end-to-end test results: 47/47 tests passed across 12 feature areas.",
+    "sourceRunId": "run-007",
+    "linkedAgentId": "agent-jarvis",
+    "version": "1.0",
+    "status": "done"
+  },
+  {
+    "id": "art-weekly-summary",
+    "type": "document",
+    "title": "Weekly Research Summary",
+    "preview": "12 key findings from last week's research sprint across competitive analysis, market sizing, and tech evaluation.",
+    "sourceRunId": "run-008",
+    "linkedAgentId": "agent-athena",
+    "linkedBoardId": "board-research",
+    "version": "1.0",
+    "status": "archived"
+  },
+  {
+    "id": "art-security-draft",
+    "type": "report",
+    "title": "Security Audit Draft",
+    "preview": "Preliminary findings from the auth module security scan. 2 potential vulnerabilities identified.",
+    "sourceRunId": "run-001",
+    "linkedAgentId": "agent-hermes",
+    "version": "0.1",
+    "status": "draft"
+  }
+]

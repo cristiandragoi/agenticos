@@ -1,0 +1,178 @@
+[
+  {
+    "id": "run-001",
+    "agentId": "agent-hermes",
+    "sessionId": "sess-1",
+    "workspaceId": "ws-1",
+    "mode": "task",
+    "status": "running",
+    "input": "Analyze auth module for security vulnerabilities and generate a fix proposal.",
+    "logs": [
+      "[00:00] Started security analysis...",
+      "[00:12] Scanning dependencies...",
+      "[00:24] Found 2 potential issues..."
+    ],
+    "events": [],
+    "linkedArtifacts": [],
+    "durationMs": 45000,
+    "createdAt": "2026-06-18T13:15:25.632Z",
+    "updatedAt": "2026-06-18T13:16:10.632Z"
+  },
+  {
+    "id": "run-002",
+    "agentId": "agent-jarvis",
+    "sessionId": "sess-2",
+    "workspaceId": "ws-1",
+    "mode": "workflow",
+    "status": "running",
+    "input": "Deploy staging build v2.4.1 with database migration.",
+    "logs": [
+      "[00:00] Building artifacts...",
+      "[00:30] Running migrations...",
+      "[01:02] Deploying to staging..."
+    ],
+    "events": [],
+    "linkedArtifacts": [
+      "art-staging-build"
+    ],
+    "durationMs": 92000,
+    "createdAt": "2026-06-18T13:14:38.632Z",
+    "updatedAt": "2026-06-18T13:16:10.632Z"
+  },
+  {
+    "id": "run-003",
+    "agentId": "agent-athena",
+    "sessionId": "sess-3",
+    "workspaceId": "ws-1",
+    "mode": "task",
+    "status": "queued",
+    "input": "Research competitive landscape for AI agent frameworks Q3 2026.",
+    "logs": [],
+    "events": [],
+    "linkedArtifacts": [],
+    "createdAt": "2026-06-18T13:14:10.632Z",
+    "updatedAt": "2026-06-18T13:16:10.632Z"
+  },
+  {
+    "id": "run-004",
+    "agentId": "agent-hermes",
+    "sessionId": "sess-4",
+    "workspaceId": "ws-1",
+    "mode": "chat",
+    "status": "waiting",
+    "input": "Review the proposed API schema changes. Waiting for user confirmation.",
+    "output": "I've identified 3 breaking changes in the proposed schema. Please confirm which changes to proceed with:\n1. Rename `userId` → `accountId`\n2. Remove deprecated `legacyAuth` field\n3. Add required `scopeId` parameter",
+    "logs": [
+      "[00:00] Analyzing schema diff...",
+      "[00:08] Found 3 breaking changes.",
+      "[00:09] Awaiting user input."
+    ],
+    "events": [],
+    "linkedArtifacts": [
+      "art-schema-diff"
+    ],
+    "createdAt": "2026-06-18T13:11:10.632Z",
+    "updatedAt": "2026-06-18T13:16:10.632Z"
+  },
+  {
+    "id": "run-005",
+    "agentId": "agent-sentinel",
+    "sessionId": "sess-5",
+    "workspaceId": "ws-1",
+    "mode": "task",
+    "status": "failed",
+    "input": "Monitor production logs for the last 24 hours and flag anomalies.",
+    "output": "Error: Connection to log aggregator timed out after 30s.",
+    "logs": [
+      "[00:00] Connecting to log aggregator...",
+      "[00:30] Connection timeout.",
+      "[00:30] Retrying...",
+      "[01:00] Final timeout. Task failed."
+    ],
+    "events": [],
+    "linkedArtifacts": [],
+    "errorMessage": "Connection to log aggregator timed out after 30s.",
+    "durationMs": 60000,
+    "createdAt": "2026-06-18T13:06:10.632Z",
+    "updatedAt": "2026-06-18T13:07:10.632Z"
+  },
+  {
+    "id": "run-006",
+    "agentId": "agent-hermes",
+    "sessionId": "sess-6",
+    "workspaceId": "ws-1",
+    "mode": "task",
+    "status": "completed",
+    "input": "Generate unit tests for the payment processing module.",
+    "output": "Created 14 unit tests covering all public methods. 100% branch coverage achieved.",
+    "logs": [
+      "[00:00] Analyzing payment module...",
+      "[00:15] Generating test cases...",
+      "[00:42] Writing test file...",
+      "[00:48] All tests passing."
+    ],
+    "events": [],
+    "linkedArtifacts": [
+      "art-unit-tests"
+    ],
+    "durationMs": 48000,
+    "createdAt": "2026-06-18T12:16:10.632Z",
+    "updatedAt": "2026-06-18T12:16:58.632Z"
+  },
+  {
+    "id": "run-007",
+    "agentId": "agent-jarvis",
+    "sessionId": "sess-7",
+    "workspaceId": "ws-1",
+    "mode": "workflow",
+    "status": "completed",
+    "input": "Run full E2E test suite against staging.",
+    "output": "All 47 E2E tests passed. Average test duration: 1.2s.",
+    "logs": [
+      "[00:00] Starting E2E suite...",
+      "[02:30] 47/47 tests passed."
+    ],
+    "events": [],
+    "linkedArtifacts": [
+      "art-e2e-report"
+    ],
+    "durationMs": 150000,
+    "createdAt": "2026-06-18T11:16:10.632Z",
+    "updatedAt": "2026-06-18T11:18:40.632Z"
+  },
+  {
+    "id": "run-008",
+    "agentId": "agent-athena",
+    "sessionId": "sess-8",
+    "workspaceId": "ws-1",
+    "mode": "task",
+    "status": "archived",
+    "input": "Summarize all findings from last week's research sprint.",
+    "output": "Weekly summary generated with 12 key findings across 4 domains.",
+    "logs": [
+      "[00:00] Aggregating research entries...",
+      "[00:20] Generating summary..."
+    ],
+    "events": [],
+    "linkedArtifacts": [
+      "art-weekly-summary"
+    ],
+    "durationMs": 30000,
+    "createdAt": "2026-06-17T13:16:10.632Z",
+    "updatedAt": "2026-06-17T13:16:40.632Z"
+  },
+  {
+    "id": "run-009",
+    "agentId": "agent-sentinel",
+    "sessionId": "sess-9",
+    "workspaceId": "ws-1",
+    "mode": "task",
+    "status": "queued",
+    "input": "Scan infrastructure for expired SSL certificates.",
+    "logs": [],
+    "events": [],
+    "linkedArtifacts": [],
+    "createdAt": "2026-06-18T13:16:05.632Z",
+    "updatedAt": "2026-06-18T13:16:10.632Z"
+  }
+]

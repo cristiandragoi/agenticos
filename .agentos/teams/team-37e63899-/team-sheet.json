@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "teamName": "AgentTeamsRuntimeVerification",
+  "objective": "Create a file named 'status.txt' with the exact content 'Agent Teams real runtime verified'",
+  "workspaceRoot": "B:\\AgenticOS",
+  "agents": [
+    {
+      "id": "planner-1",
+      "name": "Planner Agent",
+      "role": "Planner",
+      "responsibilities": [
+        "design the team structure and tasks"
+      ],
+      "instructions": "Develop a plan that includes a Planner, at least one Builder, and exactly one Verifier.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file",
+        "search_files"
+      ],
+      "readScopes": [
+        "AgenticOS"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "plan.txt"
+      ]
+    },
+    {
+      "id": "builder-1",
+      "name": "Builder Agent",
+      "role": "Builder",
+      "responsibilities": [
+        "create the 'status.txt' file with the specified content"
+      ],
+      "instructions": "Use the provided plan to create the 'status.txt' file in the correct location.",
+      "dependencies": [
+        "planner-1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "patch_file",
+        "write_file"
+      ],
+      "readScopes": [
+        "AgenticOS"
+      ],
+      "writeScopes": [
+        "AgenticOS/*.txt"
+      ],
+      "outputArtifacts": [
+        "status.txt"
+      ]
+    },
+    {
+      "id": "verifier-1",
+      "name": "Verifier Agent",
+      "role": "Verifier",
+      "responsibilities": [
+        "verify the content of the 'status.txt' file"
+      ],
+      "instructions": "Check if the 'status.txt' file contains the exact specified content.",
+      "dependencies": [
+        "planner-1",
+        "builder-1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "terminal"
+      ],
+      "readScopes": [
+        "AgenticOS/*.txt"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "verification_result.txt"
+      ]
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "planner-1",
+      "to": "builder-1",
+      "artifact": "plan.txt",
+      "required": true
+    },
+    {
+      "from": "builder-1",
+      "to": "verifier-1",
+      "artifact": "status.txt",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "planner-1",
+    "builder-1",
+    "verifier-1"
+  ],
+  "acceptanceCriteria": [
+    "The 'status.txt' file must be created with the exact content 'Agent Teams real runtime verified'",
+    "The Verifier Agent must confirm that the content is correct"
+  ],
+  "estimatedParallelism": 2,
+  "approvalRequired": true
+}

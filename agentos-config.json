@@ -1,0 +1,69 @@
+{
+  "systemName": "Agentic OS",
+  "version": "3.0.0",
+  "primaryOrchestrator": "hermes",
+  "obsidianVaultPath": "C:\\Users\\Cris\\obsidian-vault",
+  "models": {
+    "hermes": {
+      "provider": "custom",
+      "model": "llama3.1:8b-64k",
+      "endpoint": "http://127.0.0.1:11434/v1",
+      "role": "orchestrator",
+      "capabilities": ["voice", "computer_use", "memory_galaxy"]
+    },
+    "fugu": {
+      "provider": "sakana",
+      "model": "fugu-ultra",
+      "role": "heavy-gen",
+      "capabilities": ["long_context", "code_generation", "heavy_project_builder"]
+    },
+    "fusion": {
+      "provider": "openrouter",
+      "model": "fusion-large",
+      "role": "panel",
+      "capabilities": ["long_context", "simulation", "multi_model_planning"]
+    },
+    "antigravity": {
+      "provider": "google",
+      "model": "gemini-2.0-pro-exp-02-05",
+      "role": "execution_engine",
+      "capabilities": ["sub_agents", "parallel_workflows"]
+    },
+    "claude": {
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "role": "specialist",
+      "capabilities": ["orchestration", "migration"]
+    },
+    "agent-gemini-welders-research": {
+      "provider": "google",
+      "model": "gemini-2.0-pro-exp-02-05",
+      "role": "research",
+      "capabilities": ["background_interactions", "long_context", "memory_galaxy"]
+    },
+    "agent-gemini-email-copy": {
+      "provider": "google",
+      "model": "gemini-2.5-flash",
+      "role": "copywriter",
+      "capabilities": ["interactive_interactions", "voice", "memory_galaxy"]
+    }
+  },
+  "workflows": {
+    "seo_pipeline": {
+      "engine": "antigravity",
+      "agents": ["researcher", "writer", "reviewer"]
+    },
+    "news_radar": {
+      "schedule": "0 8 * * *",
+      "engine": "hermes"
+    },
+    "jarvis_voice_pipeline": {
+      "engine": "qwythos",
+      "role": "orchestrator"
+    },
+    "welders_lead_pipeline": {
+      "engine": "qwythos",
+      "role": "orchestrator"
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "teamName": "AgentTeamsRealRuntimeVerified",
+  "objective": "Create the file status.txt with exactly this content: Agent Teams real runtime verified.",
+  "workspaceRoot": "B:\\AgenticOS\\.agentos\\runtime-tests\\ui-real\\workspace",
+  "agents": [
+    {
+      "id": "planner-1",
+      "name": "Planner",
+      "role": "Planner",
+      "responsibilities": [
+        "Design the multi-agent team and plan the steps to achieve the objective"
+      ],
+      "instructions": "Follow the user request and create a valid JSON for the multi-agent system.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file",
+        "search_files"
+      ],
+      "readScopes": [
+        "*.json",
+        "*.txt"
+      ],
+      "writeScopes": [
+        "planner-1.plan.json"
+      ],
+      "outputArtifacts": [
+        "planner-1.plan.json"
+      ]
+    },
+    {
+      "id": "builder-1",
+      "name": "Builder",
+      "role": "Builder",
+      "responsibilities": [
+        "Write the content to status.txt and signal completion"
+      ],
+      "instructions": "Use the writeFile tool to write 'Agent Teams real runtime verified.' to the path 'status.txt', then use the finish tool.",
+      "dependencies": [
+        "planner-1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "patch_file",
+        "write_file"
+      ],
+      "readScopes": [
+        "planner-1.plan.json"
+      ],
+      "writeScopes": [
+        "status.txt"
+      ],
+      "outputArtifacts": [
+        "status.txt"
+      ]
+    },
+    {
+      "id": "verifier-1",
+      "name": "Verifier",
+      "role": "Verifier",
+      "responsibilities": [
+        "Verify the content of status.txt"
+      ],
+      "instructions": "Use the readFile tool on 'status.txt' to check the content, then use the finish tool.",
+      "dependencies": [
+        "planner-1",
+        "builder-1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "terminal"
+      ],
+      "readScopes": [
+        "status.txt",
+        "planner-1.plan.json"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": []
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "planner-1",
+      "to": "builder-1",
+      "artifact": "planner-1.plan.json",
+      "required": true
+    },
+    {
+      "from": "builder-1",
+      "to": "verifier-1",
+      "artifact": "status.txt",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "planner-1",
+    "builder-1",
+    "verifier-1"
+  ],
+  "acceptanceCriteria": [
+    "The file status.txt exists.",
+    "The content of status.txt is 'Agent Teams real runtime verified.'"
+  ],
+  "estimatedParallelism": 1,
+  "approvalRequired": true
+}

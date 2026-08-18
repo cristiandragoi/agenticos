@@ -1,0 +1,255 @@
+{
+  "version": "1.1",
+  "name": "Agentic OS",
+  "description": "Orbital command for the agent fleet. Live telemetry, organizational graph, second-brain memory, and voice-first Hermes Apollo.",
+
+  "services": [
+    {
+      "id": "svc-frontend",
+      "name": "Frontend Web Client",
+      "framework": "React / Vite",
+      "port": 5173
+    },
+    {
+      "id": "svc-backend",
+      "name": "Node.js API Server",
+      "framework": "Express / TypeScript",
+      "port": 4000
+    },
+    {
+      "id": "svc-local-llm",
+      "name": "Local LLM Provider",
+      "framework": "Ollama",
+      "port": 11434
+    },
+    {
+      "id": "svc-apollo",
+      "name": "Hermes Apollo Voice Service",
+      "framework": "Node.js / WebSocket + TTS/STT",
+      "port": 4100,
+      "description": "Wake-word, STT/TTS, dialog routing into agents and workspace.",
+      "capabilities": {
+        "wake_word": true,
+        "hands_free": true,
+        "wall_mode_ui": true,
+        "quick_answers": true,
+        "agent_mode": true,
+        "briefings": ["daily", "weekly", "monthly"],
+        "memory_access": true
+      },
+      "endpoints": {
+        "query": "POST /apollo/query",
+        "stream": "WS /apollo/stream",
+        "briefing": "GET /apollo/briefing"
+      },
+      "routerId": "router-apollo"
+    }
+  ],
+
+  "agents": [
+    {
+      "id": "agent-qwythos",
+      "name": "Qwythos 9B",
+      "role": "Default Orchestrator",
+      "runtimeId": "rt-hermes",
+      "tools": ["tool-search", "tool-execute"]
+    },
+    {
+      "id": "agent-jarvis-core",
+      "name": "JARVIS",
+      "role": "Execution & Automation",
+      "runtimeId": "rt-jarvis",
+      "tools": ["tool-terminal", "tool-fs-read", "tool-fs-write", "tool-web-search", "tool-voice"]
+    },
+    {
+      "id": "agent-architect",
+      "name": "Architect",
+      "role": "System Design",
+      "runtimeId": "rt-hermes",
+      "tools": []
+    },
+    {
+      "id": "agent-scout",
+      "name": "Scout",
+      "role": "Research",
+      "runtimeId": "rt-hermes",
+      "tools": ["tool-web-search"]
+    },
+    {
+      "id": "agent-forge",
+      "name": "Forge",
+      "role": "Development",
+      "runtimeId": "rt-jarvis",
+      "tools": ["tool-terminal", "tool-fs-read", "tool-fs-write"]
+    },
+    {
+      "id": "agent-apollo-dialog",
+      "name": "Apollo Dialog Brain",
+      "role": "Voice Dialog + Intent Routing",
+      "runtimeId": "rt-hermes",
+      "tools": ["tool-voice"],
+      "modes": ["quick", "agent_task", "briefing", "memory"],
+      "routerId": "router-apollo"
+    }
+  ],
+
+  "tools": [
+    {
+      "id": "tool-terminal",
+      "name": "Terminal Command",
+      "description": "Execute shell commands to run scripts, git, builds, deployments."
+    },
+    {
+      "id": "tool-fs-read",
+      "name": "Read File",
+      "description": "Read contents of local files."
+    },
+    {
+      "id": "tool-fs-write",
+      "name": "Write File",
+      "description": "Write or create local files."
+    },
+    {
+      "id": "tool-web-search",
+      "name": "Web Search",
+      "description": "Search the internet for information."
+    },
+    {
+      "id": "tool-voice",
+      "name": "Speak / TTS",
+      "description": "Generate spoken audio output for the user."
+    }
+  ],
+
+  "workflows": [
+    {
+      "id": "wf-jarvis-pipeline",
+      "name": "Jarvis Task Pipeline",
+      "trigger": "User request directed at Jarvis",
+      "steps": ["input", "analyze", "execute", "jarvis_voice_reply"]
+    },
+    {
+      "id": "wf-heavy-gen",
+      "name": "Heavy Generation Pipeline",
+      "trigger": "trigger_fugu or trigger_fusion action",
+      "steps": ["build_context", "generate", "write_to_disk"]
+    },
+    {
+      "id": "wf-kanban-automation",
+      "name": "Kanban Creation",
+      "trigger": "create_kanban_tasks action",
+      "steps": ["parse_tasks", "inject_to_board"]
+    },
+    {
+      "id": "wf-apollo-quick",
+      "name": "Apollo Quick Answer",
+      "trigger": "wake_word + short query",
+      "steps": ["stt_input", "intent_classify_quick", "llm_answer", "apollo_tts_reply"]
+    },
+    {
+      "id": "wf-apollo-agent-task",
+      "name": "Apollo Agent Task",
+      "trigger": "wake_word + complex request",
+      "steps": ["stt_input", "intent_classify_agent", "route_to_jarvis", "execute_tools", "apollo_tts_reply"]
+    },
+    {
+      "id": "wf-apollo-briefing",
+      "name": "Apollo Briefing",
+      "trigger": "wake_word + briefing request",
+      "steps": ["stt_input", "route_to_briefing_service", "compose_briefing", "apollo_tts_reply"]
+    }
+  ],
+
+  "memory": [
+    {
+      "id": "mem-workspace",
+      "name": "Workspace Context",
+      "scope": "workspace",
+      "ttl": "persistent",
+      "backend": "Hermes Workspace"
+    },
+    {
+      "id": "mem-session",
+      "name": "Session Context",
+      "scope": "session",
+      "ttl": "ephemeral"
+    }
+  ],
+
+  "briefings": {
+    "jarvis": "You are JARVIS, an execution and automation agent in Agentic OS. You have access to terminal and file system tools. Keep responses concise.",
+    "hermes": "You are Hermes, an AI agent in Agentic OS. You are helpful, knowledgeable, and direct. Break complex tasks into steps.",
+    "qwythos": "You are Qwythos 9B, the default orchestrator. When asked to plan, respond with actionable steps.",
+    "apollo": "You are Hermes Apollo, a voice-first assistant. Use wake-word sessions, keep latency low, and route complex tasks to JARVIS and Hermes Workspace."
+  },
+
+  "uiRoutes": [
+    {
+      "path": "/",
+      "name": "Mission Control",
+      "component": "MissionControlPage"
+    },
+    {
+      "path": "/jarvis",
+      "name": "Jarvis Console",
+      "component": "JarvisDashboard"
+    },
+    {
+      "path": "/hermes",
+      "name": "Hermes Workspace",
+      "component": "HermesWorkspace"
+    },
+    {
+      "path": "/apollo",
+      "name": "Apollo Wall",
+      "component": "ApolloWallMode"
+    }
+  ],
+
+  "routing": [
+    {
+      "id": "router-apollo",
+      "name": "Apollo Intent Router",
+      "description": "Classifies Apollo voice input into quick answers, agent tasks, briefings, and memory.",
+      "modes": ["quick", "agent_task", "briefing", "memory"],
+      "routes": {
+        "quick": {
+          "targetAgent": "agent-qwythos",
+          "workflowId": "wf-apollo-quick"
+        },
+        "agent_task": {
+          "targetAgent": "agent-jarvis-core",
+          "workflowId": "wf-apollo-agent-task"
+        },
+        "briefing": {
+          "targetService": "mem-workspace",
+          "workflowId": "wf-apollo-briefing"
+        },
+        "memory": {
+          "targetService": "mem-workspace",
+          "workflowId": "wf-apollo-briefing"
+        }
+      }
+    }
+  ],
+
+  "modules": {
+    "hermesStudio": {
+      "description": "Logical grouping of Jarvis, Forge, Architect, Scout and their workflows.",
+      "agents": ["agent-jarvis-core", "agent-forge", "agent-architect", "agent-scout"],
+      "workflows": ["wf-jarvis-pipeline", "wf-heavy-gen", "wf-kanban-automation"]
+    },
+    "hermesWorkspace": {
+      "description": "Logical grouping of workspace memory, session memory, and Hermes UI.",
+      "memoryIds": ["mem-workspace", "mem-session"],
+      "uiRoutes": ["/hermes"]
+    },
+    "hermesApollo": {
+      "description": "Voice-first front door into Agentic OS.",
+      "serviceId": "svc-apollo",
+      "agentId": "agent-apollo-dialog",
+      "routerId": "router-apollo",
+      "uiRoute": "/apollo"
+    }
+  }
+}

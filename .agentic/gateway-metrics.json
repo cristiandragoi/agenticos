@@ -1,0 +1,24 @@
+{
+  "ollama": {
+    "totalCalls": 14,
+    "totalSuccesses": 0,
+    "totalFailures": 14,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 0.9285714285714286,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "openrouter": {
+    "totalCalls": 5,
+    "totalSuccesses": 0,
+    "totalFailures": 5,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 2,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  }
+}

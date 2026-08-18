@@ -1,0 +1,22 @@
+{
+  "name": "agenticos-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local STDIO MCP server for Agentic OS — read-only bridge + controlled task submission (Phase 1).",
+  "bin": {
+    "agenticos-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^4.0.0"
+  }
+}

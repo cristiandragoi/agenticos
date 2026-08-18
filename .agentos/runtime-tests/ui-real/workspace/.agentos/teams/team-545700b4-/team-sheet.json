@@ -1,0 +1,99 @@
+{
+  "version": "1.0",
+  "teamName": "Agent Teams",
+  "objective": "Create the file status.txt with exactly this content: Agent Teams real runtime verified.",
+  "workspaceRoot": "B:\\AgenticOS\\.agentos\\runtime-tests\\ui-real\\workspace",
+  "agents": [
+    {
+      "id": "planner",
+      "name": "Planner",
+      "role": "Planner",
+      "responsibilities": [
+        "Define the plan"
+      ],
+      "instructions": "Create a plan to accomplish the user's goal using the available tools and follow the instructions for Builders and Verifiers.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file",
+        "search_files"
+      ],
+      "readScopes": [
+        "**/*"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": []
+    },
+    {
+      "id": "builder",
+      "name": "Builder",
+      "role": "Builder",
+      "responsibilities": [
+        "Execute the plan and write to the file"
+      ],
+      "instructions": "DO NOT write 'Task completed successfully.' Write EXACTLY 'Agent Teams real runtime verified.' into the file. DO NOT prefix the file path with 'workspaceRoot'. Just write to 'status.txt'.",
+      "dependencies": [
+        "planner"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "patch_file",
+        "write_file"
+      ],
+      "readScopes": [
+        "**/*"
+      ],
+      "writeScopes": [
+        "status.txt"
+      ],
+      "outputArtifacts": []
+    },
+    {
+      "id": "verifier",
+      "name": "Verifier",
+      "role": "Verifier",
+      "responsibilities": [
+        "Verify the completion of tasks"
+      ],
+      "instructions": "Use `readFile` on 'status.txt', DO NOT use shell commands like `echo` or `tee`.",
+      "dependencies": [
+        "planner",
+        "builder"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "terminal"
+      ],
+      "readScopes": [
+        "**/*"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": []
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "planner",
+      "to": "builder",
+      "artifact": "",
+      "required": true
+    },
+    {
+      "from": "builder",
+      "to": "verifier",
+      "artifact": "status.txt",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "acceptanceCriteria": [
+    "The file 'status.txt' exists in the workspace with the exact content: Agent Teams real runtime verified."
+  ],
+  "estimatedParallelism": 1,
+  "approvalRequired": true
+}

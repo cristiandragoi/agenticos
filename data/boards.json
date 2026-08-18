@@ -1,0 +1,82 @@
+[
+  {
+    "id": "board-mission-control",
+    "name": "Mission Control (Verified Persistence)",
+    "purpose": "Global cockpit for active agents, runs, provider health, and system alerts.",
+    "color": "#d4a373",
+    "icon": "LayoutDashboard",
+    "cardTypes": [
+      "agent",
+      "run",
+      "provider",
+      "alert"
+    ],
+    "filters": {},
+    "layoutMode": "board"
+  },
+  {
+    "id": "board-agents",
+    "name": "Agent Registry",
+    "purpose": "Visual roster of all agents, runtimes, and capabilities.",
+    "color": "#63b3ed",
+    "icon": "Users",
+    "cardTypes": [
+      "agent"
+    ],
+    "filters": {},
+    "layoutMode": "gallery"
+  },
+  {
+    "id": "board-research",
+    "name": "Research",
+    "purpose": "Structured deep-work board for research tasks, questions, findings, and decisions.",
+    "color": "#c084fc",
+    "icon": "BookOpen",
+    "cardTypes": [
+      "run",
+      "artifact",
+      "memory"
+    ],
+    "filters": {},
+    "layoutMode": "board"
+  },
+  {
+    "id": "board-builds",
+    "name": "Builds & Artifacts",
+    "purpose": "Generated applications, experiments, artifacts, prototypes, and outputs.",
+    "color": "#34d399",
+    "icon": "Package",
+    "cardTypes": [
+      "artifact",
+      "build"
+    ],
+    "filters": {},
+    "layoutMode": "kanban"
+  },
+  {
+    "id": "board-integrations",
+    "name": "Integrations",
+    "purpose": "Provider registry and connection management for all external services.",
+    "color": "#fbbf24",
+    "icon": "HardDrive",
+    "cardTypes": [
+      "provider"
+    ],
+    "filters": {},
+    "layoutMode": "board"
+  },
+  {
+    "id": "board-experiments",
+    "name": "Experiments",
+    "purpose": "Sandboxed space for testing new agents, workflows, and model configurations.",
+    "color": "#f87171",
+    "icon": "FlaskConical",
+    "cardTypes": [
+      "run",
+      "artifact",
+      "agent"
+    ],
+    "filters": {},
+    "layoutMode": "board"
+  }
+]

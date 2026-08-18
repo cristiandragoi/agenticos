@@ -1,0 +1,13 @@
+# Project-scoped Codex MCP configuration for Agentic OS (Phase 1 bridge).
+#
+# Adds ONLY the `agenticos` MCP server. Does not modify authentication,
+# models, providers, or permissions. Global config (~/.codex/config.toml)
+# is untouched.
+#
+# Manual step required once: restart/reload the Codex CLI / ChatGPT desktop
+# so the new MCP server is discovered.
+
+[mcp_servers.agenticos]
+command = "node"
+args = ["B:\\AgenticOS\\tools\\agenticos-mcp\\dist\\server.js"]
+env = { AGENTICOS_MCP_BASE_URL = "http://127.0.0.1:4000" }

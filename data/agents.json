@@ -1,0 +1,177 @@
+[
+  {
+    "id": "agent-hermes",
+    "name": "Hermes",
+    "slug": "hermes",
+    "avatar": "H",
+    "color": "#d4a373",
+    "runtimeId": "rt-hermes",
+    "kind": "first-class",
+    "status": "active",
+    "capabilities": [
+      "code-generation",
+      "reasoning",
+      "planning",
+      "code-review"
+    ],
+    "toolIds": [
+      "tool-code-runner",
+      "tool-browser",
+      "tool-file-system"
+    ],
+    "memoryScopes": [
+      "mem-global",
+      "mem-hermes-agent"
+    ],
+    "providerIds": [
+      "prov-anthropic",
+      "prov-deepseek",
+      "prov-qwen",
+      "prov-xai"
+    ],
+    "defaultBoardId": "board-mission-control",
+    "visibility": "public",
+    "description": "Primary reasoning and code-generation agent. Handles complex multi-step tasks with deep planning capabilities.",
+    "recentActivity": "Completed code review for auth module 12 min ago",
+    "createdAt": "2026-05-01T00:00:00Z",
+    "updatedAt": "2026-06-18T13:16:10.631Z"
+  },
+  {
+    "id": "agent-jarvis",
+    "name": "Jarvis",
+    "slug": "jarvis",
+    "avatar": "J",
+    "color": "#63b3ed",
+    "runtimeId": "rt-jarvis",
+    "kind": "first-class",
+    "status": "active",
+    "capabilities": [
+      "execution",
+      "automation",
+      "deployment",
+      "monitoring"
+    ],
+    "toolIds": [
+      "tool-deploy",
+      "tool-apify",
+      "tool-browser"
+    ],
+    "memoryScopes": [
+      "mem-global",
+      "mem-jarvis-agent"
+    ],
+    "providerIds": [
+      "prov-ollama",
+      "prov-anthropic",
+      "prov-deepseek",
+      "prov-xai"
+    ],
+    "defaultBoardId": "board-mission-control",
+    "visibility": "public",
+    "description": "Execution and automation agent. Handles deployments, scraping workflows, and background task orchestration.",
+    "recentActivity": "Deployed staging build v2.4.1 28 min ago",
+    "createdAt": "2026-05-01T00:00:00Z",
+    "updatedAt": "2026-06-18T13:16:10.631Z"
+  },
+  {
+    "id": "agent-athena",
+    "name": "Athena",
+    "slug": "athena",
+    "avatar": "A",
+    "color": "#c084fc",
+    "runtimeId": "rt-hermes",
+    "kind": "runtime-backed",
+    "status": "active",
+    "capabilities": [
+      "research",
+      "synthesis",
+      "summarization",
+      "fact-checking"
+    ],
+    "toolIds": [
+      "tool-browser",
+      "tool-search"
+    ],
+    "memoryScopes": [
+      "mem-global",
+      "mem-research-board"
+    ],
+    "providerIds": [
+      "prov-anthropic",
+      "prov-gemini",
+      "prov-perplexity"
+    ],
+    "defaultBoardId": "board-research",
+    "visibility": "public",
+    "description": "Deep research agent specializing in synthesis, multi-source verification, and structured knowledge output.",
+    "recentActivity": "Completed competitive analysis report 1 hr ago",
+    "createdAt": "2026-05-15T00:00:00Z",
+    "updatedAt": "2026-06-18T13:16:10.631Z"
+  },
+  {
+    "id": "agent-sentinel",
+    "name": "Sentinel",
+    "slug": "sentinel",
+    "avatar": "S",
+    "color": "#f87171",
+    "runtimeId": "rt-jarvis",
+    "kind": "runtime-backed",
+    "status": "active",
+    "capabilities": [
+      "monitoring",
+      "alerting",
+      "log-analysis",
+      "anomaly-detection"
+    ],
+    "toolIds": [
+      "tool-log-reader",
+      "tool-metrics"
+    ],
+    "memoryScopes": [
+      "mem-global"
+    ],
+    "providerIds": [
+      "prov-ollama",
+      "prov-mistral"
+    ],
+    "defaultBoardId": "board-mission-control",
+    "visibility": "public",
+    "description": "System monitoring and alerting agent. Watches runtime health, detects anomalies, and escalates critical issues.",
+    "recentActivity": "Flagged memory pressure warning 5 min ago",
+    "createdAt": "2026-06-01T00:00:00Z",
+    "updatedAt": "2026-06-18T13:16:10.631Z"
+  },
+  {
+    "id": "agent-video",
+    "name": "VideoAgent",
+    "slug": "video-agent",
+    "avatar": "V",
+    "color": "#fb923c",
+    "runtimeId": "rt-video",
+    "kind": "runtime-backed",
+    "status": "active",
+    "capabilities": [
+      "video-scripting",
+      "asset-gathering",
+      "rendering",
+      "publishing"
+    ],
+    "toolIds": [
+      "tool-browser"
+    ],
+    "memoryScopes": [
+      "mem-global"
+    ],
+    "providerIds": [
+      "prov-minimax",
+      "prov-kimi",
+      "prov-internal-api"
+    ],
+    "defaultBoardId": "board-builds",
+    "visibility": "public",
+    "description": "Video production pipeline agent. Handles scripting, asset gathering, rendering, review, and publishing of video artifacts.",
+    "recentActivity": "Rendered intro video for Q3 launch 2 hrs ago",
+    "createdAt": "2026-06-01T00:00:00Z",
+    "updatedAt": "2026-06-18T13:16:10.631Z"
+  }
+]

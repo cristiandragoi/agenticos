@@ -1,0 +1,77 @@
+.jv2-root {
+  --jv2-color: #00eaff;
+  position: relative;
+  width: min(100%, 900px);
+  margin: 0 auto;
+  aspect-ratio: 1000 / 1250;
+  user-select: none;
+  isolation: isolate;
+}
+
+.jv2-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.jv2-region,
+.jv2-particles-bg,
+.jv2-particles-fg {
+  transition: color 260ms ease, opacity 260ms ease, filter 260ms ease;
+}
+
+.jv2-status {
+  position: absolute;
+  left: 50%;
+  bottom: 1.2%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--jv2-color);
+  font: 700 11px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.jv2-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--jv2-color);
+  box-shadow: 0 0 10px var(--jv2-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jv2-region { transition: none; }
+}
+
+/* ── Neural module animations (CSS — no per-frame React) ── */
+.jv2-module-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jv2-module-spin 26s linear infinite;
+}
+
+.jv2-module-halo {
+  animation: jv2-module-halo 3.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jv2-module-spin,
+  .jv2-module-halo {
+    animation: none;
+  }
+}
+
+@keyframes jv2-module-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes jv2-module-halo {
+  0%, 100% { opacity: 0.32; }
+  50% { opacity: 0.72; }
+}

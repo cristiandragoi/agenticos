@@ -1,0 +1,30 @@
+{
+  "projectId": "demo-project-001",
+  "projectPath": "B:\\AgenticOS\\server",
+  "projectSummary": "",
+  "preferredProvider": "omniroot",
+  "gatewayHistory": [
+    {
+      "taskId": "task-1001",
+      "provider": "omniroot",
+      "success": true
+    },
+    {
+      "taskId": "task-1002",
+      "provider": "ollama",
+      "success": true
+    },
+    {
+      "taskId": "task-1001",
+      "success": false,
+      "error": "{\"message\":\"All configured providers failed\",\"attemptedProviders\":[\"ollama\"],\"reasons\":[\"ollama: The operation was aborted due to timeout\"],\"latencyMs\":60028}"
+    },
+    {
+      "taskId": "task-1002",
+      "success": false,
+      "error": "{\"message\":\"All configured providers failed\",\"attemptedProviders\":[\"ollama\"],\"reasons\":[\"ollama: The operation was aborted due to timeout\"],\"latencyMs\":60014}"
+    }
+  ],
+  "importantSnippets": [],
+  "generatedArtifacts": []
+}

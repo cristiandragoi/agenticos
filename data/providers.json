@@ -1,0 +1,322 @@
+[
+  {
+    "id": "prov-ollama",
+    "name": "Ollama",
+    "kind": "llm",
+    "category": "local",
+    "adapter": "ollama-adapter",
+    "authScheme": "none",
+    "status": "connected",
+    "scopes": ["chat", "completion"],
+    "description": "Local Ollama runtime. Runs Gemma 2B as the primary heartbeat model. No API key required.",
+    "lastActivity": "just now",
+    "defaultModel": "gemma:2b",
+    "models": [
+      { "id": "gemma:2b", "name": "Gemma 2B", "displayName": "Gemma 2B (Heartbeat)", "contextLength": 8192 },
+      { "id": "llama3.2", "name": "Llama 3.2", "contextLength": 8192 },
+      { "id": "mistral", "name": "Mistral 7B", "contextLength": 8192 },
+      { "id": "qwen2.5", "name": "Qwen 2.5", "contextLength": 32768 }
+    ],
+    "usedByAgentDefaults": ["agent-jarvis", "agent-sentinel"]
+  },
+  {
+    "id": "prov-openai",
+    "name": "OpenAI",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "openai-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion", "embedding", "tts", "image"],
+    "description": "OpenAI API — GPT-4o, o1, o3, and embeddings.",
+    "lastActivity": "2 min ago",
+    "defaultModel": "gpt-4o",
+    "models": [
+      { "id": "gpt-4o", "name": "GPT-4o", "contextLength": 128000 },
+      { "id": "gpt-4o-mini", "name": "GPT-4o Mini", "contextLength": 128000 },
+      { "id": "o1", "name": "o1", "contextLength": 200000 },
+      { "id": "o3-mini", "name": "o3 Mini", "contextLength": 200000 },
+      { "id": "text-embedding-3-large", "name": "Embedding v3 Large" }
+    ],
+    "usedByAgentDefaults": []
+  },
+  {
+    "id": "prov-openrouter",
+    "name": "OpenRouter",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "openrouter-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion"],
+    "description": "OpenRouter gateway — unified access to 200+ models.",
+    "lastActivity": "5 min ago",
+    "defaultModel": "openai/gpt-4o",
+    "models": [
+      { "id": "openai/gpt-4o", "name": "GPT-4o via OpenRouter" },
+      { "id": "anthropic/claude-sonnet-4", "name": "Claude Sonnet 4" },
+      { "id": "deepseek/deepseek-chat", "name": "DeepSeek V3" },
+      { "id": "google/gemini-2.0-flash", "name": "Gemini 2.0 Flash" }
+    ],
+    "usedByAgentDefaults": []
+  },
+  {
+    "id": "prov-anthropic",
+    "name": "Anthropic Claude",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "anthropic-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion"],
+    "description": "Anthropic Claude — long-context reasoning and deep analysis.",
+    "lastActivity": "15 min ago",
+    "defaultModel": "claude-sonnet-4-20250514",
+    "models": [
+      { "id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "contextLength": 200000 },
+      { "id": "claude-opus-4-20250514", "name": "Claude Opus 4", "contextLength": 200000 },
+      { "id": "claude-haiku-3-5", "name": "Claude Haiku 3.5", "contextLength": 200000 }
+    ],
+    "usedByAgentDefaults": ["agent-hermes", "agent-athena", "agent-jarvis"]
+  },
+  {
+    "id": "prov-deepseek",
+    "name": "DeepSeek",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "deepseek-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion", "reasoning"],
+    "description": "DeepSeek V4 — optimized for reasoning and coding.",
+    "lastActivity": "just now",
+    "defaultModel": "deepseek-chat",
+    "models": [
+      { "id": "deepseek-chat", "name": "DeepSeek V4 Chat", "contextLength": 128000 },
+      { "id": "deepseek-reasoner", "name": "DeepSeek Reasoner", "contextLength": 128000 },
+      { "id": "deepseek-coder", "name": "DeepSeek Coder V4", "contextLength": 128000 }
+    ],
+    "usedByAgentDefaults": ["agent-hermes", "agent-jarvis"]
+  },
+  {
+    "id": "prov-minimax",
+    "name": "MiniMax",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "minimax-adapter",
+    "authScheme": "key",
+    "status": "disconnected",
+    "scopes": ["chat", "completion", "tts"],
+    "description": "MiniMax — Hailuo video generation and MiniMax-Text models.",
+    "lastActivity": "never",
+    "defaultModel": "minimax-text-01",
+    "models": [
+      { "id": "minimax-text-01", "name": "MiniMax Text-01", "contextLength": 1000000 },
+      { "id": "minimax-video-01", "name": "MiniMax Video (Hailuo)" }
+    ],
+    "usedByAgentDefaults": ["agent-video"]
+  },
+  {
+    "id": "prov-kimi",
+    "name": "Kimi / Moonshot",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "kimi-adapter",
+    "authScheme": "key",
+    "status": "disconnected",
+    "scopes": ["chat", "completion"],
+    "description": "Kimi by Moonshot AI — K2 model with long context window.",
+    "lastActivity": "never",
+    "defaultModel": "kimi-k2",
+    "models": [
+      { "id": "kimi-k2", "name": "Kimi K2", "contextLength": 128000 },
+      { "id": "kimi-k2-mini", "name": "Kimi K2 Mini", "contextLength": 128000 }
+    ],
+    "usedByAgentDefaults": ["agent-hermes"]
+  },
+  {
+    "id": "prov-qwen",
+    "name": "Alibaba Qwen",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "qwen-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion"],
+    "description": "Alibaba Cloud Qwen 3.5 — strong multilingual reasoning via DashScope API.",
+    "lastActivity": "just now",
+    "defaultModel": "qwen3-5-72b-instruct",
+    "models": [
+      { "id": "qwen3-5-72b-instruct", "name": "Qwen 3.5 72B Instruct", "contextLength": 128000 },
+      { "id": "qwen3-5-32b-instruct", "name": "Qwen 3.5 32B Instruct", "contextLength": 128000 },
+      { "id": "qwen3-5-14b-instruct", "name": "Qwen 3.5 14B Instruct", "contextLength": 32768 },
+      { "id": "qwen3-5-coder", "name": "Qwen 3.5 Coder", "contextLength": 128000 }
+    ],
+    "usedByAgentDefaults": ["agent-hermes"]
+  },
+  {
+    "id": "prov-xai",
+    "name": "xAI / Grok",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "xai-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion"],
+    "description": "xAI Grok — cutting-edge reasoning with real-time knowledge via X integration.",
+    "lastActivity": "just now",
+    "defaultModel": "grok-3",
+    "models": [
+      { "id": "grok-3", "name": "Grok 3", "contextLength": 128000 },
+      { "id": "grok-3-mini", "name": "Grok 3 Mini", "contextLength": 128000 }
+    ],
+    "usedByAgentDefaults": []
+  },
+  {
+    "id": "prov-mistral",
+    "name": "Mistral AI",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "mistral-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion"],
+    "description": "Mistral AI — Mistral Large, Small, and Codestral.",
+    "lastActivity": "just now",
+    "defaultModel": "mistral-large-latest",
+    "models": [
+      { "id": "mistral-large-latest", "name": "Mistral Large", "contextLength": 128000 },
+      { "id": "mistral-small-latest", "name": "Mistral Small", "contextLength": 32000 },
+      { "id": "codestral-latest", "name": "Codestral", "contextLength": 256000 }
+    ],
+    "usedByAgentDefaults": ["agent-sentinel"]
+  },
+  {
+    "id": "prov-gemini",
+    "name": "Google Gemini",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "gemini-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion", "vision"],
+    "description": "Google Gemini 2.0 Pro/Flash — multi-modal reasoning with native vision.",
+    "lastActivity": "just now",
+    "defaultModel": "gemini-2.0-flash",
+    "models": [
+      { "id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "contextLength": 1000000 },
+      { "id": "gemini-2.0-pro-exp", "name": "Gemini 2.0 Pro (exp)", "contextLength": 2000000 },
+      { "id": "gemini-2.5-pro-exp", "name": "Gemini 2.5 Pro (exp)", "contextLength": 1000000 }
+    ],
+    "usedByAgentDefaults": ["agent-athena"]
+  },
+  {
+    "id": "prov-perplexity",
+    "name": "Perplexity",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "perplexity-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion", "search"],
+    "description": "Perplexity AI — sonar models with built-in web search for real-time research.",
+    "lastActivity": "just now",
+    "defaultModel": "sonar-pro",
+    "models": [
+      { "id": "sonar-pro", "name": "Sonar Pro", "contextLength": 200000 },
+      { "id": "sonar", "name": "Sonar", "contextLength": 128000 }
+    ],
+    "usedByAgentDefaults": ["agent-athena"]
+  },
+  {
+    "id": "prov-fugu",
+    "name": "Sakana Fugu",
+    "kind": "llm",
+    "category": "remote",
+    "adapter": "openai-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["chat", "completion", "heavy-generation"],
+    "description": "Sakana AI Fugu — ultra-fast generation via OpenAI-compatible endpoint.",
+    "lastActivity": "just now",
+    "defaultModel": "fugu-20260615",
+    "models": [
+      { "id": "fugu-20260615", "name": "Fugu", "contextLength": 128000 },
+      { "id": "fugu-ultra-20260615", "name": "Fugu Ultra", "contextLength": 200000 }
+    ],
+    "usedByAgentDefaults": ["agent-gemini-welders-research"]
+  },
+  {
+    "id": "prov-mcp-filesystem",
+    "name": "MCP File System",
+    "kind": "mcp",
+    "category": "infra",
+    "adapter": "mcp-stdio",
+    "authScheme": "none",
+    "status": "connected",
+    "scopes": ["read", "write", "list"],
+    "description": "MCP server exposing local file system tools.",
+    "lastActivity": "1 min ago"
+  },
+  {
+    "id": "prov-apify",
+    "name": "Apify Platform",
+    "kind": "scraper",
+    "category": "remote",
+    "adapter": "apify-api",
+    "authScheme": "token",
+    "status": "connected",
+    "scopes": ["run-actor", "list-actors", "get-dataset"],
+    "description": "Apify integration for web scraping and automation actors.",
+    "lastActivity": "30 min ago"
+  },
+  {
+    "id": "prov-browser-tool",
+    "name": "Browser Automation",
+    "kind": "browser",
+    "category": "infra",
+    "adapter": "playwright-adapter",
+    "authScheme": "none",
+    "status": "connected",
+    "scopes": ["navigate", "screenshot", "interact"],
+    "description": "Headless browser for web interaction and testing.",
+    "lastActivity": "8 min ago"
+  },
+  {
+    "id": "prov-internal-api",
+    "name": "Internal API Gateway",
+    "kind": "api",
+    "category": "infra",
+    "adapter": "rest-adapter",
+    "authScheme": "oauth",
+    "status": "needs-auth",
+    "scopes": ["read", "write"],
+    "description": "Internal REST API gateway for backend services.",
+    "lastActivity": "2 hr ago",
+    "errorMessage": "OAuth token expired, requires re-authentication."
+  },
+  {
+    "id": "prov-storage",
+    "name": "Cloud Storage",
+    "kind": "storage",
+    "category": "infra",
+    "adapter": "s3-adapter",
+    "authScheme": "key",
+    "status": "connected",
+    "scopes": ["read", "write", "delete"],
+    "description": "S3-compatible storage backend for artifacts and builds.",
+    "lastActivity": "5 min ago"
+  },
+  {
+    "id": "prov-automation",
+    "name": "n8n Workflows",
+    "kind": "automation",
+    "category": "remote",
+    "adapter": "n8n-webhook",
+    "authScheme": "token",
+    "status": "experimental",
+    "scopes": ["trigger", "status"],
+    "description": "n8n workflow automation engine for complex multi-step pipelines.",
+    "lastActivity": "1 day ago"
+  }
+]

@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "teamName": "WeatherFetcher",
+  "objective": "Create a simple Python script to fetch the current weather for a city and save the output to a text file.",
+  "workspaceRoot": "B:\\AgenticOS\\weather_fetcher",
+  "agents": [
+    {
+      "id": "planner",
+      "name": "WeatherPlanner",
+      "role": "Planner",
+      "responsibilities": [
+        "design plan for fetching weather and saving it"
+      ],
+      "instructions": "Your task is to design a plan that outlines the steps required to create a Python script to fetch the current weather for a city and save the output to a text file.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file",
+        "search_files"
+      ],
+      "readScopes": [
+        "*.py"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "plan.txt"
+      ]
+    },
+    {
+      "id": "builder",
+      "name": "WeatherBuilder",
+      "role": "Builder",
+      "responsibilities": [
+        "implement the plan to create the Python script"
+      ],
+      "instructions": "Your task is to implement the plan designed by WeatherPlanner. Use the allowed tools to write the necessary Python code for fetching weather and saving it to a text file.",
+      "dependencies": [
+        "planner"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "patch_file",
+        "write_file"
+      ],
+      "readScopes": [
+        "plan.txt"
+      ],
+      "writeScopes": [
+        "*.py"
+      ],
+      "outputArtifacts": [
+        "weather_fetcher.py"
+      ]
+    },
+    {
+      "id": "verifier",
+      "name": "WeatherVerifier",
+      "role": "Verifier",
+      "responsibilities": [
+        "verify the correctness of the generated Python script"
+      ],
+      "instructions": "Your task is to verify that the Python script created by WeatherBuilder correctly fetches the current weather for a city and saves the output to a text file. Use allowed tools to test the script.",
+      "dependencies": [
+        "planner",
+        "builder"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "terminal"
+      ],
+      "readScopes": [
+        "*.py"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "test_results.txt"
+      ]
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "planner",
+      "to": "builder",
+      "artifact": "plan.txt",
+      "required": true
+    },
+    {
+      "from": "builder",
+      "to": "verifier",
+      "artifact": "weather_fetcher.py",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "acceptanceCriteria": [
+    "The Python script should be able to fetch the current weather for a city and save the output to a text file.",
+    "The script should run successfully without errors."
+  ],
+  "estimatedParallelism": 1,
+  "approvalRequired": true
+}

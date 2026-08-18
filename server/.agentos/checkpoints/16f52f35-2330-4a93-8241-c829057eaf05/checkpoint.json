@@ -1,0 +1,15 @@
+{
+  "checkpointVersion": 1,
+  "teamId": "team-9fbd4d40-",
+  "goalId": "aa8b48d5-62e4-434d-bd2a-02d5f9e01866",
+  "currentStep": 1,
+  "activeAgentId": "builder-1",
+  "completedAgentIds": [
+    "planner-1"
+  ],
+  "artifactMetadata": [],
+  "lastEventSequence": 10,
+  "databaseRevision": 2,
+  "repairCount": 0,
+  "createdAt": "2026-07-20T02:41:14.191Z"
+}

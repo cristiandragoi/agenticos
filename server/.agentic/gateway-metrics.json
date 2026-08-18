@@ -1,0 +1,46 @@
+{
+  "ollama": {
+    "totalCalls": 17,
+    "totalSuccesses": 0,
+    "totalFailures": 17,
+    "totalTimeouts": 15,
+    "totalFallbacks": 14,
+    "averageLatencyMs": 204964.11764705883,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "mock-omni": {
+    "totalCalls": 0,
+    "totalSuccesses": 0,
+    "totalFailures": 0,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 0,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "mock-nine": {
+    "totalCalls": 0,
+    "totalSuccesses": 0,
+    "totalFailures": 0,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 0,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "openrouter": {
+    "totalCalls": 1,
+    "totalSuccesses": 0,
+    "totalFailures": 1,
+    "totalTimeouts": 0,
+    "totalFallbacks": 0,
+    "averageLatencyMs": 29,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  }
+}

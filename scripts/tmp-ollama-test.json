@@ -1,0 +1,12 @@
+{
+  "model": "qwen3.5:cloud",
+  "messages": [
+    {
+      "role": "user",
+      "content": "You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository. You are CodeX, an autonomous coding agent operating inside a repository.\nUser: Review the current AgenticOS project and ask CodeX to inspect one small issue. Tell me what it found.\nAssistant:"
+    }
+  ],
+  "stream": false,
+  "think": false,
+  "options": { "num_predict": 256 }
+}

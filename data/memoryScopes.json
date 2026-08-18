@@ -1,0 +1,124 @@
+[
+  {
+    "id": "mem-global",
+    "workspaceId": "ws-1",
+    "name": "Global Context",
+    "type": "global",
+    "summary": "System-wide persistent facts, decisions, and project context shared across all agents and sessions.",
+    "tags": [
+      "system",
+      "core",
+      "persistent"
+    ],
+    "permissions": [
+      "read",
+      "write"
+    ],
+    "entryCount": 24,
+    "lastUpdated": "2026-06-18T13:11:10.632Z"
+  },
+  {
+    "id": "mem-workspace-main",
+    "workspaceId": "ws-1",
+    "name": "Main Workspace",
+    "type": "board",
+    "summary": "Workspace-level context for the primary development workspace including project goals and constraints.",
+    "tags": [
+      "workspace",
+      "project"
+    ],
+    "permissions": [
+      "read",
+      "write"
+    ],
+    "entryCount": 18,
+    "lastUpdated": "2026-06-18T13:06:10.632Z"
+  },
+  {
+    "id": "mem-hermes-agent",
+    "workspaceId": "ws-1",
+    "name": "Hermes Agent Memory",
+    "type": "agent",
+    "summary": "Hermes-specific learned preferences, code patterns, and accumulated project knowledge.",
+    "tags": [
+      "agent",
+      "hermes",
+      "code-patterns"
+    ],
+    "permissions": [
+      "read",
+      "write"
+    ],
+    "entryCount": 42,
+    "lastUpdated": "2026-06-18T13:14:10.632Z"
+  },
+  {
+    "id": "mem-jarvis-agent",
+    "workspaceId": "ws-1",
+    "name": "Jarvis Agent Memory",
+    "type": "agent",
+    "summary": "Jarvis-specific deployment history, infrastructure state, and automation playbooks.",
+    "tags": [
+      "agent",
+      "jarvis",
+      "devops"
+    ],
+    "permissions": [
+      "read",
+      "write"
+    ],
+    "entryCount": 31,
+    "lastUpdated": "2026-06-18T12:46:10.632Z"
+  },
+  {
+    "id": "mem-session-current",
+    "workspaceId": "ws-1",
+    "name": "Current Session",
+    "type": "session",
+    "summary": "Short-term context for the current working session, including recent decisions and open threads.",
+    "tags": [
+      "session",
+      "ephemeral"
+    ],
+    "permissions": [
+      "read",
+      "write"
+    ],
+    "entryCount": 8,
+    "lastUpdated": "2026-06-18T13:15:10.632Z"
+  },
+  {
+    "id": "mem-research-board",
+    "workspaceId": "ws-1",
+    "name": "Research Board Context",
+    "type": "board",
+    "summary": "Research findings, open questions, and decision logs for the research board.",
+    "tags": [
+      "research",
+      "findings"
+    ],
+    "permissions": [
+      "read",
+      "write"
+    ],
+    "entryCount": 15,
+    "lastUpdated": "2026-06-18T12:16:10.632Z"
+  },
+  {
+    "id": "mem-task-auth-review",
+    "workspaceId": "ws-1",
+    "name": "Auth Review Task",
+    "type": "task",
+    "summary": "Task-scoped memory for the ongoing authentication module security review.",
+    "tags": [
+      "task",
+      "security",
+      "auth"
+    ],
+    "permissions": [
+      "read"
+    ],
+    "entryCount": 6,
+    "lastUpdated": "2026-06-18T13:15:25.632Z"
+  }
+]

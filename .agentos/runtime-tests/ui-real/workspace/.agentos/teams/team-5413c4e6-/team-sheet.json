@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "teamName": "AgenticOS Agent Teams Real Runtime",
+  "objective": "Create the file status.txt with content 'Agent Teams real runtime verified.' and handoff to Builder.",
+  "workspaceRoot": "B:\\AgenticOS\\.agentos\\runtime-tests\\ui-real\\workspace",
+  "agents": [
+    {
+      "id": "planner-1",
+      "name": "Planner Agent",
+      "role": "Planner",
+      "responsibilities": [
+        "Create plan for creating status.txt"
+      ],
+      "instructions": "Use the 'read_file' and 'search_files' tools to gather necessary information. Do not attempt to write files.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file",
+        "search_files"
+      ],
+      "readScopes": [
+        "*.txt",
+        "*.md"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "planner-plan.json"
+      ]
+    },
+    {
+      "id": "builder-1",
+      "name": "Builder Agent",
+      "role": "Builder",
+      "responsibilities": [
+        "Create status.txt based on the plan"
+      ],
+      "instructions": "Use the 'read_file', 'search_files', and 'write_file' tools. Ensure you have write permissions for the output directory.",
+      "dependencies": [
+        "planner-1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "patch_file",
+        "write_file"
+      ],
+      "readScopes": [],
+      "writeScopes": [
+        "status.txt"
+      ],
+      "outputArtifacts": []
+    },
+    {
+      "id": "verifier-1",
+      "name": "Verifier Agent",
+      "role": "Verifier",
+      "responsibilities": [
+        "Verify the creation of status.txt"
+      ],
+      "instructions": "Use the 'read_file' and 'terminal' tools. Do not attempt to modify source code.",
+      "dependencies": [
+        "planner-1",
+        "builder-1"
+      ],
+      "allowedTools": [
+        "read_file",
+        "search_files",
+        "terminal"
+      ],
+      "readScopes": [],
+      "writeScopes": [],
+      "outputArtifacts": []
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "planner-1",
+      "to": "builder-1",
+      "artifact": "planner-plan.json",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "planner-1",
+    "builder-1",
+    "verifier-1"
+  ],
+  "acceptanceCriteria": [
+    "status.txt file exists with the content 'Agent Teams real runtime verified.'"
+  ],
+  "estimatedParallelism": 1,
+  "approvalRequired": true
+}

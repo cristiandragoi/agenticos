@@ -1,0 +1,101 @@
+{
+  "version": "1.0",
+  "teamName": "TicTacToe Team",
+  "objective": "Build a simple tic-tac-toe in python",
+  "workspaceRoot": "B:\\\\AgenticOS",
+  "agents": [
+    {
+      "id": "planner",
+      "name": "Architect",
+      "role": "Planner",
+      "responsibilities": [
+        "Design the game"
+      ],
+      "instructions": "Create a plan.",
+      "dependencies": [],
+      "allowedTools": [
+        "read_file"
+      ],
+      "readScopes": [
+        "*"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "plan.md"
+      ]
+    },
+    {
+      "id": "builder",
+      "name": "Developer",
+      "role": "Builder",
+      "responsibilities": [
+        "Write python code"
+      ],
+      "instructions": "Implement tic-tac-toe.py",
+      "dependencies": [
+        "planner"
+      ],
+      "allowedTools": [
+        "read_file",
+        "write_file"
+      ],
+      "readScopes": [
+        "*"
+      ],
+      "writeScopes": [
+        "tic-tac-toe.py"
+      ],
+      "outputArtifacts": [
+        "tic-tac-toe.py"
+      ]
+    },
+    {
+      "id": "verifier",
+      "name": "QA",
+      "role": "Verifier",
+      "responsibilities": [
+        "Test the game"
+      ],
+      "instructions": "Run tic-tac-toe.py and verify.",
+      "dependencies": [
+        "planner",
+        "builder"
+      ],
+      "allowedTools": [
+        "read_file",
+        "terminal"
+      ],
+      "readScopes": [
+        "*"
+      ],
+      "writeScopes": [],
+      "outputArtifacts": [
+        "test-results.md"
+      ]
+    }
+  ],
+  "handoffs": [
+    {
+      "from": "planner",
+      "to": "builder",
+      "artifact": "plan.md",
+      "required": true
+    },
+    {
+      "from": "builder",
+      "to": "verifier",
+      "artifact": "tic-tac-toe.py",
+      "required": true
+    }
+  ],
+  "executionSequence": [
+    "planner",
+    "builder",
+    "verifier"
+  ],
+  "acceptanceCriteria": [
+    "Game works"
+  ],
+  "estimatedParallelism": 1,
+  "approvalRequired": true
+}
