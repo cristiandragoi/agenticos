@@ -8,6 +8,8 @@ export type MagnitudeEventType =
   | 'navigation_completed'
   | 'inspection_started'
   | 'inspection_completed'
+  | 'screenshot_captured'
+  | 'screenshot_failed'
   | 'action_started'
   | 'action_completed'
   | 'approval_requested'
@@ -53,6 +55,10 @@ export interface MagnitudeInspectResult {
   linksCount?: number;
   durationMs: number;
   actionSummary?: string;
+  /** PHASE MAGNITUDE (A4/A5): screenshot evidence path (relative to data dir)
+   *  and byte size. Persisted with the run so evidence is project-owned. */
+  screenshotPath?: string;
+  screenshotBytes?: number;
 }
 
 export interface MagnitudeRunRecord {
@@ -71,4 +77,10 @@ export interface MagnitudeRunRecord {
   error?: string;
   events: MagnitudeEvent[];
   conversationId?: string;
+  /** PHASE MAGNITUDE (A5): canonical provenance — project/task/run ids so
+   *  browser evidence can never bleed between projects. */
+  projectId?: string;
+  projectTaskId?: string;
+  executionRunId?: string;
+  scheduleExecutionId?: string;
 }

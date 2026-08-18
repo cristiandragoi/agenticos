@@ -3,7 +3,7 @@ import { useMagnitudeStore } from '../store/magnitudeStore';
 import {
   Globe, Play, Square, CheckCircle2, XCircle, AlertTriangle,
   Clock, Copy, Check, ExternalLink, RefreshCw, Compass,
-  ArrowRight, ShieldCheck, FileText, Layers, Hash
+  ArrowRight, ShieldCheck, FileText, Layers, Hash, Camera
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -274,6 +274,21 @@ export default function MagnitudeStudio() {
                   {result.text || 'No text extracted.'}
                 </div>
               </div>
+
+              {/* Screenshot Evidence (M7) */}
+              {result.screenshotPath && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Camera size={13} className="text-emerald-400" /> Screenshot Evidence
+                  </span>
+                  <img
+                    src={`/api/magnitude/runs/${activeRun?.id}/screenshot`}
+                    alt={`Magnitude screenshot for ${result.title || 'run'}`}
+                    className="border border-slate-800 rounded-lg max-h-80 w-auto object-contain bg-[#0A0F16]"
+                    data-testid="magnitude-screenshot"
+                  />
+                </div>
+              )}
             </div>
           )}
 

@@ -8,6 +8,7 @@
     "dev": "tsc && node dist/index.js",
     "build": "tsc",
     "start": "node dist/index.js",
+    "eval:models": "node dist/evalCli.js",
     "doctor": "tsx src/scripts/agenticos-doctor.ts"
   },
   "dependencies": {

@@ -18,9 +18,11 @@ describe('neuralBlobState', () => {
   });
 
   it('activates nodes only from real activity (others stay passive)', () => {
-    const p = nodePulse({ Hermes: 1, Runs: 0.6 });
+    const p = nodePulse({ Hermes: 1, Runs: 0.6, CodeX: 0.9, Magnitude: 0.4 });
     expect(p.HERMES).toBe(1);
     expect(p.RUNS).toBe(0.6);
+    expect(p.CODEX).toBe(0.9);
+    expect(p.MAGNITUDE).toBe(0.4);
     expect(p.MEMORY).toBe(0);
     expect(p.KNOWLEDGE).toBe(0);
     expect(p.PROJECTS).toBe(0);
@@ -31,7 +33,9 @@ describe('neuralBlobState', () => {
   it('clamps activity values and ignores unknown keys', () => {
     const p = nodePulse({ Memory: 5, CodeX: 1, unknown: 0.9 });
     expect(p.MEMORY).toBe(1);
-    expect((p as Record<string, unknown>).CodeX).toBeUndefined();
+    // CodeX is a KNOWN contextual capability now → maps to CODEX.
+    expect(p.CODEX).toBe(1);
+    expect((p as Record<string, unknown>).unknown).toBeUndefined();
   });
 
   it('renders truthful model identity', () => {
@@ -41,7 +45,7 @@ describe('neuralBlobState', () => {
   });
 
   it('maps every node to an existing navigation destination + direction', () => {
-    for (const node of ['MEMORY', 'KNOWLEDGE', 'PROJECTS', 'HERMES', 'RUNS', 'ARTIFACTS', 'VISION'] as const) {
+    for (const node of ['MEMORY', 'KNOWLEDGE', 'PROJECTS', 'HERMES', 'RUNS', 'ARTIFACTS', 'VISION', 'CODEX', 'MAGNITUDE'] as const) {
       expect(NODE_ROUTES[node]).toMatch(/^\//);
       expect(['in', 'out']).toContain(NODE_DIRECTION[node]);
     }

@@ -52,36 +52,32 @@ export function loadGatewayConfig(): GatewayConfig {
     });
   }
 
-  // DeepSeek is OpenAI-compatible: register the official DeepSeek API as a
-  // gateway provider so catalog assignments (mapCatalogToGatewayId:
-  // 'prov-deepseek' -> 'DeepSeek') resolve to a real runtime route. The API
-  // key always comes from DEEPSEEK_API_KEY — never hardcoded here.
+  // DeepSeek V4: first-class provider gateway (Phase B). The API key always
+  // comes from DEEPSEEK_API_KEY (secure credential store) — never hardcoded.
   if (process.env.DEEPSEEK_API_KEY) {
     providers.push({
       name: 'DeepSeek',
       baseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
       apiKey: process.env.DEEPSEEK_API_KEY,
       model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
-      type: 'openai',
-      capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext'],
-      tags: ['cloud', 'coding', 'long-context'],
+      type: 'deepseek',
+      capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext', 'supportsReasoning', 'supportsJSON'],
+      tags: ['cloud', 'coding', 'long-context', 'reasoning'],
       maxContext: 128000
     });
   }
 
-  if (process.env.OLLAMA_BASE_URL) {
-    providers.push({
-      name: 'ollama',
-      baseUrl: process.env.OLLAMA_BASE_URL,
-      model: process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b',
-      type: 'ollama',
-      capabilities: ['supportsStreaming'],
-      tags: ['local', 'cheap'],
-      maxContext: 8192,
-      costPer1kPrompt: 0,
-      costPer1kCompletion: 0
-    });
-  }
+  providers.push({
+    name: 'ollama',
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
+    model: process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b',
+    type: 'ollama',
+    capabilities: ['supportsStreaming'],
+    tags: ['local', 'cheap'],
+    maxContext: 8192,
+    costPer1kPrompt: 0,
+    costPer1kCompletion: 0
+  });
 
   // Allow custom provider definitions via JSON
   if (process.env.GATEWAY_PROVIDERS_JSON) {

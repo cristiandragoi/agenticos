@@ -80,31 +80,51 @@ const HERMES_RUN_MODEL = process.env.HERMES_RUN_MODEL || HERMES_PROFILE;
  * override the machine default). Probed once with the real key; cached.
  */
 let resolvedUrlCache: string | null = null;
-const CANDIDATE_PORTS = [8642, 8643];
 
-async function resolveHermesUrl(): Promise<string> {
+function getConfiguredHermesPort(): number {
+  try {
+    const localAppData = process.env.LOCALAPPDATA || '';
+    if (!localAppData) return 8643;
+    const cfgPath = path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, 'config.yaml');
+    if (!fs.existsSync(cfgPath)) return 8643;
+    const content = fs.readFileSync(cfgPath, 'utf8');
+    const match = content.match(/platforms:\r?\n[\s\S]*?api_server:\r?\n[\s\S]*?port:[ \t]*['"]?(\d+)['"]?/);
+    if (match && match[1]) {
+      const p = parseInt(match[1], 10);
+      if (!isNaN(p) && p > 0) return p;
+    }
+  } catch { /* fallback */ }
+  return 8643;
+}
+
+export async function resolveHermesUrl(forceFresh = false): Promise<string> {
   if (process.env.HERMES_API_URL) return process.env.HERMES_API_URL;
-  if (resolvedUrlCache) return resolvedUrlCache;
+  if (resolvedUrlCache && !forceFresh) return resolvedUrlCache;
+
+  const configuredPort = getConfiguredHermesPort();
+  const candidatePorts = Array.from(new Set([configuredPort, 8643, 8642]));
   const key = resolveHermesApiKey();
-  for (const port of CANDIDATE_PORTS) {
+
+  for (const port of candidatePorts) {
     const url = `http://127.0.0.1:${port}`;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2500);
+      const timer = setTimeout(() => controller.abort(), 2000);
       const res = await fetch(`${url}/v1/models`, {
         headers: key ? { Authorization: `Bearer ${key}` } : {},
         signal: controller.signal,
       });
       clearTimeout(timer);
-      // Any HTTP answer (even 401) proves the api_server platform lives here.
+      // Any HTTP response proves the api_server platform lives here.
       resolvedUrlCache = url;
       return url;
     } catch { /* try next candidate */ }
   }
-  // Nothing answered — fall back to the documented default.
-  resolvedUrlCache = 'http://127.0.0.1:8642';
-  return resolvedUrlCache;
+
+  // Nothing answered — return candidate without permanently caching a dead URL
+  return `http://127.0.0.1:${configuredPort}`;
 }
+
 
 /** Resolve API_SERVER_KEY without ever persisting or logging it. */
 function resolveHermesApiKey(): string {
@@ -161,7 +181,7 @@ class HermesApiService extends EventEmitter {
   /** Truthful gateway status probe — never hardcoded healthy. */
   async getStatus(): Promise<{ reachable: boolean; detail: string }> {
     const key = resolveHermesApiKey();
-    const baseUrl = await resolveHermesUrl();
+    const baseUrl = await resolveHermesUrl(true);
     if (!key) return { reachable: false, detail: 'API_SERVER_KEY not configured' };
     try {
       const controller = new AbortController();

@@ -3,6 +3,7 @@ import { useData } from '../store/dataStore';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import StatusBadge from '../components/ui/StatusBadge';
 import ContextChip from '../components/ui/ContextChip';
+import RoutinesPanel from '../components/routines/RoutinesPanel';
 import { useChatManager } from '../hooks/useChatManager';
 import { useRevenueIntelligenceSummary } from '../lib/dataport';
 import { apiClient, apiFetch, apiUrl } from '../api/client';
@@ -862,6 +863,18 @@ const ControlRoom: React.FC = () => {
             })
           )}
         </div>
+      </div>
+
+      {/* ── Routines ── */}
+      <div className="widget-card" style={{ marginBottom: 12 }}>
+        <div className="widget-card__header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={14} color="var(--color-info)" />
+            <span className="text-secondary text-sm font-semibold">Routines</span>
+            <span className="text-xxs text-dim">canonical scheduled worker jobs</span>
+          </div>
+        </div>
+        <RoutinesPanel />
       </div>
 
       {/* ── Webhook / Trigger Bindings ── */}

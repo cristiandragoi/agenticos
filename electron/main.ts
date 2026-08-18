@@ -110,6 +110,26 @@ function initBackendLifecycle(): BackendLifecycleManager {
   const port = process.env['AGENTICOS_BACKEND_PORT']
     ? parseInt(process.env['AGENTICOS_BACKEND_PORT'], 10)
     : readPortFromServerEnv(backendRoot, 4000);
+
+  // Authoritative production data location: app.getPath('userData')
+  const userDataDir = app.getPath('userData');
+  const canonicalDataDir = app.isPackaged
+    ? path.join(userDataDir, 'data')
+    : (process.env['AGENTICOS_DATA_DIR'] || path.join(appRoot, 'server', 'data'));
+  const canonicalDbPath = path.join(canonicalDataDir, 'agentic-os.db');
+  const legacyDataDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'server', 'data')
+    : null;
+
+  const backendEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    AGENTICOS_DATA_DIR: canonicalDataDir,
+    AGENT_TEAMS_DB_PATH: canonicalDbPath,
+    AGENTICOS_USER_DATA_DIR: userDataDir,
+    ...(legacyDataDir ? { AGENTICOS_LEGACY_DATA_DIR: legacyDataDir } : {}),
+    AGENTICOS_IS_PACKAGED: app.isPackaged ? 'true' : 'false',
+  };
+
   const manager = createBackendLifecycleManager({
     mode: BACKEND_MODE,
     host: '127.0.0.1',
@@ -119,7 +139,7 @@ function initBackendLifecycle(): BackendLifecycleManager {
     // The Electron binary itself runs the backend as plain Node — the
     // packaged app ships no separate node executable.
     nodeExec: process.execPath,
-    env: process.env,
+    env: backendEnv,
     healthPath: '/api/health',
     healthProbeTimeoutMs: 2500,
     readinessPollMs: 1000,
@@ -132,7 +152,7 @@ function initBackendLifecycle(): BackendLifecycleManager {
     crashThreshold: 3,
     crashWindowMs: 60000,
     unhealthyTolerance: 3,
-    logFile: path.join(appRoot, '.agentos', 'logs', 'backend-managed.log'),
+    logFile: path.join(app.isPackaged ? userDataDir : appRoot, '.agentos', 'logs', 'backend-managed.log'),
   }, {
     probe: httpHealthProbe,
     spawnBackend: spawnBackendWithElectronNode,
@@ -289,6 +309,41 @@ ipcMain.on('agenticos:renderer-diagnostics', (_event, payload) => {
 ipcMain.handle('backend-lifecycle:get-state', () => backendLifecycle?.getState() ?? null);
 ipcMain.handle('backend-lifecycle:restart', () => backendLifecycle?.restart() ?? { ok: false, reason: 'Lifecycle manager not initialized.' });
 ipcMain.handle('backend-lifecycle:retry', () => backendLifecycle?.retry() ?? { ok: false, reason: 'Lifecycle manager not initialized.' });
+ipcMain.handle('electron:get-identity', () => {
+  // Load build identity from the resource tree at runtime
+  let buildIdentity: Record<string, string | null> = { buildId: null, gitSha: null, buildTimestamp: null };
+  try {
+    const candidates = [
+      path.join(app.isPackaged ? process.resourcesPath : process.env.APP_ROOT as string, 'server', 'dist', 'build-identity.json'),
+      path.join(process.env.APP_ROOT as string, 'server', 'dist', 'build-identity.json'),
+      path.join(process.env.APP_ROOT as string, 'server', 'src', 'build-identity.json'),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        buildIdentity = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+        break;
+      }
+    }
+  } catch { /* best-effort */ }
+
+  return {
+    isPackaged: app.isPackaged,
+    appVersion: app.getVersion(),
+    appName: app.getName(),
+    appPath: app.getAppPath(),
+    userDataPath: app.getPath('userData'),
+    exePath: process.execPath,
+    resourcesPath: (process as any).resourcesPath ?? null,
+    platform: process.platform,
+    arch: process.arch,
+    electronVersion: process.versions.electron,
+    chromeVersion: process.versions.chrome,
+    nodeVersion: process.versions.node,
+    buildId: buildIdentity.buildId ?? null,
+    gitSha: buildIdentity.gitSha ?? null,
+    buildTimestamp: buildIdentity.buildTimestamp ?? null,
+  };
+});
 
 function getAudioDiagnostics(webContents = win?.webContents) {
   const ownerWindow = webContents ? BrowserWindow.fromWebContents(webContents) : win;

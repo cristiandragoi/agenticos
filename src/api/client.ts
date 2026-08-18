@@ -323,6 +323,61 @@ export const apiClient = {
     return res.json();
   },
 
+  // ── Routines ──
+
+  async getProjects() {
+    const res = await fetch(`${BASE_URL}/projects`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.projects || []);
+  },
+
+  async getActiveProject() {
+    const res = await fetch(`${BASE_URL}/projects/active`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.project ?? data?.activeProject ?? null;
+  },
+
+  async getRoutines() {
+    const res = await fetch(`${BASE_URL}/routines`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async createRoutine(data: Record<string, unknown>) {
+    const res = await fetch(`${BASE_URL}/routines`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async runRoutine(id: string) {
+    const res = await fetch(`${BASE_URL}/routines/${id}/run-now`, { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async setRoutineEnabled(id: string, enabled: boolean) {
+    const res = await fetch(`${BASE_URL}/routines/${id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async getRoutineRuns(id: string) {
+    const res = await fetch(`${BASE_URL}/routines/${id}/runs`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async deleteRoutine(id: string) {
+    const res = await fetch(`${BASE_URL}/routines/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete routine');
+  },
+
   // ── Providers & Keys ──
 
   async createRun(agentId: string, prompt: string, mode: string = 'chat'): Promise<{ runId: string }> {

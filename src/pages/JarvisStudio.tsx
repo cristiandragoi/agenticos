@@ -6,6 +6,7 @@ import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '
 import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import { JARVIS_ORB_LABELS } from '../components/jarvis/JarvisOrb';
 import { JarvisNeuralBlob, NODE_ROUTES } from '../components/jarvis/JarvisNeuralBlob';
+import { useProjects } from '../store/projectStore';
 import type { NeuralNodeId } from '../components/jarvis/neuralBlobState';
 import { JarvisInsights } from '../components/jarvis/JarvisInsights';
 import type { JarvisNodeId } from '../components/jarvis-visualization';
@@ -14,6 +15,7 @@ import type { MicState } from '../components/jarvis/JarvisComposer';
 import { JarvisComposer } from '../components/jarvis/JarvisComposer';
 import { ExecutionBar } from '../components/jarvis/ExecutionBar';
 import { pickActiveTask, TASK_TERMINAL_STATUS } from '../utils/taskSelection';
+import { toUniverseProjects } from '../lib/universeProjects';
 import { apiUrl, apiFetch, API_BASE } from '../api/client';
 
 import { uiDiagnostics } from '../diagnostics/uiSnapshot';
@@ -336,7 +338,7 @@ export default function JarvisStudio() {
 
   const voice = useVoiceIO({
     agentId: 'agent-jarvis',
-    endSpeechSilenceMs: 900,
+    endSpeechSilenceMs: 750, // Voice-reliability closure: 900 → 750ms
     onAutoSubmit: (text) => {
       // Conversation auto-submit — the exact streaming pipeline, no Send.
       // §9 input ownership: a manual edit since the capture began means the
@@ -360,6 +362,28 @@ export default function JarvisStudio() {
         return;
       }
       chatRef.current?.sendMessage(text, 'voice');
+    },
+    onBargeIn: () => {
+      // User barged in while Jarvis was speaking: cancel the in-flight MODEL
+      // stream too, so a late token can never re-enter the progressive TTS
+      // queue for the cancelled turn (the hook already cleared the queue).
+      // Also drop the partial sentence buffer — a cancelled turn's half-spoken
+      // text must never be prefixed onto the NEXT turn's reply.
+      speechBufferRef.current = '';
+      chatRef.current?.cancelResponse();
+    },
+    onControlCommand: (cmd) => {
+      // Local control command (stop/terminate) — never routed to the LLM.
+      // The hook already stopped audio + cleared the queue; cancel the model
+      // stream, drop the partial progressive buffer (STOP is terminal for the
+      // current turn's speech), and (for terminate) end the session cleanly.
+      speechBufferRef.current = '';
+      chatRef.current?.cancelResponse();
+      if (cmd.kind === 'terminate') {
+        setMode('manual');
+        try { sessionStorage.setItem(MODE_KEY, 'manual'); } catch { /* ignore */ }
+        voiceRef.current?.endConversation();
+      }
     },
     onTranscript: handleVoiceTranscript, // Manual mode: ownership-guarded
     onStateChange: () => { /* voiceState below is the single orb source */ },
@@ -874,6 +898,9 @@ export default function JarvisStudio() {
     // No structured CodeX run signal exists in /hermes-api/runs (no worker
     // field) — the runtime's own action text is the only real signal.
     if (runtimeActive && /codex|coding|repo|commit|pull/.test(a)) act.CodeX = 1;
+    // Magnitude (browser/action delegation) — typed-safe: JarvisNodeId
+    // predates the Magnitude capability; nodePulse maps 'Magnitude' → MAGNITUDE.
+    if (runtimeActive && /magnitude|browser|inspect|action|click|navigate/.test(a)) (act as Record<string, number>).Magnitude = 1;
     if ((runtimeActive && backendRuntime.activeTask) || runLive) act.Runs = 1;
     if (runtimeActive && /artifact|build|file|write|save|generate/.test(a)) act.Artifacts = 1;
     if (runtimeActive && /vision|oracle|image|video|screen|see|look/.test(a)) act.Vision = 1;
@@ -950,7 +977,9 @@ export default function JarvisStudio() {
       if (/memory|recall|remember|retriev/.test(s)) p.Memory = Math.max(p.Memory || 0, 0.8);
       if (/research|knowledge|search|web|inspect|review/.test(s)) p.Knowledge = Math.max(p.Knowledge || 0, 0.8);
     }
-    if (orbState === 'listening' || orbState === 'transcribing') p.Vision = Math.max(p.Vision || 0, 0.7);
+    // Vision is ONLY lit by real vision-class action text (see nodeActivity,
+    // line ~885). Mic listening/transcribing is NOT vision — it must not light
+    // the Vision satellite (Phase 12 state-truth requirement).
     return p;
   }, [activeRun?.events, orbState]);
 
@@ -967,6 +996,17 @@ export default function JarvisStudio() {
       const target = NODE_ROUTES[node];
       if (target) navigate(target);
     },
+    [navigate],
+  );
+
+  // ── Visual Universe: persistent Projects from the shared project store ──
+  // The universe only shows CANONICAL persisted user projects. Acceptance/
+  // test artifacts (scripts/accept-*.mjs) are filtered out here — they are
+  // never permanent stars (src/lib/universeProjects.ts).
+  const { projects: projectList, activeProjectId } = useProjects();
+  const universeProjects = useMemo(() => toUniverseProjects(projectList), [projectList]);
+  const handleProjectClick = useCallback(
+    (projectId: string) => navigate(`/projects?project=${encodeURIComponent(projectId)}`),
     [navigate],
   );
 
@@ -1255,6 +1295,9 @@ export default function JarvisStudio() {
                   testIdPrefix="jarvis-orb"
                   nodeActivity={stageNodeActivity}
                   onNodeClick={handleNodeClick}
+                  projects={universeProjects}
+                  activeProjectId={activeProjectId}
+                  onProjectClick={handleProjectClick}
                 />
               </div>
             </div>
@@ -1609,6 +1652,7 @@ export default function JarvisStudio() {
                 onMicStateChange={setMicState}
                 onStreamDelta={handleStreamDelta}
                 onAssistantResponse={handleAssistantDone}
+                onResponseSettled={() => voiceRef.current?.notifyResponseSettled?.()}
                 onNavigate={(target) => {
                   // Navigation is a pure UI action — the conversation and
                   // background tasks are session-owned and survive the route

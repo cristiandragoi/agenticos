@@ -10,6 +10,11 @@
 
 export type MemoryType = 'episodic' | 'semantic' | 'decision' | 'preference' | 'working';
 export type MemoryStatus = 'active' | 'superseded' | 'stale' | 'archived';
+/** Verification semantics for a memory record (closure): distinguishes
+ *  unverified machine candidates, verified machine facts, and
+ *  human-confirmed facts. NEVER treat arbitrary POST /memories as a
+ *  verified machine fact. */
+export type VerificationStatus = 'unverified' | 'verified' | 'human_confirmed' | 'needs_review' | 'rejected';
 export type EntityKind = 'company' | 'person' | 'project' | 'task' | 'artifact' | 'decision' | 'provider' | 'model' | 'agent' | 'outcome' | 'generic';
 
 export interface MemorySource {
@@ -18,7 +23,7 @@ export interface MemorySource {
   taskId?: string | null;
   worker?: string | null;
   artifactPath?: string | null;
-  sourceType: 'task' | 'conversation' | 'manual' | 'system' | 'ledger';
+  sourceType: 'task' | 'conversation' | 'manual' | 'system' | 'ledger' | 'human';
 }
 
 export interface MemoryRecord {
@@ -41,6 +46,10 @@ export interface MemoryRecord {
   supersedesMemoryId: string | null;
   derivedFromMemoryIds: string[];
   pinned: boolean;
+  /** Verification semantics (closure): 'human_confirmed' for direct human
+   *  memory, 'verified' for machine facts that passed a verifier,
+   *  'unverified'/'needs_review' for raw machine candidates. */
+  verificationStatus?: VerificationStatus;
 }
 
 export type MemoryRelation =
@@ -106,4 +115,26 @@ export interface MemorySearchHit {
   memory: MemoryRecord;
   score: number;
   matchedOn: string[];
+}
+
+/** Candidate memory produced by a worker (e.g. Hermes memoryCandidates)
+ *  awaiting verification/promotion. Persisted so candidates are NEVER
+ *  silently discarded; promotion links runId → resultId → verificationId
+ *  → candidateId → canonical memoryId. */
+export interface MemoryCandidate {
+  id: string;
+  projectId: string | null;
+  sourceWorker: string;
+  sourceRunId: string | null;
+  sourceResultId: string | null;
+  verificationId: string | null;
+  verificationVerdict: string | null;
+  key: string;
+  category: string;
+  value: string;
+  status: 'pending' | 'needs_review' | 'promoted' | 'rejected';
+  memoryId: string | null;
+  createdAt: number;
+  updatedAt: number;
+  promotedAt: number | null;
 }

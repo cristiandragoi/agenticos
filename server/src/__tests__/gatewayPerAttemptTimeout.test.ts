@@ -292,4 +292,54 @@ describe('Per-attempt provider timeout → zero-token fallback (buildRequestSign
     // No fake tokens were emitted.
     expect(chunks.some(c => c.type === 'token')).toBe(false);
   });
+
+  /**
+   * Fallback-model hardening (§4/§16): a request that names a model NOT
+   * installed on the local Ollama host (e.g. an assigned cloud-only catalog
+   * model like poolside/laguna-s-2.1:free) must still land on an actually
+   * installed model (the provider's verified definition model, llama3.2:3b)
+   * instead of failing the whole fallback chain with "Ollama model missing".
+   */
+  test('ollama fallback: requested model not installed → resolves to installed definition model', async () => {
+    let ollamaChatBody: any = null;
+    global.fetch = vi.fn().mockImplementation(async (url: any, init?: any) => {
+      const u = String(url);
+      if (u.includes('mock-omni')) return { ok: false, status: 503, text: async () => 'primary down' };
+      if (u.includes('mock-ollama') && u.endsWith('/api/tags')) {
+        return { ok: true, json: async () => ({ models: [{ name: 'llama3.2:3b' }] }) };
+      }
+      if (u.includes('mock-ollama') && u.endsWith('/api/chat')) {
+        ollamaChatBody = JSON.parse(String(init?.body || '{}'));
+        const enc = new TextEncoder();
+        return {
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(enc.encode(JSON.stringify({ message: { content: 'installed fallback answer' } }) + '\n'));
+              controller.enqueue(enc.encode(JSON.stringify({ done: true }) + '\n'));
+              controller.close();
+            }
+          })
+        };
+      }
+      return { ok: false, status: 500, text: async () => 'unexpected url' };
+    });
+
+    // The request NAMES a model that is NOT installed locally — the ollama
+    // adapter must fall back to its verified definition model (llama3.2:3b).
+    const chunks: any[] = [];
+    for await (const chunk of router.stream({ prompt: 'hello', modelId: 'poolside/laguna-s-2.1:free', timeoutMs: 5000, requestId: 'fallback-model-regression' })) {
+      chunks.push(chunk);
+    }
+
+    const tokens = chunks.filter(c => c.type === 'token').map(c => c.content).join('');
+    expect(tokens).toContain('installed fallback answer');
+    // The actual outbound request used the INSTALLED model, never the missing one.
+    expect(ollamaChatBody?.model).toBe('llama3.2:3b');
+    // Chunks carry the truthful resolved model.
+    const doneChunk = chunks.find(c => c.type === 'done');
+    expect(doneChunk?.model).toBe('llama3.2:3b');
+    // A fallback event was emitted so the client knows the primary failed.
+    expect(chunks.some(c => c.type === 'gateway.fallback')).toBe(true);
+  });
 });

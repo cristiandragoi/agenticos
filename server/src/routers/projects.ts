@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { projectsStore } from '../services/projectsStore.js';
 import { policyStore } from '../services/policy/policyStore.js';
+import { projectTaskService } from '../services/projectExecution/projectTaskService.js';
+import { executionRunService } from '../services/projectExecution/executionRunService.js';
+import { verificationService } from '../services/projectExecution/verificationService.js';
 import { randomUUID } from 'crypto';
 
 const router = Router();
@@ -226,6 +229,92 @@ router.post('/:projectId/artifacts', async (req, res) => {
     };
     await db.artifacts.upsert(artifact);
     res.json(artifact);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/projects/:id/tree — Full execution tree (goals → tasks → runs → results → verifications)
+router.get('/:id/tree', (req, res) => {
+  try {
+    const project = projectsStore.getProject(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const goals = projectTaskService.listGoals(req.params.id);
+    const tree = goals.map(goal => {
+      const tasks = projectTaskService.getTaskTree(goal.id);
+      const enrichedTasks = tasks.map((task: any) => {
+        const runs = executionRunService.listRunsForTask(task.id);
+        const enrichedRuns = runs.map(run => {
+          const result = run.finalResultId ? executionRunService.getResult(run.finalResultId) : null;
+          const verification = verificationService.getVerificationForRun(run.id);
+          return { ...run, result, verification };
+        });
+        const children = (task.children || []).map((child: any) => {
+          const childRuns = executionRunService.listRunsForTask(child.id);
+          return { ...child, runs: childRuns };
+        });
+        return { ...task, children, runs: enrichedRuns };
+      });
+      return { ...goal, tasks: enrichedTasks };
+    });
+    res.json({ project, goals: tree });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/projects/:id/goals — List project goals (shortcuts to project-execution API)
+router.get('/:id/goals', (req, res) => {
+  try {
+    const goals = projectTaskService.listGoals(req.params.id);
+    res.json(goals);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/projects/:id/goals
+router.post('/:id/goals', (req, res) => {
+  try {
+    const { title, objective, priority, successCriteria, createdBy, goalId, metadata } = req.body;
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const goal = projectTaskService.createGoal({
+      projectId: req.params.id,
+      title,
+      objective,
+      priority,
+      successCriteria,
+      createdBy,
+      goalId,
+      metadata,
+    });
+    res.json(goal);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/projects/:id/goals/:goalId/tasks
+router.post('/:id/goals/:goalId/tasks', (req, res) => {
+  try {
+    const { title, description, taskType, assignedCapability, parentTaskId, priority,
+      dependencyIds, acceptanceCriteria, approvalRequired, metadata } = req.body;
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const task = projectTaskService.createTask({
+      projectId: req.params.id,
+      goalId: req.params.goalId,
+      title,
+      description,
+      taskType,
+      assignedCapability,
+      parentTaskId,
+      priority,
+      dependencyIds,
+      acceptanceCriteria,
+      approvalRequired,
+      metadata,
+    });
+    res.json(task);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

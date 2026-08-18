@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JarvisStudio from '../pages/JarvisStudio';
 import { CodexProvider } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 
 /* ── jsdom stubs ──────────────────────────────────────────── */
 beforeEach(() => {
@@ -147,21 +148,23 @@ function LocationProbe() {
 
 const renderPage = () => render(
   <CodexProvider>
-    <MemoryRouter initialEntries={['/jarvis']}>
-      <Routes>
-        <Route path="/jarvis" element={<><JarvisStudio /><LocationProbe /></>} />
-        <Route path="/codex" element={<div data-testid="codex-page">CodeX Studio</div>} />
-        <Route path="/hermes-studio" element={<div data-testid="hermes-page">Hermes Studio</div>} />
-        <Route path="/hermes" element={<div data-testid="hermes-page">Hermes (alias)</div>} />
-        <Route path="/boards" element={<div data-testid="boards-page">Boards</div>} />
-        <Route path="/memory" element={<div data-testid="memory-page">Memory</div>} />
-        <Route path="/automations" element={<div data-testid="automations-page">Automations</div>} />
-        <Route path="/research" element={<div data-testid="research-page">Research</div>} />
-        <Route path="/files" element={<div data-testid="files-page">Files</div>} />
-        <Route path="/models" element={<div data-testid="models-page">Models</div>} />
-        <Route path="/agent-teams" element={<div data-testid="teams-page">Agent Teams</div>} />
-      </Routes>
-    </MemoryRouter>
+    <ProjectProvider>
+      <MemoryRouter initialEntries={['/jarvis']}>
+        <Routes>
+          <Route path="/jarvis" element={<><JarvisStudio /><LocationProbe /></>} />
+          <Route path="/codex" element={<div data-testid="codex-page">CodeX Studio</div>} />
+          <Route path="/hermes-studio" element={<div data-testid="hermes-page">Hermes Studio</div>} />
+          <Route path="/hermes" element={<div data-testid="hermes-page">Hermes (alias)</div>} />
+          <Route path="/boards" element={<div data-testid="boards-page">Boards</div>} />
+          <Route path="/memory" element={<div data-testid="memory-page">Memory</div>} />
+          <Route path="/automations" element={<div data-testid="automations-page">Automations</div>} />
+          <Route path="/research" element={<div data-testid="research-page">Research</div>} />
+          <Route path="/files" element={<div data-testid="files-page">Files</div>} />
+          <Route path="/models" element={<div data-testid="models-page">Models</div>} />
+          <Route path="/agent-teams" element={<div data-testid="teams-page">Agent Teams</div>} />
+        </Routes>
+      </MemoryRouter>
+    </ProjectProvider>
   </CodexProvider>
 );
 
@@ -303,12 +306,14 @@ describe('Jarvis navigation SSE events', () => {
     // Remount by re-rendering with the initial entry — the task summary is
     // fetched fresh from the backend and the task row is restored.
     const { unmount } = render(<CodexProvider>
-      <MemoryRouter initialEntries={['/jarvis']}>
-        <Routes>
-          <Route path="/jarvis" element={<><JarvisStudio /><LocationProbe /></>} />
-          <Route path="/codex" element={<div data-testid="codex-page">CodeX Studio</div>} />
-        </Routes>
-      </MemoryRouter>
+      <ProjectProvider>
+        <MemoryRouter initialEntries={['/jarvis']}>
+          <Routes>
+            <Route path="/jarvis" element={<><JarvisStudio /><LocationProbe /></>} />
+            <Route path="/codex" element={<div data-testid="codex-page">CodeX Studio</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ProjectProvider>
     </CodexProvider>);
     expect(await screen.findByTestId('jarvis-task-row-bgtask-nav-1')).toBeInTheDocument();
     expect(screen.getByTestId('jarvis-chat-workspace')).toBeInTheDocument();

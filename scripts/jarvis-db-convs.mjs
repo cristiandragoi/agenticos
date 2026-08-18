@@ -1,0 +1,18 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const serverDir = path.join(__dirname, '..', 'server');
+const require = createRequire(path.join(serverDir, 'package.json'));
+const Database = require('better-sqlite3');
+const db = new Database('C:/Users/Cris/Desktop/desktop/Agentic_OS/Agentic OS/resources/server/data/agentic-os.db', { readonly: true });
+console.log('---CONVERSATIONS---');
+const convs = db.prepare(`SELECT id, title, created_at, updated_at FROM conversations ORDER BY updated_at DESC LIMIT 10`).all();
+for (const r of convs) console.log(JSON.stringify(r));
+console.log('---SEARCH Are you there---');
+const hits = db.prepare(`SELECT conversation_id, role, substr(content,1,120) AS content, created_at FROM conversation_messages WHERE content LIKE '%are you there%' OR content LIKE '%you there%' ORDER BY created_at DESC LIMIT 10`).all();
+for (const r of hits) console.log(JSON.stringify(r));
+console.log('---LAST MSG PER CONV---');
+const last = db.prepare(`SELECT m.conversation_id, m.role, substr(m.content,1,100) AS content, m.created_at FROM conversation_messages m JOIN (SELECT conversation_id, MAX(created_at) AS mx FROM conversation_messages GROUP BY conversation_id) x ON m.conversation_id=x.conversation_id AND m.created_at=x.mx ORDER BY m.created_at DESC LIMIT 8`).all();
+for (const r of last) console.log(JSON.stringify(r));
+db.close();

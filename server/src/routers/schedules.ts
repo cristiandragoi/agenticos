@@ -30,9 +30,22 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { taskId, skillId, cronExpression, timezone = 'UTC', active = true } = req.body;
-    
+    // Routine bridge: new schedules may carry an explicit execution target.
+    const executionType = req.body.executionType === 'worker_task' ? 'worker_task' : 'legacy_skill';
+    const worker = typeof req.body.worker === 'string' ? req.body.worker : null;
+    const projectId = typeof req.body.projectId === 'string' ? req.body.projectId : null;
+    const taskTemplate = req.body.taskTemplate && typeof req.body.taskTemplate === 'object' ? req.body.taskTemplate : null;
+
     if (!taskId || !cronExpression) {
       res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'taskId and cronExpression are required' } });
+      return;
+    }
+    if (executionType === 'worker_task' && !['hermes', 'codex', 'magnitude'].includes(worker)) {
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'worker_task schedules require worker: hermes | codex | magnitude' } });
+      return;
+    }
+    if (executionType === 'worker_task' && !projectId) {
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'worker_task schedules require a valid projectId' } });
       return;
     }
 
@@ -56,14 +69,18 @@ router.post('/', async (req, res) => {
       type: 'cron',
       cronExpression,
       timezone,
-      enabled: active
-    });
+      enabled: active,
+      executionType,
+      worker,
+      projectId,
+      taskTemplate: taskTemplate ? JSON.stringify(taskTemplate) : undefined,
+    } as any);
 
     if (active) {
       registerCronJob(scheduleId, taskId, cronExpression, timezone);
     }
 
-    res.status(201).json({ id: scheduleId, status: 'created' });
+    res.status(201).json({ id: scheduleId, status: 'created', executionType });
   } catch (err: any) {
     logger.error('[Schedules API] Failed to create schedule:', err);
     res.status(500).json({ error: { message: err.message } });

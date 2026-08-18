@@ -12,6 +12,8 @@ import { ProviderBadge } from '../gateway/ProviderBadge';
 import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
 import { useBackendLifecycle } from '../../diagnostics/useBackendLifecycle';
 import { voiceTraceBegin, voiceTracePush } from '../../diagnostics/voiceTrace';
+import { voiceTimelinePush } from '../../diagnostics/voiceTimeline';
+import { normalizeDomainTerms } from '../../lib/domainNormalization';
 import { executionStore } from '../../diagnostics/executionStore';
 import { ExecutionBar } from './ExecutionBar';
 import { RoutingOverrideControl } from './RoutingOverrideControl';
@@ -70,6 +72,15 @@ export interface JarvisChatProps {
    * that turn — exactly one TTS path per reply, never both.
    */
   onStreamDelta?: (delta: string, inputChannel: 'typed' | 'voice') => void;
+  /**
+   * PHASE 15 (multi-turn reliability): fired when a voice-channel turn's
+   * response cycle is TRULY over — every terminal stream path (done, error,
+   * execution_failed, timeout, cancel, request failure) — regardless of
+   * whether any audio was played. The conversation engine uses this to
+   * re-arm the microphone deterministically (a delegated/empty/voice-off
+   * reply must never leave the mic dead in 'thinking').
+   */
+  onResponseSettled?: () => void;
   /**
    * Navigation hook: fires when the backend emits a validated `navigation`
    * SSE event (e.g. "Open CodeX" → target `/codex`). Only supported internal
@@ -225,6 +236,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   onAssistantResponse,
   onStreamDelta,
   onNavigate,
+  onResponseSettled,
   hideComposerMic,
   transcriptVariant = 'chat',
   hideComposer = false,
@@ -318,6 +330,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const streamedTextByOpRef = useRef<Record<string, string>>({});
   const onAssistantResponseRef = useRef(onAssistantResponse);
   const onStreamDeltaRef = useRef(onStreamDelta);
+  const onResponseSettledRef = useRef(onResponseSettled);
   /** operationId → conversationId used for that stream (first turn of a fresh
    *  conversation creates a NEW id that the prop hasn't propagated yet). */
   const opConversationRef = useRef<Record<string, string>>({});
@@ -327,6 +340,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   useEffect(() => {
     onStreamDeltaRef.current = onStreamDelta;
   }, [onStreamDelta]);
+  useEffect(() => {
+    onResponseSettledRef.current = onResponseSettled;
+  }, [onResponseSettled]);
 
   // Sync isProcessing to ref
   useEffect(() => {
@@ -340,14 +356,6 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const errorRef = useRef<string | null>(null);
   const lastOperationIdRef = useRef<string | null>(null);
   const [routingOverride, setRoutingOverride] = useState<{ provider: string | null; model: string | null; mode: 'auto' | 'manual' }>({ provider: null, model: null, mode: 'auto' });
-
-  // STOP propagation (PRIORITY 6): the chat's own Cancel button already aborts
-  // the in-flight stream. The Execution Bar's STOP cancels through the
-  // canonical backend cancel endpoint (which targets the active operation).
-  useEffect(() => {
-    return () => { /* nothing to unregister — the bar reads the canonical store */ };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const emitStatus = (patch: Partial<JarvisRuntimeStatus>) => {
     const elapsedMs = requestStartedAtRef.current ? Date.now() - requestStartedAtRef.current : 0;
@@ -366,6 +374,47 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       ...patch
     });
   };
+
+  const clearResponseTimers = () => {
+    if (firstTokenTimerRef.current !== null) {
+      window.clearTimeout(firstTokenTimerRef.current);
+      firstTokenTimerRef.current = null;
+    }
+    if (totalResponseTimerRef.current !== null) {
+      window.clearTimeout(totalResponseTimerRef.current);
+      totalResponseTimerRef.current = null;
+    }
+  };
+
+  const startStatusClock = (state: JarvisRuntimeState) => {
+    if (statusIntervalRef.current !== null) window.clearInterval(statusIntervalRef.current);
+    emitStatus({ state });
+    statusIntervalRef.current = window.setInterval(() => emitStatus({ state: runtimeStateRef.current }), 250);
+  };
+
+  const stopStatusClock = () => {
+    if (statusIntervalRef.current !== null) {
+      window.clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = null;
+    }
+  };
+
+  // STOP propagation and Goal terminal synchronization:
+  useEffect(() => {
+    const handleGoalTerminal = () => {
+      stopStatusClock();
+      clearResponseTimers();
+      runtimeStateRef.current = 'idle';
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+      emitStatus({ ...idleStatus, state: 'idle' });
+    };
+    window.addEventListener('jarvis:goal-terminal', handleGoalTerminal);
+    return () => {
+      window.removeEventListener('jarvis:goal-terminal', handleGoalTerminal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchMessages = async (merge = false) => {
     if (!conversationId) {
@@ -495,29 +544,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     ));
   }, [messages, sendError]);
 
-  function clearResponseTimers() {
-    if (firstTokenTimerRef.current !== null) {
-      window.clearTimeout(firstTokenTimerRef.current);
-      firstTokenTimerRef.current = null;
-    }
-    if (totalResponseTimerRef.current !== null) {
-      window.clearTimeout(totalResponseTimerRef.current);
-      totalResponseTimerRef.current = null;
-    }
-  }
 
-  const startStatusClock = (state: JarvisRuntimeState) => {
-    if (statusIntervalRef.current !== null) window.clearInterval(statusIntervalRef.current);
-    emitStatus({ state });
-    statusIntervalRef.current = window.setInterval(() => emitStatus({ state: runtimeStateRef.current }), 250);
-  };
-
-  const stopStatusClock = () => {
-    if (statusIntervalRef.current !== null) {
-      window.clearInterval(statusIntervalRef.current);
-      statusIntervalRef.current = null;
-    }
-  };
 
   const appendStreamingAssistantText = (operationId: string, delta: string, final = false) => {
     // Track the accumulated text for the TTS trigger (read once at `done`).
@@ -580,6 +607,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     clearResponseTimers();
     stopStatusClock();
     emitStatus({ state: 'cancelled' });
+    // PHASE 15 (multi-turn reliability): a cancelled response is still a
+    // settled response — the conversation engine must re-arm the mic so the
+    // next voice turn works after STOP/barge-in.
+    onResponseSettledRef.current?.();
     uiDiagnostics.setStreamEnded(null);
     window.setTimeout(() => {
       if (!abortControllerRef.current) emitStatus(idleStatus);
@@ -632,6 +663,11 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     // Track the input channel so the completed reply can be routed to TTS.
     pendingChannelRef.current = inputChannel;
     voiceTraceBegin();
+    // Domain grounding: normalize Agentic-OS STT variants ("Authentic OS",
+    // "Argentic OS", "Agenticos") back to the local project name when the
+    // context is a project/architecture reference. Never rewrite unrelated
+    // user words.
+    text = normalizeDomainTerms(text);
     // ── Dev timing telemetry ──────────────────────────────────────────
     const t0 = Date.now();
     if (DEV_TIMING) console.debug('[JarvisChat:timing] submit', { text: text.slice(0, 40), inputChannel, t: t0 });
@@ -694,6 +730,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       stopStatusClock();
       emitStatus({ state: 'error', error: 'Jarvis response timed out before completion.' });
       setIsProcessing(false);
+      onResponseSettledRef.current?.();
     }, TOTAL_RESPONSE_TIMEOUT_MS);
 
     setMessages(prev => [...prev, {
@@ -707,6 +744,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     try {
       const fetchStartAt = Date.now();
       if (DEV_TIMING) console.debug('[JarvisChat:timing] fetch-start', { operationId, inputChannel, ms: fetchStartAt - t0 });
+      voiceTimelinePush('modelRequestStartAt', `"${text.slice(0, 40)}"`);
 
       const res = await fetch(`${API_BASE}/jarvis/conversations/${targetConversationId}/message/stream`, {
         method: 'POST',
@@ -728,6 +766,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         stopStatusClock();
         emitStatus({ state: 'error', error: 'Jarvis provider timed out before first token.' });
         setIsProcessing(false);
+        onResponseSettledRef.current?.();
       }, FIRST_TOKEN_TIMEOUT_MS);
 
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -748,6 +787,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        // AUTHORITATIVE STOP: after abort, no further SSE frame may be
+        // processed — late old-turn tokens are discarded at the boundary.
+        if (controller.signal.aborted) break;
         buffer += decoder.decode(value, { stream: true });
         const parsed = parseSseFrames(buffer);
         buffer = parsed.rest;
@@ -838,6 +880,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const handleStreamEvents = async (events: Array<{ event: string; data: string }>, operationId: string, sawTextChunk: boolean) => {
     let nextSawTextChunk = sawTextChunk;
     for (const event of events) {
+      // Hard turn invalidation: a cancelled stream must never process the
+      // events that were already buffered when the abort landed.
+      if (abortControllerRef.current?.signal.aborted) break;
       const data = event.data ? JSON.parse(event.data) : {};
       if (event.event === 'intent') {
         emitStatus({ state: data.mode === 'operational_execution' ? 'understanding' : 'thinking' });
@@ -901,6 +946,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       } else if (event.event === 'execution_failed') {
         emitStatus({ state: 'error', error: data.error || 'Execution failed.' });
         uiDiagnostics.setStreamEnded(operationId);
+        onResponseSettledRef.current?.();
         appendOperationalEvent(operationId, 'execution_failed', `Execution failed: ${data.error || 'Unknown error'}`, data);
       } else if (event.event === 'paused') {
         emitStatus({ state: 'paused' });
@@ -915,7 +961,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           firstTokenTimerRef.current = null;
         }
       } else if (event.event === 'chunk') {
-        if (nextSawTextChunk === false) voiceTracePush('response_started', 'ok', 'Response stream started');
+        if (nextSawTextChunk === false) {
+          voiceTracePush('response_started', 'ok', 'Response stream started');
+          voiceTimelinePush('firstModelTokenAt', `"${(data.delta || '').slice(0, 30)}"`);
+        }
         nextSawTextChunk = true;
         if (firstTokenTimerRef.current !== null) {
           window.clearTimeout(firstTokenTimerRef.current);
@@ -945,9 +994,14 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         setSendError({ message, operationId });
         emitStatus({ state: 'error', error: message });
         uiDiagnostics.setStreamEnded(operationId);
+        onResponseSettledRef.current?.();
         await fetchMessages();
       } else if (event.event === 'done') {
         voiceTracePush('response_done', 'ok', `Stream done (route ${data.route || 'direct'})`);
+        // PHASE 15 (multi-turn reliability, Failure A): the response cycle is
+        // over — even if this turn played no audio (delegated route, empty
+        // reply, voice disabled), the conversation engine re-arms the mic.
+        onResponseSettledRef.current?.();
         appendStreamingAssistantText(operationId, '', true);
         // ── TTS trigger: fires EXACTLY ONCE per completed DIRECT Jarvis reply.
         //    Delegated (CodeX/team), telemetry and system messages never reach
@@ -1014,16 +1068,18 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         });
         // Diagnostic: the stream ended — move active → lastKnown.
         uiDiagnostics.setStreamEnded(operationId);
-        if (nextState === 'completed') {
-          window.setTimeout(() => {
-            if (!abortControllerRef.current) {
-              // Reset to idle (recovery shown — never stuck in the error
-              // state) but preserve a surfaced model/provider failure so the
-              // BLOCKED/ATTENTION row keeps showing it until the next request.
-              emitStatus({ ...idleStatus, error: errorRef.current });
-            }
-          }, 1200);
-        }
+        stopStatusClock();
+        clearResponseTimers();
+        isProcessingRef.current = false;
+        setIsProcessing(false);
+        window.setTimeout(() => {
+          if (!abortControllerRef.current) {
+            // Reset to idle (recovery shown — never stuck in the error
+            // state) but preserve a surfaced model/provider failure so the
+            // BLOCKED/ATTENTION row keeps showing it until the next request.
+            emitStatus({ ...idleStatus, error: errorRef.current });
+          }
+        }, 800);
         if (data.route !== 'direct' || !nextSawTextChunk) await fetchMessages(true);
         if (data.route === 'codex' && data.goalId) setCreatedGoalId(data.goalId);
       }

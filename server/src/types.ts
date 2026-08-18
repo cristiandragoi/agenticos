@@ -319,6 +319,14 @@ export interface RunSummary {
   changedFiles: string[];
   finalUserMessage: string;
   diagnostics?: RunDiagnostics;
+  /** Project Memory retrieval proof (closure): exact memory IDs injected into
+   *  the model context for this run (e.g. CodeX engineering retrieval). */
+  memoryRetrieved?: {
+    memoryIds: string[];
+    count: number;
+    truncated: boolean;
+    at: number;
+  };
 }
 
 export interface GoalRecord {

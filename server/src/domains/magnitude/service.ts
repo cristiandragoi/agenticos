@@ -2,6 +2,9 @@ import { EventEmitter } from 'events';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { rawDb } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type {
   MagnitudeRunRecord,
   MagnitudeEvent,
@@ -11,6 +14,16 @@ import type {
   MagnitudeApprovalRequest,
   RiskLevel
 } from './types.js';
+
+// Screenshot evidence directory: <data dir>/magnitude-screenshots/<projectId-or-global>/<runId>.png
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_DATA_DIR = process.env.AGENTICOS_DATA_DIR
+  ? path.resolve(process.env.AGENTICOS_DATA_DIR)
+  : path.resolve(__dirname, '..', '..', 'data');
+export const MAGNITUDE_SCREENSHOT_DIR = process.env.AGENTICOS_MAGNITUDE_SCREENSHOT_DIR
+  ? path.resolve(process.env.AGENTICOS_MAGNITUDE_SCREENSHOT_DIR)
+  : path.join(DEFAULT_DATA_DIR, 'magnitude-screenshots');
+fs.mkdirSync(MAGNITUDE_SCREENSHOT_DIR, { recursive: true });
 
 /**
  * Initialize Magnitude SQLite tables idempotently.
@@ -32,7 +45,11 @@ function initMagnitudeTables() {
         result TEXT,
         error TEXT,
         approval TEXT,
-        conversation_id TEXT
+        conversation_id TEXT,
+        project_id TEXT,
+        project_task_id TEXT,
+        execution_run_id TEXT,
+        schedule_execution_id TEXT
       );
 
       CREATE TABLE IF NOT EXISTS magnitude_events (
@@ -49,9 +66,24 @@ function initMagnitudeTables() {
       CREATE INDEX IF NOT EXISTS idx_magnitude_events_run ON magnitude_events(run_id, sequence);
     `);
 
-    // Ensure approval column exists if table was previously created without it
+    // Ensure newer columns exist if table was previously created without them.
+    // NOTE: this MUST run before creating idx_magnitude_runs_project — on a
+    // legacy table (created without project_id) the index statement would
+    // throw, aborting the whole exec and silently skipping these ALTERs
+    // (live-deploy bug found 2026-08-17).
+    for (const col of ['project_id', 'project_task_id', 'execution_run_id', 'schedule_execution_id']) {
+      try {
+        rawDb.exec(`ALTER TABLE magnitude_runs ADD COLUMN ${col} TEXT;`);
+      } catch {}
+    }
     try {
       rawDb.exec(`ALTER TABLE magnitude_runs ADD COLUMN approval TEXT;`);
+    } catch {}
+    // Indexes that depend on the added columns must be created AFTER the
+    // ALTERs, in their own try/catch, so a legacy-table migration cannot
+    // abort the sequence.
+    try {
+      rawDb.exec(`CREATE INDEX IF NOT EXISTS idx_magnitude_runs_project ON magnitude_runs(project_id);`);
     } catch {}
   } catch (err: any) {
     logger.warn('[Magnitude] Failed to init tables:', err.message);
@@ -80,6 +112,14 @@ export class MagnitudeService extends EventEmitter {
     const urlMatch = trimmed.match(/https?:\/\/[^\s"'<>]+/i);
     let candidate = urlMatch ? urlMatch[0] : trimmed;
 
+    // If no scheme was given, accept a bare domain token (e.g. "example.com"
+    // in "inspect example.com and tell me the title") so natural-language
+    // browser requests route correctly (A7/M9). Common TLDs + co.uk style.
+    if (!urlMatch) {
+      const domainMatch = trimmed.match(/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|io|dev|ai|gov|edu|co|uk|app|me|info|xyz|site)\b/i);
+      if (domainMatch) candidate = domainMatch[0];
+    }
+
     // Strip trailing natural language punctuation (e.g. "https://example.com," -> "https://example.com")
     candidate = candidate.replace(/[.,;:!?)]+$/, '');
 
@@ -107,7 +147,12 @@ export class MagnitudeService extends EventEmitter {
   /**
    * Create a new Magnitude run record.
    */
-  public createRun(goal: string, actionType: 'inspect' | 'click' | 'search' = 'inspect', conversationId?: string): MagnitudeRunRecord {
+  public createRun(
+    goal: string,
+    actionType: 'inspect' | 'click' | 'search' = 'inspect',
+    conversationId?: string,
+    provenance?: { projectId?: string; projectTaskId?: string; executionRunId?: string; scheduleExecutionId?: string },
+  ): MagnitudeRunRecord {
     const runId = `mag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     const now = new Date().toISOString();
 
@@ -115,10 +160,17 @@ export class MagnitudeService extends EventEmitter {
     const initialStatus: MagnitudeRunStatus = 'queued';
 
     const stmt = rawDb.prepare(`
-      INSERT INTO magnitude_runs (id, goal, requested_url, action_type, status, created_at, updated_at, conversation_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO magnitude_runs (id, goal, requested_url, action_type, status, created_at, updated_at, conversation_id, project_id, project_task_id, execution_run_id, schedule_execution_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(runId, goal, url || goal, actionType, initialStatus, now, now, conversationId || null);
+    stmt.run(
+      runId, goal, url || goal, actionType, initialStatus, now, now,
+      conversationId || null,
+      provenance?.projectId || null,
+      provenance?.projectTaskId || null,
+      provenance?.executionRunId || null,
+      provenance?.scheduleExecutionId || null,
+    );
 
     const record: MagnitudeRunRecord = {
       id: runId,
@@ -129,7 +181,11 @@ export class MagnitudeService extends EventEmitter {
       createdAt: now,
       updatedAt: now,
       events: [],
-      conversationId
+      conversationId,
+      projectId: provenance?.projectId,
+      projectTaskId: provenance?.projectTaskId,
+      executionRunId: provenance?.executionRunId,
+      scheduleExecutionId: provenance?.scheduleExecutionId,
     };
 
     this.appendEvent(runId, 1, 'magnitude_started', `Magnitude task queued: ${goal}`);
@@ -279,15 +335,22 @@ export class MagnitudeService extends EventEmitter {
       result: row.result ? JSON.parse(row.result) : undefined,
       error: row.error,
       events,
-      conversationId: row.conversation_id
+      conversationId: row.conversation_id,
+      projectId: row.project_id,
+      projectTaskId: row.project_task_id,
+      executionRunId: row.execution_run_id,
+      scheduleExecutionId: row.schedule_execution_id,
     };
   }
 
   /**
-   * Get all runs for history/hydration.
+   * Get all runs for history/hydration, optionally scoped to a project
+   * (A5 — project isolation: evidence can never bleed between projects).
    */
-  public getAllRuns(limit = 50): MagnitudeRunRecord[] {
-    const rows: any[] = rawDb.prepare(`SELECT * FROM magnitude_runs ORDER BY created_at DESC LIMIT ?`).all(limit);
+  public getAllRuns(limit = 50, projectId?: string): MagnitudeRunRecord[] {
+    const rows: any[] = projectId
+      ? rawDb.prepare(`SELECT * FROM magnitude_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT ?`).all(projectId, limit)
+      : rawDb.prepare(`SELECT * FROM magnitude_runs ORDER BY created_at DESC LIMIT ?`).all(limit);
     return rows.map(row => ({
       id: row.id,
       goal: row.goal,
@@ -303,7 +366,11 @@ export class MagnitudeService extends EventEmitter {
       result: row.result ? JSON.parse(row.result) : undefined,
       error: row.error,
       events: [],
-      conversationId: row.conversation_id
+      conversationId: row.conversation_id,
+      projectId: row.project_id,
+      projectTaskId: row.project_task_id,
+      executionRunId: row.execution_run_id,
+      scheduleExecutionId: row.schedule_execution_id,
     }));
   }
 
@@ -451,6 +518,25 @@ export class MagnitudeService extends EventEmitter {
         linksCount
       });
 
+      // 4b. Screenshot evidence (M7) — captured into the run's own file so
+      // evidence is associated with the exact run/project.
+      let screenshotPath: string | undefined;
+      let screenshotBytes: number | undefined;
+      try {
+        const projectDir = run.projectId
+          ? path.join(MAGNITUDE_SCREENSHOT_DIR, run.projectId.replace(/[^a-zA-Z0-9_-]/g, '_'))
+          : path.join(MAGNITUDE_SCREENSHOT_DIR, 'global');
+        fs.mkdirSync(projectDir, { recursive: true });
+        const filePath = path.join(projectDir, `${runId}.png`);
+        await page.screenshot({ path: filePath, fullPage: false });
+        const stat = fs.statSync(filePath);
+        screenshotPath = filePath;
+        screenshotBytes = stat.size;
+        this.appendEvent(runId, seq++, 'screenshot_captured', `Screenshot captured (${(stat.size / 1024).toFixed(1)} KB)`, { screenshotPath, screenshotBytes: stat.size });
+      } catch (screenshotErr: any) {
+        this.appendEvent(runId, seq++, 'screenshot_failed', `Screenshot capture failed: ${screenshotErr?.message || 'unknown'}`, {});
+      }
+
       const durationMs = Date.now() - startTime;
       const result: MagnitudeInspectResult = {
         url,
@@ -460,7 +546,9 @@ export class MagnitudeService extends EventEmitter {
         metaDescription: metaDescription || undefined,
         linksCount,
         durationMs,
-        actionSummary: `Successfully inspected ${finalUrl}: "${title}"`
+        actionSummary: `Successfully inspected ${finalUrl}: "${title}"`,
+        screenshotPath,
+        screenshotBytes,
       };
 
       // 5. Complete

@@ -70,6 +70,7 @@ class MockMediaRecorder {
 
 /* ─── Audio element mock with controllable playback confirmation ─── */
 let autoFireOnPlay = true;
+let autoFireOnEnd = true;
 let lastAudio: MockAudio | null = null;
 /** Every src present at the moment play() was invoked — the core regression
  *  guard: the Empty-src bug was play() being called with src === ''. */
@@ -91,6 +92,12 @@ class MockAudio {
     playSrcs.push(self.src || '');
     if (autoFireOnPlay && self.src) {
       Promise.resolve().then(() => self.onplay?.());
+    }
+    if (autoFireOnEnd && self.src) {
+      // Emulate real completion so speak() (which resolves on onended) settles.
+      Promise.resolve().then(() => {
+        Promise.resolve().then(() => self.onended?.());
+      });
     }
     return Promise.resolve();
   });
@@ -153,6 +160,7 @@ beforeEach(() => {
   rmsLevel = 0;
   recorderChunkSize = 600;
   autoFireOnPlay = true;
+  autoFireOnEnd = true;
   lastAudio = null;
   playSrcs = [];
   transcribeText = 'hello jarvis';
@@ -291,12 +299,16 @@ describe('Jarvis conversation mode — turn engine', () => {
     await speakOneTurn(result);
     expect(onAutoSubmit).toHaveBeenCalledTimes(1);
 
-    // The drawer's turn executor speaks the reply:
-    await act(async () => { await result.current.speak('REALTIME_OK'); });
+    // The drawer's turn executor speaks the reply. Control onended manually so
+    // we can observe the intermediate 'speaking' state before completion.
+    autoFireOnEnd = false;
+    let speakPromise: Promise<void> = Promise.resolve();
+    await act(async () => { speakPromise = result.current.speak('REALTIME_OK'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay microtask
     expect(result.current.voiceState).toBe('speaking'); // only after real onplay
 
     // Real playback ends → conversation listening resumes automatically.
-    await act(async () => { lastAudio?.onended?.(); });
+    await act(async () => { lastAudio?.onended?.(); await speakPromise; });
     expect(result.current.voiceState).toBe('listening');
 
     expect(
@@ -306,6 +318,7 @@ describe('Jarvis conversation mode — turn engine', () => {
 
   it('TTS begins only after real playback start (never on synthesis alone)', async () => {
     autoFireOnPlay = false; // play() resolves but playback not confirmed yet
+    autoFireOnEnd = false; // we drive onplay/onended manually
     const onAutoSubmit = vi.fn();
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit }));
 
@@ -322,27 +335,37 @@ describe('Jarvis conversation mode — turn engine', () => {
     expect(result.current.voiceState).toBe('speaking');
   });
 
-  it('user speech during playback stops Jarvis audio and starts a new turn (barge-in)', async () => {
+  it('user speech during playback DUCKS Jarvis audio and starts a classification turn (adaptive barge-in)', async () => {
     const onAutoSubmit = vi.fn();
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit }));
 
     await act(async () => { await result.current.startConversation(); });
     await speakOneTurn(result);
-    await act(async () => { await result.current.speak('A long answer...'); });
+    autoFireOnEnd = false; // keep Jarvis speaking until the user barges in
+    let speakPromise: Promise<void> = Promise.resolve();
+    await act(async () => { speakPromise = result.current.speak('A long answer...'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay
     expect(result.current.voiceState).toBe('speaking');
     const speakingAudio = lastAudio!;
+    const pauseCallsBefore = speakingAudio.pause.mock.calls.length;
 
-    // The user starts talking over Jarvis.
+    // The user starts talking over Jarvis — Phase 15 contract: DUCK first
+    // (audio keeps playing softly, turn NOT destroyed), recording opens for
+    // classification (ack → resume / takeover → kill + new turn).
     rmsLevel = 0.1;
     await act(async () => { vi.advanceTimersByTime(10); });
     await act(async () => { flushRaf(1); });
 
-    // Playback stopped, new turn capturing, state back to listening.
-    expect(speakingAudio.pause).toHaveBeenCalled();
-    expect(result.current.voiceState).toBe('listening');
+    // Duck state entered; playback NOT hard-stopped; classification turn open.
+    expect(result.current.voiceState).toBe('ducked');
+    expect(speakingAudio.pause.mock.calls.length).toBe(pauseCallsBefore); // no new pause
     expect(MockMediaRecorder.instances.length).toBeGreaterThanOrEqual(2);
     const latest = MockMediaRecorder.instances[MockMediaRecorder.instances.length - 1];
     expect(latest.state).toBe('recording');
+    // Settle the still-playing chunk so the pending speak promise resolves
+    // (ducking preserves playback; the promise resolves on real onended).
+    await act(async () => { lastAudio?.onended?.(); });
+    await act(async () => { await speakPromise.catch(() => {}); });
   });
 
   it('ending conversation mode stops microphone capture, recorder, and timers', async () => {
@@ -429,7 +452,10 @@ describe('playback state machine — Empty-src regression (stabilization)', () =
   it('§5: a playback media error surfaces the EXACT reason in the FAILED state', async () => {
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit: vi.fn() }));
     await act(async () => { await result.current.startConversation(); });
-    await act(async () => { await result.current.speak('hello jarvis').catch(() => {}); });
+    autoFireOnEnd = false; // drive the media error manually
+    let speakPromise: Promise<void> = Promise.resolve();
+    await act(async () => { speakPromise = result.current.speak('hello jarvis'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay
     expect(result.current.voiceState).toBe('speaking');
 
     // The media element reports the classic error — the banner must carry
@@ -439,6 +465,7 @@ describe('playback state machine — Empty-src regression (stabilization)', () =
       expect(audio).not.toBeNull();
       Object.defineProperty(audio, 'error', { value: { message: 'Empty src attribute' }, configurable: true });
       audio!.onerror?.();
+      await speakPromise.catch(() => {});
     });
     expect(result.current.playbackError).toBe('Empty src attribute');
     expect(result.current.voiceState).toBe('error');
@@ -447,20 +474,28 @@ describe('playback state machine — Empty-src regression (stabilization)', () =
   it('§6: a later successful playback clears the previous FAILED banner', async () => {
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit: vi.fn() }));
     await act(async () => { await result.current.startConversation(); });
-    await act(async () => { await result.current.speak('first attempt').catch(() => {}); });
+    autoFireOnEnd = false;
+    let firstPromise: Promise<void> = Promise.resolve();
+    await act(async () => { firstPromise = result.current.speak('first attempt'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay
 
     // Fail the first playback.
     await act(async () => {
       const audio = lastAudio;
       Object.defineProperty(audio, 'error', { value: { message: 'Empty src attribute' }, configurable: true });
       audio?.onerror?.();
+      await firstPromise.catch(() => {});
     });
     expect(result.current.playbackError).toBe('Empty src attribute');
 
     // A healthy playback afterwards must CLEAR the old banner (§6).
-    await act(async () => { await result.current.speak('second attempt').catch(() => {}); });
+    autoFireOnEnd = false;
+    let secondPromise: Promise<void> = Promise.resolve();
+    await act(async () => { secondPromise = result.current.speak('second attempt'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay
     expect(result.current.playbackError).toBeNull();
     expect(result.current.voiceState).toBe('speaking');
+    await act(async () => { lastAudio?.onended?.(); await secondPromise.catch(() => {}); });
   });
 
   it('§6: stale-session contract — recovery clears errors, no empty-src plays, live handler owns element', async () => {
@@ -473,12 +508,16 @@ describe('playback state machine — Empty-src regression (stabilization)', () =
     await act(async () => { await result.current.startConversation(); });
 
     // Session 1: a playback media error sets the FAILED banner.
-    await act(async () => { await result.current.speak('first').catch(() => {}); });
+    autoFireOnEnd = false;
+    let firstPromise: Promise<void> = Promise.resolve();
+    await act(async () => { firstPromise = result.current.speak('first'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay
     const audio = lastAudio;
     expect(audio).not.toBeNull();
     await act(async () => {
       Object.defineProperty(audio, 'error', { value: { message: 'Empty src attribute' }, configurable: true });
       audio!.onerror?.();
+      await firstPromise.catch(() => {});
     });
     expect(result.current.playbackError).toBe('Empty src attribute');
     expect(result.current.voiceState).toBe('error');
@@ -486,9 +525,13 @@ describe('playback state machine — Empty-src regression (stabilization)', () =
     // Session 2: a healthy playback recovers. The banner MUST clear (§6) and
     // the live session's handler now owns the element — the failed attempt
     // cannot resurface once playback has recovered.
-    await act(async () => { await result.current.speak('second').catch(() => {}); });
+    autoFireOnEnd = false;
+    let secondPromise: Promise<void> = Promise.resolve();
+    await act(async () => { secondPromise = result.current.speak('second'); });
+    await act(async () => { await Promise.resolve(); }); // flush onplay
     expect(result.current.playbackError).toBeNull();
     expect(result.current.voiceState).toBe('speaking');
+    await act(async () => { lastAudio?.onended?.(); await secondPromise.catch(() => {}); });
 
     // Behavioral contract across both sessions:
     //  - every play() attempt carried a real, non-empty src (no Empty-src)

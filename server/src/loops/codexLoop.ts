@@ -612,6 +612,69 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   );
   let stepCounter = goal.history.length;
 
+  // ── CodeX Project Memory retrieval (closure) ──────────────────────────────
+  // Before any model execution, retrieve bounded ENGINEERING-relevant Project
+  // Memory (architecture decisions, constraints, conventions, deployment
+  // rules, verified bugs/fixes). Marketing/recruiting memories are excluded.
+  // Exact memory IDs are recorded as CODEX_MEMORY_RETRIEVED telemetry and
+  // injected into the system prompt under a strict context budget.
+  let codexMemoryPacket: import('../services/memory/workerMemory.js').WorkerMemoryPacket | null = null;
+  let codexMemoryContext = '';
+  try {
+    const { projectsStore } = await import('../services/projectsStore.js');
+    let codexProjectId: string | null = null;
+    if (workspaceRoot) {
+      const normWs = workspaceRoot.replace(/[\\/]+$/, '');
+      const match = projectsStore.listProjects().find((p) => {
+        const pw = (p.workspacePath || '').replace(/[\\/]+$/, '');
+        return pw && (pw === normWs || normWs.startsWith(pw + '\\') || normWs.startsWith(pw + '/'));
+      });
+      if (match) codexProjectId = match.id;
+    }
+    if (!codexProjectId) {
+      const active = projectsStore.getActiveProjectId?.();
+      if (active && projectsStore.getProject(active)) codexProjectId = active;
+    }
+    if (codexProjectId) {
+      const { retrieveWorkerMemory, recordWorkerMemoryRetrieval, formatWorkerMemoryPacket } = await import('../services/memory/workerMemory.js');
+      codexMemoryPacket = await retrieveWorkerMemory({
+        projectId: codexProjectId,
+        worker: 'codex',
+        taskType: 'engineering',
+        query: goal.originalGoal || '',
+        budget: { maxItems: 6, maxChars: 1500 },
+        includeGlobalFallback: false,
+      });
+      codexMemoryContext = formatWorkerMemoryPacket(codexMemoryPacket);
+      recordWorkerMemoryRetrieval({
+        worker: 'codex',
+        projectId: codexProjectId,
+        goalId,
+        packet: codexMemoryPacket,
+      });
+      if (codexMemoryContext) {
+        systemPrompt += `\n\nRelevant Project Memory (engineering context — use it to respect architecture decisions, constraints, and conventions):\n${codexMemoryContext}`;
+      }
+      // Persist retrieval proof on the goal record (survives restart for audit).
+      try {
+        goalStore.update(goalId, {
+          runSummary: {
+            ...((goal.runSummary || {}) as object),
+            memoryRetrieved: {
+              memoryIds: codexMemoryPacket.memoryIds,
+              count: codexMemoryPacket.count,
+              truncated: codexMemoryPacket.truncated,
+              at: Date.now(),
+            },
+          } as any,
+        });
+      } catch { /* metadata best-effort */ }
+    }
+  } catch (memErr) {
+    // Memory retrieval must never break CodeX execution.
+    logger.warn('[codexLoop] Project memory retrieval skipped', memErr);
+  }
+
   const usedReadFallbacks = new Set<string>();
   const recentToolFingerprints = new Map<string, number>();
   let responseExpectation: ResponseExpectation = 'tool_decision';
@@ -1037,7 +1100,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           payload: { finalAnswer: finalAnswerText, responseExpectation: 'final_answer' }
         });
         goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
-        goalStore.update(goalId, { status: 'completed', runSummary: { finalAnswer: finalAnswerText, message: toolResult } as any });
+        goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalAnswerText, message: toolResult } as any });
         // Clear the execution-state slot — the final-answer completion path
         // previously left ACTIVE RUN stale (WAITING_FOR_MODEL) after the goal
         // was already completed.
@@ -1291,7 +1354,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             pushEventToWriter(writer, 'agent_completed', toolResult, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: `CodeX finished the task successfully.`, eventType: 'agent_completed', provider: currentProvider, model: currentModel, payload: finishPayload });
 
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
-            goalStore.update(goalId, { status: 'completed', runSummary: { finalAnswer: finalMessageText, message: toolResult } as any });
+            goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalMessageText, message: toolResult } as any });
           endGoalExec('COMPLETED', toolResult?.slice(0, 500));
             break;
           }

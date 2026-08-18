@@ -44,7 +44,7 @@ export interface ExecutiveIntent {
   workerKind?: string;
 }
 
-const EXPLAIN_VERBS = /\b(explain|what does|what is|describe|tell me about|how does|what are|who is|what's|do you know about)\b/;
+const EXPLAIN_VERBS = /\b(explain|what does|what is|describe|tell me about|how does|what are|who is|what's|do you know about|what\s+\w+\s+does|what\s+\w+\s+do)\b/;
 const STATUS_VERBS = /\b(status|how is|how are|doing|working on|using|what model|what provider|active|busy|health|healthy|alive|up to)\b/;
 const FEEDBACK_VERBS = /\b(feedback|assessment|evaluate|review|audit|assess|how (good|well)|report on)\b/;
 const NAV_VERBS = /\b(open|go to|take me to|navigate to|launch|show me the page|switch to)\b/;

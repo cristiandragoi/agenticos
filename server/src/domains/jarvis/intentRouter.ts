@@ -1,5 +1,8 @@
 export interface IntentResult {
   route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams' | 'investigate' | 'magnitude';
+  semanticIntent: string;
+  executionMode: 'direct_conversation' | 'operational_execution';
+  selectedCapability: 'hermes' | 'codex' | 'magnitude' | 'agent_teams' | 'system' | 'none';
   category:
     | 'conversation'
     | 'repository_analysis'
@@ -12,13 +15,14 @@ export interface IntentResult {
     | 'system_status'
     | 'approval_required'
     | 'investigation'
-    | 'browser_automation';
+    | 'browser_automation'
+    | 'project_planning';
   mode: 'direct_conversation' | 'operational_execution';
   confidence: number;
   reason: string;
   requiresWorkspace?: boolean;
   requiresApproval?: boolean;
-  selectedAgent?: 'Jarvis' | 'CodeX' | 'Agent Teams' | 'System';
+  selectedAgent?: 'Jarvis' | 'CodeX' | 'Hermes' | 'Agent Teams' | 'System';
   plan?: string[];
   /** Populated only for clarification_required when the transcript looks
    *  like speech-recognition corruption (voice-aware clarification). */
@@ -54,13 +58,13 @@ export function detectDelegationSignals(prompt: string): DelegationSignals {
   }
 
   let explicitWorkerRequested: 'codex' | 'hermes' | 'magnitude' | 'agent_teams' | undefined;
-  if (/\b(?:use|ask|have|delegate to)\s+magnitude\b/.test(p)) {
+  if ((/\b(?:use|ask|have|tell|delegate to)\s+magnitude\b/.test(p) || /^magnitude[,:]/.test(p)) && !prohibitedWorkers.includes('magnitude')) {
     explicitWorkerRequested = 'magnitude';
-  } else if (/\b(?:use|ask|have|delegate to)\s+codex\b/.test(p)) {
+  } else if ((/\b(?:use|ask|have|tell|delegate to)\s+codex\b/.test(p) || /^codex[,:]/.test(p)) && !prohibitedWorkers.includes('codex') && !/\b(?:do not|don't|no|without)\s+use\s+codex\b/.test(p)) {
     explicitWorkerRequested = 'codex';
-  } else if (/\b(?:use|ask|have|delegate to)\s+hermes\b/.test(p)) {
+  } else if ((/\b(?:use|ask|have|tell|delegate to)\s+hermes\b/.test(p) || /^hermes[,:]/.test(p)) && !prohibitedWorkers.includes('hermes') && !/\b(?:do not|don't|no|without)\s+use\s+hermes\b/.test(p)) {
     explicitWorkerRequested = 'hermes';
-  } else if (/\b(?:use|ask|have|delegate to)\s+(?:teams?|agent teams?)\b/.test(p)) {
+  } else if ((/\b(?:use|ask|have|tell|delegate to)\s+(?:teams?|agent teams?)\b/.test(p) || /^teams?[,:]/.test(p)) && !prohibitedWorkers.includes('agent_teams') && !/\b(?:do not|don't|no|without)\s+use\s+(?:teams?|agent teams?)\b/.test(p)) {
     explicitWorkerRequested = 'agent_teams';
   }
 
@@ -513,6 +517,9 @@ export class IntentRouter {
 
     const direct = (category: IntentResult['category'], confidence: number, reason: string, plan?: string[]): IntentResult => ({
       route: 'direct',
+      semanticIntent: category,
+      executionMode: 'direct_conversation',
+      selectedCapability: 'none',
       category,
       mode: 'direct_conversation',
       confidence,
@@ -531,17 +538,54 @@ export class IntentRouter {
       selectedAgent: IntentResult['selectedAgent'],
       plan: string[],
       requiresWorkspace = true,
-      requiresApproval = false
-    ): IntentResult => ({
-      route,
-      category,
+      requiresApproval = false,
+      selectedCapability?: IntentResult['selectedCapability']
+    ): IntentResult => {
+      const cap: IntentResult['selectedCapability'] = selectedCapability || (route === 'magnitude' ? 'magnitude' : route === 'hermes' ? 'hermes' : route === 'codex' ? 'codex' : route === 'agent_teams' ? 'agent_teams' : 'none');
+      return {
+        route,
+        semanticIntent: category,
+        executionMode: 'operational_execution',
+        selectedCapability: cap,
+        category,
+        mode: 'operational_execution',
+        confidence,
+        reason,
+        requiresWorkspace,
+        requiresApproval,
+        selectedAgent,
+        plan
+      };
+    };
+
+    const investigate = (confidence: number, reason: string, plan: string[]): IntentResult => ({
+      route: 'investigate',
+      semanticIntent: 'investigation',
+      executionMode: 'operational_execution',
+      selectedCapability: 'none',
+      category: 'investigation',
       mode: 'operational_execution',
       confidence,
       reason,
-      requiresWorkspace,
-      requiresApproval,
-      selectedAgent,
-      plan
+      requiresWorkspace: false,
+      requiresApproval: false,
+      selectedAgent: 'Jarvis',
+      plan,
+    });
+
+    const clarify = (reason: string, voiceIssue?: string): IntentResult => ({
+      route: 'clarification_required',
+      semanticIntent: 'conversation',
+      executionMode: 'direct_conversation',
+      selectedCapability: 'none',
+      category: 'conversation',
+      mode: 'direct_conversation',
+      confidence: 0.3,
+      reason,
+      voiceIssue,
+      requiresWorkspace: false,
+      requiresApproval: false,
+      selectedAgent: 'Jarvis',
     });
 
     const hasAny = (...terms: string[]) => terms.some(term => p.includes(term));
@@ -577,7 +621,23 @@ export class IntentRouter {
       );
     }
 
-    // 0B. Explicit Magnitude delegation ("use magnitude...", "ask magnitude...")
+    // 0B. Explicit Hermes delegation ("use hermes...", "ask hermes...")
+    if (delegationSignals.explicitWorkerRequested === 'hermes' && !delegationSignals.prohibitedWorkers.includes('hermes')) {
+      const isPlanning = /\b(plan|planning|affiliate|roadmap|decompose|strategy)\b/i.test(p);
+      return operational(
+        'hermes',
+        isPlanning ? 'project_planning' : 'research',
+        0.98,
+        'Explicit Hermes delegation requested',
+        'Hermes',
+        ['Initialize canonical Hermes task', 'Execute research / planning loop', 'Deliver verified evidence to Jarvis'],
+        false,
+        false,
+        'hermes'
+      );
+    }
+
+    // 0C. Explicit Magnitude delegation ("use magnitude...", "ask magnitude...")
     if (delegationSignals.explicitWorkerRequested === 'magnitude' && !delegationSignals.prohibitedWorkers.includes('magnitude')) {
       return operational(
         'magnitude',
@@ -587,11 +647,12 @@ export class IntentRouter {
         'Jarvis',
         ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
         false,
-        false
+        false,
+        'magnitude'
       );
     }
 
-    // 0C. Explicit CodeX delegation ("use codex...", "ask codex...")
+    // 0D. Explicit CodeX delegation ("use codex...", "ask codex...")
     if (delegationSignals.explicitWorkerRequested === 'codex' && !delegationSignals.prohibitedWorkers.includes('codex')) {
       return operational(
         'codex',
@@ -601,21 +662,8 @@ export class IntentRouter {
         'CodeX',
         ['Confirm selected repository', 'Prepare CodeX goal', 'Execute and report findings'],
         true,
-        !isReadOnlyRepositoryRequest
-      );
-    }
-
-    // 0D. Explicit Hermes delegation ("use hermes...", "ask hermes...")
-    if (delegationSignals.explicitWorkerRequested === 'hermes' && !delegationSignals.prohibitedWorkers.includes('hermes')) {
-      return operational(
-        'hermes',
-        'pipeline_operation',
-        0.98,
-        'Explicit Hermes delegation requested',
-        'Jarvis',
-        ['Inspect pipeline registry', 'Report current status'],
-        false,
-        false
+        !isReadOnlyRepositoryRequest,
+        'codex'
       );
     }
 
@@ -629,18 +677,41 @@ export class IntentRouter {
         'Agent Teams',
         ['Design Team Sheet', 'Create role-specific plan', 'Request approval before execution'],
         true,
-        true
+        true,
+        'agent_teams'
+      );
+    }
+
+    // ── HERMES RESEARCH & PROJECT PLANNING CHECK (Pattern-based) ──
+    const isHermesResearchOrPlan =
+      /\b(research (this|the|a|these|our)?|analy[sz]e (the|these|our)? competitors|analy[sz]e (the|this|these)? market|competitor analysis|market analysis|investigate what .* is for|research-backed plan|plan for (an?|this|the)|project plan|affiliate-commerce|turn this objective into a structured (execution )?plan|compare (these|the)? business opportunities|lead research|recruiting research|campaign planning)\b/i.test(p);
+
+    if (isHermesResearchOrPlan && !delegationSignals.prohibitedWorkers.includes('hermes') && (!hasFileTarget || isReadOnlyRepositoryRequest)) {
+      const isPlanning = /\b(plan|planning|affiliate|roadmap|decompose|strategy)\b/i.test(p);
+      return operational(
+        'hermes',
+        isPlanning ? 'project_planning' : 'research',
+        0.95,
+        'Research and project planning request routed to Hermes',
+        'Hermes',
+        ['Initialize canonical Hermes task', 'Execute research / planning loop', 'Deliver verified evidence to Jarvis'],
+        false,
+        false,
+        'hermes'
       );
     }
 
     // ── MAGNITUDE BROWSER & WEB INSPECTION CHECK (Pattern-based) ──
     const hasUrl = /https?:\/\/[^\s"'<>]+/i.test(prompt);
+    // A7/M9: accept bare domains ("inspect example.com and tell me the title")
+    // as browser targets even without an explicit scheme.
+    const hasBareDomain = !hasUrl && /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|io|dev|ai|gov|edu|co|uk|app|me|info|xyz|site)\b/i.test(prompt);
     const mentionsMagnitude = /\bmagnitude\b/i.test(p);
     const isBrowserInspect = /\b(open|browse|navigate|visit|inspect|scrape|read|check|view|fetch|tell me what is on|what is on)\b/i.test(p) &&
-      (/\b(page|site|website|webpage|web page|url|dom|web)\b/i.test(p) || hasUrl);
+      (/\b(page|site|website|webpage|web page|url|dom|web)\b/i.test(p) || hasUrl || hasBareDomain);
 
     if (!delegationSignals.prohibitedWorkers.includes('magnitude')) {
-      if (mentionsMagnitude || (hasUrl && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on)\b/i.test(p)) || (hasUrl && isBrowserInspect)) {
+      if (mentionsMagnitude || (hasUrl && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on)\b/i.test(p)) || (hasBareDomain && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on|look up|look at)\b/i.test(p)) || (hasUrl && isBrowserInspect)) {
         return operational(
           'magnitude',
           'browser_automation',
@@ -649,7 +720,8 @@ export class IntentRouter {
           'Jarvis',
           ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
           false,
-          false
+          false,
+          'magnitude'
         );
       }
     }
@@ -678,6 +750,19 @@ export class IntentRouter {
     }
 
     if (hasAny('latest documentation', 'search the latest', 'research ', 'look up documentation', 'find current docs')) {
+      if (!delegationSignals.prohibitedWorkers.includes('hermes')) {
+        return operational(
+          'hermes',
+          'research',
+          0.92,
+          'Research request routed to canonical Hermes worker',
+          'Hermes',
+          ['Initialize canonical Hermes task', 'Execute research loop', 'Deliver verified evidence to Jarvis'],
+          false,
+          false,
+          'hermes'
+        );
+      }
       return direct('research', 0.82, 'Research request that can be answered through Jarvis without workspace execution', ['Identify research target', 'Use available research/search capability if configured', 'Summarize findings with source constraints']);
     }
 
@@ -709,17 +794,11 @@ export class IntentRouter {
     // "read-only" alone never implies repository analysis. Explicit CodeX
     // delegation (above) still wins.
     if (isLiveSystemInvestigationRequest(prompt)) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.9,
-        reason: 'Live AgenticOS runtime/system/UI state inspection request',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect active runtime/gateway/frontend state', 'Compare selected vs gateway-resolved vs displayed state', 'Report evidence and resolve when safe'],
-      };
+      return investigate(
+        0.9,
+        'Live AgenticOS runtime/system/UI state inspection request',
+        ['Inspect active runtime/gateway/frontend state', 'Compare selected vs gateway-resolved vs displayed state', 'Report evidence and resolve when safe']
+      );
     }
 
     if (hasAny('run the deployment pipeline', 'start deployment', 'trigger pipeline', 'run pipeline')) {
@@ -738,17 +817,11 @@ export class IntentRouter {
     const isFileProblem = /\b(file|not found|no such file|missing file|cannot find|can'?t find)\b/i.test(prompt) &&
       /\b(why|keep|still|error|saying|says|not found|no such|missing|failed|problem)\b/i.test(prompt);
     if (isFileProblem && !hasWriteVerb) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.82,
-        reason: 'File-resolution problem report — inspect workspace/file evidence before answering',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Check the canonical workspace root', 'Resolve the referenced file', 'Report what was searched and what exists'],
-      };
+      return investigate(
+        0.82,
+        'File-resolution problem report — inspect workspace/file evidence before answering',
+        ['Check the canonical workspace root', 'Resolve the referenced file', 'Report what was searched and what exists']
+      );
     }
 
     // ── §15 CASE J: task-state questions ──
@@ -759,17 +832,11 @@ export class IntentRouter {
     const isTaskStateQuestion = /^(is|are|did|has|was)\s+(hermes|codex|jarvis|the (task|run|job|goal|agent)|it)\s+(finished|done|still running|working|complete|completed|failed|stuck|queued)\b/i.test(prompt) ||
       /^(what happened|what is (the |its )?(status|state) of|is (the )?(task|run|job|goal) (done|finished|still running))\b/i.test(prompt);
     if (isTaskStateQuestion) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.8,
-        reason: 'Task/run state question — inspect the actual run state (active vs historical)',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect background task manager state', 'Report active vs historical run truth', 'Explain the most recent result'],
-      };
+      return investigate(
+        0.8,
+        'Task/run state question — inspect the actual run state (active vs historical)',
+        ['Inspect background task manager state', 'Report active vs historical run truth', 'Explain the most recent result']
+      );
     }
 
     if (!delegationSignals.prohibitedWorkers.includes('codex')) {
@@ -869,17 +936,11 @@ export class IntentRouter {
     // questions — they route INVESTIGATE (inspect runtime state, report),
     // never clarification, never "I didn't quite understand".
     if (isAssistantComplaint(prompt)) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.8,
-        reason: 'Complaint about Jarvis/AgenticOS — inspect runtime state and report',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect active runtime/gateway/frontend state', 'Identify what is failing', 'Report evidence and next step'],
-      };
+      return investigate(
+        0.8,
+        'Complaint about Jarvis/AgenticOS — inspect runtime state and report',
+        ['Inspect active runtime/gateway/frontend state', 'Identify what is failing', 'Report evidence and next step']
+      );
     }
 
     // ── UI/interface/layout CHANGE or PROBLEM requests (operational) ──
@@ -891,17 +952,11 @@ export class IntentRouter {
     // clarification wall. Runs BEFORE the question gate so "Why does the
     // UI still look wrong?" does not become an informational question.
     if (isUIChangeOrProblemRequest(prompt, recentText)) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.85,
-        reason: 'UI/interface/layout change or problem request — inspect AgenticOS frontend state and delegate',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules'],
-      };
+      return investigate(
+        0.85,
+        'UI/interface/layout change or problem request — inspect AgenticOS frontend state and delegate',
+        ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules']
+      );
     }
 
     // ── §15 Case F: destructive-ambiguous override ──
@@ -910,33 +965,26 @@ export class IntentRouter {
     // resolution so an ambiguous destructive deictic is never auto-resolved
     // to the wrong target.
     if (isDestructiveAmbiguous(prompt, recentText)) {
-      return {
-        route: 'clarification_required',
-        category: 'conversation',
-        mode: 'direct_conversation',
-        confidence: 0.5,
-        reason: 'Destructive request with multiple plausible referents — clarification is required before acting',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-      };
+      return clarify(
+        'Destructive request with multiple plausible referents — clarification is required before acting'
+      );
     }
 
     // §15 Case F2: destructive deictic with a SINGLE clear referent must NOT
     // be clarified — it routes to the approval-gated change path so the
     // operation can actually proceed under approval rules.
     if (/^(delete|remove|drop|erase|kill|terminate|overwrite)\b/.test(prompt.trim().toLowerCase()) && /\b(it|this|that)\b/i.test(prompt) && recentText) {
-      return {
-        route: 'codex',
-        category: 'approval_required',
-        mode: 'operational_execution',
-        confidence: 0.7,
-        reason: 'Destructive request with a resolvable referent — proceed under approval',
-        requiresWorkspace: true,
-        requiresApproval: true,
-        selectedAgent: 'CodeX',
-        plan: ['Resolve the deictic referent from recent context', 'Confirm the target', 'Request approval before destructive change'],
-      };
+      return operational(
+        'codex',
+        'approval_required',
+        0.7,
+        'Destructive request with a resolvable referent — proceed under approval',
+        'CodeX',
+        ['Resolve the deictic referent from recent context', 'Confirm the target', 'Request approval before destructive change'],
+        true,
+        true,
+        'codex'
+      );
     }
 
     // ── §4/§5: contextual continuation resolution ──
@@ -950,30 +998,18 @@ export class IntentRouter {
     // questions/ambiguity handling.
     const continuation = resolveContinuationIntent(prompt, recentText);
     if (continuation.resolved === 'investigate_ui') {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.85,
-        reason: `Follow-up resolved to prior UI problem (${continuation.referent}) — inspect AgenticOS frontend state`,
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules'],
-      };
+      return investigate(
+        0.85,
+        `Follow-up resolved to prior UI problem (${continuation.referent}) — inspect AgenticOS frontend state`,
+        ['Inspect active frontend/runtime state', 'Identify the affected UI component', 'Explain what is wrong', 'Offer or start the engineering task per approval rules']
+      );
     }
     if (continuation.resolved === 'continue_goal' || continuation.resolved === 'retry_goal') {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.8,
-        reason: `Follow-up resolved to ${continuation.referent} — continue/retry the prior operational goal`,
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect the prior goal/task state', 'Continue or retry the most recent unresolved action', 'Report evidence and resolve when safe'],
-      };
+      return investigate(
+        0.8,
+        `Follow-up resolved to ${continuation.referent} — continue/retry the prior operational goal`,
+        ['Inspect the prior goal/task state', 'Continue or retry the most recent unresolved action', 'Report evidence and resolve when safe']
+      );
     }
 
     // Context-aware investigation: vague statements that read as problem
@@ -982,17 +1018,11 @@ export class IntentRouter {
     // Runs before the question check so problem-questions route to
     // INVESTIGATE while informational questions stay direct.
     if (isContextualInvestigationRequest(prompt, recentText)) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.8,
-        reason: 'Contextual AgenticOS problem report (recent conversation context) — implicit investigation request',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Resolve the referent from recent conversation context', 'Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe'],
-      };
+      return investigate(
+        0.8,
+        'Contextual AgenticOS problem report (recent conversation context) — implicit investigation request',
+        ['Resolve the referent from recent conversation context', 'Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe']
+      );
     }
 
     // ── Continuation of an ongoing problem (P7/P8, coherence milestone) ──
@@ -1017,17 +1047,11 @@ export class IntentRouter {
         activeExecution = Boolean(getCurrent());
       } catch { /* import cycle safety — context text remains the gate */ }
       if (contextSignal || activeExecution) {
-        return {
-          route: 'investigate',
-          category: 'investigation',
-          mode: 'operational_execution',
-          confidence: 0.82,
-          reason: 'Continuation of an ongoing problem report (uses recent conversation context + active execution)',
-          requiresWorkspace: false,
-          requiresApproval: false,
-          selectedAgent: 'Jarvis',
-          plan: ['Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe'],
-        };
+        return investigate(
+          0.82,
+          'Continuation of an ongoing problem report (uses recent conversation context + active execution)',
+          ['Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe']
+        );
       }
     }
 
@@ -1048,17 +1072,11 @@ export class IntentRouter {
     // application state first and only asks the user when state cannot
     // resolve the ambiguity (inspect-before-question).
     if (isBugReportStatement(p)) {
-      return {
-        route: 'investigate',
-        category: 'investigation',
-        mode: 'operational_execution',
-        confidence: 0.85,
-        reason: 'Contextual AgenticOS problem report — implicit investigation request',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis',
-        plan: ['Inspect active runtime/gateway state', 'Compare with displayed/expected state', 'Report evidence and resolve when safe'],
-      };
+      return investigate(
+        0.85,
+        'Contextual AgenticOS problem report — implicit investigation request',
+        ['Inspect active runtime/gateway state', 'Compare with displayed/expected state', 'Report evidence and resolve when safe']
+      );
     }
 
     // ── Voice-transcription issues (conversation-state milestone) ──
@@ -1068,17 +1086,7 @@ export class IntentRouter {
     // is still in the SAME conversation; ask them to repeat the last part.
     const voiceIssue = detectVoiceTranscriptionIssue(prompt);
     if (voiceIssue) {
-      return {
-        route: 'clarification_required',
-        category: 'conversation',
-        mode: 'direct_conversation',
-        confidence: 0.3,
-        reason: 'voice_transcription',
-        voiceIssue,
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis'
-      };
+      return clarify('voice_transcription', voiceIssue);
     }
 
     // Short or vague prompts that aren't greetings, invocations, questions,
@@ -1093,16 +1101,7 @@ export class IntentRouter {
         // attempt interpretation via direct conversation instead of asking.
         return direct('conversation', 0.45, 'Short prompt with active context — interpret rather than clarify');
       }
-      return {
-        route: 'clarification_required',
-        category: 'conversation',
-        mode: 'direct_conversation',
-        confidence: 0.3,
-        reason: 'Ambiguous short prompt requires clarification',
-        requiresWorkspace: false,
-        requiresApproval: false,
-        selectedAgent: 'Jarvis'
-      };
+      return clarify('Ambiguous short prompt requires clarification');
     }
 
     // ── 7. Semantic fallback (PRIORITY 8) ──
@@ -1116,25 +1115,19 @@ export class IntentRouter {
     if (semantic.bestScore >= 0.75) {
       const mapped = semanticRouteToIntent(semantic, prompt);
       if (mapped?.route === 'investigate') {
-        return {
-          route: 'investigate',
-          category: 'investigation',
-          mode: 'operational_execution',
-          confidence: mapped.confidence,
-          reason: 'Semantic intent: live AgenticOS state / problem report',
-          requiresWorkspace: false,
-          requiresApproval: false,
-          selectedAgent: 'Jarvis',
-          plan: ['Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe'],
-        };
+        return investigate(
+          mapped.confidence,
+          'Semantic intent: live AgenticOS state / problem report',
+          ['Inspect active runtime/gateway/frontend state', 'Report evidence and resolve when safe']
+        );
       }
       if (mapped?.route === 'codex') {
         // Refine delegation vs repository analysis by the worker target.
         const explicitHermes = /\b(ask|tell|have|give this to|hand this to|send this to)\s+hermes\b/.test(p) || /^give this to hermes/.test(p);
         if (explicitHermes) {
-          return operational('hermes', 'pipeline_operation', mapped.confidence, 'Semantic intent: explicit Hermes delegation', 'Jarvis', ['Create Hermes task', 'Dispatch to Hermes worker'], false, false);
+          return operational('hermes', 'pipeline_operation', mapped.confidence, 'Semantic intent: explicit Hermes delegation', 'Jarvis', ['Create Hermes task', 'Dispatch to Hermes worker'], false, false, 'hermes');
         }
-        return operational('codex', 'repository_analysis', mapped.confidence, 'Semantic intent: repository/source analysis', 'CodeX', ['Confirm selected repository', 'Inspect relevant files', 'Report findings'], true, false);
+        return operational('codex', 'repository_analysis', mapped.confidence, 'Semantic intent: repository/source analysis', 'CodeX', ['Confirm selected repository', 'Inspect relevant files', 'Report findings'], true, false, 'codex');
       }
     }
 

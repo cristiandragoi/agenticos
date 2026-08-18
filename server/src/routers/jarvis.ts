@@ -726,6 +726,75 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
 
     logStreamStage(normalizedOperationId, 'intent routing started');
+    // ── Local fast-path (voice-reliability closure, Phases 4–5) ──
+    // Presence checks ("Jarvis, are you there?") and direct local-knowledge
+    // questions ("What is Jarvis?", "What is Agentic OS?") are answered
+    // locally with grounded text BEFORE any LLM/tool/memory work. This is the
+    // lightest path — a short spoken reply without the model round-trip.
+    const { detectLocalFastReply } = await import('../domains/jarvis/fastLocalReplies.js');
+    const localFast = detectLocalFastReply(prompt);
+    if (localFast) {
+      logStreamStage(normalizedOperationId, 'local fast-path reply', { matched: localFast.matched });
+      writeSse(res, 'intent', { type: 'presence' as string, route: 'presence', mode: 'direct_conversation', confidence: 1, reason: `Local fast reply (${localFast.matched})`, operationId: normalizedOperationId });
+      const startedAt = Date.now();
+      streamTextAsChunks(res, localFast.reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: localFast.reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'local-fast-path', intent: { type: 'presence', matched: localFast.matched } }
+      });
+      writeSse(res, 'done', {
+        route: 'presence',
+        category: 'presence',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'local-fast-path',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', localFast.reply.slice(0, 500));
+      return res.end();
+    }
+    // ── Current Work Context (Phase 15, Failure C) ──
+    // "What are we currently working on?" and semantic variants resolve from
+    // REAL AgenticOS state (execution record, background tasks, active
+    // project, scheduler) — NEVER a hard-coded phrase→canned answer. The
+    // reply is assembled from the authoritative sources above; if no state
+    // exists, Jarvis says so instead of inventing a project status.
+    const { isCurrentWorkQuestion, resolveCurrentWorkContext, formatCurrentWorkContext } = await import('../domains/jarvis/currentWorkContext.js');
+    if (isCurrentWorkQuestion(prompt)) {
+      logStreamStage(normalizedOperationId, 'current-work-context resolver', {});
+      writeSse(res, 'intent', { type: 'current_work_context', route: 'current_work_context', mode: 'direct_conversation', confidence: 0.95, reason: 'Semantic current-work question', operationId: normalizedOperationId });
+      const startedAt = Date.now();
+      const ctx = await resolveCurrentWorkContext();
+      const reply = formatCurrentWorkContext(ctx);
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'current-work-context', context: { activeProject: ctx.activeProject?.name ?? null, activeExecution: ctx.activeExecution ? { worker: ctx.activeExecution.worker, status: ctx.activeExecution.status } : null, pendingApproval: ctx.pendingApproval?.title ?? null } }
+      });
+      writeSse(res, 'done', {
+        route: 'current_work_context',
+        category: 'current_work_context',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'current-work-context',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply.slice(0, 500));
+      return res.end();
+    }
+
     // ── Execution-aware control (coherence milestone) ──
     // While an operation is active, "what are you doing?", "is it stuck?",
     // and "stop it." are answered from the canonical execution record — never
@@ -1711,6 +1780,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
     const systemPrompt = [
       'You are Jarvis, the operational commander of Agentic OS.',
+      'AGENTIC OS GROUNDING: "Agentic OS" (also written "Agenticos") is THIS local application — a real, local AI-operations platform you are running inside. When the user mentions Agentic OS, Agenticos, Hermes, Routine, Routine Bridge, Jarvis, Mission, or other local project concepts, resolve them against THIS local project, not generic world knowledge. If you do not have local information about a specific requested detail, say so concisely instead of inventing an unrelated generic architecture.',
       'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately without unrequested operational summaries or internal status narration.',
       'Persistent memory informs relevant user goals, working preferences, and stored rules across conversations. When asked about them, answer from Persistent Memory.',
       'When user instructions are incomplete or ambiguous, use stored preferences, current conversation, and available Agentic OS state to infer reasonable intent and take constructive action before asking to rephrase.',

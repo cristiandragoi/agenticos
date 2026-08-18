@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JarvisStudio from '../pages/JarvisStudio';
 import { CodexProvider } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 
 /* ── jsdom stubs ──────────────────────────────────────────── */
 beforeEach(() => {
@@ -127,9 +128,11 @@ afterEach(() => {
 
 const renderPage = () => render(
   <CodexProvider>
-    <MemoryRouter initialEntries={['/jarvis']}>
-      <JarvisStudio />
-    </MemoryRouter>
+    <ProjectProvider>
+      <MemoryRouter initialEntries={['/jarvis']}>
+        <JarvisStudio />
+      </MemoryRouter>
+    </ProjectProvider>
   </CodexProvider>
 );
 

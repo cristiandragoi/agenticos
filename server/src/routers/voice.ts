@@ -80,9 +80,14 @@ router.post('/speak', async (req, res) => {
       return res.status(500).json({ error: 'Deepgram API key not configured.' });
     }
 
+    // PHASE 15 (Failure B — voice identity): the authoritative Jarvis voice is
+    // aura-helios-en (matches the renderer's AGENT_VOICE default). A caller
+    // that omits `voice` MUST NOT silently get a different voice
+    // (aura-2-draco-en was the old server default — the mismatch caused
+    // mid-session voice switching when a legacy path skipped the voice field).
     let defaultVoice = 'aura-orion-en';
     if (agentId === 'agent-jarvis') {
-      defaultVoice = 'aura-2-draco-en';
+      defaultVoice = 'aura-helios-en';
     }
     const voiceModel = voice || defaultVoice;
 
@@ -128,9 +133,12 @@ router.post('/tts', async (req, res) => {
       return res.status(500).json({ error: 'Deepgram API key not configured.' });
     }
 
+    // PHASE 15 (Failure B — voice identity): agent-jarvis defaults to
+    // aura-helios-en (matches the renderer). Never silently substitute a
+    // different voice when the caller omits `voice`.
     let defaultVoice = 'aura-orion-en';
     if (agentId === 'agent-jarvis') {
-      defaultVoice = 'aura-2-draco-en';
+      defaultVoice = 'aura-helios-en';
     }
     const voiceModel = voice || defaultVoice;
 

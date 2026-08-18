@@ -13,6 +13,13 @@ router.get('/', (_req, res) => {
   });
 });
 
+router.post('/restart', (_req, res) => {
+  res.json({ status: 'restarting' });
+  setTimeout(() => {
+    process.exit(0);
+  }, 100);
+});
+
 /* ── GET /api/health/system ─────────────────────────────
    Real host telemetry for the Jarvis command-center System Status panel.
    Every value comes from the OS at request time (CPU load average, memory)

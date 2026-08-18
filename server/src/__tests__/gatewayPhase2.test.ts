@@ -75,7 +75,10 @@ describe('Multi-Provider Gateway Router (Phase 2)', () => {
 
     const res = await router.chat({ prompt: 'hello' });
     expect(res.provider).toBe('ninerouter');
-    expect(callCount).toBe(2);
+    // ab6e6e1 added a bounded internal retry in OpenAICompatibleGateway.chat:
+    // HTTP 500 on the primary costs TWO fetch calls (attempt 0 → 800ms → attempt 1)
+    // before the router falls through to ninerouter's successful call = 3 total.
+    expect(callCount).toBe(3);
   });
 
   test('Capability-based routing (Vision bypasses Omniroot)', async () => {

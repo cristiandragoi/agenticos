@@ -90,7 +90,22 @@ router.get('/memories/:id', (req, res) => {
 router.post('/memories', (req, res) => {
   const body = parseMemoryBody(req.body);
   if (!body) { res.status(400).json({ error: 'Invalid memory (type + title required)' }); return; }
-  const m = createMemory({ ...body, derivedFromMemoryIds: req.body?.derivedFromMemoryIds });
+  // Closure (human memory semantics): a direct POST /memories from the human
+  // UI is a HUMAN-created memory — sourceType 'human' + verificationStatus
+  // 'human_confirmed'. Machine candidates must NOT be posted here as verified
+  // facts; worker promotion goes through promoteHermesCandidates which sets
+  // 'verified' only after a PASS verdict.
+  const humanRequested = req.body?.human === true || req.body?.sourceType === 'human';
+  const m = createMemory({
+    ...body,
+    // Override source to human when explicitly requested; otherwise keep the
+    // provided source but mark verification status truthfully.
+    source: humanRequested
+      ? { ...body.source, sourceType: 'human' as const }
+      : body.source,
+    derivedFromMemoryIds: req.body?.derivedFromMemoryIds,
+    ...(humanRequested ? { verificationStatus: 'human_confirmed' as const } : {}),
+  });
   res.status(201).json(m);
 });
 
@@ -117,8 +132,18 @@ router.delete('/memories/:id', (req, res) => {
 });
 
 router.post('/memories/:id/confirm', (req, res) => {
-  const updated = memoryStore.update(req.params.id, { lastConfirmedAt: Date.now(), status: 'active' });
-  if (!updated) { res.status(404).json({ error: 'Memory not found' }); return; }
+  const existing = memoryStore.get(req.params.id);
+  if (!existing) { res.status(404).json({ error: 'Memory not found' }); return; }
+  // Closure: confirm is an explicit HUMAN approval/promotion gate. It marks
+  // the memory human_confirmed (regardless of prior machine provenance) and
+  // upgrades sourceType to 'human' so the provenance chain reflects the
+  // human approval.
+  const updated = memoryStore.update(req.params.id, {
+    lastConfirmedAt: Date.now(),
+    status: 'active',
+    verificationStatus: 'human_confirmed',
+    source: { ...existing.source, sourceType: 'human' },
+  });
   res.json(updated);
 });
 
@@ -137,8 +162,10 @@ router.post('/memories/:id/correct', (req, res) => {
     entities: existing.entities,
     tags: [...existing.tags, 'corrected'],
     confidence: Math.min(1, existing.confidence + 0.1),
-    source: { ...existing.source, sourceType: 'conversation' },
+    source: { ...existing.source, sourceType: 'human' },
     derivedFromMemoryIds: [existing.id],
+    // A human correction is a human-confirmed fact.
+    verificationStatus: 'human_confirmed',
   });
   res.status(201).json({ corrected, superseded: existing.id });
 });
@@ -173,6 +200,31 @@ router.get('/graph', (req, res) => {
 
 router.get('/entities', (_req, res) => {
   res.json(memoryStore.entities());
+});
+
+// ── Candidate memory (closure) ─────────────────────────────────────────────
+// Workers propose candidates; verification gates; PASS promotes. Candidates
+// are persisted and NEVER silently discarded. These endpoints expose the
+// chain for audit/UI.
+router.get('/candidates', (req, res) => {
+  res.json(memoryStore.listCandidates({
+    status: (req.query.status as string) || null,
+    projectId: (req.query.projectId as string) || null,
+    limit: req.query.limit != null ? Math.min(200, Number(req.query.limit)) : 100,
+  }));
+});
+
+router.get('/candidates/:id', (req, res) => {
+  const c = memoryStore.getCandidate(req.params.id);
+  if (!c) { res.status(404).json({ error: 'Candidate not found' }); return; }
+  res.json(c);
+});
+
+router.post('/candidates/:id/reject', (req, res) => {
+  const c = memoryStore.getCandidate(req.params.id);
+  if (!c) { res.status(404).json({ error: 'Candidate not found' }); return; }
+  const updated = memoryStore.updateCandidate(req.params.id, { status: 'rejected' });
+  res.json(updated);
 });
 
 export default router;

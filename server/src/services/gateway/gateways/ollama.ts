@@ -67,11 +67,25 @@ export class OllamaGateway implements ModelGateway {
       ?? available.find(name => name === `${baseModel}:latest`)
       ?? available.find(name => name.startsWith(`${baseModel}:`));
 
-    if (!match) {
-      throw new Error(`Ollama model missing: configured '${model}'`);
+    if (match) return match;
+
+    // FALLBACK MODEL HARDENING (provider resilience): a request that names a
+    // model NOT installed on this Ollama host (e.g. an assigned model such as
+    // qwen3.5:4b that was never pulled, or a cloud-only catalog model) must
+    // not fail the whole fallback chain. Retry resolution against the
+    // provider's verified definition model (llama3.2:3b by default) so the
+    // local fallback always lands on an actually-installed model. The
+    // resolved model is reported truthfully in every emitted chunk.
+    const defModel = this.definition.model;
+    if (defModel && defModel !== model) {
+      const defBase = defModel.split(':')[0];
+      const defMatch = available.find(name => name === defModel)
+        ?? available.find(name => name === `${defBase}:latest`)
+        ?? available.find(name => name.startsWith(`${defBase}:`));
+      if (defMatch) return defMatch;
     }
 
-    return match;
+    throw new Error(`Ollama model missing: configured '${model}' (local fallback '${defModel}' also unavailable)`);
   }
 
   public async chat(req: ChatRequest): Promise<ChatResponse> {

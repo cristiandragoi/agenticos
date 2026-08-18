@@ -89,7 +89,7 @@ export interface ProviderDefinition {
   baseUrl: string;
   apiKey?: string;
   model: string;
-  type: 'openai' | 'ollama';
+  type: 'openai' | 'ollama' | 'deepseek';
   capabilities?: string[];
   tags?: string[];
   maxContext?: number;

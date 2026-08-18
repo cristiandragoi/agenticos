@@ -105,6 +105,10 @@ import settingsRouter from './routers/settings.js';
 import { routingRouter } from './routers/routing.js';
 import { executionRouter } from './routers/execution.js';
 import diagnosticsRouter from './routers/diagnostics.js';
+import runtimeDiagnosticsRouter from './routers/runtimeDiagnostics.js';
+import projectExecutionRouter from './routers/projectExecution.js';
+import { mcpBridgeRouter } from './routers/mcpBridge.js';
+import { initProjectExecutionSchema } from './services/projectExecution/schema.js';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
@@ -114,6 +118,9 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
 // Initialize all JSON stores and seed if empty
 import { db } from './services/db.js';
 db.init();
+
+// Initialize canonical project execution schema (idempotent)
+initProjectExecutionSchema();
 
 // Seed run store with existing mock runs so GET /api/runs is populated on first load
 runStore.seed(mockRuns);
@@ -248,6 +255,8 @@ app.use('/api/background-tasks', backgroundTasksRouter);
 import { runLedgerRouter } from './routers/runLedger.js';
 app.use('/api/run-ledger', runLedgerRouter);
 app.use('/api/schedules', schedulesRouter);
+import routinesRouter from './routers/routines.js';
+app.use('/api/routines', routinesRouter);
 app.use('/api/heavy-gen', heavyGenRouter);
 import { connectorRouter } from './routers/connectorRouter.js';
 app.use('/api/connectors', connectorRouter);
@@ -259,8 +268,15 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/routing', routingRouter);
 app.use('/api/execution', executionRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
+app.use('/api/diagnostics/runtime', runtimeDiagnosticsRouter);
+app.use('/api/project-execution', projectExecutionRouter);
+app.use('/api/mcp-bridge', mcpBridgeRouter);
 import { magnitudeRouter } from './routers/magnitude.js';
 app.use('/api/magnitude', magnitudeRouter);
+import { evaluationRouter } from './routers/evaluation.js';
+app.use('/api/evaluation', evaluationRouter);
+import { codingRuntimeRouter } from './routers/codingRuntime.js';
+app.use('/api/coding', codingRuntimeRouter);
 
 app.use('/api/agentic', agenticRouter);
 

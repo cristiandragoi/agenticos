@@ -330,8 +330,29 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   // ── The EXISTING conversation engine — no new VAD/mic/TTS code. ──
   const voice = useVoiceIO({
     agentId: 'agent-jarvis',
-    endSpeechSilenceMs: 900, // spec window 700–1200 ms
+    endSpeechSilenceMs: 750, // Voice-reliability closure: 900 → 750ms (spec window 700–1200 ms)
     onAutoSubmit: handleAutoSubmit,
+    onBargeIn: () => {
+      // User barged in while Jarvis was speaking: abort the in-flight model
+      // stream AND invalidate the current turn so its late `speak()` never
+      // re-enters the voice path (the hook already halted audio + cleared TTS).
+      streamAbortRef.current?.abort();
+      submitSeqRef.current++;
+      processingRef.current = false;
+      voiceRef.current?.killSpeech?.();
+    },
+    onControlCommand: (cmd) => {
+      // Local control command — abort the in-flight model stream and
+      // invalidate the current turn so its late output can never re-enter.
+      streamAbortRef.current?.abort();
+      submitSeqRef.current++;
+      processingRef.current = false;
+      voiceRef.current?.killSpeech?.();
+      if (cmd.kind === 'terminate') {
+        // Clear pending conversational-turn state; return to ready.
+        jarvis.clearTranscript();
+      }
+    },
     // Manual mode: transcript lands in the EDITABLE input — user presses Send.
     onTranscript: (text) => {
       // TEMP DIAGNOSTIC — visible chain trace (remove after confirmation).

@@ -35,8 +35,9 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import { decideContinuation } from '../utils/utteranceCompleteness';
 import { voiceTracePush } from '../diagnostics/voiceTrace';
+import { voiceTimelineBegin, voiceTimelinePush, installVoiceTimelineProbe } from '../diagnostics/voiceTimeline';
 
-export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
+export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'ducked' | 'error';
 
 interface UseVoiceIOOptions {
   agentId: string;
@@ -67,9 +68,24 @@ interface UseVoiceIOOptions {
   vadWatchdogMs?: number;
   /** How often the VAD liveness watchdog checks (ms). Default 1000ms. */
   vadWatchdogIntervalMs?: number;
+  /** Conversation mode: fired the instant real user speech barges in while
+   *  Jarvis is speaking. The hook has ALREADY halted playback, cleared the
+   *  progressive speech queue and suppressed further chunks; the consumer
+   *  MUST cancel the in-flight model stream here so no late tokens re-enter
+   *  the voice path. */
+  onBargeIn?: () => void;
+  /** Fired when a LOCAL control command (stop/terminate) is detected from a
+   *  finalized transcript. Consumers must cancel the model/SSE generation and
+   *  clear the active turn — the hook has already stopped audio + cleared the
+   *  speech queue. Fires INSTEAD OF onAutoSubmit (never routed to an LLM). */
+  onControlCommand?: (cmd: ControlCommand) => void;
 }
 
 import { API_BASE as BACKEND, apiFetch } from '../api/client';
+import { detectControlIntent, isStandaloneWake, type ControlCommand } from '../lib/controlIntent';
+import { classifyTranscript, recordSpokenSegment, clearSpokenSegments } from '../lib/echoTracker';
+import { classifyInterruption } from '../lib/adaptiveBargeIn';
+import { resolveVoiceSessionConfig, recordVoiceSynthesis, type VoiceSessionConfig } from '../lib/voiceSessionConfig';
 
 // Per-agent TTS voice mapping (Deepgram Aura voices)
 const AGENT_VOICE: Record<string, string> = {
@@ -85,7 +101,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     onStateChange,
     onAutoSubmit,
     silenceTimeout = 1500, // Faster, snappier conversation
-    endSpeechSilenceMs = 900,
+    endSpeechSilenceMs = 750, // Voice-reliability closure: 900 → 750ms (kept
+    // above the 700ms natural-conversation floor; continuation window still
+    // protects mid-utterance 1s pauses from premature finalization).
     speechThreshold = 0.02,
     minSpeechMs = 120,
     maxSegmentMs = 20000,
@@ -93,6 +111,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     continuationWindowMs = 2500,
     vadWatchdogMs = 3000,
     vadWatchdogIntervalMs = 1000,
+    onBargeIn,
+    onControlCommand,
   } = options;
 
   // VAD liveness thresholds (multi-turn voice hardening): if the analysis
@@ -100,11 +120,18 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   // rAF loop has been frozen (background/occlusion) and must be re-armed.
   const VAD_WATCHDOG_MS = vadWatchdogMs;
   const VAD_WATCHDOG_INTERVAL_MS = vadWatchdogIntervalMs;
+  // PHASE 15 (Failure E): sustained speech beyond this while ducked is a real
+  // takeover (new question / command) — kill the old turn without waiting for
+  // the STT transcript. Mirrors the classifier's takeover threshold.
+  const BARGE_TAKEOVER_MS = 1800;
 
   const [voiceState, setVoiceStateInternal] = useState<VoiceState>('idle');
   const [lastTranscript, setLastTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState('');
   const [conversationActive, setConversationActive] = useState(false);
+
+  // Expose the measured timeline to CDP gate scripts (read-only).
+  useEffect(() => { installVoiceTimelineProbe(); }, []);
 
   // Ref mirrors — event handlers and rAF loops run in stale closures, so all
   // mode decisions read refs, never the render-time values.
@@ -126,6 +153,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
    *  VOICE PLAYBACK ERROR banner. */
   const playbackGenRef = useRef(0);
   const ttsAbortControllerRef = useRef<AbortController | null>(null);
+  /** Pending playAudio() reject — haltPlayback settles it so a cancelled
+   *  playback can never strand the progressive speech pump on an `await`
+   *  that has no onended/onerror left to fire (barge-in mid-playback). */
+  const playbackSettleRef = useRef<{ reject: (e: Error) => void } | null>(null);
   // Playback-amplitude analysis (real output level for the orb).
   const playbackContextRef = useRef<AudioContext | null>(null);
   const playbackSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -152,6 +183,28 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const turnSubmittedRef = useRef(false);
   const playbackStartedAtRef = useRef<number | null>(null);
   const playbackActiveRef = useRef(false);
+  /** Barge-in must survive `minSpeechMs` of REAL sustained speech (not a
+   *  single transient frame / keyboard click / echo spike) before it fires. */
+  const bargeInSpeechSinceRef = useRef<number | null>(null);
+  // ── PHASE 15 (Failure E) adaptive barge-in: duck-then-classify ──
+  // While Jarvis speaks, real user speech DUCKS the playback (gain ramp,
+  // not mute) and opens a recording turn. When the transcript arrives it is
+  // CLASSIFIED: acknowledgement → resume (no new LLM turn), hard control →
+  // full kill, sustained takeover → full kill + new turn, noise → resume.
+  const duckedRef = useRef(false);
+  const duckSpeechStartedAtRef = useRef<number | null>(null);
+  const duckEscalatedRef = useRef(false);
+  // A takeover escalation fires while the user is STILL speaking; the VAD
+  // escalation path performs the full kill (which resets the duck flags via
+  // haltPlayback). The pending transcript must still be force-submitted as a
+  // NEW turn when it resolves — this marker survives the kill.
+  const pendingTakeoverRef = useRef(false);
+  // ── Progressive sequential speech queue (one audio at a time) ──
+  // Declared here (before haltPlayback/performBargeIn) so the barge-in kill
+  // path can clear them. The pump itself is defined later.
+  const speechQueueRef = useRef<string[]>([]);
+  const speechPumpActiveRef = useRef(false);
+  const speechRunSuppressedRef = useRef(false);
   // ── Input ownership (§9 input-ownership milestone) ──
   // The composer has TWO owners: manual keyboard input and voice/STT. They
   // must never race-write the same value. Manual ownership is modeled as a
@@ -173,6 +226,15 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const speakingRef = useRef(false);
   const recoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoSubmitRef = useRef<{ text: string; at: number } | null>(null);
+  // Live barge-in callback (rAF loop reads the ref, never a stale closure).
+  const onBargeInRef = useRef<(() => void) | null>(null);
+  onBargeInRef.current = onBargeIn ?? null;
+  // Live control-command callback (submit path reads the ref).
+  const onControlCommandRef = useRef<((cmd: ControlCommand) => void) | null>(null);
+  onControlCommandRef.current = onControlCommand ?? null;
+  // Dedupe for control commands: a partial stop + final stop must not
+  // execute the cancel path twice.
+  const lastControlRef = useRef<{ normalized: string; at: number } | null>(null);
 
   // ── Turn validity: conversationSessionId + turnId (never mutable booleans
   //    alone). A recorded blob is submittable ONLY while the session that
@@ -188,10 +250,28 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   // mirror exists so the voice selector UI can render the active choice.
   const voiceOverrideRef = useRef<string | null>(null);
   const [selectedVoice, setSelectedVoiceState] = useState<string | null>(null);
+  // PHASE 15 (Failure B — voice identity pinning): ONE authoritative voice
+  // configuration per active voice session. Resolved when the conversation
+  // starts (or the voice override changes) and NEVER re-resolved per chunk or
+  // per turn — a retry/fallback/interruption must not silently swap voices.
+  const voiceSessionConfigRef = useRef<VoiceSessionConfig | null>(null);
   const setVoiceOverride = useCallback((voice: string | null) => {
     voiceOverrideRef.current = voice;
     setSelectedVoiceState(voice);
-  }, []);
+    // Re-resolve the session configuration ONCE on an explicit override
+    // change (the user asked for a new voice) — the ONLY legal voice change.
+    voiceSessionConfigRef.current = resolveVoiceSessionConfig(agentId, voice);
+    voiceTracePush('voice_config', 'ok', `Voice pinned: ${voiceSessionConfigRef.current.model}`);
+  }, [agentId]);
+
+  /** Resolve (or lazily create) the authoritative voice session config. */
+  const ensureVoiceSessionConfig = useCallback((): VoiceSessionConfig => {
+    if (voiceSessionConfigRef.current) return voiceSessionConfigRef.current;
+    const cfg = resolveVoiceSessionConfig(agentId, voiceOverrideRef.current);
+    voiceSessionConfigRef.current = cfg;
+    voiceTracePush('voice_config', 'ok', `Voice session resolved: ${cfg.model}`);
+    return cfg;
+  }, [agentId]);
 
   const setVoiceState = useCallback((s: VoiceState) => {
     voiceStateRef.current = s;
@@ -266,6 +346,13 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const haltPlayback = useCallback(() => {
     ttsAbortControllerRef.current?.abort();
     ttsAbortControllerRef.current = null;
+    // Settle any in-flight playAudio() promise so the progressive pump can
+    // never hang on an `await` whose onended/onerror we are about to detach.
+    if (playbackSettleRef.current) {
+      const settle = playbackSettleRef.current;
+      playbackSettleRef.current = null;
+      settle.reject(new Error('Playback halted'));
+    }
     window.speechSynthesis?.cancel();
     if (audioElementRef.current) {
       const el = audioElementRef.current;
@@ -286,10 +373,53 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     stopPlaybackLevelMonitor();
     playbackActiveRef.current = false;
     speakingRef.current = false;
+    voiceTracePush('playback_stopped', 'ok', `audio halted at ${Date.now()}`);
     // ROOT-CAUSE FIX (multi-turn voice): any halt (stop button, abort, voice
     // disable) must never leave the conversation mic muted.
     setConversationMicEnabled(true);
+    // PHASE 15 (Failure E): any full halt also exits the ducked state and
+    // restores normal gain — a killed turn must not leave playback ducked.
+    duckedRef.current = false;
+    duckEscalatedRef.current = false;
+    if (audioElementRef.current) audioElementRef.current.volume = 1;
   }, [stopPlaybackLevelMonitor, setConversationMicEnabled]);
+
+  // ── PHASE 15 (Failure E) ADAPTIVE BARGE-IN: duck-then-classify ──
+  // Stage A: user starts talking while Jarvis speaks → DUCK (gain ramp to
+  // ~20%), do NOT destroy the turn yet. The response keeps playing softly;
+  // classification decides whether to resume or kill.
+  const duckPlayback = useCallback(() => {
+    if (duckedRef.current) return;
+    duckedRef.current = true;
+    duckEscalatedRef.current = false;
+    duckSpeechStartedAtRef.current = Date.now();
+    const el = audioElementRef.current;
+    if (el) {
+      // Smooth gain ramp 1.0 → 0.2 (~80ms, 4 steps). The element volume is
+      // the single playback gain control (no overlapping players).
+      const steps = [0.8, 0.6, 0.35, 0.2];
+      steps.forEach((v, i) => {
+        window.setTimeout(() => { if (duckedRef.current && audioElementRef.current) audioElementRef.current.volume = v; }, i * 25);
+      });
+    }
+    setVoiceState('ducked');
+    voiceTracePush('duck_started', 'ok', `Playback ducked to ~20% at ${Date.now()}`);
+  }, [setVoiceState]);
+
+  /** Restore playback gain 0.2 → 1.0 after an ack/noise (resume the turn). */
+  const restorePlayback = useCallback(() => {
+    if (!duckedRef.current) return;
+    duckedRef.current = false;
+    duckEscalatedRef.current = false;
+    const el = audioElementRef.current;
+    if (el) {
+      const steps = [0.4, 0.65, 0.85, 1.0];
+      steps.forEach((v, i) => {
+        window.setTimeout(() => { if (!duckedRef.current && audioElementRef.current) audioElementRef.current.volume = v; }, i * 25);
+      });
+    }
+    voiceTracePush('duck_restored', 'ok', `Playback restored to 100% at ${Date.now()}`);
+  }, []);
 
   /** Public stop: halt + notify listeners (orb, drawer resume handler). */
   const stopAudio = useCallback(() => {
@@ -298,6 +428,35 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       detail: { agentId },
     }));
   }, [agentId, haltPlayback]);
+
+  /** Barge-in kill (conversation mode): the user began speaking while Jarvis
+   *  was speaking. This is the FULL interruption, not a mute:
+   *    1. clear queued progressive speech chunks for the cancelled turn
+   *    2. suppress any further chunks (a late token must never re-enter TTS)
+   *    3. abort in-flight TTS synthesis + halt current audio
+   *    4. notify the consumer so it aborts the in-flight MODEL stream
+   *  The visible text is never touched. The caller (VAD loop) then transitions
+   *  to listening and opens the new user turn. */
+  const performBargeIn = useCallback(() => {
+    speechQueueRef.current = [];
+    speechRunSuppressedRef.current = true;
+    if (ttsAbortControllerRef.current) {
+      ttsAbortControllerRef.current.abort();
+      ttsAbortControllerRef.current = null;
+    }
+    haltPlayback();
+    voiceTracePush('barge_in', 'ok', 'User speech detected while speaking — interrupting current turn');
+    onBargeInRef.current?.();
+  }, [haltPlayback]);
+
+  /** Escalate a ducked interruption to a FULL kill (takeover / hard control).
+   *  The turn is invalidated; the caller decides whether to submit new text.
+   *  (Declared AFTER performBargeIn — the useCallback deps reference it.) */
+  const escalateFromDuck = useCallback(() => {
+    duckedRef.current = false;
+    duckEscalatedRef.current = false;
+    performBargeIn();
+  }, [performBargeIn]);
 
   /** Conversation mode: silence Jarvis (barge-in / stop-speaking control).
    *  The already-visible response text is never touched — playback only. */
@@ -383,6 +542,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const playAudio = useCallback((base64Audio: string | null): Promise<void> => {
     const gen = ++playbackGenRef.current;
     return new Promise((resolve, reject) => {
+      // Register the reject so haltPlayback (barge-in) can settle this
+      // promise even after the media handlers are detached.
+      playbackSettleRef.current = { reject };
       // Audio playback should not call stopAudio, since speak orchestrates it.
       // Just pause existing audioElementRef without aborting the controller.
       window.speechSynthesis?.cancel();
@@ -405,6 +567,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // is missing/empty (never produce a media-element error from nothing).
       if (!base64Audio || typeof base64Audio !== 'string' || base64Audio.trim().length === 0) {
         const err = 'No audio data returned from backend';
+        playbackSettleRef.current = null;
         setPlaybackError(err);
         setVoiceState('error');
         reject(new Error(err));
@@ -422,15 +585,17 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         if (playbackGenRef.current !== gen) return; // stale session event
         // Playback ACTUALLY started — only now do we enter the speaking
         // state. Real output amplitude is monitored for the orb.
+        voiceTimelinePush('audioPlaybackStartAt');
         voiceTracePush('playback_started', 'ok', `Audio playback started (${Math.round((audio.duration || 0) * 10) / 10}s)`);
         playbackActiveRef.current = true;
         speakingRef.current = true;
         playbackStartedAtRef.current = Date.now();
-        // ROOT-CAUSE FIX (multi-turn voice): Jarvis is now speaking — mute the
-        // conversation mic so the VAD cannot interpret Jarvis's own voice as
-        // a user turn (echo self-loop / noSpeech drops). Unmuted on playback
-        // end (onended/onerror) before the mic loop re-arms.
-        setConversationMicEnabled(false);
+        // BARGE-IN FIX (full-duplex): the mic MUST stay live while Jarvis is
+        // speaking so the VAD can hear a real user voice and interrupt. The
+        // hard mute previously used here silenced the analyser, making
+        // barge-in impossible — Jarvis talked over the user. Self-echo is
+        // instead handled by echoCancellation/noiseSuppression on the stream
+        // itself (see openConversationMic) plus the barge-in grace window.
         // §6: playback recovered — clear any leftover FAILED banner.
         setPlaybackError(null);
         ensurePlaybackAnalyser();
@@ -446,13 +611,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
       audio.onended = () => {
         if (playbackGenRef.current !== gen) return; // stale session event
+        if (playbackSettleRef.current) playbackSettleRef.current = null;
         stopPlaybackLevelMonitor();
         playbackActiveRef.current = false;
         speakingRef.current = false;
-        // ROOT-CAUSE FIX (multi-turn voice): Jarvis finished speaking — re-arm
-        // the mic BEFORE the conversation loop re-arms, so the next USER turn
-        // is heard at full gain (echo cancellation / AGC must not suppress it).
-        setConversationMicEnabled(true);
         window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
           detail: { agentId },
         }));
@@ -462,12 +624,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
       audio.onerror = () => {
         if (playbackGenRef.current !== gen) return; // §6: stale error — NEVER banner
+        if (playbackSettleRef.current) playbackSettleRef.current = null;
         stopPlaybackLevelMonitor();
         playbackActiveRef.current = false;
         speakingRef.current = false;
-        // ROOT-CAUSE FIX (multi-turn voice): playback failed — never leave the
-        // conversation mic muted; the recovery path re-arms listening.
-        setConversationMicEnabled(true);
         const err = audio.error?.message || 'Audio element playback error';
         setPlaybackError(err);
         setVoiceState('error');
@@ -491,6 +651,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // §5 final guard: only play with a real, non-empty src.
       if (!audio.src) {
         const err = 'Audio source missing after assignment (URL creation failed)';
+        playbackSettleRef.current = null;
         setPlaybackError(err);
         setVoiceState('error');
         reject(new Error(err));
@@ -499,6 +660,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       audio.play().catch((err) => {
         if (playbackGenRef.current !== gen) return; // stale rejection
         const errMsg = err.message || 'Autoplay blocked or playback failed';
+        playbackSettleRef.current = null;
         setPlaybackError(errMsg);
         setVoiceState('error');
         reject(new Error(errMsg));
@@ -595,6 +757,37 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     if (turnSubmittedRef.current) return false;
     turnSubmittedRef.current = true;
     const now = Date.now();
+    // ── LOCAL CONTROL-INTENT LAYER (Phase 1) ──────────────────────────────
+    // Runs BEFORE any model routing. "Jarvis, stop" must stop — it must
+    // NEVER become an LLM prompt. Detection is local + deterministic.
+    const control = detectControlIntent(text);
+    if (control) {
+      const lastCtl = lastControlRef.current;
+      const ctlDup = !!(lastCtl && lastCtl.normalized === control.matched && now - lastCtl.at < 4000);
+      lastControlRef.current = { normalized: control.matched, at: now };
+      // Full local stop chain: clear queue + suppress + abort TTS + halt
+      // audio (performBargeIn) — this also fires onBargeIn so the consumer
+      // aborts the in-flight model stream.
+      performBargeIn();
+      if (!ctlDup) {
+        voiceTracePush('control_command', 'ok', `Control ${control.kind}: "${control.matched}"`);
+        onControlCommandRef.current?.(control);
+      }
+      // Return to listening. Do NOT submit to the model. Returning false
+      // makes the caller rearm listening (never 'thinking').
+      setVoiceState('listening');
+      return false;
+    }
+    // Standalone wake ("Jarvis") is a PRESENCE CHECK, not a substantive query.
+    // Voice-reliability closure: route it through the same local fast path so
+    // the server answers "Yes, I'm here." — never silence, never the LLM.
+    if (isStandaloneWake(text)) {
+      console.log('[ConvTrace] standalone wake → presence fast path');
+      speechRunSuppressedRef.current = false;
+      voiceTimelinePush('routingStartAt', `"${text.slice(0, 40)}" (wake)`);
+      onAutoSubmit?.(text);
+      return true;
+    }
     const last = lastAutoSubmitRef.current;
     const dup = !!(last && last.text === text && now - last.at < 4000);
     if (dup) {
@@ -604,9 +797,13 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     lastAutoSubmitRef.current = { text, at: now };
     console.log('[ConvTrace] onAutoSubmit firing', { hasCallback: typeof onAutoSubmit === 'function' });
     voiceTracePush('auto_submit', 'ok', `Auto-submitted: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
+    // A NEW user turn re-arms speech: any barge-in suppression from the
+    // PREVIOUS turn must not silence this turn's reply.
+    speechRunSuppressedRef.current = false;
+    voiceTimelinePush('routingStartAt', `"${text.slice(0, 40)}"`);
     onAutoSubmit?.(text);
     return true;
-  }, [onAutoSubmit]);
+  }, [onAutoSubmit, performBargeIn, setVoiceState]);
 
   /** Process the recorded audio blob → transcribe ONLY.
    *  Conversation mode: valid transcript auto-submits once, then the turn
@@ -640,6 +837,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
     try {
       // 1. Transcribe
+      voiceTimelinePush('sttRequestStartAt');
       const fd = new FormData();
       fd.append('audio', audioBlob, 'audio.webm');
       const transcribeRes = await apiFetch(`${BACKEND}/voice/transcribe`, {
@@ -676,6 +874,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         }
         return;
       }
+      voiceTimelinePush('sttResultAt', `"${transcriptText.slice(0, 40)}"`);
 
       // ── Input-ownership gate (§9 input-ownership milestone) ──
       // The user typed/edited the composer or turned the mic OFF while this
@@ -704,6 +903,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         branch: (fromConversation || conversationActiveRef.current) ? 'AUTO-SUBMIT' : 'MANUAL-INPUT',
       });
       if (fromConversation || conversationActiveRef.current) {
+        voiceTimelinePush('transcriptAcceptedAt');
         // End-of-turn gating (see handleConversationTranscript): incomplete
         // utterances are held for a bounded continuation window; complete
         // ones (including short commands) submit immediately.
@@ -796,12 +996,16 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
     convCtxRef.current = null;
     convAnalyserRef.current = null;
+    clearSpokenSegments();
   }, [discardConversationTurn]);
 
   const startTurnRecording = useCallback((stream: MediaStream) => {
     if (turnActiveRef.current) return;
     turnActiveRef.current = true;
     turnSubmittedRef.current = false;
+    // New measured runtime turn — reset the latency timeline.
+    voiceTimelineBegin();
+    voiceTimelinePush('speechStartAt');
     // Capture turn validity NOW (session + sequence at record time). The
     // async transcription may resolve after the session ended or a newer
     // turn started — submitConversationTurn re-checks both before firing.
@@ -817,6 +1021,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         turnActiveRef.current = false;
         const blob = new Blob(convChunksRef.current, { type: 'audio/webm' });
         convChunksRef.current = [];
+        voiceTimelinePush('mediaRecorderFinalizedAt', `${blob.size}B`);
         // TEMP DIAGNOSTIC — live chain trace (remove after confirmation).
         window.dispatchEvent(new CustomEvent('jarvis:conv-trace', { detail: { stage: 'recorderStop', value: `blob ${blob.size}B turn ${validity.turnId}` } }));
         // Recordings with no meaningful payload never reach transcription.
@@ -840,6 +1045,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     const rec = convRecorderRef.current;
     convRecorderRef.current = null;
     if (rec && rec.state === 'recording') {
+      voiceTimelinePush('recordingStopAt');
       try { rec.stop(); } catch { /* already stopped */ }
     }
     speechStartedAtRef.current = null;
@@ -882,17 +1088,53 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
       const isSpeech = rms > speechThreshold;
 
-      // ── Barge-in: real user speech while Jarvis is speaking ──
-      if (!turnActiveRef.current && speakingRef.current) {
+      // ── PHASE 15 (Failure E) ADAPTIVE BARGE-IN ──
+      // While Jarvis is speaking, sustained real user speech DUCKS the
+      // playback (gain ramp, turn preserved) instead of the old binary
+      // full-kill. Classification happens when the interruption transcript
+      // arrives (ack → resume, control → kill, takeover → kill + new turn,
+      // noise → resume). Only a LONG sustained utterance (beyond the takeover
+      // threshold) escalates immediately to a full kill so a genuine new
+      // question is not held at duck volume for its whole duration.
+      if (speakingRef.current) {
         const started = playbackStartedAtRef.current ?? now;
-        if (now - started >= bargeInGraceMs && isSpeech) {
-          // Stop current audio + cancel remaining TTS; visible text stays.
-          stopSpeaking();
-          // Transition to listening and open the new user turn immediately.
-          setVoiceState('listening');
-          speechStartedAtRef.current = now;
-          silenceSinceRef.current = null;
-          if (streamRef.current) startTurnRecording(streamRef.current);
+        if (now - started >= bargeInGraceMs) {
+          if (isSpeech) {
+            if (bargeInSpeechSinceRef.current === null) bargeInSpeechSinceRef.current = now;
+            const sustainedMs = now - bargeInSpeechSinceRef.current;
+            if (sustainedMs >= minSpeechMs) {
+              if (!duckedRef.current) {
+                bargeInSpeechSinceRef.current = null;
+                voiceTracePush('barge_in_speech', 'ok', `sustained speech accepted at ${now}`);
+                // Stage A: duck immediately (target speech→duck <100ms).
+                duckPlayback();
+                // A turn must be recording to capture the user's utterance. If
+                // one already started during a gap, keep it — never double-open.
+                if (!turnActiveRef.current) {
+                  setVoiceState('ducked');
+                  speechStartedAtRef.current = now;
+                  silenceSinceRef.current = null;
+                  if (streamRef.current) startTurnRecording(streamRef.current);
+                }
+              } else if (sustainedMs >= BARGE_TAKEOVER_MS) {
+                // Long sustained speech = real takeover — stop waiting for a
+                // transcript, kill the old turn NOW, keep the recording turn.
+                voiceTracePush('barge_in_escalated', 'ok', `sustained ${Math.round(sustainedMs)}ms — takeover escalation`);
+                duckEscalatedRef.current = true;
+                pendingTakeoverRef.current = true; // transcript must force-submit
+                duckedRef.current = false;
+                performBargeIn();
+                if (!turnActiveRef.current) {
+                  setVoiceState('listening');
+                  speechStartedAtRef.current = now;
+                  silenceSinceRef.current = null;
+                  if (streamRef.current) startTurnRecording(streamRef.current);
+                }
+              }
+            }
+          } else {
+            bargeInSpeechSinceRef.current = null;
+          }
         }
       } else if (!turnActiveRef.current && isSpeech && voiceStateRef.current === 'listening') {
         // ── Speech start (only while actually listening — never while a
@@ -918,6 +1160,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
           silenceSinceRef.current = now;
         } else if (now - silenceSinceRef.current >= endSpeechSilenceMs) {
           vadRafRef.current = null; // loop pauses until transcription re-arms
+          voiceTimelinePush('speechEndDetectedAt', `silence≥${endSpeechSilenceMs}ms`);
           // TEMP DIAGNOSTIC — live chain trace (remove after confirmation).
           window.dispatchEvent(new CustomEvent('jarvis:conv-trace', { detail: { stage: 'vadEnd', value: `silence≥${endSpeechSilenceMs}ms` } }));
           stopTurnRecording();
@@ -934,7 +1177,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       vadRafRef.current = requestAnimationFrame(tick);
     };
     vadRafRef.current = requestAnimationFrame(tick);
-  }, [speechThreshold, minSpeechMs, endSpeechSilenceMs, maxSegmentMs, bargeInGraceMs, startTurnRecording, stopTurnRecording, stopSpeaking, setVoiceState]);
+  }, [speechThreshold, minSpeechMs, endSpeechSilenceMs, maxSegmentMs, bargeInGraceMs, startTurnRecording, stopTurnRecording, performBargeIn, setVoiceState]);
 
   /** Watchdog for the conversation VAD loop (multi-turn voice hardening).
    *
@@ -1024,6 +1267,51 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     startConversationListeningInternal();
   }, [setVoiceState, startConversationListeningInternal]);
 
+  /** PHASE 15 — RESPONSE-SETTLE RE-ARM (multi-turn reliability, Failure A).
+   *
+   * The VAD loop re-arms ONLY from afterPlaybackEnd today. When a submitted
+   * turn's reply produces NO playback — voice output disabled, delegated
+   * route (codex/hermes), empty reply, provider error, or TTS failure that
+   * skipped speech — the loop never re-arms and the mic silently dies after
+   * that turn ("eventually stopped reacting"). The response OWNER (JarvisChat
+   * / the streaming consumer) knows when the turn's response cycle is truly
+   * over; it calls notifyResponseSettled() at done/error for voice-channel
+   * turns. Deterministic, ownership-based recovery: the turn that owned the
+   * response signals its end, then the engine re-arms listening.
+   */
+  const notifyResponseSettled = useCallback(() => {
+    if (!conversationActiveRef.current) return;
+    // Re-arm from ANY non-speaking state when the response cycle is over:
+    // thinking/transcribing (normal), idle (post-cancel/killSpeech), error.
+    // The ONLY case that must NOT re-arm here is active playback — the mic is
+    // intentionally suppressed while Jarvis speaks (speaking/ducked).
+    if (voiceStateRef.current === 'speaking' || voiceStateRef.current === 'ducked') return;
+    if (playbackActiveRef.current) return;
+    voiceTracePush('response_settled', 'ok', `Response cycle ended (state ${voiceStateRef.current}) — re-arming listening`);
+    rearmListening();
+  }, [rearmListening]);
+
+  // PHASE 15 — stuck-state watchdog extension: the VAD watchdog only ever
+  // recovered 'listening'. If a turn's response never produced playback and
+  // the consumer signal was missed (crash/edge), the engine could sit in
+  // 'thinking' forever with the mic dead. This is a LAST-RESORT backstop:
+  // after a generous 30s in a non-listening, non-speaking state with no
+  // playback, force the deterministic recovery path.
+  useEffect(() => {
+    if (!conversationActiveRef.current) return;
+    const id = window.setInterval(() => {
+      if (!conversationActiveRef.current) return;
+      const s = voiceStateRef.current;
+      if (s === 'listening' || s === 'speaking') return;
+      if (playbackActiveRef.current) return;
+      if (Date.now() - lastAutoSubmitRef.current?.at! > 30000) {
+        voiceTracePush('stuck_state_recovered', 'warn', `Voice state ${s} with no playback — forced recovery`);
+        rearmListening();
+      }
+    }, 10000);
+    return () => window.clearInterval(id);
+  }, [rearmListening]);
+
   /**
    * End-of-turn gating for conversation-mode transcripts.
    *
@@ -1036,6 +1324,71 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
    *   submits as-is (never held forever).
    */
   const handleConversationTranscript = useCallback((text: string, validity?: { sessionId: string | null; turnId: number }) => {
+    // ── CONTROL INTENTS BYPASS THE CONTINUATION HEURISTIC (Phase 2) ──
+    // A stop/terminate ("stop now", "Jarvis stop", "cancel that") must NEVER
+    // be held by the incomplete-utterance window: "stop now" ends with the
+    // discourse filler "now" and would otherwise wait up to
+    // continuationWindowMs before the user hears silence. Control is
+    // authoritative and immediate — it submits NOW, no LLM, no tools.
+    const ctl = detectControlIntent(text);
+    if (ctl) {
+      const submitted = submitConversationTurn(text, validity);
+      if (submitted) setVoiceState('listening');
+      else rearmListening();
+      return;
+    }
+    // ── PHASE 15 (Failure E): ADAPTIVE BARGE-IN CLASSIFICATION ──
+    // This transcript arrived while playback was ducked (user started talking
+    // while Jarvis was speaking). Decide: acknowledgement → resume the SAME
+    // response (no new LLM turn), noise → resume, hard_control → kill,
+    // takeover → kill old turn + submit as a new turn. The old response is
+    // only DESTROYED for a genuine interruption, never for "yes"/"okay".
+    let forceSubmitTakeover = false;
+    if (pendingTakeoverRef.current) {
+      // Escalated takeover: the old turn was killed while the user was still
+      // speaking; this transcript is the new turn — submit immediately.
+      pendingTakeoverRef.current = false;
+      forceSubmitTakeover = true;
+      voiceTracePush('takeover_submit', 'ok', `Escalated takeover transcript force-submitted: "${text.slice(0, 50)}"`);
+    } else if (duckedRef.current || duckEscalatedRef.current) {
+      const speechMs = duckEscalatedRef.current
+        ? BARGE_TAKEOVER_MS // escalated while still speaking — real takeover
+        : (duckSpeechStartedAtRef.current ? Date.now() - duckSpeechStartedAtRef.current : 0);
+      const cls = classifyInterruption(text, speechMs, BARGE_TAKEOVER_MS);
+      voiceTracePush('interruption_class', 'ok', `${cls}: "${text.slice(0, 50)}" (${speechMs}ms)`);
+      if (cls === 'acknowledgement' || cls === 'noise') {
+        // Resume the current response — do NOT submit a new turn, do NOT
+        // restart, do NOT create a second LLM request.
+        restorePlayback();
+        rearmListening();
+        return;
+      }
+      if (cls === 'hard_control') {
+        // Full kill (queue clear + suppress + abort TTS + halt audio) and
+        // route through the control path below (no LLM).
+        escalateFromDuck();
+        const submitted = submitConversationTurn(text, validity);
+        if (submitted) setVoiceState('listening');
+        else rearmListening();
+        return;
+      }
+      // takeover: kill the old turn, then submit this transcript as the new
+      // turn. Capture the intent BEFORE escalateFromDuck (which halts audio
+      // and clears the duck flags) so the submit path below bypasses the
+      // continuation heuristic — the user clearly wants a NEW turn now.
+      forceSubmitTakeover = true;
+      escalateFromDuck();
+    }
+    // ── TAKEOVER FORCE-SUBMIT ──
+    // A takeover is a NEW user turn — it must submit immediately, never be
+    // held by the incomplete-utterance continuation window (a real
+    // interruption is not a mid-sentence pause).
+    if (forceSubmitTakeover) {
+      const submitted = submitConversationTurn(text, validity, { skipTurnIdCheck: true });
+      if (submitted) setVoiceState('thinking');
+      else rearmListening();
+      return;
+    }
     const decision = decideContinuation(continuationRef.current?.text ?? null, text);
     if (decision.action === 'hold') {
       continuationRef.current = { text, validity, at: Date.now() };
@@ -1077,10 +1430,28 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     const isCombined = Boolean(continuationRef.current);
     continuationRef.current = null;
     if (continuationTimerRef.current) { clearTimeout(continuationTimerRef.current); continuationTimerRef.current = null; }
-    const submitted = submitConversationTurn(decision.text, firstValidity, { skipTurnIdCheck: isCombined });
+    let submitText = decision.text;
+    // ── Echo classification (Phase 5/6) — runs AFTER control-intent so a
+    // genuine stop/terminate is NEVER discarded as echo (Phase 7 priority). ──
+    const control = detectControlIntent(submitText);
+    if (!control) {
+      const echo = classifyTranscript(submitText);
+      if (echo.kind === 'echo') {
+        // Pure speaker echo — do not create a new user turn.
+        voiceTracePush('echo_rejected', 'ok', `Echo rejected (${echo.confidence.toFixed(2)})`);
+        rearmListening();
+        return;
+      }
+      if (echo.kind === 'mixed') {
+        // Salvage the human suffix, drop the echo prefix.
+        voiceTracePush('echo_salvaged', 'ok', `Removed echo prefix "${echo.removedPrefix}"`);
+        submitText = echo.text;
+      }
+    }
+    const submitted = submitConversationTurn(submitText, firstValidity, { skipTurnIdCheck: isCombined });
     if (submitted) setVoiceState('thinking');
     else rearmListening();
-  }, [continuationWindowMs, rearmListening, setVoiceState, submitConversationTurn]);
+  }, [continuationWindowMs, rearmListening, setVoiceState, submitConversationTurn, duckedRef, duckEscalatedRef, duckSpeechStartedAtRef, restorePlayback, escalateFromDuck, BARGE_TAKEOVER_MS]);
 
   handleConversationTranscriptRef.current = handleConversationTranscript;
 
@@ -1286,9 +1657,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         speakingRef.current = true;
         playbackActiveRef.current = true;
         playbackStartedAtRef.current = Date.now();
-        // ROOT-CAUSE FIX (multi-turn voice): fallback TTS is still Jarvis's
-        // voice — mute the conversation mic so it is not heard back as a turn.
-        setConversationMicEnabled(false);
+        // BARGE-IN FIX: mic stays live (full-duplex) — echo cancellation on
+        // the stream handles self-echo, not a hard mute.
         setVoiceState('speaking');
         window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
           detail: { agentId },
@@ -1297,7 +1667,6 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       utterance.onend = () => {
         speakingRef.current = false;
         playbackActiveRef.current = false;
-        setConversationMicEnabled(true);
         window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
           detail: { agentId },
         }));
@@ -1307,7 +1676,6 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       utterance.onerror = () => {
         speakingRef.current = false;
         playbackActiveRef.current = false;
-        setConversationMicEnabled(true);
         setVoiceState('error');
         window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
           detail: { agentId },
@@ -1344,12 +1712,22 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     // TEMP DIAGNOSTIC (remove once root cause confirmed)
     console.log('[VoiceDiag] speak() entered', { agentId, textLen: text.length });
 
+    // Echo tracking (Phase 4): record the text that is about to come out of
+    // the speakers, so a later microphone transcript can be compared against
+    // the CURRENT spoken segment (not the whole response) and rejected as echo.
+    recordSpokenSegment(text, `${conversationSessionIdRef.current ?? 'manual'}:${turnSeqRef.current}`);
+
     // Voice output disabled → skip TTS entirely, signal completion so the
     // conversation loop can resume listening. No duplicate, no error.
     if (!voiceEnabledRef.current) {
       window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackEnded, {
         detail: { agentId },
       }));
+      // PHASE 15 (Failure A): with voice output OFF the pump still drains the
+      // queue, but without this the conversation mic is never re-armed after
+      // the reply — every later voice turn would die. Deterministic recovery:
+      // the response cycle ended (even without audio), so re-arm listening.
+      afterPlaybackEnd();
       return;
     }
 
@@ -1358,10 +1736,27 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
     let audioData: string | null = null;
     let synthesisFailed = false;
+    let fallbackReason: string | null = null;
     try {
-      // Visible voice selection wins over the per-agent default; the backend
-      // validates/falls back to its configured default when unsupported.
-      const voiceModel = voiceOverrideRef.current || AGENT_VOICE[agentId] || 'aura-helios-en';
+      // PHASE 15 (Failure B — voice identity pinning): the voice is resolved
+      // ONCE per session from voiceSessionConfigRef — never per chunk, never
+      // silently re-defaulted. The server validates/falls back only when the
+      // requested model is unsupported; the renderer never picks another.
+      const cfg = ensureVoiceSessionConfig();
+      const voiceModel = cfg.model;
+      // Instrument every synthesis request: voiceSessionId + turnId +
+      // ttsProvider + ttsModel + voiceId (+ fallbackReason when known).
+      const synthRec = {
+        voiceSessionId: conversationSessionIdRef.current,
+        turnId: turnSeqRef.current,
+        ttsProvider: cfg.provider,
+        ttsModel: cfg.model,
+        voiceId: cfg.voiceId,
+        fallbackReason: null as string | null,
+        at: Date.now(),
+      };
+      recordVoiceSynthesis(synthRec);
+      voiceTimelinePush('ttsRequestStartAt', `${text.slice(0, 40)} (${cfg.voiceId})`);
       const res = await apiFetch(`${BACKEND}/voice/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1372,11 +1767,14 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         const data = await res.json();
         if (data.audioData) {
           audioData = data.audioData;
+          voiceTimelinePush('ttsAudioReadyAt', `${Math.round(data.audioData.length * 0.75 / 1024)}KB`);
         } else {
           synthesisFailed = true;
+          fallbackReason = 'Empty audioData from backend';
         }
       } else {
         synthesisFailed = true;
+        fallbackReason = `TTS HTTP ${res.status}`;
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {
@@ -1384,6 +1782,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         return;
       }
       synthesisFailed = true;
+      fallbackReason = String(e?.message || e).slice(0, 120);
     } finally {
       if (ttsAbortControllerRef.current === controller) {
         ttsAbortControllerRef.current = null;
@@ -1391,10 +1790,32 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     }
 
     if (synthesisFailed) {
-      // Synthesis failed — fall back to the browser voice (best effort).
-      // TEMP DIAGNOSTIC (remove once root cause confirmed)
-      console.log('[VoiceDiag] synthesis failed → speechSynthesis fallback', { agentId });
+      // PHASE 15 (Failure B): a provider failure MUST NOT silently swap the
+      // voice. Record the fallback truthfully, keep the pinned session
+      // config, and only then use the browser speechSynthesis as a
+      // best-effort audible reply — the next turn still resolves the SAME
+      // configured voice (no oscillation between chunks/turns).
+      voiceTracePush('voice_fallback', 'warn', `TTS synthesis failed (${fallbackReason ?? 'unknown'}) — browser voice fallback, session voice unchanged`);
+      console.log('[VoiceDiag] synthesis failed → speechSynthesis fallback', { agentId, voiceId: ensureVoiceSessionConfig().voiceId, reason: fallbackReason });
+      recordVoiceSynthesis({
+        voiceSessionId: conversationSessionIdRef.current,
+        turnId: turnSeqRef.current,
+        ttsProvider: 'browser-speechsynthesis',
+        ttsModel: 'browser',
+        voiceId: ensureVoiceSessionConfig().voiceId,
+        fallbackReason,
+        at: Date.now(),
+      });
       await fallbackSpeak(text);
+      return;
+    }
+
+    // HARD TURN INVALIDATION (voice-reliability closure, R3): a TTS response
+    // that resolved just as STOP/barge-in landed must NEVER reach playback.
+    // The abort controller may have fired between the fetch resolving and
+    // this line; without this gate a late chunk would play after the stop.
+    if (speechRunSuppressedRef.current) {
+      voiceTracePush('tts_suppressed', 'ok', 'TTS response discarded — turn cancelled');
       return;
     }
 
@@ -1410,7 +1831,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Playback failure: playbackError already carries one understandable
       // message; the text response remains untouched. No duplicate speech.
     }
-  }, [agentId, playAudio, fallbackSpeak, setVoiceState]);
+  }, [agentId, playAudio, fallbackSpeak, setVoiceState, ensureVoiceSessionConfig]);
 
   // ── Progressive sequential speech queue (one audio at a time) ──
   // Chunks are synthesised + played strictly in order; the next chunk is
@@ -1418,9 +1839,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   // on playback end). The kill switch clears the queue, aborts in-flight
   // synthesis and suppresses further speech for the CURRENT run — visible
   // text streaming is never touched.
-  const speechQueueRef = useRef<string[]>([]);
-  const speechPumpActiveRef = useRef(false);
-  const speechRunSuppressedRef = useRef(false);
+  // (speechQueueRef/speechPumpActiveRef/speechRunSuppressedRef declared above.)
 
   const pumpSpeechQueue = useCallback(async () => {
     if (speechPumpActiveRef.current) return;
@@ -1575,5 +1994,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         // Testable transcription entry (recorder.onstop drives it internally):
         // exposed so the input-ownership race can be exercised deterministically.
         processAudioBlob,
+        // PHASE 15 (Failure A): the response OWNER (JarvisChat/stream consumer)
+        // signals when a voice-channel turn's response cycle is truly over
+        // (done/error), even when no audio was played. Deterministic re-arm.
+        notifyResponseSettled,
       };
     }

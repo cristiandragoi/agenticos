@@ -391,6 +391,6 @@ export interface JarvisTranscriptEntry {
 }
 
 export interface JarvisVoiceState {
-  status: "idle" | "listening" | "transcribing" | "thinking" | "speaking" | "error";
+  status: "idle" | "listening" | "transcribing" | "thinking" | "speaking" | "ducked" | "error";
   transcript: JarvisTranscriptEntry[];
 }

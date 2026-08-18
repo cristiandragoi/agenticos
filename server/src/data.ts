@@ -537,6 +537,7 @@ export const mockProviders: ProviderDefinition[] = [
       { id: "deepseek-reasoner", name: "DeepSeek Reasoner", contextLength: 128000 },
       { id: "deepseek-coder", name: "DeepSeek Coder V4", contextLength: 128000 },
       { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", contextLength: 128000 },
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", contextLength: 128000 },
     ],
     usedByAgentDefaults: ["agent-hermes", "agent-jarvis"],
   },

@@ -3,6 +3,8 @@ import { db } from '../services/db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { secretStore } from '../services/gateway/secretStore.js';
+import { ProviderCredentialService } from '../services/gateway/credentials.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.resolve(__dirname, '..', '.env');
@@ -35,13 +37,17 @@ const ENV_VAR_MAP: Record<string, string> = {
 };
 
 /* ─── LIST all providers ─── */
-router.get('/', (_req, res) => {
+router.get('/', async (_req, res) => {
   const providers = db.providers.list();
-  // Enrich with key status from env vars
-  const enriched = providers.map(p => ({
-    ...p,
-    hasKey: providerHasKey(p.id),
-  }));
+  const enriched = await Promise.all(
+    providers.map(async (p) => {
+      const hasKey = await providerHasKey(p.id);
+      return {
+        ...p,
+        hasKey,
+      };
+    })
+  );
   res.json(enriched);
 });
 
@@ -114,15 +120,16 @@ router.get('/runtime-status', async (_req, res) => {
 });
 
 /* ─── GET key status for a provider ─── */
-router.get('/:id/key', (req, res) => {
+router.get('/:id/key', async (req, res) => {
   const provider = db.providers.get(req.params.id);
   if (!provider) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
     return;
   }
   const envVar = ENV_VAR_MAP[provider.id];
-  const hasKey = !!envVar && !!process.env[envVar] && process.env[envVar]!.length > 0;
-  const rawVal = hasKey ? process.env[envVar]! : '';
+  const secret = await secretStore.get(provider.id) || (envVar ? await secretStore.get(envVar) : null);
+  const hasKey = Boolean(secret && secret.length > 0);
+  const rawVal = secret || '';
   const lastFour = rawVal.length >= 4 ? rawVal.slice(-4) : rawVal;
   res.json({
     providerId: provider.id,
@@ -133,7 +140,7 @@ router.get('/:id/key', (req, res) => {
   });
 });
 
-/* ─── SAVE key for a provider (writes to .env) ─── */
+/* ─── SAVE key for a provider (writes to secure secretStore) ─── */
 router.put('/:id/key', async (req, res) => {
   const provider = db.providers.get(req.params.id);
   if (!provider) {
@@ -141,10 +148,6 @@ router.put('/:id/key', async (req, res) => {
     return;
   }
   const envVar = ENV_VAR_MAP[provider.id];
-  if (!envVar) {
-    res.status(400).json({ error: { code: 'NO_ENV_VAR', message: 'This provider does not use an API key env var' } });
-    return;
-  }
   const { keyValue } = req.body;
   if (!keyValue || typeof keyValue !== 'string' || keyValue.trim().length === 0) {
     res.status(400).json({ error: { code: 'INVALID_KEY', message: 'keyValue is required and must be a non-empty string' } });
@@ -153,35 +156,16 @@ router.put('/:id/key', async (req, res) => {
 
   const trimmed = keyValue.trim();
 
-  // Write to .env file
   try {
-    let envContent = '';
-    try {
-      envContent = fs.readFileSync(ENV_PATH, 'utf-8');
-    } catch {
-      envContent = '';
-    }
+    // 1. Store in Canonical SecretStore & ProviderCredentialService
+    await secretStore.set(provider.id, trimmed);
+    if (envVar) await secretStore.set(envVar, trimmed);
+    await ProviderCredentialService.saveCredential(provider.id, trimmed);
 
-    const lines = envContent.split('\n');
-    let found = false;
-    const updatedLines = lines.map(line => {
-      if (line.startsWith(`${envVar}=`)) {
-        found = true;
-        return `${envVar}=${trimmed}`;
-      }
-      return line;
-    });
+    // 2. Set in current process.env for immediate in-process propagation
+    if (envVar) process.env[envVar] = trimmed;
 
-    if (!found) {
-      updatedLines.push(`\n${envVar}=${trimmed}`);
-    }
-
-    fs.writeFileSync(ENV_PATH, updatedLines.join('\n'), 'utf-8');
-
-    // Also set in current process.env so the running server picks it up
-    process.env[envVar] = trimmed;
-
-    // Update provider status
+    // 3. Update provider status
     provider.status = 'connected';
     provider.errorMessage = undefined;
     provider.lastActivity = 'just now';
@@ -193,10 +177,10 @@ router.put('/:id/key', async (req, res) => {
       providerId: provider.id,
       envVar,
       maskedKey: `•••• •••• •••• ${lastFour}`,
-      message: `API key saved for ${provider.name}`,
+      message: `API key saved securely for ${provider.name}`,
     });
   } catch (err: any) {
-    res.status(500).json({ error: { code: 'WRITE_FAILED', message: `Failed to write .env: ${err.message}` } });
+    res.status(500).json({ error: { code: 'WRITE_FAILED', message: `Failed to save credential: ${err.message}` } });
   }
 });
 
@@ -208,25 +192,14 @@ router.delete('/:id/key', async (req, res) => {
     return;
   }
   const envVar = ENV_VAR_MAP[provider.id];
-  if (!envVar) {
-    res.status(400).json({ error: { code: 'NO_ENV_VAR', message: 'This provider does not use an API key env var' } });
-    return;
-  }
 
   try {
-    let envContent = '';
-    try {
-      envContent = fs.readFileSync(ENV_PATH, 'utf-8');
-    } catch {
-      envContent = '';
+    await secretStore.delete(provider.id);
+    if (envVar) {
+      await secretStore.delete(envVar);
+      delete process.env[envVar];
     }
-
-    const lines = envContent.split('\n');
-    const updatedLines = lines.filter(line => !line.startsWith(`${envVar}=`));
-    fs.writeFileSync(ENV_PATH, updatedLines.join('\n'), 'utf-8');
-
-    // Clear from process.env
-    delete process.env[envVar];
+    await ProviderCredentialService.deleteCredential(provider.id);
 
     // Update provider status
     provider.status = 'needs-auth';
@@ -240,22 +213,23 @@ router.delete('/:id/key', async (req, res) => {
       message: `API key removed for ${provider.name}`,
     });
   } catch (err: any) {
-    res.status(500).json({ error: { code: 'WRITE_FAILED', message: `Failed to update .env: ${err.message}` } });
+    res.status(500).json({ error: { code: 'WRITE_FAILED', message: `Failed to delete secret: ${err.message}` } });
   }
 });
 
 /* ─── GET single provider ─── */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   const provider = db.providers.get(req.params.id);
   if (!provider) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
     return;
   }
-  res.json({ ...provider, hasKey: providerHasKey(provider.id) });
+  const hasKey = await providerHasKey(provider.id);
+  res.json({ ...provider, hasKey });
 });
 
 /* ─── REFRESH provider status ─── */
-router.post('/:id/refresh', (req, res) => {
+router.post('/:id/refresh', async (req, res) => {
   const provider = db.providers.get(req.params.id);
   if (!provider) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Provider not found' } });
@@ -263,7 +237,7 @@ router.post('/:id/refresh', (req, res) => {
   }
 
   // Refresh logic — if key exists, attempt a connection test
-  const hasKey = providerHasKey(provider.id);
+  const hasKey = await providerHasKey(provider.id);
   if (hasKey) {
     provider.status = 'connected';
     provider.errorMessage = undefined;
@@ -418,11 +392,12 @@ router.put('/agent-defaults/:agentId', (req, res) => {
 
 /* ─── Helpers ─── */
 
-function providerHasKey(providerId: string): boolean {
+async function providerHasKey(providerId: string): Promise<boolean> {
+  const hasInStore = await secretStore.has(providerId);
+  if (hasInStore) return true;
   const envVar = ENV_VAR_MAP[providerId];
   if (!envVar) return false;
-  const val = process.env[envVar];
-  return !!val && val.length > 0;
+  return await secretStore.has(envVar);
 }
 
 async function pingProvider(provider: any): Promise<boolean> {
@@ -449,7 +424,7 @@ async function pingProvider(provider: any): Promise<boolean> {
 
   const envVarMap: Record<string, string> = { ...ENV_VAR_MAP };
 
-  const apiKey = process.env[envVarMap[provider.id]] || '';
+  const apiKey = (await secretStore.get(provider.id)) || (envVarMap[provider.id] ? await secretStore.get(envVarMap[provider.id]) : '') || '';
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
   if (apiKey) {

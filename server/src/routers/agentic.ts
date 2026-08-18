@@ -393,7 +393,7 @@ router.post('/pipelines/:id/run', async (req, res) => {
         const ttsRes = await fetch('http://127.0.0.1:4000/api/voice/speak', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: 'Jarvis voice test complete.', voice: 'aura-orion-en' })
+          body: JSON.stringify({ text: 'Jarvis voice test complete.', voice: 'aura-helios-en' })
         });
         if (ttsRes.ok) {
            res.json({ message: 'Jarvis Voice Pipeline acknowledged. Stages are processed in real-time.', pipelineId: id, testResult: 'passed' });

@@ -9,10 +9,13 @@
     "dev:clean": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-clean.ps1",
     "dev:stop": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1",
     "test": "vitest run src/",
+    "prebuild:identity": "node scripts/build-identity.cjs",
     "build": "cd server && npm install && npm run build && cd .. && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "package": "node scripts/package.cjs",
+    "deploy:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$src='B:\\\\AgenticOS\\\\release\\\\win-unpacked'; $dst='C:\\\\Users\\\\Cris\\\\Desktop\\\\desktop\\\\Agentic_OS\\\\Agentic OS'; Write-Host 'Copying from' $src 'to' $dst; Copy-Item -Path \\\"$src\\\\*\\\" -Destination $dst -Recurse -Force; Write-Host 'Deploy complete. Run: Agentic OS.exe'\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -82,7 +85,6 @@
       { "from": "server/dist", "to": "server/dist" },
       { "from": "server/node_modules", "to": "server/node_modules" },
       { "from": "server/package.json", "to": "server/package.json" },
-      { "from": "server/.env", "to": "server/.env" },
       { "from": "server/drizzle", "to": "server/drizzle" }
     ]
   }

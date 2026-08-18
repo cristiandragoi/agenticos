@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const serverDir = path.join(__dirname, '..', 'server');
+const require = createRequire(path.join(serverDir, 'package.json'));
+const Database = require('better-sqlite3');
+const db = new Database('C:/Users/Cris/Desktop/desktop/Agentic_OS/Agentic OS/resources/server/data/agentic-os.db', { readonly: true });
+const hits = db.prepare(`SELECT role, substr(content,1,140) AS content, created_at FROM conversation_messages WHERE conversation_id='conv-e110afce-' AND created_at > '2026-08-14T15:05:00' ORDER BY created_at ASC, rowid ASC`).all();
+for (const r of hits) console.log(`[${r.created_at}] ${r.role} | ${r.content}`);
+db.close();

@@ -8,6 +8,7 @@ import { JarvisWorkspaceBar } from '../components/jarvis/JarvisWorkspaceBar';
 import TeamTimeline from '../components/teams/TeamTimeline';
 import JarvisStudio from '../pages/JarvisStudio';
 import { CodexProvider, useCodexStore } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 
 /* ── EventSource mock ─────────────────────────────────────── */
 class MockEventSource {
@@ -206,9 +207,11 @@ describe('Execution timeline', () => {
 describe('Canonical Jarvis page', () => {
   const renderPage = () => render(
     <CodexProvider>
-      <MemoryRouter initialEntries={['/jarvis']}>
-        <JarvisStudio />
-      </MemoryRouter>
+      <ProjectProvider>
+        <MemoryRouter initialEntries={['/jarvis']}>
+          <JarvisStudio />
+        </MemoryRouter>
+      </ProjectProvider>
     </CodexProvider>
   );
 
@@ -346,9 +349,11 @@ describe('Repository gating', () => {
 describe('Phase 1 Dashboard and Telemetry', () => {
   const renderPage = () => render(
     <CodexProvider>
-      <MemoryRouter initialEntries={['/jarvis']}>
-        <JarvisStudio />
-      </MemoryRouter>
+      <ProjectProvider>
+        <MemoryRouter initialEntries={['/jarvis']}>
+          <JarvisStudio />
+        </MemoryRouter>
+      </ProjectProvider>
     </CodexProvider>
   );
 
@@ -497,11 +502,13 @@ describe('Orb persistence and layout', () => {
     if (fetchImpl) fetchMock.mockImplementation(fetchImpl);
     return render(
       <CodexProvider>
-        <MemoryRouter initialEntries={['/jarvis']}>
-          <SeedSettings>
-            <JarvisStudio />
-          </SeedSettings>
-        </MemoryRouter>
+        <ProjectProvider>
+          <MemoryRouter initialEntries={['/jarvis']}>
+            <SeedSettings>
+              <JarvisStudio />
+            </SeedSettings>
+          </MemoryRouter>
+        </ProjectProvider>
       </CodexProvider>
     );
   };

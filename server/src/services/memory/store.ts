@@ -9,7 +9,7 @@ import { rawDb } from '../../db/index.js';
 import type {
   MemoryRecord, MemoryType, MemoryStatus, MemorySource, MemoryRelation,
   MemoryLink, MemoryEntity, MemoryGraphNeighborhood, MemoryGraphNode, MemoryGraphEdge,
-  MemorySearchHit,
+  MemorySearchHit, MemoryCandidate,
 } from './types.js';
 
 const DDL = `
@@ -42,6 +42,30 @@ CREATE TABLE IF NOT EXISTS memory_records (
 CREATE INDEX IF NOT EXISTS idx_mem_type_status ON memory_records(type, status);
 CREATE INDEX IF NOT EXISTS idx_mem_status_created ON memory_records(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_mem_scope_status ON memory_records(scope, status);
+
+-- Candidate memory (closure): workers propose, verification gates, promotion
+-- links the full provenance chain runId → resultId → verificationId →
+-- candidateId → memoryId. Candidates are NEVER silently discarded.
+CREATE TABLE IF NOT EXISTS memory_candidates (
+  id TEXT PRIMARY KEY,
+  project_id TEXT,
+  source_worker TEXT NOT NULL,
+  source_run_id TEXT,
+  source_result_id TEXT,
+  verification_id TEXT,
+  verification_verdict TEXT,
+  cand_key TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  cand_value TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  memory_id TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  promoted_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_mem_cand_status ON memory_candidates(status);
+CREATE INDEX IF NOT EXISTS idx_mem_cand_project ON memory_candidates(project_id);
+CREATE INDEX IF NOT EXISTS idx_mem_cand_run ON memory_candidates(source_run_id);
 
 CREATE TABLE IF NOT EXISTS memory_links (
   id TEXT PRIMARY KEY,
@@ -97,11 +121,38 @@ function rowToMemory(row: any): MemoryRecord {
     supersedesMemoryId: row.supersedes_memory_id ?? null,
     derivedFromMemoryIds: JSON.parse(row.derived_from_memory_ids || '[]'),
     pinned: !!row.pinned,
+    verificationStatus: row.verification_status ?? undefined,
+  };
+}
+
+function rowToCandidate(row: any): MemoryCandidate {
+  return {
+    id: row.id,
+    projectId: row.project_id ?? null,
+    sourceWorker: row.source_worker,
+    sourceRunId: row.source_run_id ?? null,
+    sourceResultId: row.source_result_id ?? null,
+    verificationId: row.verification_id ?? null,
+    verificationVerdict: row.verification_verdict ?? null,
+    key: row.cand_key,
+    category: row.category || 'general',
+    value: row.cand_value,
+    status: row.status as MemoryCandidate['status'],
+    memoryId: row.memory_id ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    promotedAt: row.promoted_at ?? null,
   };
 }
 
 export function ensureMemoryTables(): void {
   rawDb.exec(DDL);
+  // Idempotent column migration for existing databases (closure): the
+  // verification_status column was added after the initial DDL shipped.
+  const cols = rawDb.prepare(`PRAGMA table_info(memory_records)`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'verification_status')) {
+    rawDb.exec(`ALTER TABLE memory_records ADD COLUMN verification_status TEXT`);
+  }
 }
 
 ensureMemoryTables();
@@ -112,11 +163,11 @@ export const memoryStore = {
       INSERT INTO memory_records (id, type, title, summary, content, scope, entities, tags,
         source_type, source_conversation_id, source_operation_id, source_task_id, source_worker, source_artifact_path,
         confidence, created_at, updated_at, last_confirmed_at, last_used_at, use_count, status,
-        supersedes_memory_id, derived_from_memory_ids, pinned)
+        supersedes_memory_id, derived_from_memory_ids, pinned, verification_status)
       VALUES (@id, @type, @title, @summary, @content, @scope, @entities, @tags,
         @sourceType, @sourceConversationId, @sourceOperationId, @sourceTaskId, @sourceWorker, @sourceArtifactPath,
         @confidence, @createdAt, @updatedAt, @lastConfirmedAt, @lastUsedAt, @useCount, @status,
-        @supersedesMemoryId, @derivedFromMemoryIds, @pinned)
+        @supersedesMemoryId, @derivedFromMemoryIds, @pinned, @verificationStatus)
     `).run({
       ...m,
       entities: JSON.stringify(m.entities || []),
@@ -129,6 +180,7 @@ export const memoryStore = {
       sourceArtifactPath: m.source.artifactPath ?? null,
       derivedFromMemoryIds: JSON.stringify(m.derivedFromMemoryIds || []),
       pinned: m.pinned ? 1 : 0,
+      verificationStatus: m.verificationStatus ?? null,
     });
     rawDb.prepare('INSERT INTO memory_fts (memory_id, title, summary, content, entities, tags) VALUES (?, ?, ?, ?, ?, ?)')
       .run(m.id, m.title, m.summary || '', m.content || '', (m.entities || []).join(' '), (m.tags || []).join(' '));
@@ -149,7 +201,8 @@ export const memoryStore = {
       UPDATE memory_records SET type=@type, title=@title, summary=@summary, content=@content, scope=@scope,
         entities=@entities, tags=@tags, confidence=@confidence, updated_at=@updatedAt,
         last_confirmed_at=@lastConfirmedAt, last_used_at=@lastUsedAt, use_count=@useCount, status=@status,
-        supersedes_memory_id=@supersedesMemoryId, derived_from_memory_ids=@derivedFromMemoryIds, pinned=@pinned
+        supersedes_memory_id=@supersedesMemoryId, derived_from_memory_ids=@derivedFromMemoryIds, pinned=@pinned,
+        verification_status=@verificationStatus
       WHERE id=@id
     `).run({
       ...merged,
@@ -157,6 +210,7 @@ export const memoryStore = {
       tags: JSON.stringify(merged.tags || []),
       derivedFromMemoryIds: JSON.stringify(merged.derivedFromMemoryIds || []),
       pinned: merged.pinned ? 1 : 0,
+      verificationStatus: merged.verificationStatus ?? null,
     });
     rawDb.prepare('DELETE FROM memory_fts WHERE memory_id = ?').run(id);
     rawDb.prepare('INSERT INTO memory_fts (memory_id, title, summary, content, entities, tags) VALUES (?, ?, ?, ?, ?, ?)')
@@ -345,6 +399,76 @@ export const memoryStore = {
     return rows.map((r) => ({
       id: r.id, kind: r.kind, name: r.name, refCount: r.ref_count, strength: r.strength, lastSeenAt: r.last_seen_at,
     }));
+  },
+
+  // ── Candidate memory (closure) ────────────────────────────────────────
+  createCandidate(c: MemoryCandidate): MemoryCandidate {
+    rawDb.prepare(`
+      INSERT INTO memory_candidates (id, project_id, source_worker, source_run_id, source_result_id,
+        verification_id, verification_verdict, cand_key, category, cand_value, status, memory_id,
+        created_at, updated_at, promoted_at)
+      VALUES (@id, @projectId, @sourceWorker, @sourceRunId, @sourceResultId,
+        @verificationId, @verificationVerdict, @key, @category, @value, @status, @memoryId,
+        @createdAt, @updatedAt, @promotedAt)
+    `).run({
+      ...c,
+      key: c.key,
+      category: c.category,
+      value: c.value,
+      status: c.status,
+      memoryId: c.memoryId ?? null,
+      verificationId: c.verificationId ?? null,
+      verificationVerdict: c.verificationVerdict ?? null,
+      projectId: c.projectId ?? null,
+      sourceRunId: c.sourceRunId ?? null,
+      sourceResultId: c.sourceResultId ?? null,
+      promotedAt: c.promotedAt ?? null,
+    });
+    return c;
+  },
+
+  getCandidate(id: string): MemoryCandidate | null {
+    const row = rawDb.prepare('SELECT * FROM memory_candidates WHERE id = ?').get(id);
+    return row ? rowToCandidate(row) : null;
+  },
+
+  updateCandidate(id: string, patch: Partial<MemoryCandidate>): MemoryCandidate | null {
+    const existing = this.getCandidate(id);
+    if (!existing) return null;
+    const merged: MemoryCandidate = { ...existing, ...patch, id, updatedAt: Date.now() };
+    rawDb.prepare(`
+      UPDATE memory_candidates SET project_id=@projectId, source_worker=@sourceWorker,
+        source_run_id=@sourceRunId, source_result_id=@sourceResultId,
+        verification_id=@verificationId, verification_verdict=@verificationVerdict,
+        cand_key=@key, category=@category, cand_value=@value, status=@status, memory_id=@memoryId,
+        updated_at=@updatedAt, promoted_at=@promotedAt
+      WHERE id=@id
+    `).run({
+      ...merged,
+      key: merged.key,
+      category: merged.category,
+      value: merged.value,
+      status: merged.status,
+      memoryId: merged.memoryId ?? null,
+      verificationId: merged.verificationId ?? null,
+      verificationVerdict: merged.verificationVerdict ?? null,
+      projectId: merged.projectId ?? null,
+      sourceRunId: merged.sourceRunId ?? null,
+      sourceResultId: merged.sourceResultId ?? null,
+      promotedAt: merged.promotedAt ?? null,
+    });
+    return merged;
+  },
+
+  listCandidates(opts: { status?: string | null; projectId?: string | null; limit?: number } = {}): MemoryCandidate[] {
+    const where: string[] = [];
+    const params: any[] = [];
+    if (opts.status) { where.push('status = ?'); params.push(opts.status); }
+    if (opts.projectId) { where.push('project_id = ?'); params.push(opts.projectId); }
+    const sql = `SELECT * FROM memory_candidates ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT ?`;
+    params.push(opts.limit ?? 100);
+    const rows = rawDb.prepare(sql).all(...params) as any[];
+    return rows.map(rowToCandidate);
   },
 };
 

@@ -4,8 +4,10 @@ import { logger } from '../../../utils/logger.js';
  * The agent calls this tool with the text it wants spoken aloud.
  * Returns base64-encoded audio data that the frontend can play.
  *
- * Default voice is aura-2-draco-en (British English, male) — used as Jarvis's voice.
- * Agents can override by passing a different voice parameter.
+ * PHASE 15 (Failure B — voice identity): the Jarvis voice is pinned to
+ * aura-helios-en (the authoritative renderer default). The old
+ * aura-2-draco-en default for agent-jarvis was a DIFFERENT voice — a tool
+ * reply that omitted `voice` silently switched Jarvis mid-session.
  */
 export const speakTool = {
   name: 'speak',
@@ -22,7 +24,7 @@ export const speakTool = {
 
     let defaultVoice = 'aura-orion-en';
     if (args.agentId === 'agent-jarvis') {
-      defaultVoice = 'aura-2-draco-en';
+      defaultVoice = 'aura-helios-en';
     }
     const voice = (args.voice as string) || defaultVoice;
     const deepgramKey = process.env.DEEPGRAM_API_KEY;

@@ -225,9 +225,11 @@ describe('Jarvis session preservation across navigation', () => {
       <DataProvider>
         <AppProvider>
           <CodexProvider>
-            <MemoryRouter initialEntries={['/jarvis']}>
-              <JarvisStudio />
-            </MemoryRouter>
+            <ProjectProvider>
+              <MemoryRouter initialEntries={['/jarvis']}>
+                <JarvisStudio />
+              </MemoryRouter>
+            </ProjectProvider>
           </CodexProvider>
         </AppProvider>
       </DataProvider>
@@ -243,9 +245,11 @@ describe('Jarvis session preservation across navigation', () => {
       <DataProvider>
         <AppProvider>
           <CodexProvider>
-            <MemoryRouter initialEntries={['/jarvis']}>
-              <JarvisStudio />
-            </MemoryRouter>
+            <ProjectProvider>
+              <MemoryRouter initialEntries={['/jarvis']}>
+                <JarvisStudio />
+              </MemoryRouter>
+            </ProjectProvider>
           </CodexProvider>
         </AppProvider>
       </DataProvider>
@@ -269,9 +273,11 @@ describe('Jarvis session preservation across navigation', () => {
       <DataProvider>
         <AppProvider>
           <CodexProvider>
-            <MemoryRouter initialEntries={['/jarvis']}>
-              <JarvisStudio />
-            </MemoryRouter>
+            <ProjectProvider>
+              <MemoryRouter initialEntries={['/jarvis']}>
+                <JarvisStudio />
+              </MemoryRouter>
+            </ProjectProvider>
           </CodexProvider>
         </AppProvider>
       </DataProvider>
@@ -290,9 +296,11 @@ describe('Single voice owner on /jarvis', () => {
       <DataProvider>
         <AppProvider>
           <CodexProvider>
-            <MemoryRouter initialEntries={['/jarvis']}>
-              <JarvisStudio />
-            </MemoryRouter>
+            <ProjectProvider>
+              <MemoryRouter initialEntries={['/jarvis']}>
+                <JarvisStudio />
+              </MemoryRouter>
+            </ProjectProvider>
           </CodexProvider>
         </AppProvider>
       </DataProvider>

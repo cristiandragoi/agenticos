@@ -109,7 +109,7 @@ export async function buildWorkerStatus(cap: Capability, modelOnly = false): Pro
   );
   parts.push(
     insight.activeTasks.length
-      ? `Active tasks (${insight.activeTasks.length}): ${insight.activeTasks.join('; ')}`
+      ? `Active tasks: ${insight.activeTasks.length}`
       : 'Active tasks: none'
   );
   const completed = insight.recentRuns.filter((r) => r.status === 'completed').length;

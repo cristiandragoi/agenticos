@@ -12,6 +12,8 @@ import ProjectRuns from '../components/projects/ProjectRuns';
 import ProjectGraph from '../components/projects/ProjectGraph';
 import ProjectOverview from '../components/projects/ProjectOverview';
 import ProjectFiles from '../components/projects/ProjectFiles';
+import ProjectTree from '../components/projects/ProjectTree';
+import { McpApprovals } from '../components/projects/McpApprovals';
 
 const STATUS_COLORS: Record<string, string> = {
   active: '#22c55e',
@@ -588,7 +590,7 @@ export default function ProjectsPage() {
 
               {/* Tabs */}
               <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #1e293b', overflowX: 'auto' }}>
-                {(['overview', 'board', 'livework', 'agents', 'knowledge', 'artifacts', 'files', 'runs', 'graph'] as const).map((t) => (
+                {(['overview', 'tree', 'board', 'livework', 'agents', 'knowledge', 'artifacts', 'files', 'runs', 'graph'] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
@@ -608,7 +610,7 @@ export default function ProjectsPage() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {t}
+                    {t === 'tree' ? 'Execution Tree' : t}
                   </button>
                 ))}
               </div>
@@ -616,6 +618,13 @@ export default function ProjectsPage() {
               {/* Tab content */}
               {tab === 'overview' && (
                 <ProjectOverview project={selectedProject} projectId={selectedProject.id} />
+              )}
+
+              {tab === 'tree' && (
+                <>
+                  <McpApprovals />
+                  <ProjectTree projectId={selectedProject.id} />
+                </>
               )}
 
               {tab === 'board' && (

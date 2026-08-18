@@ -273,7 +273,9 @@ export async function runStage(
       const res = await apiFetch('/api/voice/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleanText, voice: 'aura-orion-en' })
+        // PHASE 15 (Failure B): Jarvis voice pinned to aura-helios-en — was
+        // aura-orion-en (Hermes' voice), a silent voice switch on this path.
+        body: JSON.stringify({ text: cleanText, voice: 'aura-helios-en' })
       });
       if (!res.ok) {
         const errText = await res.text();

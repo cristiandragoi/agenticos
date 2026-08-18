@@ -36,6 +36,17 @@ export const schedules = sqliteTable('schedules', {
   nextRunAt: text('next_run_at'),
   lastTriggeredAt: text('last_triggered_at'),
   misfirePolicy: text('misfire_policy').notNull().default('run_once'),
+  // ── Routine bridge (closure) ─────────────────────────────────────────────
+  // Classifies how this schedule executes. 'worker_task' fires a canonical
+  // background task through the real worker dispatcher; 'legacy_skill' keeps
+  // the old runEngine/executeSkill path. Never inferred from names.
+  executionType: text('execution_type').notNull().default('legacy_skill'),
+  routineId: text('routine_id'),
+  worker: text('worker'),           // hermes | codex | magnitude
+  projectId: text('project_id'),
+  taskTemplate: text('task_template', { mode: 'json' }), // { objective, worker, input }
+  lastOutcome: text('last_outcome'),   // 'completed' | 'execution_failed' | 'dispatch_failed' | null
+  lastError: text('last_error'),
 });
 
 export const runs = sqliteTable('runs', {

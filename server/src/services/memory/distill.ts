@@ -16,7 +16,7 @@ export function newMemoryId(): string {
 
 /** Create a memory with consolidation: similar active memory → superseded. */
 export function createMemory(
-  input: Pick<MemoryRecord, 'type' | 'title' | 'summary' | 'content' | 'scope' | 'entities' | 'tags' | 'confidence'> & { source: MemorySource; derivedFromMemoryIds?: string[] },
+  input: Pick<MemoryRecord, 'type' | 'title' | 'summary' | 'content' | 'scope' | 'entities' | 'tags' | 'confidence'> & { source: MemorySource; derivedFromMemoryIds?: string[]; verificationStatus?: MemoryRecord['verificationStatus'] },
 ): MemoryRecord {
   const now = Date.now();
   const m: MemoryRecord = {
@@ -39,6 +39,11 @@ export function createMemory(
     supersedesMemoryId: null,
     derivedFromMemoryIds: input.derivedFromMemoryIds || [],
     pinned: false,
+    // Closure: machine-created memories are NEVER automatically
+    // 'human_confirmed'. Explicit human paths (POST /memories from the
+    // human UI, /confirm) set 'human_confirmed'; verified worker facts set
+    // 'verified'; everything else stays 'unverified'.
+    verificationStatus: input.verificationStatus ?? 'unverified',
   };
 
   // Consolidation: find an active memory of the same type+scope with a

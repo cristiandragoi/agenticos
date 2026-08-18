@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { magnitudeService } from '../domains/magnitude/service.js';
 import { logger } from '../utils/logger.js';
+import fs from 'node:fs';
 
 export const magnitudeRouter = Router();
 
@@ -9,7 +10,7 @@ export const magnitudeRouter = Router();
  * Create and launch a Magnitude browser inspection run.
  */
 magnitudeRouter.post('/runs', async (req: Request, res: Response) => {
-  const { goal, url, actionType = 'inspect', conversationId } = req.body;
+  const { goal, url, actionType = 'inspect', conversationId, projectId, projectTaskId, scheduleExecutionId } = req.body;
   const target = url || goal;
 
   if (!target || typeof target !== 'string') {
@@ -17,8 +18,13 @@ magnitudeRouter.post('/runs', async (req: Request, res: Response) => {
   }
 
   try {
-    const run = magnitudeService.createRun(target, actionType, conversationId);
-    
+    const run = magnitudeService.createRun(
+      target,
+      actionType,
+      conversationId,
+      { projectId, projectTaskId, scheduleExecutionId },
+    );
+
     // Execute asynchronously
     magnitudeService.executeInspect(run.id).catch((err) => {
       logger.error(`[Magnitude] Run ${run.id} execution failed:`, err);
@@ -33,12 +39,13 @@ magnitudeRouter.post('/runs', async (req: Request, res: Response) => {
 
 /**
  * GET /api/magnitude/runs
- * List recent Magnitude runs.
+ * List recent Magnitude runs (optionally scoped to a project — A5).
  */
 magnitudeRouter.get('/runs', async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
-    const runs = magnitudeService.getAllRuns(limit);
+    const projectId = typeof req.query.projectId === 'string' && req.query.projectId ? req.query.projectId : undefined;
+    const runs = magnitudeService.getAllRuns(limit, projectId);
     return res.json(runs);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -86,6 +93,29 @@ magnitudeRouter.post('/runs/:id/approval', async (req: Request, res: Response) =
   try {
     const success = await magnitudeService.respondApproval(req.params.id, approved, reason, responder);
     return res.json({ success });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/magnitude/runs/:id/screenshot
+ * Serve the run's screenshot evidence (M7) — only the exact file recorded on
+ * this run is readable; never an arbitrary path.
+ */
+magnitudeRouter.get('/runs/:id/screenshot', (req: Request, res: Response) => {
+  try {
+    const run = magnitudeService.getRun(req.params.id);
+    if (!run) return res.status(404).json({ error: 'Magnitude run not found.' });
+    const recordedPath = run.result?.screenshotPath;
+    if (!recordedPath || !run.result?.screenshotBytes) {
+      return res.status(404).json({ error: 'No screenshot recorded for this run.' });
+    }
+    if (!fs.existsSync(recordedPath)) {
+      return res.status(404).json({ error: 'Screenshot file missing.' });
+    }
+    res.set({ 'Content-Type': 'image/png', 'Content-Length': String(run.result.screenshotBytes) });
+    return res.send(fs.readFileSync(recordedPath));
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

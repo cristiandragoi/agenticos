@@ -47,6 +47,20 @@ describe('executive intent classification', () => {
     expect(r?.capability.id).toBe('codex');
   });
 
+  it('"Tell me only what Hermes does" → direct_explanation (NOT worker_status)', () => {
+    // Phase 8: a "what X does" question must produce a clean explanation,
+    // never a status dump with raw task IDs.
+    const r = classifyExecutiveIntent('Tell me only what Hermes does');
+    expect(r?.intent).toBe('direct_explanation');
+    expect(r?.capability.id).toBe('hermes');
+  });
+
+  it('"what does Hermes do" → direct_explanation', () => {
+    const r = classifyExecutiveIntent('what does Hermes do');
+    expect(r?.intent).toBe('direct_explanation');
+    expect(r?.capability.id).toBe('hermes');
+  });
+
   it('Give me feedback regarding CodeX → worker_feedback', () => {
     const r = classifyExecutiveIntent('Give me feedback regarding CodeX');
     expect(r?.intent).toBe('worker_feedback');

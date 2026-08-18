@@ -21,7 +21,9 @@ export type NeuralNodeId =
   | 'HERMES'
   | 'RUNS'
   | 'ARTIFACTS'
-  | 'VISION';
+  | 'VISION'
+  | 'CODEX'
+  | 'MAGNITUDE';
 
 /** Existing orb-state vocabulary → the milestone's seven-state blob machine. */
 export function toBlobVisualState(orbState: string): BlobVisualState {
@@ -62,11 +64,12 @@ export function toBlobVisualState(orbState: string): BlobVisualState {
  */
 export function nodePulse(activity: Partial<Record<string, number>> | undefined): Record<NeuralNodeId, number> {
   const out: Record<NeuralNodeId, number> = {
-    MEMORY: 0, KNOWLEDGE: 0, PROJECTS: 0, HERMES: 0, RUNS: 0, ARTIFACTS: 0, VISION: 0,
+    MEMORY: 0, KNOWLEDGE: 0, PROJECTS: 0, HERMES: 0, RUNS: 0, ARTIFACTS: 0, VISION: 0, CODEX: 0, MAGNITUDE: 0,
   };
   const keyMap: Record<string, NeuralNodeId> = {
     Memory: 'MEMORY', Knowledge: 'KNOWLEDGE', Projects: 'PROJECTS',
     Hermes: 'HERMES', Runs: 'RUNS', Artifacts: 'ARTIFACTS', Vision: 'VISION',
+    CodeX: 'CODEX', Magnitude: 'MAGNITUDE',
   };
   for (const [k, v] of Object.entries(activity || {})) {
     const node = keyMap[k];
@@ -89,6 +92,8 @@ export const NODE_DIRECTION: Record<NeuralNodeId, 'in' | 'out'> = {
   RUNS: 'out',       // active run activity flows outward
   ARTIFACTS: 'out',  // artifact created → jarvis → artifacts
   VISION: 'in',      // vision input → jarvis
+  CODEX: 'out',      // delegation → jarvis → codex
+  MAGNITUDE: 'out',  // browser/action delegation → jarvis → magnitude
 };
 
 /** Node → existing AgenticOS route (all destinations exist in App.tsx). */
@@ -100,6 +105,8 @@ export const NODE_ROUTES: Record<NeuralNodeId, string> = {
   RUNS: '/runs',
   ARTIFACTS: '/builds',
   VISION: '/video',
+  CODEX: '/codex',
+  MAGNITUDE: '/magnitude',
 };
 
 /** Truthful model identity label: 'JARVIS' + `provider · model` (or '—'). */

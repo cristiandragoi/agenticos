@@ -20,6 +20,9 @@ export interface MagnitudeInspectResult {
   linksCount?: number;
   durationMs: number;
   actionSummary?: string;
+  /** Screenshot evidence (M7) — served via /api/magnitude/runs/:id/screenshot. */
+  screenshotPath?: string;
+  screenshotBytes?: number;
 }
 
 export interface MagnitudeRunRecord {

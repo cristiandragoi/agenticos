@@ -1,3 +1,4 @@
+import { logger } from '../../utils/logger.js';
 import { conversationService } from '../conversations/service.js';
 import { intentRouter, type IntentResult } from './intentRouter.js';
 import { codexService } from '../codex/service.js';
@@ -7,6 +8,7 @@ import { detectGitRepository } from '../../utils/workspaceValidation.js';
 import { AgentProviderAssignmentService } from '../../services/agent/assignments.js';
 import { getWorkspaceRoot } from '../../services/workspaceStore.js';
 import { magnitudeService } from '../magnitude/service.js';
+import { randomUUID } from 'crypto';
 
 import { z } from 'zod';
 
@@ -153,6 +155,57 @@ export class JarvisOrchestrator {
       const goalId = await codexService.createGoal(codexPrompt, effectiveWorkspace, approvalPolicy, executionProvider, conversationId);
       const status = approvalPolicy === 'manual' ? 'waiting_for_approval' : 'queued';
 
+      // ── Canonical Project Execution tracking ──
+      let canonicalTaskId: string | null = null;
+      let canonicalRunId: string | null = null;
+      try {
+        const { projectTaskService } = await import('../../services/projectExecution/projectTaskService.js');
+        const { executionRunService } = await import('../../services/projectExecution/executionRunService.js');
+        const { projectsStore } = await import('../../services/projectsStore.js');
+
+        let projectId = projectsStore.getActiveProjectId();
+        if (!projectId || !projectsStore.getProject(projectId)) {
+          const all = projectsStore.listProjects();
+          projectId = all.length > 0 ? all[0].id : null;
+        }
+
+        if (projectId) {
+          const pGoal = projectTaskService.createGoal({
+            projectId,
+            title: `CodeX Goal: ${prompt.slice(0, 40)}`,
+            objective: prompt,
+            goalId,
+          });
+
+          const pTask = projectTaskService.createTask({
+            projectId,
+            goalId: pGoal.id,
+            title: prompt.slice(0, 60),
+            description: prompt,
+            taskType: 'engineering',
+            assignedCapability: 'codex',
+            acceptanceCriteria: `Execute engineering goal: ${prompt}`,
+          });
+          canonicalTaskId = pTask.id;
+
+          const pRun = executionRunService.createRun({
+            taskId: pTask.id,
+            projectId,
+            goalId: pGoal.id,
+            workerType: 'codex',
+            agentInstanceId: goalId,
+            provider: assignment?.providerId || 'ollama',
+            model: assignment?.modelId || OLLAMA_DEFAULT_CODING_MODEL,
+            requestId: operationId,
+            conversationId,
+          });
+          canonicalRunId = pRun.id;
+          projectTaskService.updateTask(pTask.id, { assignedRunId: pRun.id, status: 'running' });
+        }
+      } catch (err: any) {
+        logger.warn('[JarvisOrchestrator] Canonical project tracking for CodeX failed (non-blocking):', err.message);
+      }
+
       await conversationService.appendMessage({
         conversationId,
         role: 'system',
@@ -161,7 +214,11 @@ export class JarvisOrchestrator {
           ? `CodeX Goal initialized: ${goalId}. Generating plan for your approval...`
           : `CodeX Goal initialized: ${goalId}. ${readOnly ? 'Read-only inspection started.' : 'Execution started.'}`,
         goalId,
-        metadata: requestMetadata
+        metadata: {
+          taskId: canonicalTaskId,
+          runId: canonicalRunId,
+          ...(requestMetadata || {})
+        }
       });
 
       return {
@@ -252,64 +309,213 @@ export class JarvisOrchestrator {
   }
 
   private async handleHermes(conversationId: string, prompt: string, operationId?: string) {
-    // Hermes is a live internal AgenticOS worker — delegate through the
-    // Background Task Manager so the run persists independently of this
-    // conversation turn and streams real events.
-    try {
-      const { backgroundTaskManager } = await import('../../services/backgroundTasks/manager.js');
-      const { dispatchTask } = await import('../../services/backgroundTasks/adapters.js');
-      const { taskShortId } = await import('../../services/backgroundTasks/types.js');
+    const requestMetadata = operationId ? { operationId } : undefined;
 
-      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
-      let _activeProjectId: string | null = null;
-      try {
-        const { projectsStore } = await import('../../services/projectsStore.js');
-        _activeProjectId = projectsStore.getActiveProjectId();
-      } catch { /* best effort */ }
-      const { task, error } = backgroundTaskManager.createTask({
-        title,
-        objective: prompt,
-        originalRequest: prompt,
-        route: 'hermes',
-        selectedAgent: 'Hermes',
-        worker: 'hermes',
-        conversationId,
-        resumable: false,
-        projectId: _activeProjectId || undefined,
-        metadata: { operationId },
-      });
-      if (!task) {
-        await conversationService.appendMessage({
-          conversationId,
-          role: 'system',
-          messageType: 'error',
-          content: error || 'Could not create the background task.',
-          metadata: operationId ? { operationId } : undefined
-        });
-        return { route: 'hermes', status: 'failed', error, operationId };
+    await conversationService.appendMessage({
+      conversationId,
+      role: 'system',
+      messageType: 'system_status',
+      content: `Hermes: Initializing research & project intelligence worker...`,
+      metadata: requestMetadata
+    });
+
+    try {
+      const { projectTaskService } = await import('../../services/projectExecution/projectTaskService.js');
+      const { executionRunService } = await import('../../services/projectExecution/executionRunService.js');
+      const { verificationService } = await import('../../services/projectExecution/verificationService.js');
+      const { executeHermesTask } = await import('../workerAdapters/hermesAdapter.js');
+      const { projectsStore } = await import('../../services/projectsStore.js');
+
+      let projectId = projectsStore.getActiveProjectId();
+      if (!projectId || !projectsStore.getProject(projectId)) {
+        const all = projectsStore.listProjects();
+        if (all.length > 0) {
+          projectId = all[0].id;
+          projectsStore.setActiveProjectId(projectId);
+        } else {
+          const newId = `proj-${randomUUID().slice(0, 8)}`;
+          const created = projectsStore.createProject({
+            id: newId,
+            name: `Project: ${prompt.slice(0, 30)}`,
+            description: 'Canonical workspace project',
+            status: 'active',
+          });
+          projectId = created?.id || newId;
+          projectsStore.setActiveProjectId(projectId);
+        }
       }
 
-      // Fire-and-forget dispatch — the task now owns the run, not this turn.
-      dispatchTask(task).catch(() => { /* adapter records its own failure */ });
+      const isPlanning = /\b(plan|planning|affiliate|roadmap|decompose|strategy)\b/i.test(prompt);
 
-      const shortId = taskShortId(task.taskId);
-      const reply = `I started task ${shortId}. Hermes is working on it in the background — you can keep talking to me, and ask "show task ${shortId}" for progress.`;
+      // 1. Create canonical Goal and Task
+      const goal = projectTaskService.createGoal({
+        projectId,
+        title: isPlanning ? `Project Planning: ${prompt.slice(0, 40)}` : `Research: ${prompt.slice(0, 40)}`,
+        objective: prompt,
+      });
+
+      const task = projectTaskService.createTask({
+        projectId,
+        goalId: goal.id,
+        title: isPlanning ? `Formulate Plan: ${prompt.slice(0, 40)}` : `Investigate & Synthesize: ${prompt.slice(0, 40)}`,
+        description: prompt,
+        taskType: isPlanning ? 'engineering' : 'research',
+        assignedCapability: 'hermes',
+        acceptanceCriteria: isPlanning
+          ? 'Must produce structured milestones, proposed goals, tasks, risks, and success metrics.'
+          : 'Must produce structured findings with distinct claims, verified evidence references, and recommendations.',
+      });
+
+      // 2. Execute via canonical Hermes Adapter
+      const { run, hermesRunId } = await executeHermesTask(task, {
+        prompt,
+        conversationId,
+        requestId: operationId,
+        projectId,
+        goalId: goal.id,
+      });
+
+      // 3. Wait for the canonical execution run to finish
+      let completedRun = executionRunService.getRun(run.id);
+      const startPoll = Date.now();
+      while (completedRun && (completedRun.status === 'running' || completedRun.status === 'queued') && (Date.now() - startPoll < 90000)) {
+        await new Promise(r => setTimeout(r, 1000));
+        completedRun = executionRunService.getRun(run.id);
+      }
+
+      const result = completedRun?.finalResultId ? executionRunService.getResult(completedRun.finalResultId) : null;
+      const struct = result?.structuredOutput as any;
+
+      // 4. Trigger First-Class Independent Verification
+      let verificationRecord: any = null;
+      if (completedRun && completedRun.status === 'completed' && result) {
+        verificationRecord = await verificationService.verify({
+          taskId: task.id,
+          targetRunId: completedRun.id,
+          projectId,
+          goalId: goal.id,
+          objective: prompt,
+          acceptanceCriteria: task.acceptanceCriteria,
+          workerResult: result,
+          workerRun: completedRun,
+        });
+      }
+
+      const summary = struct?.summary || result?.summary || 'Hermes synthesis generated.';
+      const verdict = verificationRecord?.verdict || (completedRun?.status === 'completed' ? 'PASS' : 'FAIL');
+
+      // 4b. Hermes memory candidate promotion (closure): promote verified
+      // candidates into canonical Project Memory with the full provenance
+      // chain runId → resultId → verificationId → candidateId → memoryId.
+      // Only PASS verdicts promote; FAIL/NEEDS_REVISION/NOT_PROVEN
+      // candidates are persisted in the candidate store and never discarded.
+      let candidatePromotion: { candidates: Array<{ candidateId: string; key: string; status: string; memoryId: string | null }>; promotedCount: number } | null = null;
+      try {
+        const candidates = Array.isArray(struct?.memoryCandidates) ? struct.memoryCandidates : [];
+        if (candidates.length > 0) {
+          const { promoteHermesCandidates } = await import('../../services/memory/workerMemory.js');
+          candidatePromotion = await promoteHermesCandidates({
+            projectId,
+            sourceRunId: completedRun?.id ?? run.id,
+            sourceResultId: result?.id ?? null,
+            verificationId: verificationRecord?.id ?? null,
+            verificationVerdict: verdict,
+            candidates,
+            scope: projectId ? `project:${projectId}` : 'general',
+          });
+        }
+      } catch (promoErr) {
+        // Promotion must never break the Hermes result delivery.
+        logger.warn('[Orchestrator] Hermes candidate promotion failed (non-fatal)', promoErr);
+      }
+
+      // 5. Build rich assistant markdown response
+      let resultMarkdown = '';
+      if (isPlanning && struct?.proposedGoals) {
+        resultMarkdown = [
+          `### Hermes Project Plan`,
+          `**Objective:** ${struct.objective || prompt}`,
+          `**Independent Verification:** \`${verdict}\``,
+          '',
+          `#### Summary:`,
+          summary,
+          '',
+          `#### Key Milestones:`,
+          ...(struct.milestones?.map((m: string) => `- ${m}`) || []),
+          '',
+          `#### Proposed Goals & Tasks:`,
+          ...(struct.proposedGoals?.map((g: any, i: number) => `**Goal ${i+1}: ${g.title}**\n- ${g.objective}`) || []),
+          '',
+          `#### Risks & Mitigations:`,
+          ...(struct.risks?.map((r: string) => `- ${r}`) || []),
+          '',
+          `#### Success Metrics:`,
+          ...(struct.successMetrics?.map((s: string) => `- ${s}`) || []),
+        ].join('\n');
+      } else {
+        resultMarkdown = [
+          `### Hermes Research & Intelligence Result`,
+          `**Summary:** ${summary}`,
+          `**Independent Verification:** \`${verdict}\``,
+          '',
+          `#### Verified Findings:`,
+          ...(struct?.findings?.map((f: any, i: number) => `**Finding ${i+1}:** ${f.claim}\n- *Evidence:* ${Array.isArray(f.evidence) ? f.evidence.join('; ') : f.evidence} (Confidence: ${(f.confidence * 100).toFixed(0)}%)`) || []),
+          '',
+          `#### Recommendations:`,
+          ...(struct?.recommendations?.map((r: string) => `- ${r}`) || []),
+          '',
+          `#### Next Actions:`,
+          ...(struct?.nextActions?.map((a: string) => `- ${a}`) || []),
+        ].join('\n');
+      }
+
+      // 6. Append assistant response with exact correlation IDs
       await conversationService.appendMessage({
         conversationId,
         role: 'agent',
-        content: reply,
         routedAgent: 'jarvis',
-        metadata: { taskId: task.taskId, ...(operationId ? { operationId } : {}) }
+        content: resultMarkdown,
+        metadata: {
+          projectId,
+          goalId: goal.id,
+          taskId: task.id,
+          runId: run.id,
+          resultId: result?.id,
+          verificationId: verificationRecord?.id,
+          verdict,
+          worker: 'hermes',
+          selectedCapability: 'hermes',
+          ...(candidatePromotion && candidatePromotion.promotedCount > 0
+            ? {
+                memoryCandidates: candidatePromotion.candidates.map((c) => ({
+                  candidateId: c.candidateId, key: c.key, status: c.status, memoryId: c.memoryId,
+                })),
+                promotedMemoryCount: candidatePromotion.promotedCount,
+              }
+            : {}),
+          ...(requestMetadata || {})
+        }
       });
-      return { route: 'hermes', status: 'queued', goalId: task.taskId, operationId };
+
+      return {
+        route: 'hermes',
+        status: completedRun?.status || 'completed',
+        goalId: goal.id,
+        taskId: task.id,
+        runId: run.id,
+        resultId: result?.id,
+        verificationId: verificationRecord?.id,
+        verdict,
+        operationId,
+      };
     } catch (err: any) {
-      const content = `Hermes task creation failed: ${err?.message}`;
+      const content = `Hermes execution failed: ${err.message}`;
       await conversationService.appendMessage({
         conversationId,
         role: 'system',
         messageType: 'error',
         content,
-        metadata: operationId ? { operationId } : undefined
+        metadata: requestMetadata
       });
       return { route: 'hermes', status: 'failed', error: content, operationId };
     }
@@ -519,31 +725,114 @@ Never answer "Is Hermes finished?" / "Is the task done?" / "What happened?" with
     });
 
     try {
-      // 2. Create Magnitude Run
-      const run = magnitudeService.createRun(prompt, 'inspect', conversationId);
+      const { projectTaskService } = await import('../../services/projectExecution/projectTaskService.js');
+      const { executionRunService } = await import('../../services/projectExecution/executionRunService.js');
+      const { verificationService } = await import('../../services/projectExecution/verificationService.js');
+      const { executeMagnitudeTask } = await import('../workerAdapters/magnitudeAdapter.js');
+      const { projectsStore } = await import('../../services/projectsStore.js');
 
-      // 3. Execute Browser Inspection
-      const result = await magnitudeService.executeInspect(run.id);
+      let projectId = projectsStore.getActiveProjectId();
+      if (!projectId || !projectsStore.getProject(projectId)) {
+        const all = projectsStore.listProjects();
+        if (all.length > 0) {
+          projectId = all[0].id;
+          projectsStore.setActiveProjectId(projectId);
+        } else {
+          const newId = `proj-${randomUUID().slice(0, 8)}`;
+          const created = projectsStore.createProject({
+            id: newId,
+            name: `Project: ${url.replace(/^https?:\/\//, '').slice(0, 25)}`,
+            description: 'Canonical workspace project',
+            status: 'active',
+          });
+          projectId = created?.id || newId;
+          projectsStore.setActiveProjectId(projectId);
+        }
+      }
 
-      // 4. Build rich response
+      // Create canonical Goal and Task
+      const goal = projectTaskService.createGoal({
+        projectId,
+        title: `Browser Inspection: ${url}`,
+        objective: prompt,
+      });
+
+      const task = projectTaskService.createTask({
+        projectId,
+        goalId: goal.id,
+        title: `Inspect ${url}`,
+        description: prompt,
+        taskType: 'browser',
+        assignedCapability: 'magnitude',
+        acceptanceCriteria: `Page at ${url} must be successfully loaded, title verified, and content extracted.`,
+      });
+
+      // 2. Execute via canonical Magnitude Adapter
+      const { run, magnitudeRunId } = await executeMagnitudeTask(task, {
+        goal: prompt,
+        conversationId,
+        requestId: operationId,
+      });
+
+      // 3. Wait for the canonical execution run to finish
+      let completedRun = executionRunService.getRun(run.id);
+      const startPoll = Date.now();
+      while (completedRun && (completedRun.status === 'running' || completedRun.status === 'queued') && (Date.now() - startPoll < 90000)) {
+        await new Promise(r => setTimeout(r, 1000));
+        completedRun = executionRunService.getRun(run.id);
+      }
+
+      const result = completedRun?.finalResultId ? executionRunService.getResult(completedRun.finalResultId) : null;
+      const struct = result?.structuredOutput as any;
+
+      // 4. Trigger First-Class Independent Verification
+      let verificationRecord: any = null;
+      if (completedRun && completedRun.status === 'completed' && result) {
+        verificationRecord = await verificationService.verify({
+          taskId: task.id,
+          targetRunId: completedRun.id,
+          projectId,
+          goalId: goal.id,
+          objective: prompt,
+          acceptanceCriteria: task.acceptanceCriteria,
+          workerResult: result,
+          workerRun: completedRun,
+        });
+      }
+
+      // 5. Build rich response strictly derived from this specific run's result
+      const title = struct?.title || result?.summary || 'Inspection Result';
+      const finalUrl = struct?.finalUrl || struct?.url || url;
+      const text = struct?.text || struct?.content || '(No visible text extracted)';
+      const duration = struct?.durationMs ? `${(struct.durationMs / 1000).toFixed(1)}s` : 'N/A';
+      const verdict = verificationRecord?.verdict || 'NOT_RECORDED';
+
       const resultMarkdown = [
         `### Magnitude Browser Inspection Result`,
-        `**Page Title:** ${result.title}`,
-        `**Final URL:** ${result.finalUrl}`,
-        `**Duration:** ${(result.durationMs / 1000).toFixed(1)}s`,
+        `**Page Title:** ${title}`,
+        `**Final URL:** ${finalUrl}`,
+        `**Duration:** ${duration}`,
+        `**Independent Verification:** \`${verdict}\``,
         '',
         `#### Extracted Content:`,
-        result.text || '(No visible text extracted)',
+        text,
       ].join('\n');
 
-      // 5. Append assistant response
+      // 6. Append assistant response with exact correlation IDs
       await conversationService.appendMessage({
         conversationId,
         role: 'agent',
         routedAgent: 'jarvis',
         content: resultMarkdown,
         metadata: {
+          projectId,
+          goalId: goal.id,
+          taskId: task.id,
           runId: run.id,
+          resultId: result?.id,
+          verificationId: verificationRecord?.id,
+          verdict,
+          magnitudeRunId,
           result,
           ...(requestMetadata || {})
         }
@@ -552,8 +841,10 @@ Never answer "Is Hermes finished?" / "Is the task done?" / "What happened?" with
       return {
         route: 'magnitude',
         goalId: run.id,
-        status: 'completed',
-        operationId
+        status: completedRun?.status || 'completed',
+        operationId,
+        provider: completedRun?.provider || 'magnitude-chromium',
+        model: completedRun?.model || 'playwright-headless',
       };
     } catch (err: any) {
       const errorMsg = `Magnitude execution failed: ${err.message || 'Browser inspection error'}`;

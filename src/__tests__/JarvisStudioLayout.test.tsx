@@ -13,6 +13,7 @@ import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import JarvisStudio from '../pages/JarvisStudio';
 import { CodexProvider } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 import { stopBackendLifecycleMonitor } from '../diagnostics/backendLifecycleStore';
 
 /* Fake Electron lifecycle bridge (authoritative source, never polls). */
@@ -48,7 +49,9 @@ function renderStudio() {
   return render(
     <MemoryRouter>
       <CodexProvider>
-        <JarvisStudio />
+        <ProjectProvider>
+          <JarvisStudio />
+        </ProjectProvider>
       </CodexProvider>
     </MemoryRouter>,
   );

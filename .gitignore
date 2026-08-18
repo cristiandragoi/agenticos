@@ -170,3 +170,10 @@ ollama-models/
 # AgenticOS runtime state
 server/data/agentic-os.db
 server/data/runs.json
+
+# MCP bridge build output (Phase 1)
+tools/agenticos-mcp/dist/
+tools/agenticos-mcp/node_modules/
+
+# One-off diagnostic scratch scripts
+server/scratch_*.mjs

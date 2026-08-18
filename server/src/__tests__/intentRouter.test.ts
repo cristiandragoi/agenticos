@@ -12,6 +12,31 @@ import { IntentRouter } from '../domains/jarvis/intentRouter.js';
 
 const router = new IntentRouter();
 
+describe('IntentRouter — Magnitude browser routing (A7/M9)', () => {
+  it('routes explicit-URL browser inspection to magnitude', async () => {
+    const result = await router.routeIntent('Inspect https://example.com and tell me the page title');
+    expect(result.route).toBe('magnitude');
+    expect(result.selectedCapability).toBe('magnitude');
+  });
+  it('routes bare-domain browser inspection to magnitude (A7)', async () => {
+    const result = await router.routeIntent('Jarvis, inspect example.com and tell me the page title');
+    expect(result.route).toBe('magnitude');
+    expect(result.selectedCapability).toBe('magnitude');
+  });
+  it('routes explicit magnitude delegation to magnitude', async () => {
+    const result = await router.routeIntent('use magnitude to open github.com');
+    expect(result.route).toBe('magnitude');
+  });
+  it('does NOT route non-browser page talk to magnitude', async () => {
+    const result = await router.routeIntent('What is the capital of France?');
+    expect(result.route).not.toBe('magnitude');
+  });
+  it('respects prohibited magnitude (do not use magnitude)', async () => {
+    const result = await router.routeIntent('without magnitude, inspect https://example.com');
+    expect(result.route).not.toBe('magnitude');
+  });
+});
+
 describe('IntentRouter — required routing cases', () => {
   it('routes direct conversation (casual question)', async () => {
     const result = await router.routeIntent('What is the capital of France?');

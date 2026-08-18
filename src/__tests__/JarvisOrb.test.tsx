@@ -27,6 +27,7 @@ import {
 } from '../components/jarvis/jarvisOrbState';
 import JarvisStudio from '../pages/JarvisStudio';
 import { CodexProvider } from '../store/codexStore';
+import { ProjectProvider } from '../store/projectStore';
 import { MemoryRouter } from 'react-router-dom';
 
 const ALL_STATES: JarvisVisualState[] = [
@@ -243,7 +244,9 @@ describe('JarvisStudio integration — orb wiring with real UI intact', () => {
     render(
       <MemoryRouter>
         <CodexProvider>
-          <JarvisStudio />
+          <ProjectProvider>
+            <JarvisStudio />
+          </ProjectProvider>
         </CodexProvider>
       </MemoryRouter>,
     );
@@ -256,7 +259,9 @@ describe('JarvisStudio integration — orb wiring with real UI intact', () => {
     render(
       <MemoryRouter>
         <CodexProvider>
-          <JarvisStudio />
+          <ProjectProvider>
+            <JarvisStudio />
+          </ProjectProvider>
         </CodexProvider>
       </MemoryRouter>,
     );
@@ -293,7 +298,9 @@ describe('JarvisStudio integration — orb wiring with real UI intact', () => {
     render(
       <MemoryRouter>
         <CodexProvider>
-          <JarvisStudio />
+          <ProjectProvider>
+            <JarvisStudio />
+          </ProjectProvider>
         </CodexProvider>
       </MemoryRouter>,
     );
@@ -307,7 +314,9 @@ describe('JarvisStudio integration — orb wiring with real UI intact', () => {
     render(
       <MemoryRouter>
         <CodexProvider>
-          <JarvisStudio />
+          <ProjectProvider>
+            <JarvisStudio />
+          </ProjectProvider>
         </CodexProvider>
       </MemoryRouter>,
     );

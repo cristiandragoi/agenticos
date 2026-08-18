@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//b/AgenticOS/**)",
+      "Bash(find server/src/services/revenue* -type f -name \"*.ts\")",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx vite:*)",
+      "Bash(npm run:*)",
+      "Bash(node dist/index.js)",
+      "Bash(curl -s http://localhost:4600/api/health)",
+      "Bash(curl -s http://localhost:4600/api/projects)",
+      "Bash(curl:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":4600\")",
+      "Bash(taskkill /PID 6760 /F)",
+      "Bash(kill -9 6760)",
+      "Bash(taskkill //PID 6760 //F)"
+    ]
+  }
+}
