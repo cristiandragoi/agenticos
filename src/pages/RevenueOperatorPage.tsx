@@ -112,7 +112,7 @@ const KpiModal: React.FC<{
           <h3 className="text-sm font-bold text-white">{title} — itemized from persisted records</h3>
           <div className="flex items-center gap-3">
             <span className="text-lg font-bold text-emerald-300">{fmtEur(breakdown.total)}</span>
-            <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={16} /></button>
+            <button onClick={onClose} className="text-slate-400 hover:text-white" data-testid="kpi-modal-close"><X size={16} /></button>
           </div>
         </div>
         <div className="px-5 py-4 space-y-4">
@@ -243,7 +243,7 @@ const ExperimentDrawer: React.FC<{
               {trace.nextAction ? <> · next action: <span className="text-cyan-300">{trace.nextAction}</span></> : ' · terminal state'}
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={16} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white" data-testid="drawer-close"><X size={16} /></button>
         </div>
 
         <div className="px-5 py-4 space-y-5 text-xs">
