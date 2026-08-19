@@ -102,7 +102,7 @@ const KpiModal: React.FC<{
 }> = ({ title, breakdown, onClose, onExperimentClick }) => {
   const items = breakdown.items || [];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed left-0 right-0 bottom-0 top-[48px] z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
         className="bg-[#12151a] border border-slate-700 rounded-xl w-[760px] max-w-[92vw] max-h-[84vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -225,7 +225,7 @@ const ExperimentDrawer: React.FC<{
 }> = ({ trace, onClose }) => {
   const e = trace.experiment;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed left-0 right-0 bottom-0 top-[48px] z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
         className="w-[640px] max-w-[94vw] h-full bg-[#101318] border-l border-slate-700 overflow-y-auto shadow-2xl"
         onClick={(ev) => ev.stopPropagation()}
