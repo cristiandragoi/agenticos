@@ -6,8 +6,6 @@ import ContextChip from '../components/ui/ContextChip';
 import RoutinesPanel from '../components/routines/RoutinesPanel';
 import { useChatManager } from '../hooks/useChatManager';
 import { useRevenueIntelligenceSummary } from '../lib/dataport';
-import ApprovalsInbox from '../components/revenue/ApprovalsInbox';
-import MetricsPanel from '../components/revenue/MetricsPanel';
 import ArgusPanel from '../components/argus/ArgusPanel';
 import { apiClient, apiFetch, apiUrl } from '../api/client';
 import {
@@ -1125,22 +1123,6 @@ const ControlRoom: React.FC = () => {
       </div>
 
       {/* ── Revenue Engine (ARGUS): Approvals Inbox + KPI Metrics ── */}
-      <div className="widget-card" style={{ marginBottom: 12 }}>
-        <div className="widget-card__header">
-          <span className="text-secondary text-sm font-semibold">Approvals Inbox</span>
-          <span className="text-xxs text-dim">opportunities awaiting your decision</span>
-        </div>
-        <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-          <ApprovalsInbox />
-        </div>
-      </div>
-      <div className="widget-card" style={{ marginBottom: 12 }}>
-        <div className="widget-card__header">
-          <span className="text-secondary text-sm font-semibold">Revenue Metrics</span>
-          <span className="text-xxs text-dim">pipeline summary and yield measurements</span>
-        </div>
-        <MetricsPanel />
-      </div>
       <div className="widget-card" style={{ marginBottom: 12 }}>
         <div className="widget-card__header">
           <span className="text-secondary text-sm font-semibold">ARGUS Verification</span>

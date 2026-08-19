@@ -34,7 +34,7 @@ export default function MetricsPanel() {
     try {
       const [metricsData, measurementsData] = await Promise.all([
         revenueClient.getMetrics(),
-        revenueClient.getMeasurements()
+        Promise.resolve([]),
       ]);
       setSummary(metricsData);
       setMeasurements(measurementsData);

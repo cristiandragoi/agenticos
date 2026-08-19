@@ -749,22 +749,6 @@ export const entityLinks = sqliteTable('entity_links', {
   createdAt: text('created_at').notNull(),
 });
 
-// Revenue metrics — post-publish yield tracking (Revenue Engine Phase 1: KPI)
-export const revenueMetrics = sqliteTable('revenue_metrics', {
-  id: text('id').primaryKey(),
-  opportunityId: text('opportunity_id').notNull().references(() => revenueOpportunities.id, { onDelete: 'cascade' }),
-  expectedYield: real('expected_yield'),
-  actualYield: real('actual_yield'),
-  clicks: integer('clicks'),
-  conversions: integer('conversions'),
-  revenue: real('revenue'),
-  status: text('status').notNull().default('measuring'),
-  measuredAt: text('measured_at'),
-  createdAt: text('created_at').notNull(),
-}, (table) => ({
-  opportunityIdx: index('idx_rev_metrics_opportunity').on(table.opportunityId),
-}));
-
 // ── ARGUS — independent verification system ────────────────────────────────
 // Immutable Task Contract: snapshots the ORIGINAL user spec + acceptance
 // criteria at contract time. specHash is the sha256 over the original spec +
