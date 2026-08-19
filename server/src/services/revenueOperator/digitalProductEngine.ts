@@ -112,24 +112,62 @@ export async function discoverProducts(
 }
 
 /** Defensive parse of idea list from a free-text/structured summary. */
-function extractIdeas(summary: string | null): Array<{ title: string; problem?: string; customer?: string; price?: number | null; channel?: string; note?: string }> {
+export function extractIdeas(summary: string | null): Array<{ title: string; problem?: string | null; customer?: string | null; price?: number | null; channel?: string | null; note?: string | null }> {
   if (!summary) return [];
   // Try to parse a JSON array/object if the summary is JSON.
-  try {
-    const parsed = JSON.parse(summary);
-    const arr = Array.isArray(parsed) ? parsed : (parsed.ideas || parsed.products || []);
-    if (Array.isArray(arr)) {
-      return arr.map((x: any) => ({
-        title: x.title || x.name || x.product || 'Untitled product',
-        problem: x.problem || x.problemSolved || null,
-        customer: x.customer || x.targetCustomer || null,
-        price: typeof x.price === 'number' ? x.price : (parseFloat(x.price) || null),
-        channel: x.channel || x.distributionChannel || null,
-        note: x.note || x.evidence || null,
-      }));
+  const candidates = [summary];
+  const fenced = summary.match(/```(?:json)?\s*\n([\s\S]*?)```/);
+  if (fenced) candidates.push(fenced[1]);
+  for (const text of candidates) {
+    try {
+      const parsed = JSON.parse(text.trim());
+      const arr = Array.isArray(parsed) ? parsed : (parsed.ideas || parsed.products || parsed.opportunities || []);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return arr.map((x: any) => ({
+          title: x.title || x.name || x.product || 'Untitled product',
+          problem: x.problem || x.problemSolved || null,
+          customer: x.customer || x.targetCustomer || null,
+          price: typeof x.price === 'number' ? x.price : (parseFloat(x.price) || null),
+          channel: x.channel || x.distributionChannel || null,
+          note: x.note || x.evidence || null,
+        }));
+      }
+    } catch { /* not JSON — fall through to list parsing */ }
+  }
+  // Markdown / numbered-list fallback: each list item becomes one candidate.
+  const lines = summary.split(/\r?\n/);
+  const items: Array<{ title: string; body: string[] }> = [];
+  const itemRe = /^\s*(?:\d+[.)]|[-*•])\s+(.*)$/;
+  for (const line of lines) {
+    const m = line.match(itemRe);
+    if (m && m[1].trim().length >= 12) {
+      items.push({ title: m[1].trim(), body: [] });
+    } else if (items.length > 0 && line.trim()) {
+      items[items.length - 1].body.push(line.trim());
     }
-  } catch { /* not JSON — leave as single summary idea */ }
-  return [];
+  }
+  // Also accept "### Title" style blocks.
+  if (items.length === 0) {
+    const blocks = summary.split(/\n(?=###\s)/);
+    for (const b of blocks) {
+      const hm = b.match(/^###\s+(.+)\n?([\s\S]*)$/);
+      if (hm && hm[1].trim().length >= 12) items.push({ title: hm[1].trim(), body: (hm[2] || '').split(/\r?\n/).filter(Boolean) });
+    }
+  }
+  if (items.length === 0) return [];
+  return items.slice(0, 12).map((it) => {
+    const chunk = [it.title, ...it.body].join(' ');
+    const priceMatch = chunk.match(/€\s*(\d+(?:[.,]\d+)?)/);
+    const channelMatch = chunk.match(/\b(SHOPIFY|ETSY|GUMROAD|INSTAGRAM|TIKTOK|SEO|EMAIL|GOOGLE|MARKETPLACE|DIRECT_OUTREACH)\b/i);
+    return {
+      title: it.title.replace(/\*\*/g, '').slice(0, 120),
+      problem: it.body.join(' ').slice(0, 500) || null,
+      customer: null,
+      price: priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : null,
+      channel: channelMatch ? channelMatch[1].toUpperCase() : null,
+      note: chunk.slice(0, 700),
+    };
+  });
 }
 
 /**

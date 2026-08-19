@@ -111,22 +111,57 @@ async function linkRun(experimentId: string, runId: string) {
 }
 
 /** Defensive parse of company list from a free-text/structured summary. */
-function extractCompanies(summary: string | null): Array<{ name: string; website?: string; problem?: string; note?: string; offer?: string }> {
+export function extractCompanies(summary: string | null): Array<{ name: string; website?: string | null; problem?: string | null; note?: string | null; offer?: string | null }> {
   if (!summary) return [];
-  try {
-    const parsed = JSON.parse(summary);
-    const arr = Array.isArray(parsed) ? parsed : (parsed.companies || parsed.smes || []);
-    if (Array.isArray(arr)) {
-      return arr.map((x: any) => ({
-        name: x.name || x.company || x.companyName || 'Untitled company',
-        website: x.website || x.url || null,
-        problem: x.problem || x.painPoint || null,
-        note: x.note || x.relevance || null,
-        offer: x.offer || null,
-      }));
+  const candidates = [summary];
+  const fenced = summary.match(/```(?:json)?\s*\n([\s\S]*?)```/);
+  if (fenced) candidates.push(fenced[1]);
+  for (const text of candidates) {
+    try {
+      const parsed = JSON.parse(text.trim());
+      const arr = Array.isArray(parsed) ? parsed : (parsed.companies || parsed.smes || parsed.list || []);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return arr.map((x: any) => ({
+          name: x.name || x.company || x.companyName || 'Untitled company',
+          website: x.website || x.url || null,
+          problem: x.problem || x.painPoint || null,
+          note: x.note || x.relevance || null,
+          offer: x.offer || null,
+        }));
+      }
+    } catch { /* not JSON — fall through */ }
+  }
+  // Markdown / numbered-list fallback: each list item becomes one company.
+  const lines = summary.split(/\r?\n/);
+  const items: Array<{ title: string; body: string[] }> = [];
+  const itemRe = /^\s*(?:\d+[.)]|[-*•])\s+(.*)$/;
+  for (const line of lines) {
+    const m = line.match(itemRe);
+    if (m && m[1].trim().length >= 8) {
+      items.push({ title: m[1].trim(), body: [] });
+    } else if (items.length > 0 && line.trim()) {
+      items[items.length - 1].body.push(line.trim());
     }
-  } catch { /* not JSON */ }
-  return [];
+  }
+  if (items.length === 0) {
+    const blocks = summary.split(/\n(?=###\s)/);
+    for (const b of blocks) {
+      const hm = b.match(/^###\s+(.+)\n?([\s\S]*)$/);
+      if (hm && hm[1].trim().length >= 8) items.push({ title: hm[1].trim(), body: (hm[2] || '').split(/\r?\n/).filter(Boolean) });
+    }
+  }
+  if (items.length === 0) return [];
+  return items.slice(0, 12).map((it) => {
+    const chunk = [it.title, ...it.body].join(' ');
+    const urlMatch = chunk.match(/https?:\/\/[^\s,)]+|www\.[^\s,)]+/);
+    return {
+      name: it.title.replace(/\*\*/g, '').slice(0, 120),
+      website: urlMatch ? urlMatch[0] : null,
+      problem: it.body.join(' ').slice(0, 500) || null,
+      note: chunk.slice(0, 700),
+      offer: null,
+    };
+  });
 }
 
 /**
