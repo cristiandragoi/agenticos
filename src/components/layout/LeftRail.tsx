@@ -10,7 +10,7 @@ import {
   Package, Radio, BookOpen, Settings, Cpu, Layers, Box,
   GitBranch, Clapperboard, Mic, Terminal, Wrench,
   Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight, Brain,
-  FolderOpen, Plus, Circle, Compass
+  FolderOpen, Plus, Circle, Compass, DollarSign
 } from 'lucide-react';
 
 /** Session persistence for the collapsed rail state (survives navigation,
@@ -133,6 +133,9 @@ const LeftRail: React.FC = () => {
         )}
 
         <div className="nav-section-label">{collapsed ? <LayoutDashboard size={14} /> : 'WORKSPACE'}</div>
+        <NavLink to="/revenue" data-testid="nav-revenue-operator" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Revenue Operator">
+          <DollarSign size={16} /> {!collapsed && 'REVENUE OPERATOR'}
+        </NavLink>
         <NavLink to="/mission-control" data-testid="nav-mission-control" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Mission Control">
           <LayoutDashboard size={16} /> {!collapsed && 'MISSION CONTROL'}
         </NavLink>

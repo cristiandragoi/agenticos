@@ -824,3 +824,202 @@ export const argusCorrections = sqliteTable('argus_corrections', {
 }, (table) => ({
   contractAttemptIdx: index('idx_argus_corrections_contract_attempt').on(table.contractId, table.attempt),
 }));
+
+// ── REVENUE OPERATOR PHASE 1 — domain extension (extends canonical systems) ──
+// These tables are FIRST-CLASS DOMAIN entities for the Revenue Operator mission.
+// They deliberately DO NOT create parallel execution infrastructure: tasks, runs,
+// goals, ARGUS verification, project memory, scheduler, provider routing all
+// remain the canonical Agentic OS systems. Revenue entities reference canonical
+// IDs (project_id, opportunity_id, goal/task/run ids as link arrays).
+
+// Yield measurement records — per-opportunity KPI tracking (Digital Product
+// loop MEASURE stage; also used by the Revenue Engine dashboard).
+export const revenueMetrics = sqliteTable('revenue_metrics', {
+  id: text('id').primaryKey(),
+  opportunityId: text('opportunity_id').notNull().references(() => revenueOpportunities.id, { onDelete: 'cascade' }),
+  expectedYield: real('expected_yield'),
+  actualYield: real('actual_yield'),
+  clicks: integer('clicks'),
+  conversions: integer('conversions'),
+  revenue: real('revenue'),
+  status: text('status').notNull().default('measuring'),
+  measuredAt: text('measured_at'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  opportunityIdx: index('idx_rev_metrics_opportunity').on(table.opportunityId),
+}));
+
+// Revenue Mission — the commercial objective (€300/30d, engines, channels).
+export const revenueMissions = sqliteTable('revenue_missions', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  title: text('title').notNull(),
+  description: text('description'),
+  targetAmount: real('target_amount').notNull().default(0),
+  currency: text('currency').notNull().default('EUR'),
+  startDate: text('start_date').notNull(),
+  deadline: text('deadline').notNull(),
+  advertisingBudget: real('advertising_budget').notNull().default(0),
+  actualSpend: real('actual_spend').notNull().default(0),
+  enabledEngines: text('enabled_engines', { mode: 'json' }), // string[]
+  availableChannels: text('available_channels', { mode: 'json' }), // string[]
+  primaryMarket: text('primary_market').default('DE/EU'),
+  status: text('status').notNull().default('active'), // active | paused | completed | archived
+  realizedRevenue: real('realized_revenue').notNull().default(0),
+  verifiedRevenue: real('verified_revenue').notNull().default(0),
+  pipelineValue: real('pipeline_value').notNull().default(0),
+  actualCost: real('actual_cost').notNull().default(0),
+  netRevenue: real('net_revenue').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  projectIdx: index('idx_rev_mission_project').on(table.projectId),
+  statusIdx: index('idx_rev_mission_status').on(table.status),
+  deadlineIdx: index('idx_rev_mission_deadline').on(table.deadline),
+}));
+
+// Revenue Experiment — the executable unit of a mission (engine-specific).
+// Links to canonical opportunity (revenue_opportunities) when applicable and
+// records canonical goal/task/run ids as link arrays (NO parallel task engine).
+export const revenueExperiments = sqliteTable('revenue_experiments', {
+  id: text('id').primaryKey(),
+  missionId: text('mission_id').notNull().references(() => revenueMissions.id, { onDelete: 'cascade' }),
+  projectId: text('project_id'),
+  opportunityId: text('opportunity_id').references(() => revenueOpportunities.id),
+  engine: text('engine').notNull(), // digital_products | german_sme | ...
+  hypothesis: text('hypothesis').notNull(),
+  targetCustomer: text('target_customer'),
+  problem: text('problem'),
+  product: text('product'),
+  offer: text('offer'),
+  price: real('price'),
+  evidence: text('evidence', { mode: 'json' }), // EvidenceEntry[]
+  evidenceSources: text('evidence_sources', { mode: 'json' }), // string[]
+  confidence: real('confidence'), // 0..1
+  competitors: text('competitors', { mode: 'json' }), // string[]
+  distributionChannels: text('distribution_channels', { mode: 'json' }), // string[]
+  estimatedCost: real('estimated_cost').notNull().default(0),
+  actualCost: real('actual_cost').notNull().default(0),
+  expectedRevenue: real('expected_revenue').notNull().default(0),
+  actualRevenue: real('actual_revenue').notNull().default(0),
+  verifiedRevenue: real('verified_revenue').notNull().default(0),
+  buildTime: text('build_time'), // e.g. "2d" or ISO duration
+  launchDate: text('launch_date'),
+  impressions: integer('impressions').notNull().default(0),
+  visits: integer('visits').notNull().default(0),
+  leads: integer('leads').notNull().default(0),
+  responses: integer('responses').notNull().default(0),
+  conversions: integer('conversions').notNull().default(0),
+  sales: integer('sales').notNull().default(0),
+  decisionReason: text('decision_reason'),
+  status: text('status').notNull().default('DISCOVERED'), // lifecycle
+  goalIds: text('goal_ids', { mode: 'json' }), // canonical goal ids
+  taskIds: text('task_ids', { mode: 'json' }), // canonical task ids
+  runIds: text('run_ids', { mode: 'json' }), // canonical run ids
+  artifactIds: text('artifact_ids', { mode: 'json' }), // generated_assets ids
+  scorePayload: text('score_payload', { mode: 'json' }), // OpportunityScoreResult-ish
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  missionIdx: index('idx_rev_exp_mission').on(table.missionId),
+  statusIdx: index('idx_rev_exp_status').on(table.status),
+  engineIdx: index('idx_rev_exp_engine').on(table.engine),
+}));
+
+// Revenue Experiment events — commercial event stream (reuses canonical events
+// where appropriate; these are domain-specific observability events only).
+export const revenueExperimentEvents = sqliteTable('revenue_experiment_events', {
+  id: text('id').primaryKey(),
+  experimentId: text('experiment_id').notNull().references(() => revenueExperiments.id, { onDelete: 'cascade' }),
+  missionId: text('mission_id'),
+  eventType: text('event_type').notNull(), // revenue_mission_started | experiment_discovered | ... | revenue_verified
+  previousStatus: text('previous_status'),
+  nextStatus: text('next_status'),
+  actorType: text('actor_type'),
+  actorId: text('actor_id'),
+  metadata: text('metadata', { mode: 'json' }),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  expIdx: index('idx_rev_exp_events_exp').on(table.experimentId),
+  eventIdx: index('idx_rev_exp_events_type').on(table.eventType),
+}));
+
+// Revenue Ledger — commercial ledger entries. VERIFIED_REVENUE requires
+// evidence (provenance) — no fake revenue path. Entry types:
+// PIPELINE_VALUE | PROPOSED_VALUE | ORDER_VALUE | REALIZED_REVENUE |
+// VERIFIED_REVENUE | REFUNDED_REVENUE | ACTUAL_COST | NET_REVENUE.
+export const revenueLedgerEntries = sqliteTable('revenue_ledger_entries', {
+  id: text('id').primaryKey(),
+  missionId: text('mission_id').references(() => revenueMissions.id),
+  experimentId: text('experiment_id').references(() => revenueExperiments.id),
+  entryType: text('entry_type').notNull(), // PIPELINE_VALUE | PROPOSED_VALUE | ... | NET_REVENUE
+  amount: real('amount').notNull().default(0),
+  currency: text('currency').notNull().default('EUR'),
+  status: text('status').notNull().default('recorded'), // recorded | verified
+  evidence: text('evidence', { mode: 'json' }), // EvidenceEntry[] — required for VERIFIED_REVENUE
+  provenance: text('provenance', { mode: 'json' }),
+  source: text('source'), // shopify | manual | payment_provider | ...
+  verifiedAt: text('verified_at'),
+  verifiedBy: text('verified_by'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  missionIdx: index('idx_rev_ledger_mission').on(table.missionId),
+  expIdx: index('idx_rev_ledger_exp').on(table.experimentId),
+  typeIdx: index('idx_rev_ledger_type').on(table.entryType),
+}));
+
+// Distribution channels — capability/constraint registry (SHOPIFY, EMAIL, ...).
+export const revenueDistributionChannels = sqliteTable('revenue_distribution_channels', {
+  id: text('id').primaryKey(),
+  channel: text('channel').notNull().unique(), // SHOPIFY | EMAIL | GOOGLE | SEO | GEO | INSTAGRAM | TIKTOK | FACEBOOK | MARKETPLACE | DIRECT_OUTREACH
+  capabilities: text('capabilities', { mode: 'json' }), // { discover, publish, sell, message, measure, authenticate }
+  automationAllowed: integer('automation_allowed', { mode: 'boolean' }).notNull().default(true),
+  humanGateRequired: integer('human_gate_required', { mode: 'boolean' }).notNull().default(false),
+  status: text('status').notNull().default('configured'), // configured | auth_required | active | disabled
+  config: text('config', { mode: 'json' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// Compliance records — German/EU SME outreach compliance + suppression state.
+export const revenueComplianceRecords = sqliteTable('revenue_compliance_records', {
+  id: text('id').primaryKey(),
+  experimentId: text('experiment_id').references(() => revenueExperiments.id),
+  companyName: text('company_name'),
+  website: text('website'),
+  contactEmail: text('contact_email'),
+  contactSource: text('contact_source'), // legitimate business contact source
+  businessRelevance: text('business_relevance'),
+  purpose: text('purpose'),
+  outreachHistory: text('outreach_history', { mode: 'json' }), // outreach attempts
+  optOut: integer('opt_out', { mode: 'boolean' }).notNull().default(false),
+  doNotContact: integer('do_not_contact', { mode: 'boolean' }).notNull().default(false),
+  suppressionState: text('suppression_state').notNull().default('none'), // none | opt_out | do_not_contact | legal
+  retentionState: text('retention_state').notNull().default('active'), // active | retention_pending | deleted
+  lawfulBasis: text('lawful_basis'), // legitimate_interest | consent | contractual | legal_obligation
+  complianceReviewState: text('compliance_review_state').notNull().default('not_required'), // not_required | pending | approved | rejected
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  expIdx: index('idx_rev_compliance_exp').on(table.experimentId),
+  suppressionIdx: index('idx_rev_compliance_suppression').on(table.suppressionState),
+}));
+
+// Human gates — genuine human-only barriers (branch-pause semantics).
+export const revenueHumanGates = sqliteTable('revenue_human_gates', {
+  id: text('id').primaryKey(),
+  experimentId: text('experiment_id').references(() => revenueExperiments.id),
+  gateType: text('gate_type').notNull(), // SHOPIFY_AUTH_REQUIRED | OAUTH_REQUIRED | CAPTCHA | KYC | CONTRACT_APPROVAL | PAYMENT_APPROVAL | OUTBOUND_APPROVAL | LEGAL_REVIEW | PLATFORM_RESTRICTION
+  status: text('status').notNull().default('open'), // open | resolved | blocked
+  description: text('description'),
+  branchPaused: integer('branch_paused', { mode: 'boolean' }).notNull().default(false),
+  resolvedBy: text('resolved_by'),
+  resolvedAt: text('resolved_at'),
+  metadata: text('metadata', { mode: 'json' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  expIdx: index('idx_rev_human_gates_exp').on(table.experimentId),
+  statusIdx: index('idx_rev_human_gates_status').on(table.status),
+}));

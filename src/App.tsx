@@ -44,6 +44,7 @@ import AgentTeamsDashboard from './pages/AgentTeamsDashboard';
 import TeamDetailView from './pages/TeamDetailView';
 import SystemDoctorPage from './pages/SystemDoctorPage';
 import ProjectsPage from './pages/ProjectsPage';
+import RevenueOperatorPage from './pages/RevenueOperatorPage';
 import { uiDiagnostics } from './diagnostics/uiSnapshot';
 import { useEffect } from 'react';
 
@@ -104,6 +105,8 @@ function App() {
                         <Route path="apollo" element={<Navigate to="/hermes-studio?view=apollo" replace />} />
                         <Route path="doctor" element={<SystemDoctorPage />} />
                         <Route path="projects" element={<ProjectsPage />} />
+                        <Route path="revenue" element={<RevenueOperatorPage />} />
+                        <Route path="revenue-operator" element={<RevenueOperatorPage />} />
                       </Route>
                     </Routes>
                   </HashRouter>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
-import { revenueOpportunities, revenueOpportunityEvents, productionBriefs, productionBriefEvents, generatedAssets, tasks, runs, campaigns } from '../db/schema.js';
+import { revenueOpportunities, revenueOpportunityEvents, productionBriefs, productionBriefEvents, generatedAssets, tasks, runs, campaigns, revenueMetrics } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import crypto from 'crypto';
 
@@ -787,6 +787,71 @@ router.post('/generated-assets/:id/reject', async (req, res) => {
     res.json(updated[0]);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to reject asset', details: error.message });
+  }
+});
+
+// ── Revenue Metrics (yield measurements) — Digital Product loop MEASURE stage ──
+// Reused selectively from revenue-wip-checkpoint (contract §36-eligible); the
+// canonical ledger/verification semantics remain in the Revenue Operator service.
+
+// GET /api/revenue/measurements — list yield measurements, optionally by opportunity
+router.get('/measurements', async (req, res) => {
+  try {
+    const { opportunityId, limit } = req.query;
+    const conditions = [];
+    if (opportunityId) conditions.push(eq(revenueMetrics.opportunityId, String(opportunityId)));
+    const results = await db.select().from(revenueMetrics)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(revenueMetrics.createdAt))
+      .limit(Number(limit) || 100);
+    res.json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to fetch revenue metrics', details: error.message });
+  }
+});
+
+// GET /api/revenue/opportunities/:id/measurements — yield measurements for one opportunity
+router.get('/opportunities/:id/measurements', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const results = await db.select().from(revenueMetrics)
+      .where(eq(revenueMetrics.opportunityId, id))
+      .orderBy(desc(revenueMetrics.createdAt));
+    res.json(results);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to fetch opportunity metrics', details: error.message });
+  }
+});
+
+// POST /api/revenue/measurements — record a yield measurement for an opportunity
+router.post('/measurements', async (req, res) => {
+  try {
+    const { opportunityId, expectedYield, actualYield, clicks, conversions, revenue, status, measuredAt } = req.body;
+    if (!opportunityId) {
+      return res.status(400).json({ error: 'opportunityId is required' });
+    }
+    const opp = await db.select().from(revenueOpportunities).where(eq(revenueOpportunities.id, opportunityId)).limit(1);
+    if (opp.length === 0) return res.status(404).json({ error: 'Opportunity not found' });
+
+    const now = new Date().toISOString();
+    const newId = crypto.randomUUID();
+    const insertData = {
+      id: newId,
+      opportunityId,
+      expectedYield: expectedYield != null ? Number(expectedYield) : null,
+      actualYield: actualYield != null ? Number(actualYield) : null,
+      clicks: clicks != null ? Number(clicks) : null,
+      conversions: conversions != null ? Number(conversions) : null,
+      revenue: revenue != null ? Number(revenue) : null,
+      status: status || 'measuring',
+      measuredAt: measuredAt || now,
+      createdAt: now,
+    };
+    await db.insert(revenueMetrics).values(insertData);
+    await logEvent(opportunityId, 'metric_recorded', null, null, 'system', { metricId: newId, revenue });
+    res.status(201).json(insertData);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to record revenue metric', details: error.message });
   }
 });
 

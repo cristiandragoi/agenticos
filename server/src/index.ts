@@ -289,6 +289,10 @@ import revenueRouter from './routers/revenue.js';
 app.use('/api/revenue', revenueRouter);
 import revenuePipelineRouter from './routers/revenuePipeline.js';
 app.use('/api/revenue-pipeline', revenuePipelineRouter);
+import revenueOperatorRouter from './routers/revenueOperator.js';
+app.use('/api/revenue-operator', revenueOperatorRouter);
+import revenueEngineRouter from './routers/revenueEngine.js';
+app.use('/api/revenue-engine', revenueEngineRouter);
 import skillsRouter from './routers/skills.js';
 app.use('/api/skills', skillsRouter);
 
