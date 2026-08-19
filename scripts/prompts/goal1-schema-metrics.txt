@@ -1,0 +1,28 @@
+Task: Add a Drizzle ORM table definition for revenue metrics to the AgenticOS backend schema. This is a schema-only edit — do NOT run any commands and do NOT create migrations.
+
+Step 1: readFile server/src/db/schema.ts and locate the existing `revenueOpportunities` sqliteTable definition (it is near the end of the file).
+
+Step 2: Using writeFile, rewrite the ENTIRE file (path server/src/db/schema.ts) keeping every existing line byte-identical — do not reorder, rename, or remove anything — and append this NEW export at the very end of the file (after the last existing export, with a blank line before it):
+
+export const revenueMetrics = sqliteTable('revenue_metrics', {
+  id: text('id').primaryKey(),
+  opportunityId: text('opportunity_id').notNull().references(() => revenueOpportunities.id, { onDelete: 'cascade' }),
+  expectedYield: real('expected_yield'),
+  actualYield: real('actual_yield'),
+  clicks: integer('clicks'),
+  conversions: integer('conversions'),
+  revenue: real('revenue'),
+  status: text('status').notNull(),
+  measuredAt: text('measured_at'),
+  createdAt: text('created_at').notNull(),
+});
+
+Note: `text`, `integer`, `real` are already imported at the top of schema.ts (line 1 imports sqliteTable, text, integer, real, index, uniqueIndex, unique from 'drizzle-orm/sqlite-core'). Do NOT change the import line.
+
+Step 3: readFile server/src/db/schema.ts again and verify ALL of the following:
+(a) the file still contains the original revenueOpportunities definition with ALL of its original columns intact,
+(b) the revenueMetrics export is present exactly once at the end,
+(c) the file was NOT truncated (compare total length / last line against what you wrote).
+If anything is missing or truncated, immediately rewrite the file correctly.
+
+Step 4: finish with a message that states the exact line number where `export const revenueMetrics` starts, the total number of lines in the file after the edit, and confirms that no other exports were modified.

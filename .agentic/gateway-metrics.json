@@ -1,22 +1,33 @@
 {
   "ollama": {
-    "totalCalls": 14,
+    "totalCalls": 58,
     "totalSuccesses": 0,
-    "totalFailures": 14,
+    "totalFailures": 58,
     "totalTimeouts": 0,
-    "totalFallbacks": 0,
-    "averageLatencyMs": 0.9285714285714286,
+    "totalFallbacks": 92,
+    "averageLatencyMs": 148.29310344827587,
     "totalPromptTokens": 0,
     "totalCompletionTokens": 0,
     "totalCost": 0
   },
   "openrouter": {
-    "totalCalls": 5,
+    "totalCalls": 159,
     "totalSuccesses": 0,
-    "totalFailures": 5,
-    "totalTimeouts": 0,
-    "totalFallbacks": 0,
-    "averageLatencyMs": 2,
+    "totalFailures": 139,
+    "totalTimeouts": 2,
+    "totalFallbacks": 153,
+    "averageLatencyMs": 2971.660377358491,
+    "totalPromptTokens": 0,
+    "totalCompletionTokens": 0,
+    "totalCost": 0
+  },
+  "DeepSeek": {
+    "totalCalls": 22,
+    "totalSuccesses": 0,
+    "totalFailures": 17,
+    "totalTimeouts": 6,
+    "totalFallbacks": 38,
+    "averageLatencyMs": 5086.545454545455,
     "totalPromptTokens": 0,
     "totalCompletionTokens": 0,
     "totalCost": 0

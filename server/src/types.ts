@@ -343,7 +343,12 @@ export interface GoalRecord {
   providerFallbackCount: number;
   executionOptions?: ExecutionOptions;
   checkpointId?: string;
+  workerId?: string;
+  leaseExpiresAt?: string;
   runSummary?: RunSummary;
+  /** ARGUS verification state — only writable via goalStore.setVerificationState. */
+  verificationState?: 'none' | 'implementation_ready' | 'verifying' | 'verification_failed' | 'correcting' | 'verified_complete';
+  contractId?: string;
 }
 
 
@@ -466,6 +471,12 @@ export interface ExecutionOptions {
    *  only injected when this is true. Defaults true for legacy callers;
    *  localOnly / approvalRequired policies set it false at dispatch. */
   allowCloudEscalation?: boolean;
+  /** ARGUS auto-correction dispatch metadata (written by agent-argus only). */
+  argusCorrection?: {
+    contractId: string;
+    defectId: string;
+    attempt: number;
+  };
 }
 
 export interface AgentInvocation {

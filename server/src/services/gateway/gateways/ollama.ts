@@ -96,7 +96,25 @@ export class OllamaGateway implements ModelGateway {
       ? `${req.systemPrompt}${historyText ? `\n\n${historyText}` : ''}\n\nUser: ${req.prompt}\nAssistant:`
       : `${historyText ? `${historyText}\n\n` : ''}${req.prompt}`;
 
-    const baseModel = req.routing?.modelId ?? req.modelId ?? this.definition.model;
+    const configuredModel = req.routing?.modelId ?? req.modelId ?? this.definition.model;
+    // Resolve the configured model against the installed Ollama model list
+    // before calling /api/chat (same hardening as stream()): a request that
+    // names a model NOT installed on this host (e.g. the assigned cloud-only
+    // 'deepseek-v4-flash' leaking into the ollama fallback attempt) must land
+    // on an actually-installed local model instead of failing the whole
+    // fallback chain with "model 'deepseek-v4-flash' not found".
+    let baseModel = configuredModel;
+    try {
+      baseModel = await this.resolveModel(configuredModel);
+    } catch (resolveErr: any) {
+      // No installed match at all — keep the configured name so the attempt
+      // produces the precise model-missing error and the router moves on.
+      console.log(JSON.stringify({
+        diagnostic: 'OllamaGateway.chat model-resolve-failed',
+        requestedModel: configuredModel,
+        error: String(resolveErr?.message || resolveErr)
+      }));
+    }
     const timeout = req.timeoutMs ?? 120000;
     // P1 — the request layer expresses the output budget. A planning request
     // (large maxTokens) gets a proportional generation cap; a retry gets a

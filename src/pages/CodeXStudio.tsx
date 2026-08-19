@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StudioWorkspace } from '../components/codex/StudioWorkspace';
 import { DiagnosticsDrawer } from '../components/codex/DiagnosticsDrawer';
 import { useCodexStore } from '../store/codexStore';
+import { isGoalActivelyRunning } from '../presenters/executionStatus';
 import './codex-studio.css';
 import { apiFetch } from '../api/client';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -23,11 +24,13 @@ export default function CodeXStudio() {
       const list = Array.isArray(data) ? data : [];
       setGoals(list);
 
-      // Auto-hydrate activeGoalId if null and goals exist
-      if (!activeGoalId && list.length > 0) {
-        // Prefer any currently active/running goal, or most recent goal
-        const running = list.find((g: any) => ['queued', 'planning', 'executing', 'reasoning', 'retrying'].includes(g.status));
-        setActiveGoalId((running || list[0]).id);
+      // Auto-hydrate activeGoalId ONLY if a goal is genuinely running right
+      // now (a worker loop holds a live lease). A stale QUEUED goal with no
+      // lease must NOT be auto-selected — it would make the studio appear
+      // active forever and hide the SEND button.
+      if (!activeGoalId) {
+        const running = list.find((g: any) => isGoalActivelyRunning(g));
+        if (running) setActiveGoalId(running.id);
       }
     } catch (e) {}
   };

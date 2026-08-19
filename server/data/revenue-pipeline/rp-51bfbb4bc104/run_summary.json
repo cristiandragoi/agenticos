@@ -1,0 +1,486 @@
+{
+  "runId": "rp-51bfbb4bc104",
+  "taskId": "bgtask-9e7ca81e7",
+  "config": {
+    "niche": "roofing",
+    "city": "Berlin",
+    "serviceKeywords": [],
+    "prospectCount": 10,
+    "specificUrl": null,
+    "maxResearchBudgetUsd": null,
+    "dryRun": true,
+    "fixturesOnly": false,
+    "runBuild": true,
+    "useCodex": true,
+    "useLlm": false
+  },
+  "discovery": {
+    "mode": "real",
+    "requested": 10,
+    "found": 13,
+    "stopReason": "NO_RESULTS",
+    "sourcesTried": [
+      {
+        "source": "overpass-de",
+        "attempt": 1,
+        "status": "ok",
+        "error": null,
+        "latencyMs": 2805
+      },
+      {
+        "source": "overpass-kumi",
+        "attempt": 1,
+        "status": "no_results",
+        "error": null,
+        "latencyMs": 4563
+      },
+      {
+        "source": "overpass-ch",
+        "attempt": 1,
+        "status": "no_results",
+        "error": null,
+        "latencyMs": 164
+      }
+    ],
+    "sources": [
+      {
+        "businessName": "Kadabau",
+        "website": "https://www.kadabau.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/9404573365",
+        "evidence": "OpenStreetMap node 9404573365 (Kadabau); website tag: https://www.kadabau.de/; address: Rubensstraße 87, 12157; city: Berlin",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Dach- und Fassadentechnik",
+        "website": "https://www.dach-fassadentechnik.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/13248635157",
+        "evidence": "OpenStreetMap node 13248635157 (Dach- und Fassadentechnik); website tag: https://www.dach-fassadentechnik.de/; address: Hönower Weg 26, 15366; city: Hoppegarten",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Pilch Dachbau",
+        "website": "https://pilch-dachbau.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/8335349939",
+        "evidence": "OpenStreetMap node 8335349939 (Pilch Dachbau); website tag: https://pilch-dachbau.de/; address: Lübarser Straße 13, 13435; city: Berlin",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Dreher & Sohn Dachbau GmbH",
+        "website": "https://www.dreher-dachbau.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/8556345976",
+        "evidence": "OpenStreetMap node 8556345976 (Dreher & Sohn Dachbau GmbH); website tag: https://www.dreher-dachbau.de/; located inside the Berlin metro bounding box (Nominatim geocode + Overpass)",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Olaf Eichner Dachservice GmbH",
+        "website": "https://dachservice-eichner.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/11243397035",
+        "evidence": "OpenStreetMap node 11243397035 (Olaf Eichner Dachservice GmbH); website tag: https://dachservice-eichner.de; address: Chemnitzer Straße 56;58, 12621; city: Berlin",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Universum Dachbau",
+        "website": "https://universum-dachbau.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/12738344827",
+        "evidence": "OpenStreetMap node 12738344827 (Universum Dachbau); website tag: https://universum-dachbau.de; address: Roelckestraße 6, 13086; city: Berlin",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Dachdecker Birger Stadermann",
+        "website": "https://www.dachdeckerbirgerstadermann.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/8071205647",
+        "evidence": "OpenStreetMap node 8071205647 (Dachdecker Birger Stadermann); website tag: https://www.dachdeckerbirgerstadermann.de; address: Taunusstraße 12, 12161; city: Berlin",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Hasenbein",
+        "website": "https://dachdeckerei-hasenbein.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/5024077717",
+        "evidence": "OpenStreetMap node 5024077717 (Hasenbein); website tag: https://dachdeckerei-hasenbein.de/; address: Ahornsteg 5, 14532; city: Stahnsdorf",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "M&M CUK Dachdeckerei und Bauklempnerei",
+        "website": "https://www.mmcuk.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/11069965662",
+        "evidence": "OpenStreetMap node 11069965662 (M&M CUK Dachdeckerei und Bauklempnerei); website tag: https://www.mmcuk.de/; located inside the Berlin metro bounding box (Nominatim geocode + Overpass)",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Palluth Dachbau",
+        "website": "https://www.palluth-dachbau.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/way/225897245",
+        "evidence": "OpenStreetMap way 225897245 (Palluth Dachbau); website tag: https://www.palluth-dachbau.de; address: Gewerbestraße 13, 16562; city: Hohen Neuendorf",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Dachdeckerei Falk",
+        "website": "https://dachdeckerei-falk.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/2629803137",
+        "evidence": "OpenStreetMap node 2629803137 (Dachdeckerei Falk); website tag: https://dachdeckerei-falk.de/; address: Kohlmeisenweg 7, 14558; city: Nuthetal",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "Dachdeckerei Hartmut Krüger",
+        "website": "https://www.krueger-dachdeckerei.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/11123951571",
+        "evidence": "OpenStreetMap node 11123951571 (Dachdeckerei Hartmut Krüger); website tag: https://www.krueger-dachdeckerei.de/; located inside the Berlin metro bounding box (Nominatim geocode + Overpass)",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      },
+      {
+        "businessName": "May Dachdeckerei GmbH",
+        "website": "http://www.may-dachdeckerei.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/1333287263",
+        "evidence": "OpenStreetMap node 1333287263 (May Dachdeckerei GmbH); website tag: http://www.may-dachdeckerei.de; located inside the Berlin metro bounding box (Nominatim geocode + Overpass)",
+        "corroboratedBy": [
+          "overpass-kumi"
+        ]
+      }
+    ]
+  },
+  "workerRouting": {
+    "research": "prospect discovery + public inspection",
+    "hermes": "audit, scoring, rebuild blueprint",
+    "codex": "stopped",
+    "codexGoalId": "goal-c13e3005-",
+    "reviewer": "artifact verification + build/test evidence"
+  },
+  "status": "completed",
+  "stage": "COMPLETED",
+  "selectedProspect": {
+    "prospectId": "pp-e4256faa91a1",
+    "businessName": "Kadabau",
+    "websiteUrl": "https://www.kadabau.de",
+    "fixture": false,
+    "auditScore": 72,
+    "opportunityScore": 65,
+    "confidence": "high"
+  },
+  "ranking": [
+    {
+      "businessName": "Kadabau",
+      "score": 65,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dach- und Fassadentechnik",
+      "score": 57,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Pilch Dachbau",
+      "score": 53,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dreher & Sohn Dachbau GmbH",
+      "score": 53,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Olaf Eichner Dachservice GmbH",
+      "score": 52,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Universum Dachbau",
+      "score": 52,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachdecker Birger Stadermann",
+      "score": 51,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Hasenbein",
+      "score": 50,
+      "confidence": "high"
+    },
+    {
+      "businessName": "M&M CUK Dachdeckerei und Bauklempnerei",
+      "score": 50,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Palluth Dachbau",
+      "score": 50,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachdeckerei Falk",
+      "score": 46,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachdeckerei Hartmut Krüger",
+      "score": 46,
+      "confidence": "high"
+    },
+    {
+      "businessName": "May Dachdeckerei GmbH",
+      "score": 38,
+      "confidence": "low"
+    }
+  ],
+  "counts": {
+    "requested": 10,
+    "discovered": 13,
+    "qualified": 11,
+    "rejected": 2,
+    "returned": 10
+  },
+  "leads": [
+    {
+      "businessName": "Kadabau",
+      "website": "https://www.kadabau.de",
+      "contact": {
+        "phone": [],
+        "email": [
+          "info.kadabau@gmail.com"
+        ],
+        "contactPageUrl": null,
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/9404573365",
+      "confidence": "high",
+      "opportunityScore": 65,
+      "reason": "visibleWebsiteWeakness: 8 weakness finding(s); audit score 72/100 (lower = weaker site).; businessLegitimacyEvidence: 6 verified fact(s) available; 1 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Dach- und Fassadentechnik",
+      "website": "https://www.dach-fassadentechnik.de",
+      "contact": {
+        "phone": [],
+        "email": [],
+        "contactPageUrl": "https://www.dach-fassadentechnik.de/kontakt/",
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/13248635157",
+      "confidence": "high",
+      "opportunityScore": 57,
+      "reason": "visibleWebsiteWeakness: 6 weakness finding(s); audit score 88/100 (lower = weaker site).; businessLegitimacyEvidence: 4 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Pilch Dachbau",
+      "website": "https://pilch-dachbau.de",
+      "contact": {
+        "phone": [
+          "+493040375037"
+        ],
+        "email": [],
+        "contactPageUrl": null,
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/8335349939",
+      "confidence": "high",
+      "opportunityScore": 53,
+      "reason": "visibleWebsiteWeakness: 3 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 5 verified fact(s) available; 1 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Olaf Eichner Dachservice GmbH",
+      "website": "https://dachservice-eichner.de",
+      "contact": {
+        "phone": [],
+        "email": [
+          "buero@dachservice-eichner.de"
+        ],
+        "contactPageUrl": "https://dachservice-eichner.de/kontakt",
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/11243397035",
+      "confidence": "high",
+      "opportunityScore": 52,
+      "reason": "visibleWebsiteWeakness: 4 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 3 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Universum Dachbau",
+      "website": "https://universum-dachbau.de",
+      "contact": {
+        "phone": [],
+        "email": [
+          "info@universum-dachbau.de"
+        ],
+        "contactPageUrl": null,
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/12738344827",
+      "confidence": "high",
+      "opportunityScore": 52,
+      "reason": "visibleWebsiteWeakness: 3 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 3 verified fact(s) available; 1 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Dachdecker Birger Stadermann",
+      "website": "https://www.dachdeckerbirgerstadermann.de",
+      "contact": {
+        "phone": [
+          "+493055067265",
+          "+4930 55067265"
+        ],
+        "email": [
+          "birger.stadermann@dachdecker-berlin.online"
+        ],
+        "contactPageUrl": "https://www.dachdeckerbirgerstadermann.de/kontakt",
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/8071205647",
+      "confidence": "high",
+      "opportunityScore": 51,
+      "reason": "visibleWebsiteWeakness: 4 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 3 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Hasenbein",
+      "website": "https://dachdeckerei-hasenbein.de",
+      "contact": {
+        "phone": [],
+        "email": [
+          "info@dachdeckerei-hasenbein.de",
+          "info@hwkpotsdam.de"
+        ],
+        "contactPageUrl": null,
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/5024077717",
+      "confidence": "high",
+      "opportunityScore": 50,
+      "reason": "visibleWebsiteWeakness: 4 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 3 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "M&M CUK Dachdeckerei und Bauklempnerei",
+      "website": "https://www.mmcuk.de",
+      "contact": {
+        "phone": [],
+        "email": [
+          "info@mmcuk.de"
+        ],
+        "contactPageUrl": "https://mmcuk.de/contact/",
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/11069965662",
+      "confidence": "high",
+      "opportunityScore": 50,
+      "reason": "visibleWebsiteWeakness: 3 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 3 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Palluth Dachbau",
+      "website": "https://www.palluth-dachbau.de",
+      "contact": {
+        "phone": [
+          "033 03 297 400"
+        ],
+        "email": [
+          "info@palluth-dachbau.de"
+        ],
+        "contactPageUrl": "https://palluth-dachbau.de/contact/",
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/way/225897245",
+      "confidence": "high",
+      "opportunityScore": 50,
+      "reason": "visibleWebsiteWeakness: 3 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 3 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    },
+    {
+      "businessName": "Dachdeckerei Falk",
+      "website": "https://dachdeckerei-falk.de",
+      "contact": {
+        "phone": [],
+        "email": [],
+        "contactPageUrl": "https://dachdeckerei-falk.de/index.php/kontakt",
+        "address": null
+      },
+      "contactAvailability": "available",
+      "location": "Berlin",
+      "source": "osm-overpass",
+      "sourceUrl": "https://www.openstreetmap.org/node/2629803137",
+      "confidence": "high",
+      "opportunityScore": 46,
+      "reason": "visibleWebsiteWeakness: 2 weakness finding(s); audit score 100/100 (lower = weaker site).; businessLegitimacyEvidence: 2 verified fact(s) available; 0 contain legitimacy signals (contact/legal/registered)."
+    }
+  ],
+  "buildState": "passed",
+  "testState": "passed",
+  "verificationState": "passed",
+  "approvalState": "allowed",
+  "outreachApproved": true,
+  "costLedger": [],
+  "totalElapsedMs": 316185,
+  "artifacts": {
+    "proposalDir": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-51bfbb4bc104",
+    "auditReport": null,
+    "blueprint": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-51bfbb4bc104\\rebuild_blueprint.md",
+    "concept": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-51bfbb4bc104\\site_concept",
+    "runSummary": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-51bfbb4bc104\\run_summary.json"
+  },
+  "safety": {
+    "noOutreachPerformed": true,
+    "noPublishPerformed": true,
+    "dryRun": true,
+    "fixtureLabelApplied": false
+  },
+  "createdAt": "2026-08-08T00:26:25.276Z",
+  "completedAt": "2026-08-08T00:31:41.460Z"
+}

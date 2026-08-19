@@ -1,0 +1,126 @@
+{
+  "runId": "rp-64f3d9a9daca",
+  "taskId": "bgtask-4f9ec3f39",
+  "config": {
+    "niche": "roofing",
+    "city": "Berlin",
+    "serviceKeywords": [],
+    "prospectCount": 5,
+    "specificUrl": null,
+    "maxResearchBudgetUsd": null,
+    "dryRun": true,
+    "fixturesOnly": false,
+    "runBuild": true,
+    "useCodex": true,
+    "useLlm": false
+  },
+  "discovery": {
+    "mode": "real",
+    "requested": 5,
+    "found": 5,
+    "sources": [
+      {
+        "businessName": "Pilch Dachbau",
+        "website": "https://pilch-dachbau.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/8335349939",
+        "evidence": "OpenStreetMap node 8335349939 (Pilch Dachbau); website tag: https://pilch-dachbau.de/; address: Lübarser Straße 13, 13435; city: Berlin"
+      },
+      {
+        "businessName": "Dachdecker Birger Stadermann",
+        "website": "https://www.dachdeckerbirgerstadermann.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/8071205647",
+        "evidence": "OpenStreetMap node 8071205647 (Dachdecker Birger Stadermann); website tag: https://www.dachdeckerbirgerstadermann.de; address: Taunusstraße 12, 12161; city: Berlin"
+      },
+      {
+        "businessName": "Hasenbein",
+        "website": "https://dachdeckerei-hasenbein.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/5024077717",
+        "evidence": "OpenStreetMap node 5024077717 (Hasenbein); website tag: https://dachdeckerei-hasenbein.de/; address: Ahornsteg 5, 14532; city: Stahnsdorf"
+      },
+      {
+        "businessName": "Dachdeckerei Falk",
+        "website": "https://dachdeckerei-falk.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/2629803137",
+        "evidence": "OpenStreetMap node 2629803137 (Dachdeckerei Falk); website tag: https://dachdeckerei-falk.de/; address: Kohlmeisenweg 7, 14558; city: Nuthetal"
+      },
+      {
+        "businessName": "May Dachdeckerei GmbH",
+        "website": "http://www.may-dachdeckerei.de",
+        "sourceType": "osm-overpass",
+        "sourceUrl": "https://www.openstreetmap.org/node/1333287263",
+        "evidence": "OpenStreetMap node 1333287263 (May Dachdeckerei GmbH); website tag: http://www.may-dachdeckerei.de; located inside the Berlin metro bounding box (Nominatim geocode + Overpass)"
+      }
+    ]
+  },
+  "workerRouting": {
+    "research": "prospect discovery + public inspection",
+    "hermes": "audit, scoring, rebuild blueprint",
+    "codex": "stopped",
+    "codexGoalId": "goal-9d9a9ea5-",
+    "reviewer": "artifact verification + build/test evidence"
+  },
+  "status": "completed",
+  "stage": "COMPLETED",
+  "selectedProspect": {
+    "prospectId": "pp-87eb5e6b1e37",
+    "businessName": "Pilch Dachbau",
+    "websiteUrl": "https://pilch-dachbau.de",
+    "fixture": false,
+    "auditScore": 100,
+    "opportunityScore": 53,
+    "confidence": "high"
+  },
+  "ranking": [
+    {
+      "businessName": "Pilch Dachbau",
+      "score": 53,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachdecker Birger Stadermann",
+      "score": 51,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Hasenbein",
+      "score": 50,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachdeckerei Falk",
+      "score": 46,
+      "confidence": "high"
+    },
+    {
+      "businessName": "May Dachdeckerei GmbH",
+      "score": 38,
+      "confidence": "low"
+    }
+  ],
+  "buildState": "passed",
+  "testState": "passed",
+  "verificationState": "passed",
+  "approvalState": "allowed",
+  "outreachApproved": true,
+  "costLedger": [],
+  "totalElapsedMs": 738147,
+  "artifacts": {
+    "proposalDir": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-64f3d9a9daca",
+    "auditReport": null,
+    "blueprint": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-64f3d9a9daca\\rebuild_blueprint.md",
+    "concept": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-64f3d9a9daca\\site_concept",
+    "runSummary": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-64f3d9a9daca\\run_summary.json"
+  },
+  "safety": {
+    "noOutreachPerformed": true,
+    "noPublishPerformed": true,
+    "dryRun": true,
+    "fixtureLabelApplied": false
+  },
+  "createdAt": "2026-08-07T19:29:07.817Z",
+  "completedAt": "2026-08-07T19:41:25.962Z"
+}

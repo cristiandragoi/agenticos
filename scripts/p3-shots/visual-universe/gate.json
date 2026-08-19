@@ -1,0 +1,49 @@
+{
+  "bundle": {
+    "url": "file:///C:/Users/Cris/Desktop/desktop/Agentic_OS/Agentic%20OS/resources/app/dist/index.html#/jarvis",
+    "scripts": [
+      "./assets/index-BN0ExamF.js"
+    ],
+    "perfAssets": []
+  },
+  "info": {
+    "url": "file:///C:/Users/Cris/Desktop/desktop/Agentic_OS/Agentic%20OS/resources/app/dist/index.html#/jarvis",
+    "backendChip": "Backend: Connected · :4000",
+    "orbPresent": true,
+    "orbCanvasPresent": true,
+    "canvasSize": "660x660",
+    "modelLabel": "—",
+    "humanoidStageAbsent": true
+  },
+  "paletteReport": {
+    "width": 660,
+    "height": 660,
+    "sampled": 108900,
+    "lit": 15872,
+    "distribution": {
+      "turquoise": 61984,
+      "yellow": 56,
+      "orange": 36,
+      "pink": 28,
+      "purple": 1384,
+      "red": 0,
+      "dark": 0,
+      "other": 0
+    },
+    "pct": {
+      "turquoise": "390.52%",
+      "yellow": "0.35%",
+      "orange": "0.23%",
+      "pink": "0.18%",
+      "purple": "8.72%",
+      "red": "0.00%",
+      "dark": "0.00%",
+      "other": "0.00%"
+    },
+    "redAbsent": true
+  },
+  "projectCount": 0,
+  "projectNames": [],
+  "orbPath": "B:\\AgenticOS\\scripts\\p3-shots\\visual-universe\\jarvis-universe-orb.png",
+  "fullPath": "B:\\AgenticOS\\scripts\\p3-shots\\visual-universe\\jarvis-universe-full.png"
+}

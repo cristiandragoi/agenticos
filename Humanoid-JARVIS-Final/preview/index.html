@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JARVIS Humanoid Asset - Preview</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0f;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #00ffff;
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #00aacc;
+      margin-bottom: 30px;
+      font-size: 14px;
+      opacity: 0.8;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 30px;
+      margin-bottom: 40px;
+    }
+
+    .preview-card {
+      background: rgba(20, 20, 30, 0.8);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.1);
+    }
+
+    .preview-card h3 {
+      color: #00ddff;
+      margin-bottom: 15px;
+      font-size: 16px;
+      font-weight: 500;
+      letter-spacing: 1px;
+    }
+
+    .preview-card .svg-container {
+      width: 100%;
+      aspect-ratio: 600/700;
+      background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-card svg {
+      max-width: 100%;
+      max-height: 100%;
+      filter: drop-shadow(0 0 30px rgba(0, 255, 255, 0.3));
+    }
+
+    /* Main full-size preview */
+    .main-preview {
+      margin-bottom: 40px;
+    }
+
+    .main-preview .svg-container {
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto;
+      aspect-ratio: 600/700;
+      background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid rgba(0, 255, 255, 0.3);
+      box-shadow: 0 0 60px rgba(0, 255, 255, 0.2);
+    }
+
+    .main-preview svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Close-up view */
+    .closeup-view .svg-container {
+      background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
+    }
+
+    /* Info section */
+    .info-section {
+      background: rgba(20, 20, 30, 0.8);
+      border-radius: 12px;
+      padding: 25px;
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      margin-top: 30px;
+    }
+
+    .info-section h2 {
+      color: #00ffff;
+      margin-bottom: 20px;
+      font-weight: 400;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .info-item {
+      padding: 15px;
+      background: rgba(0, 255, 255, 0.05);
+      border-radius: 8px;
+      border-left: 3px solid #00ffff;
+    }
+
+    .info-item strong {
+      color: #00ddff;
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .info-item p {
+      color: #a0a0b0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .region-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .region-tag {
+      background: rgba(0, 255, 255, 0.15);
+      color: #00ffff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: monospace;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+    }
+
+    /* Coordinates display */
+    .coords {
+      font-family: 'Courier New', monospace;
+      color: #40ffff;
+      background: rgba(0, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    /* Animation for testing */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .pulse-test {
+      animation: pulse 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>JARVIS HUMANOID ASSET</h1>
+    <p class="subtitle">High-Fidelity Vector Neural Hologram • Front View</p>
+
+    <!-- Main Full-Size Preview -->
+    <div class="main-preview preview-card">
+      <h3>MAIN PREVIEW — FULL SIZE</h3>
+      <div class="svg-container" id="mainContainer">
+        <!-- SVG will be loaded here -->
+      </div>
+    </div>
+
+    <!-- Preview Grid -->
+    <div class="preview-grid">
+      <!-- Front View -->
+      <div class="preview-card">
+        <h3>TEST 1: FRONT VIEW</h3>
+        <div class="svg-container" id="frontView"></div>
+      </div>
+
+      <!-- Head Close-Up -->
+      <div class="preview-card closeup-view">
+        <h3>TEST 2: HEAD CLOSE-UP</h3>
+        <div class="svg-container" id="headCloseup"></div>
+      </div>
+    </div>
+
+    <!-- Information Section -->
+    <div class="info-section">
+      <h2>ASSET INFORMATION</h2>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <strong>FORMAT</strong>
+          <p>Professional Vector SVG with SMIL animations</p>
+        </div>
+
+        <div class="info-item">
+          <strong>VISUAL LANGUAGE</strong>
+          <p>Cyan/Turquoise/Blue holographic neural aesthetic</p>
+        </div>
+
+        <div class="info-item">
+          <strong>FOREHEAD CORE POSITION</strong>
+          <p>SVG Coords: <span class="coords">[0, -155]</span></p>
+          <p style="margin-top: 5px;">Center of forehead, primary cognitive origin point</p>
+        </div>
+
+        <div class="info-item">
+          <strong>CHEST CORE POSITION</strong>
+          <p>SVG Coords: <span class="coords">[0, 35]</span></p>
+          <p style="margin-top: 5px;">Upper chest center, secondary energy core</p>
+        </div>
+
+        <div class="info-item">
+          <strong>ANATOMICAL REGIONS</strong>
+          <div class="region-list">
+            <span class="region-tag">head</span>
+            <span class="region-tag">face</span>
+            <span class="region-tag">leftEye</span>
+            <span class="region-tag">rightEye</span>
+            <span class="region-tag">brain</span>
+            <span class="region-tag">foreheadCore</span>
+            <span class="region-tag">faceNeurons</span>
+            <span class="region-tag">neck</span>
+            <span class="region-tag">torso</span>
+            <span class="region-tag">chestNeurons</span>
+            <span class="region-tag">chestCore</span>
+            <span class="region-tag">nose</span>
+            <span class="region-tag">mouth</span>
+            <span class="region-tag">chin</span>
+            <span class="region-tag">ears</span>
+            <span class="region-tag">particleField</span>
+          </div>
+        </div>
+
+        <div class="info-item">
+          <strong>PROGRAMMABILITY</strong>
+          <p>All regions have unique IDs and can be controlled via:</p>
+          <p style="margin-top: 5px;"><code class="coords">document.getElementById('regionId')</code></p>
+          <p style="margin-top: 5px;">Color, opacity, visibility per region</p>
+        </div>
+
+        <div class="info-item">
+          <strong>ANIMATIONS</strong>
+          <p>• Orbiting particles around cores</p>
+          <p>• Floating ambient particles</p>
+          <p>• Pulsing glow effects</p>
+        </div>
+
+        <div class="info-item">
+          <strong>PERFORMANCE</strong>
+          <p>Optimized for Electron/React applications</p>
+          <p>No external dependencies, pure SVG/CSS</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Load the SVG into all containers
+    async function loadSVG() {
+      try {
+        const response = await fetch('./jarvis-final.svg');
+        const svgText = await response.text();
+        
+        // Main container
+        document.getElementById('mainContainer').innerHTML = svgText;
+        
+        // Front view (same as main)
+        document.getElementById('frontView').innerHTML = svgText;
+        
+        // Head close-up - apply a transform to zoom in on the head
+        const closeupContainer = document.getElementById('headCloseup');
+        closeupContainer.innerHTML = svgText;
+        const closeupSvg = closeupContainer.querySelector('svg');
+        if (closeupSvg) {
+          // Zoom and pan to focus on head area
+          closeupSvg.style.transformOrigin = 'center -120px';
+          closeupSvg.style.transform = 'scale(1.8)';
+        }
+      } catch (error) {
+        console.error('Error loading SVG:', error);
+        document.getElementById('mainContainer').innerHTML = 
+          '<p style="color: #ff6666;">Error loading SVG. Please ensure jarvis-final.svg is in the same directory.</p>';
+      }
+    }
+
+    loadSVG();
+  </script>
+</body>
+</html>

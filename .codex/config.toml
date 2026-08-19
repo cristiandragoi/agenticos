@@ -11,3 +11,6 @@
 command = "node"
 args = ["B:\\AgenticOS\\tools\\agenticos-mcp\\dist\\server.js"]
 env = { AGENTICOS_MCP_BASE_URL = "http://127.0.0.1:4000" }
+
+[mcp_servers.agenticos.tools.agenticos_get_run_result]
+approval_mode = "approve"

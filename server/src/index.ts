@@ -271,7 +271,9 @@ app.use('/api/diagnostics', diagnosticsRouter);
 app.use('/api/diagnostics/runtime', runtimeDiagnosticsRouter);
 app.use('/api/project-execution', projectExecutionRouter);
 app.use('/api/mcp-bridge', mcpBridgeRouter);
+app.use('/api/argus', argusRouter);
 import { magnitudeRouter } from './routers/magnitude.js';
+import { argusRouter } from './routers/argus.js';
 app.use('/api/magnitude', magnitudeRouter);
 import { evaluationRouter } from './routers/evaluation.js';
 app.use('/api/evaluation', evaluationRouter);
@@ -332,6 +334,14 @@ import { goalStore } from './services/goalStore.js';
 const sweptGoals = goalStore.sweepExpiredLeases();
 if (sweptGoals > 0) {
   logger.info(`[GoalMode] Marked ${sweptGoals} orphaned goal(s) failed after restart (expired worker lease).`);
+}
+// Also fail QUEUED goals that never acquired a worker lease and never produced
+// an execution event (provably abandoned — e.g. a scheduler task whose loop
+// was never dispatched). Without this they remain "queued" forever, get
+// auto-selected as the active goal, and hide the CodeX SEND button.
+const sweptStaleQueued = goalStore.sweepStaleQueuedGoals();
+if (sweptStaleQueued > 0) {
+  logger.info(`[GoalMode] Marked ${sweptStaleQueued} stale queued goal(s) failed (no lease, no events — abandoned).`);
 }
 
 // Legacy compatibility redirects (keep old paths working)

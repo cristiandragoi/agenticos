@@ -78,7 +78,7 @@ export interface ProviderAttemptError {
   provider: string;
   model?: string;
   stage: 'selection' | 'healthcheck' | 'request' | 'timeout' | 'response' | 'parse' | 'normalization' | 'stream';
-  category: 'unreachable' | 'timeout' | 'model-not-found' | 'http-error' | 'malformed-response' | 'capability-mismatch' | 'circuit-open' | 'unknown';
+  category: 'unreachable' | 'timeout' | 'model-not-found' | 'http-error' | 'malformed-response' | 'capability-mismatch' | 'circuit-open' | 'transport' | 'unknown';
   message: string;
   statusCode?: number;
   durationMs?: number;

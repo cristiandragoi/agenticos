@@ -10,6 +10,8 @@ export type BlobVisualState =
   | 'LISTENING'
   | 'THINKING'
   | 'ACTING'
+  | 'DELEGATING'
+  | 'BUILDING'
   | 'SPEAKING'
   | 'COMPLETED'
   | 'ERROR';
@@ -43,8 +45,10 @@ export function toBlobVisualState(orbState: string): BlobVisualState {
     case 'approval_required':
       return 'THINKING';
     case 'executing':
+      return 'BUILDING';
+    case 'delegating':
     case 'delegated':
-      return 'ACTING';
+      return 'DELEGATING';
     case 'completed':
       return 'COMPLETED';
     case 'warning':

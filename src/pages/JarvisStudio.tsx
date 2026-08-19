@@ -331,7 +331,7 @@ export default function JarvisStudio() {
   // The default packaged UI never shows it — the normal Jarvis layout is
   // untouched. The core typed/golden pipeline is known-good; this isolates
   // the voice capture/transcription layer against that control.
-  const diagEnabled = typeof window !== 'undefined'
+  const diagEnabled = import.meta.env.DEV && import.meta.env.VITE_JARVIS_DIAG === '1' && typeof window !== 'undefined'
     && (new URLSearchParams(window.location.search).get('jarvisDiag') === '1'
         || (typeof localStorage !== 'undefined' && localStorage.getItem('jarvisDiag') === '1'));
   const goldenPathRef = useRef<GoldenPathPanelHandle>(null);
@@ -1096,8 +1096,9 @@ export default function JarvisStudio() {
       if (!region) return;
       const rect = region.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      // Reserve ~70px inside the region for the state label + primary control.
-      const next = Math.max(190, Math.min(440, Math.round(Math.min(rect.height - 70, rect.width) - 8)));
+      // Reserve label/control space but let the Jarvis visual fill the inside
+      // workspace more generously; the circular mask prevents photo-panel crop.
+      const next = Math.max(220, Math.min(560, Math.round(Math.min(rect.height - 90, rect.width * 0.86) - 8)));
       setOrbSize((prev) => (prev === next ? prev : next));
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };

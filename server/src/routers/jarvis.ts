@@ -15,13 +15,10 @@ import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../servic
 const router = Router();
 
 function getDirectChatFirstTokenTimeoutMs() {
-  // Overall no-chunk backstop for the DIRECT stream, intentionally LONGER
-  // than the per-attempt connect budget (8s): the per-attempt timeout makes a
-  // stalled primary fail fast and the router's zero-token fallback move to
-  // Ollama (~8s primary + local TTFT); this local timer only aborts if NO
-  // chunk at all (including gateway.selected/fallback events) arrives for
-  // the whole window — a genuine total stall, not a slow provider.
-  return Number(process.env.JARVIS_FIRST_TOKEN_TIMEOUT_MS || 15_000);
+  // Overall no-token backstop for the DIRECT stream. Local models can need
+  // more than a few seconds on full Jarvis prompts, so keep this above the
+  // per-attempt connect budget and abort only a genuine no-token stall.
+  return Number(process.env.JARVIS_FIRST_TOKEN_TIMEOUT_MS || 45_000);
 }
 
 function getDirectChatTotalTimeoutMs() {
@@ -33,12 +30,10 @@ function getDirectChatStreamIdleTimeoutMs() {
 }
 
 function getDirectChatConnectTimeoutMs() {
-  // Per-attempt budget for the OpenAI-compatible gateway (wired via
-  // buildRequestSignal): covers connect + first response for ONE provider
-  // attempt. 8s matches the first-token policy above; a healthy primary
-  // (~0.5–1.5s TTFT) is unaffected, and a stalled primary aborts this
-  // attempt so the router's zero-token fallback can move to Ollama.
-  return Number(process.env.JARVIS_CONNECT_TIMEOUT_MS || 8_000);
+  // Per-attempt budget for the gateway: covers connect + first response for
+  // ONE provider attempt. Jarvis' local Ollama assignment is a truthful route,
+  // so the default must not abort normal local-model warmup.
+  return Number(process.env.JARVIS_CONNECT_TIMEOUT_MS || 30_000);
 }
 
 function getDirectChatOverallTimeoutMs() {

@@ -34,7 +34,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:4000',
+        // Env-overridable so a SOURCE backend can run on a different port
+        // (e.g. VITE_BACKEND_PORT=4001) while the deployed app keeps 4000.
+        target: `http://127.0.0.1:${process.env.VITE_BACKEND_PORT || '4000'}`,
       }
     }
   },

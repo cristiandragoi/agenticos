@@ -1,0 +1,18 @@
+{
+  "name": "humanoid-jarvis-v2",
+  "version": "0.1.0",
+  "description": "Single central programmable Jarvis humanoid visualization for AgenticOS",
+  "files": [
+    "JarvisTypes.ts",
+    "JarvisState.ts",
+    "useJarvisAnimation.ts",
+    "JarvisHumanoid.tsx",
+    "JarvisSystemNodes.tsx",
+    "JarvisVisualization.tsx",
+    "JarvisVisualization.css",
+    "index.ts",
+    "README.md"
+  ],
+  "rasterHumanoid": false,
+  "duplicateStateGallery": false
+}

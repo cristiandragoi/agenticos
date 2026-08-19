@@ -187,6 +187,37 @@ export function CodexProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
+  // §2: hydrate the agent-codex provider assignment into runSettings.routing
+  // so RunSettings' summary resolves instead of showing "Loading..." forever.
+  // StudioChat renders RunSettings `disabled` (no onChange), so the routing
+  // must come from the canonical assignment — the same one the runtime uses.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/settings/agent-provider-assignments/agent-codex');
+        if (!res.ok) return;
+        const a = await res.json();
+        if (cancelled) return;
+        if (a && typeof a.routingMode === 'string' && a.providerId) {
+          setRunSettingsState(prev => {
+            const next = {
+              ...prev,
+              routing: {
+                mode: a.routingMode as 'automatic' | 'preferred' | 'forced',
+                providerId: a.providerId,
+                modelId: a.modelId || null,
+              },
+            };
+            persistRunSettings(next);
+            return next;
+          });
+        }
+      } catch { /* assignment unavailable — run settings stay local */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const resetForNewTask = () => {
     setActiveGoalId(null);
     setGoalStatus(null);

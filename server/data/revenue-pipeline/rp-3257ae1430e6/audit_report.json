@@ -1,0 +1,127 @@
+{
+  "prospectId": "pp-dfb902792841",
+  "businessName": "Kadabau",
+  "websiteUrl": "https://www.kadabau.de",
+  "fixture": false,
+  "auditedAt": "2026-08-07T21:52:38.988Z",
+  "auditScore": 72,
+  "findings": [
+    {
+      "category": "title_meta",
+      "label": "verified",
+      "summary": "Title present: \"KaDaBau  | Dachsanierung Berlin | Berlin\"",
+      "evidence": "KaDaBau  | Dachsanierung Berlin | Berlin",
+      "severity": "positive"
+    },
+    {
+      "category": "title_meta",
+      "label": "verified",
+      "summary": "No meta description tag on homepage.",
+      "severity": "weakness"
+    },
+    {
+      "category": "mobile_presentation",
+      "label": "verified",
+      "summary": "Viewport meta present — mobile presentation declared.",
+      "severity": "positive"
+    },
+    {
+      "category": "homepage_clarity",
+      "label": "verified",
+      "summary": "No H1 heading found — homepage hierarchy unclear.",
+      "severity": "weakness"
+    },
+    {
+      "category": "homepage_clarity",
+      "label": "verified",
+      "summary": "Homepage body text length: 358102 chars.",
+      "severity": "positive"
+    },
+    {
+      "category": "navigation",
+      "label": "verified",
+      "summary": "38 links found (1 internal, 37 external).",
+      "severity": "positive"
+    },
+    {
+      "category": "service_page_depth",
+      "label": "verified",
+      "summary": "19 service-related links found.",
+      "severity": "positive"
+    },
+    {
+      "category": "location_page_depth",
+      "label": "inferred",
+      "summary": "No location/district landing pages detected — local SEO opportunity.",
+      "severity": "weakness"
+    },
+    {
+      "category": "cta_visibility",
+      "label": "inferred",
+      "summary": "No clear call-to-action detected on homepage.",
+      "severity": "weakness"
+    },
+    {
+      "category": "contact_visibility",
+      "label": "verified",
+      "summary": "Contact signals: no phone · 1 email link(s) · contact page linked.",
+      "severity": "positive"
+    },
+    {
+      "category": "trust_proof",
+      "label": "verified",
+      "summary": "Trust/proof signal found: \"Partner\"",
+      "severity": "positive"
+    },
+    {
+      "category": "sitemap_availability",
+      "label": "verified",
+      "summary": "Sitemap referenced at https://www.kadabau.de/sitemap.xml.",
+      "severity": "positive"
+    },
+    {
+      "category": "internal_linking",
+      "label": "verified",
+      "summary": "Only 1 internal links — internal linking is thin.",
+      "severity": "weakness"
+    },
+    {
+      "category": "broken_placeholder",
+      "label": "verified",
+      "summary": "Placeholder text (\"placeholder\") · 0 empty \"#\" link(s) · 0 image(s) with empty src.",
+      "severity": "weakness"
+    },
+    {
+      "category": "stale_unrelated",
+      "label": "verified",
+      "summary": "Copyright year 2021 is stale (current 2026).",
+      "evidence": "2021",
+      "severity": "weakness"
+    },
+    {
+      "category": "accessibility",
+      "label": "verified",
+      "summary": "lang attribute present; all 12 image(s) have alt text.",
+      "severity": "positive"
+    },
+    {
+      "category": "performance",
+      "label": "verified",
+      "summary": "Document size 427 KB · 12 image(s) · 62 script tag(s) (rough static indicators only).",
+      "severity": "weakness"
+    }
+  ],
+  "verifiedFacts": [
+    "No meta description tag on homepage.",
+    "No H1 heading found — homepage hierarchy unclear.",
+    "Only 1 internal links — internal linking is thin.",
+    "Placeholder text (\"placeholder\") · 0 empty \"#\" link(s) · 0 image(s) with empty src.",
+    "Copyright year 2021 is stale (current 2026).",
+    "Document size 427 KB · 12 image(s) · 62 script tag(s) (rough static indicators only)."
+  ],
+  "unverifiedObservations": [
+    "No location/district landing pages detected — local SEO opportunity.",
+    "No clear call-to-action detected on homepage."
+  ],
+  "note": "Audit of the user-provided public URL."
+}

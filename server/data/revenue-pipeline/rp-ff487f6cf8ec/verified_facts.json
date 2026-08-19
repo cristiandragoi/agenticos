@@ -1,0 +1,40 @@
+{
+  "prospectId": "pp-f4589f3024cb",
+  "businessName": "Kadabau",
+  "websiteUrl": "https://www.kadabau.de",
+  "fixture": false,
+  "verifiedFacts": [
+    "No meta description tag on homepage.",
+    "No H1 heading found — homepage hierarchy unclear.",
+    "Only 1 internal links — internal linking is thin.",
+    "Placeholder text (\"placeholder\") · 0 empty \"#\" link(s) · 0 image(s) with empty src.",
+    "Copyright year 2021 is stale (current 2026).",
+    "Document size 427 KB · 12 image(s) · 62 script tag(s) (rough static indicators only)."
+  ],
+  "unverifiedObservations": [
+    "No location/district landing pages detected — local SEO opportunity.",
+    "No clear call-to-action detected on homepage."
+  ],
+  "placeholders": [
+    "[PLACEHOLDER: add verified review]",
+    "[PLACEHOLDER: collect real photos; no stock fakery]",
+    "[PLACEHOLDER: collect; no stock fakery]",
+    "[PLACEHOLDER: collect]",
+    "[PLACEHOLDER: confirm emergency offering]",
+    "[PLACEHOLDER: confirm real offerings]",
+    "[PLACEHOLDER: confirm]",
+    "[PLACEHOLDER: days]",
+    "[PLACEHOLDER: legal review]",
+    "[PLACEHOLDER: obtain from business]",
+    "[PLACEHOLDER: obtain]",
+    "[PLACEHOLDER: validate with customer]",
+    "[PLACEHOLDER: verify]",
+    "[PLACEHOLDER: weeks]",
+    "[PLACEHOLDER: …]"
+  ],
+  "assumptions": [
+    "Customer must confirm service list, districts, contact details, and legal consent before publish.",
+    "No pricing, reviews, rankings, traffic, or revenue figures are asserted as verified."
+  ],
+  "note": "Facts sourced from the user-provided public URL audit."
+}

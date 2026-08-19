@@ -318,6 +318,7 @@ Respond ONLY with a valid JSON object matching the requested schema.`;
       const chatResp = await llmChat({
         systemPrompt,
         prompt: userPrompt,
+        agentId: 'agent-hermes',
         signal,
         maxTokens: 2500,
       });

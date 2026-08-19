@@ -1,0 +1,36 @@
+{
+  "prospectId": "pp-19e178f66a27",
+  "businessName": "Pilch Dachbau",
+  "websiteUrl": "https://pilch-dachbau.de",
+  "fixture": false,
+  "verifiedFacts": [
+    "Only 1 location/district link found.",
+    "Placeholder text (\"placeholder\") · 17 empty \"#\" link(s) · 0 image(s) with empty src.",
+    "Copyright year 2024 is stale (current 2026).",
+    "lang present · 68/70 images have alt text.",
+    "Document size 460 KB · 70 image(s) · 53 script tag(s) (rough static indicators only)."
+  ],
+  "unverifiedObservations": [],
+  "placeholders": [
+    "[PLACEHOLDER: add verified review]",
+    "[PLACEHOLDER: collect real photos; no stock fakery]",
+    "[PLACEHOLDER: collect; no stock fakery]",
+    "[PLACEHOLDER: collect]",
+    "[PLACEHOLDER: confirm emergency offering]",
+    "[PLACEHOLDER: confirm real offerings]",
+    "[PLACEHOLDER: confirm]",
+    "[PLACEHOLDER: days]",
+    "[PLACEHOLDER: legal review]",
+    "[PLACEHOLDER: obtain from business]",
+    "[PLACEHOLDER: obtain]",
+    "[PLACEHOLDER: validate with customer]",
+    "[PLACEHOLDER: verify]",
+    "[PLACEHOLDER: weeks]",
+    "[PLACEHOLDER: …]"
+  ],
+  "assumptions": [
+    "Customer must confirm service list, districts, contact details, and legal consent before publish.",
+    "No pricing, reviews, rankings, traffic, or revenue figures are asserted as verified."
+  ],
+  "note": "Facts sourced from the user-provided public URL audit."
+}

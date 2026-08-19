@@ -284,6 +284,7 @@ export class GatewayRouter {
         if (msg.includes('timeout')) category = 'timeout';
         else if (msg.includes('model-not-found')) category = 'model-not-found';
         else if (msg.includes('unreachable') || msg.includes('econnrefused')) category = 'unreachable';
+        else if (msg.includes('transport') || msg.includes('econnreset') || msg.includes('enotfound') || msg.includes('etimedout') || msg.includes('dns')) category = 'transport';
         else if (msg.includes('malformed')) category = 'malformed-response';
         else if (!isProviderFault) category = 'http-error';
         
@@ -436,6 +437,7 @@ export class GatewayRouter {
         if (msg.includes('timeout')) category = 'timeout';
         else if (msg.includes('model-not-found')) category = 'model-not-found';
         else if (msg.includes('unreachable') || msg.includes('econnrefused')) category = 'unreachable';
+        else if (msg.includes('transport') || msg.includes('econnreset') || msg.includes('enotfound') || msg.includes('etimedout') || msg.includes('dns')) category = 'transport';
         else if (msg.includes('malformed')) category = 'malformed-response';
         else if (!isProviderFault) category = 'http-error';
         

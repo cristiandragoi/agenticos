@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    ".",
+    "../src/components/jarvis-visualization-v2/JarvisStateV2.ts",
+    "../src/components/jarvis-visualization-v2/referenceGeometry.ts",
+    "../src/components/jarvis-visualization-v2/JarvisVisualizationV2.tsx"
+  ]
+}

@@ -1,0 +1,12 @@
+﻿File,Size,Purpose
+`index.ts`,520 B,Barrel exports
+`JarvisState.ts`,6.9 KB,"Types, constants, state maps"
+`useJarvisAnimator.ts`,7.6 KB,Single RAF animation engine
+`HumanoidCore.tsx`,10.5 KB,"SVG face, head, eyes, brain, chest"
+`NeuralNetwork.tsx`,5.4 KB,"SVG pathways, traffic dots"
+`SystemNodes.tsx`,10.3 KB,**Functional** clickable orbital nodes
+`ParticleField.tsx`,3.2 KB,Canvas 2D ambient particles
+`JarvisVisualization.tsx`,5.5 KB,Main container + HUD
+`JarvisVisualization.css`,2.1 KB,Styles
+`JarvisDemo.tsx`,7.1 KB,Interactive demo harness
+`JarvisDemo.css`,2.0 KB,Demo styles

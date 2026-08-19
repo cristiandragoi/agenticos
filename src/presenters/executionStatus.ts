@@ -35,6 +35,39 @@ export interface CurrentActionInfo {
 
 export const TERMINAL_GOAL_STATES = ['completed', 'failed', 'stopped', 'cancelled', 'timed_out'];
 
+/** Statuses that are only ever written by a live worker loop — they imply active runtime execution. */
+export const LOOP_DRIVEN_STATES = ['planning', 'executing', 'reasoning', 'retrying'];
+
+/** Statuses that MAY imply active execution, but only when a live lease is held. */
+export const QUEUED_STATE = 'queued';
+
+/**
+ * Differentiate a persisted QUEUED row from actual active runtime execution.
+ * A goal is "actively running" when either:
+ *  - its status is loop-driven (planning/executing/reasoning/retrying — only a
+ *    live loop writes these), OR
+ *  - it is QUEUED AND a worker loop holds a live lease (workerId set AND
+ *    leaseExpiresAt in the future).
+ * A stale queued row with no lease is NOT active — it must never block new
+ * CodeX work or hide SEND.
+ */
+export function isGoalActivelyRunning(goal: {
+  status?: string | null;
+  workerId?: string | null;
+  leaseExpiresAt?: string | null;
+}): boolean {
+  if (!goal?.status) return false;
+  const status = String(goal.status).toLowerCase();
+  if (TERMINAL_GOAL_STATES.includes(status)) return false;
+  if (LOOP_DRIVEN_STATES.includes(status)) return true;
+  if (status !== QUEUED_STATE) return false;
+  // QUEUED with no worker lease is persisted-but-not-running (abandoned).
+  if (!goal.workerId || !goal.leaseExpiresAt) return false;
+  const expiry = Number(goal.leaseExpiresAt);
+  if (!Number.isFinite(expiry)) return false;
+  return expiry > Date.now();
+}
+
 export const RUN_STATUS_STYLES: Record<RunStatusColor, { dot: string; text: string; border: string; bg: string; ring: string }> = {
   green:  { dot: 'bg-emerald-500', text: 'text-emerald-400', border: 'border-emerald-500/40', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/30' },
   blue:   { dot: 'bg-blue-500',    text: 'text-blue-400',    border: 'border-blue-500/40',    bg: 'bg-blue-500/10',    ring: 'ring-blue-500/30' },

@@ -1,0 +1,98 @@
+{
+  "serverLatency": {
+    "p1": {
+      "prompt": "Jarvis, are you there?",
+      "firstChunkMs": 51,
+      "doneMs": 51,
+      "route": "presence",
+      "model": "local-fast-path"
+    },
+    "p2": {
+      "prompt": "What is Agentic OS?",
+      "firstChunkMs": 19,
+      "doneMs": 19,
+      "route": "presence",
+      "model": "local-fast-path"
+    },
+    "p3": {
+      "prompt": "What are we currently working on?",
+      "firstChunkMs": 27,
+      "doneMs": 27,
+      "route": "current_work_context",
+      "model": "current-work-context"
+    },
+    "p4": {
+      "prompt": "Explain the difference between Hermes and CodeX in Agentic OS.",
+      "firstChunkMs": 47,
+      "doneMs": 47,
+      "route": "direct_explanation",
+      "model": "registry"
+    }
+  },
+  "rendererResult": {
+    "timeline": [
+      {
+        "key": "modelRequestStartAt",
+        "at": 1787001674439,
+        "detail": "\"Jarvis, are you there?\""
+      },
+      {
+        "key": "firstModelTokenAt",
+        "at": 1787001674484,
+        "detail": "\"Yes, I'm here.\""
+      },
+      {
+        "key": "ttsRequestStartAt",
+        "at": 1787001674486,
+        "detail": "Yes, I'm here. (aura-helios-en)"
+      },
+      {
+        "key": "ttsAudioReadyAt",
+        "at": 1787001675014,
+        "detail": "5KB"
+      },
+      {
+        "key": "audioPlaybackStartAt",
+        "at": 1787001675021
+      }
+    ],
+    "elapsedMs": 743
+  },
+  "identity": {
+    "count": 1,
+    "distinct": [
+      "aura-helios-en"
+    ],
+    "last": [
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0
+      }
+    ]
+  },
+  "currentWork": {
+    "cw1": {
+      "prompt": "What are we currently working on?",
+      "firstChunkMs": 11,
+      "doneMs": 11,
+      "route": "current_work_context",
+      "model": "current-work-context"
+    },
+    "cw2": {
+      "prompt": "What are we working on?",
+      "firstChunkMs": 25,
+      "doneMs": 25,
+      "route": "current_work_context",
+      "model": "current-work-context"
+    },
+    "cw3": {
+      "prompt": "What's the current task?",
+      "firstChunkMs": 15,
+      "doneMs": 15,
+      "route": "current_work_context",
+      "model": "current-work-context"
+    }
+  }
+}

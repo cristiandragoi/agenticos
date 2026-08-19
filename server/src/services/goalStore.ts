@@ -35,7 +35,13 @@ class GoalStore extends EventEmitter {
       ...patch,
       updatedAt: Date.now().toString()
     };
-    
+
+    // ARGUS guard: verification state is owned exclusively by agent-argus via
+    // setVerificationState(). A generic update (the builder loop, chat routes,
+    // any caller) can NEVER write it — Codex cannot create VERIFIED_COMPLETE
+    // (or any verification state) through the canonical goal store.
+    delete updatePayload.verificationState;
+
     if (patch.executionOptions !== undefined) {
       updatePayload.executionOptions = patch.executionOptions ? JSON.stringify(patch.executionOptions) : null;
     }
@@ -46,6 +52,29 @@ class GoalStore extends EventEmitter {
     if (updated) {
       this.emit('goal:updated', updated);
     }
+    return updated;
+  }
+
+  /**
+   * ARGUS-only verification-state transition. Whitelists the exact states so
+   * no caller can invent states, and refuses to downgrade a terminal
+   * verified_complete. The only writer of goals.verificationState.
+   */
+  setVerificationState(id: string, state: 'implementation_ready' | 'verifying' | 'verification_failed' | 'correcting' | 'verified_complete'): GoalRecord | undefined {
+    const allowed = ['implementation_ready', 'verifying', 'verification_failed', 'correcting', 'verified_complete'];
+    if (!allowed.includes(state)) throw new Error(`setVerificationState: invalid state ${state}`);
+    const current = this.get(id);
+    if (current && current.verificationState === 'verified_complete' && state !== 'verified_complete') {
+      throw new Error(`setVerificationState: cannot downgrade verified_complete (goal ${id})`);
+    }
+    const setPayload: any = { verificationState: state, updatedAt: Date.now().toString() };
+    if (current?.contractId) setPayload.contractId = current.contractId;
+    db.update(goals)
+      .set(setPayload)
+      .where(eq(goals.id, id))
+      .run();
+    const updated = this.get(id);
+    if (updated) this.emit('goal:updated', updated);
     return updated;
   }
 
@@ -68,6 +97,10 @@ class GoalStore extends EventEmitter {
       workspacePath: row.workspacePath || undefined,
       conversationId: row.conversationId || undefined,
       workspaceId: row.workspaceId || undefined,
+      workerId: row.workerId || undefined,
+      leaseExpiresAt: row.leaseExpiresAt || undefined,
+      verificationState: (row.verificationState || 'none') as GoalRecord['verificationState'],
+      contractId: row.contractId || undefined,
       history: events.map(e => ({
         ...e,
         payload: typeof e.payload === 'string' ? (() => { try { return JSON.parse(e.payload); } catch { return e.payload; } })() : e.payload
@@ -241,6 +274,77 @@ class GoalStore extends EventEmitter {
       this.emit('goal:updated', this.get(g.id));
     }
     return stale.length;
+  }
+
+  /**
+   * Boot-time reconciliation for QUEUED goals that are provably abandoned:
+   * a goal stuck in `queued` with NO worker lease (worker_id IS NULL AND
+   * lease_expires_at IS NULL) and NO execution events means no loop ever
+   * started for it (codexLoop acquires a lease in its first tick and writes a
+   * task_started event). If such a goal is older than a threshold it will
+   * never start on its own — mark it failed truthfully so the UI never shows
+   * "Starting execution… Connecting" forever and never auto-selects it as
+   * active. Safe at boot AND while loops run: a live loop ALWAYS holds a
+   * lease, so lease-less goals are never actively executing.
+   */
+  sweepStaleQueuedGoals(thresholdMs: number = 30 * 60 * 1000): number {
+    const now = Date.now();
+    const cutoff = new Date(now - thresholdMs).toISOString();
+    // updatedAt is stored in two formats (ISO string and epoch-ms string);
+    // cover both by comparing against both cutoffs.
+    const epochCutoff = String(now - thresholdMs);
+
+    const stale = db.select({ id: goals.id })
+      .from(goals)
+      .where(
+        and(
+          sql`${goals.status} = 'queued'`,
+          sql`${goals.workerId} IS NULL`,
+          sql`${goals.leaseExpiresAt} IS NULL`,
+          // Real goals always carry timestamps; test artifacts with empty
+          // updatedAt must not be swept (they belong to test fixtures).
+          sql`${goals.updatedAt} IS NOT NULL AND ${goals.updatedAt} <> ''`,
+          sql`(${goals.updatedAt} < ${cutoff} OR ${goals.updatedAt} < ${epochCutoff})`
+        )
+      )
+      .all();
+
+    let swept = 0;
+    for (const g of stale) {
+      const eventCount = db.select({ c: sql`COUNT(*)` as any })
+        .from(goalEvents)
+        .where(eq(goalEvents.goalId, g.id))
+        .get() as { c: number } | undefined;
+      // Only sweep goals that NEVER produced an execution event — zero events
+      // + no lease + stale is the proof of abandonment. A goal that produced
+      // events but lost its lease is handled by sweepExpiredLeases instead.
+      if (eventCount && eventCount.c > 0) continue;
+
+      const message = 'Goal remained QUEUED without any worker lease or execution events for over 30 minutes — provably abandoned. Marking failed; start a new task to continue.';
+      db.update(goals)
+        .set({ status: 'failed', updatedAt: String(now), workerId: null, leaseExpiresAt: null })
+        .where(eq(goals.id, g.id))
+        .run();
+      db.insert(goalEvents).values({
+        id: `bgevt-stale-${g.id}-${now}`,
+        goalId: g.id,
+        sequence: (db.select({ m: sql`COALESCE(MAX(${goalEvents.sequence}), 0)` }).from(goalEvents).where(eq(goalEvents.goalId, g.id)).get() as any)?.m + 1,
+        timestamp: new Date(now).toISOString(),
+        state: 'failed',
+        step: 0,
+        message,
+        eventType: 'task_failed',
+        normalizedStatus: 'failed',
+        lifecycleState: 'failed',
+        userMessage: message,
+        technicalMessage: message,
+        provider: 'agentic-os',
+        model: 'goal-stale-sweep',
+      }).run();
+      this.emit('goal:updated', this.get(g.id));
+      swept++;
+    }
+    return swept;
   }
 
   upsertStep(goalId: string, stepNumber: number, status: string, toolCall?: any, toolResult?: string, error?: string) {

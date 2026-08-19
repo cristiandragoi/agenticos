@@ -21,5 +21,15 @@ t.exposeInMainWorld("ipcRenderer", {
 		let [n, ...r] = t;
 		return e.invoke(n, ...r);
 	}
+}), t.exposeInMainWorld("backendLifecycle", {
+	getState: () => e.invoke("backend-lifecycle:get-state"),
+	restart: () => e.invoke("backend-lifecycle:restart"),
+	retry: () => e.invoke("backend-lifecycle:retry"),
+	onState: (t) => {
+		let n = (e, n) => t(n);
+		return e.on("backend-lifecycle:state", n), () => {
+			e.removeListener("backend-lifecycle:state", n);
+		};
+	}
 });
 //#endregion

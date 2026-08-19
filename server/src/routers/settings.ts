@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { ProviderCredentialService } from '../services/gateway/credentials.js';
 import { GatewayConfigurationService } from '../services/gateway/configuration.js';
-import { mapCatalogToGatewayId } from '../services/agent/assignments.js';
+import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../services/agent/assignments.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -25,6 +25,15 @@ const GatewayConfigSchema = z.object({
   circuitResetTimeoutMs: z.number().int().min(1000).max(3600000).optional(),
   healthCheckIntervalMs: z.number().int().min(5000).max(3600000).optional(),
 });
+
+function normalizeExpectedModel(provider: string, model?: string | null): string | null | undefined {
+  if (!model) return model;
+  if (provider.toLowerCase() === 'deepseek') {
+    if (model === 'deepseek-v4-flash' || model === 'auto') return 'deepseek-chat';
+    if (model === 'deepseek-v4-pro') return 'deepseek-reasoner';
+  }
+  return model;
+}
 
 // Mutex to prevent concurrent writes from multiple Electron windows
 const migrationLocks = new Set<string>();
@@ -196,7 +205,11 @@ router.get('/agent-provider-assignments', async (req, res) => {
 
 router.get('/agent-provider-assignments/:agentId', async (req, res) => {
   try {
-    const assignment = db.select().from(agentProviderAssignments).where(eq(agentProviderAssignments.agentId, req.params.agentId)).get();
+    // Resolve through the service so agent-codex's built-in fallback
+    // (prov-deepseek / deepseek-v4-flash) is returned as 200 instead of 404
+    // when no row exists yet — the runtime uses the same resolution, so the
+    // UI and the executor agree on the effective assignment.
+    const assignment = await AgentProviderAssignmentService.getAssignment(req.params.agentId);
     if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
     res.json(assignment);
   } catch (err) {
@@ -210,7 +223,7 @@ router.get('/agent-provider-assignments/:agentId', async (req, res) => {
    it was configured — saving configuration alone is not proof of execution. */
 router.post('/agent-provider-assignments/:agentId/test', async (req, res) => {
   try {
-    const assignment = db.select().from(agentProviderAssignments).where(eq(agentProviderAssignments.agentId, req.params.agentId)).get();
+    const assignment = await AgentProviderAssignmentService.getAssignment(req.params.agentId);
     if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
     if (!assignment.enabled) {
       return res.json({ configured: { provider: assignment.providerId, model: assignment.modelId }, resolved: null, result: 'SKIPPED', reason: 'Assignment is disabled', latencyMs: 0 });
@@ -254,7 +267,8 @@ router.post('/agent-provider-assignments/:agentId/test', async (req, res) => {
     // configured id before comparing so a correctly-resolved assignment
     // reports PASS instead of a false FALLBACK.
     const expectedGatewayProvider = mapCatalogToGatewayId(configuredProvider);
-    const matched = resolvedProvider === expectedGatewayProvider && (!configuredModel || resolvedModel === configuredModel);
+    const expectedModel = normalizeExpectedModel(expectedGatewayProvider, configuredModel);
+    const matched = resolvedProvider === expectedGatewayProvider && (!expectedModel || resolvedModel === expectedModel);
     res.json({
       configured: { provider: configuredProvider, model: configuredModel },
       resolved: { provider: resolvedProvider, model: resolvedModel },

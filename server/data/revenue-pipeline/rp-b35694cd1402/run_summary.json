@@ -1,0 +1,65 @@
+{
+  "runId": "rp-b35694cd1402",
+  "taskId": "bgtask-3b5ff9361",
+  "config": {
+    "niche": "roofing",
+    "city": "Berlin",
+    "serviceKeywords": [],
+    "prospectCount": 3,
+    "specificUrl": null,
+    "maxResearchBudgetUsd": null,
+    "dryRun": true,
+    "runBuild": true,
+    "useLlm": false
+  },
+  "status": "completed",
+  "stage": "COMPLETED",
+  "selectedProspect": {
+    "prospectId": "pp-d8521c3514b9",
+    "businessName": "Meisterbetrieb Weber Dach & Fassade",
+    "websiteUrl": "https://www.weber-dach-fassade.example",
+    "fixture": true,
+    "auditScore": 48,
+    "opportunityScore": 76,
+    "confidence": "high"
+  },
+  "ranking": [
+    {
+      "businessName": "Meisterbetrieb Weber Dach & Fassade",
+      "score": 76,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachfix Berlin GmbH",
+      "score": 74,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Berliner Dachdeckerei Müller",
+      "score": 53,
+      "confidence": "high"
+    }
+  ],
+  "buildState": "passed",
+  "testState": "passed",
+  "verificationState": "passed",
+  "approvalState": "allowed",
+  "outreachApproved": true,
+  "costLedger": [],
+  "totalElapsedMs": 29383,
+  "artifacts": {
+    "proposalDir": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-b35694cd1402",
+    "auditReport": null,
+    "blueprint": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-b35694cd1402\\rebuild_blueprint.md",
+    "concept": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-b35694cd1402\\site_concept",
+    "runSummary": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-b35694cd1402\\run_summary.json"
+  },
+  "safety": {
+    "noOutreachPerformed": true,
+    "noPublishPerformed": true,
+    "dryRun": true,
+    "fixtureLabelApplied": true
+  },
+  "createdAt": "2026-08-06T22:19:52.882Z",
+  "completedAt": "2026-08-06T22:20:22.264Z"
+}

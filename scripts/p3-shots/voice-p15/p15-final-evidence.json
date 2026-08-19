@@ -1,0 +1,87 @@
+{
+  "serverLatencyMs": {
+    "presence": {
+      "firstChunkMs": 51,
+      "doneMs": 51,
+      "route": "presence"
+    },
+    "localKnowledge": {
+      "firstChunkMs": 19,
+      "route": "presence"
+    },
+    "currentWork": {
+      "firstChunkMs": 27,
+      "route": "current_work_context"
+    },
+    "llmExplanation": {
+      "firstChunkMs": 47,
+      "route": "direct_explanation"
+    }
+  },
+  "rendererLatency": {
+    "sendToFirstModelToken": 45,
+    "firstTokenToTtsRequest": 2,
+    "ttsRequestToAudioReady": 528,
+    "audioReadyToPlaybackStart": 7,
+    "sendToPlaybackStart": 743,
+    "note": "elapsedMs is the REAL fresh-turn measurement (send click → audioPlaybackStartAt) on the deployed packaged app"
+  },
+  "voiceIdentity": {
+    "synthesisCount": 4,
+    "distinctVoiceIds": [
+      "aura-helios-en"
+    ],
+    "records": [
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0,
+        "at": 1787001674486
+      },
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0,
+        "at": 1787001700409
+      },
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "browser-speechsynthesis",
+        "fallbackReason": "TTS HTTP 500",
+        "turnId": 0,
+        "at": 1787001711110
+      },
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0,
+        "at": 1787001713332
+      }
+    ]
+  },
+  "currentWorkAnswers": [
+    {
+      "conv": "conv-8334def4-",
+      "at": "2026-08-17T21:21:16.072Z",
+      "text": "Jarvis is currently routing — Routing request (OpenRouter / poolside/laguna-s-2.1:free). The most recent failure was \"Routine: Failure Truth Smoke Test I\" (failed). The last completed task was \"Routine: EnableDisable Smoke E\" by hermes."
+    },
+    {
+      "conv": "conv-7e834c0d-",
+      "at": "2026-08-17T21:21:16.042Z",
+      "text": "Jarvis is currently routing — Routing request (OpenRouter / poolside/laguna-s-2.1:free). The most recent failure was \"Routine: Failure Truth Smoke Test I\" (failed). The last completed task was \"Routine: EnableDisable Smoke E\" by hermes."
+    },
+    {
+      "conv": "conv-73ada8d3-",
+      "at": "2026-08-17T21:21:15.203Z",
+      "text": "Jarvis is currently routing — Routing request (OpenRouter / poolside/laguna-s-2.1:free). The most recent failure was \"Routine: Failure Truth Smoke Test I\" (failed). The last completed task was \"Routine: Hermes Scheduled Smoke Test A\" by hermes."
+    },
+    {
+      "conv": "conv-589bff98-",
+      "at": "2026-08-17T21:21:13.836Z",
+      "text": "Jarvis is currently routing — Routing request (OpenRouter / poolside/laguna-s-2.1:free). The most recent failure was \"Routine: Failure Truth Smoke Test I\" (failed). The last completed task was \"Routine: Hermes Scheduled Smoke Test A\" by hermes."
+    }
+  ]
+}

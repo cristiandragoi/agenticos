@@ -63,7 +63,7 @@ describe('JarvisNeuralBlob — Visual Universe (Projects + locked palette)', () 
     expect(cancelAnimationFrame).toHaveBeenCalled();
   });
 
-  it('only fires onNodeClick for rendered contextual capabilities (Mission/Runs/Builds are NOT clickable satellites)', () => {
+  it('fires onNodeClick for the preserved seven-node orbit while Runs/Builds stay off the satellite ring', () => {
     const onClick = vi.fn();
     const { container } = render(<JarvisNeuralBlob state="idle" onNodeClick={onClick} size={280} />);
     const canvas = container.querySelector('canvas')!;
@@ -72,11 +72,14 @@ describe('JarvisNeuralBlob — Visual Universe (Projects + locked palette)', () 
     fireEvent.click(canvas, { clientX: 140, clientY: 56 });
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(onClick.mock.calls[0][0]).toBe('MEMORY');
-    // A click on the old bottom-right orbit (where RUNS used to sit with the
-    // 7-node layout) must NOT fire: RUNS is no longer a rendered satellite.
-    // With 6 contextual nodes, RUNS' old position (140+~99, 140+~74) is empty.
+    // MISSION remains in the approved seven-node surrounding orbit.
+    fireEvent.click(canvas, { clientX: 212, clientY: 89 });
+    expect(onClick).toHaveBeenCalledTimes(2);
+    expect(onClick.mock.calls[1][0]).toBe('PROJECTS');
+    // A click on the old bottom-right orbit where RUNS used to sit must NOT
+    // fire: RUNS is no longer a rendered satellite.
     fireEvent.click(canvas, { clientX: 239, clientY: 214 });
-    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledTimes(2);
   });
 
   it('universe projects exclude acceptance artifacts before reaching the blob', () => {

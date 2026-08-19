@@ -219,6 +219,31 @@ export const revenueClient = {
     return res.json();
   },
 
+  // Revenue measurements (yield records) — Revenue Engine Phase 1 KPI tracking
+  async getMeasurements(params?: { opportunityId?: string; limit?: number }): Promise<any[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.opportunityId) searchParams.append('opportunityId', params.opportunityId);
+    if (params?.limit) searchParams.append('limit', String(params.limit));
+    const qs = searchParams.toString();
+    const url = qs ? `/api/revenue/measurements?${qs}` : '/api/revenue/measurements';
+    const res = await apiFetch(url);
+    if (!res.ok) throw new Error('Failed to fetch revenue measurements');
+    return res.json();
+  },
+
+  async recordMeasurement(data: { opportunityId: string; expectedYield?: number; actualYield?: number; clicks?: number; conversions?: number; revenue?: number; status?: string; measuredAt?: string }): Promise<any> {
+    const res = await apiFetch('/api/revenue/measurements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to record revenue measurement');
+    }
+    return res.json();
+  },
+
   async createOpportunity(data: Partial<RevenueOpportunity>): Promise<RevenueOpportunity> {
     const res = await apiFetch(API_BASE, {
       method: 'POST',

@@ -1,0 +1,137 @@
+{
+  "prospectId": "pp-7797696bd631",
+  "businessName": "Meisterbetrieb Weber Dach & Fassade",
+  "websiteUrl": "https://www.weber-dach-fassade.example",
+  "fixture": true,
+  "auditedAt": "2026-08-07T07:11:24.369Z",
+  "auditScore": 48,
+  "findings": [
+    {
+      "category": "title_meta",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Title present: \"Weber Dach & Fassade\"",
+      "evidence": "Weber Dach & Fassade",
+      "severity": "positive"
+    },
+    {
+      "category": "title_meta",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: No meta description tag on homepage.",
+      "severity": "weakness"
+    },
+    {
+      "category": "mobile_presentation",
+      "label": "inferred",
+      "summary": "FIXTURE SAMPLE: No viewport meta — page is likely not mobile-optimized.",
+      "severity": "weakness"
+    },
+    {
+      "category": "homepage_clarity",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: One H1 present: \"Weber Dach &amp; Fassade\"",
+      "severity": "positive"
+    },
+    {
+      "category": "homepage_clarity",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Homepage body text length: 135 chars.",
+      "severity": "positive"
+    },
+    {
+      "category": "navigation",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: 0 links found (0 internal, 0 external).",
+      "severity": "positive"
+    },
+    {
+      "category": "service_page_depth",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Service keywords mentioned but no dedicated service pages linked.",
+      "severity": "weakness"
+    },
+    {
+      "category": "location_page_depth",
+      "label": "inferred",
+      "summary": "FIXTURE SAMPLE: No location/district landing pages detected — local SEO opportunity.",
+      "severity": "weakness"
+    },
+    {
+      "category": "cta_visibility",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Only 1 call-to-action detected.",
+      "severity": "neutral"
+    },
+    {
+      "category": "contact_visibility",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: No phone, email, address, or contact-page link found on homepage.",
+      "severity": "weakness"
+    },
+    {
+      "category": "trust_proof",
+      "label": "inferred",
+      "summary": "FIXTURE SAMPLE: No reviews, testimonials, references, or about content detected.",
+      "severity": "weakness"
+    },
+    {
+      "category": "sitemap_availability",
+      "label": "unavailable",
+      "summary": "FIXTURE SAMPLE: Sitemap could not be confirmed (robots.txt did not declare one and /sitemap.xml was not fetched in V1).",
+      "severity": "neutral"
+    },
+    {
+      "category": "internal_linking",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Only 0 internal links — internal linking is thin.",
+      "severity": "weakness"
+    },
+    {
+      "category": "broken_placeholder",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Placeholder text (\"Coming soon\") · 3 empty \"#\" link(s) · 1 image(s) with empty src.",
+      "severity": "weakness"
+    },
+    {
+      "category": "stale_unrelated",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Copyright year 2020 is stale (current 2026).",
+      "evidence": "2020",
+      "severity": "weakness"
+    },
+    {
+      "category": "accessibility",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: No lang attribute on <html> · 0/1 images have alt text.",
+      "severity": "neutral"
+    },
+    {
+      "category": "performance",
+      "label": "verified",
+      "summary": "FIXTURE SAMPLE: Document size 0 KB · 1 image(s) · 0 script tag(s) (rough static indicators only).",
+      "severity": "positive"
+    }
+  ],
+  "verifiedFacts": [
+    "FIXTURE SAMPLE: Homepage contains \"Coming soon – unsere neue Website befindet sich im Aufbau\"",
+    "FIXTURE SAMPLE: No contact information (phone, email, address) visible on homepage",
+    "FIXTURE SAMPLE: All navigation links are empty \"#\" placeholders",
+    "FIXTURE SAMPLE: An image with an empty src attribute is present",
+    "FIXTURE SAMPLE: No lang attribute on <html> (accessibility gap)",
+    "FIXTURE SAMPLE: No meta description tag on homepage.",
+    "FIXTURE SAMPLE: Service keywords mentioned but no dedicated service pages linked.",
+    "FIXTURE SAMPLE: Only 1 call-to-action detected.",
+    "FIXTURE SAMPLE: No phone, email, address, or contact-page link found on homepage.",
+    "FIXTURE SAMPLE: Only 0 internal links — internal linking is thin.",
+    "FIXTURE SAMPLE: Placeholder text (\"Coming soon\") · 3 empty \"#\" link(s) · 1 image(s) with empty src.",
+    "FIXTURE SAMPLE: Copyright year 2020 is stale (current 2026).",
+    "FIXTURE SAMPLE: No lang attribute on <html> · 0/1 images have alt text."
+  ],
+  "unverifiedObservations": [
+    "FIXTURE SAMPLE: Likely no dedicated service or location pages (sample inference from nav)",
+    "FIXTURE SAMPLE: Rebuild upside is high because the current site communicates almost nothing — sample assumption",
+    "FIXTURE SAMPLE: No viewport meta — page is likely not mobile-optimized.",
+    "FIXTURE SAMPLE: No location/district landing pages detected — local SEO opportunity.",
+    "FIXTURE SAMPLE: No reviews, testimonials, references, or about content detected."
+  ],
+  "note": "FIXTURE SAMPLE: data comes from a labelled sample, not a real business."
+}

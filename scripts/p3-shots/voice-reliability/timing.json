@@ -1,0 +1,52 @@
+{
+  "serverResults": [
+    {
+      "prompt": "Jarvis, are you there?",
+      "firstChunkMs": 19,
+      "doneMs": 19
+    },
+    {
+      "prompt": "What is Agentic OS?",
+      "firstChunkMs": 4,
+      "doneMs": 4
+    },
+    {
+      "prompt": "Jarvis, what does Hermes do?",
+      "firstChunkMs": 21,
+      "doneMs": 21
+    }
+  ],
+  "rendererBefore": {
+    "turn": 0,
+    "entries": []
+  },
+  "rendererResult": {
+    "timeline": [
+      {
+        "key": "modelRequestStartAt",
+        "at": 1786963222722,
+        "detail": "\"Jarvis, are you there?\""
+      },
+      {
+        "key": "firstModelTokenAt",
+        "at": 1786963222790,
+        "detail": "\"Yes, I'm here.\""
+      },
+      {
+        "key": "ttsRequestStartAt",
+        "at": 1786963222793,
+        "detail": "\"Yes, I'm here.\""
+      },
+      {
+        "key": "ttsAudioReadyAt",
+        "at": 1786963224540,
+        "detail": "5KB"
+      },
+      {
+        "key": "audioPlaybackStartAt",
+        "at": 1786963224542
+      }
+    ],
+    "elapsedMs": 2118
+  }
+}

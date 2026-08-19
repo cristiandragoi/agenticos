@@ -1,0 +1,186 @@
+{
+  "turns": [
+    {
+      "timeline": [
+        {
+          "key": "modelRequestStartAt",
+          "at": 1787001674439,
+          "detail": "\"Jarvis, are you there?\""
+        },
+        {
+          "key": "firstModelTokenAt",
+          "at": 1787001674484,
+          "detail": "\"Yes, I'm here.\""
+        },
+        {
+          "key": "ttsRequestStartAt",
+          "at": 1787001674486,
+          "detail": "Yes, I'm here. (aura-helios-en)"
+        },
+        {
+          "key": "ttsAudioReadyAt",
+          "at": 1787001675014,
+          "detail": "5KB"
+        },
+        {
+          "key": "audioPlaybackStartAt",
+          "at": 1787001675021
+        }
+      ],
+      "elapsedMs": 302
+    },
+    {
+      "timeline": [
+        {
+          "key": "modelRequestStartAt",
+          "at": 1787001674439,
+          "detail": "\"Jarvis, are you there?\""
+        },
+        {
+          "key": "firstModelTokenAt",
+          "at": 1787001674484,
+          "detail": "\"Yes, I'm here.\""
+        },
+        {
+          "key": "ttsRequestStartAt",
+          "at": 1787001674486,
+          "detail": "Yes, I'm here. (aura-helios-en)"
+        },
+        {
+          "key": "ttsAudioReadyAt",
+          "at": 1787001675014,
+          "detail": "5KB"
+        },
+        {
+          "key": "audioPlaybackStartAt",
+          "at": 1787001675021
+        }
+      ],
+      "elapsedMs": 303
+    },
+    {
+      "timeline": [
+        {
+          "key": "modelRequestStartAt",
+          "at": 1787001674439,
+          "detail": "\"Jarvis, are you there?\""
+        },
+        {
+          "key": "firstModelTokenAt",
+          "at": 1787001674484,
+          "detail": "\"Yes, I'm here.\""
+        },
+        {
+          "key": "ttsRequestStartAt",
+          "at": 1787001674486,
+          "detail": "Yes, I'm here. (aura-helios-en)"
+        },
+        {
+          "key": "ttsAudioReadyAt",
+          "at": 1787001675014,
+          "detail": "5KB"
+        },
+        {
+          "key": "audioPlaybackStartAt",
+          "at": 1787001675021
+        }
+      ],
+      "elapsedMs": 305
+    },
+    {
+      "timeline": [
+        {
+          "key": "modelRequestStartAt",
+          "at": 1787001674439,
+          "detail": "\"Jarvis, are you there?\""
+        },
+        {
+          "key": "firstModelTokenAt",
+          "at": 1787001674484,
+          "detail": "\"Yes, I'm here.\""
+        },
+        {
+          "key": "ttsRequestStartAt",
+          "at": 1787001674486,
+          "detail": "Yes, I'm here. (aura-helios-en)"
+        },
+        {
+          "key": "ttsAudioReadyAt",
+          "at": 1787001675014,
+          "detail": "5KB"
+        },
+        {
+          "key": "audioPlaybackStartAt",
+          "at": 1787001675021
+        }
+      ],
+      "elapsedMs": 301
+    },
+    {
+      "timeline": [
+        {
+          "key": "modelRequestStartAt",
+          "at": 1787001674439,
+          "detail": "\"Jarvis, are you there?\""
+        },
+        {
+          "key": "firstModelTokenAt",
+          "at": 1787001674484,
+          "detail": "\"Yes, I'm here.\""
+        },
+        {
+          "key": "ttsRequestStartAt",
+          "at": 1787001674486,
+          "detail": "Yes, I'm here. (aura-helios-en)"
+        },
+        {
+          "key": "ttsAudioReadyAt",
+          "at": 1787001675014,
+          "detail": "5KB"
+        },
+        {
+          "key": "audioPlaybackStartAt",
+          "at": 1787001675021
+        }
+      ],
+      "elapsedMs": 303
+    }
+  ],
+  "identity": {
+    "count": 4,
+    "distinct": [
+      "aura-helios-en"
+    ],
+    "records": [
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0,
+        "at": 1787001674486
+      },
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0,
+        "at": 1787001700409
+      },
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "browser-speechsynthesis",
+        "fallbackReason": "TTS HTTP 500",
+        "turnId": 0,
+        "at": 1787001711110
+      },
+      {
+        "voiceId": "aura-helios-en",
+        "ttsProvider": "deepgram",
+        "fallbackReason": null,
+        "turnId": 0,
+        "at": 1787001713332
+      }
+    ]
+  },
+  "currentWorkTexts": []
+}

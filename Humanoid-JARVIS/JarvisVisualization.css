@@ -1,0 +1,99 @@
+/**
+ * Jarvis Humanoid Visualization — Styles
+ * Minimal, performance-conscious CSS. No animations here;
+ * all motion is driven by the animation engine via refs.
+ */
+
+.jarvis-visualization {
+  color: var(--jarvis-theme-color, #00e5ff);
+  font-family: var(--kimi-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  background: transparent;
+  border-radius: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.jarvis-visualization svg {
+  overflow: visible;
+}
+
+.jarvis-visualization text {
+  font-family: var(--kimi-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+}
+
+/* ── HUD ── */
+.jarvis-hud {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.jarvis-hud-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--jarvis-theme-color, #00e5ff);
+  text-shadow: 0 0 8px var(--jarvis-theme-color, #00e5ff);
+  opacity: 0.9;
+  transition: color 0.3s ease;
+}
+
+.jarvis-hud-connection {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jarvis-hud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 4px #ef4444;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.jarvis-hud-dot.connected {
+  background: #22c55e;
+  box-shadow: 0 0 4px #22c55e;
+}
+
+.jarvis-hud-agent {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #f472b6;
+  text-shadow: 0 0 6px #f472b6;
+}
+
+/* ── System Node Hover ── */
+.jarvis-visualization [id^="node-"] {
+  transition: transform 0.15s ease;
+}
+
+.jarvis-visualization [id^="node-"]:hover {
+  transform: scale(1.15);
+}
+
+/* ── Responsive ── */
+@media (max-width: 400px) {
+  .jarvis-hud-status {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .jarvis-hud-connection,
+  .jarvis-hud-agent {
+    font-size: 8px;
+  }
+}

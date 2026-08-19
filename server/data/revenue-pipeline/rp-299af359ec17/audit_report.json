@@ -1,0 +1,123 @@
+{
+  "prospectId": "pp-ac9deec46b3a",
+  "businessName": "Pilch Dachbau",
+  "websiteUrl": "https://pilch-dachbau.de",
+  "fixture": false,
+  "auditedAt": "2026-08-07T20:56:29.731Z",
+  "auditScore": 100,
+  "findings": [
+    {
+      "category": "title_meta",
+      "label": "verified",
+      "summary": "Title present: \"⚒️ Pilch Dachbau - erfahrener Dachdecker-Meisterbetrieb in Berlin\"",
+      "evidence": "⚒️ Pilch Dachbau - erfahrener Dachdecker-Meisterbetrieb in Berlin",
+      "severity": "positive"
+    },
+    {
+      "category": "title_meta",
+      "label": "verified",
+      "summary": "Meta description present (119 chars).",
+      "severity": "positive"
+    },
+    {
+      "category": "mobile_presentation",
+      "label": "verified",
+      "summary": "Viewport meta present — mobile presentation declared.",
+      "severity": "positive"
+    },
+    {
+      "category": "homepage_clarity",
+      "label": "verified",
+      "summary": "One H1 present: \"IHR DACHDECKER MEISTERBETRIEB IN BERLIN\"",
+      "severity": "positive"
+    },
+    {
+      "category": "homepage_clarity",
+      "label": "verified",
+      "summary": "Homepage body text length: 70962 chars.",
+      "severity": "positive"
+    },
+    {
+      "category": "navigation",
+      "label": "verified",
+      "summary": "141 links found (14 internal, 127 external).",
+      "severity": "positive"
+    },
+    {
+      "category": "service_page_depth",
+      "label": "verified",
+      "summary": "11 service-related links found.",
+      "severity": "positive"
+    },
+    {
+      "category": "location_page_depth",
+      "label": "verified",
+      "summary": "Only 1 location/district link found.",
+      "severity": "neutral"
+    },
+    {
+      "category": "cta_visibility",
+      "label": "verified",
+      "summary": "18 call-to-action links/buttons detected.",
+      "severity": "positive"
+    },
+    {
+      "category": "contact_visibility",
+      "label": "verified",
+      "summary": "Contact signals: 4 phone link(s) · no email · contact page linked.",
+      "severity": "positive"
+    },
+    {
+      "category": "trust_proof",
+      "label": "verified",
+      "summary": "Trust/proof signal found: \"about\"",
+      "severity": "positive"
+    },
+    {
+      "category": "sitemap_availability",
+      "label": "verified",
+      "summary": "Sitemap referenced at https://pilch-dachbau.de/page-sitemap.xml.",
+      "severity": "positive"
+    },
+    {
+      "category": "internal_linking",
+      "label": "verified",
+      "summary": "14 internal links — reasonable internal linking.",
+      "severity": "positive"
+    },
+    {
+      "category": "broken_placeholder",
+      "label": "verified",
+      "summary": "No placeholder text · 17 empty \"#\" link(s) · 0 image(s) with empty src.",
+      "severity": "weakness"
+    },
+    {
+      "category": "stale_unrelated",
+      "label": "verified",
+      "summary": "Copyright year 2024 is stale (current 2026).",
+      "evidence": "2024",
+      "severity": "weakness"
+    },
+    {
+      "category": "accessibility",
+      "label": "verified",
+      "summary": "lang present · 68/72 images have alt text.",
+      "severity": "neutral"
+    },
+    {
+      "category": "performance",
+      "label": "verified",
+      "summary": "Document size 275 KB · 72 image(s) · 53 script tag(s) (rough static indicators only).",
+      "severity": "weakness"
+    }
+  ],
+  "verifiedFacts": [
+    "Only 1 location/district link found.",
+    "No placeholder text · 17 empty \"#\" link(s) · 0 image(s) with empty src.",
+    "Copyright year 2024 is stale (current 2026).",
+    "lang present · 68/72 images have alt text.",
+    "Document size 275 KB · 72 image(s) · 53 script tag(s) (rough static indicators only)."
+  ],
+  "unverifiedObservations": [],
+  "note": "Audit of the user-provided public URL."
+}

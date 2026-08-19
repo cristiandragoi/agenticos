@@ -1,0 +1,14 @@
+Create a new, COMPACT React component at src/components/revenue/ApprovalsInbox.tsx for the AgenticOS Control Room. Do NOT modify any existing file. IMPORTANT: keep the entire file under 4500 characters — minimal styling, no verbose comments.
+
+Step 1: readFile src/api/revenueClient.ts to confirm: revenueClient.getOpportunities({ approvalStatus: 'pending' }) returns an array of RevenueOpportunity (fields: id, title, opportunityType, stage, overallScore, estimatedRevenue, createdAt); revenueClient.approve(id) and revenueClient.reject(id, reason) exist.
+Step 2: create the file (default export function ApprovalsInbox):
+- Load opportunities with approvalStatus 'pending' on mount; state for items, loading, error.
+- While loading render 'Loading Approvals...'.
+- On error render the error message.
+- Render heading 'Approvals Inbox' and a note 'Opportunities awaiting your decision'.
+- For each pending opportunity render a card: title, opportunityType, stage, overallScore (if present), estimatedRevenue (if present, formatted as currency), createdAt (toLocaleString). Two buttons: 'Approve' and 'Reject'.
+- Approve calls revenueClient.approve(id) then reloads the list. Reject prompts for a reason via window.prompt (fallback 'No reason provided' if cancelled/empty) then calls revenueClient.reject(id, reason) and reloads.
+- Show a small inline status message on success/failure of each action.
+- Dark theme inline styles consistent with the app: background '#111318', color 'white', borders '1px solid rgba(255,255,255,0.1)', card padding 12, marginBottom 8.
+Step 3: readFile the created file to confirm it exists and is complete (not truncated).
+Step 4: finish with the file path, its character count, and confirmation that no other file was modified.

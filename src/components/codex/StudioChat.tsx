@@ -23,7 +23,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { useCodexStore } from '../../store/codexStore';
 import { normalizeExecutionEvent } from '../../utils/normalize';
-import { TERMINAL_GOAL_STATES, pairToolExecutions } from '../../presenters/executionStatus';
+import { TERMINAL_GOAL_STATES, pairToolExecutions, isGoalActivelyRunning } from '../../presenters/executionStatus';
 import { CurrentActionCard } from './CurrentActionCard';
 import { ExecutionTimeline } from './ExecutionTimeline';
 import { RunSettings } from './RunSettings';
@@ -339,6 +339,12 @@ export const StudioChat: React.FC<StudioChatProps> = ({
   const status = (goalStatus || '').toLowerCase();
   const isTerminal = TERMINAL_GOAL_STATES.includes(status);
 
+  // Differentiate a persisted QUEUED row from ACTIVE runtime execution: a goal
+  // only blocks new work (hides SEND, shows Stop/Pause) while a worker loop
+  // holds a live lease. A stale queued goal with no lease is NOT running.
+  const goalLeaseCandidate = goal && typeof goal === 'object' ? goal : { status };
+  const runIsActive = !!activeGoalId && !isTerminal && status !== 'paused' && isGoalActivelyRunning(goalLeaseCandidate);
+
   // Re-fetch full goal when goalStatus transitions to terminal state so runSummary is populated
   useEffect(() => {
     if (!activeGoalId || !isTerminal) return;
@@ -353,7 +359,6 @@ export const StudioChat: React.FC<StudioChatProps> = ({
     })();
     return () => { cancelled = true; };
   }, [activeGoalId, isTerminal, goalStatus]);
-  const runIsActive = !!activeGoalId && !isTerminal && status !== 'paused';
 
   const approvalVisible = status === 'waiting_for_approval';
   const pauseVisible = runIsActive && status !== 'pause_requested';

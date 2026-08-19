@@ -1,0 +1,50 @@
+{
+  "prospectId": "pp-7797696bd631",
+  "businessName": "Meisterbetrieb Weber Dach & Fassade",
+  "websiteUrl": "https://www.weber-dach-fassade.example",
+  "fixture": true,
+  "verifiedFacts": [
+    "FIXTURE SAMPLE: Homepage contains \"Coming soon – unsere neue Website befindet sich im Aufbau\"",
+    "FIXTURE SAMPLE: No contact information (phone, email, address) visible on homepage",
+    "FIXTURE SAMPLE: All navigation links are empty \"#\" placeholders",
+    "FIXTURE SAMPLE: An image with an empty src attribute is present",
+    "FIXTURE SAMPLE: No lang attribute on <html> (accessibility gap)",
+    "FIXTURE SAMPLE: No meta description tag on homepage.",
+    "FIXTURE SAMPLE: Service keywords mentioned but no dedicated service pages linked.",
+    "FIXTURE SAMPLE: Only 1 call-to-action detected.",
+    "FIXTURE SAMPLE: No phone, email, address, or contact-page link found on homepage.",
+    "FIXTURE SAMPLE: Only 0 internal links — internal linking is thin.",
+    "FIXTURE SAMPLE: Placeholder text (\"Coming soon\") · 3 empty \"#\" link(s) · 1 image(s) with empty src.",
+    "FIXTURE SAMPLE: Copyright year 2020 is stale (current 2026).",
+    "FIXTURE SAMPLE: No lang attribute on <html> · 0/1 images have alt text."
+  ],
+  "unverifiedObservations": [
+    "FIXTURE SAMPLE: Likely no dedicated service or location pages (sample inference from nav)",
+    "FIXTURE SAMPLE: Rebuild upside is high because the current site communicates almost nothing — sample assumption",
+    "FIXTURE SAMPLE: No viewport meta — page is likely not mobile-optimized.",
+    "FIXTURE SAMPLE: No location/district landing pages detected — local SEO opportunity.",
+    "FIXTURE SAMPLE: No reviews, testimonials, references, or about content detected."
+  ],
+  "placeholders": [
+    "[PLACEHOLDER: add verified review]",
+    "[PLACEHOLDER: collect real photos; no stock fakery]",
+    "[PLACEHOLDER: collect; no stock fakery]",
+    "[PLACEHOLDER: collect]",
+    "[PLACEHOLDER: confirm emergency offering]",
+    "[PLACEHOLDER: confirm real offerings]",
+    "[PLACEHOLDER: confirm]",
+    "[PLACEHOLDER: days]",
+    "[PLACEHOLDER: legal review]",
+    "[PLACEHOLDER: obtain from business]",
+    "[PLACEHOLDER: obtain]",
+    "[PLACEHOLDER: validate with customer]",
+    "[PLACEHOLDER: verify]",
+    "[PLACEHOLDER: weeks]",
+    "[PLACEHOLDER: …]"
+  ],
+  "assumptions": [
+    "Customer must confirm service list, districts, contact details, and legal consent before publish.",
+    "No pricing, reviews, rankings, traffic, or revenue figures are asserted as verified."
+  ],
+  "note": "FIXTURE SAMPLE: This prospect is sample data — nothing here describes a real business."
+}

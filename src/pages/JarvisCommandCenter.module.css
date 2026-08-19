@@ -13,19 +13,17 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* ── TOP STATUS LANE (stabilization + starvation fix): a COMPACT flow row
-   at the top of the workspace band. The workspace/approval strip + activity
-   badge live here — they must NOT consume the vertical workspace. Compact
-   padding/gap and NO wrap keep this to a single tight row so the frozen
-   order (controls → Voice Trace → transcript) stays visible below it. ── */
+/* ── TOP STATUS LANE (stabilization + starvation fix): a compact flow row
+   at the top of the workspace band. It may wrap to a second row when the
+   repository warning is long; controls must never overlap. ── */
 .topStatusLane {
   width: 100%;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 4px 10px 0;
+  gap: 8px 10px;
+  padding: 6px 10px 2px;
   box-sizing: border-box;
 }
 
@@ -55,6 +53,7 @@
   gap: 8px;
   margin-left: auto;
   white-space: nowrap;
+  flex: 0 0 auto;
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 11px;
   letter-spacing: 2px;
@@ -86,7 +85,7 @@
      max-content floor so the region is at least its own content. The orb is
      sized from this region, so it always fits. */
   flex: 1 1 auto;
-  min-height: max-content;
+  min-height: clamp(520px, 58vh, 700px);
   width: 100%;
   overflow: hidden;
 }
@@ -177,6 +176,50 @@
   min-height: max-content;
   overflow: hidden;
   padding: 8px 0 14px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(20, 184, 166, 0.16), transparent 30%),
+    radial-gradient(circle at 36% 50%, rgba(59, 130, 246, 0.12), transparent 32%),
+    radial-gradient(circle at 70% 44%, rgba(236, 72, 153, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0.96));
+}
+
+.jarvisStage::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(2, 6, 23, 0.52), rgba(2, 6, 23, 0.74)),
+    url("../assets/jarvis-blob1-reference.png") center / cover no-repeat,
+    radial-gradient(ellipse at 50% 54%, rgba(94, 234, 212, 0.18), transparent 38%),
+    radial-gradient(ellipse at 38% 47%, rgba(250, 204, 21, 0.09), transparent 28%),
+    radial-gradient(ellipse at 64% 50%, rgba(96, 165, 250, 0.12), transparent 32%),
+    repeating-radial-gradient(circle at 50% 48%, rgba(103, 232, 249, 0.055) 0 1px, transparent 1px 18px);
+  filter: blur(8px) saturate(1.22);
+  opacity: 0.52;
+  transform: scale(1.06);
+}
+
+.jarvisStage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.4px),
+    linear-gradient(rgba(103, 232, 249, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.035) 1px, transparent 1px);
+  background-size: 76px 76px, 54px 54px, 54px 54px;
+  background-position: 11px 17px, center, center;
+  mask-image: radial-gradient(ellipse at 50% 42%, #000 0 54%, transparent 86%);
+  opacity: 0.34;
+}
+
+.jarvisStage > * {
+  position: relative;
+  z-index: 2;
 }
 
 .workspace {

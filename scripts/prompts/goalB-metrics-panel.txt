@@ -1,0 +1,13 @@
+Create a new, COMPACT React component at src/components/revenue/MetricsPanel.tsx for the AgenticOS Revenue Engine KPI dashboard. Do NOT modify any existing file. IMPORTANT: keep the entire file under 4000 characters — minimal styling, no verbose comments.
+
+Step 1: readFile src/api/revenueClient.ts to confirm these methods exist: revenueClient.getMetrics() -> { totalOpportunities, countsByStage, averageOverallScore, failureRate, avgGenCost, totalAssets }; revenueClient.getMeasurements() -> array of { id, opportunityId, expectedYield, actualYield, clicks, conversions, revenue, status, measuredAt }.
+Step 2: create the file (default export function MetricsPanel):
+- Load both datasets on mount with Promise.all; state for summary, measurements, loading, error.
+- While loading render a div with 'Loading Revenue Metrics...'.
+- On error render the error message.
+- Render a heading 'Revenue Metrics', then a compact summary line showing: Total Opportunities, Avg Overall Score, Failure Rate, Avg Generation Cost, Total Assets (skip countsByStage to stay compact).
+- Render a table 'Yield Measurements' with columns: Opportunity, Expected Yield, Actual Yield, Revenue, Clicks, Conversions, Status. Use '-' for nulls.
+- A Refresh button that reloads both.
+- Dark theme inline styles consistent with the app: background '#111318', color 'white', borders '1px solid rgba(255,255,255,0.1)', padding 16.
+Step 3: readFile the created file to confirm it exists and is complete (not truncated).
+Step 4: finish with the file path, its character count, and confirmation that no other file was modified.

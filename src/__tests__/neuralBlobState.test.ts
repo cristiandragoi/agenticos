@@ -9,8 +9,9 @@ describe('neuralBlobState', () => {
     expect(toBlobVisualState('listening')).toBe('LISTENING');
     expect(toBlobVisualState('reasoning')).toBe('THINKING');
     expect(toBlobVisualState('planning')).toBe('THINKING');
-    expect(toBlobVisualState('executing')).toBe('ACTING');
-    expect(toBlobVisualState('delegated')).toBe('ACTING');
+    expect(toBlobVisualState('executing')).toBe('BUILDING');
+    expect(toBlobVisualState('delegating')).toBe('DELEGATING');
+    expect(toBlobVisualState('delegated')).toBe('DELEGATING');
     expect(toBlobVisualState('speaking')).toBe('SPEAKING');
     expect(toBlobVisualState('completed')).toBe('COMPLETED');
     expect(toBlobVisualState('error')).toBe('ERROR');

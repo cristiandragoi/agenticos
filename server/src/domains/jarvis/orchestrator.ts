@@ -648,7 +648,7 @@ Never answer "Is Hermes finished?" / "Is the task done?" / "What happened?" with
       } catch {
         // best effort — a failed history read must not break direct chat
       }
-      const result = await llmChat({ systemPrompt, prompt, history });
+      const result = await llmChat({ systemPrompt, prompt, history, agentId: 'agent-jarvis' });
 
       // Strip any stray tool-call markup the model may still emit (§18).
       const cleaned = stripToolCallMarkup(result.reply);

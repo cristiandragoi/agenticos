@@ -42,6 +42,28 @@ function buildRequestSignal(req: ChatRequest): AbortSignal {
   return AbortSignal.timeout(req.timeoutMs || 30000);
 }
 
+/** Describe a fetch transport failure with its underlying cause (no secrets).
+ *  Node's fetch throws `TypeError: fetch failed` with a `cause` carrying code
+ *  (ECONNREFUSED / ENOTFOUND / ECONNRESET / ETIMEDOUT), syscall and hostname.
+ *  Timeouts surface as DOMException TimeoutError ('aborted due to timeout'). */
+function describeTransportFailure(err: any): string {
+  if (typeof err?.message === 'string' && /aborted|timeout/i.test(err.message)) {
+    return 'request timed out';
+  }
+  const cause: any = err?.cause;
+  if (cause) {
+    const code = cause.code || cause.errno || '';
+    const syscall = cause.syscall || '';
+    const detail = cause.message || '';
+    const parts: string[] = [];
+    if (code) parts.push(`code=${code}`);
+    if (syscall) parts.push(`syscall=${syscall}`);
+    if (detail && detail !== err.message) parts.push(detail);
+    return `transport failure${parts.length ? ` (${parts.join(' ')})` : ''}`;
+  }
+  return `transport failure: ${err?.message || String(err)}`;
+}
+
 function buildMessages(req: ChatRequest) {
   const messages: any[] = [];
   if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
@@ -109,12 +131,21 @@ export class DeepSeekGateway implements ModelGateway {
     }
 
     const start = Date.now();
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-      signal: buildRequestSignal(req),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: buildRequestSignal(req),
+      });
+    } catch (fetchErr: any) {
+      // Transport-level failure (DNS, TLS, ECONNRESET, timeout). Enrich with
+      // the underlying cause so the router's failure report is meaningful
+      // instead of bare "fetch failed". Caller cancellation propagates as-is.
+      if (req.signal?.aborted) throw fetchErr;
+      throw new Error(`DeepSeek ${describeTransportFailure(fetchErr)}`);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -160,12 +191,18 @@ export class DeepSeekGateway implements ModelGateway {
       body.response_format = { type: 'json_object' };
     }
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-      signal: buildRequestSignal(req),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: buildRequestSignal(req),
+      });
+    } catch (fetchErr: any) {
+      if (req.signal?.aborted) throw fetchErr;
+      throw new Error(`DeepSeek ${describeTransportFailure(fetchErr)}`);
+    }
 
     if (!res.ok) {
       if (res.status === 429) throw new ProviderRateLimitError('HTTP 429', res.headers.get('retry-after') ?? undefined);

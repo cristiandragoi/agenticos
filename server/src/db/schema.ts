@@ -95,6 +95,11 @@ export const goals = sqliteTable('goals', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   runSummary: text('run_summary', { mode: 'json' }),
+  // ARGUS independent-verification state (owned by agent-argus only).
+  // 'none' until a contract is created; generic goalStore.update() strips
+  // this column so the builder loop can never write verification state.
+  verificationState: text('verification_state').notNull().default('none'),
+  contractId: text('contract_id'),
 });
 
 export const goalEvents = sqliteTable('goal_events', {
@@ -743,3 +748,95 @@ export const entityLinks = sqliteTable('entity_links', {
   metadata: text('metadata', { mode: 'json' }),
   createdAt: text('created_at').notNull(),
 });
+
+// Revenue metrics — post-publish yield tracking (Revenue Engine Phase 1: KPI)
+export const revenueMetrics = sqliteTable('revenue_metrics', {
+  id: text('id').primaryKey(),
+  opportunityId: text('opportunity_id').notNull().references(() => revenueOpportunities.id, { onDelete: 'cascade' }),
+  expectedYield: real('expected_yield'),
+  actualYield: real('actual_yield'),
+  clicks: integer('clicks'),
+  conversions: integer('conversions'),
+  revenue: real('revenue'),
+  status: text('status').notNull().default('measuring'),
+  measuredAt: text('measured_at'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  opportunityIdx: index('idx_rev_metrics_opportunity').on(table.opportunityId),
+}));
+
+// ── ARGUS — independent verification system ────────────────────────────────
+// Immutable Task Contract: snapshots the ORIGINAL user spec + acceptance
+// criteria at contract time. specHash is the sha256 over the original spec +
+// criteria; ARGUS recomputes it at every verification so a builder/executor
+// that rewrote the goal text is caught (acceptance criteria can never be
+// silently edited).
+export const argusContracts = sqliteTable('argus_contracts', {
+  id: text('id').primaryKey(),
+  goalId: text('goal_id').notNull().references(() => goals.id, { onDelete: 'cascade' }),
+  workspacePath: text('workspace_path').notNull(),
+  title: text('title').notNull(),
+  originalSpec: text('original_spec').notNull(),
+  acceptanceCriteria: text('acceptance_criteria', { mode: 'json' }).notNull(), // ArgusCheck[]
+  specHash: text('spec_hash').notNull(),
+  status: text('status').notNull().default('implementation_ready'), // implementation_ready | verifying | verification_failed | correcting | verified_complete | escalated
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  goalIdx: unique('uq_argus_contracts_goal').on(table.goalId),
+}));
+
+// One verification attempt per contract. verdict mirrors the canonical
+// verifier shape (checks[] / blockingIssues[] / recommendedFixes[]) so the
+// existing Verifier role reports remain interoperable.
+export const argusVerifications = sqliteTable('argus_verifications', {
+  id: text('id').primaryKey(),
+  contractId: text('contract_id').notNull().references(() => argusContracts.id, { onDelete: 'cascade' }),
+  goalId: text('goal_id').notNull(),
+  attempt: integer('attempt').notNull().default(0),
+  status: text('status').notNull(), // verifying | verified_complete | verification_failed
+  evidenceLevel: text('evidence_level').notNull().default('L0'), // L0..L6
+  verdict: text('verdict', { mode: 'json' }).notNull(),
+  provider: text('provider'),
+  model: text('model'),
+  createdAt: text('created_at').notNull(),
+  completedAt: text('completed_at'),
+}, (table) => ({
+  contractIdx: index('idx_argus_verifications_contract').on(table.contractId),
+  goalIdx: index('idx_argus_verifications_goal').on(table.goalId),
+}));
+
+// Structured defect packet — the exact contract violation + reproduction.
+export const argusDefects = sqliteTable('argus_defects', {
+  id: text('id').primaryKey(),
+  verificationId: text('verification_id').notNull().references(() => argusVerifications.id, { onDelete: 'cascade' }),
+  contractId: text('contract_id').notNull().references(() => argusContracts.id, { onDelete: 'cascade' }),
+  goalId: text('goal_id').notNull(),
+  severity: text('severity').notNull().default('major'), // critical | major | minor
+  description: text('description').notNull(),
+  reproduction: text('reproduction'),
+  expected: text('expected'),
+  actual: text('actual'),
+  fixSuggestion: text('fix_suggestion'),
+  status: text('status').notNull().default('open'), // open | dispatched | correcting | resolved | escalated
+  correctionGoalId: text('correction_goal_id'),
+  createdAt: text('created_at').notNull(),
+  resolvedAt: text('resolved_at'),
+}, (table) => ({
+  statusIdx: index('idx_argus_defects_status').on(table.status),
+  contractIdx: index('idx_argus_defects_contract').on(table.contractId),
+}));
+
+// Correction cycle: ARGUS → Codex auto-correction dispatch (≤3 attempts).
+export const argusCorrections = sqliteTable('argus_corrections', {
+  id: text('id').primaryKey(),
+  contractId: text('contract_id').notNull().references(() => argusContracts.id, { onDelete: 'cascade' }),
+  defectId: text('defect_id').notNull().references(() => argusDefects.id, { onDelete: 'cascade' }),
+  goalId: text('goal_id').notNull(), // the NEW correction goal
+  attempt: integer('attempt').notNull(),
+  status: text('status').notNull().default('dispatched'), // dispatched | running | completed | failed | escalated
+  createdAt: text('created_at').notNull(),
+  completedAt: text('completed_at'),
+}, (table) => ({
+  contractAttemptIdx: index('idx_argus_corrections_contract_attempt').on(table.contractId, table.attempt),
+}));

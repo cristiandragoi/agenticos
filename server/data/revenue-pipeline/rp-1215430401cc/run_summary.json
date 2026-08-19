@@ -1,0 +1,73 @@
+{
+  "runId": "rp-1215430401cc",
+  "taskId": "bgtask-8f2ce419f",
+  "config": {
+    "niche": "roofing",
+    "city": "Berlin",
+    "serviceKeywords": [],
+    "prospectCount": 5,
+    "specificUrl": null,
+    "maxResearchBudgetUsd": null,
+    "dryRun": true,
+    "runBuild": true,
+    "useCodex": true,
+    "useLlm": false
+  },
+  "workerRouting": {
+    "research": "prospect discovery + public inspection",
+    "hermes": "audit, scoring, rebuild blueprint",
+    "codex": "stopped",
+    "codexGoalId": "goal-82cab810-",
+    "reviewer": "artifact verification + build/test evidence"
+  },
+  "status": "completed",
+  "stage": "COMPLETED",
+  "selectedProspect": {
+    "prospectId": "pp-7797696bd631",
+    "businessName": "Meisterbetrieb Weber Dach & Fassade",
+    "websiteUrl": "https://www.weber-dach-fassade.example",
+    "fixture": true,
+    "auditScore": 48,
+    "opportunityScore": 76,
+    "confidence": "high"
+  },
+  "ranking": [
+    {
+      "businessName": "Meisterbetrieb Weber Dach & Fassade",
+      "score": 76,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Dachfix Berlin GmbH",
+      "score": 74,
+      "confidence": "high"
+    },
+    {
+      "businessName": "Berliner Dachdeckerei Müller",
+      "score": 53,
+      "confidence": "high"
+    }
+  ],
+  "buildState": "passed",
+  "testState": "passed",
+  "verificationState": "passed",
+  "approvalState": "allowed",
+  "outreachApproved": true,
+  "costLedger": [],
+  "totalElapsedMs": 1138517,
+  "artifacts": {
+    "proposalDir": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-1215430401cc",
+    "auditReport": null,
+    "blueprint": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-1215430401cc\\rebuild_blueprint.md",
+    "concept": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-1215430401cc\\site_concept",
+    "runSummary": "B:\\AgenticOS\\server\\data\\revenue-pipeline\\rp-1215430401cc\\run_summary.json"
+  },
+  "safety": {
+    "noOutreachPerformed": true,
+    "noPublishPerformed": true,
+    "dryRun": true,
+    "fixtureLabelApplied": true
+  },
+  "createdAt": "2026-08-07T06:53:47.639Z",
+  "completedAt": "2026-08-07T07:12:46.155Z"
+}

@@ -1,0 +1,13 @@
+Create a new React component file at src/components/argus/ArgusPanel.tsx in the AgenticOS repo.
+
+It is a compact self-contained panel (single file, no new dependencies) that displays ARGUS independent-verification status. Import argusClient from '../../api/argusClient'. Use the exact same visual style as src/components/revenue/MetricsPanel.tsx: inline React.CSSProperties styles object, dark background '#111318', white text, sans-serif, padding 16, table borders rgba(255,255,255,0.1), heading fontSize 18, summary line flex gap 16 fontSize 14.
+
+On mount it must call argusClient.listContracts() and argusClient.getAssignment() in parallel (Promise.all) and render:
+- A heading "ARGUS — Independent Verification"
+- An assignment line: "Provider: <providerId> · Model: <modelId> · Routing: <routingMode>" or "No assignment"
+- A table of contracts: columns Contract ID, Goal ID, Status (verification state badge: implementation_ready=yellow, verifying=blue, verification_failed=red, correcting=orange, verified_complete=green), Evidence Level, Created. Status badge rendered as inline span with background color.
+- A defects section: if any contracts are verification_failed, call argusClient.listDefects() and show defect rows: severity (color-coded critical=red, major=orange), status, description truncated to 120 chars.
+- Loading state text "Loading ARGUS status..."
+- Error state shows the error message in red.
+
+Keep the file under 4500 characters total. Do not add a default export only; also export a named export ArgusPanel. Do not modify any other file. Use only function components with hooks (useState/useEffect). No type errors: avoid unused imports, avoid React import when not needed, use React.CSSProperties type via `import type { CSSProperties } from 'react'` or `import React, { useEffect, useState } from 'react'` and type the styles object as Record<string, CSSProperties>.

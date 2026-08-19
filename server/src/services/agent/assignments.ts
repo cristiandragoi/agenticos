@@ -50,7 +50,11 @@ export class AgentProviderAssignmentService {
         agentId: 'agent-codex',
         providerId: 'prov-deepseek',
         modelId: 'deepseek-v4-flash',
-        routingMode: 'forced',
+        // Preferred (not forced): keeps the gateway fallback chain alive so a
+        // transient transport failure of DeepSeek can resolve on the next
+        // available provider. (CODEX PROVIDER ROUTING RECOVERY — the previous
+        // 'forced' default made any DeepSeek blip a hard goal failure.)
+        routingMode: 'preferred',
         enabled: true,
         updatedAt: new Date().toISOString()
       };

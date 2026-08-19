@@ -18,6 +18,9 @@ export interface LlmChatOptions {
   ollamaModel?: string;
   /** Explicit model override (routed via ChatRequest.modelId). */
   model?: string;
+  /** Gateway routing mode for this request ('preferred' keeps the fallback
+   *  chain; 'automatic'/'forced' pass through). Mapped to ChatRequest.routing. */
+  routingMode?: 'automatic' | 'preferred' | 'forced';
   /** Planning escalation: stronger sibling model for EMPTY_CONTENT retries. */
   escalationModel?: string;
   requestId?: string;
@@ -99,6 +102,7 @@ function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
     taskProfile,
     agentId: opts.agentId,
     modelId: opts.model,
+    routing: opts.routingMode ? { mode: opts.routingMode } : undefined,
     escalationModel: opts.escalationModel
   };
 }

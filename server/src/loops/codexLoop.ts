@@ -577,13 +577,20 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   const isLocalPlanningProvider = resolvedPlanningProviderId === 'ollama';
 
   const execProviderSetting = goal.executionOptions?.executionProviderId;
+  const explicitProviderSetting = execProviderSetting && !['auto', 'none'].includes(execProviderSetting);
+  // Provider routing semantics (CODEX PROVIDER ROUTING RECOVERY): an explicit
+  // run-setting provider is a PREFERENCE, not a hard pin. 'forced' previously
+  // collapsed the gateway order to a single provider, so a transient transport
+  // failure of the preferred provider (e.g. a DeepSeek DNS blip at
+  // 2026-08-19T07:42Z) failed the whole goal with zero fallback attempts.
+  // 'preferred' keeps the full fallback list and reorders the chosen provider
+  // first. The unset case defers to the persisted assignment's own mode.
   const executionRouting = {
-    mode: execProviderSetting === 'auto' ? 'automatic' 
-          : execProviderSetting === 'none' ? 'disabled' 
-          : 'forced',
-    providerId: execProviderSetting && !['auto', 'none'].includes(execProviderSetting) 
-                ? execProviderSetting 
-                : undefined,
+    mode: execProviderSetting === 'auto' ? 'automatic'
+          : execProviderSetting === 'none' ? 'disabled'
+          : explicitProviderSetting ? 'preferred'
+          : (codexAssignment?.routingMode ?? 'preferred'),
+    providerId: explicitProviderSetting ? execProviderSetting : undefined,
     source: execProviderSetting ? 'run-setting' : 'gateway-default'
   };
 
@@ -798,13 +805,28 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             // used ONLY when the local model exhausts its output.
             // POLICY GATE (Stage 2): escalation sends content to a cloud
             // provider — localOnly / approvalRequired policies suppress it.
-            ...(isLocalPlanningProvider && goal.executionOptions?.allowCloudEscalation !== false
+            // Attached on EVERY planning request, not only when the assigned
+            // provider is local: the gateway fallback chain can land on
+            // ollama even with DeepSeek preferred (e.g. DeepSeek transport
+            // failure → ollama), and the ollama adapter needs the escalation
+            // sibling to produce valid tool-call JSON there too. DeepSeek's
+            // adapter ignores escalationModel entirely.
+            ...(goal.executionOptions?.allowCloudEscalation !== false
               ? { escalationModel: (process.env.CODEX_PLANNING_ESCALATION_MODEL || 'qwen3.5:cloud') }
               : {}),
             // Stop/pause must interrupt an in-flight model request — not just
             // wait for the next loop-top check.
             signal: controller.signal,
             ...(effectiveProvider ? { provider: effectiveProvider } : {}),
+            // The run-setting routing mode must reach the gateway router so it
+            // keeps the fallback chain ('preferred') instead of collapsing to
+            // a single provider. Without this, an explicit provider override
+            // combined with the router's default 'automatic' mode passes the
+            // provider to the scorer as preferredProvider, which returns a
+            // single-provider order — no fallback. (CODEX PROVIDER ROUTING
+            // RECOVERY — proven by the 2026-08-19T07:42Z ledger entry:
+            // fallbackAttempts:1, attemptedProviders:[DeepSeek] only.)
+            ...(effectiveProvider && executionRouting.mode === 'preferred' ? { routingMode: 'preferred' as const } : {}),
             // The ASSIGNED model must flow to the request. Without it the
             // gateway resolves the provider's DEFAULT model (e.g. ollama →
             // llama3.2:3b) instead of the assignment (qwen3.5:4b), and the
@@ -1101,6 +1123,9 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
         });
         goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
         goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalAnswerText, message: toolResult } as any });
+        // ARGUS: if this goal is bound to an immutable contract, independent
+        // verification runs automatically on completion (no manual copying).
+        import('../services/argus/argusService.js').then(m => m.onGoalCompleted(goalId).catch((e: any) => console.error(`[ARGUS] hook: ${e?.message}`))).catch(() => {});
         // Clear the execution-state slot — the final-answer completion path
         // previously left ACTIVE RUN stale (WAITING_FOR_MODEL) after the goal
         // was already completed.
@@ -1355,6 +1380,9 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
 
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
             goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalMessageText, message: toolResult } as any });
+            // ARGUS: independent verification fires automatically when the
+            // goal is bound to an immutable contract (builder done → verify).
+            import('../services/argus/argusService.js').then(m => m.onGoalCompleted(goalId).catch((e: any) => console.error(`[ARGUS] hook: ${e?.message}`))).catch(() => {});
           endGoalExec('COMPLETED', toolResult?.slice(0, 500));
             break;
           }
