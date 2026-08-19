@@ -124,6 +124,113 @@ export interface RevenueObservability {
   nextSuggestedActions: Array<{ action: string; engine: string; rationale: string; priority: number }>;
 }
 
+// ── Traceability types (UI drill-down layer — persisted truth only) ────────
+
+export type RevenueKpiKey = 'target' | 'realized' | 'verified' | 'pipeline' | 'cost' | 'net' | 'adSpend';
+
+export interface RevenueMissionTrace {
+  mission: RevenueMission;
+  daysRemaining: number;
+  kpis: {
+    target: { value: number; currency: string; deadline: string; missionState: string; activeExperiments: number; daysRemaining: number };
+    realized: { value: number; entries: number };
+    verified: { value: number; entries: number };
+    pipeline: { value: number; ledgerValue: number; experimentsInPipeline: number };
+    cost: { value: number; entries: number };
+    net: { value: number; formula: string; realized: number; cost: number };
+    adSpend: { value: number; actualSpendField: number; budget: number; hypotheticalSpendExcluded: boolean };
+  };
+  openGates: number;
+  experimentCount: number;
+}
+
+export interface RevenueLedgerBreakdownEntry extends RevenueLedgerEntry {
+  experimentTitle: string | null;
+  experimentEngine: string | null;
+  opportunityId: string | null;
+  channel: string | null;
+  category: string;
+  verificationState?: string;
+  verifiedAt?: string;
+  argusState?: string;
+}
+
+export interface RevenueKpiBreakdown {
+  kpi: RevenueKpiKey;
+  total: number;
+  items?: RevenueLedgerBreakdownEntry[];
+  realizedItems?: RevenueLedgerBreakdownEntry[];
+  costItems?: RevenueLedgerBreakdownEntry[];
+  formula?: string;
+  realized?: number;
+  cost?: number;
+  note?: string;
+  mission?: { id: string; title: string; state: string; deadline: string; startDate: string; daysRemaining: number };
+  activeExperiments?: Array<{ id: string; engine: string; status: string; title: string; nextAction: string | null }>;
+  board?: RevenueBoard;
+}
+
+export interface RevenueBoardCard {
+  id: string;
+  status: string;
+  engine: string;
+  title: string;
+  company: string | null;
+  product: string | null;
+  value: number;
+  verifiedRevenue: number;
+  source: string;
+  nextAction: string | null;
+  humanGate: { id: string; gateType: string; description: string } | null;
+  argusState: string;
+  confidence: number | null;
+  updatedAt: string;
+}
+
+export interface RevenueBoard {
+  engine: 'digital_products' | 'german_sme' | 'pipeline';
+  columns: Array<{ key: string; label: string }>;
+  cards: Record<string, RevenueBoardCard[]>;
+  total: number;
+  placed: number;
+}
+
+export interface RevenueLiveExecutionRow {
+  runId: string;
+  task: string;
+  taskId: string;
+  executor: string;
+  provider: string | null;
+  model: string | null;
+  status: string; // truthful DB status — queued stays queued
+  startedAt: string;
+  elapsedMs: number | null;
+  failureReason: string | null;
+  verification: { verdict: string; verifierProvider: string; verifierModel: string; sameProvider: boolean } | null;
+  argus: { goalId: string; goalStatus: string; verificationState: string } | null;
+  experimentId: string | null;
+  nextAction: string | null;
+}
+
+export interface RevenueGateQueueItem extends RevenueHumanGate {
+  requiredAction: string;
+  blockingBranch: { experimentId: string; title: string; status: string; engine: string } | string;
+}
+
+export interface RevenueExperimentTrace {
+  experiment: RevenueExperiment;
+  mission: RevenueMission | null;
+  nextAction: string | null;
+  argusState: string;
+  events: any[];
+  ledger: RevenueLedgerEntry[];
+  gates: RevenueHumanGate[];
+  compliance: any[];
+  runs: any[];
+  verifications: any[];
+  goalStates: any[];
+}
+
 export const revenueOperatorClient = {
   // Missions
   async listMissions(): Promise<RevenueMission[]> {
@@ -238,6 +345,51 @@ export const revenueOperatorClient = {
   async getObservability(missionId: string): Promise<RevenueObservability> {
     const res = await apiFetch(`/api/revenue-operator/observability/${missionId}`);
     if (!res.ok) throw new Error('Failed to fetch observability');
+    return res.json();
+  },
+
+  // Traceability (drill-down layer — read-only, persisted truth only)
+  async traceMission(missionId: string): Promise<RevenueMissionTrace> {
+    const res = await apiFetch(`/api/revenue-operator/missions/${missionId}/trace`);
+    if (!res.ok) throw new Error('Failed to fetch mission trace');
+    return res.json();
+  },
+
+  async kpiBreakdown(missionId: string, kpi: RevenueKpiKey): Promise<RevenueKpiBreakdown> {
+    const res = await apiFetch(`/api/revenue-operator/missions/${missionId}/kpi/${kpi}`);
+    if (!res.ok) throw new Error('Failed to fetch KPI breakdown');
+    return res.json();
+  },
+
+  async board(missionId: string, engine: 'digital_products' | 'german_sme' | 'pipeline'): Promise<RevenueBoard> {
+    const res = await apiFetch(`/api/revenue-operator/missions/${missionId}/board/${engine}`);
+    if (!res.ok) throw new Error('Failed to fetch board');
+    return res.json();
+  },
+
+  async liveExecution(missionId: string): Promise<{ rows: RevenueLiveExecutionRow[]; note?: string }> {
+    const res = await apiFetch(`/api/revenue-operator/missions/${missionId}/live-execution`);
+    if (!res.ok) throw new Error('Failed to fetch live execution');
+    return res.json();
+  },
+
+  async gateQueue(status?: string): Promise<RevenueGateQueueItem[]> {
+    const url = status ? `/api/revenue-operator/gates/queue?status=${status}` : '/api/revenue-operator/gates/queue';
+    const res = await apiFetch(url);
+    if (!res.ok) throw new Error('Failed to fetch gate queue');
+    const data = await res.json();
+    return data.gates || [];
+  },
+
+  async traceExperiment(experimentId: string): Promise<RevenueExperimentTrace> {
+    const res = await apiFetch(`/api/revenue-operator/experiments/${experimentId}/trace`);
+    if (!res.ok) throw new Error('Failed to fetch experiment trace');
+    return res.json();
+  },
+
+  async traceLedgerEntry(entryId: string): Promise<any> {
+    const res = await apiFetch(`/api/revenue-operator/ledger/${entryId}/trace`);
+    if (!res.ok) throw new Error('Failed to fetch ledger trace');
     return res.json();
   }
 };

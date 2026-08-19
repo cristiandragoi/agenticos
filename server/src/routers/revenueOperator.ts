@@ -13,6 +13,10 @@ import {
   createHumanGate, listHumanGates, resolveHumanGate,
   missionObservability,
 } from '../services/revenueOperator/operatorService.js';
+import {
+  traceMission, kpiBreakdown, engineBoard, liveExecution, gateQueue,
+  traceExperiment, traceLedgerEntry, type KpiKey,
+} from '../services/revenueOperator/traceService.js';
 
 const router = Router();
 
@@ -160,6 +164,40 @@ router.post('/gates/:id/resolve', wrap(async (req, res) => {
 // ── Observability ───────────────────────────────────────────────────────────
 router.get('/observability/:missionId', wrap(async (req, res) => {
   res.json(await missionObservability(req.params.missionId));
+}));
+
+// ── Traceability (UI drill-down layer — read-only, persisted truth only) ───
+router.get('/missions/:id/trace', wrap(async (req, res) => {
+  res.json(await traceMission(req.params.id));
+}));
+
+router.get('/missions/:id/kpi/:kpi', wrap(async (req, res) => {
+  res.json(await kpiBreakdown(req.params.id, req.params.kpi as KpiKey));
+}));
+
+router.get('/missions/:id/board/:engine', wrap(async (req, res) => {
+  const engine = req.params.engine as 'digital_products' | 'german_sme' | 'pipeline';
+  if (!['digital_products', 'german_sme', 'pipeline'].includes(engine)) {
+    return res.status(400).json({ error: 'engine must be digital_products | german_sme | pipeline.' });
+  }
+  res.json(await engineBoard(req.params.id, engine));
+}));
+
+router.get('/missions/:id/live-execution', wrap(async (req, res) => {
+  res.json(await liveExecution(req.params.id));
+}));
+
+router.get('/gates/queue', wrap(async (req, res) => {
+  const status = (req.query.status as string) || undefined;
+  res.json({ gates: await gateQueue(status) });
+}));
+
+router.get('/experiments/:id/trace', wrap(async (req, res) => {
+  res.json(await traceExperiment(req.params.id));
+}));
+
+router.get('/ledger/:id/trace', wrap(async (req, res) => {
+  res.json(await traceLedgerEntry(req.params.id));
 }));
 
 export default router;
