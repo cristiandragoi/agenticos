@@ -80,7 +80,7 @@ export async function discoverProducts(
 
   // Parse ideas from the result defensively; fall back to a single summary idea.
   const experiments: any[] = [];
-  const rawIdeas = extractIdeas(dispatch.summary);
+  const rawIdeas = extractIdeas(dispatch.summary, dispatch.structuredOutput);
   const ideas = rawIdeas.length > 0 ? rawIdeas : [{ title: dispatch.summary || 'Digital product opportunity', problem: '', customer: '', price: null, channel: 'SHOPIFY', note: 'From discovery research' }];
 
   for (const idea of ideas.slice(0, count)) {
@@ -112,7 +112,26 @@ export async function discoverProducts(
 }
 
 /** Defensive parse of idea list from a free-text/structured summary. */
-export function extractIdeas(summary: string | null): Array<{ title: string; problem?: string | null; customer?: string | null; price?: number | null; channel?: string | null; note?: string | null }> {
+export function extractIdeas(summary: string | null, structuredOutput?: Record<string, unknown> | null): Array<{ title: string; problem?: string | null; customer?: string | null; price?: number | null; channel?: string | null; note?: string | null }> {
+  // PRIMARY SOURCE: canonical structured findings [{ claim, evidence[] }].
+  const findings = (structuredOutput?.findings ?? structuredOutput?.results ?? null) as Array<Record<string, unknown>> | null;
+  if (Array.isArray(findings) && findings.length > 0) {
+    return findings.slice(0, 12).map((f) => {
+      const claim = String(f.claim || f.title || f.idea || '').slice(0, 160);
+      const evidence = Array.isArray(f.evidence) ? (f.evidence as unknown[]).map((e) => String(typeof e === 'string' ? e : JSON.stringify(e))) : [];
+      const chunk = [claim, ...evidence].join(' ');
+      const priceMatch = chunk.match(/€\s*(\d+(?:[.,]\d+)?)/);
+      const channelMatch = chunk.match(/\b(SHOPIFY|ETSY|GUMROAD|INSTAGRAM|TIKTOK|SEO|EMAIL|GOOGLE|MARKETPLACE|DIRECT_OUTREACH)\b/i);
+      return {
+        title: claim || 'Untitled product',
+        problem: evidence.join(' ').slice(0, 600) || null,
+        customer: typeof f.customer === 'string' ? f.customer : null,
+        price: priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : null,
+        channel: channelMatch ? channelMatch[1].toUpperCase() : null,
+        note: chunk.slice(0, 900),
+      };
+    });
+  }
   if (!summary) return [];
   // Try to parse a JSON array/object if the summary is JSON.
   const candidates = [summary];

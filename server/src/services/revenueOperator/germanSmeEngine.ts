@@ -78,7 +78,7 @@ export async function discoverCompanies(
     acceptanceCriteria: 'Return a structured list of German SMEs with public business info and automation pain points.',
   });
 
-  const ideas = extractCompanies(dispatch.summary);
+  const ideas = extractCompanies(dispatch.summary, dispatch.structuredOutput);
   const experiments: any[] = [];
   for (const idea of (ideas.length > 0 ? ideas : [{ name: dispatch.summary || 'German SME opportunity' }]).slice(0, count)) {
     const exp = await createExperiment({
@@ -111,7 +111,24 @@ async function linkRun(experimentId: string, runId: string) {
 }
 
 /** Defensive parse of company list from a free-text/structured summary. */
-export function extractCompanies(summary: string | null): Array<{ name: string; website?: string | null; problem?: string | null; note?: string | null; offer?: string | null }> {
+export function extractCompanies(summary: string | null, structuredOutput?: Record<string, unknown> | null): Array<{ name: string; website?: string | null; problem?: string | null; note?: string | null; offer?: string | null }> {
+  // PRIMARY SOURCE: canonical structured findings [{ claim, evidence[] }].
+  const findings = (structuredOutput?.findings ?? structuredOutput?.results ?? null) as Array<Record<string, unknown>> | null;
+  if (Array.isArray(findings) && findings.length > 0) {
+    return findings.slice(0, 12).map((f) => {
+      const claim = String(f.claim || f.name || f.company || '').slice(0, 160);
+      const evidence = Array.isArray(f.evidence) ? (f.evidence as unknown[]).map((e) => String(typeof e === 'string' ? e : JSON.stringify(e))) : [];
+      const chunk = [claim, ...evidence].join(' ');
+      const urlMatch = chunk.match(/https?:\/\/[^\s,)]+|www\.[^\s,)]+/);
+      return {
+        name: claim || 'Untitled company',
+        website: urlMatch ? urlMatch[0] : null,
+        problem: evidence.join(' ').slice(0, 600) || null,
+        note: chunk.slice(0, 900),
+        offer: typeof f.offer === 'string' ? f.offer : null,
+      };
+    });
+  }
   if (!summary) return [];
   const candidates = [summary];
   const fenced = summary.match(/```(?:json)?\s*\n([\s\S]*?)```/);

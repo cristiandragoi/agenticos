@@ -43,6 +43,7 @@ export interface CanonicalDispatchOutcome {
   resultId: string | null;
   verdict: string | null;
   summary: string | null;
+  structuredOutput?: Record<string, unknown> | null;
   error: string | null;
 }
 
@@ -164,6 +165,7 @@ export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Prom
     resultId: finalResult?.id ?? null,
     verdict,
     summary: finalResult?.summary ?? terminalRun.failureReason ?? null,
+    structuredOutput: (finalResult?.structuredOutput as Record<string, unknown> | null) ?? null,
     error: ok ? null : (terminalRun.failureReason || `Worker ended ${terminalRun.status}`),
   };
 }

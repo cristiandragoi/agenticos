@@ -31,6 +31,22 @@ afterAll(() => {
 });
 
 describe('extractIdeas (digital products)', () => {
+  it('parses canonical structured findings (the real Hermes output shape)', () => {
+    const so = {
+      type: 'research',
+      summary: 'Identified 2 opportunities.',
+      findings: [
+        { claim: 'A VAT compliance spreadsheet for small sellers is viable.', evidence: ['EU OSS scheme is complex', 'Shopify sellers need it, price €29'] },
+        { claim: 'A GDPR checklist pack for freelancers.', evidence: ['DSGVO audits are costly'] },
+      ],
+    };
+    const ideas = dp.extractIdeas('Identified 2 opportunities.', so);
+    expect(ideas).toHaveLength(2);
+    expect(ideas[0].title).toContain('VAT compliance');
+    expect(ideas[0].problem).toContain('OSS');
+    expect(ideas[0].price).toBe(29);
+  });
+
   it('parses strict JSON arrays', () => {
     const ideas = dp.extractIdeas(JSON.stringify([
       { title: 'VAT toolkit', problem: 'VAT pain', price: 29, channel: 'SHOPIFY' },
@@ -77,6 +93,15 @@ For small publishers. €15.`;
 });
 
 describe('extractCompanies (german SME)', () => {
+  it('parses canonical structured findings with website in evidence', () => {
+    const so = { findings: [{ claim: 'Bäckerei Sonnenkorn GmbH', evidence: ['www.sonnenkorn.de — manual phone order intake every morning'] }] };
+    const cs = sme.extractCompanies('summary', so);
+    expect(cs).toHaveLength(1);
+    expect(cs[0].name).toBe('Bäckerei Sonnenkorn GmbH');
+    expect(cs[0].website).toContain('sonnenkorn');
+    expect(cs[0].problem).toContain('order intake');
+  });
+
   it('parses JSON objects', () => {
     const cs = sme.extractCompanies(JSON.stringify({ companies: [{ name: 'Muster GmbH', website: 'https://muster.de', problem: 'manual invoicing' }] }));
     expect(cs).toHaveLength(1);
