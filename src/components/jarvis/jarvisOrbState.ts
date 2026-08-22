@@ -97,7 +97,7 @@ export function deriveJarvisOrbState(inputs: JarvisOrbStateInputs): JarvisVisual
     case 'thinking':
     case 'planning':
     case 'understanding':
-    case 'streaming':   return 'thinking';    // revert to 'thinking' to satisfy historic tests
+    case 'streaming':   return 'reasoning';    // cyan/white — model reasoning
   }
 
   // Catch-all for any other active states: use reasoning (cyan/white) per spec
