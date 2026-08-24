@@ -15,7 +15,7 @@ import { backgroundTaskRepo } from './store.js';
 import { taskShortId, TERMINAL_STATUSES, type BackgroundTaskRecord } from './types.js';
 import { getWorkspaceRoot } from '../workspaceStore.js';
 import { hermesApiService, type HermesRunRecord, type HermesActivityEvent } from '../hermesApiService.js';
-import { codexService } from '../../domains/codex/service.js';
+import { codexService, isReadOnlyCodexTask } from '../../domains/codex/service.js';
 import { goalStore } from '../goalStore.js';
 import { resumeCodexGoalLoop } from '../../loops/codexLoop.js';
 import { coordinatorService } from '../../domains/teams/coordinatorService.js';
@@ -51,6 +51,24 @@ function hermesEventToTaskEvent(taskId: string, evt: HermesActivityEvent, record
   const mgr = backgroundTaskManager;
   const task = backgroundTaskRepo.getTask(taskId);
   if (!task || TERMINAL_STATUSES.has(task.status)) return; // stale protection (Test F)
+
+  // Notify Jarvis Conversational Supervisor
+  import('../../domains/jarvis/executionSupervisor.js').then(({ jarvisExecutionSupervisor }) => {
+    if (evt.kind === 'run.started') {
+      jarvisExecutionSupervisor.recordActivity(taskId, 'task_started');
+    } else if (evt.kind === 'tool.started') {
+      jarvisExecutionSupervisor.recordActivity(taskId, 'tool_started', { toolName: evt.detail?.tool as string | undefined });
+    } else if (evt.kind === 'tool.completed') {
+      jarvisExecutionSupervisor.recordActivity(taskId, 'tool_completed', { summary: evt.summary });
+    } else if (evt.kind === 'tool.failed') {
+      jarvisExecutionSupervisor.recordActivity(taskId, 'tool_failed', { failureReason: evt.summary });
+    } else if (evt.kind === 'file.changed') {
+      const files = Array.isArray(evt.detail?.files) ? (evt.detail.files as string[]) : [];
+      jarvisExecutionSupervisor.recordActivity(taskId, 'applying_changes', { files });
+    } else if (evt.kind === 'approval.request') {
+      jarvisExecutionSupervisor.recordActivity(taskId, 'approval_required', { summary: record.pendingApproval?.reason });
+    }
+  }).catch(() => {});
 
   switch (evt.kind) {
     case 'run.started':
@@ -88,6 +106,83 @@ function hermesEventToTaskEvent(taskId: string, evt: HermesActivityEvent, record
     default:
       mgr.appendEvent(taskId, 'task.progress', evt.summary || evt.kind);
   }
+}
+
+async function executeInRepoHermesPlan(
+  task: BackgroundTaskRecord,
+  mgr: typeof backgroundTaskManager,
+  reason: string
+): Promise<{ ok: boolean }> {
+  const { projectTaskService } = await import('../../services/projectExecution/projectTaskService.js');
+  const { executionRunService } = await import('../../services/projectExecution/executionRunService.js');
+  const { executeHermesTask } = await import('../../domains/workerAdapters/hermesAdapter.js');
+  const objective = task.objective || task.originalRequest;
+  const projectId = task.projectId ?? ('bg-' + task.taskId);
+  const goal = projectTaskService.createGoal({ projectId, title: `Hermes plan: ${task.title.slice(0, 60)}`, objective });
+  const projectTask = projectTaskService.createTask({
+    projectId,
+    goalId: goal.id,
+    title: task.title,
+    description: objective,
+    taskType: 'engineering',
+    assignedCapability: 'hermes',
+    acceptanceCriteria: 'Produce structured plan and findings.',
+  });
+  const opId = (task.metadata as any)?.operationId || task.taskId;
+  const executionState = await import('../executionState.js');
+  const { resolveHermesModelTruth } = await import('../hermesApiService.js');
+  const modelTruth = resolveHermesModelTruth();
+  const fromProvider = modelTruth.provider || 'ollama-cloud';
+  const fromModel = modelTruth.model || 'gpt-oss:20b';
+
+  mgr.appendEvent(
+    task.taskId,
+    'task.progress',
+    `Provider fallback: Hermes API Server (${fromProvider} / ${fromModel}) → in-repo Hermes engine. Reason: ${reason}`,
+    {
+      fallback: {
+        fromProvider,
+        fromModel,
+        reason,
+      },
+    }
+  );
+
+  executionState.update(opId, {
+    fallbackUsed: true,
+    fallbackReason: reason,
+    currentAction: `In-repo Hermes fallback (${reason})`,
+    lastActivityAt: Date.now(),
+  });
+
+  const inRepoResult = await executeHermesTask(projectTask, {
+    prompt: objective,
+    conversationId: task.conversationId || undefined,
+    projectId,
+    goalId: goal.id,
+  });
+  backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: inRepoResult.run.id });
+  mgr.appendEvent(task.taskId, 'task.run_linked', `Hermes plan run linked (${inRepoResult.run.id}).`, { planRunId: inRepoResult.run.id });
+
+  let completed = executionRunService.getRun(inRepoResult.run.id);
+  const start = Date.now();
+  while (completed && (completed.status === 'running' || completed.status === 'queued') && Date.now() - start < 120000) {
+    await new Promise((r) => setTimeout(r, 1000));
+    completed = executionRunService.getRun(inRepoResult.run.id);
+  }
+  const result = completed?.finalResultId ? executionRunService.getResult(completed.finalResultId) : null;
+  const struct = result?.structuredOutput as any;
+  let planSummary = result?.summary || struct?.summary || struct?.plan || 'Hermes plan generated successfully.';
+  if (struct && Array.isArray(struct.recommendations) && struct.recommendations.length > 0) {
+    const recsFormatted = struct.recommendations.map((r: string, i: number) => `Opportunity ${i + 1}:\n${r}`).join('\n\n');
+    planSummary = `${struct.summary || planSummary}\n\n### Ranked Recommendations:\n${recsFormatted}${struct.nextActions?.length ? `\n\n### First Action:\n- ${struct.nextActions[0]}` : ''}`;
+  }
+  mgr.verifyCompletion(task.taskId, {
+    resultText: planSummary,
+    readOnly: true,
+    verificationNote: `Hermes in-repo planning completed (${reason}).`,
+  });
+  return { ok: true };
 }
 
 export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRoot?: string): Promise<{ ok: boolean; error?: string }> {
@@ -134,26 +229,65 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
     const workspaceInstruction = root
       ? `Workspace context: the selected repository is ${root}. Resolve ALL file paths against ${root} — never against your own working directory. Report the workspace (Repository: ${root}) in your answer.`
       : 'Workspace context: no repository is currently selected; report file operations as unavailable until one is selected.';
-    const record = await hermesApiService.createRun({
-      prompt: task.objective || task.originalRequest,
-      cardId: task.linkedBoardCardId || undefined,
-      instructions: `Report your findings concisely. Do not ask questions.\n${workspaceInstruction}`,
-      // Recovery pinning (P4/P6): pass the recovery-effective provider/model
-      // when present (revalidated against policy below — Hermes dispatch is
-      // already refused outright when mayLeaveMachine is false).
-      ...(() => {
-        const pin = resolveRecoveryPin(task, { allowEscalation: mayLeaveMachine(policy), disableFallback: !mayLeaveMachine(policy) });
-        if ('blockedReason' in pin) return {};
-        return {
-          ...(pin.providerOverride ? { provider: pin.providerOverride } : {}),
-          ...(pin.modelOverride ? { model: pin.modelOverride } : {}),
-        };
-      })(),
+    let record: HermesRunRecord | null = null;
+    try {
+      record = await hermesApiService.createRun({
+        prompt: task.objective || task.originalRequest,
+        cardId: task.linkedBoardCardId || undefined,
+        instructions: `Report your findings concisely. When evaluating opportunities or plans, provide for each option: Expected Effort, Time-to-Revenue, Dependencies, and First Concrete Action. Do not ask questions.\n${workspaceInstruction}`,
+        // Recovery pinning (P4/P6): pass the recovery-effective provider/model
+        // when present (revalidated against policy below — Hermes dispatch is
+        // already refused outright when mayLeaveMachine is false).
+        ...(() => {
+          const pin = resolveRecoveryPin(task, { allowEscalation: mayLeaveMachine(policy), disableFallback: !mayLeaveMachine(policy) });
+          if ('blockedReason' in pin) return {};
+          return {
+            ...(pin.providerOverride ? { provider: pin.providerOverride } : {}),
+            ...(pin.modelOverride ? { model: pin.modelOverride } : {}),
+          };
+        })(),
+      });
+    } catch (createErr: any) {
+      logger.warn(`[HermesDispatch] External Hermes API server unavailable (${createErr?.message}), falling back to in-repo Hermes engine.`);
+    }
+
+    if (!record) {
+      return await executeInRepoHermesPlan(task, mgr, 'in-repo fallback');
+    }
+
+    const { resolveHermesModelTruth } = await import('../hermesApiService.js');
+    const modelTruth = resolveHermesModelTruth();
+    const resolvedProvider = record.provider || modelTruth.provider || 'ollama-cloud';
+    const resolvedModel = (record.model && record.model !== 'backend-engineer') ? record.model : (modelTruth.model || 'gpt-oss:20b');
+
+    const opId = (task.metadata as any)?.operationId || task.taskId;
+    const executionState = await import('../executionState.js');
+    executionState.update(opId, {
+      worker: 'hermes',
+      status: 'RUNNING',
+      requestedProvider: resolvedProvider,
+      requestedModel: resolvedModel,
+      resolvedProvider: resolvedProvider,
+      resolvedModel: resolvedModel,
+      fallbackUsed: false,
+      fallbackReason: null,
+      currentAction: 'Hermes agent started',
+      lastActivityAt: Date.now(),
     });
 
-    backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: record.id });
+    backgroundTaskRepo.updateTask(task.taskId, {
+      linkedRunId: record.id,
+      metadata: {
+        ...(task.metadata || {}),
+        assignedProvider: resolvedProvider,
+        assignedModel: resolvedModel,
+        effectiveProvider: resolvedProvider,
+        effectiveModel: resolvedModel,
+        fallbackUsed: false,
+      },
+    });
     mgr.appendEvent(task.taskId, 'task.run_linked', `Hermes run linked (${record.id}).`, { hermesRunId: record.hermesRunId });
-    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Hermes (live API server).', { agent: 'Hermes' });
+    mgr.appendEvent(task.taskId, 'task.agent_selected', `Worker: Hermes (live API server — ${resolvedProvider} / ${resolvedModel}).`, { agent: 'Hermes', provider: resolvedProvider, model: resolvedModel });
 
     // Stream upstream events into the task contract.
     const onEvent = (evt: HermesActivityEvent, rec: HermesRunRecord) => {
@@ -191,6 +325,25 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
           } catch { /* truth snapshot is best-effort */ }
           const { runTaskGates, parseGateConfigs } = await import('../gates/gateRunner.js');
           const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;
+
+          const rawText = (rec.finalText || '').trim();
+          const isWorkerError = /^(no matching files|error|path.*is not a valid directory|file not found|no files matched|critical protocol violation|unauthorized modification)/i.test(rawText) || /^\s*error\b/i.test(rawText);
+          const isStrategicRequest = /\b(revenue|opportunity|opportunities|business plan|strategy|recommendation)\b/i.test(task.objective || task.originalRequest);
+          const lacksDeliverables = isStrategicRequest && (
+            !rawText.toLowerCase().includes('time-to-revenue') ||
+            !rawText.toLowerCase().includes('effort') ||
+            !(/\b(?:1\.|opportunity 1|rank 1|#1|first action)\b/i.test(rawText))
+          );
+          if (isWorkerError || lacksDeliverables) {
+            logger.warn(`[HermesDispatch] Upstream Hermes result incomplete or contained error ("${rawText.slice(0, 100)}"), recovering with in-repo Hermes engine.`);
+            try {
+              await executeInRepoHermesPlan(task, mgr, 'recovered');
+              return;
+            } catch (fallbackErr: any) {
+              logger.warn(`[HermesDispatch] In-repo recovery fallback failed: ${fallbackErr?.message}`);
+            }
+          }
+
           if (!hasRequired) {
             mgr.verifyCompletion(task.taskId, {
               resultText: rec.finalText || 'Hermes completed without a text result.',
@@ -225,11 +378,7 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
           }
         })();
       } else if (rec.status === 'failed') {
-        // LocalHarness (P2): Hermes execution failures route through the same
-        // recovery entry point as CodeX. recoverAfterFailure decides within
-        // budget/privacy bounds — retry/escalate → re-queued, otherwise →
-        // blocked with a truthful reason. Never completes on failure.
-        void mgr.recoverAfterFailure(task.taskId, rec.errorMessage || rec.finalText || 'Hermes run failed.');
+        void mgr.recoverAfterFailure(task.taskId, rec.errorMessage || 'Hermes run failed.');
       } else if (rec.status === 'cancelled') {
         mgr.transition(task.taskId, 'cancelled', {
           lastError: rec.errorMessage || rec.finalText || 'Hermes run cancelled.',
@@ -317,7 +466,7 @@ export function resolveRecoveryPin(
   };
 }
 
-function goalStateToTaskStatus(state: string): BackgroundTaskRecord['status'] | null {
+export function goalStateToTaskStatus(state: string): BackgroundTaskRecord['status'] | null {
   switch (state) {
     case 'queued': return 'queued';
     case 'planning': return 'planning';
@@ -328,6 +477,303 @@ function goalStateToTaskStatus(state: string): BackgroundTaskRecord['status'] | 
     case 'failed': return 'failed';
     case 'stopped': case 'interrupted': return 'cancelled';
     default: return null;
+  }
+}
+
+/** Extract the truthful result text from a CodeX goal's run summary. */
+function codexGoalResultText(goal: any): string {
+  return (goal?.runSummary as any)?.finalAnswer
+    || (goal?.runSummary as any)?.summary
+    || (goal?.runSummary as any)?.message
+    || 'CodeX goal completed.';
+}
+
+/**
+ * Conservative failure VERDICT from the goal's own final answer. A bare
+ * "- FAIL: <test case>" listing is not a verdict; only clear headline verdict
+ * phrasing counts, so a mixed PASS/FAIL report is classified by its headline
+ * ("the result is FAIL", "N of M tests failed", "tests failed"). A dominant
+ * pass verdict ("all tests passed") overrides.
+ */
+export function codexGoalReportedFailure(goal: any): boolean {
+  const text = String(codexGoalResultText(goal) || '');
+  if (!text.trim()) return false;
+  const failureVerdict =
+    /\b(?:result(?:s)?\s+(?:is|are|was|were)\s*:?\s*(?:FAIL|FAILED)|tests?\s+fail(?:ed)?|build\s+fail(?:ed)?|\d+\s+of\s+\d+\s+tests?\s+fail(?:ed)?|all\s+\d+\s+tests?\s+fail(?:ed)?|✗|❌)\b/i;
+  const passVerdict =
+    /\b(?:all\s+(?:\d+\s+)?tests?\s+pass(?:ed)?|tests?\s+pass(?:ed)?|result(?:s)?\s+(?:is|are|was|were)\s*:?\s*PASS(?:ED)?)\b/i;
+  return failureVerdict.test(text) && !passVerdict.test(text);
+}
+
+/**
+ * Complete a background task whose CodeX goal reached terminal 'completed'.
+ * Two correctness guarantees:
+ *   1. A stale task-level 'pending' approval is cleared first. CodeX goals are
+ *      approved at the GOAL level (codexService.approveAndResume) which never
+ *      clears the task's approvalState — left 'pending', verifyCompletion
+ *      refuses to complete and strands the task in 'review' forever.
+ *   2. A goal whose own answer reports a failed test/build is marked FAILED
+ *      (terminal, truthful) — never left stuck in 'review'.
+ */
+/**
+ * A CodeX goal that reached TERMINAL 'completed' must leave its parent task
+ * in a terminal state too. verifyCompletion can (legitimately) refuse and
+ * move the task to the NON-terminal 'review' state (e.g. an approval still
+ * pending, an empty result). Because the goal is already terminal, no further
+ * goal:updated events will fire to retry it — 'review' would strand the task
+ * forever. Force a truthful terminal failure instead.
+ */
+function ensureCodexTerminal(taskId: string, resultText: string): void {
+  const after = backgroundTaskRepo.getTask(taskId);
+  if (!after || TERMINAL_STATUSES.has(after.status)) return;
+  backgroundTaskManager.transition(taskId, 'failed', {
+    resultText,
+    verificationState: 'failed',
+    blocker: `CodeX goal completed but the task could not finalize (${after.blocker || 'verification did not pass'}).`,
+  });
+}
+
+export function finalizeCodexGoalCompletion(taskId: string, goal: any, verificationNote: string): void {
+  const current = backgroundTaskRepo.getTask(taskId);
+  if (!current || TERMINAL_STATUSES.has(current.status)) return;
+  if (current.approvalState === 'pending') {
+    backgroundTaskRepo.updateTask(taskId, { approvalState: 'allowed' });
+  }
+  const resultText = codexGoalResultText(goal);
+  if (codexGoalReportedFailure(goal)) {
+    backgroundTaskManager.transition(taskId, 'failed', {
+      resultText,
+      verificationState: 'failed',
+      testState: 'failed',
+      blocker: 'CodeX goal completed but its reported test/build failed.',
+    });
+    backgroundTaskManager.appendEvent(taskId, 'task.progress', 'CodeX reported a failing test/build — task failed truthfully.', {});
+    return;
+  }
+  backgroundTaskManager.verifyCompletion(taskId, {
+    resultText,
+    readOnly: false,
+    verificationNote,
+  });
+  // Guarantee a terminal task state — a terminal goal must never strand the
+  // parent task in the non-terminal 'review' state.
+  ensureCodexTerminal(taskId, resultText);
+}
+
+/**
+ * Attach the real-time goal→task status bridge for a CodeX task.
+ *
+ * This is the SINGLE callback that maps a CodeX goal's lifecycle onto the
+ * parent background task. It is registered at dispatch AND re-registered after
+ * a backend restart (see reconcileCodexTasksAfterRestart), so a task whose
+ * goal completes after a restart is never left stuck at 'running'.
+ */
+export function attachCodexGoalListener(taskId: string, goalId: string, resumeFromSeq = 0): void {
+  let lastSeq = resumeFromSeq;
+  const goalListener = (goal: any) => {
+    if (goal.id !== goalId) return;
+    const current = backgroundTaskRepo.getTask(taskId);
+    if (!current || TERMINAL_STATUSES.has(current.status)) return; // stale protection
+    const mapped = goalStateToTaskStatus(goal.status);
+    if (!mapped) return;
+    if (mapped === 'completed') {
+      // GateRunner v1 (P9): execution finished → VERIFYING → required gates
+      // → only then completion. The goal's summary is NOT sufficient.
+      // Clear a stale task-level 'pending' approval first: CodeX goals are
+      // approved at the GOAL level (codexService.approveAndResume), which
+      // never clears the task's approvalState — left 'pending', the
+      // verifyCompletion below refuses to complete and strands the task in
+      // 'review' forever.
+      if (current.approvalState === 'pending') {
+        backgroundTaskRepo.updateTask(taskId, { approvalState: 'allowed' });
+      }
+      const resultText = codexGoalResultText(goal);
+      // Truthful terminal outcome: a goal whose own answer reports a failing
+      // test/build FAILS the task (terminal) — never 'review'.
+      if (codexGoalReportedFailure(goal)) {
+        backgroundTaskManager.transition(taskId, 'failed', {
+          resultText,
+          verificationState: 'failed',
+          testState: 'failed',
+          blocker: 'CodeX goal completed but its reported test/build failed.',
+        });
+        backgroundTaskManager.appendEvent(taskId, 'task.progress', 'CodeX reported a failing test/build — task failed truthfully.', {});
+        return;
+      }
+      void (async () => {
+        // Model truth snapshot (smallest fix): persist the routingLedger
+        // requested/resolved provider+model into the task record so
+        // RunLedger reports the truth even after restarts (routingLedger
+        // itself is in-memory only).
+        try {
+          const { routingLedger } = await import('../routingLedger.js');
+          const rec = routingLedger.get(goalId);
+          if (rec) {
+            const live = backgroundTaskRepo.getTask(taskId);
+            if (live && !TERMINAL_STATUSES.has(live.status)) {
+              backgroundTaskRepo.updateTask(taskId, {
+                metadata: {
+                  ...(live.metadata || {}),
+                  assignedProvider: (live.metadata as any)?.assignedProvider || rec.requestedProvider || null,
+                  assignedModel: (live.metadata as any)?.assignedModel || rec.requestedModel || null,
+                  effectiveProvider: (live.metadata as any)?.effectiveProvider || rec.resolvedProvider || null,
+                  effectiveModel: (live.metadata as any)?.effectiveModel || rec.resolvedModel || null,
+                },
+              });
+            }
+          }
+        } catch { /* truth snapshot is best-effort */ }
+        const { runTaskGates, parseGateConfigs } = await import('../gates/gateRunner.js');
+        const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(taskId)).hasRequired;
+        if (!hasRequired) {
+          backgroundTaskManager.verifyCompletion(taskId, {
+            resultText,
+            readOnly: false,
+            verificationNote: 'CodeX goal completed.',
+          });
+          ensureCodexTerminal(taskId, resultText);
+          return;
+        }
+        backgroundTaskManager.appendEvent(taskId, 'task.verification_started', 'Execution finished — running required gates.', {});
+        try {
+          const set = await runTaskGates(taskId);
+          if (set.allRequiredPassed) {
+            const gateSummary = set.results.filter((r) => r.status === 'passed').map((r) => r.gateId).join(', ');
+            backgroundTaskManager.verifyCompletion(taskId, {
+              resultText,
+              readOnly: false,
+              verificationNote: `Completed and verified: ${gateSummary || 'gates passed'}.`,
+            });
+            ensureCodexTerminal(taskId, resultText);
+          } else {
+            backgroundTaskManager.appendEvent(taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', {
+              allRequiredPassed: false,
+            });
+            const failedGate = set.results.filter((r) => r.status === 'failed')[0];
+            void backgroundTaskManager.recoverAfterFailure(taskId, { code: 'GATE_FAILURE', message: `Gate failed: ${failedGate?.gateId ?? 'required-gate'}` }, {
+              gateEvidence: failedGate
+                ? { gateId: failedGate.gateId, reason: failedGate.reason || 'required gate failed', attempt: failedGate.attempt ?? 1 }
+                : undefined,
+            });
+          }
+        } catch (e: any) {
+          backgroundTaskManager.transition(taskId, 'blocked', {
+            verificationState: 'failed',
+            blocker: `Verification error: ${e?.message}`,
+            resumable: true,
+          });
+        }
+      })();
+      return;
+    }
+    if (mapped === 'failed') {
+      // LocalHarness (RecoveryPolicy V1): intercept execution failure
+      // BEFORE the terminal transition. recoverAfterFailure decides within
+      // budget/privacy bounds — retry/escalate → re-queued, otherwise →
+      // blocked with a truthful reason. Never completes on failure.
+      const err = goal.lastError || goal.error || goal.runSummary?.error || 'CodeX goal failed';
+      void backgroundTaskManager.recoverAfterFailure(taskId, err);
+      return;
+    }
+    if (mapped !== current.status) {
+      backgroundTaskManager.transition(taskId, mapped, {
+        currentStage: goal.status,
+        approvalState: goal.status === 'waiting_for_approval' ? 'pending' : (current.approvalState === 'pending' ? 'allowed' : current.approvalState),
+      });
+
+      import('../../domains/jarvis/executionSupervisor.js').then(({ jarvisExecutionSupervisor }) => {
+        if (goal.status === 'planning') {
+          jarvisExecutionSupervisor.recordActivity(taskId, 'planning');
+        } else if (goal.status === 'executing') {
+          jarvisExecutionSupervisor.recordActivity(taskId, 'task_started');
+        } else if (goal.status === 'waiting_for_approval') {
+          jarvisExecutionSupervisor.recordActivity(taskId, 'approval_required', { summary: goal.pendingApproval?.reason });
+        }
+      }).catch(() => {});
+    }
+    // Forward new goal events as progress.
+    const events = goalStore.getEventsAfter(goalId, lastSeq);
+    for (const ge of events) {
+      lastSeq = ge.sequence;
+      if (ge.tool) {
+        backgroundTaskManager.appendEvent(taskId, 'task.progress', ge.message || `${ge.tool} (${ge.state})`, { step: ge.step });
+
+        if (ge.tool === 'writeFile' || ge.tool === 'write_file') {
+          const writtenFile = ge.filePath || (ge.payload as any)?.path;
+          if (writtenFile) {
+            const current = backgroundTaskRepo.getTask(taskId);
+            if (current) {
+              const merged = [...new Set([...(current.filesChanged || []), String(writtenFile)])];
+              backgroundTaskRepo.updateTask(taskId, { filesChanged: merged });
+            }
+          }
+        }
+
+        import('../../domains/jarvis/executionSupervisor.js').then(({ jarvisExecutionSupervisor }) => {
+          const toolName = ge.tool || '';
+          if (/grep|find|search|glob|read/i.test(toolName)) {
+            jarvisExecutionSupervisor.recordActivity(taskId, 'inspecting_files', { toolName });
+          } else if (/edit|write|replace|patch/i.test(toolName)) {
+            jarvisExecutionSupervisor.recordActivity(taskId, 'applying_changes', { toolName });
+          } else if (/test|vitest|jest|pytest|build|check/i.test(toolName)) {
+            jarvisExecutionSupervisor.recordActivity(taskId, 'running_tests', { toolName });
+          } else {
+            jarvisExecutionSupervisor.recordActivity(taskId, 'tool_started', { toolName });
+          }
+        }).catch(() => {});
+      }
+    }
+  };
+  goalStore.on('goal:updated', goalListener);
+}
+
+/**
+ * Restart-safe reconciliation for CodeX tasks.
+ *
+ * The goal→task bridge is an in-memory EventEmitter listener. When the backend
+ * restarts, that listener is gone, so a goal that completes (e.g. after an
+ * approval is resolved) would leave its parent task stuck at 'running'. This
+ * reconciles from PERSISTED records only, and every transition is idempotent
+ * (TERMINAL_STATUSES guards + verifyCompletion's own re-entry check):
+ *   - terminal goal → terminal task (completed/failed/cancelled)
+ *   - non-terminal goal → re-attach the bridge + fix any drifted status
+ *   - missing goal → explicit 'blocked' (never fabricate success)
+ */
+export function reconcileCodexTasksAfterRestart(): void {
+  const active = backgroundTaskRepo.listTasks({ activeOnly: true });
+  for (const task of active) {
+    const goalId = (task.worker === 'codex' ? task.linkedRunId : (task.metadata as any)?.codexGoalId) || (task.linkedRunId?.startsWith('goal-') ? task.linkedRunId : null);
+    if (!goalId) continue;
+    const goal = goalStore.get(goalId);
+    if (!goal) {
+      if (!TERMINAL_STATUSES.has(task.status)) {
+        backgroundTaskManager.transition(task.taskId, 'blocked', {
+          blocker: 'Linked CodeX goal is missing after restart — cannot reconcile task state.',
+        });
+      }
+      continue;
+    }
+    const mapped = goalStateToTaskStatus(goal.status);
+    if (!mapped) continue;
+    if (TERMINAL_STATUSES.has(mapped)) {
+      if (mapped === 'completed') {
+        finalizeCodexGoalCompletion(task.taskId, goal, 'CodeX goal completed (reconciled after restart).');
+      } else if (mapped === 'failed') {
+        void backgroundTaskManager.recoverAfterFailure(task.taskId, (goal as any).lastError || 'CodeX goal failed');
+      } else {
+        backgroundTaskManager.transition(task.taskId, mapped, { currentStage: goal.status });
+      }
+    } else {
+      // Non-terminal: re-attach the bridge (resume event forwarding from the
+      // current end of the goal's persisted history) and fix drifted status.
+      attachCodexGoalListener(task.taskId, goal.id, (goal.history || []).length);
+      if (mapped !== task.status) {
+        backgroundTaskManager.transition(task.taskId, mapped, {
+          currentStage: goal.status,
+          approvalState: goal.status === 'waiting_for_approval' ? 'pending' : (task.approvalState === 'pending' ? 'allowed' : task.approvalState),
+        });
+      }
+    }
   }
 }
 
@@ -392,110 +838,9 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
     mgr.appendEvent(task.taskId, 'task.run_linked', `CodeX goal linked (${goalId}).`, { goalId });
     mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: CodeX (checkpointed goal loop).', { agent: 'CodeX' });
 
-    // Stream goalStore events into the task contract.
-    let lastSeq = 0;
-    const goalListener = (goal: any) => {
-      if (goal.id !== goalId) return;
-      const current = backgroundTaskRepo.getTask(task.taskId);
-      if (!current || TERMINAL_STATUSES.has(current.status)) return; // stale protection
-      const mapped = goalStateToTaskStatus(goal.status);
-      if (!mapped) return;
-      if (mapped === 'completed') {
-        // GateRunner v1 (P9): execution finished → VERIFYING → required gates
-        // → only then completion. The goal's summary is NOT sufficient.
-        void (async () => {
-          // Model truth snapshot (smallest fix): persist the routingLedger
-          // requested/resolved provider+model into the task record so
-          // RunLedger reports the truth even after restarts (routingLedger
-          // itself is in-memory only).
-          try {
-            const { routingLedger } = await import('../routingLedger.js');
-            const rec = routingLedger.get(goalId);
-            if (rec) {
-              const live = backgroundTaskRepo.getTask(task.taskId);
-              if (live && !TERMINAL_STATUSES.has(live.status)) {
-                backgroundTaskRepo.updateTask(task.taskId, {
-                  metadata: {
-                    ...(live.metadata || {}),
-                    assignedProvider: (live.metadata as any)?.assignedProvider || rec.requestedProvider || null,
-                    assignedModel: (live.metadata as any)?.assignedModel || rec.requestedModel || null,
-                    effectiveProvider: (live.metadata as any)?.effectiveProvider || rec.resolvedProvider || null,
-                    effectiveModel: (live.metadata as any)?.effectiveModel || rec.resolvedModel || null,
-                  },
-                });
-              }
-            }
-          } catch { /* truth snapshot is best-effort */ }
-          const { runTaskGates } = await import('../gates/gateRunner.js');
-          const { parseGateConfigs } = await import('../gates/gateRunner.js');
-          const hasRequired = parseGateConfigs(backgroundTaskRepo.getTask(task.taskId)).hasRequired;
-          if (!hasRequired) {
-            mgr.verifyCompletion(task.taskId, {
-              resultText: goal.runSummary?.summary || 'CodeX goal completed.',
-              readOnly: false,
-              verificationNote: 'CodeX goal completed.',
-            });
-            return;
-          }
-          mgr.appendEvent(task.taskId, 'task.verification_started', 'Execution finished — running required gates.', {});
-          try {
-            const set = await runTaskGates(task.taskId);
-            if (set.allRequiredPassed) {
-              const gateSummary = set.results.filter((r) => r.status === 'passed').map((r) => r.gateId).join(', ');
-              mgr.verifyCompletion(task.taskId, {
-                resultText: goal.runSummary?.summary || 'CodeX goal completed.',
-                readOnly: false,
-                verificationNote: `Completed and verified: ${gateSummary || 'gates passed'}.`,
-              });
-            } else {
-              // GateRunner already transitioned to blocked/failed with evidence.
-              mgr.appendEvent(task.taskId, 'task.verification_completed', 'Verification did not pass — task not completed.', {
-                allRequiredPassed: false,
-              });
-              // LocalHarness (P6/P7): bounded gate rework — structured
-              // evidence to the worker, rework ONLY if budget remains.
-              const failedGate = set.results.filter((r) => r.status === 'failed')[0];
-              void mgr.recoverAfterFailure(task.taskId, { code: 'GATE_FAILURE', message: `Gate failed: ${failedGate?.gateId ?? 'required-gate'}` }, {
-                gateEvidence: failedGate
-                  ? { gateId: failedGate.gateId, reason: failedGate.reason || 'required gate failed', attempt: failedGate.attempt ?? 1 }
-                  : undefined,
-              });
-            }
-          } catch (e: any) {
-            mgr.transition(task.taskId, 'blocked', {
-              verificationState: 'failed',
-              blocker: `Verification error: ${e?.message}`,
-              resumable: true,
-            });
-          }
-        })();
-        return;
-      }
-      if (mapped === 'failed') {
-        // LocalHarness (RecoveryPolicy V1): intercept execution failure
-        // BEFORE the terminal transition. recoverAfterFailure decides within
-        // budget/privacy bounds — retry/escalate → re-queued, otherwise →
-        // blocked with a truthful reason. Never completes on failure.
-        const err = goal.lastError || goal.error || goal.runSummary?.error || 'CodeX goal failed';
-        void mgr.recoverAfterFailure(task.taskId, err);
-        return;
-      }
-      if (mapped !== current.status) {
-        mgr.transition(task.taskId, mapped, {
-          currentStage: goal.status,
-          approvalState: goal.status === 'waiting_for_approval' ? 'pending' : current.approvalState,
-        });
-      }
-      // Forward new goal events as progress.
-      const events = goalStore.getEventsAfter(goalId, lastSeq);
-      for (const ge of events) {
-        lastSeq = ge.sequence;
-        if (ge.tool) {
-          mgr.appendEvent(task.taskId, 'task.progress', ge.message || `${ge.tool} (${ge.state})`, { step: ge.step });
-        }
-      }
-    };
-    goalStore.on('goal:updated', goalListener);
+    // Stream goalStore events into the task contract (restart-safe: the bridge
+    // is re-attached by reconcileCodexTasksAfterRestart on backend restart).
+    attachCodexGoalListener(task.taskId, goalId, 0);
 
     mgr.registerWorkerHandlers(task.taskId, {
       stop: async () => {
@@ -881,13 +1226,174 @@ function pipelineWorkspaceRoot(): string {
   return path.resolve(__dirname, '..', '..', '..', 'data', 'revenue-pipeline');
 }
 
+
+/** True when a Hermes task's objective explicitly asks for CodeX engineering work. */
+export function detectsCodexDelegation(objective: string): boolean {
+  const o = objective || '';
+  const mentionsCodex = /\bcodex\b/i.test(o);
+  const hasWorkVerb = /\b(implement|edit|modify|change|fix|refactor|add|write|build|test|inspect|analy[sz]e|read|search|run|create|generate|make|update|delete|execute|execution)\b/i.test(o);
+  return mentionsCodex && hasWorkVerb;
+}
+
+/**
+ * Build the objective handed to in-repo CodeX for a Hermes-plan delegation.
+ * The FULL original objective must be preserved — the Hermes planner may
+ * distill its proposed task down to a read-only "inspect …" scope, which would
+ * silently drop the implementation intent. Returns the original objective
+ * first, then the proposed scope and acceptance criteria (if any).
+ */
+export function buildCodexDelegationObjective(
+  originalObjective: string,
+  proposedTask?: { objective?: string; title?: string; acceptanceCriteria?: string } | null,
+): string {
+  const isReadOnly = isReadOnlyCodexTask(originalObjective);
+  const readOnlyInstruction = isReadOnly ? 'CRITICAL REQUIREMENT: This is a READ-ONLY inspection task. DO NOT create, modify, or delete any files.' : '';
+
+  return [
+    originalObjective,
+    readOnlyInstruction,
+    proposedTask?.objective ? `Hermes-proposed scope: ${proposedTask.objective}` : '',
+    proposedTask?.acceptanceCriteria ? `Acceptance criteria: ${proposedTask.acceptanceCriteria}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/**
+ * Phase 8 — Hermes-plan → in-repo CodeX-execute bridge.
+ *
+ * A Hermes background task whose objective ALSO requires CodeX engineering work
+ * must NOT funnel CodeX execution through the external Hermes One api_server
+ * (which spawns the external, rate-limited codex CLI). Instead: the in-repo
+ * Hermes planner (executeHermesTask → hermes/service.ts, DeepSeek) produces
+ * structured proposedTasks; any codex-capable proposed task is then executed by
+ * the canonical in-repo CodeX runtime (codexService.createGoal → resumeCodexGoalLoop).
+ *
+ * Reuses the existing lifecycle: attachCodexGoalListener (event bridge),
+ * verifyCompletion (verification + gates), reconcileCodexTasksAfterRestart
+ * (restart-safe), and the canonical provider/model truth snapshot.
+ */
+export async function dispatchHermesPlanCodexTask(task: BackgroundTaskRecord, root: string): Promise<{ ok: boolean; error?: string }> {
+  if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
+  const mgr = backgroundTaskManager;
+  try {
+    mgr.transition(task.taskId, 'planning', { currentStage: 'dispatching', progressMessage: 'Creating in-repo Hermes plan…' });
+
+    // Policy: the in-repo Hermes + CodeX run on the gateway (DeepSeek) — the
+    // prompt leaves the machine. Enforce the same policy gate as the external path.
+    const { policyStore } = await import('../policy/policyStore.js');
+    const { mayLeaveMachine } = await import('../policy/policyService.js');
+    const policy = policyStore.getPolicy(task.projectId);
+    if (!mayLeaveMachine(policy)) {
+      const reason = 'Policy violation blocked: Hermes-plan→CodeX requires cloud-backed execution.';
+      mgr.appendEvent(task.taskId, 'task.progress', reason, {});
+      mgr.transition(task.taskId, 'blocked', { currentStage: 'policy-block', progressMessage: reason, blocker: reason, resumable: true });
+      return { ok: false, error: reason };
+    }
+
+    // 1. Canonical project task + in-repo Hermes planning run.
+    const { projectTaskService } = await import('../../services/projectExecution/projectTaskService.js');
+    const { executionRunService } = await import('../../services/projectExecution/executionRunService.js');
+    const { executeHermesTask } = await import('../../domains/workerAdapters/hermesAdapter.js');
+    const objective = task.objective || task.originalRequest;
+    const projectId = task.projectId ?? ('bg-' + task.taskId);
+    const goal = projectTaskService.createGoal({ projectId, title: `Hermes plan: ${task.title.slice(0, 60)}`, objective });
+    const ptask = projectTaskService.createTask({
+      projectId, goalId: goal.id, title: `Formulate plan: ${task.title.slice(0, 60)}`,
+      description: objective, taskType: 'engineering', assignedCapability: 'hermes',
+      acceptanceCriteria: 'Produce structured proposedTasks with worker capabilities; identify codex-capable implementation tasks.',
+    });
+    const { run } = await executeHermesTask(ptask, {
+      prompt: objective, conversationId: task.conversationId ?? undefined,
+      requestId: task.taskId, projectId: projectId ?? undefined, goalId: goal.id,
+    });
+    backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: run.id });
+    mgr.appendEvent(task.taskId, 'task.run_linked', `In-repo Hermes plan run linked (${run.id}).`, { planRunId: run.id });
+    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Hermes (in-repo) → CodeX (in-repo).', { agent: 'Hermes+CodeX' });
+
+    // 2. Bounded poll for the Hermes plan to finish.
+    let completed = executionRunService.getRun(run.id);
+    const start = Date.now();
+    while (completed && (completed.status === 'running' || completed.status === 'queued') && Date.now() - start < 120000) {
+      await new Promise((r) => setTimeout(r, 1000));
+      completed = executionRunService.getRun(run.id);
+    }
+    const result = completed?.finalResultId ? executionRunService.getResult(completed.finalResultId) : null;
+    const struct = (result as any)?.structuredOutput as any;
+    const codexTasks = Array.isArray(struct?.proposedTasks)
+      ? (struct.proposedTasks as any[]).filter((t) => t?.capability === 'codex')
+      : [];
+
+    if (codexTasks.length === 0) {
+      // The objective explicitly requested CodeX engineering work (this adapter
+      // is only reached when detectsCodexDelegation() is true), but the Hermes
+      // planner did not emit a structured codex-capable proposedTask. Do NOT
+      // complete with just the plan — delegate the FULL original objective to
+      // canonical in-repo CodeX so the requested implementation actually runs.
+      // Fall through to step 3 with ct = null.
+      mgr.appendEvent(task.taskId, 'task.progress', 'Hermes plan produced no structured codex task — delegating the full objective to in-repo CodeX.', {});
+    }
+
+    // 3. Delegate to canonical in-repo CodeX. When the planner proposes a codex
+    //    task, use it to scope the delegation; otherwise delegate the FULL
+    //    original objective (never a plan-only completion).
+    const ct = codexTasks[0] || null;
+    // Preserve the FULL original objective — the Hermes planner may distill its
+    // proposed task down to a read-only "inspect …" scope, which silently drops
+    // the implementation intent ("add the test, run vitest …").
+    const codexObjective = buildCodexDelegationObjective(objective, ct);
+    const workspace = root || getWorkspaceRoot();
+    const goalId = await codexService.createGoal(codexObjective, workspace, 'auto', undefined, task.conversationId ?? undefined);
+    backgroundTaskRepo.updateTask(task.taskId, {
+      linkedRunId: goalId,
+      metadata: {
+        ...(task.metadata || {}),
+        hermesPlanRunId: run.id,
+        hermesResultId: (result as any)?.id ?? null,
+        codexGoalId: goalId,
+        delegatedBy: 'hermes-inrepo',
+        provider: (task.metadata as any)?.provider || 'prov-deepseek',
+        model: (task.metadata as any)?.model || 'deepseek-v4-flash',
+      },
+    });
+    mgr.appendEvent(task.taskId, 'task.run_linked', `Hermes plan (${run.id}) delegated in-repo CodeX goal ${goalId}.`, { codexGoalId: goalId });
+    mgr.transition(task.taskId, 'running', { currentStage: 'running', progressMessage: 'CodeX executing in-repo plan…' });
+
+    // 4. Attach the event bridge (handles completion/failure/verification) and
+    //    re-check terminal state immediately (idempotent).
+    attachCodexGoalListener(task.taskId, goalId);
+    const g = goalStore.get(goalId);
+    const gMapped = g ? goalStateToTaskStatus(g.status) : null;
+    if (g && gMapped && TERMINAL_STATUSES.has(gMapped)) {
+      // Force a reconciliation pass (idempotent — verifyCompletion re-entry guarded).
+      void (async () => {
+        const cur = goalStore.get(goalId);
+        if (!cur) return;
+        const mapped = goalStateToTaskStatus(cur.status);
+        if (mapped === 'completed') {
+          finalizeCodexGoalCompletion(task.taskId, cur, 'CodeX goal completed (in-repo).');
+        } else if (mapped === 'failed') {
+          void backgroundTaskManager.recoverAfterFailure(task.taskId, (cur as any).lastError || 'CodeX goal failed');
+        }
+      })();
+    }
+    return { ok: true };
+  } catch (err: any) {
+    backgroundTaskManager.transition(task.taskId, 'failed', {
+      lastError: `Hermes→CodeX dispatch failed: ${err?.message}`,
+      blocker: `Hermes→CodeX dispatch failed: ${err?.message}`,
+    });
+    return { ok: false, error: err?.message };
+  }
+}
+
 export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: string): Promise<{ ok: boolean; error?: string }> {
   // §2: the canonical workspace root TRAVELS with the delegation. The task
   // carries the root captured at creation time; an explicit parameter only
   // wins when the task has none (legacy rows). Never process.cwd().
   const root = task.workspaceRoot || workspacePath || getWorkspaceRoot();
   switch (task.worker) {
-    case 'hermes': return dispatchHermesTask(task, root);
+    case 'hermes': return detectsCodexDelegation(task.objective || task.originalRequest)
+      ? dispatchHermesPlanCodexTask(task, root)
+      : dispatchHermesTask(task, root);
     case 'codex': return dispatchCodexTask(task, root);
     case 'research': return dispatchResearchTask(task);
     case 'team': return dispatchTeamTask(task, root);

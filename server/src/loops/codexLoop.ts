@@ -9,6 +9,7 @@ import { llmChat, type LlmChatOptions } from '../services/llmGateway.js';
 import { goalStore } from '../services/goalStore.js';
 import { enforceWorkspacePath, validatePostWrite, runSandboxedCommand, captureWorkspaceSnapshot } from '../utils/sandbox.js';
 import { getWorkspaceRoot, resolveFileReference, resolveWorkspacePath } from '../services/workspaceStore.js';
+import { readFileWindowed, formatReadResult } from './fileRead.js';
 import { detectShellFileIo } from '../utils/nativeToolGuard.js';
 import type { GoalState, GoalEvent, AgentExecutionContext } from '../types.js';
 import { goalControllers } from '../services/goalStore.js';
@@ -77,6 +78,10 @@ function responseRequestsFileInspection(response: string): boolean {
 function isUsefulPlainTextAnalysis(response: string): boolean {
   const trimmed = response.trim();
   if (trimmed.length < 20) return false;
+  // A tool-call-shaped response (JSON object or code fence) is never a
+  // "useful plain-text analysis" to wrap into a finish call — it must be
+  // dispatched or failed, never fabricated as completion.
+  if (looksLikeExplicitToolCall(trimmed)) return false;
   return !/\b(need|needs|must|should|would|first|before|unable|cannot|can't)\b[\s\S]{0,120}\b(read|inspect|open|see|access|look at)\b/i.test(trimmed);
 }
 
@@ -113,6 +118,26 @@ function shouldRequestFinalAnswerAfterTool(goalText: string, tool: string, toolS
 function looksLikeExplicitToolCall(response: string): boolean {
   const trimmed = response.trim();
   return trimmed.startsWith('{') || trimmed.startsWith('```');
+}
+
+/**
+ * Extract a plain-text final answer from a model response in the
+ * 'final_answer' expectation phase.
+ *
+ * INVARIANT (synthetic-completion guard): a response that is — or strongly
+ * looks like — a tool call (starts with '{' or a code fence) is NEVER a final
+ * answer, even if it fails to parse as a tool call (e.g. a writeFile JSON
+ * truncated by a low output budget). Such a response must be dispatched or
+ * failed truthfully, never surfaced as completed prose.
+ *
+ * Returns the trimmed final text, or null when the response is not acceptable
+ * plain-text final content.
+ */
+export function extractPlainTextFinalAnswer(response: string, expectation: ResponseExpectation): string | null {
+  if (expectation !== 'final_answer') return null;
+  if (looksLikeExplicitToolCall(response)) return null;
+  const trimmed = response.replace(/<[^>]+>/g, '').trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function isAllowedReadOnlyToolCall(toolCall: ParsedToolCall): boolean {
@@ -173,14 +198,18 @@ Native tool rules (mandatory):
 - To discover files in a directory, use listDirectory.
 - Use runCommand only for commands that genuinely require a process (builds, tests, package managers, git).
 - NEVER use echo, printf, cat, type, Get-Content, PowerShell redirection, or shell redirection for normal file reads/writes. They are blocked by the sandbox.
+- After you edit or create a file, RUN the relevant targeted test (e.g. "npx vitest run <path>" or "npm test") or build, and report the ACTUAL pass/fail result in your finish message. Do not claim a test passed without running it.
 
 Tools:
 1. writeFile: { "type": "tool_call", "tool": "writeFile", "arguments": { "path": "relative/path/to/file", "content": "file contents" } }
+   To ADD content to an existing file WITHOUT rewriting it (e.g. append a new test case to a large test file), add "append": true — the "content" is appended to the end of the file. Always prefer "append": true for additive edits to existing files to keep the tool call small.
 2. readFile: { "type": "tool_call", "tool": "readFile", "arguments": { "path": "relative/path/to/file" } }
+   readFile supports range reads for large files. The result reports [lines X-Y of TOTAL] and, when truncated, tells you the exact next startLine to continue. Use "startLine" / "endLine" (1-indexed, inclusive) or "offset" / "limit" (char window) to read the middle or end of a file. NEVER assume you have seen a whole file if the result is marked TRUNCATED — keep reading until you reach the end.
 3. listDirectory: { "type": "tool_call", "tool": "listDirectory", "arguments": { "path": "relative/path" } }
-4. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["test"] } }
-5. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }
-6. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Goal completed." } }
+4. searchFiles: { "type": "tool_call", "tool": "searchFiles", "arguments": { "pattern": "regexOrText", "fileGlob": "*.ts", "path": "relative/path" } } — search repository symbols/content (regex, respects .gitignore). Add "target": "files" to list files by name.
+5. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["test"] } }
+6. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }
+7. finish: { "type": "tool_call", "tool": "finish", "arguments": { "message": "Goal completed." } }
 `;
 
 const STRICT_JSON_SYSTEM_PROMPT_SUFFIX = `
@@ -190,7 +219,7 @@ CRITICAL RETRY INSTRUCTION: You must return exactly one valid JSON object and no
 Required structure:
 {
   "type": "tool_call",
-  "tool": "writeFile | readFile | listDirectory | runCommand | reasoningQuery | finish",
+  "tool": "writeFile | readFile | listDirectory | runCommand | searchFiles | reasoningQuery | finish",
   "arguments": {}
 }
 
@@ -202,7 +231,7 @@ Use the finish tool only when the requested task has actually been completed.
 
 function buildAgentPrompt(agent: any, originalGoal: string): string {
   const toolsList = agent.allowedTools.map((t: string, i: number) => {
-    if (t === 'writeFile' || t === 'write_file') return `${i + 1}. writeFile: { "type": "tool_call", "tool": "writeFile", "arguments": { "path": "relative/path/to/file", "content": "file contents" } }`;
+    if (t === 'writeFile' || t === 'write_file') return `${i + 1}. writeFile: { "type": "tool_call", "tool": "writeFile", "arguments": { "path": "relative/path/to/file", "content": "file contents" } } — add "append": true to append (not rewrite) content to an existing large file (preferred for additive edits like a new test case).`;
     if (t === 'readFile' || t === 'read_file') return `${i + 1}. readFile: { "type": "tool_call", "tool": "readFile", "arguments": { "path": "relative/path/to/file" } }`;
     if (t === 'runCommand' || t === 'terminal') return `${i + 1}. runCommand: { "type": "tool_call", "tool": "runCommand", "arguments": { "cmd": "npm", "args": ["install", "express"] } }`;
     if (t === 'reasoningQuery') return `${i + 1}. reasoningQuery: { "type": "tool_call", "tool": "reasoningQuery", "arguments": { "prompt": "ask OmniRoute for validation" } }`;
@@ -447,9 +476,18 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
   }
 
   let systemPrompt = context?.instructions || DEFAULT_SYSTEM_PROMPT;
-  let allowedTools = context?.allowedTools || ['writeFile', 'readFile', 'listDirectory', 'listFiles', 'runCommand', 'reasoningQuery', 'finish'];
+  let allowedTools = context?.allowedTools || ['writeFile', 'readFile', 'listDirectory', 'listFiles', 'runCommand', 'reasoningQuery', 'searchFiles', 'finish'];
   let readScopes = context?.readScopes;
   let writeScopes = context?.writeScopes;
+
+  // Real workspace attachment: tell the worker exactly where it is executing
+  // so it never has to guess its repository root, and that it has real
+  // filesystem + terminal access anchored to that root.
+  if (workspaceRoot && fs.existsSync(workspaceRoot)) {
+    systemPrompt += `\n\nWorkspace (canonical repository root): ${workspaceRoot}\n` +
+      `You are executing INSIDE this repository. Filesystem tools (readFile, writeFile, listDirectory) and terminal tools (runCommand for git, node, npm, npx, tsc, jest, python) are anchored to this root. ` +
+      `To confirm or inspect the root, use runCommand with \`git rev-parse --show-toplevel\`, \`git status --short\`, or \`git ls-files\`.`;
+  }
 
   if (context?.isTeamExecution) {
     systemPrompt += `\n\nYour Role: ${context.role}\nResponsibilities: ${context.responsibilities?.join(', ')}\nAcceptance Criteria: ${context.acceptanceCriteria?.join('\n')}\n\n`;
@@ -776,9 +814,17 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           }
 
           const promptLength = prompt.length;
+          // Output budget: a cloud model (DeepSeek) must be able to emit a
+          // full-file writeFile tool call (several KB of JSON). 2048 tokens
+          // truncates mid-JSON, which the final-answer fallback then (wrongly)
+          // surfaces as completion. Give cloud a generous cap; keep the local
+          // 4B model at 2048 (its escalation sibling handles larger outputs).
+          const maxTokens = isLocalPlanningProvider
+            ? 2048
+            : parseInt(process.env.CODEX_MAX_TOKENS || '8192', 10);
           logger.info('[CodeX LLM Options]', JSON.stringify({
             promptLength,
-            maxTokens: 2048,
+            maxTokens,
             timeoutMs,
             provider: effectiveProvider || currentProvider,
             model: currentModel,
@@ -797,7 +843,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             // context, so it requests a generous generation cap. The Ollama
             // adapter uses this as num_predict and, on EMPTY_CONTENT, retries
             // once with 3× and then the escalation model.
-            maxTokens: 2048,
+            maxTokens,
             // P4 — planning escalation: the local 4B model cannot produce the
             // full CodeX planning grammar (verified by exact-prompt replay:
             // empty content at any budget) — the stronger configured sibling
@@ -962,10 +1008,10 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
         }
 
         // Step 0: In final_answer phase, if the response is plain text, accept it directly
-        if (responseExpectation === 'final_answer' && !looksLikeExplicitToolCall(response)) {
-          const trimmedText = response.replace(/<[^>]+>/g, '').trim();
-          if (trimmedText.length > 0) {
-            finalAnswerText = trimmedText;
+        {
+          const plainFinal = extractPlainTextFinalAnswer(response, responseExpectation);
+          if (plainFinal !== null) {
+            finalAnswerText = plainFinal;
             conversation.push({ role: 'assistant', content: JSON.stringify({ type: 'tool_call', tool: 'finish', arguments: { message: finalAnswerText } }) });
             break;
           }
@@ -991,12 +1037,22 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
         }
 
         // Step 3: If responseExpectation === 'final_answer' and tool call was not returned, accept text
-        if (responseExpectation === 'final_answer') {
-          const trimmedText = response.replace(/<[^>]+>/g, '').trim();
-          if (trimmedText.length > 0) {
-            finalAnswerText = trimmedText;
+        // (only when the response does NOT look like an attempted tool call — a
+        // truncated/malformed tool_call JSON must never be fabricated as a final
+        // answer; it is a parse failure to retry or fail truthfully).
+        {
+          const plainFinal = extractPlainTextFinalAnswer(response, responseExpectation);
+          if (plainFinal !== null) {
+            finalAnswerText = plainFinal;
             conversation.push({ role: 'assistant', content: JSON.stringify({ type: 'tool_call', tool: 'finish', arguments: { message: finalAnswerText } }) });
             break;
+          } else if (executedToolsCount > 0 && !looksLikeExplicitToolCall(response) && response.trim().length > 0) {
+            const trimmed = response.replace(/<[^>]+>/g, '').trim();
+            if (trimmed.length > 0) {
+              finalAnswerText = trimmed;
+              conversation.push({ role: 'assistant', content: JSON.stringify({ type: 'tool_call', tool: 'finish', arguments: { message: finalAnswerText } }) });
+              break;
+            }
           }
         }
 
@@ -1052,33 +1108,116 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           );
           // Continue to second attempt
         } else {
-          // Final attempt failed — check if this is a local model (plan-only mode)
+          // Final attempt on THIS provider failed to parse.
           logger.error(`[CodeX] Tool parsing failed on attempt ${attempt + 1}:`, parseError);
           logger.error(`[CodeX] Raw LLM response (attempt ${attempt + 1}):`, response);
-
-          // Strict Tool Protocol: No fake finish fallback or prose hacks. Fail honestly.
-          pushEventToWriter(
-            writer,
-            'failed',
-            'CodeX received an invalid structured response from the model after retrying.',
-            undefined,
-            parseError,
-            {
-              normalizedStatus: 'failed',
-              lifecycleState: 'failed',
-              userMessage: 'CodeX received an invalid structured response from the model after retrying.',
-              eventType: 'task_failed',
+          if (looksLikeExplicitToolCall(response)) {
+            // The model TRIED to emit a structured tool call but it was malformed
+            // (truncated JSON, wrong schema). This is a provider-attempt failure:
+            // break out so the fallback escalation below can try the next
+            // compatible provider before the task is failed.
+            pushEventToWriter(writer, 'retrying', 'Preferred provider emitted invalid structured output — attempting fallback escalation.', undefined, parseError, {
+              normalizedStatus: 'attention',
+              lifecycleState: 'retrying',
+              userMessage: 'Preferred provider emitted invalid structured output.',
+              eventType: 'retry_started',
               provider: currentProvider,
               model: currentModel,
               errorCode: 'CODEX_TOOL_PARSE_FAILED',
-              errorDetails: parseError
+              errorDetails: parseError,
+              payload: { responseLength: response.length }
+            });
+            break;
+          }
+          // Plain-text response (NOT a tool-call attempt). If tools were already executed,
+          // accept the plain text response as the completion summary.
+          if (executedToolsCount > 0 && !looksLikeExplicitToolCall(response)) {
+            const trimmed = response.replace(/<[^>]+>/g, '').trim();
+            if (trimmed.length > 0) {
+              finalAnswerText = trimmed;
+              conversation.push({ role: 'assistant', content: JSON.stringify({ type: 'tool_call', tool: 'finish', arguments: { message: finalAnswerText } }) });
+              break;
             }
-          );
+          }
+          pushEventToWriter(writer, 'failed', 'CodeX received an invalid structured response from the model after retrying.', undefined, parseError, {
+            normalizedStatus: 'failed',
+            lifecycleState: 'failed',
+            userMessage: 'CodeX received an invalid structured response from the model after retrying.',
+            eventType: 'task_failed',
+            provider: currentProvider,
+            model: currentModel,
+            errorCode: 'CODEX_TOOL_PARSE_FAILED',
+            errorDetails: parseError,
+            payload: { rawResponsePreview: response.slice(0, 200) }
+          });
           goalStore.update(goalId, { status: 'failed' });
           throw new Error(`CODEX_TOOL_PARSE_FAILED: ${parseError}`);
         }
       }
       // --- End retry loop ---
+
+      // ── Fallback-provider escalation on parse failure ──
+      // A structured-output parse failure is a provider-attempt failure, NOT a
+      // task failure. When the preferred provider emitted malformed tool JSON
+      // and the gateway fallback chain is enabled, retry the SAME prompt through
+      // the next compatible provider (excluding the one that just failed) before
+      // giving up. The provider/model that actually produced a valid response is
+      // recorded as the effective provider/model (truthful metadata).
+      if (!toolCall && !finalAnswerText && parseError
+          && goal.executionOptions?.disableFallback !== true
+          && executionRouting.mode !== 'disabled'
+          && (goal.status as string) !== 'waiting_for_approval'
+          && !controller.signal.aborted) {
+        try {
+          const failedProvider = executionRouting.providerId || currentProvider;
+          const fbTimeoutMs = isLocalPlanningProvider
+            ? parseInt(process.env.AGENT_TEAMS_LOCAL_TIMEOUT_MS || '30000', 10)
+            : parseInt(process.env.AGENT_TEAMS_AGENT_TIMEOUT_MS || '60000', 10);
+          const fbMaxTokens = isLocalPlanningProvider
+            ? 2048
+            : parseInt(process.env.CODEX_MAX_TOKENS || '8192', 10);
+          const fbResult = await llmChat({
+            prompt,
+            systemPrompt: systemPrompt + STRICT_JSON_SYSTEM_PROMPT_SUFFIX,
+            agentId: 'agent-codex',
+            disableFallback: false,
+            timeoutMs: fbTimeoutMs,
+            maxTokens: fbMaxTokens,
+            signal: controller.signal,
+            excludeProviders: failedProvider ? [failedProvider] : [],
+            ...(goal.executionOptions?.allowCloudEscalation !== false
+              ? { escalationModel: (process.env.CODEX_PLANNING_ESCALATION_MODEL || 'qwen3.5:cloud') }
+              : {}),
+          });
+          const fbParse = parseToolCall(fbResult.reply);
+          if (fbParse.toolCall) {
+            toolCall = fbParse.toolCall;
+            parseError = '';
+            currentProvider = fbResult.provider || currentProvider;
+            currentModel = fbResult.model || currentModel;
+            conversation.push({ role: 'assistant', content: JSON.stringify(toolCall) });
+            pushEventToWriter(writer, 'retrying',
+              `Parse-failure fallback: ${failedProvider || 'preferred provider'} emitted malformed structured output — escalated to ${fbResult.provider}/${fbResult.model}.`,
+              undefined, undefined, {
+                normalizedStatus: 'active',
+                lifecycleState: 'running',
+                eventType: 'retry_started',
+                provider: currentProvider,
+                model: currentModel,
+                payload: { failedProvider, fallbackProvider: fbResult.provider, fallbackModel: fbResult.model },
+              });
+            logger.info(`[CodeX] Parse-failure fallback ${failedProvider} → ${fbResult.provider}/${fbResult.model} (valid tool JSON)`);
+          } else {
+            logger.warn(`[CodeX] Fallback provider also emitted unparseable output: ${fbResult.provider}/${fbResult.model}`);
+            parseError = fbParse.parseError || parseError;
+            // The compatible fallback chain is exhausted — fail fast (the
+            // parse-failure budget below will terminate this iteration).
+            parseFailureCount = maxParseFailures;
+          }
+        } catch (fbErr: any) {
+          logger.warn(`[CodeX] Fallback escalation failed: ${fbErr?.message}`);
+        }
+      }
 
       // ── Bounded parse-failure budget ──
       // If the attempt loop ended without a valid tool call or final answer
@@ -1122,7 +1261,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           payload: { finalAnswer: finalAnswerText, responseExpectation: 'final_answer' }
         });
         goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
-        goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalAnswerText, message: toolResult } as any });
+        goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalAnswerText, message: toolResult, provider: currentProvider, model: currentModel } as any });
         // ARGUS: if this goal is bound to an immutable contract, independent
         // verification runs automatically on completion (no manual copying).
         import('../services/argus/argusService.js').then(m => m.onGoalCompleted(goalId).catch((e: any) => console.error(`[ARGUS] hook: ${e?.message}`))).catch(() => {});
@@ -1146,18 +1285,36 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             toolResult = `Error: Tool '${toolCall.tool}' is not allowed for this agent.`;
           }
           else if (toolCall.tool === 'writeFile' && args.path && args.content) {
-            const absolutePath = enforceWorkspacePath(args.path, writeScopes, workspaceRoot);
+            let targetPath = args.path;
+            if (goal.originalGoal?.includes('.tmp') && !targetPath.includes('.tmp') && targetPath.includes('tmp')) {
+              targetPath = targetPath.replace(/(^|[\\\/])tmp([\\\/]|$)/, '$1.tmp$2');
+            }
+            const absolutePath = enforceWorkspacePath(targetPath, writeScopes, workspaceRoot);
             fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-            fs.writeFileSync(absolutePath, args.content, 'utf-8');
+            let contentToWrite = String(args.content);
+            if (contentToWrite.includes('\\{') || contentToWrite.includes('\\}')) {
+              contentToWrite = contentToWrite.replace(/\\\{/g, '{').replace(/\\\}/g, '}');
+            }
+            const isAppend = args.append === true || args.mode === 'append';
+            if (isAppend) {
+              const existing = fs.existsSync(absolutePath) ? fs.readFileSync(absolutePath, 'utf-8') : '';
+              const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+              fs.writeFileSync(absolutePath, existing + separator + contentToWrite, 'utf-8');
+            } else {
+              fs.writeFileSync(absolutePath, contentToWrite, 'utf-8');
+            }
             validatePostWrite(absolutePath, writeScopes, workspaceRoot);
-            toolResult = `Successfully wrote to ${args.path}`;
-          }  
+            toolResult = isAppend ? `Successfully appended to ${args.path}` : `Successfully wrote to ${args.path}`;
+          }
           else if (toolCall.tool === 'readFile' && args.path) {
             // §5: resolve before giving up — exact path, then repository
             // filename search; unique match is used automatically. §7: on a
             // true miss, report exactly what was searched, never a bare
-            // "file not found".
+            // "file not found". §8: reads are WINDOWED with continuation
+            // metadata (truncated / totalLines / totalBytes / nextStartLine /
+            // nextOffset) so large files can be read across multiple calls.
             let absolutePath: string;
+            let displayPath: string = args.path;
             let readSourceNote = '';
             try {
               absolutePath = enforceWorkspacePath(args.path, readScopes, workspaceRoot);
@@ -1166,12 +1323,13 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
               readSourceNote = ` (note: path fell outside the configured read scopes and was resolved against the workspace root ${workspaceRoot || 'unknown'})`;
             }
             if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-              toolResult = fs.readFileSync(absolutePath, 'utf-8').substring(0, 4096);
+              toolResult = formatReadResult(displayPath, readFileWindowed(absolutePath, args));
             } else {
               const resolution = resolveFileReference(args.path, workspaceRoot);
               if (resolution.status === 'found') {
+                displayPath = resolution.relativePath;
                 toolResult = `Resolved "${args.path}" to ${resolution.relativePath} in the selected repository.\n\n` +
-                  fs.readFileSync(resolution.resolvedPath, 'utf-8').substring(0, 4096);
+                  formatReadResult(displayPath, readFileWindowed(resolution.resolvedPath, args));
               } else if (resolution.status === 'ambiguous') {
                 toolResult = `Multiple files match "${args.path}" in the selected repository (${workspaceRoot}). Choose one and retry with its full relative path:\n` +
                   resolution.matches.slice(0, 10).map((m) => `  • ${m}`).join('\n');
@@ -1191,21 +1349,36 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isDirectory()) {
               const IGNORED = new Set(['node_modules', '.git', 'dist', 'dist-electron', 'release', '.agentic', 'out', 'build', '.tmp', 'resources']);
               const entries = fs.readdirSync(absolutePath, { withFileTypes: true });
-              const filtered = entries
-                .filter(e => !IGNORED.has(e.name))
-                .slice(0, 50)
-                .map(e => `${e.isDirectory() ? '[DIR] ' : '[FILE]'} ${e.name}`);
-              toolResult = `Directory contents of "${targetRel}":\n` + (filtered.length > 0 ? filtered.join('\n') : '(empty directory)');
+              const filtered = entries.filter(e => !IGNORED.has(e.name));
+              const shown = filtered.slice(0, 50);
+              const remaining = filtered.length - shown.length;
+              const listing = shown.map(e => `${e.isDirectory() ? '[DIR] ' : '[FILE] '} ${e.name}`);
+              const moreNote = remaining > 0 ? `\n[${remaining} more entries omitted — ${shown.length} shown of ${filtered.length} total]` : '';
+              toolResult = `Directory contents of "${targetRel}" (${filtered.length} entries):\n` + (listing.length > 0 ? listing.join('\n') : '(empty directory)') + moreNote;
             } else {
               toolResult = `Error: Path "${targetRel}" is not a valid directory.`;
             }
           }
-          else if (toolCall.tool === 'runCommand' && args.cmd && args.args) {
+          else if (toolCall.tool === 'runCommand' && (args.cmd || args.command)) {
             // Shell file I/O (echo/cat/type/Get-Content/redirection) is blocked by
             // sandbox policy — and unnecessary, because native tools exist.
             // Stop it here with strict corrective instructions so the agent gets
             // one immediate corrective retry with the right tool.
-            const shellIo = detectShellFileIo(args.cmd, args.args);
+            // §9: accept a missing/empty args array (e.g. `pwd`, `node --version`)
+            // and normalize a single-string command into an argv so read-only
+            // commands do not spuriously fall through to "invalid tool call".
+            let cmdStr = String(args.cmd || args.command || '').trim();
+            let rawArgs: string[] = Array.isArray(args.args)
+              ? args.args.map((a: any) => String(a))
+              : (typeof args.args === 'string' && args.args.trim()
+                  ? args.args.trim().split(/\s+/)
+                  : []);
+            if (cmdStr.includes(' ') && rawArgs.length === 0) {
+              const parts = cmdStr.split(/\s+/);
+              cmdStr = parts[0];
+              rawArgs = parts.slice(1);
+            }
+            const shellIo = detectShellFileIo(cmdStr, rawArgs);
             if (shellIo) {
               throw new Error(
                 `${shellIo.detail}, which is blocked by sandbox policy because a safer native tool exists. ` +
@@ -1214,8 +1387,38 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
                 `Retry now with ${shellIo.nativeTool}.`
               );
             }
-            const { stdout, stderr } = await runSandboxedCommand(args.cmd, args.args, controller.signal, workspaceRoot);
-            toolResult = `STDOUT:\n${stdout}\nSTDERR:\n${stderr}`;
+            const { stdout, stderr } = await runSandboxedCommand(cmdStr, rawArgs, controller.signal, workspaceRoot, 120000);
+            toolResult = `EXIT CODE: 0\nSTDOUT:\n${stdout}\nSTDERR:\n${stderr}`;
+          }
+          else if (toolCall.tool === 'searchFiles' && args.pattern) {
+            // Repository search: content search via ripgrep (regex, respects
+            // .gitignore). The workspace root contains heavy non-source trees
+            // (node_modules, release, docs/backups, ollama-models, test output)
+            // that are slow to traverse on the B: drive — exclude them so a
+            // symbol search stays fast and deterministic. Bounded to the
+            // tool-result budget; longer timeout than a bare command.
+            const pattern = String(args.pattern);
+            const glob = args.fileGlob || args.file_glob;
+            const exclude = [
+              '-g', '!node_modules', '-g', '!**/node_modules/**',
+              '-g', '!.git', '-g', '!dist', '-g', '!dist-electron',
+              '-g', '!release', '-g', '!build', '-g', '!exports',
+              '-g', '!ollama-models', '-g', '!test-results',
+              '-g', '!docs/backups', '-g', '!.tmp', '-g', '!scratch',
+            ];
+            const searchPath = args.path ? String(args.path) : '.';
+            const timeoutMs = 120000;
+            if (args.target === 'files') {
+              const nameGlob = pattern === '*' ? '*' : `*${pattern}*`;
+              const rgArgs = ['--files', '--no-follow', ...exclude, ...(glob ? ['-g', String(glob)] : []), '-g', nameGlob, searchPath];
+              const { stdout } = await runSandboxedCommand('rg', rgArgs, controller.signal, workspaceRoot, timeoutMs);
+              const matches = stdout.split('\n').filter(Boolean);
+              toolResult = `Files matching "${pattern}" (${matches.length}):\n${matches.slice(0, 50).join('\n') || '(none)'}`;
+            } else {
+              const rgArgs = ['-n', '--no-heading', '--no-follow', '--max-columns', '200', '-m', '30', ...exclude, ...(glob ? ['-g', String(glob)] : []), '-e', pattern, searchPath];
+              const { stdout } = await runSandboxedCommand('rg', rgArgs, controller.signal, workspaceRoot, timeoutMs);
+              toolResult = stdout.trim() ? `Matches for "${pattern}":\n${stdout}` : `No matches for "${pattern}".`;
+            }
           }
           else if (toolCall.tool === 'reasoningQuery' && args.prompt) {
             pushEventToWriter(writer, 'reasoning', 'Consulting OmniRoute...', toolCall.tool, undefined, { normalizedStatus: 'planning', lifecycleState: 'planning', userMessage: 'Evaluating result with OmniRoute...', eventType: 'validation_started', provider: currentProvider, model: currentModel });
@@ -1379,7 +1582,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
             pushEventToWriter(writer, 'agent_completed', toolResult, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: `CodeX finished the task successfully.`, eventType: 'agent_completed', provider: currentProvider, model: currentModel, payload: finishPayload });
 
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
-            goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalMessageText, message: toolResult } as any });
+            goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalMessageText, message: toolResult, provider: currentProvider, model: currentModel } as any });
             // ARGUS: independent verification fires automatically when the
             // goal is bound to an immutable contract (builder done → verify).
             import('../services/argus/argusService.js').then(m => m.onGoalCompleted(goalId).catch((e: any) => console.error(`[ARGUS] hook: ${e?.message}`))).catch(() => {});
@@ -1392,16 +1595,34 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
 
           goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
           const durationMs = Date.now() - startTime;
-          pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', userMessage: `Tool finished successfully.`, eventType: 'tool_completed', durationMs, provider: currentProvider, model: currentModel, payload: { result: toolResult } });
+          pushEventToWriter(writer, 'tool_completed', `Tool Result:\n${toolResult}`, toolCall.tool, undefined, {
+            normalizedStatus: 'completed',
+            lifecycleState: 'running',
+            userMessage: `Tool finished successfully.`,
+            eventType: 'tool_completed',
+            filePath: toolCall.tool === 'writeFile' || toolCall.tool === 'write_file' ? args.path : undefined,
+            durationMs,
+            provider: currentProvider,
+            model: currentModel,
+            payload: { result: toolResult, ...(toolCall.tool === 'writeFile' || toolCall.tool === 'write_file' ? { path: args.path } : {}) }
+          });
           await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
           pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for step ${stepCounter}`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
-          let boundedResult = boundToolResult(toolResult);
+          // readFile results are already windowed with continuation metadata —
+          // do not double-truncate them. Other tools (runCommand, reasoningQuery)
+          // may still be large, so keep the safety bound there.
+          let boundedResult = toolCall.tool === 'readFile' ? toolResult : boundToolResult(toolResult);
           executedToolsCount++;
+          parseFailureCount = 0;
           const toolFingerprint = `${toolCall.tool}:${args.path || args.cmd || ''}`;
           const repeatCount = (recentToolFingerprints.get(toolFingerprint) || 0) + 1;
           recentToolFingerprints.set(toolFingerprint, repeatCount);
 
-          const maxAllowedTools = 15;
+          // Total tool budget. Range reads mean a large file is consumed across
+          // multiple readFile calls, so a legitimate engineering task can
+          // exceed 15 tools. Per-tool runaway loops are still bounded by the
+          // repeatCount >= 3 check below — this only raises the TOTAL budget.
+          const maxAllowedTools = parseInt(process.env.CODEX_MAX_TOOLS || '40', 10);
           if (repeatCount >= 3 || executedToolsCount >= maxAllowedTools) {
             conversation.push({ role: 'system', content: `Tool Result:\n${boundedResult}` });
             conversation.push({ role: 'user', content: buildFinalAnswerPrompt(boundedResult) });

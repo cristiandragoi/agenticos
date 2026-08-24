@@ -126,15 +126,19 @@ initProjectExecutionSchema();
 runStore.seed(mockRuns);
 
 import { HeavyGenAdapter } from './adapters/heavyGenAdapter.js';
+import { CodexAdapter } from './adapters/codexAdapter.js';
 
 // Register runtime adapters
 runtimeRegistry.register(new HermesAdapter());
 runtimeRegistry.register(new JarvisAdapter());
+runtimeRegistry.register(new CodexAdapter());
 runtimeRegistry.register(new VideoAdapter());
 runtimeRegistry.register(new HeavyGenAdapter());
 
 import { videoJobStore, progressVideoJob } from './adapters/videoAdapter.js';
 import { loopRuns } from './services/loopEngine.js';
+
+import { backgroundTaskRepo, ensureBackgroundTaskTables } from './services/backgroundTasks/store.js';
 
 // Startup Recovery Routine
 logger.info(`\n[Recovery] Scanning for stuck jobs...`);
@@ -173,6 +177,11 @@ const failStaleRuns = () => {
   if (failedCount > 0) {
     logger.info(`[Recovery] Auto-failed ${failedCount} stale run(s) older than 30min.`);
   }
+
+  // Ensure background task tables exist on boot
+  try {
+    ensureBackgroundTaskTables();
+  } catch { /* best effort */ }
 };
 failStaleRuns();
 // Re-check every 5 minutes for any new stale runs that appear during uptime
@@ -219,12 +228,14 @@ app.use(legacyHeadersMiddleware);
 // Auth is bypassed in dev, enforced in production
 app.use('/api', (req, res, next) => {
   logger.info(`[BACKEND] INCOMING: ${req.method} ${req.url}`);
-  if (req.path === '/health' || req.path.startsWith('/health/') || req.path.startsWith('/system/') || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline')) return next(); // public for now
+  if (req.path === '/health' || req.path.startsWith('/health/') || req.path.startsWith('/runtime') || req.path.startsWith('/system/') || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline')) return next(); // public for now
   return authMiddleware(req, res, next);
 });
 
 /* ── Routes ─────────────────────────────────────────── */
 app.use('/api/health', healthRouter);
+import runtimeIdentityRouter from './routers/runtimeIdentity.js';
+app.use('/api/runtime', runtimeIdentityRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/workspace-index', workspaceIndexRouter);
 app.use('/api/gemini', authMiddleware, geminiRouter);
@@ -235,6 +246,7 @@ app.use('/api/teams', teamsRouter);
 app.use('/api/runs', runsRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/memory', memoryRouter);
+app.use('/api/memories', memoryRouter);
 app.use('/api/boards', boardsRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/tools', toolsRouter);
@@ -248,6 +260,8 @@ app.use('/api/sales', salesRouter);
 app.use('/api/artifacts', artifactsRouter);
 app.use('/api/kanban', kanbanRouter);
 app.use('/api/dispatch', laneRouter);
+import { capabilityDispatchRouter } from './routers/capabilityDispatch.js';
+app.use('/api/dispatch/capability', capabilityDispatchRouter);
 import tasksRouter from './routers/tasks.js';
 app.use('/api/tasks', tasksRouter);
 import backgroundTasksRouter from './routers/backgroundTasks.js';
@@ -291,6 +305,8 @@ import revenuePipelineRouter from './routers/revenuePipeline.js';
 app.use('/api/revenue-pipeline', revenuePipelineRouter);
 import revenueOperatorRouter from './routers/revenueOperator.js';
 app.use('/api/revenue-operator', revenueOperatorRouter);
+import { revenueSupervisorRouter } from './routers/revenueSupervisorRouter.js';
+app.use('/api/revenue-supervisor', revenueSupervisorRouter);
 import revenueEngineRouter from './routers/revenueEngine.js';
 app.use('/api/revenue-engine', revenueEngineRouter);
 import skillsRouter from './routers/skills.js';
@@ -322,13 +338,16 @@ app.get('/api/conversations', (req, res) => {
 });
 
 import { seedDefaultSkills } from './services/agent/skillRegistry.js';
+import { ensureJarvisCoreMemorySeeded } from './domains/jarvis/coreMemory.js';
 
-// Seed default schedules and skills on boot
+// Seed default schedules, skills, and core memory on boot
 seedDefaultSchedules();
 seedDefaultSkills();
+ensureJarvisCoreMemorySeeded();
 
-// Background Task Manager: restore interrupted tasks after backend restart.
+// Background Task Manager & Jarvis Supervisor: restore interrupted tasks after backend restart.
 import { backgroundTaskManager } from './services/backgroundTasks/manager.js';
+import './domains/jarvis/executionSupervisor.js';
 backgroundTaskManager.restoreAfterRestart();
 
 // CodeX goals: reconcile orphaned goals (backend restarted while their loop

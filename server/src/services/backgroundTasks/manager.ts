@@ -39,6 +39,7 @@ import {
 } from '../recovery/policy.js';
 import { getWorkspaceRoot } from '../workspaceStore.js';
 import * as executionState from '../executionState.js';
+import { normalizeApprovalAction, isWorkspaceSafeReadOnlyOperation } from './approvalNormalization.js';
 
 /** Extract "Top prospect: X" (or the first numbered result) from a worker result. */
 function extractTopResult(result: string | null | undefined): string | null {
@@ -136,6 +137,36 @@ export class BackgroundTaskManager extends EventEmitter {
     try {
       const interrupted = backgroundTaskRepo.listTasks({ activeOnly: true });
       for (const task of interrupted) {
+        if (task.status === 'queued') {
+          // Invariant: Genuinely queued tasks remain QUEUED after restart and consume zero active capacity.
+          continue;
+        }
+        if (task.status === 'waiting_approval' || task.approvalState === 'pending') {
+          // Reconstitute pending approval in memory so UI and API stay consistent
+          const events = backgroundTaskRepo.getEvents(task.taskId);
+          const reqEvt = [...events].reverse().find(e => e.kind === 'task.approval_requested');
+          const detail = reqEvt?.detail || {};
+          const norm = normalizeApprovalAction({
+            action: (detail.action as string) || task.title,
+            command: (detail.command as string) || (reqEvt?.summary?.includes('—') ? reqEvt.summary.split('—')[1].trim() : undefined),
+            reason: (detail.reason as string) || 'Pending approval restored from database.',
+            files: (detail.files as string[]) || undefined,
+            workspaceRoot: task.workspaceRoot,
+          });
+          this.approvalRequests.set(task.taskId, {
+            taskId: task.taskId,
+            action: norm.label,
+            reason: (detail.reason as string) || norm.summary,
+            command: (detail.command as string) || undefined,
+            files: (detail.files as string[]) || undefined,
+            choices: ['allow', 'deny'],
+            canonicalAction: norm.canonicalAction,
+            riskLevel: norm.riskLevel,
+            isReadOnly: norm.isReadOnly,
+          });
+          this.appendEvent(task.taskId, 'task.progress', 'Pending approval restored after restart.');
+          continue;
+        }
         if (task.worker === 'codex' && task.resumable && (task.status === 'running' || task.status === 'paused')) {
           // CodeX checkpoints survive restart; leave paused/running as-is —
           // the worker adapter reattaches on demand (no silent auto-restart).
@@ -143,9 +174,61 @@ export class BackgroundTaskManager extends EventEmitter {
             `Task restored after backend restart — ${task.status}, resumable via checkpoint.`);
           continue;
         }
+        if (task.worker === 'hermes' && (task.status === 'running' || task.status === 'planning')) {
+          if (task.linkedRunId) {
+            const runId = task.linkedRunId;
+            if (runId.startsWith('er-')) {
+              import('../projectExecution/executionRunService.js').then(async ({ executionRunService }) => {
+                const run = executionRunService.getRun(runId);
+                if (run?.status === 'completed') {
+                  this.verifyCompletion(task.taskId, {
+                    resultText: (run.metadata as any)?.resultSummary || 'Hermes plan completed.',
+                    readOnly: true,
+                    verificationNote: 'Reconciled completed in-repo Hermes plan after restart.',
+                  });
+                } else if (run?.status === 'failed' || run?.status === 'cancelled') {
+                  this.transition(task.taskId, run.status, {
+                    lastError: `In-repo Hermes plan run ${run.status} on restart.`,
+                  });
+                }
+              }).catch(() => {});
+              continue;
+            } else if (runId.startsWith('goal-')) {
+              continue;
+            }
+            import('../hermesApiService.js').then(async ({ hermesApiService }) => {
+              try {
+                const probe = await hermesApiService.probeRunLiveness(task.linkedRunId!);
+                if (probe.status === 'completed') {
+                  this.verifyCompletion(task.taskId, {
+                    resultText: probe.output || 'Hermes run completed.',
+                    readOnly: true,
+                    verificationNote: 'Reconciled completed Hermes run after restart.',
+                  });
+                } else if (probe.status === 'failed' || probe.status === 'cancelled') {
+                  this.transition(task.taskId, probe.status, {
+                    lastError: `Upstream Hermes run ${probe.status} on restart.`,
+                  });
+                } else if (!probe.isAlive) {
+                  this.transition(task.taskId, 'blocked', {
+                    blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+                  });
+                }
+              } catch {
+                this.transition(task.taskId, 'blocked', {
+                  blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+                });
+              }
+            }).catch(() => {});
+          } else {
+            this.transition(task.taskId, 'blocked', {
+              blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+            });
+          }
+          continue;
+        }
         if (task.status === 'running' || task.status === 'planning') {
-          // Non-resumable workers (Hermes live run, research) cannot prove
-          // continuity across a backend restart — mark blocked truthfully.
+          // Non-resumable workers cannot prove continuity across a backend restart — mark blocked truthfully.
           this.transition(task.taskId, 'blocked', {
             blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
           });
@@ -154,6 +237,13 @@ export class BackgroundTaskManager extends EventEmitter {
     } catch (err: any) {
       logger.warn(`[bg-task] restoreAfterRestart failed: ${err?.message}`);
     }
+    // CodeX goal→task bridge reconciliation (restart-safe): the bridge is an
+    // in-memory EventEmitter listener that dies on restart. Re-attach it for
+    // non-terminal goals and reconcile any goal that already reached a terminal
+    // state (completed/failed/cancelled) so a parent task never stays stuck.
+    import('./adapters.js')
+      .then(({ reconcileCodexTasksAfterRestart }) => reconcileCodexTasksAfterRestart())
+      .catch((err: any) => logger.warn(`[bg-task] codex reconciliation failed: ${err?.message}`));
   }
 
   /** Create + persist a task. Enforces concurrency limits (requirement 15). */
@@ -168,7 +258,7 @@ export class BackgroundTaskManager extends EventEmitter {
     if (queuedCount >= TASK_LIMITS.maxQueued) {
       return { error: `Queue is full (${TASK_LIMITS.maxQueued} queued tasks).` };
     }
-    const perWorkerActive = active.filter(t => t.worker === input.worker && isActiveStatus(t.status)).length;
+    const perWorkerActive = active.filter(t => t.worker === input.worker && isActiveStatus(t.status) && t.status !== 'queued').length;
     const workerLimit =
       input.worker === 'hermes' ? TASK_LIMITS.maxActiveHermes
       : input.worker === 'codex' ? TASK_LIMITS.maxActiveCodex
@@ -227,7 +317,7 @@ export class BackgroundTaskManager extends EventEmitter {
 
     backgroundTaskRepo.insertTask(task);
     this.appendEvent(task.taskId, 'task.created', `Task ${taskShortId(task.taskId)} created — ${task.title}`, { worker: task.worker });
-    this.appendEvent(task.taskId, atWorkerLimit ? 'task.blocked' : 'task.queued', atWorkerLimit
+    this.appendEvent(task.taskId, 'task.queued', atWorkerLimit
       ? `Queued behind ${task.worker} — active ${perWorkerActive}/${workerLimit}, position ${queuedCount + 1}`
       : 'Task queued for execution.');
     this.linkBoardCard(task);
@@ -260,7 +350,7 @@ export class BackgroundTaskManager extends EventEmitter {
   async pumpQueuedForWorker(worker: string): Promise<void> {
     try {
       const queued = this.listTasks({ activeOnly: true })
-        .filter(t => t.worker === worker && t.status === 'queued' && (t.metadata as any)?.concurrency?.blocked);
+        .filter(t => t.worker === worker && t.status === 'queued');
       if (!queued.length) return;
       const active = this.listTasks({ activeOnly: true })
         .filter(t => t.worker === worker && isActiveStatus(t.status) && t.status !== 'queued').length;
@@ -270,12 +360,30 @@ export class BackgroundTaskManager extends EventEmitter {
         : worker === 'team' ? TASK_LIMITS.maxActiveTeam
         : TASK_LIMITS.maxActiveGlobal;
       if (active >= workerLimit) return;
-      const next = queued.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0];
+      const sortedQueued = queued.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+      const next = sortedQueued[0];
       logger.info(`[bg-task] pump: dispatching queued ${next.taskId} for ${worker} (active ${active}/${workerLimit})`);
-      const { dispatchTask } = await import('./adapters.js');
+      const { dispatchTask, clearDispatchGuard } = await import('./adapters.js');
+      clearDispatchGuard(next.taskId);
       const result = await dispatchTask(next);
       if (!result.ok) {
         this.transition(next.taskId, 'blocked', { lastError: result.error || 'Dispatch failed' });
+      }
+      // Update queue positions for remaining queued tasks
+      for (let i = 1; i < sortedQueued.length; i++) {
+        const remaining = sortedQueued[i];
+        const newPos = i;
+        backgroundTaskRepo.updateTask(remaining.taskId, {
+          metadata: {
+            ...(remaining.metadata || {}),
+            concurrency: {
+              active: active + 1,
+              limit: workerLimit,
+              position: newPos,
+              blocked: true,
+            },
+          },
+        });
       }
     } catch (err: any) {
       logger.warn('[bg-task] pump failed', err);
@@ -384,9 +492,16 @@ export class BackgroundTaskManager extends EventEmitter {
       // the Jarvis conversation automatically — the user never has to open a
       // side panel to discover what the worker found.
       if (status === 'completed' && task.conversationId && (updated.resultText || task.resultText)) {
-        const resultText = String(updated.resultText || task.resultText || '').slice(0, 2000);
+        const rawResult = String(updated.resultText || task.resultText || '').trim();
         void (async () => {
           try {
+            // Jarvis final-answer gate: suppress raw low-level file errors from being announced as the final strategic answer
+            const isLowLevelFileError = /^(no matching files|path.*is not a valid directory|file not found|no files matched)/i.test(rawResult);
+            if (isLowLevelFileError) {
+              logger.warn(`[bg-task] Suppressing raw low-level error as final answer for ${task.taskId}`);
+              return;
+            }
+            const resultText = rawResult.slice(0, 8000);
             const { conversationService } = await import('../../domains/conversations/service.js');
             await conversationService.appendMessage({
               conversationId: task.conversationId as string,
@@ -626,7 +741,8 @@ export class BackgroundTaskManager extends EventEmitter {
     const task = backgroundTaskRepo.getTask(taskId);
     if (!task) return { ok: false, error: 'Task not found.' };
     if (TERMINAL_STATUSES.has(task.status)) return { ok: false, error: `Task is already ${task.status}.`, task };
-    const updated = this.transition(taskId, 'cancelled', { cancellationRequested: true, blocker: reason });
+    this.approvalRequests.delete(taskId);
+    const updated = this.transition(taskId, 'cancelled', { cancellationRequested: true, blocker: reason, approvalState: task.approvalState === 'pending' ? 'denied' : task.approvalState });
     this.stopHandlers.get(taskId)?.();
     return { ok: true, task: updated || task };
   }
@@ -676,31 +792,123 @@ export class BackgroundTaskManager extends EventEmitter {
   requestApproval(taskId: string, request: Omit<TaskApprovalRequest, 'taskId'>): void {
     const task = backgroundTaskRepo.getTask(taskId);
     if (!task || TERMINAL_STATUSES.has(task.status)) return;
-    this.approvalRequests.set(taskId, { taskId, ...request });
+
+    const norm = normalizeApprovalAction({
+      action: request.action,
+      command: request.command,
+      reason: request.reason,
+      files: request.files,
+      workspaceRoot: task.workspaceRoot,
+    });
+
+    const normalizedReq: TaskApprovalRequest = {
+      taskId,
+      action: norm.label,
+      reason: request.reason || norm.summary,
+      command: request.command,
+      files: request.files,
+      choices: request.choices || ['allow', 'deny'],
+      canonicalAction: norm.canonicalAction,
+      riskLevel: norm.riskLevel,
+      isReadOnly: norm.isReadOnly,
+    };
+
+    this.approvalRequests.set(taskId, normalizedReq);
     this.transition(taskId, 'waiting_approval', { approvalState: 'pending' });
     this.appendEvent(taskId, 'task.approval_requested',
-      `Approval required: ${request.action}${request.command ? ` — ${request.command}` : ''}`,
-      { reason: request.reason, files: request.files });
+      `Approval required: ${normalizedReq.action}${request.command ? ` — ${request.command}` : ''}`,
+      {
+        reason: normalizedReq.reason,
+        files: request.files,
+        canonicalAction: norm.canonicalAction,
+        riskLevel: norm.riskLevel,
+        isReadOnly: norm.isReadOnly,
+      });
   }
 
   getPendingApproval(taskId: string): TaskApprovalRequest | null {
-    return this.approvalRequests.get(taskId) || null;
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task || TERMINAL_STATUSES.has(task.status)) {
+      this.approvalRequests.delete(taskId);
+      return null;
+    }
+
+    const existing = this.approvalRequests.get(taskId);
+    if (existing) return existing;
+
+    // Fallback: check if task is waiting_approval in database and reconstruct
+    if (task.status === 'waiting_approval' || task.approvalState === 'pending') {
+      const events = backgroundTaskRepo.getEvents(taskId);
+      const reqEvt = [...events].reverse().find(e => e.kind === 'task.approval_requested');
+      const detail = reqEvt?.detail || {};
+      const norm = normalizeApprovalAction({
+        action: (detail.action as string) || task.title,
+        command: (detail.command as string) || (reqEvt?.summary?.includes('—') ? reqEvt.summary.split('—')[1].trim() : undefined),
+        reason: (detail.reason as string) || 'Pending approval waiting on user decision.',
+        files: (detail.files as string[]) || undefined,
+        workspaceRoot: task.workspaceRoot,
+      });
+      const reconstructed: TaskApprovalRequest = {
+        taskId,
+        action: norm.label,
+        reason: (detail.reason as string) || norm.summary,
+        command: (detail.command as string) || undefined,
+        files: (detail.files as string[]) || undefined,
+        choices: ['allow', 'deny'],
+        canonicalAction: norm.canonicalAction,
+        riskLevel: norm.riskLevel,
+        isReadOnly: norm.isReadOnly,
+      };
+      this.approvalRequests.set(taskId, reconstructed);
+      return reconstructed;
+    }
+    return null;
   }
 
   listPendingApprovals(): TaskApprovalRequest[] {
+    const memoryApprovals = Array.from(this.approvalRequests.values());
+    const waitingTasks = backgroundTaskRepo.listTasks({ activeOnly: true }).filter(
+      t => t.status === 'waiting_approval' || t.approvalState === 'pending'
+    );
+    for (const t of waitingTasks) {
+      if (!this.approvalRequests.has(t.taskId)) {
+        this.getPendingApproval(t.taskId);
+      }
+    }
     return Array.from(this.approvalRequests.values());
   }
 
-  async resolveApproval(taskId: string, choice: 'allow' | 'deny', resolver: (choice: 'allow' | 'deny') => Promise<void>): Promise<{ ok: boolean; error?: string }> {
+  async resolveApproval(
+    taskId: string,
+    choice: 'allow' | 'deny',
+    resolver: (choice: 'allow' | 'deny') => Promise<void>,
+    options?: { force?: boolean }
+  ): Promise<{ ok: boolean; error?: string; alreadyResolved?: boolean }> {
     const task = backgroundTaskRepo.getTask(taskId);
     if (!task) return { ok: false, error: 'Task not found.' };
-    if (task.status !== 'waiting_approval') return { ok: false, error: `Task is not waiting for approval (current: ${task.status}).` };
+    if (task.status !== 'waiting_approval' && task.approvalState !== 'pending') {
+      if (task.approvalState === 'allowed' || task.approvalState === 'denied') {
+        return { ok: true, alreadyResolved: true };
+      }
+      return { ok: false, error: `Task is not waiting for approval (current: ${task.status}).` };
+    }
+
     try {
-      await resolver(choice);
-      // Record the decision BEFORE waking any registered approval resolver
-      // (e.g. the revenue pipeline gate). Otherwise the worker continuation
-      // runs on a microtask while approvalState is still 'pending' and its
-      // verifyCompletion gate would refuse completion as unresolved.
+      if (resolver) {
+        try {
+          await resolver(choice);
+        } catch (resolverErr: any) {
+          // If the user DENIED, or force resolution is requested, but upstream resolver errored
+          // (e.g. upstream run already closed or expired), we still safely apply the denial locally
+          // so the task transitions and the UI unblocks.
+          if (choice === 'deny' || options?.force) {
+            logger.warn(`[bg-task] upstream resolver error ignored on ${choice} for ${taskId}: ${resolverErr?.message}`);
+          } else {
+            throw resolverErr;
+          }
+        }
+      }
+
       this.approvalRequests.delete(taskId);
       const nextStatus = choice === 'allow' ? 'running' : 'blocked';
       this.transition(taskId, nextStatus, {
@@ -709,11 +917,34 @@ export class BackgroundTaskManager extends EventEmitter {
       });
       this.appendEvent(taskId, 'task.approval_resolved', `Approval ${choice === 'allow' ? 'allowed' : 'denied'} by user.`);
       const registered = this.approvalResolvers.get(taskId);
-      if (registered) await registered(choice);
+      if (registered) {
+        try { await registered(choice); } catch (e: any) { logger.warn(`[bg-task] registered resolver error: ${e?.message}`); }
+      }
       return { ok: true };
     } catch (err: any) {
+      logger.error(`[bg-task] resolveApproval error for ${taskId}: ${err?.message}`);
       return { ok: false, error: `Approval resolution failed: ${err?.message}` };
     }
+  }
+
+  async reconcileStaleApproval(
+    taskId: string,
+    action: 'deny' | 'cancel' = 'deny',
+    reason?: string
+  ): Promise<{ ok: boolean; task?: BackgroundTaskRecord; error?: string }> {
+    const task = backgroundTaskRepo.getTask(taskId);
+    if (!task) return { ok: false, error: 'Task not found.' };
+    this.approvalRequests.delete(taskId);
+
+    if (action === 'cancel') {
+      return this.cancelTask(taskId, reason || 'Approval cancelled during stale reconciliation.');
+    }
+    const updated = this.transition(taskId, 'blocked', {
+      approvalState: 'denied',
+      blocker: reason || 'Stale approval reconciled by user — operation denied.',
+    });
+    this.appendEvent(taskId, 'task.approval_resolved', 'Stale approval reconciled (denied).');
+    return { ok: true, task: updated || task };
   }
 
   // ── Verification & completion (requirement 13) ──────────────────────────
