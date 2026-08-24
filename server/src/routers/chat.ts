@@ -187,7 +187,7 @@ router.post('/quick', async (req, res) => {
     return;
   }
 
-  const result = await llmChat({ prompt: message, provider, ollamaModel: model });
+  const result = await llmChat({ prompt: message, provider, model: model });
   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });
 });
 
@@ -201,7 +201,7 @@ router.post('/agents/run', async (req, res) => {
   }
 
   let provider: any = providerOverride;
-  let ollamaModel: string | undefined = modelOverride;
+  let model: string | undefined = modelOverride;
 
   if (agent === 'CodeX' && !providerOverride) {
     const codexAssignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
@@ -209,7 +209,7 @@ router.post('/agents/run', async (req, res) => {
   }
 
   const systemPrompt = `You are the ${agent} agent inside my Agentic OS. Answer with concrete code patches and plans. Be concise and authoritative. Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.`;
-  const result = await llmChat({ systemPrompt, prompt: message, maxTokens: 2048, provider, ollamaModel });
+  const result = await llmChat({ systemPrompt, prompt: message, maxTokens: 2048, provider, model });
   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });
 });
 

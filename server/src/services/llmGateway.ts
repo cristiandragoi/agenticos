@@ -101,7 +101,7 @@ function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
     requestId: opts.requestId,
     taskProfile,
     agentId: opts.agentId,
-    modelId: opts.model,
+    modelId: opts.model ?? opts.ollamaModel,
     routing: opts.routingMode ? { mode: opts.routingMode } : undefined,
     escalationModel: opts.escalationModel
   };
