@@ -67,9 +67,9 @@ describe('llmGateway Ollama fallback', () => {
       if (url === 'http://ollama.test/api/tags') {
         return jsonResponse({ models: [{ name: INSTALLED_MODEL }] });
       }
-      if (url === 'http://ollama.test/api/generate') {
+      if (url === 'http://ollama.test/api/chat') {
         return sseResponse([
-          JSON.stringify({ response: 'OK' }),
+          JSON.stringify({ message: { content: 'OK' } }),
           JSON.stringify({ done: true })
         ]);
       }
@@ -84,7 +84,7 @@ describe('llmGateway Ollama fallback', () => {
     expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
       'http://openrouter.test/v1/chat/completions',
       'http://ollama.test/api/tags',
-      'http://ollama.test/api/generate'
+      'http://ollama.test/api/chat'
     ]);
     expect(diagnostics).toContainEqual(expect.objectContaining({
       stage: 'provider_rate_limited',
@@ -123,9 +123,9 @@ describe('llmGateway Ollama fallback', () => {
       if (url === 'http://ollama.test/api/tags') {
         return jsonResponse({ models: [{ name: INSTALLED_MODEL }] });
       }
-      if (url === 'http://ollama.test/api/generate') {
+      if (url === 'http://ollama.test/api/chat') {
         await new Promise(resolve => setTimeout(resolve, 40));
-        return sseResponse([JSON.stringify({ response: 'OK' }), JSON.stringify({ done: true })]);
+        return sseResponse([JSON.stringify({ message: { content: 'OK' } }), JSON.stringify({ done: true })]);
       }
       throw new Error(`Unexpected URL ${url}`);
     }));
@@ -144,7 +144,7 @@ describe('llmGateway Ollama fallback', () => {
       if (url === 'http://ollama.test/api/tags') {
         return Promise.resolve(jsonResponse({ models: [{ name: INSTALLED_MODEL }] }));
       }
-      if (url === 'http://ollama.test/api/generate') {
+      if (url === 'http://ollama.test/api/chat') {
         return new Promise((_resolve, reject) => {
           options.signal.addEventListener('abort', () => reject(new Error(`${INSTALLED_MODEL} Ollama headers timed out after 25 ms.`)));
         });
@@ -190,9 +190,9 @@ describe('§15 G/H — provider failure truth (conversation-level)', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === 'http://openrouter.test/v1/chat/completions') return jsonResponse({ error: 'down' }, 500);
       if (url === 'http://ollama.test/api/tags') return jsonResponse({ models: [{ name: INSTALLED_MODEL }] });
-      if (url === 'http://ollama.test/api/generate') {
+      if (url === 'http://ollama.test/api/chat') {
         return sseResponse([
-          JSON.stringify({ response: 'OK from fallback' }),
+          JSON.stringify({ message: { content: 'OK from fallback' } }),
           JSON.stringify({ done: true })
         ]);
       }
@@ -215,7 +215,7 @@ describe('§15 G/H — provider failure truth (conversation-level)', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === 'http://openrouter.test/v1/chat/completions') return jsonResponse({ error: 'down' }, 500);
       if (url === 'http://ollama.test/api/tags') return jsonResponse({ error: 'down' }, 500);
-      if (url === 'http://ollama.test/api/generate') return jsonResponse({ error: 'down' }, 500);
+      if (url === 'http://ollama.test/api/chat') return jsonResponse({ error: 'down' }, 500);
       throw new Error(`Unexpected URL ${url}`);
     }));
 
