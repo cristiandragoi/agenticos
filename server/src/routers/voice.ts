@@ -1,3 +1,4 @@
+import { sanitizeMarkdownForSpeech } from '../utils/speechSanitizer.js';
 import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import multer from 'multer';
@@ -17,7 +18,13 @@ router.get('/tts/status', async (_req, res) => {
   res.json({
     configured: Boolean(process.env.DEEPGRAM_API_KEY),
     provider: 'deepgram',
-    endpoint: '/api/voice/tts'
+    endpoint: '/api/voice/tts',
+    // Runtime voice identity (verified by the CDP gate, not only config text):
+    // locale en-AU is the recognition/transcription locale (Deepgram Aura has
+    // no Australian-accented TTS voice, so the natural professional male
+    // voice aura-helios-en is retained for synthesis).
+    locale: 'en-AU',
+    jarvisVoice: 'aura-helios-en',
   });
 });
 
@@ -34,7 +41,7 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
       return res.status(500).json({ error: 'Deepgram API key not configured.' });
     }
 
-    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true', {
+    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en-AU', {
       method: 'POST',
       headers: {
         'Authorization': `Token ${deepgramKey}`,
@@ -97,7 +104,7 @@ router.post('/speak', async (req, res) => {
         'Authorization': `Token ${deepgramKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: sanitizeMarkdownForSpeech(text) || text }),
     });
 
     if (!response.ok) {
@@ -148,7 +155,7 @@ router.post('/tts', async (req, res) => {
         'Authorization': `Token ${deepgramKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: sanitizeMarkdownForSpeech(text) || text }),
     });
 
     if (!response.ok) {

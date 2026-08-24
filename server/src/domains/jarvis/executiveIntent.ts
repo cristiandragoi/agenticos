@@ -1,3 +1,4 @@
+import { isConversationalFeedback } from './intentRouter.js';
 /**
  * JARVIS Executive Intent classifier.
  *
@@ -44,14 +45,31 @@ export interface ExecutiveIntent {
   workerKind?: string;
 }
 
-const EXPLAIN_VERBS = /\b(explain|what does|what is|describe|tell me about|how does|what are|who is|what's|do you know about|what\s+\w+\s+does|what\s+\w+\s+do)\b/;
-const STATUS_VERBS = /\b(status|how is|how are|doing|working on|using|what model|what provider|active|busy|health|healthy|alive|up to)\b/;
+const EXPLAIN_VERBS = /\b(explain|what does|what is|describe|tell me about|how does|what are|who is|what's|do you know about|what\s+\w+\s+does|what\s+\w+\s+do|what\s+can\s+\w+\s+do|what\s+can\s+you\s+do|what\s+capabilities)\b/;
+const STATUS_VERBS = /\b(status|how is|how are|doing|working on|using|what model|what provider|active|busy|health|healthy|alive|up to|did|what did|what has|done|finish|finished|completed|result)\b/;
 const FEEDBACK_VERBS = /\b(feedback|assessment|evaluate|review|audit|assess|how (good|well)|report on)\b/;
 const NAV_VERBS = /\b(open|go to|take me to|navigate to|launch|show me the page|switch to)\b/;
 const DELEGATE_VERBS =
   /\b(ask|have|tell|get|make|delegate|instruct|send|request|ask the|tell the|use the|create|add|queue|file|raise|log)\b/;
-const TASK_WORDS = /\b(inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build|trace|read|investigate|report|find|look at|examine|check)\b/;
-const READ_ONLY_CONSTRAINTS = /\b(do not modify|do not change|do not write|without modifying|without changing|read-only|readonly|no file changes|no changes|do not edit|do not touch)\b/;
+const TASK_WORDS = /\b(inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build|trace|read|investigate|report|find|look at|examine|check|write)\b/;
+
+export function isReadOnlyConstraint(prompt: string): boolean {
+  const p = prompt.toLowerCase().replace(/['’]/g, "'");
+  const cleaned = p
+    .replace(/\b(?:do not|don't|dont|without|no|never)\s+(?:modify|change|edit|touch|write|patch|update|refactor|delete|remove|create|add|implement)\s+(?:any\s+|the\s+|a\s+|our\s+)?(?:other\s+)?(?:code|codebase|files?|implementation|anything|nothing)?\b/gi, '')
+    .replace(/\b(?:without\s+(?:modifying|changing|editing|touching|writing|patching|updating|deleting|removing|creating|adding|implementing)\s+(?:any\s+|the\s+|a\s+|our\s+)?(?:code|codebase|files?|implementation|anything)?)\b/gi, '')
+    .replace(/\b(?:no\s+(?:code\s+changes?|file\s+changes?|changes?))\b/gi, '')
+    .replace(/\b(?:analysis\s+only|read\s*-?\s*only|inspection\s+only)\b/gi, '');
+
+  const hasWriteTarget = /\b(?:create|write|generate|add|touch|patch|fix|update|implement|modify|build)\b/i.test(cleaned);
+  const matchesConstraint = (
+    /\b(?:do not|don't|dont|no|without|never)\s+(?:modify|write|edit|change|touch|patch|update)\s+(?:any\s+|the\s+|a\s+|our\s+)?(?:code|codebase|files?|implementation|anything)?\b/i.test(p) ||
+    /\b(?:without\s+(?:modifying|writing|editing|changing|touching)\s+(?:anything|any\s+(?:code|codebase|files?|implementation))?)\b/i.test(p) ||
+    /\b(?:no\s+(?:code\s+changes?|file\s+changes?|changes?))\b/i.test(p) ||
+    /\b(?:analysis\s+only|read\s*-?\s*only|inspection\s+only)\b/i.test(p)
+  );
+  return matchesConstraint && !hasWriteTarget;
+}
 
 /**
  * Revenue Pipeline V1 request detection (two parts):
@@ -93,6 +111,7 @@ export function mentionsInternalCapability(prompt: string): boolean {
 
 export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (isConversationalFeedback(prompt)) return null;
 
   const cap = resolveCapability(p);
 
@@ -183,7 +202,7 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   if (capSelfCreation && cap && ['automations', 'boards', 'memory', 'goals'].includes(cap.id)) {
     // fall through to capability-specific handling (automation_request, ...)
   } else if (isDelegation && cap.taskWorkerKind) {
-    const readOnly = READ_ONLY_CONSTRAINTS.test(p);
+    const readOnly = isReadOnlyConstraint(p);
     return {
       intent: 'worker_delegation',
       capability: cap,

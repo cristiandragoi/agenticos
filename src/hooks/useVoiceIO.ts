@@ -1,3 +1,4 @@
+import { sanitizeMarkdownForSpeech } from '../utils/speechSanitizer';
 // @ts-nocheck
 /**
  * useVoiceIO — Shared voice input/output hook for Jarvis and Hermes.
@@ -1651,7 +1652,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         audioElementRef.current.pause();
         audioElementRef.current.src = '';
       }
-      const utterance = new SpeechSynthesisUtterance(text);
+      const cleanText = sanitizeMarkdownForSpeech(text) || text;
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       // Speaking is confirmed by the real utterance start event, not eagerly.
       (utterance as any).onstart = () => {
         speakingRef.current = true;
@@ -1715,7 +1717,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     // Echo tracking (Phase 4): record the text that is about to come out of
     // the speakers, so a later microphone transcript can be compared against
     // the CURRENT spoken segment (not the whole response) and rejected as echo.
-    recordSpokenSegment(text, `${conversationSessionIdRef.current ?? 'manual'}:${turnSeqRef.current}`);
+    const cleanText = sanitizeMarkdownForSpeech(text) || text;
+    recordSpokenSegment(cleanText, `${conversationSessionIdRef.current ?? 'manual'}:${turnSeqRef.current}`);
 
     // Voice output disabled → skip TTS entirely, signal completion so the
     // conversation loop can resume listening. No duplicate, no error.
@@ -1760,7 +1763,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       const res = await apiFetch(`${BACKEND}/voice/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, agentId, voice: voiceModel }),
+        body: JSON.stringify({ text: cleanText, agentId, voice: voiceModel }),
         signal: controller.signal
       });
       if (res.ok) {

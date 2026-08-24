@@ -40,6 +40,11 @@ function getDirectChatOverallTimeoutMs() {
   return Number(process.env.JARVIS_OVERALL_TIMEOUT_MS || 120_000);
 }
 
+function normalizeApprovalPolicy(value: any): 'manual' | 'auto' {
+  if (value === 'auto') return 'auto';
+  return 'manual';
+}
+
 /**
  * Metadata-only resolution for SSE status/trace labels. Must mirror the
  * gateway's effective selection without influencing it:
@@ -58,11 +63,6 @@ async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; 
     const assignment = await AgentProviderAssignmentService.getAssignment('agent-jarvis');
     if (assignment?.enabled && assignment.modelId) {
       selectedModel = assignment.modelId;
-      // Provider label must reflect the ACTUAL resolved gateway provider
-      // (Jarvis repair): derive it from the assignment via the canonical
-      // catalog→gateway mapping so the SSE/status display, the routing log,
-      // and the outgoing request all agree (e.g. prov-deepseek → DeepSeek),
-      // instead of hard-coding 'OpenRouter'.
       selectedProvider = mapCatalogToGatewayId(assignment.providerId) || selectedProvider;
     }
   } catch (err) {
@@ -91,9 +91,6 @@ async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0])
           errorChunk = chunk;
           break;
         }
-        // llmChatStream surfaces provider failures as a *token* chunk whose
-        // content starts with '[Stream Error: ' (see llmGateway catch) —
-        // detect that marker and treat it as a retryable-error boundary.
         if (chunk.type === 'token' && typeof chunk.content === 'string' && chunk.content.includes('[Stream Error:')) {
           sawError = true;
           errorChunk = { type: 'error', error: chunk.content.replace(/^[\s\S]*\[Stream Error: /, '').replace(/\]\s*$/, '') };
@@ -109,11 +106,6 @@ async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0])
       if (sawError && errorChunk) yield errorChunk;
       return;
     } catch (err: any) {
-      // Provider exhaustion/transient failures surface as THROWN errors from
-      // llmChatStream (not error chunks). Catch them at this recovery
-      // boundary: one bounded retry of the SAME real request. Non-retryable
-      // and abort/terminal errors rethrow unchanged so the caller's error
-      // handling (and cancellation semantics) is preserved.
       const msg = String(err?.message || err || '');
       if (attempt < 1 && RETRYABLE.test(msg)) {
         logStreamStage(opts.requestId || 'jarvis', 'transient provider error (thrown) — retrying request', { attempt: attempt + 1, error: msg.slice(0, 160) });
@@ -152,6 +144,12 @@ async function buildRecentConversationText(conversationId: string): Promise<stri
     const msgs = await conversationService.getMessages(conversationId);
     const arr = Array.isArray(msgs) ? msgs : [];
     return arr.slice(-8)
+      .filter((m: any) => {
+        const content = typeof m?.content === 'string' ? m.content : '';
+        if (m.messageType === 'system_status' || m.message_type === 'system_status') return false;
+        if (content.includes('QUEUED behind') || content.includes('no worker activity for') || content.includes('confirmed stalled') || content.includes("I'm back.")) return false;
+        return true;
+      })
       .map((m: any) => `${m.role || 'system'}: ${typeof m.content === 'string' ? m.content : ''}`)
       .join('\n');
   } catch {
@@ -159,23 +157,6 @@ async function buildRecentConversationText(conversationId: string): Promise<stri
   }
 }
 
-/**
- * Build the LLM conversation history for the direct-chat call.
- *
- * ROOT-CAUSE FIX (runtime investigation): the direct-chat LLM previously
- * received ONLY systemPrompt + the current prompt (messageCount: 2), so it
- * had ZERO memory of the conversation — it could not answer "What is my
- * favorite color?" after the user stated it, and it hallucinated when asked
- * about prior context. History now comes from the persisted conversation.
- *
- * Excluded from history:
- *   - the current prompt itself (the gateway appends it after history),
- *   - routing_event/system bookkeeping messages (never user-visible),
- *   - everything beyond the bounded window (last 12 turns) and a sane char
- *     budget, so context windows are never blown by long histories.
- *   - REMEMBER: You have access to prior turn history. Explicitly lookup 
- *     facts from prior turns if the user asks a follow-up or references past context.
- */
 const COMMON_ENGLISH_STOPWORDS = new Set([
   'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', "aren't", 'as', 'at',
   'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can', "can't", 'cannot',
@@ -193,15 +174,6 @@ const COMMON_ENGLISH_STOPWORDS = new Set([
   "you've", 'your', 'yours', 'yourself', 'yourselves'
 ]);
 
-/**
- * Build the LLM conversation history for the direct-chat call.
- *
- * Excluded from history:
- *   - the current prompt itself,
- *   - routing_event/system bookkeeping messages,
- *   - old turns that do not share meaningful non-stopword tokens with the prompt,
- *   - noisy internal diagnostic dumps from past assistant messages.
- */
 export function buildConversationHistory(
   messages: any[],
   currentPrompt: string,
@@ -209,7 +181,6 @@ export function buildConversationHistory(
   maxChars = 10000,
 ): { role: 'user' | 'assistant'; content: string }[] {
   const raw = Array.isArray(messages) ? [...messages] : [];
-  // If the last persisted message is the current user turn, pop it from history
   if (raw.length > 0) {
     const last = raw[raw.length - 1];
     if (last?.role === 'user' && typeof last?.content === 'string' && last.content.trim() === currentPrompt.trim()) {
@@ -220,7 +191,6 @@ export function buildConversationHistory(
   const history: { role: 'user' | 'assistant'; content: string }[] = [];
   let chars = 0;
 
-  // Extract non-stopword tokens from the current prompt
   const currentTokens = new Set<string>(
     currentPrompt
       .toLowerCase()
@@ -236,12 +206,20 @@ export function buildConversationHistory(
     const role = m?.role;
     let content = typeof m?.content === 'string' ? m.content : '';
     if (!content) continue;
-    if (role === 'system') continue; // never surface bookkeeping system rows
+    if (role === 'system' || m.messageType === 'system_status' || m.message_type === 'system_status') continue;
     if (role !== 'user' && role !== 'agent') continue;
 
-    // Sanitize past assistant messages so system errors/dumps don't become instructions
     if (role === 'agent') {
-      if (content.includes('[Stream Error:')) continue; // skip error turns
+      if (content.includes('[Stream Error:')) continue;
+      if (
+        content.includes('QUEUED behind') ||
+        content.includes('is currently QUEUED') ||
+        content.includes('no worker activity for') ||
+        content.includes('confirmed stalled') ||
+        content.includes("I'm back. ")
+      ) {
+        continue;
+      }
       if (
         content.includes('Jarvis is currently executing') ||
         content.includes('CodeX is currently') ||
@@ -249,7 +227,6 @@ export function buildConversationHistory(
         content.includes('Runtime diagnostics') ||
         content.includes('I inspected the active AgenticOS state')
       ) {
-        // truncate operational dumps to keep context clean
         content = content.split('\n')[0].slice(0, 150);
       }
     }
@@ -269,7 +246,6 @@ export function buildConversationHistory(
       if (currentTokens.has(tok)) shared++;
     });
 
-    // Continuity anchor: keep the last 6 valid turns (3 full user-assistant turn pairs)
     const isContinuityAnchor = turnIndex < 6;
     const isRelevant = shared >= 1 || isContinuityAnchor;
 
@@ -357,19 +333,8 @@ router.get('/conversations/:id/messages', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-/* ── POST /api/jarvis/conversations/:id/message ───────────── */
-/**
- * Normalize the UI approval-policy vocabulary ('auto' | 'strict') to the
- * backend vocabulary ('auto' | 'manual'). Anything unknown defaults to
- * 'manual' — actions that need approval must never be silently auto-approved.
- */
-function normalizeApprovalPolicy(value: any): 'manual' | 'auto' {
-  if (value === 'auto') return 'auto';
-  return 'manual';
-}
-
 function writeSse(res: any, event: string, data: any) {
+  if (res.writableEnded || res.finished || res.destroyed) return;
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   res.flush?.();
 }
@@ -684,8 +649,22 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   let totalTimer: NodeJS.Timeout | null = null;
   let sawFirstToken = false;
 
+  let heartbeatTimer: NodeJS.Timeout | null = setInterval(() => {
+    if (!completed && !res.writableEnded && !clientClosed) {
+      writeSse(res, 'heartbeat', {
+        timestamp: Date.now(),
+        operationId: normalizedOperationId,
+        state: 'active',
+      });
+    }
+  }, 10_000);
+
   req.on('close', () => {
     clientClosed = true;
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
     logStreamStage(normalizedOperationId, 'client disconnected', { completed });
     if (!completed) {
       abortController.abort();
@@ -694,6 +673,155 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   });
 
   try {
+    // ── Conversational Authority & Isolation Intercept ──
+    const { classifyInputAuthority, canonicalObjectiveManager } = await import('../domains/jarvis/conversationalAuthority.js');
+    const passedConfidence = typeof (req.body as any)?.confidence === 'number'
+      ? (req.body as any).confidence
+      : typeof (requestMetadata as any)?.confidence === 'number'
+      ? (requestMetadata as any).confidence
+      : undefined;
+    const sourceHeader = (req.headers['x-input-source'] as string) || (req.body as any)?.sourceLabel || (requestMetadata as any)?.sourceLabel;
+    const authority = classifyInputAuthority(prompt, {
+      inputChannel: (req.body as any)?.inputChannel || (requestMetadata as any)?.inputChannel,
+      confidence: passedConfidence,
+      sourceHeader,
+    });
+
+    if (authority.rejectionDetected) {
+      logStreamStage(normalizedOperationId, 'authority rejection disavowal', { reason: authority.reason });
+      // Prune / discard previous user turn from context
+      try {
+        const msgs = await conversationService.getMessages(req.params.id);
+        if (msgs && msgs.length > 0) {
+          const lastUser = msgs.slice().reverse().find(m => m.role === 'user');
+          if (lastUser && lastUser.content) {
+            canonicalObjectiveManager.discardTurn(lastUser.content);
+          }
+        }
+      } catch {}
+      const reply = authority.clarificationPrompt || "Understood. I've discarded that from our operational context.";
+      writeSse(res, 'intent', {
+        type: 'authority_disavowal',
+        route: 'authority_disavowal',
+        mode: 'direct_conversation',
+        confidence: 1.0,
+        source: authority.source,
+        reason: authority.reason,
+        operationId: normalizedOperationId,
+      });
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'conversational-authority', source: authority.source },
+      });
+      writeSse(res, 'done', {
+        route: 'authority_disavowal',
+        category: 'authority_disavowal',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'conversational-authority',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
+      return res.end();
+    }
+
+    if (!authority.isOperationalAuthorized && authority.clarificationPrompt) {
+      logStreamStage(normalizedOperationId, 'authority clarification required', { source: authority.source, reason: authority.reason });
+      writeSse(res, 'intent', {
+        type: 'clarification_required',
+        route: 'clarification_required',
+        mode: 'direct_conversation',
+        confidence: authority.confidence,
+        source: authority.source,
+        reason: authority.reason,
+        operationId: normalizedOperationId,
+      });
+      const reply = authority.clarificationPrompt;
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'conversational-authority', source: authority.source },
+      });
+      writeSse(res, 'done', {
+        route: 'clarification_required',
+        category: 'clarification_required',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'conversational-authority',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
+      return res.end();
+    }
+
+    if (authority.source === 'SYSTEM_EVENT' || authority.source === 'AGENT_EVENT') {
+      const { isEventRequiringAttention } = await import('../domains/jarvis/conversationalAuthority.js');
+      const requiresAttention = isEventRequiringAttention(prompt, req.body || requestMetadata);
+      logStreamStage(normalizedOperationId, 'system/agent event ack', { source: authority.source, requiresAttention });
+
+      if (requiresAttention) {
+        const reply = `Attention required: ${prompt}`;
+        writeSse(res, 'intent', {
+          type: 'system_attention',
+          route: 'system_attention',
+          mode: 'direct_conversation',
+          confidence: 1.0,
+          source: authority.source,
+          reason: authority.reason,
+          operationId: normalizedOperationId,
+        });
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'system-attention', source: authority.source },
+        });
+        writeSse(res, 'done', {
+          route: 'system_attention',
+          category: 'system_attention',
+          operationId: normalizedOperationId,
+          provider: 'agentic-os',
+          model: 'system-attention',
+          firstTokenMs: 0,
+          totalMs: 0,
+        });
+        completed = true;
+        updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+        endStreamExecution('COMPLETED', reply);
+      } else {
+        // Routine internal events must NOT appear in the user conversation
+        writeSse(res, 'done', {
+          route: 'system_event',
+          category: 'system_event',
+          operationId: normalizedOperationId,
+          silent: true,
+          provider: 'agentic-os',
+          model: 'system-event',
+          firstTokenMs: 0,
+          totalMs: 0,
+        });
+        completed = true;
+        updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+        endStreamExecution('COMPLETED');
+      }
+      return res.end();
+    }
+
     // ── Task-control intercept (Milestone: explicit commands override routing) ──
     // A normal conversation message NEVER touches task state. Only these
     // explicit task-control intents do. Check BEFORE intent routing.
@@ -717,6 +845,53 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       completed = true;
       updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
       endStreamExecution('COMPLETED', reply);
+      return res.end();
+    }
+
+    // ── Canonical Task Reference & Anaphora Intercept ──
+    const { resolveActiveOperationReference } = await import('../domains/jarvis/taskReferenceResolver.js');
+    const taskRef = await resolveActiveOperationReference({
+      conversationId: req.params.id,
+      message: prompt,
+      workspacePath: workspacePath || undefined,
+    });
+
+    if (taskRef.type !== 'none' && taskRef.replyText) {
+      logStreamStage(normalizedOperationId, 'task-reference resolved', { type: taskRef.type, taskId: taskRef.task?.taskId });
+      writeSse(res, 'intent', {
+        type: taskRef.type,
+        route: taskRef.type,
+        mode: 'operational_execution',
+        confidence: taskRef.confidence,
+        reason: taskRef.reason,
+        operationId: normalizedOperationId,
+      });
+      streamTextAsChunks(res, taskRef.replyText, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: taskRef.replyText,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'task-reference-resolver',
+          taskId: taskRef.task?.taskId,
+          refType: taskRef.type,
+        },
+      });
+      writeSse(res, 'done', {
+        route: taskRef.type,
+        category: taskRef.type,
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'task-reference-resolver',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', taskRef.replyText);
       return res.end();
     }
 
@@ -866,7 +1041,38 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     const { taskShortId } = await import('../services/backgroundTasks/types.js');
 
     const executive = classifyExecutiveIntent(prompt);
-    if (executive && executive.intent !== 'worker_delegation' && executive.intent !== 'revenue_pipeline') {
+
+    // direct_explanation (e.g. "What can Codex do?", "What is Hermes for?") must
+    // flow through the conversational LLM with structured capability context injected
+    // into the system prompt — NOT return a canned registry dump. We record the
+    // capability context here so the direct-chat path (below) can inject it.
+    let executiveCapabilityContext: string | null = null;
+    if (executive?.intent === 'direct_explanation') {
+      const cap = executive.capability;
+      executiveCapabilityContext = [
+        `CAPABILITY CONTEXT (for the user's question — answer conversationally using this, do not reproduce it verbatim):`,
+        `Worker: ${cap.displayName}`,
+        `Role: ${cap.responsibilities}`,
+        `Supported actions: ${cap.supportedActions.join(', ')}.`,
+        cap.limitations ? `Limitations: ${cap.limitations}` : null,
+      ].filter(Boolean).join('\n');
+      logStreamStage(normalizedOperationId, 'executive direct_explanation → LLM with context', {
+        capability: cap.id,
+        confidence: executive.confidence
+      });
+      writeSse(res, 'intent', {
+        type: 'direct_explanation',
+        route: 'direct_explanation',
+        mode: 'direct_conversation',
+        confidence: executive.confidence,
+        reason: executive.reason,
+        capability: cap.id,
+        operationId: normalizedOperationId
+      });
+      // Fall through to the LLM path — do NOT early-return here.
+    }
+
+    if (executive && executive.intent !== 'worker_delegation' && executive.intent !== 'revenue_pipeline' && executive.intent !== 'direct_explanation') {
       const execRoute = executive.intent;
       logStreamStage(normalizedOperationId, 'executive intent intercept', {
         intent: execRoute,
@@ -876,7 +1082,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       writeSse(res, 'intent', {
         type: execRoute,
         route: execRoute,
-        mode: execRoute === 'direct_explanation' ? 'direct_conversation' : 'operational_execution',
+        mode: 'operational_execution',
         confidence: executive.confidence,
         reason: executive.reason,
         capability: executive.capability.id,
@@ -902,8 +1108,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       } else if (execRoute === 'worker_feedback') {
         reply = await buildWorkerFeedback(executive.capability);
       } else if (execRoute === 'worker_status') {
-        const modelOnly = /what (model|provider)/.test(prompt.toLowerCase());
-        reply = await buildWorkerStatus(executive.capability, modelOnly);
+        reply = await buildWorkerStatus(executive.capability, prompt);
       } else {
         reply = buildCapabilityExplanation(executive.capability);
       }
@@ -972,7 +1177,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       //     reports exactly what was searched instead of starting a doomed
       //     worker ("file not found" must be truthful, not generic). ──
       const fileOutcome = resolvePromptFileReferences(prompt, workspacePath || undefined);
-      const notFoundReply = buildFileNotFoundReply(fileOutcome);
+      const notFoundReply = buildFileNotFoundReply(fileOutcome, prompt);
       if (notFoundReply) {
         updateStreamExecution({
           status: 'COMPLETING',
@@ -1052,6 +1257,23 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         return res.end();
       }
 
+      let delegatedProvider: string | null = null;
+      let delegatedModel: string | null = null;
+      if (workerKind === 'hermes') {
+        try {
+          const { resolveHermesModelTruth } = await import('../services/hermesApiService.js');
+          const t = resolveHermesModelTruth();
+          delegatedProvider = t.provider || 'ollama-cloud';
+          delegatedModel = t.model || 'gpt-oss:20b';
+        } catch {
+          delegatedProvider = 'ollama-cloud';
+          delegatedModel = 'gpt-oss:20b';
+        }
+      }
+
+      const mappedWorker: import('../services/executionState.js').ExecutionWorker =
+        workerKind === 'hermes' ? 'hermes' : workerKind === 'codex' ? 'codex' : 'other';
+
       const concurrency = (task.metadata as any)?.concurrency as { active?: number; limit?: number; position?: number; blocked?: boolean } | undefined;
       if (concurrency?.blocked) {
         // PRIORITY 10: worker slot occupied — do NOT dispatch now; the pump
@@ -1063,8 +1285,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           position: concurrency.position
         });
         updateStreamExecution({
+          worker: mappedWorker,
           status: 'QUEUED',
           currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
+          requestedProvider: delegatedProvider || selectedProvider,
+          requestedModel: delegatedModel || selectedModel,
+          resolvedProvider: delegatedProvider || selectedProvider,
+          resolvedModel: delegatedModel || selectedModel,
           queuePosition: concurrency.position ?? null,
           activeCount: concurrency.active ?? null,
           limit: concurrency.limit ?? null,
@@ -1073,28 +1300,48 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         writeSse(res, 'status', {
           state: 'queued',
           currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
-          provider: 'agentic-os',
-          model: 'task-manager',
+          provider: delegatedProvider || 'agentic-os',
+          model: delegatedModel || 'task-manager',
           operationId: normalizedOperationId,
           elapsedMs: 0,
           lastActivityAt: Date.now()
         });
       } else {
         updateStreamExecution({
+          worker: mappedWorker,
           status: 'DISPATCHING',
           currentAction: `Dispatching ${workerTitle} task ${taskShortId(task.taskId)}`,
+          requestedProvider: delegatedProvider || selectedProvider,
+          requestedModel: delegatedModel || selectedModel,
+          resolvedProvider: delegatedProvider || selectedProvider,
+          resolvedModel: delegatedModel || selectedModel,
           cancel: { kind: 'task', id: task.taskId },
         });
         dispatchTask(task).catch(() => { /* adapter records its own failure */ });
       }
 
       const shortId = taskShortId(task.taskId);
-      const readOnlyNote = executive.readOnly ? ' Read-only — no file changes will be made.' : '';
       const delegationStartedAt = Date.now();
+      const { buildConversationalAcknowledgement } = await import('../domains/jarvis/conversationalAck.js');
+      const { jarvisExecutionSupervisor } = await import('../domains/jarvis/executionSupervisor.js');
+
+      jarvisExecutionSupervisor.superviseTask({
+        taskId: task.taskId,
+        operationId: normalizedOperationId || task.taskId,
+        conversationId: req.params.id,
+        worker: workerKind,
+        initialState: concurrency?.blocked ? 'QUEUED' : 'STARTING',
+        concurrency: concurrency?.blocked ? {
+          active: concurrency.active || 0,
+          limit: concurrency.limit || 1,
+          position: concurrency.position || 1,
+        } : undefined,
+      });
+
       const reply = concurrency?.blocked
         ? `Task ${shortId} is QUEUED behind ${workerTitle} (active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}). I'll dispatch it automatically when a slot frees.`
-        : `I started task ${shortId} with ${workerTitle}. Status: queued.` +
-          `${readOnlyNote} The task continues in the background — keep talking to me, and ask "show task ${shortId}" for progress.`;
+        : buildConversationalAcknowledgement(prompt, workerKind, Boolean(executive.readOnly));
+
       writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
       await conversationService.appendMessage({
         conversationId: req.params.id,
@@ -1608,6 +1855,25 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
 
     if (intent.route !== 'direct') {
+      const { buildConversationalAcknowledgement } = await import('../domains/jarvis/conversationalAck.js');
+      const isReadOnly = intent.category === 'repository_analysis' || !intent.requiresApproval;
+      const ackMessage = buildConversationalAcknowledgement(prompt, intent.route, isReadOnly);
+      if (ackMessage) {
+        writeSse(res, 'chunk', { delta: ackMessage, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: ackMessage,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'task-manager',
+            intent: { type: 'delegation_acknowledgement', route: intent.route, category: intent.category },
+          }
+        });
+      }
+
       if (intent.plan?.length) {
         writeSse(res, 'plan', { steps: intent.plan, operationId: normalizedOperationId });
       }
@@ -1727,16 +1993,15 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
-    // Persistent memory injection (§3): durable preferences, decisions, and goals
+    // Persistent memory injection: scoped user profile, identity, principles, active project, and decisions
     let persistentMemoryContext = '';
     const isPriorTurnRecall = /^(what did i|what was my|what did you|what was the last|what did i just)/i.test(prompt.trim());
     if (!isPriorTurnRecall) {
       try {
-        const { retrieveRelevantPreferences } = await import('../domains/jarvis/memoryRecall.js');
-        const relevant = retrieveRelevantPreferences(prompt, 5);
-        if (relevant.length) {
-          persistentMemoryContext = '\n\nPersistent Memory (durable user preferences, working rules, and Agentic OS goals):\n' +
-            relevant.map((r) => `* [${r.type.toUpperCase()}] ${r.title}: ${r.content}`).join('\n');
+        const { getScopedJarvisMemoryContext } = await import('../domains/jarvis/coreMemory.js');
+        const scopedMem = await getScopedJarvisMemoryContext(prompt, workspacePath || undefined);
+        if (scopedMem) {
+          persistentMemoryContext = `\n\nPersistent Memory (Structured Core Memory):\n${scopedMem}`;
         }
       } catch {
         // best effort — memory retrieval must never break direct chat
@@ -1792,7 +2057,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         'You received a question about tasks/runtime state. Report the ACTUAL state from the context block below (distinguishing active vs historical).'
       ] : []),
       ...(conversationContextPrompt ? [conversationContextPrompt] : []),
-      ...(persistentMemoryContext ? [persistentMemoryContext] : [])
+      ...(persistentMemoryContext ? [persistentMemoryContext] : []),
+      ...(executiveCapabilityContext ? [executiveCapabilityContext] : []),
     ].join('\n');
     logStreamStage(normalizedOperationId, 'provider/model selected', {
       provider: selectedProvider,
@@ -1845,6 +2111,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       // execution is a real LLM call.
       ...(fallbackModel ? { escalationModel: fallbackModel } : {})
     });
+    writeSse(res, 'thinking', { action: 'Generating response…', operationId: normalizedOperationId });
     updateStreamExecution({ status: 'WAITING_FOR_MODEL', currentAction: `Waiting for ${selectedProvider} / ${selectedModel}` });
     logStreamStage(normalizedOperationId, 'provider call started', {
       provider: selectedProvider,
@@ -1852,7 +2119,6 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     });
 
     const startedAt = Date.now();
-    const firstTokenTimeoutMs = getDirectChatFirstTokenTimeoutMs();
     const totalTimeoutMs = getDirectChatTotalTimeoutMs();
     const streamIdleTimeoutMs = getDirectChatStreamIdleTimeoutMs();
     let firstTokenAt: number | null = null;
@@ -1870,7 +2136,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
     while (true) {
       const remainingTotal = Math.max(1, totalTimeoutMs - (Date.now() - startedAt));
-      // Per-wait deadline: before the first token it is the first-token allowance;
+      // Per-wait deadline: before the first token it uses the remaining total budget (heartbeats keep transport alive);
       // afterwards it is the stream-idle allowance. Both are capped by the remaining
       // total budget. The timer is created per wait inside nextWithTimeout and cleared
       // in its finally block, so every received chunk resets the idle window and no
@@ -1878,8 +2144,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       let timeoutMs: number;
       let timeoutMessage: string;
       if (firstTokenAt === null) {
-        timeoutMs = Math.min(firstTokenTimeoutMs, remainingTotal);
-        timeoutMessage = `Jarvis provider timed out before first token after ${firstTokenTimeoutMs} ms.`;
+        timeoutMs = remainingTotal;
+        timeoutMessage = `Jarvis provider timed out before first token after ${totalTimeoutMs} ms.`;
       } else if (streamIdleTimeoutMs <= remainingTotal) {
         timeoutMs = streamIdleTimeoutMs;
         timeoutMessage = `Jarvis stream was idle for ${streamIdleTimeoutMs} ms and the provider request was aborted.`;
@@ -2051,6 +2317,10 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
   } finally {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
     if (totalTimer) clearTimeout(totalTimer);
     unregisterStreamAborter(execOpId);
   }

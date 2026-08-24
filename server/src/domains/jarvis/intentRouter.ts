@@ -218,6 +218,25 @@ export function isAssistantComplaint(prompt: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
   return ASSISTANT_COMPLAINT_PATTERNS.some((re) => re.test(p));
 }
+const CONVERSATIONAL_FEEDBACK_PATTERNS: RegExp[] = [
+  /\b(?:didn'?t|did not|doesn'?t|does not)\s+(?:reply|answer|respond|tell|explain)(?:\s+(?:to\s+me|me))?\s+(?:like|how|what|the way)\s+(?:i\s+(?:want|wanted|asked|meant|expected)|you should)\b/i,
+  /\bthat'?s\s+not\s+what\s+i\s+(?:asked|wanted|meant|requested)\b/i,
+  /\bwhy\s+did\s+you\s+(?:do|start|run|create|approve)\s+that\b/i,
+  /\bi\s+meant\s+(?:the\s+)?(?:previous|other|earlier|last)\s+(?:task|run|message|question|goal|one)\b/i,
+  /\byou\s+started\s+(?:it|the task)\s+but\s+didn'?t\s+(?:answer|reply|respond)\b/i,
+  /\b(?:it|the task|you)\s+(?:approved\s+and\s+started|started|ran)\s*,?\s*but\s+(?:it\s+)?didn'?t\s+(?:reply|answer|respond)\b/i,
+  /\bthat\s+response\s+was\s+(?:wrong|incorrect|unhelpful|bad|not what i asked)\b/i,
+  /\bi\s+don'?t\s+like\s+how\s+(?:that|you)\s+(?:answered|replied|responded|handled that)\b/i,
+  /\bwhat\s+happened\s+with\s+that\s+(?:task|run|goal|operation|request)\b/i,
+  /\bwhy\s+didn'?t\s+you\s+(?:reply|answer|tell me|respond)\b/i,
+  /\bi\s+give\s+a\s+task\s*,?\s*but\b/i,
+  /\bi\s+gave\s+a\s+task\s*,?\s*but\b/i,
+];
+
+export function isConversationalFeedback(prompt: string): boolean {
+  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  return CONVERSATIONAL_FEEDBACK_PATTERNS.some((re) => re.test(p));
+}
 
 /**
  * UI / interface / layout operational problem classifier.
@@ -510,10 +529,39 @@ export class IntentRouter {
    * Fast, heuristic-based intent routing.
    * Promoted to an independent service layer for future ML replacement.
    */
-  async routeIntent(prompt: string, context?: { recentText?: string }): Promise<IntentResult> {
+  async routeIntent(prompt: string, context?: { recentText?: string; confidence?: number; sourceLabel?: string }): Promise<IntentResult> {
     const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
     const words = p.split(' ').filter(Boolean);
     const recentText = context?.recentText;
+
+    const { classifyInputAuthority } = await import('./conversationalAuthority.js');
+    const auth = classifyInputAuthority(prompt, {
+      confidence: context?.confidence,
+      sourceHeader: context?.sourceLabel,
+    });
+
+    const clarify = (reason: string, voiceIssue?: string): IntentResult => ({
+      route: 'clarification_required',
+      semanticIntent: 'conversation',
+      executionMode: 'direct_conversation',
+      selectedCapability: 'none',
+      category: 'conversation',
+      mode: 'direct_conversation',
+      confidence: auth.confidence ?? 0.3,
+      reason,
+      voiceIssue,
+      requiresWorkspace: false,
+      requiresApproval: false,
+      selectedAgent: 'Jarvis',
+    });
+
+    if (auth.rejectionDetected) {
+      return clarify(auth.reason, auth.clarificationPrompt);
+    }
+
+    if (!auth.isOperationalAuthorized && auth.clarificationPrompt) {
+      return clarify(auth.reason, auth.clarificationPrompt);
+    }
 
     const direct = (category: IntentResult['category'], confidence: number, reason: string, plan?: string[]): IntentResult => ({
       route: 'direct',
@@ -529,6 +577,10 @@ export class IntentRouter {
       selectedAgent: 'Jarvis',
       plan
     });
+
+    if (auth.source === 'SYSTEM_EVENT' || auth.source === 'AGENT_EVENT') {
+      return direct('system_status', 1.0, auth.reason);
+    }
 
     const operational = (
       route: IntentResult['route'],
@@ -573,39 +625,31 @@ export class IntentRouter {
       plan,
     });
 
-    const clarify = (reason: string, voiceIssue?: string): IntentResult => ({
-      route: 'clarification_required',
-      semanticIntent: 'conversation',
-      executionMode: 'direct_conversation',
-      selectedCapability: 'none',
-      category: 'conversation',
-      mode: 'direct_conversation',
-      confidence: 0.3,
-      reason,
-      voiceIssue,
-      requiresWorkspace: false,
-      requiresApproval: false,
-      selectedAgent: 'Jarvis',
-    });
-
     const hasAny = (...terms: string[]) => terms.some(term => p.includes(term));
     const hasWord = (...terms: string[]) => terms.some(term => new RegExp(`\\b${term}\\b`).test(p));
     const delegationSignals = detectDelegationSignals(prompt);
     const hasFileTarget = hasAny('.ts', '.tsx', '.js', '.json', '.md', 'file', 'component', 'router', 'implementation', 'workspace', 'repository', 'repo', 'source', 'code', 'codebase');
-    const hasReadOnlyConstraint = hasAny(
-      'do not modify',
-      'do not change',
-      'do not write',
-      'without modifying',
-      'without changing',
-      'read-only',
-      'readonly',
-      'no file changes',
-      'no changes'
-    );
-    const hasWriteVerb = hasAny('fix', 'change', 'modify', 'update', 'patch', 'refactor', 'delete', 'remove', 'write', 'create') || hasWord('add', 'implement');
+    const cleanedForReadOnly = p
+      .replace(/\b(?:without changing|without modifying|do not change|do not modify)\s+(?:the\s+)?(?:expected\s+)?(?:behavior\s+of\s+the\s+)?tests?\b[^.?!]*/gi, '');
+    const hasReadOnlyConstraint = (
+      /\b(?:do not|don't|no|without|never)\s+(?:modify|write|edit|change|touch|patch|update)\s+(?:any\s+)?(?:code|codebase|files?|implementation|anything)?\b/i.test(p) ||
+      /\b(?:without\s+(?:modifying|writing|editing|changing|touching)\s+(?:anything|any\s+(?:code|codebase|files?|implementation))?)\b/i.test(p) ||
+      /\b(?:no\s+(?:code\s+changes?|file\s+changes?|changes?))\b/i.test(p) ||
+      /\b(?:analysis\s+only|read\s*-?\s*only|inspection\s+only)\b/i.test(p)
+    ) && !/\b(?:repair|fix|patch|update|modify|refactor)\b/.test(cleanedForReadOnly);
+
+    const cleanedForWriteVerbs = p
+      .replace(/\b(?:do not|don't|without|no|never)\s+(?:modify|change|edit|touch|write|patch|update|refactor|delete|remove|create|add|implement)\s+(?:any\s+)?(?:other\s+)?(?:code|codebase|files?|implementation|anything)?\b/gi, '')
+      .replace(/\b(?:without\s+(?:modifying|changing|editing|touching|writing|patching|updating|deleting|removing|creating|adding|implementing)\s+(?:any\s+)?(?:code|codebase|files?|implementation|anything)?)\b/gi, '')
+      .replace(/\b(?:no\s+(?:code\s+changes?|file\s+changes?|changes?))\b/gi, '')
+      .replace(/\b(?:analysis\s+only|read\s*-?\s*only|inspection\s+only)\b/gi, '');
+
+    const hasAnyIn = (text: string, ...terms: string[]) => terms.some(term => text.includes(term));
+    const hasWordIn = (text: string, ...terms: string[]) => terms.some(term => new RegExp(`\\b${term}\\b`).test(text));
+
+    const hasWriteVerb = hasAnyIn(cleanedForWriteVerbs, 'fix', 'change', 'modify', 'update', 'patch', 'refactor', 'delete', 'remove', 'write', 'create', 'repair', 'correct') || hasWordIn(cleanedForWriteVerbs, 'add', 'implement');
     const effectiveHasWriteVerb = hasWriteVerb && !hasReadOnlyConstraint;
-    const hasReadVerb = hasAny('inspect', 'find', 'trace', 'read', 'search in', 'look through', 'why', 'analyze', 'analyse', 'review');
+    const hasReadVerb = hasAny('inspect', 'find', 'trace', 'read', 'search in', 'look through', 'why', 'analyze', 'analyse', 'review', 'list', 'rank');
     const isReadOnlyRepositoryRequest = hasReadOnlyConstraint || (hasReadVerb && !effectiveHasWriteVerb);
 
     // ── 0. EXPLICIT WORKER & DELEGATION PRECEDENCE ──
@@ -624,6 +668,7 @@ export class IntentRouter {
     // 0B. Explicit Hermes delegation ("use hermes...", "ask hermes...")
     if (delegationSignals.explicitWorkerRequested === 'hermes' && !delegationSignals.prohibitedWorkers.includes('hermes')) {
       const isPlanning = /\b(plan|planning|affiliate|roadmap|decompose|strategy)\b/i.test(p);
+      const hermesHasCodeXWrite = !isReadOnlyRepositoryRequest && (p.includes('codex') || effectiveHasWriteVerb);
       return operational(
         'hermes',
         isPlanning ? 'project_planning' : 'research',
@@ -631,7 +676,7 @@ export class IntentRouter {
         'Explicit Hermes delegation requested',
         'Hermes',
         ['Initialize canonical Hermes task', 'Execute research / planning loop', 'Deliver verified evidence to Jarvis'],
-        false,
+        true,
         false,
         'hermes'
       );
@@ -891,7 +936,7 @@ export class IntentRouter {
     // "track execution").
     const projectActionSignal =
       hasWriteVerb ||
-      hasAny('track', 'plan', 'schedule', 'assign', 'start', 'stop', 'pause', 'resume', 'execute', 'show', 'list', 'create a plan', 'update the') ||
+      /\b(track|plan|schedule|assign|start|stop|pause|resume|execute|run|continue|create a plan|update the)\b/i.test(p) ||
       /\b(status of|set up|setup)\b/i.test(p);
     if (
       projectActionSignal &&
@@ -899,6 +944,7 @@ export class IntentRouter {
         p.includes('goal') ||
         p.includes('milestone') ||
         p.includes('task') ||
+        p.includes('pipeline') ||
         p.includes('dependency') ||
         p.includes('dependencies') ||
         p.includes('track execution') ||
