@@ -344,6 +344,89 @@ function recordCircuitBreakerSuccess(id: string) {
   db.update(providerCircuitBreakers).set({ errorCount: 0, cooldownUntil: null, updatedAt: Date.now().toString() }).where(eq(providerCircuitBreakers.id, id)).run();
 }
 
+async function persistGoalResultToConversation(
+  goalId: string,
+  goal: any,
+  finalAnswer: string,
+  provider?: string,
+  model?: string
+) {
+  if (!goal.conversationId || !finalAnswer) return;
+  try {
+    const { conversationMessages } = await import('../db/schema.js');
+    const { conversationService } = await import('../domains/conversations/service.js');
+    const { reconcileGoalToResult } = await import('../domains/workerAdapters/codexAdapter.js');
+
+    // Reconcile the canonical execution result with typed findings (idempotent).
+    // This is the boundary where structure first becomes authoritative — the
+    // conversation message below is a MIRROR, not the machine contract.
+    let executionResultId: string | null = null;
+    let runId: string | null = null;
+    let resultType: string | undefined;
+    let verificationOfResultId: string | undefined;
+    try {
+      const rec = await reconcileGoalToResult(goalId, finalAnswer);
+      executionResultId = rec.resultId;
+      runId = rec.runId;
+      resultType = rec.resultType;
+      verificationOfResultId = rec.verificationOfResultId;
+    } catch (err: any) {
+      logger.warn(`[CodeX] Structured reconcile skipped (non-blocking): ${err?.message}`);
+    }
+
+    // Mirror metadata carries enough IDs to navigate to the canonical result
+    // (executionResultId/runId/goalId + resultType + relationship), never a
+    // duplicate of the full graph or findings.
+    const resolvedType = resultType || 'analysis';
+    const intentCategory =
+      resolvedType === 'verification' ? 'repository_verification'
+      : resolvedType === 'change' ? 'repository_change'
+      : 'repository_analysis';
+
+    // Prevent duplicate insertion of completed worker result
+    const existing = db.select().from(conversationMessages).where(
+      and(
+        eq(conversationMessages.conversationId, goal.conversationId),
+        eq(conversationMessages.goalId, goalId),
+        eq(conversationMessages.role, 'agent'),
+        eq(conversationMessages.routedAgent, 'codex')
+      )
+    ).get();
+
+    if (!existing) {
+      await conversationService.appendMessage({
+        conversationId: goal.conversationId,
+        role: 'agent',
+        messageType: 'message',
+        content: finalAnswer,
+        routedAgent: 'codex',
+        goalId: goalId,
+        metadata: {
+          worker: 'codex',
+          goalId: goalId,
+          status: 'completed',
+          provider: provider || 'agentic-os',
+          model: model || 'codex',
+          groundedEvidence: true,
+          workerResult: true,
+          executionResultId: executionResultId ?? undefined,
+          runId: runId ?? undefined,
+          resultType: resolvedType,
+          verificationOfResultId: verificationOfResultId ?? undefined,
+          intent: {
+            type: resolvedType === 'verification' ? 'repository_verification' : 'repository_analysis',
+            route: 'codex',
+            category: intentCategory,
+          }
+        }
+      });
+      logger.info(`[CodeX] Grounded result for goal ${goalId} successfully persisted into conversation ${goal.conversationId}`);
+    }
+  } catch (err: any) {
+    logger.error(`[CodeX] Failed to persist goal result to conversation: ${err?.message}`);
+  }
+}
+
 async function generateCheckpoint(goalId: string, phase: string, stepId?: string, stepIndex?: number, workspaceRoot?: string) {
   const goal = goalStore.get(goalId);
   if (!goal) return undefined;
@@ -1261,6 +1344,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
           payload: { finalAnswer: finalAnswerText, responseExpectation: 'final_answer' }
         });
         goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify({ type: 'final_answer' }), toolResult);
+        await persistGoalResultToConversation(goalId, goal, finalAnswerText, currentProvider, currentModel);
         goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalAnswerText, message: toolResult, provider: currentProvider, model: currentModel } as any });
         // ARGUS: if this goal is bound to an immutable contract, independent
         // verification runs automatically on completion (no manual copying).
@@ -1583,6 +1667,7 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
 
             goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
             goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalMessageText, message: toolResult, provider: currentProvider, model: currentModel } as any });
+            await persistGoalResultToConversation(goalId, goal, finalMessageText, currentProvider, currentModel);
             // ARGUS: independent verification fires automatically when the
             // goal is bound to an immutable contract (builder done → verify).
             import('../services/argus/argusService.js').then(m => m.onGoalCompleted(goalId).catch((e: any) => console.error(`[ARGUS] hook: ${e?.message}`))).catch(() => {});

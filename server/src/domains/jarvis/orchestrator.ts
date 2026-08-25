@@ -9,6 +9,14 @@ import { AgentProviderAssignmentService } from '../../services/agent/assignments
 import { getWorkspaceRoot } from '../../services/workspaceStore.js';
 import { magnitudeService } from '../magnitude/service.js';
 import { randomUUID } from 'crypto';
+import {
+  isWorkerVerificationOrFollowUp,
+  extractRequestedFindingIndex,
+  buildDelegatedVerificationPrompt,
+  resolveVerificationContext,
+  type GroundedWorkerContext
+} from './workerContextHandoff.js';
+import { resolveConversationalTurn, formatNaturalResponse, resolveConversationFocus } from './conversationalTurn.js';
 
 import { z } from 'zod';
 
@@ -54,6 +62,14 @@ export class JarvisOrchestrator {
       content: prompt,
       metadata: requestMetadata
     });
+
+    // 1b. Resolve a typed conversational turn (Phase 3): interpret the message
+    //     and resolve its references from persisted state BEFORE deciding on a
+    //     worker. Direct answers (findings, verdicts, worker status/results),
+    //     clarifications, and continuations are handled here with a natural
+    //     response; genuine new-work delegations fall through to routing.
+    const turnAnswer = await this.tryResolveConversationalTurn(conversationId, prompt, workspacePath, approvalPolicy, operationId);
+    if (turnAnswer) return turnAnswer;
 
     // 2. Route intent (context-aware: recent turns resolve deictic refs).
     let recentText = '';
@@ -104,6 +120,97 @@ export class JarvisOrchestrator {
   }
 
   /**
+   * Resolve a typed conversational turn and, when it is a direct answer,
+   * clarification, worker status/result, or continuation, reply naturally from
+   * persisted state — no worker is launched. Returns null for genuine new-work
+   * delegations (verify/inspect/write/plan/research) and plain conversation, so
+   * normal routing proceeds.
+   */
+  private async tryResolveConversationalTurn(
+    conversationId: string,
+    prompt: string,
+    workspacePath: string,
+    approvalPolicy: 'manual' | 'auto',
+    operationId?: string
+  ): Promise<OrchestratorResult | null> {
+    const turn = await resolveConversationalTurn(conversationId, prompt);
+
+    switch (turn.actionType) {
+      case 'direct_answer':
+      case 'worker_status':
+      case 'worker_result':
+      case 'clarify':
+      case 'continue':
+      case 'plan': {
+        const answer = formatNaturalResponse(turn);
+        await conversationService.appendMessage({
+          conversationId,
+          role: 'agent',
+          content: answer,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(operationId ? { operationId } : {}),
+            provider: 'agentic-os',
+            model: 'result-graph',
+            intent: { type: 'conversational_turn', resolved: true, actionType: turn.actionType },
+            resolutionEvidence: {
+              resolvedResultId: turn.references.resultId ?? null,
+              resultType: turn.resolvedContext.result?.resultType ?? null,
+              relationshipPath: turn.resolvedContext.result?.relationshipPath ?? [],
+              resolutionSource: turn.resolutionSource,
+              confidence: turn.confidence,
+              reason: turn.intent,
+              findingId: turn.references.findingId,
+              worker: turn.worker,
+              mutationIntent: turn.mutationIntent,
+              requiresApproval: turn.requiresApproval,
+            },
+          },
+        });
+        return { route: 'direct', status: turn.actionType, operationId };
+      }
+      case 'write':
+      case 'destructive':
+      case 'external': {
+        // Repository mutation → delegate to CodeX with the approval gate.
+        // Approval is governed by the ACTION (write/destructive/external), not
+        // by which worker the router happens to select. Never auto-execute a
+        // mutation: the goal is created in `waiting_for_approval` and does not
+        // run until explicitly approved.
+        const findingRef = turn.references.findingId
+          ? `\n\nTarget finding (resolved from persisted analysis ${turn.references.resultId ?? ''}): ${turn.references.findingId}`
+          : '';
+        const fixPrompt = `Fix the problem the user is referring to.${findingRef}\n\nOriginal request: ${prompt}`;
+        return this.handleCodex(
+          conversationId,
+          fixPrompt,
+          workspacePath,
+          'manual',
+          operationId,
+          false
+        );
+      }
+      case 'verify_finding': {
+        // Re-verify a focused finding → delegate to CodeX as a read-only
+        // verification (no approval, no mutation). The finding context is
+        // resolved from the persisted graph inside handleCodex.
+        return this.handleCodex(
+          conversationId,
+          prompt,
+          workspacePath,
+          'auto',
+          operationId,
+          true,
+          true
+        );
+      }
+      // read_only_inspect / research / conversation → fall through to routing.
+      default:
+        return null;
+    }
+  }
+
+  /**
    * Validate the workspace for routes that create real work.
    * Returns an error string when invalid, or null when the workspace is usable.
    */
@@ -118,7 +225,7 @@ export class JarvisOrchestrator {
     return null;
   }
 
-  private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string, readOnly = false) {
+  private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string, readOnly = false, forceVerification = false) {
     const requestMetadata = operationId ? { operationId } : undefined;
     // §1: ONE canonical workspace. When the request omits a repository, fall
     // back to the canonical workspaceStore root — never fail with "select a
@@ -139,15 +246,109 @@ export class JarvisOrchestrator {
     }
 
     try {
-      const codexPrompt = readOnly
-        ? [
-          'READ-ONLY CODEX TASK.',
-          'Inspect, analyze, read, and report only.',
-          'Do not write, patch, delete, run side-effect commands, deploy, or change configuration.',
-          '',
-          prompt
-        ].join('\n')
-        : prompt;
+      let isVerification = isWorkerVerificationOrFollowUp(prompt) || forceVerification;
+      let verificationContext: GroundedWorkerContext | null = null;
+      let targetFindingIndex: number | null = null;
+      let resolutionEvidence: Record<string, unknown> | undefined;
+
+      if (isVerification) {
+        // Graph-first resolution: target the persisted ANALYSIS result (never
+        // the most recent verification). Typed relationships are authoritative;
+        // prompt keywords are semantic hints only. A deictic "verify that one"
+        // inherits the focused finding index from persisted focus.
+        let findingIndexHint: number | null = null;
+        try {
+          const focus = await resolveConversationFocus(conversationId);
+          if (focus?.findingId) {
+            const m = focus.findingId.match(/finding-(\d+)/);
+            if (m) findingIndexHint = parseInt(m[1], 10);
+          }
+        } catch { /* focus hint optional */ }
+
+        const { context, reference } = resolveVerificationContext(conversationId, prompt, findingIndexHint);
+        resolutionEvidence = {
+          resolvedResultId: reference.result?.id ?? null,
+          resultType: reference.resultType,
+          relationshipPath: reference.relationshipPath,
+          resolutionSource: reference.resolutionSource,
+          confidence: reference.confidence,
+          reason: reference.reason,
+          ...(reference.findingId ? { findingId: reference.findingId } : {}),
+        };
+
+        if (!reference.result && reference.resolutionSource === 'none') {
+          // No prior analysis findings exist — this is a NEW analysis request
+          // ("inspect the repo for problems"), NOT a verification follow-up.
+          isVerification = false;
+        } else if (reference.clarification) {
+          // Genuinely ambiguous reference → ask, never invent intent.
+          await conversationService.appendMessage({
+            conversationId,
+            role: 'agent',
+            messageType: 'message',
+            content: reference.clarification,
+            routedAgent: 'jarvis',
+            metadata: {
+              ...(requestMetadata || {}),
+              provider: 'agentic-os',
+              model: 'result-graph',
+              intent: { type: 'worker_verification', resolved: false, reason: 'ambiguous_reference' },
+              resolutionEvidence,
+            }
+          });
+          return {
+            route: 'direct',
+            status: 'clarification_required',
+            message: reference.clarification,
+            operationId
+          };
+        } else {
+          verificationContext = context;
+          // A deictic-singular verify ("verify that one" / "check it again")
+          // narrows to the focused finding; an explicit ordinal ("verify the
+          // second finding") narrows to that ordinal; otherwise the whole
+          // analysis is verified.
+          targetFindingIndex = extractRequestedFindingIndex(prompt)
+            ?? (/\b(that|this|it)\s+(one|finding|problem|issue|claim|item|again)\b/i.test(prompt) ? findingIndexHint : null);
+
+          if (!verificationContext) {
+            // If the user explicitly requested to verify previous findings, but none exist:
+            const noResultMsg = "No prior grounded CodeX analysis findings are available in this conversation to verify. Please run a repository analysis first (e.g. 'Jarvis, analyze the repository and find the biggest production problems').";
+            await conversationService.appendMessage({
+              conversationId,
+              role: 'agent',
+              messageType: 'message',
+              content: noResultMsg,
+              routedAgent: 'jarvis',
+              metadata: {
+                ...(requestMetadata || {}),
+                provider: 'agentic-os',
+                model: 'task-manager',
+                intent: { type: 'worker_verification', resolved: false, reason: 'no_prior_grounded_result' },
+                resolutionEvidence,
+              }
+            });
+            return {
+              route: 'direct',
+              status: 'no_prior_result',
+              message: noResultMsg,
+              operationId
+            };
+          }
+        }
+      }
+
+      const codexPrompt = verificationContext
+        ? buildDelegatedVerificationPrompt(prompt, verificationContext, targetFindingIndex)
+        : (readOnly
+          ? [
+            'READ-ONLY CODEX TASK.',
+            'Inspect, analyze, read, and report only.',
+            'Do not write, patch, delete, run side-effect commands, deploy, or change configuration.',
+            '',
+            prompt
+          ].join('\n')
+          : prompt);
 
       const assignment = await AgentProviderAssignmentService.getAssignment('agent-codex');
       const executionProvider = assignment?.providerId;
@@ -172,19 +373,25 @@ export class JarvisOrchestrator {
         if (projectId) {
           const pGoal = projectTaskService.createGoal({
             projectId,
-            title: `CodeX Goal: ${prompt.slice(0, 40)}`,
-            objective: prompt,
+            title: verificationContext
+              ? (targetFindingIndex ? `CodeX Verify Finding #${targetFindingIndex}` : `CodeX Verify Previous Findings`)
+              : `CodeX Goal: ${prompt.slice(0, 40)}`,
+            objective: codexPrompt,
             goalId,
           });
 
           const pTask = projectTaskService.createTask({
             projectId,
             goalId: pGoal.id,
-            title: prompt.slice(0, 60),
-            description: prompt,
+            title: verificationContext
+              ? (targetFindingIndex ? `Verify Finding #${targetFindingIndex}` : `Verify Previous CodeX Findings`)
+              : prompt.slice(0, 60),
+            description: codexPrompt,
             taskType: 'engineering',
             assignedCapability: 'codex',
-            acceptanceCriteria: `Execute engineering goal: ${prompt}`,
+            acceptanceCriteria: verificationContext
+              ? `Independently verify repository evidence for previous CodeX findings.`
+              : `Execute engineering goal: ${prompt}`,
           });
           canonicalTaskId = pTask.id;
 
@@ -198,6 +405,15 @@ export class JarvisOrchestrator {
             model: assignment?.modelId || OLLAMA_DEFAULT_CODING_MODEL,
             requestId: operationId,
             conversationId,
+            metadata: {
+              resultType: verificationContext ? 'verification' : (readOnly ? 'analysis' : 'change'),
+              ...(verificationContext?.executionResultId
+                ? {
+                    verificationOfResultId: verificationContext.executionResultId,
+                    sourceResultId: verificationContext.executionResultId,
+                  }
+                : {}),
+            },
           });
           canonicalRunId = pRun.id;
           projectTaskService.updateTask(pTask.id, { assignedRunId: pRun.id, status: 'running' });
@@ -212,11 +428,20 @@ export class JarvisOrchestrator {
         messageType: 'system_status',
         content: approvalPolicy === 'manual'
           ? `CodeX Goal initialized: ${goalId}. Generating plan for your approval...`
-          : `CodeX Goal initialized: ${goalId}. ${readOnly ? 'Read-only inspection started.' : 'Execution started.'}`,
+          : `CodeX Goal initialized: ${goalId}. ${readOnly ? (verificationContext ? 'Read-only verification started.' : 'Read-only inspection started.') : 'Execution started.'}`,
         goalId,
         metadata: {
           taskId: canonicalTaskId,
           runId: canonicalRunId,
+          referencedGoalId: verificationContext?.goalId,
+          referencedMessageId: verificationContext?.messageId,
+          category: verificationContext ? 'repository_verification' : (readOnly ? 'repository_analysis' : 'repository_change'),
+          resultType: verificationContext ? 'verification' : (readOnly ? 'analysis' : 'change'),
+          verificationTarget: verificationContext ? 'prior_worker_findings' : undefined,
+          verificationOfResultId: verificationContext?.executionResultId,
+          findingsCount: verificationContext ? verificationContext.findings.length : undefined,
+          targetFindingIndex: targetFindingIndex || undefined,
+          ...(resolutionEvidence ? { resolutionEvidence } : {}),
           ...(requestMetadata || {})
         }
       });

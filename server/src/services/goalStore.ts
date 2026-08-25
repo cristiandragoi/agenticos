@@ -109,6 +109,34 @@ class GoalStore extends EventEmitter {
     };
   }
 
+  listByConversation(conversationId: string, limit = 10): GoalRecord[] {
+    const query = db.select()
+      .from(goals)
+      .where(eq(goals.conversationId, conversationId))
+      .orderBy(desc(goals.createdAt));
+    const rows = limit ? query.limit(limit).all() : query.all();
+    return rows.map((row) => ({
+      id: row.id,
+      originalGoal: row.originalGoal,
+      status: row.status as GoalState,
+      retryCount: row.retryCount,
+      providerFallbackCount: row.providerFallbackCount,
+      executionOptions: row.executionOptions ? JSON.parse(row.executionOptions) : undefined,
+      checkpointId: row.activeCheckpointId || undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      workspacePath: row.workspacePath || undefined,
+      conversationId: row.conversationId || undefined,
+      workspaceId: row.workspaceId || undefined,
+      workerId: row.workerId || undefined,
+      leaseExpiresAt: row.leaseExpiresAt || undefined,
+      verificationState: (row.verificationState || 'none') as GoalRecord['verificationState'],
+      contractId: row.contractId || undefined,
+      history: [],
+      runSummary: typeof row.runSummary === 'string' ? (() => { try { return JSON.parse(row.runSummary); } catch { return row.runSummary; } })() : (row.runSummary as any)
+    }));
+  }
+
   getEventsAfter(id: string, sequence: number): GoalEvent[] {
     return db.select()
       .from(goalEvents)

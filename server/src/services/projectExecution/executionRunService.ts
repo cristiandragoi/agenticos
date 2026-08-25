@@ -178,6 +178,19 @@ export const executionRunService = {
     return row ? rowToRun(row) : null;
   },
 
+  /**
+   * Resolve the most recent run whose `agent_instance_id` matches (the CodeX
+   * goal id, magnitude run id, etc.). Used to reconcile a completed worker
+   * goal back to its canonical run when only the goal id is known.
+   */
+  getRunByAgentInstanceId(agentInstanceId: string): ExecutionRunRecord | null {
+    if (!agentInstanceId) return null;
+    const row = rawDb.prepare(
+      'SELECT * FROM execution_runs WHERE agent_instance_id = ? ORDER BY created_at DESC LIMIT 1'
+    ).get(agentInstanceId);
+    return row ? rowToRun(row) : null;
+  },
+
   listRunsForTask(taskId: string): ExecutionRunRecord[] {
     return rawDb.prepare(
       'SELECT * FROM execution_runs WHERE task_id = ? ORDER BY created_at DESC'
@@ -188,6 +201,19 @@ export const executionRunService = {
     return rawDb.prepare(
       'SELECT * FROM execution_runs WHERE project_id = ? ORDER BY created_at DESC'
     ).all(projectId).map(rowToRun);
+  },
+
+  /**
+   * List runs for a Jarvis conversation (ascending). Used by the result-graph
+   * resolver to gather the persisted worker results of a conversation — the
+   * provenance relationship graph is reconstructed from these runs and their
+   * results, never from conversation text.
+   */
+  listRunsForConversation(conversationId: string): ExecutionRunRecord[] {
+    if (!conversationId) return [];
+    return rawDb.prepare(
+      'SELECT * FROM execution_runs WHERE conversation_id = ? ORDER BY created_at ASC'
+    ).all(conversationId).map(rowToRun);
   },
 
   updateRun(id: string, patch: Partial<{
