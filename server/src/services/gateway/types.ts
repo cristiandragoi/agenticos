@@ -20,6 +20,11 @@ export interface ChatRequest {
   // used by the provider adapter ONLY when the base model exhausts its output
   // budget without producing content (EMPTY_CONTENT_AFTER_REASONING).
   escalationModel?: string;
+
+  // Providers to EXCLUDE from the fallback chain for this request. Used by the
+  // CodeX loop to escalate a structured-output parse failure to the next
+  // provider (a parse failure is a provider-attempt failure, not a task failure).
+  excludeProviders?: string[];
   
   // Workspace Context
   taskObjective?: string;

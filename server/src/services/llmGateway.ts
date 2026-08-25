@@ -23,6 +23,8 @@ export interface LlmChatOptions {
   routingMode?: 'automatic' | 'preferred' | 'forced';
   /** Planning escalation: stronger sibling model for EMPTY_CONTENT retries. */
   escalationModel?: string;
+  /** Providers to EXCLUDE from the fallback chain (parse-failure escalation). */
+  excludeProviders?: string[];
   requestId?: string;
   disableFallback?: boolean;
   signal?: AbortSignal;
@@ -103,7 +105,8 @@ function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
     agentId: opts.agentId,
     modelId: opts.model ?? opts.ollamaModel,
     routing: opts.routingMode ? { mode: opts.routingMode } : undefined,
-    escalationModel: opts.escalationModel
+    escalationModel: opts.escalationModel,
+    excludeProviders: opts.excludeProviders
   };
 }
 

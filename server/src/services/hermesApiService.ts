@@ -340,6 +340,64 @@ class HermesApiService extends EventEmitter {
     this.appendEvent(record, 'status.changed', 'Stop requested');
   }
 
+  /**
+   * Probe upstream Hermes run status directly from the gateway API.
+   * Truthfully reconciles completion, errors, or confirms active liveness during long inference.
+   */
+  async probeRunLiveness(id: string): Promise<{
+    status: HermesRunStatus;
+    upstreamStatus?: string;
+    output?: string;
+    model?: string;
+    provider?: string;
+    isAlive: boolean;
+    lastEvent?: string;
+  }> {
+    const record = this.runs.get(id) || Array.from(this.runs.values()).find(r => r.hermesRunId === id || r.id === id);
+    const targetRunId = record ? record.hermesRunId : id;
+
+    const key = resolveHermesApiKey();
+    const baseUrl = await resolveHermesUrl();
+    if (!key) return { status: record ? record.status : 'unknown', isAlive: record ? (record.status === 'running' || record.status === 'queued') : false };
+
+    try {
+      const res = await fetch(`${baseUrl}/v1/runs/${targetRunId}`, {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (res.ok) {
+        const data: any = await res.json().catch(() => ({}));
+        const rawStatus = (data?.status || '').toLowerCase();
+        const output = data?.output || '';
+        const model = data?.model || record?.model;
+
+        let normalizedStatus: HermesRunStatus = record ? record.status : 'unknown';
+        if (rawStatus === 'completed') normalizedStatus = 'completed';
+        else if (rawStatus === 'failed') normalizedStatus = 'failed';
+        else if (rawStatus === 'cancelled') normalizedStatus = 'cancelled';
+        else if (rawStatus === 'waiting_for_approval') normalizedStatus = 'waiting_for_approval';
+        else if (rawStatus === 'running' || rawStatus === 'queued') normalizedStatus = 'running';
+
+        if (record && (normalizedStatus !== record.status || (output && !record.finalText))) {
+          record.status = normalizedStatus;
+          if (output && !record.finalText) record.finalText = output;
+          this.touch(record);
+        }
+
+        const isAlive = rawStatus === 'running' || rawStatus === 'queued' || rawStatus === 'waiting_for_approval';
+        return {
+          status: normalizedStatus,
+          upstreamStatus: rawStatus,
+          output,
+          model,
+          isAlive,
+          lastEvent: data?.last_event,
+        };
+      }
+    } catch { /* probe error, return cached state */ }
+
+    return { status: record ? record.status : 'unknown', isAlive: record ? (record.status === 'running' || record.status === 'queued') : false };
+  }
+
   private requireRun(id: string): HermesRunRecord {
     const record = this.runs.get(id);
     if (!record) throw new Error(`Unknown AgenticOS hermes run: ${id}`);

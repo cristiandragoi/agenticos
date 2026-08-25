@@ -132,6 +132,9 @@ export interface TaskApprovalRequest {
   command?: string;
   files?: string[];
   choices?: string[];
+  canonicalAction?: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  isReadOnly?: boolean;
 }
 
 export const TASK_LIMITS = {

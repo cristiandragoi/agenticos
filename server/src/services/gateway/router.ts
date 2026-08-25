@@ -205,7 +205,20 @@ export class GatewayRouter {
 
   public async chat(req: ChatRequest, overrides?: { provider?: string }): Promise<ChatResponse> {
     const liveConfig = await GatewayConfigurationService.getConfiguration();
-    const order = await this.resolveProviderOrder(req, overrides);
+    let order = await this.resolveProviderOrder(req, overrides);
+
+    // Parse-failure escalation: exclude providers that already produced
+    // unparseable structured output for this request, so the fallback chain
+    // moves to the next compatible provider instead of retrying the failed one.
+    const excluded = (req.excludeProviders || []).map((p) => p.toLowerCase());
+    if (excluded.length) {
+      const before = order.length;
+      order = order.filter((p) => !excluded.includes(p.name.toLowerCase()));
+      if (order.length === 0) {
+        throw new Error(`All providers excluded from fallback chain: ${excluded.join(', ')}`);
+      }
+      this.emit({ type: 'gateway.selected', provider: order[0].name, requestId: req.requestId });
+    }
 
     const attemptedProviders: string[] = [];
     const attemptErrors: ProviderAttemptError[] = [];
