@@ -1,15 +1,27 @@
 import { Router } from 'express';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
+import { getBuildIdentity } from '../services/buildIdentity.js';
 
 const router = Router();
 
 router.get('/', (_req, res) => {
+  const build = getBuildIdentity();
   res.json({
     status: 'healthy',
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
     version: '9.0.0',
+    build: {
+      fingerprint: build.fingerprint,
+      algorithm: build.algorithm,
+      filesCount: build.filesCount,
+      ...(build.gitSha ? { gitSha: build.gitSha } : {}),
+      ...(build.gitShort ? { gitShort: build.gitShort } : {}),
+      ...(build.isDirty !== null ? { isDirty: build.isDirty } : {}),
+      ...(build.buildTimestamp ? { buildTimestamp: build.buildTimestamp } : {}),
+      ...(build.buildId ? { buildId: build.buildId } : {}),
+    },
   });
 });
 

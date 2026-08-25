@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsc && node dist/index.js",
-    "build": "tsc",
+    "build": "tsc && node ../scripts/build-identity.cjs",
     "start": "node dist/index.js",
     "eval:models": "node dist/evalCli.js",
     "doctor": "tsx src/scripts/agenticos-doctor.ts"
