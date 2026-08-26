@@ -37,25 +37,21 @@ describe('investigateAgenticState — frontend diagnostic bridge', () => {
     } as any);
 
     const mod = await import('../domains/jarvis/investigation.js');
-    const report = await mod.investigateAgenticState('conv-1', 'It\u2019s not showing the correct model.');
+    const { report } = await mod.investigateAgenticState('conv-1', 'It\u2019s not showing the correct model.');
 
     expect(report).toContain('Frontend display state (reported by the UI, read-only)');
     expect(report).toContain('Selected frontend model: DeepSeek / deepseek-v4 (source: agent-provider-assignments');
     expect(report).toContain('Gateway status rendered: OpenRouter (source: health-gateway-poll');
-    // Last-known badge with explicit mount/age markers — never "(not reported)".
     expect(report).toMatch(/ProviderBadge last rendered: OpenRouter \/ Laguna \(component currently unmounted; last render \d+s ago/);
-    // No active stream, but a last-known stream exists.
     expect(report).toContain('Active stream: none');
     expect(report).toContain('Last stream: OpenRouter / Laguna (operation op-abc123; ended');
-    // Stale badge vs newer runtime operation: the badge (42s ago) predates the
-    // last stream (3s ago).
     expect(report).toMatch(/The ProviderBadge last rendered \d+s ago \(\d+s before the latest stream operation\)/);
     expect(report).toContain('The badge does NOT match the runtime');
   }, 20000);
 
   it('says the snapshot is unavailable when the UI has not reported yet', async () => {
     const mod = await import('../domains/jarvis/investigation.js');
-    const report = await mod.investigateAgenticState('conv-1', 'The provider badge is wrong.');
+    const { report } = await mod.investigateAgenticState('conv-1', 'The provider badge is wrong.');
     expect(report).toContain('Frontend display state: not yet reported by the UI');
   });
 
@@ -69,10 +65,30 @@ describe('investigateAgenticState — frontend diagnostic bridge', () => {
       updatedAt: 0,
     } as any);
     const mod = await import('../domains/jarvis/investigation.js');
-    const report = await mod.investigateAgenticState('conv-1', 'The provider badge is wrong.');
+    const { report } = await mod.investigateAgenticState('conv-1', 'The provider badge is wrong.');
     expect(report).toContain('Selected frontend model: (not reported)');
     expect(report).toContain('ProviderBadge last rendered: (not reported)');
     expect(report).toContain('Active stream: none');
     expect(report).toContain('Last stream: none');
+  });
+
+  // ── P0 channel-contract regression: telemetry must NEVER reach the summary ──
+  it('summary is natural and contains NO internal telemetry (endpoints, provider ids, context)', async () => {
+    const mod = await import('../domains/jarvis/investigation.js');
+    const { report, summary } = await mod.investigateAgenticState('conv-1', 'Check the runtime status of Agentic OS adapters.');
+
+    // The full report may carry internal detail (diagnostic channel).
+    expect(report).toContain('Hermes gateway');
+
+    // The spoken summary must NOT leak endpoints / provider ids / raw context.
+    expect(summary).not.toContain('127.0.0.1');
+    expect(summary).not.toContain('http://');
+    expect(summary).not.toContain('prov-');
+    expect(summary).not.toContain('Recent conversation context');
+    expect(summary).not.toContain('operation ');
+    expect(summary).not.toContain('• ');
+    // It should still be a truthful, grounded status (not empty).
+    expect(summary.length).toBeGreaterThan(20);
+    expect(summary).toContain('AgenticOS');
   });
 });

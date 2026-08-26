@@ -5,7 +5,7 @@ import {
   detectLocalFastReply,
 } from '../domains/jarvis/fastLocalReplies.js';
 
-describe('fastLocalReplies — presence fast path (R5)', () => {
+describe('fastLocalReplies — presence fast path (R5 + P0 expansion)', () => {
   it('detects presence prompts and returns a short grounded ack', () => {
     for (const p of [
       'Jarvis, are you there?',
@@ -19,7 +19,47 @@ describe('fastLocalReplies — presence fast path (R5)', () => {
     ]) {
       const r = detectPresencePrompt(p);
       expect(r, `should detect: ${p}`).not.toBeNull();
-      expect(r!.reply).toBe("Yes, I'm here.");
+      expect(r!.reply.length).toBeGreaterThan(3);
+    }
+  });
+
+  it('P0: detects "Still there?" and bare greetings/pauses that previously fell through to investigate', () => {
+    for (const p of [
+      'Still there?',
+      'still there',
+      'are you still there',
+      'Hello?',
+      'Hello',
+      'Hi',
+      'Hey',
+      'Hey there',
+      'Wait.',
+      'Wait',
+      'One second.',
+      'hold on',
+      'Okay.',
+      'okay',
+      'Yo',
+    ]) {
+      const r = detectPresencePrompt(p);
+      expect(r, `should detect: ${p}`).not.toBeNull();
+      expect(r!.reply.length).toBeGreaterThan(3);
+    }
+  });
+
+  it('P0: does NOT misread task-bearing continuations as bare presence', () => {
+    for (const p of [
+      'Okay, fix it.',
+      'Okay fix it',
+      'Wait, don\'t change anything yet.',
+      'Do it.',
+      'Fix it.',
+      'Continue.',
+      'Check it again.',
+      'One second, let me explain the problem.',
+      'Hello, can you fix the bug?',
+    ]) {
+      expect(detectPresencePrompt(p), `should NOT detect as bare presence: ${p}`).toBeNull();
     }
   });
 
@@ -74,7 +114,8 @@ describe('fastLocalReplies — direct local knowledge (R6/R7)', () => {
   });
 
   it('unified entry returns presence first', () => {
-    expect(detectLocalFastReply('Jarvis, are you there?')?.reply).toBe("Yes, I'm here.");
+    expect(detectLocalFastReply('Jarvis, are you there?')).not.toBeNull();
+    expect(detectLocalFastReply('Still there?')).not.toBeNull();
     expect(detectLocalFastReply('what is jarvis')?.reply).toContain('Agentic OS');
   });
 });

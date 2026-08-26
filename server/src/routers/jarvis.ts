@@ -1765,18 +1765,38 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         metadata: inputChannel ? { ...(requestMetadata || {}), inputChannel } : requestMetadata
       });
       const startedAt = Date.now();
-      let reply: string;
+      let summary: string;
+      let report: string | null = null;
       updateStreamExecution({ status: 'RUNNING', currentAction: 'Inspecting runtime state' });
       try {
-        reply = await investigateAgenticState(req.params.id, prompt);
+        const result = await investigateAgenticState(req.params.id, prompt);
+        summary = result.summary;
+        report = result.report;
       } catch (err: any) {
-        reply = `I attempted a read-only inspection but it failed: ${err?.message || err}. Nothing was changed.`;
+        summary = `I attempted a read-only inspection but it failed: ${err?.message || err}. Nothing was changed.`;
       }
-      streamTextAsChunks(res, reply, normalizedOperationId);
+      // Channel contract: the full diagnostic report is persisted as a
+      // system/diagnostics message (never spoken); only the natural summary is
+      // streamed and persisted as Jarvis's spoken reply.
+      if (report) {
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'system',
+          messageType: 'diagnostics',
+          content: report,
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'registry',
+            intent: { type: 'investigate', category: 'investigation', confidence: intent.confidence }
+          }
+        });
+      }
+      streamTextAsChunks(res, summary, normalizedOperationId);
       await conversationService.appendMessage({
         conversationId: req.params.id,
         role: 'agent',
-        content: reply,
+        content: summary,
         routedAgent: 'jarvis',
         metadata: {
           ...(requestMetadata || {}),
@@ -1796,7 +1816,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       });
       completed = true;
       updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
-      endStreamExecution('COMPLETED', reply.slice(0, 500));
+      endStreamExecution('COMPLETED', summary.slice(0, 500));
       return res.end();
     }
 

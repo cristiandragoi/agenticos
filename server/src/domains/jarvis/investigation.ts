@@ -88,7 +88,7 @@ async function recentContext(conversationId: string): Promise<string[]> {
  * Every value is measured live; anything unverifiable is reported as
  * unavailable — never guessed.
  */
-export async function investigateAgenticState(conversationId: string, prompt: string): Promise<string> {
+export async function investigateAgenticState(conversationId: string, prompt: string): Promise<{ report: string; summary: string }> {
   const subject = resolveSubject(prompt);
   const probes: ProbeOutcome[] = [];
 
@@ -324,5 +324,38 @@ export async function investigateAgenticState(conversationId: string, prompt: st
     'I can go deeper: verify the frontend display state, trace recent gateway events, or (with your approval) correct a configuration mismatch. No files or settings were changed by this inspection.'
   );
 
-  return lines.join('\n');
+  const report = lines.join('\n');
+  const summary = buildInvestigationSummary(subject, probes, selectedProvider, selectedModel, taskLines[0], modelMismatch);
+  return { report, summary };
+}
+
+/**
+ * A short, natural, spoken answer derived from the SAME live probe data as the
+ * full diagnostic report — with no internal endpoints, provider IDs, or raw
+ * telemetry. This is what Jarvis says; the full report goes to the diagnostic
+ * channel (a `system` / `diagnostics` message), never to speech.
+ */
+function buildInvestigationSummary(
+  subject: string,
+  probes: ProbeOutcome[],
+  selectedProvider: string,
+  selectedModel: string,
+  taskSummary: string,
+  modelMismatch: boolean
+): string {
+  if (modelMismatch) {
+    return (
+      'I checked the live AgenticOS state, and the runtime is authoritative here: ' +
+      'there is a mismatch between what is configured and what the interface is showing. ' +
+      'I have put the full evidence in the diagnostic panel.'
+    );
+  }
+  const gateways = probes.map((p) => `${p.label}: ${p.ok ? 'online' : 'unreachable'}`).join(', ');
+  const model = selectedModel && selectedModel !== 'auto' ? `active model ${selectedModel}` : 'model auto-selected';
+  const tasks = taskSummary || 'no background-task summary available';
+  const subjectClause = subject && subject !== 'the element you are referring to' ? ` about "${subject}"` : '';
+  return (
+    `I checked the live AgenticOS state${subjectClause}. ${gateways}. ` +
+    `${model}. Background tasks: ${tasks}. I have kept the full technical details in the diagnostic panel.`
+  );
 }

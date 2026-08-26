@@ -3,11 +3,16 @@
  * route, BEFORE any LLM/tool invocation.
  *
  * Voice-reliability closure (Phases 4–5): presence checks ("Jarvis, are you
- * there?") and direct local-knowledge questions ("What is Jarvis?",
- * "What is Agentic OS?") must NOT pay the full model round-trip. They are
- * answered from local, grounded knowledge — no LLM, no tools, no memory
- * recall, no research chain. Everything here is a canned-but-truthful local
- * reply keyed by an exact pattern; nothing is invented.
+ * there?"), bare greetings ("Hello?"), and pauses ("Wait.") must NOT pay the
+ * full model round-trip and must NEVER be routed to investigate / CodeX /
+ * Hermes / maintenance or answered with runtime telemetry. They are answered
+ * from local, grounded knowledge — no LLM, no tools, no memory recall.
+ *
+ * P0 hardening: the presence set is expanded so "Still there?", a bare
+ * "Hello/Hi/Hey", and pauses ("Wait", "One second") are caught. Every
+ * greeting/pause/ack pattern is ANCHORED so a task-bearing continuation
+ * ("Okay, fix it", "Wait, don't change anything yet") is never misread as a
+ * bare presence turn — those keep their existing approval/task semantics.
  */
 export interface LocalFastReply {
   /** Human-visible reply text (also spoken by the caller's TTS path). */
@@ -16,11 +21,36 @@ export interface LocalFastReply {
   matched: string;
 }
 
-const PRESENCE_PATTERNS: RegExp[] = [
-  /\b(are you there|are you here|you there|you here|you around|are you listening|are you awake|can you hear me|are you still there)\b/i,
-  // Bare wake with optional punctuation: "Jarvis", "Jarvis?", "Hey Jarvis."
-  // (mission Phase 4 — a wake is a presence check and gets a quick ack).
-  /^(?:hey\s+|ok(?:ay)?\s+|hi\s+|hello\s+)?jarvis[,.!?]*$/i,
+/** Ordered presence rules; the first match wins. Anchored rules come after the
+ *  un-anchored "are you there / still there" check. */
+const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
+  {
+    // Presence check — "are you there", "you there", "still there", "can you
+    // hear me", etc. (un-anchored so "Jarvis, you there?" matches).
+    re: /\b(are you there|are you here|you there|you here|you around|are you listening|are you awake|can you hear me|do you hear me|are you still there|still there|still here|still with me|still awake|still around|still listening|anyone there|anyone home)\b/i,
+    reply: "Yeah, I'm here. What's up?",
+  },
+  {
+    // Bare greeting — "Hello", "Hi", "Hey", "Hey there", "Yo", "Howdy"
+    // (with or without "Jarvis").
+    re: /^(?:hey|hi|hello|hiya|yo|howdy|good\s+(?:morning|afternoon|evening))[,.!?\s]*(?:(?:there|jarvis)[,.!?]*)?$/i,
+    reply: "Hey — I'm here. What can I do for you?",
+  },
+  {
+    // Pause / hold — "Wait", "One second", "Hold on", "Give me a minute".
+    re: /^(?:wait|hold on|hang on|one second|one sec|one moment|one minute|give me a (?:second|sec|moment|minute)|just a (?:second|sec|moment|minute)|gimme a (?:second|sec|moment|minute))[,.!?]*$/i,
+    reply: "Sure, take your time — I'll be here when you're ready.",
+  },
+  {
+    // Bare acknowledgement — "Okay", "Fine", "Got it", "Thanks" (no task verbs).
+    re: /^(?:okay|ok|k|fine|alright|all right|sure|got it|gotcha|cool|perfect|great|nice|thanks|thank you|sounds good)[,.!?]*$/i,
+    reply: "Got it. Just let me know what you'd like to do.",
+  },
+  {
+    // Bare wake — "Jarvis", "Jarvis?", "Hey Jarvis", "Okay Jarvis".
+    re: /^(?:hey\s+|ok(?:ay)?\s+|hi\s+|hello\s+)?jarvis[,.!?]*$/i,
+    reply: "Yeah, I'm here. What's up?",
+  },
 ];
 
 const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string }> = [
@@ -49,12 +79,12 @@ const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string }> = [
   },
 ];
 
-/** Detect a presence/reassurance prompt ("Jarvis, are you there?"). */
+/** Detect a presence/reassurance/greeting/pause prompt. */
 export function detectPresencePrompt(text: string): LocalFastReply | null {
   const t = (text || '').trim();
   if (!t) return null;
-  for (const re of PRESENCE_PATTERNS) {
-    if (re.test(t)) return { reply: "Yes, I'm here.", matched: re.source };
+  for (const rule of PRESENCE_RULES) {
+    if (rule.re.test(t)) return { reply: rule.reply, matched: rule.re.source };
   }
   return null;
 }

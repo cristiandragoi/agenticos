@@ -803,16 +803,30 @@ export class JarvisOrchestrator {
   private async handleInvestigate(conversationId: string, prompt: string, operationId?: string) {
     try {
       const { investigateAgenticState } = await import('./investigation.js');
-      let reply: string;
+      let summary: string;
+      let report: string | null = null;
       try {
-        reply = await investigateAgenticState(conversationId, prompt);
+        const result = await investigateAgenticState(conversationId, prompt);
+        summary = result.summary;
+        report = result.report;
       } catch (err: any) {
-        reply = `I attempted a read-only inspection but it failed: ${err?.message || err}. Nothing was changed.`;
+        summary = `I attempted a read-only inspection but it failed: ${err?.message || err}. Nothing was changed.`;
+      }
+      // Channel contract: the full diagnostic report goes to a system/diagnostics
+      // message (never spoken); only the natural summary is Jarvis's spoken reply.
+      if (report) {
+        await conversationService.appendMessage({
+          conversationId,
+          role: 'system',
+          messageType: 'diagnostics',
+          content: report,
+          metadata: { ...(operationId ? { operationId } : {}), provider: 'agentic-os', model: 'registry', intent: { type: 'investigate' } }
+        });
       }
       await conversationService.appendMessage({
         conversationId,
         role: 'agent',
-        content: reply,
+        content: summary,
         routedAgent: 'jarvis',
         metadata: { ...(operationId ? { operationId } : {}), provider: 'agentic-os', model: 'registry', intent: { type: 'investigate' } }
       });

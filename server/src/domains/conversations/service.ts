@@ -5,7 +5,7 @@ import { eq, asc, desc } from 'drizzle-orm';
 import { Response } from 'express';
 
 export type MessageRole = 'user' | 'agent' | 'system';
-export type MessageType = 'message' | 'routing_event' | 'tool_event' | 'approval_request' | 'plan' | 'artifact' | 'error' | 'system_status' | 'team_preview' | 'team_execution';
+export type MessageType = 'message' | 'routing_event' | 'tool_event' | 'approval_request' | 'plan' | 'artifact' | 'error' | 'system_status' | 'team_preview' | 'team_execution' | 'diagnostics';
 
 export interface AppendMessageArgs {
   conversationId: string;
