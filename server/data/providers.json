@@ -17,6 +17,14 @@
     "defaultModel": "qwen2.5-coder:14b",
     "models": [
       {
+        "id": "qwen3.8:latest",
+        "name": "Qwen 3.8",
+        "displayName": "Qwen 3.8",
+        "contextLength": 32768,
+        "inputCost": 0,
+        "outputCost": 0
+      },
+      {
         "id": "qwen2.5-coder:14b",
         "name": "Qwen2.5 Coder 14B",
         "displayName": "Qwen2.5-Coder 14B (Local)",
@@ -66,7 +74,8 @@
     "usedByAgentDefaults": [
       "agent-jarvis",
       "agent-sentinel",
-      "agent-codex"
+      "agent-codex",
+      "agent-hermes"
     ]
   },
   {

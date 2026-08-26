@@ -63,6 +63,7 @@ const PANEL_MODELS = [
 
 /* Model picker options for the Chat panel */
 const STUDIO_MODELS = [
+  { id: 'qwen3.8:latest', label: 'Qwen 3.8',     color: '#38bdf8' },
   { id: 'qwythos-9b',    label: 'Qwythos 9B',   color: '#d4a373' },
   { id: 'qwable-coder',  label: 'Qwable Coder', color: '#60a5fa' },
   { id: 'fusion',        label: 'Fusion',        color: '#a78bfa' },

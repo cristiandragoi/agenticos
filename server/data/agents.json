@@ -583,7 +583,8 @@
       "prov-deepseek",
       "prov-minimax",
       "prov-qwen",
-      "prov-kimi"
+      "prov-kimi",
+      "prov-ollama"
     ],
     "defaultBoardId": "board-mission-control",
     "visibility": "public",

@@ -9,7 +9,7 @@
 import { searchWorkspace, WI_MAX_RESULTS } from '../../workspaceIndexer.js';
 
 export const workspaceSearchTool = {
-  name: 'workspace.search',
+  name: 'workspace_search',
   description: 'Search the selected AgenticOS workspace for source/config evidence. '
     + 'Returns bounded results with exact file paths and line provenance. '
     + 'Use this to answer "where is X defined/used", "find the code that does Y", '

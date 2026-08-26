@@ -62,4 +62,15 @@ describe('llmGateway model override normalization', () => {
     expect(chatMock).toHaveBeenCalledTimes(1);
     expect(chatMock.mock.calls[0][0].modelId).toBe('gpt-oss:20b');
   });
+
+  it('routes qwen3.8:latest as ChatRequest.modelId for ollama provider', async () => {
+    await llmChat({
+      prompt: 'Reply with exactly: QWEN38_OK',
+      provider: 'ollama',
+      model: 'qwen3.8:latest'
+    });
+
+    expect(chatMock).toHaveBeenCalledTimes(1);
+    expect(chatMock.mock.calls[0][0].modelId).toBe('qwen3.8:latest');
+  });
 });

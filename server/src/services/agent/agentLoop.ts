@@ -59,11 +59,12 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
     { name: 'Fusion', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openrouter/fusion-large', key: process.env.FUSION_API_KEY },
     { name: 'Qwable 27B Coder', url: 'http://localhost:8642/v1/chat/completions', model: 'qwable-27b-coder', key: process.env.QWABLE_API_KEY || 'qwable' },
     // ── Local Ollama Coding Models ──────────────────────────────────────────
-    { name: 'Qwen2.5-Coder 14B', url: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/v1/chat/completions', model: 'qwen2.5-coder:14b', key: 'ollama' },
-    { name: 'DeepSeek Coder V2 16B', url: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/v1/chat/completions', model: 'deepseek-coder-v2:16b', key: 'ollama' },
+    { name: 'Qwen2.5-Coder 14B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen2.5-coder:14b', key: 'ollama' },
+    { name: 'DeepSeek Coder V2 16B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'deepseek-coder-v2:16b', key: 'ollama' },
     // ── Local Ollama General Models ─────────────────────────────────────────
-    { name: 'Qwythos 9B', url: 'http://localhost:11434/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
-    { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/v1/chat/completions', model: 'qwen3.5:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Qwen 3.8', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.8:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Qwythos 9B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
+    { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.5:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
     // ── Remote Providers ────────────────────────────────────────────────────
     { name: 'OpenRouter Fallback', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4o-mini', key: process.env.OPENROUTER_API_KEY },
     { name: 'DeepSeek', url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-v4-flash', key: process.env.DEEPSEEK_API_KEY },
@@ -128,6 +129,75 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
   return realProviders;
 }
 
+/* ─── Context & Tool Budgeting Helpers ─── */
+
+/**
+ * Bounds raw tool output to prevent prompt overflow while preserving
+ * structured errors, leading lines, and truncation provenance.
+ */
+export function truncateToolOutput(result: string, maxChars: number = 2500): string {
+  if (!result || result.length <= maxChars) return result;
+
+  // Preserve concise error payloads untouched if within reasonable bound
+  try {
+    const parsed = JSON.parse(result);
+    if (parsed.error && typeof parsed.error === 'string' && result.length < maxChars * 1.5) {
+      return result;
+    }
+  } catch {
+    // not JSON
+  }
+
+  const keepHead = Math.floor(maxChars * 0.75);
+  const keepTail = Math.floor(maxChars * 0.20);
+  const head = result.slice(0, keepHead);
+  const tail = result.slice(-keepTail);
+
+  return `${head}\n\n... [Result truncated: ${result.length} characters total. Showing first ${keepHead} and last ${keepTail} chars] ...\n\n${tail}`;
+}
+
+/**
+ * Compacts conversation history for multi-turn agents to stay within context
+ * budgets while strictly preserving tool-call to tool-result pairing invariants.
+ */
+export function compactMessageHistory(
+  messages: ChatMessage[],
+  maxTotalChars: number = 9000
+): ChatMessage[] {
+  if (messages.length <= 3) return messages;
+
+  const totalChars = messages.reduce((acc, m) => acc + (m.content?.length || 0) + JSON.stringify(m.tool_calls || '').length, 0);
+  if (totalChars <= maxTotalChars) return messages;
+
+  // Identify index of the most recent assistant message with tool_calls
+  let lastAssistantToolIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant' && messages[i].tool_calls && messages[i].tool_calls!.length > 0) {
+      lastAssistantToolIdx = i;
+      break;
+    }
+  }
+
+  return messages.map((m, idx) => {
+    // Retain system instructions (0) and initial user prompt (1) intact
+    if (idx <= 1) return m;
+
+    // Retain newest active turn's tool messages intact
+    if (lastAssistantToolIdx !== -1 && idx >= lastAssistantToolIdx) return m;
+
+    // Compact older tool message payloads to concise summaries
+    if (m.role === 'tool' && m.content && m.content.length > 250) {
+      const firstLine = m.content.split('\n')[0].slice(0, 120);
+      return {
+        ...m,
+        content: `${firstLine} ... [Prior tool output compacted (${m.content.length} chars)]`
+      };
+    }
+
+    return m;
+  });
+}
+
 /* ─── LLM Call ─── */
 
 async function callLLM(
@@ -150,7 +220,7 @@ async function callLLM(
     if (requested === 'ollama') {
       providers = [{
         name: 'Ollama',
-        url: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/v1/chat/completions',
+        url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions',
         model: executionOptions.modelOverride || 'qwen3.5:latest',
         key: process.env.OLLAMA_API_KEY || 'ollama',
       }];
@@ -185,7 +255,7 @@ async function callLLM(
         const providerUrl = provider.url.toLowerCase();
 
         if (canonicalProviderId === 'ollama') {
-          return providerUrl.includes('localhost:11434');
+          return providerUrl.includes('11434');
         }
 
         return providerName.includes(canonicalProviderId);
@@ -219,9 +289,11 @@ async function callLLM(
     // Groq supports function calling. Gemini OpenAI-compat endpoint may not.
     // We try all and fall through on 400 errors.
 
+    const sanitizedMessages = messages.map(m => ({ ...m, content: m.content ?? '' }));
+
     const body: Record<string, unknown> = {
       model: p.model,
-      messages,
+      messages: sanitizedMessages,
       max_tokens: 4096,
       temperature: 0.7,
     };
@@ -244,7 +316,7 @@ async function callLLM(
     }
 
     const isHermesStudio = systemPrompt?.includes('CONTEXT: hermes-studio');
-    const timeoutMs = isHermesStudio ? 4000 : 60000; // Increased to 60s for slow local models
+    const timeoutMs = isHermesStudio ? 4000 : (p.url.includes('11434') ? 120000 : 60000); // 120s for local LLMs with CPU offload
 
     try {
       const res = await fetch(p.url, {
@@ -337,7 +409,7 @@ async function callLLM(
 
       const msg: ChatMessage = {
         role: 'assistant',
-        content: choice.message?.content || null,
+        content: choice.message?.content ?? '',
       };
 
       // Check for tool calls
@@ -435,10 +507,11 @@ export async function runAgentLoop(
 
     // Determine if tools are available (after first call, only if we just had tool calls)
     const hasTools = toolRegistry.list().length > 0;
+    const activeMessages = compactMessageHistory(messages);
 
     let response: { message: ChatMessage; provider: string; model: string };
     try {
-      response = await callLLM(messages, hasTools, providerIndex, systemPrompt, agentName, executionOptions);
+      response = await callLLM(activeMessages, hasTools, providerIndex, systemPrompt, agentName, executionOptions);
       providerIndex = 0; // Reset for subsequent calls (first successful provider)
     } catch (err: any) {
       logger.error(`[AgentLoop] Fatal error at iteration ${iterations}:`, err.message);
@@ -511,10 +584,8 @@ export async function runAgentLoop(
           result = JSON.stringify({ error: err.message });
         }
 
-        // Truncate large results
-        if (result.length > 10000) {
-          result = result.slice(0, 10000) + '\n\n... [result truncated]';
-        }
+        // Bound tool result to prevent context explosion
+        result = truncateToolOutput(result);
 
         messages.push({
           role: 'tool' as const,

@@ -89,7 +89,7 @@ class ToolRegistry {
 
   /** Execute a tool call by name. Returns the result string or throws. */
   async execute(name: string, args: Record<string, unknown>): Promise<string> {
-    const tool = this.tools.get(name);
+    const tool = this.tools.get(name) || this.tools.get(name.replace(/\./g, '_')) || this.tools.get(name.replace(/_/g, '.'));
     if (!tool) {
       throw new Error(`Unknown tool: ${name}`);
     }

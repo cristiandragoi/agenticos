@@ -64,7 +64,7 @@ export const mockAgents: AgentDefinition[] = [
     capabilities: ["code-generation", "reasoning", "planning", "code-review", "memory_galaxy"],
     toolIds: ["tool-code-runner", "tool-browser", "tool-file-system", "tool-memory-read", "tool-memory-append"],
     memoryScopes: ["mem-global", "mem-hermes-agent"],
-    providerIds: ["prov-openrouter", "prov-anthropic", "prov-deepseek", "prov-qwen", "prov-xai"],
+    providerIds: ["prov-openrouter", "prov-ollama", "prov-anthropic", "prov-deepseek", "prov-qwen", "prov-xai"],
     defaultBoardId: "board-mission-control",
     visibility: "public",
     description: "Primary reasoning and code-generation agent. Handles complex multi-step tasks with deep planning capabilities.",
@@ -457,6 +457,7 @@ export const mockProviders: ProviderDefinition[] = [
     // gateway fallback (OLLAMA_FALLBACK_MODEL || 'llama3.2:3b').
     defaultModel: "llama3.2:3b",
     models: [
+      { id: "qwen3.8:latest", name: "Qwen 3.8", displayName: "Qwen 3.8", contextLength: 32768, inputCost: 0, outputCost: 0 },
       { id: "laguna-xs-2.1", name: "Laguna XS 2.1", displayName: "Laguna XS 2.1 (Local)", contextLength: 32768, inputCost: 0, outputCost: 0 },
       { id: "qwen2.5-coder:14b", name: "Qwen2.5 Coder 14B", displayName: "Qwen2.5-Coder 14B (Local)", contextLength: 32768, inputCost: 0, outputCost: 0 },
       { id: "deepseek-coder-v2:16b", name: "DeepSeek Coder V2 16B", displayName: "DeepSeek-Coder-V2 16B (Local)", contextLength: 163840, inputCost: 0, outputCost: 0 },
@@ -465,7 +466,7 @@ export const mockProviders: ProviderDefinition[] = [
       { id: "mistral", name: "Mistral 7B", contextLength: 8192, inputCost: 0, outputCost: 0 },
       { id: "qwen2.5", name: "Qwen 2.5", contextLength: 32768, inputCost: 0, outputCost: 0 },
     ],
-    usedByAgentDefaults: ["agent-jarvis", "agent-sentinel", "agent-codex"],
+    usedByAgentDefaults: ["agent-jarvis", "agent-sentinel", "agent-codex", "agent-hermes"],
   },
 
   /* ─── REMOTE LLM PROVIDERS ─── */
