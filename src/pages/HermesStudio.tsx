@@ -329,7 +329,7 @@ function ChatPanel({ showAdvanced }: { showAdvanced?: boolean }) {
   const [profile, setProfile] = useState('default');
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('qwythos-9b');
+  const [selectedModel, setSelectedModel] = useState('qwen3.8:latest');
   const [targetAgentId, setTargetAgentId] = useState('agent-hermes');
   const endRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);

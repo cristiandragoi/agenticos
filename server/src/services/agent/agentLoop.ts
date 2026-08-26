@@ -110,6 +110,9 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
       // CodeX and coding-oriented agents: prefer local Qwen2.5-Coder, then DeepSeek Coder, then OmniRoute
       // Local coding models have zero cost and full privacy — they run entirely on-device
       prioritize('qwen2.5-coder');
+    } else if (nameLower.includes('hermes')) {
+      // Hermes local operation prefers Qwen 3.8 (Ollama)
+      prioritize('qwen 3.8');
     }
   }
 
@@ -225,9 +228,9 @@ async function callLLM(
         key: process.env.OLLAMA_API_KEY || 'ollama',
       }];
     } else {
-      const matched = getProviders(systemPrompt, agentName).find((p) =>
-        p.name.toLowerCase().includes(requested)
-      );
+      const allProviders = getProviders(undefined, agentName);
+      const matched = allProviders.find((p) => p.name.toLowerCase() === requested) ||
+                      allProviders.find((p) => p.name.toLowerCase().includes(requested));
       if (matched) {
         providers = [{ ...matched, model: executionOptions.modelOverride || matched.model }];
       }

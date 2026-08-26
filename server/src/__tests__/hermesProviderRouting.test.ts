@@ -25,6 +25,7 @@ describe('AgentLoop > Hermes Provider Routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+    process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
   });
 
   it('honours qwen3.5:cloud for Hermes and routes to Ollama', async () => {
@@ -88,6 +89,64 @@ describe('AgentLoop > Hermes Provider Routing', () => {
     expect(fetchCall[0]).toBe('http://127.0.0.1:11434/v1/chat/completions');
     const body = JSON.parse(fetchCall[1].body);
     expect(body.model).toBe('qwen3.8:latest');
+  });
+
+  it('defaults local Hermes to Ollama + qwen3.8:latest without explicit overrides', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        choices: [{ message: { content: 'DEFAULT_LOCAL_HERMES_OK' } }],
+        model: 'qwen3.8:latest'
+      })
+    });
+
+    const result = await runAgentLoop(
+      'You are Hermes, an AI agent in Agentic OS. You can write code.',
+      'Test prompt',
+      1,
+      'Hermes',
+      'run-default-hermes'
+    );
+
+    expect(result.provider).toBe('Qwen 3.8');
+    expect(result.model).toBe('qwen3.8:latest');
+    expect(result.text).toBe('DEFAULT_LOCAL_HERMES_OK');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const fetchCall = mockFetch.mock.calls[0];
+    expect(fetchCall[0]).toBe('http://127.0.0.1:11434/v1/chat/completions');
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.model).toBe('qwen3.8:latest');
+  });
+
+  it('honours explicit cloud selections (e.g. OpenRouter/DeepSeek) and does not reroute to Ollama', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        choices: [{ message: { content: 'DEEPSEEK_OK' } }],
+        model: 'deepseek-v4-flash'
+      })
+    });
+
+    const result = await runAgentLoop(
+      'CONTEXT: hermes-studio',
+      'Test message',
+      1,
+      'Hermes',
+      'run-deepseek-override',
+      { modelOverride: 'deepseek-v4-flash', providerOverride: 'deepseek', disableFallback: true }
+    );
+
+    expect(result.provider).toBe('DeepSeek');
+    expect(result.model).toBe('deepseek-v4-flash');
+    expect(result.text).toBe('DEEPSEEK_OK');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const fetchCall = mockFetch.mock.calls[0];
+    expect(fetchCall[0]).toBe('https://api.deepseek.com/v1/chat/completions');
   });
 
   it('surfaces 402/403/429 errors visibly and does not fallback to Laguna', async () => {
