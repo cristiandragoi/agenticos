@@ -29,6 +29,7 @@ import { ExecutionTimeline } from './ExecutionTimeline';
 import { RunSettings } from './RunSettings';
 import { CODEX_REPOSITORY, isRepositoryOnlyTask } from '../../config/codexRuntime';
 import { buildCodexGoalPayload } from '../../features/codex/buildCodexGoalPayload';
+import { WhatCodexIsDoingPanel } from './WhatCodexIsDoingPanel';
 import { apiFetch } from '../../api/client';
 import ErrorBoundary from '../ErrorBoundary';
 
@@ -203,22 +204,75 @@ const FinalSummaryCard: React.FC<{ goalStatus: string | null; goal: any; events:
   );
 };
 
-/** Recent Goals list for hydration and rapid goal switching. */
+/** Recent Goals list for hydration and rapid goal switching with test/real task classification. */
 const RecentGoalsSection: React.FC<{
   goals: any[];
   activeGoalId: string | null;
   onSelectGoal?: (id: string) => void;
   onNewGoal?: () => void;
 }> = ({ goals, activeGoalId, onSelectGoal, onNewGoal }) => {
+  const [filter, setFilter] = useState<'all' | 'user' | 'test'>('all');
+
   if (!goals || goals.length === 0) return null;
+
+  // Classify and sort goals: active/running goals first, then by date descending
+  const classifiedGoals = useMemo(() => {
+    return goals.map(g => {
+      const title = g.originalGoal || g.title || '';
+      const isTestOrVerifier = /strict|verifier|verify|test recovery|mock|loop|probe|e2e|synthetic/i.test(title);
+      const status = (g.status || 'queued').toLowerCase();
+      const isActive = !TERMINAL_GOAL_STATES.includes(status) && status !== 'paused';
+      return {
+        ...g,
+        isTestOrVerifier,
+        isActive,
+        status
+      };
+    }).sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      const tA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const tB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      return tB - tA;
+    });
+  }, [goals]);
+
+  const filteredGoals = useMemo(() => {
+    if (filter === 'user') return classifiedGoals.filter(g => !g.isTestOrVerifier);
+    if (filter === 'test') return classifiedGoals.filter(g => g.isTestOrVerifier);
+    return classifiedGoals;
+  }, [classifiedGoals, filter]);
 
   return (
     <div data-testid="codex-recent-goals" className="bg-[#111823] border border-slate-700/50 rounded-lg p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-2 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
           <History size={13} className="text-emerald-400" />
-          <span>Recent Goals ({goals.length})</span>
+          <span>Task History ({goals.length})</span>
         </div>
+
+        {/* Filter buttons */}
+        <div className="flex items-center gap-1 bg-[#090c10] p-0.5 rounded border border-slate-800 text-[10px]">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-2 py-0.5 rounded ${filter === 'all' ? 'bg-slate-700 text-slate-100 font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            All ({classifiedGoals.length})
+          </button>
+          <button
+            onClick={() => setFilter('user')}
+            className={`px-2 py-0.5 rounded ${filter === 'user' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            User Tasks ({classifiedGoals.filter(g => !g.isTestOrVerifier).length})
+          </button>
+          <button
+            onClick={() => setFilter('test')}
+            className={`px-2 py-0.5 rounded ${filter === 'test' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            Verifiers ({classifiedGoals.filter(g => g.isTestOrVerifier).length})
+          </button>
+        </div>
+
         {onNewGoal && (
           <button
             onClick={onNewGoal}
@@ -230,12 +284,11 @@ const RecentGoalsSection: React.FC<{
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
-        {goals.slice(0, 10).map(g => {
+      <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
+        {filteredGoals.slice(0, 12).map(g => {
           const isSelected = g.id === activeGoalId;
-          const status = (g.status || 'queued').toLowerCase();
-          const isDone = status === 'completed';
-          const isFail = status === 'failed' || status === 'timed_out';
+          const isDone = g.status === 'completed';
+          const isFail = g.status === 'failed' || g.status === 'timed_out';
           const hasResult = !!(g.runSummary || g.finalAnswer);
 
           return (
@@ -249,18 +302,29 @@ const RecentGoalsSection: React.FC<{
               }`}
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                   <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${
                     isDone ? 'border-blue-500/40 text-blue-400 bg-blue-500/10' :
                     isFail ? 'border-rose-500/40 text-rose-400 bg-rose-500/10' :
-                    status === 'stopped' ? 'border-slate-600 text-slate-400 bg-slate-800' :
-                    'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+                    g.status === 'stopped' ? 'border-slate-600 text-slate-400 bg-slate-800' :
+                    'border-emerald-500/40 text-emerald-400 bg-emerald-500/10 animate-pulse'
                   }`}>
-                    {status}
+                    {g.status}
                   </span>
+
+                  {g.isTestOrVerifier ? (
+                    <span className="text-[9px] font-medium text-purple-300 bg-purple-950/40 px-1.5 py-0.2 rounded border border-purple-800/40">
+                      Verification Test
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-medium text-blue-300 bg-blue-950/40 px-1.5 py-0.2 rounded border border-blue-800/40">
+                      User Task
+                    </span>
+                  )}
+
                   <span className="text-[10px] text-slate-500 font-mono">{formatDate(g.createdAt || g.updatedAt)}</span>
                   {hasResult && (
-                    <span className="text-[9px] text-blue-400/90 bg-blue-900/30 px-1 rounded border border-blue-800/40">
+                    <span className="text-[9px] text-emerald-400 bg-emerald-900/30 px-1 rounded border border-emerald-800/40">
                       Result Available
                     </span>
                   )}
@@ -500,22 +564,7 @@ export const StudioChat: React.FC<StudioChatProps> = ({
             />
 
             {activeGoalId ? (
-              <div className="bg-[#111823] border border-slate-700/50 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Target size={14} className="text-emerald-500 shrink-0" />
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Selected Goal</span>
-                  <span className={`ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-                    isTerminal
-                      ? status === 'completed' ? 'text-blue-400 border-blue-500/40 bg-blue-500/10' : 'text-rose-400 border-rose-500/40 bg-rose-500/10'
-                      : 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
-                  }`}>
-                    {goalStatus || 'queued'}
-                  </span>
-                </div>
-                <p className="text-[13px] text-slate-200 whitespace-pre-wrap leading-relaxed">
-                  {goal?.originalGoal || 'Loading goal...'}
-                </p>
-              </div>
+              <WhatCodexIsDoingPanel goal={goal} goalStatus={goalStatus} events={events} />
             ) : (
               <div className="flex flex-col items-center justify-center py-6 text-slate-500">
                 <Target size={20} className="text-emerald-500 mb-2" />

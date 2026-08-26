@@ -314,6 +314,27 @@ export interface ServiceLead {
   briefId?: string;
 }
 
+export interface LeadsResponse {
+  success: boolean;
+  leads: ServiceLead[];
+  error?: string;
+}
+
+export function isLeadsResponse(data: unknown): data is LeadsResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'leads' in data &&
+    Array.isArray((data as LeadsResponse).leads)
+  );
+}
+
+export function extractLeads(data: LeadsResponse | ServiceLead[] | unknown): ServiceLead[] {
+  if (Array.isArray(data)) return data;
+  if (isLeadsResponse(data)) return data.leads;
+  return [];
+}
+
 /* ─── UI State Types ─── */
 
 export type DrawerEntityType = "agent" | "run" | "memory" | "provider" | "build" | "artifact" | "jarvis" | "brief" | "lead" | "hermes" | null;

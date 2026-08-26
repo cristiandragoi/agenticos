@@ -10,7 +10,13 @@
     "dev:stop": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1",
     "test": "vitest run src/",
     "prebuild:identity": "node scripts/build-identity.cjs",
-    "build": "cd server && npm install && npm run build && cd .. && tsc -b && vite build",
+    "build": "node scripts/build-identity.cjs && cd server && npm install && npm run build && cd .. && tsc -b && vite build",
+    "verify:fast": "node scripts/verify.cjs --fast",
+    "verify:integration": "node scripts/verify.cjs --integration",
+    "verify:runtime": "node scripts/verify.cjs --runtime",
+    "verify:acceptance": "node scripts/verify.cjs --acceptance",
+    "verify:all": "node scripts/verify.cjs --all",
+    "diagnose:runtime": "node scripts/diagnose-processes.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:build": "npm run build && electron-builder",
@@ -55,6 +61,7 @@
     "playwright": "^1.61.1",
     "postcss": "^8.5.19",
     "tailwindcss": "^3.4.19",
+    "ts-jest": "^29.4.12",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
@@ -84,10 +91,22 @@
       "agentos-config.json"
     ],
     "extraResources": [
-      { "from": "server/dist", "to": "server/dist" },
-      { "from": "server/node_modules", "to": "server/node_modules" },
-      { "from": "server/package.json", "to": "server/package.json" },
-      { "from": "server/drizzle", "to": "server/drizzle" }
+      {
+        "from": "server/dist",
+        "to": "server/dist"
+      },
+      {
+        "from": "server/node_modules",
+        "to": "server/node_modules"
+      },
+      {
+        "from": "server/package.json",
+        "to": "server/package.json"
+      },
+      {
+        "from": "server/drizzle",
+        "to": "server/drizzle"
+      }
     ]
   }
 }

@@ -10,6 +10,7 @@ import { mockAgents, mockTools, mockMemoryScopes } from '../data.js';
 export class HeavyGenAdapter implements RuntimeAdapter {
   id = 'rt-heavy-gen';
   label = 'Heavy Generation Runtime (Fugu/Fusion)';
+  capabilities = ['heavy_gen', 'workflow.build'];
 
   async health(): Promise<RuntimeHealth> {
     return { status: 'healthy', lastCheck: new Date().toISOString(), latencyMs: 25 };

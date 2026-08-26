@@ -77,7 +77,7 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   return fetch(apiUrl(input), init);
 }
 
-import type { RunRecord } from '../types';
+import type { RunRecord, LeadsResponse } from '../types';
 
 export const apiClient = {
   async get(path: string) {
@@ -139,9 +139,9 @@ export const apiClient = {
     });
     return res.json();
   },
-  async getLeads() {
+  async getLeads(): Promise<LeadsResponse> {
     const res = await fetch(`${BASE_URL}/sales/leads`);
-    if (!res.ok) return { leads: [] };
+    if (!res.ok) return { success: false, leads: [] };
     return res.json();
   },
   async createLead(data: any) {

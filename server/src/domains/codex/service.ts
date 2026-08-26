@@ -24,6 +24,7 @@ function stripProtectiveReadOnlyClauses(prompt: string): string {
 export function isReadOnlyCodexTask(prompt: string): boolean {
   const trimmed = prompt.trim();
   if (!trimmed) return false;
+  if (/\bread-only\b/i.test(trimmed) || /\bread only\b/i.test(trimmed) || /\bdo not modify files\b/i.test(trimmed) || /\binspection only\b/i.test(trimmed)) return true;
   const intentText = stripProtectiveReadOnlyClauses(trimmed);
   return READ_ONLY_INTENT_RE.test(trimmed) && !MUTATING_INTENT_RE.test(intentText);
 }

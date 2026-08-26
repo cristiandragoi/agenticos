@@ -252,6 +252,7 @@ export async function reconcileCodexRun(
 export async function reconcileGoalToResult(
   goalId: string,
   finalAnswerText: string,
+  fileChanges?: { path: string; changeType: string }[],
 ): Promise<{
   resultId: string | null;
   runId: string | null;
@@ -280,12 +281,23 @@ export async function reconcileGoalToResult(
     const runSummaryObj = typeof goal.runSummary === 'object' && goal.runSummary !== null
       ? goal.runSummary as any
       : null;
-    const changedFiles = Array.isArray(runSummaryObj?.changedFiles) ? runSummaryObj.changedFiles : [];
+    // Authoritative file-change evidence: the caller-supplied typed diff wins
+    // over the (often absent) prose-derived `runSummary.changedFiles`.
+    const typedChanges = Array.isArray(fileChanges) && fileChanges.length > 0
+      ? fileChanges
+      : null;
+    const changedFiles = typedChanges
+      ? typedChanges.map((f) => f.path)
+      : Array.isArray(runSummaryObj?.changedFiles) ? runSummaryObj.changedFiles : [];
     const provenance = provenanceFromRunMetadata(run);
     const structuredOutput = buildStructuredOutputFromGoal(goal, goalId, finalAnswerText, provenance);
     // The goal's own status may still be 'running' at this completion
     // boundary; the reconciled result is definitively completed.
     structuredOutput.status = 'completed';
+    if (typedChanges) {
+      structuredOutput.changedFiles = typedChanges.map((f) => f.path);
+      structuredOutput.fileChanges = typedChanges;
+    }
 
     const result = executionRunService.createResult({
       runId: run.id,

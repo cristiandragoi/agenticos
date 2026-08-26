@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, session, screen, Menu, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -205,8 +205,52 @@ function createWindow() {
     },
   });
 
+  Menu.setApplicationMenu(null);
+  win.setAutoHideMenuBar(true);
   win.setMenuBarVisibility(false);
   win.webContents.setAudioMuted(false);
+
+  // Global right-click context menu: editable fields get Cut/Copy/Paste/Select All,
+  // selected text gets Copy/Select All. (App menu is disabled, so this is the only
+  // way to reach clipboard operations.)
+  win.webContents.on('context-menu', (_event, params) => {
+    const template: Parameters<typeof Menu.buildFromTemplate>[0] = [];
+    if (params.isEditable) {
+      template.push(
+        { role: 'cut', enabled: params.editFlags.canCut },
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'paste', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', enabled: params.editFlags.canSelectAll },
+      );
+    } else if (params.selectionText && params.selectionText.trim().length > 0) {
+      template.push(
+        { role: 'copy', enabled: params.editFlags.canCopy },
+        { role: 'selectAll' },
+      );
+    }
+    if (template.length > 0) {
+      Menu.buildFromTemplate(template).popup({ window: win ?? undefined });
+    }
+  });
+
+  // Enforce single-shell: intercept any attempts to open new windows
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    logElectron('[AgenticOS Electron] Window open intercepted (enforcing single-shell):', { url });
+    // Internal routes or localhost hash routes navigate in current window
+    if (url.includes('#/') || url.includes('localhost') || url.includes('127.0.0.1')) {
+      const hashIdx = url.indexOf('#');
+      if (hashIdx !== -1 && win && !win.isDestroyed()) {
+        const route = url.slice(hashIdx + 1);
+        win.webContents.send('agenticos:navigate', route);
+      }
+      return { action: 'deny' };
+    }
+    // External URLs open in system browser
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
   win.show();
   win.focus();
   logElectron('[AgenticOS Electron] BrowserWindow count after create', { count: BrowserWindow.getAllWindows().length });

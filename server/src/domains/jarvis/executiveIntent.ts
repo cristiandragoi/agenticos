@@ -270,6 +270,14 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
     return null;
   }
 
+  // Questions regarding task findings, grounded results, claims, or evidence
+  // must be handled conversationally using the task context and grounded evidence.
+  const isFindingsOrEvidenceQuery =
+    /\b(find|found|findings?|report(ed)?|discover(ed)?|problems?|blockers?|issues?|why did (?:codex|hermes|it) (?:say|list|claim|name)|where did (?:codex|hermes|it) find|what did (?:codex|hermes|it) (?:find|report|see|conclude|say))\b/i.test(p);
+  if (isFindingsOrEvidenceQuery) {
+    return null;
+  }
+
   // Status: "How is Hermes doing?" / "What model is CodeX using?"
   if (STATUS_VERBS.test(p)) {
     return {

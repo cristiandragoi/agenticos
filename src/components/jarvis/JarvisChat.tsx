@@ -135,7 +135,7 @@ interface SendErrorState {
   operationId: string;
 }
 
-const FIRST_TOKEN_TIMEOUT_MS = 45_000;  // starts AFTER fetch() headers are received
+const LIVENESS_TIMEOUT_MS = 45_000; // backend silence watchdog: starts after fetch() headers, resets on every valid SSE event
 const TOTAL_RESPONSE_TIMEOUT_MS = 120_000;
 const DEV_TIMING = import.meta.env.DEV;
 
@@ -173,15 +173,17 @@ function parseSseFrames(buffer: string) {
   const rest = frames.pop() || '';
   return {
     rest,
-    events: frames.map(frame => {
-      let event = 'message';
-      let data = '';
-      for (const line of frame.split('\n')) {
-        if (line.startsWith('event:')) event = line.slice(6).trim();
-        if (line.startsWith('data:')) data += line.slice(5).trim();
-      }
-      return { event, data };
-    })
+    events: frames
+      .filter(frame => frame.trim().length > 0)
+      .map(frame => {
+        let event = 'message';
+        let data = '';
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        return { event, data };
+      })
   };
 }
 
@@ -312,9 +314,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     setShowJumpToLatest(false);
   };
   const abortControllerRef = useRef<AbortController | null>(null);
-  const firstTokenTimerRef = useRef<number | null>(null);
+  const livenessTimerRef = useRef<number | null>(null);
   const totalResponseTimerRef = useRef<number | null>(null);
   const responseTimedOutRef = useRef(false);
+  const timeoutDiagnosisRef = useRef<string | null>(null);
   const requestStartedAtRef = useRef<number | null>(null);
   const statusIntervalRef = useRef<number | null>(null);
   const isProcessingRef = useRef(false);
@@ -376,9 +379,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   };
 
   const clearResponseTimers = () => {
-    if (firstTokenTimerRef.current !== null) {
-      window.clearTimeout(firstTokenTimerRef.current);
-      firstTokenTimerRef.current = null;
+    if (livenessTimerRef.current !== null) {
+      window.clearTimeout(livenessTimerRef.current);
+      livenessTimerRef.current = null;
     }
     if (totalResponseTimerRef.current !== null) {
       window.clearTimeout(totalResponseTimerRef.current);
@@ -722,13 +725,15 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     // into the budget.  See the 'fetch-start' telemetry point below.
 
     totalResponseTimerRef.current = window.setTimeout(() => {
-      if (abortControllerRef.current !== controller) return;
+      if (abortControllerRef.current !== controller || controller.signal.aborted) return;
       responseTimedOutRef.current = true;
+      const message = 'Jarvis response timed out before completion.';
+      timeoutDiagnosisRef.current = message;
       logAbort('overall_timeout', controller, requestStartedAtRef.current, operationId);
       controller.abort();
-      setSendError({ message: 'Jarvis response timed out before completion.', operationId });
+      setSendError({ message, operationId });
       stopStatusClock();
-      emitStatus({ state: 'error', error: 'Jarvis response timed out before completion.' });
+      emitStatus({ state: 'error', error: message });
       setIsProcessing(false);
       onResponseSettledRef.current?.();
     }, TOTAL_RESPONSE_TIMEOUT_MS);
@@ -741,8 +746,33 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       metadata: { operationId, inputChannel }
     }]);
 
+    let fetchStartAt = Date.now();
+    let requestCompletedSuccessfully = false;
+    let sawTerminalEvent = false;
+
+    const resetLivenessTimer = () => {
+      if (livenessTimerRef.current !== null) {
+        window.clearTimeout(livenessTimerRef.current);
+        livenessTimerRef.current = null;
+      }
+      if (controller.signal.aborted || requestCompletedSuccessfully) return;
+      livenessTimerRef.current = window.setTimeout(() => {
+        if (abortControllerRef.current !== controller || controller.signal.aborted || requestCompletedSuccessfully) return;
+        responseTimedOutRef.current = true;
+        const message = 'Backend connection timed out (no backend activity for 45s).';
+        timeoutDiagnosisRef.current = message;
+        logAbort('liveness_timeout', controller, fetchStartAt, operationId);
+        controller.abort();
+        setSendError({ message, operationId });
+        stopStatusClock();
+        emitStatus({ state: 'error', error: message });
+        setIsProcessing(false);
+        onResponseSettledRef.current?.();
+      }, LIVENESS_TIMEOUT_MS);
+    };
+
     try {
-      const fetchStartAt = Date.now();
+      fetchStartAt = Date.now();
       if (DEV_TIMING) console.debug('[JarvisChat:timing] fetch-start', { operationId, inputChannel, ms: fetchStartAt - t0 });
       voiceTimelinePush('modelRequestStartAt', `"${text.slice(0, 40)}"`);
 
@@ -753,21 +783,11 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel))
       });
 
-      // ── First-token timer starts HERE — after headers are received ──
+      // ── Backend liveness watchdog starts HERE — after headers are received ──
       const headersReceivedAt = Date.now();
       if (DEV_TIMING) console.debug('[JarvisChat:timing] headers-received', { operationId, status: res.status, ms: headersReceivedAt - fetchStartAt });
 
-      firstTokenTimerRef.current = window.setTimeout(() => {
-        if (abortControllerRef.current !== controller) return;
-        responseTimedOutRef.current = true;
-        logAbort('first_token_timeout', controller, fetchStartAt, operationId);
-        controller.abort();
-        setSendError({ message: 'Jarvis provider timed out before first token.', operationId });
-        stopStatusClock();
-        emitStatus({ state: 'error', error: 'Jarvis provider timed out before first token.' });
-        setIsProcessing(false);
-        onResponseSettledRef.current?.();
-      }, FIRST_TOKEN_TIMEOUT_MS);
+      resetLivenessTimer();
 
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
 
@@ -780,38 +800,79 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       const decoder = new TextDecoder();
       let buffer = '';
       let sawTextChunk = false;
-      let sawTerminalEvent = false;
       let sawFirstChunk = false;
       let firstChunkAt = 0;
 
       while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
+        let readResult: ReadableStreamReadResult<Uint8Array>;
+        try {
+          readResult = await reader.read();
+        } catch (readErr: any) {
+          // If we already received terminal completion / done event, an abort or socket closure
+          // during read() is normal stream teardown and must NOT throw into catch handler.
+          if (requestCompletedSuccessfully || sawTerminalEvent) {
+            if (DEV_TIMING) console.debug('[JarvisChat:stream] Ignored post-completion reader read error:', readErr?.message);
+            break;
+          }
+          throw readErr;
+        }
+
+        const { value, done } = readResult;
+        if (done) {
+          if (sawTerminalEvent) {
+            requestCompletedSuccessfully = true;
+            clearResponseTimers();
+          }
+          break;
+        }
         // AUTHORITATIVE STOP: after abort, no further SSE frame may be
         // processed — late old-turn tokens are discarded at the boundary.
         if (controller.signal.aborted) break;
+
         buffer += decoder.decode(value, { stream: true });
         const parsed = parseSseFrames(buffer);
         buffer = parsed.rest;
-        sawTerminalEvent = sawTerminalEvent || parsed.events.some(event => ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event));
+
+        const hasTerminal = parsed.events.some(event =>
+          ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event)
+        );
+        sawTerminalEvent = sawTerminalEvent || hasTerminal;
+        if (parsed.events.some(event => event.event === 'done')) {
+          requestCompletedSuccessfully = true;
+          clearResponseTimers();
+        }
+
+        // ANY valid backend SSE event confirms backend liveness and resets the 45s silence watchdog timer.
+        if (parsed.events.length > 0 && !requestCompletedSuccessfully) {
+          resetLivenessTimer();
+        }
+
         if (!sawFirstChunk && parsed.events.some(e => e.event === 'chunk')) {
           sawFirstChunk = true;
           firstChunkAt = Date.now();
-          if (firstTokenTimerRef.current !== null) {
-            window.clearTimeout(firstTokenTimerRef.current);
-            firstTokenTimerRef.current = null;
-          }
           if (DEV_TIMING) console.debug('[JarvisChat:timing] first-chunk', { operationId, ms: firstChunkAt - headersReceivedAt });
         }
         sawTextChunk = await handleStreamEvents(parsed.events, operationId, sawTextChunk);
       }
 
-      buffer += decoder.decode();
-      const parsed = parseSseFrames(`${buffer}\n\n`);
-      sawTerminalEvent = sawTerminalEvent || parsed.events.some(event => ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event));
-      await handleStreamEvents(parsed.events, operationId, sawTextChunk);
+      if (buffer.trim().length > 0) {
+        buffer += decoder.decode();
+        const parsed = parseSseFrames(`${buffer}\n\n`);
+        const hasTerminal = parsed.events.some(event =>
+          ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event)
+        );
+        sawTerminalEvent = sawTerminalEvent || hasTerminal;
+        if (parsed.events.some(event => event.event === 'done')) {
+          requestCompletedSuccessfully = true;
+          clearResponseTimers();
+        }
+        if (parsed.events.length > 0 && !requestCompletedSuccessfully) {
+          resetLivenessTimer();
+        }
+        await handleStreamEvents(parsed.events, operationId, sawTextChunk);
+      }
 
-      if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-done', { operationId, sawTerminalEvent, ms: Date.now() - (sawFirstChunk ? firstChunkAt : headersReceivedAt) });
+      if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-done', { operationId, sawTerminalEvent, requestCompletedSuccessfully, ms: Date.now() - (sawFirstChunk ? firstChunkAt : headersReceivedAt) });
 
       if (!sawTerminalEvent && !controller.signal.aborted) {
         const message = 'Jarvis stream closed before sending a completion or error event.';
@@ -821,12 +882,33 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       }
     } catch (e: any) {
       if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-error', { operationId, error: e?.message, ms: Date.now() - t0 });
+
+      // ── INVARIANT: Once a turn has completed successfully (or received a terminal event),
+      // normal stream cleanup/abort must NEVER generate a user-facing error.
+      if (requestCompletedSuccessfully || sawTerminalEvent) {
+        console.debug('[JarvisChat:stream] Suppressed post-completion stream cleanup error/abort:', e?.message || e);
+        return;
+      }
+
       if (controller.signal.aborted && !responseTimedOutRef.current) {
         appendStreamingAssistantText(operationId, '\n\n[Response cancelled]', true);
         delete streamedTextByOpRef.current[operationId];
         emitStatus({ state: 'cancelled', error: null });
-      } else if (!sendError) {
-        const message = `Could not reach the backend: ${e.message || e}`;
+      } else if (responseTimedOutRef.current) {
+        // The liveness or total-response timeout timer already set the specific diagnosis and emitted status
+        const message = timeoutDiagnosisRef.current || 'Jarvis response timed out.';
+        setSendError({ message, operationId });
+        emitStatus({ state: 'error', error: message });
+      } else {
+        const rawErr = e?.message || String(e || 'Unknown error');
+        let message = `Request error: ${rawErr}`;
+        if (rawErr.includes('Failed to fetch') || rawErr.includes('NetworkError') || rawErr.includes('ECONNREFUSED')) {
+          message = `Could not reach the backend server at ${API_BASE}.`;
+        } else if (rawErr.includes('BodyStreamBuffer was aborted') || rawErr.includes('aborted') || rawErr.includes('AbortError')) {
+          message = controller.signal.aborted
+            ? 'Request was cancelled.'
+            : 'Backend stream connection was closed unexpectedly.';
+        }
         setSendError({ message, operationId });
         emitStatus({ state: 'error', error: message });
       }
@@ -947,29 +1029,38 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         emitStatus({ state: 'error', error: data.error || 'Execution failed.' });
         uiDiagnostics.setStreamEnded(operationId);
         onResponseSettledRef.current?.();
-        appendOperationalEvent(operationId, 'execution_failed', `Execution failed: ${data.error || 'Unknown error'}`, data);
+      } else if (event.event === 'progress') {
+        appendOperationalEvent(operationId, 'progress', data.content || data.summary || 'Progress update', data);
+        if (data.isSpoken && typeof onAssistantResponseRef.current === 'function') {
+          onAssistantResponseRef.current(data.content || data.summary, pendingChannelRef.current);
+        }
+      } else if (event.event === 'intermediate_finding') {
+        appendOperationalEvent(operationId, 'intermediate_finding', data.content || data.summary || 'Intermediate finding', data);
+        if (data.isSpoken && typeof onAssistantResponseRef.current === 'function') {
+          onAssistantResponseRef.current(data.content || data.summary, pendingChannelRef.current);
+        }
       } else if (event.event === 'paused') {
         emitStatus({ state: 'paused' });
         appendOperationalEvent(operationId, 'paused', `Execution paused${data.reason ? `: ${data.reason}` : ''}`, data);
       } else if (event.event === 'intent') {
         voiceTracePush('intent_route', 'ok', `Intent ${data.type || data.route || '?'} (${Math.round((data.confidence || 0) * 100)}%)`);
+      } else if (event.event === 'heartbeat') {
+        // Transport keepalive: resets liveness watchdog without modifying transcript
+        emitStatus({ state: data.state || runtimeStateRef.current });
+      } else if (event.event === 'thinking') {
+        emitStatus({ state: 'thinking' });
+        if (data.action) {
+          appendOperationalEvent(operationId, 'thinking', data.action, data);
+        }
       } else if (event.event === 'timing' && data.marker === 'first_token') {
         voiceTracePush('provider_model', 'ok', `${data.provider} / ${data.model} — first token in ${data.elapsedMs}ms`);
         if (typeof data.elapsedMs === 'number') firstTokenMsRef.current = data.elapsedMs;
-        if (firstTokenTimerRef.current !== null) {
-          window.clearTimeout(firstTokenTimerRef.current);
-          firstTokenTimerRef.current = null;
-        }
       } else if (event.event === 'chunk') {
         if (nextSawTextChunk === false) {
           voiceTracePush('response_started', 'ok', 'Response stream started');
           voiceTimelinePush('firstModelTokenAt', `"${(data.delta || '').slice(0, 30)}"`);
         }
         nextSawTextChunk = true;
-        if (firstTokenTimerRef.current !== null) {
-          window.clearTimeout(firstTokenTimerRef.current);
-          firstTokenTimerRef.current = null;
-        }
         emitStatus({
           state: 'streaming',
           firstTokenMs: firstTokenMsRef.current,

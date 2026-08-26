@@ -9,14 +9,18 @@ import React, { useEffect, useState } from 'react';
 import { executionStore } from '../../diagnostics/executionStore';
 
 const ACTIVE_STATUSES = new Set([
-  'ROUTING', 'PLANNING', 'QUEUED', 'DISPATCHING', 'WAITING_FOR_MODEL', 'RUNNING',
-  'TOOL_EXECUTION', 'WAITING_FOR_APPROVAL', 'WAITING_FOR_USER', 'COMPLETING', 'STOPPING',
+  'ROUTING', 'PLANNING', 'QUEUED', 'STARTING', 'DISPATCHING', 'WAITING_FOR_MODEL', 'RUNNING',
+  'RUNNING_ACTIVE', 'RUNNING_QUIET', 'TOOL_EXECUTION', 'WAITING_FOR_APPROVAL', 'WAITING_FOR_USER',
+  'POSSIBLE_STALL', 'STALLED', 'RECOVERING', 'COMPLETING', 'STOPPING',
 ]);
 
 const STATUS_LABEL: Record<string, string> = {
-  ROUTING: 'ROUTING', PLANNING: 'PLANNING', QUEUED: 'QUEUED', DISPATCHING: 'DISPATCHING',
-  WAITING_FOR_MODEL: 'WAITING FOR MODEL', RUNNING: 'RUNNING', TOOL_EXECUTION: 'EXECUTING TOOL',
-  WAITING_FOR_APPROVAL: 'AWAITING APPROVAL', WAITING_FOR_USER: 'WAITING FOR YOU', COMPLETING: 'COMPLETING', STOPPING: 'STOPPING',
+  ROUTING: 'ROUTING', PLANNING: 'PLANNING', QUEUED: 'QUEUED', STARTING: 'STARTING', DISPATCHING: 'DISPATCHING',
+  WAITING_FOR_MODEL: 'WAITING FOR MODEL', RUNNING: 'RUNNING', RUNNING_ACTIVE: 'RUNNING (ACTIVE)',
+  RUNNING_QUIET: 'RUNNING (QUIET)', TOOL_EXECUTION: 'EXECUTING TOOL',
+  WAITING_FOR_APPROVAL: 'AWAITING APPROVAL', WAITING_FOR_USER: 'WAITING FOR YOU',
+  POSSIBLE_STALL: 'POSSIBLE STALL', STALLED: 'STALLED', RECOVERING: 'RECOVERING',
+  COMPLETING: 'COMPLETING', STOPPING: 'STOPPING',
   COMPLETED: 'COMPLETED', FAILED: 'FAILED', CANCELLED: 'CANCELLED',
 };
 
@@ -42,7 +46,8 @@ export const ExecutionBar: React.FC = () => {
 
   const elapsedS = Math.max(0, Math.round((Date.now() - exec.startedAt) / 1000));
   const idleS = Math.max(0, Math.round((Date.now() - exec.lastActivityAt) / 1000));
-  const stalled = idleS > 30;
+  const isApproval = exec.status === 'WAITING_FOR_APPROVAL' || exec.status === 'WAITING_FOR_USER';
+  const stalled = !isApproval && (exec.status === 'POSSIBLE_STALL' || exec.status === 'STALLED' || idleS > 45);
   // WAITING_FOR_USER: nothing is executing — no STOP, no worker, no LLM,
   // no spinner. The bar shows "Waiting for your reply" (conversation-state
   // milestone).

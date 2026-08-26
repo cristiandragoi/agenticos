@@ -38,6 +38,10 @@ export interface ConversationContext {
   activeTask: { id: string; worker: string; status: string; title: string } | null;
   /** Most recently completed/failed task, if any (history vs active distinction). */
   recentTask: { id: string; worker: string; status: string; title: string } | null;
+  /** Grounded worker results (e.g. from completed CodeX goals in this conversation) */
+  groundedResult?: string;
+  /** Whether verified grounded evidence exists for repository claims */
+  hasGroundedEvidence?: boolean;
   /** Provider/model availability (runtime truth). */
   providers: { provider: string; model: string; fallbackProvider: string; fallbackModel: string };
   /** Real registered AgenticOS capabilities (human-readable). */
@@ -74,6 +78,8 @@ export async function assembleConversationContext(
     workspaceRoot: null,
     activeTask: null,
     recentTask: null,
+    groundedResult: undefined,
+    hasGroundedEvidence: false,
     providers: { provider: 'openrouter', model: 'auto', fallbackProvider: 'ollama', fallbackModel: 'auto' },
     capabilities: '',
     approvalMode: options.approvalMode || 'manual',
@@ -91,9 +97,20 @@ export async function assembleConversationContext(
       const content = typeof m?.content === 'string' ? m.content : '';
       if (!content) continue;
       if (role === 'system') continue;
+      const { canonicalObjectiveManager } = await import('./conversationalAuthority.js');
+      if (canonicalObjectiveManager.isTurnDiscarded(content)) continue;
       if (role === 'user' && content === currentPrompt) continue; // current turn
       if (role !== 'user' && role !== 'agent') continue;
       turns.push({ role: role === 'agent' ? 'assistant' : 'user', content });
+
+      // Grounded evidence detection from persisted messages
+      const meta = (m.metadata || {}) as any;
+      if (meta.groundedEvidence || meta.workerResult || meta.intent?.category === 'repository_analysis') {
+        ctx.hasGroundedEvidence = true;
+        if (!ctx.groundedResult && content) {
+          ctx.groundedResult = content;
+        }
+      }
     }
     ctx.recentTurns = turns;
     for (const t of turns) {
@@ -112,16 +129,46 @@ export async function assembleConversationContext(
     if (ws) ctx.workspaceRoot = ws;
   } catch { /* best effort */ }
 
-  // 3. Active / recent task state.
+  // 3. Active / recent task state (from backgroundTaskManager and goalStore).
   try {
     const { backgroundTaskManager } = await import('../../services/backgroundTasks/manager.js');
-    const summary = backgroundTaskManager.summary();
     const recent = backgroundTaskManager.listTasks({ limit: 4 }) || [];
     const active = recent.find((t: any) => ['running', 'queued', 'pending'].includes(String(t.status)));
     const completedOrFailed = recent.find((t: any) => ['completed', 'failed', 'cancelled'].includes(String(t.status)));
     ctx.activeTask = summarizeTask(active);
     ctx.recentTask = summarizeTask(completedOrFailed);
   } catch { /* best effort */ }
+
+  // CodeX Goals linked to this conversation (conversation-scoped goals take precedence over global tasks)
+  try {
+    const { goalStore } = await import('../../services/goalStore.js');
+    const goals = goalStore.listByConversation(conversationId, 5) || [];
+    const activeGoal = goals.find((g: any) => ['running', 'queued', 'planning', 'waiting_for_approval'].includes(String(g.status)));
+    const completedGoal = goals.find((g: any) => g.status === 'completed');
+
+    if (activeGoal) {
+      ctx.activeTask = {
+        id: activeGoal.id,
+        worker: 'codex',
+        status: String(activeGoal.status),
+        title: (activeGoal.originalGoal || 'CodeX Task').slice(0, 90),
+      };
+    }
+    if (completedGoal) {
+      ctx.recentTask = {
+        id: completedGoal.id,
+        worker: 'codex',
+        status: 'completed',
+        title: (completedGoal.originalGoal || 'CodeX Task').slice(0, 90),
+      };
+      const summary = completedGoal.runSummary as any;
+      if (summary?.finalAnswer || summary?.message) {
+        ctx.groundedResult = String(summary.finalAnswer || summary.message);
+        ctx.hasGroundedEvidence = true;
+      }
+    }
+  } catch { /* best effort */ }
+
   try {
     const current = getCurrentExecution();
     if (current && current.operationId && current.status && current.status !== 'COMPLETED' && current.status !== 'FAILED' && current.status !== 'CANCELLED') {
@@ -133,12 +180,16 @@ export async function assembleConversationContext(
   try {
     const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b';
     let selectedModel = process.env.OPENROUTER_MODEL || 'auto';
+    let providerName = 'openrouter';
     const assignment = await AgentProviderAssignmentService.getAssignment('agent-jarvis');
     if (assignment?.enabled && assignment.modelId) {
       selectedModel = assignment.modelId;
+      if (assignment.providerId) {
+        providerName = assignment.providerId;
+      }
     }
     ctx.providers = {
-      provider: 'openrouter',
+      provider: providerName,
       model: selectedModel,
       fallbackProvider: 'ollama',
       fallbackModel,
@@ -162,25 +213,24 @@ export async function assembleConversationContext(
  * Compact factual block for the direct-chat LLM system prompt. Kept SHORT —
  * the current user message and recent turns carry the conversational weight;
  * this adds only what the model cannot know from history.
- *
- * Prompt hierarchy (§prompt-hierarchy): operational state (active/recent task,
- * capabilities) is ONLY included when `includeOperational` is true — i.e. the
- * current user message actually asks about tasks/runtime. For ordinary
- * conversation the block is limited to static facts (workspace, provider,
- * approval mode) so task state never becomes the default subject and cannot
- * pull a simple question into a runtime-inspection tangent.
  */
 export function contextToSystemPrompt(ctx: ConversationContext, opts: { includeOperational?: boolean } = {}): string {
   const lines: string[] = [];
   if (ctx.workspaceRoot) lines.push(`Selected workspace/repository: ${ctx.workspaceRoot}`);
-  if (opts.includeOperational) {
+
+  if (opts.includeOperational || ctx.activeTask) {
     if (ctx.activeTask) {
-      lines.push(`Active task: ${ctx.activeTask.worker} ${ctx.activeTask.status} — "${ctx.activeTask.title.slice(0, 70)}" (${ctx.activeTask.id.slice(0, 12)})`);
+      lines.push(`Active task: ${ctx.activeTask.worker} is currently ${ctx.activeTask.status} on "${ctx.activeTask.title.slice(0, 70)}" (${ctx.activeTask.id.slice(0, 12)}). If asked about status or progress, report that ${ctx.activeTask.worker} is currently running and has not finished yet. Do not guess what it will find.`);
     }
     if (ctx.recentTask && !ctx.activeTask) {
       lines.push(`Most recent task (HISTORICAL, not active): ${ctx.recentTask.worker} ${ctx.recentTask.status} — "${ctx.recentTask.title.slice(0, 70)}" (${ctx.recentTask.id.slice(0, 12)})`);
     }
   }
+
+  if (ctx.groundedResult) {
+    lines.push(`Completed worker inspection findings (${ctx.recentTask?.worker || 'CodeX'}, ${ctx.recentTask?.id || 'verified'}):\n"""\n${ctx.groundedResult.slice(0, 2500)}\n"""\nUse this grounded evidence to answer questions about the inspection findings.`);
+  }
+
   lines.push(`Provider/model: ${ctx.providers.provider}/${ctx.providers.model} (fallback ${ctx.providers.fallbackProvider}/${ctx.providers.fallbackModel})`);
   lines.push(`Approval mode: ${ctx.approvalMode}`);
   if (ctx.activeProject) {
@@ -189,6 +239,7 @@ export function contextToSystemPrompt(ctx: ConversationContext, opts: { includeO
   if (ctx.previousWasClarification) {
     lines.push('Note: your previous reply asked the user to clarify. If this message supplies additional information, reinterpret the combined context instead of asking again.');
   }
+
   return lines.length ? `\n\nCURRENT AGENTICOS CONTEXT (compact, runtime truth):\n${lines.join('\n')}` : '';
 }
 
@@ -199,6 +250,7 @@ export function contextToRouterHint(ctx: ConversationContext): string {
   if (ctx.previousAssistantMessage) parts.push(`prev-jarvis: ${ctx.previousAssistantMessage.slice(0, 200)}`);
   if (ctx.activeTask) parts.push(`active-task: ${ctx.activeTask.worker}/${ctx.activeTask.status}`);
   if (ctx.recentTask) parts.push(`recent-task: ${ctx.recentTask.worker}/${ctx.recentTask.status}`);
+  if (ctx.groundedResult) parts.push('grounded-evidence: available');
   if (ctx.workspaceRoot) parts.push(`workspace: ${ctx.workspaceRoot}`);
   if (ctx.previousWasClarification) parts.push('prev-clarification: yes');
   return parts.join('\n');

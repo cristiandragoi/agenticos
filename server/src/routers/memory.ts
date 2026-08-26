@@ -64,7 +64,10 @@ function parseMemoryBody(body: any): Omit<MemoryRecord, 'id' | 'createdAt' | 'up
   };
 }
 
-router.get('/memories', (req, res) => {
+router.get('/memories', async (req, res) => {
+  const { ensureJarvisCoreMemorySeeded } = await import('../domains/jarvis/coreMemory.js');
+  ensureJarvisCoreMemorySeeded();
+
   const q = req.query;
   const items = memoryStore.list({
     type: (q.type as MemoryType) || null,

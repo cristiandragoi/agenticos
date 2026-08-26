@@ -10,11 +10,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "downlevelIteration": true,
+    "isolatedModules": true,
     "paths": {
       "shared/*": ["B:/AgenticOS/shared/*"]
     }
   },
   "include": ["B:/AgenticOS/server/src/**/*"],
-  "exclude": ["B:/AgenticOS/server/src/__tests__/**/*"]
+  "exclude": ["node_modules", "src/__tests__", "**/*.test.ts", "tests"]
 }

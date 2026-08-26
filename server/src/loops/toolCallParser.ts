@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const ToolCallSchema = z.object({
   type: z.literal('tool_call'),
-  tool: z.enum(['writeFile', 'readFile', 'listDirectory', 'listFiles', 'runCommand', 'reasoningQuery', 'finish']),
+  tool: z.enum(['writeFile', 'readFile', 'listDirectory', 'listFiles', 'runCommand', 'reasoningQuery', 'searchFiles', 'finish']),
   arguments: z.record(z.string(), z.any())
 });
 
@@ -65,6 +65,8 @@ export function normalizeToolCallCandidate(candidate: any): any {
       listFiles: 'listDirectory',
       run_command: 'runCommand',
       reasoning_query: 'reasoningQuery',
+      search_files: 'searchFiles',
+      searchFiles: 'searchFiles',
       final: 'finish'
     };
     return {
@@ -72,6 +74,19 @@ export function normalizeToolCallCandidate(candidate: any): any {
       tool: toolAliases[candidate.tool] || candidate.tool,
       arguments: typeof args === 'object' && !Array.isArray(args) ? args : {}
     };
+  }
+  // Generic single-nested tool_call wrapper: { "result": { "type":"tool_call", ... } }.
+  // Unwrap ONLY when the wrapper has exactly one value and that value is itself
+  // an object that looks like a tool call (has type/tool). Unambiguous — no
+  // field guessing.
+  if (typeof candidate.tool !== 'string' && typeof candidate.action !== 'string' && candidate.type !== 'tool_call') {
+    const keys = Object.keys(candidate);
+    if (keys.length === 1) {
+      const only = candidate[keys[0]];
+      if (only && typeof only === 'object' && !Array.isArray(only) && (only.type === 'tool_call' || typeof only.tool === 'string')) {
+        return normalizeToolCallCandidate(only);
+      }
+    }
   }
   const toolProp = candidate.tool || candidate.action;
   if (typeof toolProp !== 'string') return candidate;
@@ -93,6 +108,8 @@ export function normalizeToolCallCandidate(candidate: any): any {
     listFiles: 'listDirectory',
     run_command: 'runCommand',
     reasoning_query: 'reasoningQuery',
+    search_files: 'searchFiles',
+    searchFiles: 'searchFiles',
     final: 'finish'
   };
   const effectiveTool = toolAliases[toolProp] || toolProp;
@@ -185,7 +202,7 @@ function extractBalancedJsonCandidates(text: string): string[] {
  * Returns { toolCall, parseError } where toolCall is null if all strategies fail.
  */
 export function parseToolCall(response: string): ToolCallParseResult {
-  const trimmed = response.trim();
+  const trimmed = response.replace(/^\uFEFF/, '').trim();
   const errors: string[] = [];
   const preview = trimmed.slice(0, 200);
 

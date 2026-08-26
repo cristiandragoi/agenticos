@@ -13,6 +13,11 @@
  *
  * Canonical run/task/goal ids are linked back onto the revenue experiment via
  * linkExperimentRun() so provenance is traceable in one direction only.
+ *
+ * Phase 2D: dispatchCanonicalTask now performs capability-aware executor
+ * selection (reusing the canonical capability vocabulary via executorSelection),
+ * records the real provider/model returned by the worker, and never leaves an
+ * orphaned `running` run — timeouts and worker failures are marked truthfully.
  */
 import { randomUUID } from 'crypto';
 import { projectsStore } from '../projectsStore.js';
@@ -20,6 +25,8 @@ import { projectTaskService } from '../projectExecution/projectTaskService.js';
 import { executionRunService } from '../projectExecution/executionRunService.js';
 import { verificationService } from '../projectExecution/verificationService.js';
 import type { WorkerType } from '../projectExecution/schema.js';
+import { routingLedger } from '../routingLedger.js';
+import { selectExecutor, mapExecutorToWorker, type RevenueWorkerKind } from './executorSelection.js';
 import { logger } from '../../utils/logger.js';
 
 export type RevenueWorker = 'hermes' | 'codex' | 'magnitude';
@@ -33,6 +40,15 @@ export interface CanonicalDispatchInput {
   acceptanceCriteria?: string;
   requestId?: string;
   timeoutMs?: number;
+  // ── Phase 2D capability / provenance fields ──
+  requiredCapabilities?: string[];
+  preferredExecutorId?: string | null;
+  excludedExecutorIds?: string[];
+  correlationId?: string;
+  idempotencyKey?: string;
+  missionId?: string;
+  experimentId?: string;
+  actionType?: string;
 }
 
 export interface CanonicalDispatchOutcome {
@@ -45,7 +61,20 @@ export interface CanonicalDispatchOutcome {
   summary: string | null;
   structuredOutput?: Record<string, unknown> | null;
   error: string | null;
+  // ── Phase 2D truthful metadata ──
+  executor: RevenueWorker | null;
+  workerInstanceId: string | null;
+  provider: string | null;
+  model: string | null;
+  correlationId: string;
+  autoRedispatched: boolean;
+  rejectedCandidates: Array<{ id: string; reason: string; missingCapabilities: string[] }>;
 }
+
+/** Phase 2D dispatch hints threaded from engine functions → dispatchCanonicalTask. */
+export type RevenueDispatchHints = Pick<CanonicalDispatchInput,
+  'requiredCapabilities' | 'preferredExecutorId' | 'excludedExecutorIds' |
+  'correlationId' | 'idempotencyKey' | 'missionId' | 'experimentId' | 'actionType'>;
 
 /** Resolve a canonical project id, falling back to the active project. */
 export function resolveProjectId(preferred?: string | null): string | null {
@@ -57,19 +86,74 @@ export function resolveProjectId(preferred?: string | null): string | null {
 }
 
 /**
- * Dispatch one canonical worker task and await a terminal run, then run the
- * canonical verifier (for hermes/codex; magnitude is read-only). Mirrors the
- * proven scheduleDispatcher flow, minus the schedule/routine-specific wrapper.
+ * Dispatch one canonical worker task with capability-aware executor selection
+ * and await a terminal run, then run the canonical verifier (for hermes/codex;
+ * magnitude is read-only). Mirrors the proven scheduleDispatcher flow, minus the
+ * schedule/routine-specific wrapper.
  */
 export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Promise<CanonicalDispatchOutcome> {
   const requestId = input.requestId ?? `rev-${randomUUID().slice(0, 8)}`;
+  const correlationId = input.correlationId ?? `corr-${randomUUID().slice(0, 8)}`;
+
+  // ── 1. Capability-aware executor selection ─────────────────────────────
+  let worker: RevenueWorkerKind = input.worker;
+  let rejectedCandidates: Array<{ id: string; reason: string; missingCapabilities: string[] }> = [];
+  let autoRedispatched = false;
+  if (input.requiredCapabilities && input.requiredCapabilities.length > 0) {
+    const selection = selectExecutor(input.requiredCapabilities, {
+      preferredExecutorId: input.preferredExecutorId ?? input.worker,
+      excludedExecutorIds: input.excludedExecutorIds,
+    });
+    worker = selection.worker;
+    rejectedCandidates = selection.rejectedCandidates;
+    autoRedispatched = selection.autoRedispatched;
+
+    // Record routing decisions (authoritative routing ledger).
+    for (const rej of rejectedCandidates) {
+      routingLedger.record({
+        operationId: `${correlationId}-attempt-${rej.id}`,
+        worker: rej.id === 'hermes' ? 'hermes' : rej.id === 'codex' ? 'codex' : 'other',
+        routingMode: 'auto',
+        requestedProvider: input.preferredExecutorId ?? input.worker,
+        requestedModel: null,
+        resolvedProvider: null,
+        resolvedModel: null,
+        fallbackUsed: true,
+        fallbackReason: rej.reason,
+        startedAt: Date.now(),
+        endedAt: Date.now(),
+      });
+    }
+  }
+
+  routingLedger.record({
+    operationId: correlationId,
+    worker: worker === 'hermes' ? 'hermes' : worker === 'codex' ? 'codex' : 'other',
+    routingMode: 'auto',
+    requestedProvider: input.preferredExecutorId ?? input.worker,
+    requestedModel: null,
+    resolvedProvider: worker,
+    resolvedModel: null,
+    fallbackUsed: autoRedispatched,
+    fallbackReason: autoRedispatched ? `Auto-redispatched after capability mismatch on [${rejectedCandidates.map((r) => r.id).join(', ')}]` : null,
+    startedAt: Date.now(),
+    endedAt: null,
+  });
 
   const goal = projectTaskService.createGoal({
     projectId: input.projectId,
     title: input.title,
     objective: input.objective,
     createdBy: 'revenue-operator',
-    metadata: { revenueOperator: true, requestId },
+    metadata: {
+      revenueOperator: true,
+      requestId,
+      correlationId,
+      missionId: input.missionId ?? null,
+      experimentId: input.experimentId ?? null,
+      actionType: input.actionType ?? null,
+      idempotencyKey: input.idempotencyKey ?? null,
+    },
   });
 
   const task = projectTaskService.createTask({
@@ -77,20 +161,28 @@ export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Prom
     goalId: goal.id,
     title: input.title,
     description: input.objective,
-    taskType: input.taskType ?? (input.worker === 'codex' ? 'engineering' : input.worker === 'magnitude' ? 'browser' : 'research'),
-    assignedCapability: input.worker as WorkerType,
+    taskType: input.taskType ?? (worker === 'codex' ? 'engineering' : worker === 'magnitude' ? 'browser' : 'research'),
+    assignedCapability: worker as WorkerType,
     acceptanceCriteria: input.acceptanceCriteria ?? `Execute the revenue objective and return a structured result.`,
-    metadata: { revenueOperator: true, requestId },
+    metadata: {
+      revenueOperator: true,
+      requestId,
+      correlationId,
+      missionId: input.missionId ?? null,
+      experimentId: input.experimentId ?? null,
+      actionType: input.actionType ?? null,
+      idempotencyKey: input.idempotencyKey ?? null,
+    },
   });
 
   let runId: string | null = null;
 
   try {
-    if (input.worker === 'hermes') {
+    if (worker === 'hermes') {
       const { executeHermesTask } = await import('../../domains/workerAdapters/hermesAdapter.js');
       const { run } = await executeHermesTask(task, { prompt: input.objective, requestId, projectId: input.projectId, goalId: goal.id });
       runId = run.id;
-    } else if (input.worker === 'magnitude') {
+    } else if (worker === 'magnitude') {
       const { executeMagnitudeTask } = await import('../../domains/workerAdapters/magnitudeAdapter.js');
       const { run } = await executeMagnitudeTask(task, { goal: input.objective, requestId });
       runId = run.id;
@@ -114,11 +206,23 @@ export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Prom
     }
   } catch (err: any) {
     logger.error('[revenue-engine] dispatch error', err?.message);
-    return { ok: false, goalId: goal.id, taskId: task.id, runId, resultId: null, verdict: null, summary: null, error: err?.message ?? 'dispatch failed' };
+    if (runId) {
+      executionRunService.updateRun(runId, { status: 'failed', failureReason: err?.message ?? 'dispatch failed', endTime: new Date().toISOString() });
+      projectTaskService.updateTask(task.id, { status: 'failed' });
+    }
+    return {
+      ok: false, goalId: goal.id, taskId: task.id, runId, resultId: null, verdict: null, summary: null,
+      error: err?.message ?? 'dispatch failed', executor: worker, workerInstanceId: null,
+      provider: null, model: null, correlationId, autoRedispatched, rejectedCandidates,
+    };
   }
 
   if (!runId) {
-    return { ok: false, goalId: goal.id, taskId: task.id, runId: null, resultId: null, verdict: null, summary: null, error: 'No run id produced by worker dispatch.' };
+    return {
+      ok: false, goalId: goal.id, taskId: task.id, runId: null, resultId: null, verdict: null, summary: null,
+      error: 'No run id produced by worker dispatch.', executor: worker, workerInstanceId: null,
+      provider: null, model: null, correlationId, autoRedispatched, rejectedCandidates,
+    };
   }
 
   // ── Poll the canonical run to terminal ────────────────────────────────────
@@ -131,14 +235,21 @@ export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Prom
     await new Promise((res) => setTimeout(res, 1500));
   }
   if (!terminalRun) {
-    return { ok: false, goalId: goal.id, taskId: task.id, runId, resultId: null, verdict: null, summary: null, error: `Timed out after ${Math.round(timeoutMs / 1000)}s.` };
+    // No orphaned `running` runs: mark run + task failed truthfully on timeout.
+    executionRunService.updateRun(runId, { status: 'failed', failureReason: `Timed out after ${Math.round(timeoutMs / 1000)}s.`, endTime: new Date().toISOString() });
+    projectTaskService.updateTask(task.id, { status: 'failed' });
+    return {
+      ok: false, goalId: goal.id, taskId: task.id, runId, resultId: null, verdict: null, summary: null,
+      error: `Timed out after ${Math.round(timeoutMs / 1000)}s.`, executor: worker, workerInstanceId: terminalRun?.agentInstanceId ?? null,
+      provider: null, model: null, correlationId, autoRedispatched, rejectedCandidates,
+    };
   }
 
   const finalResult = terminalRun.finalResultId ? executionRunService.getResult(terminalRun.finalResultId) : null;
 
   // ── Independent verification (hermes/codex only) ──────────────────────────
   let verdict: string | null = null;
-  if (input.worker !== 'magnitude' && terminalRun.status === 'completed' && finalResult) {
+  if (worker !== 'magnitude' && terminalRun.status === 'completed' && finalResult) {
     try {
       const vr = await verificationService.verify({
         taskId: task.id,
@@ -157,6 +268,8 @@ export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Prom
   }
 
   const ok = terminalRun.status === 'completed';
+  routingLedger.end(correlationId);
+
   return {
     ok,
     goalId: goal.id,
@@ -167,6 +280,13 @@ export async function dispatchCanonicalTask(input: CanonicalDispatchInput): Prom
     summary: finalResult?.summary ?? terminalRun.failureReason ?? null,
     structuredOutput: (finalResult?.structuredOutput as Record<string, unknown> | null) ?? null,
     error: ok ? null : (terminalRun.failureReason || `Worker ended ${terminalRun.status}`),
+    executor: worker,
+    workerInstanceId: terminalRun.agentInstanceId ?? null,
+    provider: terminalRun.provider ?? null,
+    model: terminalRun.model ?? null,
+    correlationId,
+    autoRedispatched,
+    rejectedCandidates,
   };
 }
 

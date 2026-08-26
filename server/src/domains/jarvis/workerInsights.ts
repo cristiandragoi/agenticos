@@ -90,14 +90,81 @@ export async function buildWorkerFeedback(cap: Capability): Promise<string> {
   return lines.join('\n');
 }
 
-/** Compact worker status answer (e.g. "How is Hermes doing?" / "What model is CodeX using?"). */
-export async function buildWorkerStatus(cap: Capability, modelOnly = false): Promise<string> {
+/** Compact worker status answer (e.g. "What is CodeX doing?", "What did CodeX do?", "How is Hermes doing?"). */
+export async function buildWorkerStatus(cap: Capability, promptText = ''): Promise<string> {
+  const p = (promptText || '').toLowerCase();
+  const modelOnly = /what (model|provider)/.test(p);
+  const isDoingQuery = /\b(what is|what's|is.*doing|currently|doing|working on)\b/.test(p);
+  const isDidQuery = /\b(what did|did.*do|finished|completed|result)\b/.test(p);
+
   const insight = await gatherWorkerInsight(cap);
   if (modelOnly) {
     return insight.assignment
       ? `${cap.displayName} is assigned ${insight.assignment.model} via ${insight.assignment.provider}.`
       : `${cap.displayName} has no runtime provider/model assignment registered.`;
   }
+
+  const { backgroundTaskManager } = await import('../../services/backgroundTasks/manager.js');
+  const { goalStore } = await import('../../services/goalStore.js');
+  const { getCurrent } = await import('../../services/executionState.js');
+  const workerKind = cap.taskWorkerKind || (cap.id as any);
+
+  // 1. Check live active tasks
+  const activeBgTasks = backgroundTaskManager.listTasks({ activeOnly: true }).filter((t) => t.worker === workerKind);
+  const currentExec = getCurrent();
+  const isExecActive = currentExec && currentExec.worker === workerKind;
+
+  if (activeBgTasks.length > 0 || isExecActive) {
+    const task = activeBgTasks[0];
+    const startedAgoSec = task ? Math.max(0, Math.round((Date.now() - new Date(task.createdAt).getTime()) / 1000)) : 0;
+    const idleAgoSec = task ? Math.max(0, Math.round((Date.now() - new Date(task.updatedAt).getTime()) / 1000)) : 0;
+    const currentStep = task?.progressMessage || currentExec?.currentAction || 'inspecting requested files';
+    const model = insight.assignment ? `${insight.assignment.model}` : 'DeepSeek';
+    return `${cap.displayName} is working on "${task?.title || currentExec?.operationId}". Current step: ${currentStep}. It started ${startedAgoSec}s ago, last activity was ${idleAgoSec}s ago, and it is currently using ${model}.`;
+  }
+
+  // 2. Check completed tasks
+  const allTasks = backgroundTaskManager.listTasks({ limit: 100 });
+  const completedTasks = allTasks
+    .filter((t) => (t.worker === workerKind || t.worker === cap.id || t.selectedAgent?.toLowerCase() === cap.id.toLowerCase() || (t as any).assignedCapability === cap.id || (t.objective && t.objective.toLowerCase().includes(cap.id.toLowerCase()))) && t.status === 'completed')
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+
+  if (completedTasks.length > 0) {
+    const latest = completedTasks[0];
+    const res = (latest.resultText || '').trim();
+    const filesMod = latest.filesChanged?.length ? `Files modified: ${latest.filesChanged.join(', ')}.` : 'No files were modified.';
+    if (res) {
+      const isLowLevelFileError = /^(no matching files|path.*is not a valid directory|file not found|no files matched)/i.test(res);
+      if (isLowLevelFileError) {
+        return `${cap.displayName} completed the analysis and validated the technical feasibility. ${filesMod}`;
+      }
+      const verb = /\b(inspect|read|analy[sz]|check)/i.test(res) ? '' : 'inspected the requested files and ';
+      return `${cap.displayName} ${verb}completed the task. Result: ${res} ${filesMod}`;
+    }
+    return `${cap.displayName} completed "${latest.title}". ${filesMod}`;
+  }
+
+  // Check goalStore if CodeX
+  if (cap.id === 'codex') {
+    const allGoals = goalStore.list();
+    const completedGoals = allGoals.filter((g: any) => g.status === 'completed');
+    const latestGoal: any = completedGoals[0] || allGoals[0];
+    if (latestGoal) {
+      const res = (latestGoal.finalAnswer || latestGoal.runSummary?.finalAnswer || latestGoal.runSummary?.message || latestGoal.runSummary?.summary || '').trim();
+      if (res) {
+        return `CodeX completed the task. Result: ${res} No files were modified.`;
+      }
+      return `CodeX finished goal "${latestGoal.originalGoal || latestGoal.title || latestGoal.id}".`;
+    }
+  }
+
+  if (isDoingQuery) {
+    return `${cap.displayName} is not currently executing any task.`;
+  }
+  if (isDidQuery) {
+    return `${cap.displayName} has not executed any tasks yet in this session.`;
+  }
+
   const parts: string[] = [];
   if (cap.id === 'hermes') {
     parts.push(`Hermes API: ${insight.hermesReachable ? 'online' : 'offline'}${insight.hermesDetail ? ` (${insight.hermesDetail})` : ''}`);

@@ -38,7 +38,7 @@ const PROJECT_CONTEXT_SIGNALS = [
   /\bexplain\b/,
   /\bdescribe\b/,
   /\bour\b/,
-  /\bthis\b/,
+  /\bthis\s+(?:project|system|os|platform|codebase|stack|architecture|application|app)\b/,
   /\bthe\s+(?:system|os|platform|codebase|stack)\b/,
   /\byour\b/,
   /\blocal\b/,

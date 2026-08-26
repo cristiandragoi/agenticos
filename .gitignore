@@ -177,3 +177,55 @@ tools/agenticos-mcp/node_modules/
 
 # One-off diagnostic scratch scripts
 server/scratch_*.mjs
+
+# Antigravity V2 Verification & Build Identity transient artifacts
+build-identity.json
+server/src/build-identity.json
+src/build-identity.json
+server/dist/build-identity.json
+docs/acceptance/evidence/
+docs/acceptance/antigravity-runtime-probe.txt
+
+# ── AgenticOS: Electron release / build output ───────────────────────────────
+release/
+dist-electron/
+
+# ── AgenticOS: Gateway runtime logs (JSONL / metrics) ────────────────────────
+.agentic/gateway-runs.jsonl
+.agentic/gateway-metrics.json
+server/.agentic/gateway-runs.jsonl
+server/.agentic/gateway-metrics.json
+
+# ── AgenticOS: SQLite runtime databases and backups ───────────────────────────
+server/data/agentic-os.db
+server/data/agentic-os.db.backup-*
+server/data/*.backup-*
+server/data/backups/
+
+# ── AgenticOS: Runtime JSON state files ──────────────────────────────────────
+server/data/runs.json
+server/data/memoryEntries.json
+server/data/researchBriefs.json
+server/data/workspace-selection.json
+server/data/active-project.json
+
+# ── AgenticOS: Temp / scratch ────────────────────────────────────────────────
+tmp/
+.tmp/
+temp/
+*.tmp
+server/temp_*.ts
+server/temp_*.db
+
+# ── AgenticOS: Debug / diagnostic logs ───────────────────────────────────────
+debug.log
+*.out.log
+*.err.log
+
+# ── AgenticOS: Screenshot proof artifacts ────────────────────────────────────
+scripts/p16-shots/
+
+# Backup SQLite snapshots
+backups/**/*.db
+docs/backups/**/*.db
+

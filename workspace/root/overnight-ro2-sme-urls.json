@@ -1,0 +1,80 @@
+[
+  {
+    "id": "expt-892e5ba1-",
+    "name": "Physiotherapie Zentrum Stuttgart is a physiotherapy center that could benefit fr",
+    "live": {
+      "url": "https://www.physio-zentrum-stuttgart.de",
+      "error": "fetch failed"
+    }
+  },
+  {
+    "id": "expt-f6e5c35a-",
+    "name": "Schneider & Partner Unternehmensberatung is a German consultancy with a public w",
+    "live": {
+      "url": "https://www.schneider-partner-beratung.de",
+      "error": "fetch failed"
+    }
+  },
+  {
+    "id": "expt-fe395ce1-",
+    "name": "ASV Versicherungsmakler GmbH is a German insurance broker with a public website,",
+    "live": {
+      "url": "https://www.asv-versicherungsmakler.de",
+      "status": 200,
+      "ok": true,
+      "contentType": "text/html; charset=UTF-8"
+    }
+  },
+  {
+    "id": "expt-2825a386-",
+    "name": "Rechtsanwälte Hoffmann & Kollegen is a German law firm with a public website, li",
+    "live": {
+      "url": "https://www.ra-hoffmann-kollegen.de",
+      "error": "fetch failed"
+    }
+  },
+  {
+    "id": "expt-15990784-",
+    "name": "Steuerkanzlei Weber is a German tax consultancy with a public website, likely ha",
+    "live": {
+      "url": "https://www.steuerkanzlei-weber.de",
+      "status": 200,
+      "ok": true,
+      "contentType": "text/html"
+    }
+  },
+  {
+    "id": "expt-667a40a4-",
+    "name": "Berger Consulting GmbH is a German management consultancy with a public website,",
+    "live": {
+      "url": "https://www.berger-consulting.de",
+      "error": "fetch failed"
+    }
+  },
+  {
+    "id": "expt-a2294de6-",
+    "name": "Versicherungsbüro Müller is a German insurance brokerage (Versicherungsmakler) w",
+    "live": {
+      "url": "https://www.versicherungsbuero-mueller.de",
+      "error": "fetch failed"
+    }
+  },
+  {
+    "id": "expt-be0d55ba-",
+    "name": "Kanzlei Dr. Schmidt & Partner is a German law firm (Rechtsanwälte) with a public",
+    "live": {
+      "url": "https://www.kanzlei-dr-schmidt-partner.de",
+      "error": "fetch failed"
+    }
+  },
+  {
+    "id": "expt-196b4b22-",
+    "name": "WPS Steuerberatungsgesellschaft mbH is a German tax consultancy (Steuerberater) ",
+    "live": {
+      "url": "https://www.wps-steuerberatung.de",
+      "status": 200,
+      "ok": true,
+      "contentType": "text/html"
+    }
+  }
+]

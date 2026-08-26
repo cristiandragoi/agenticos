@@ -23,6 +23,7 @@ import { logger } from '../../utils/logger.js';
 import { backgroundTaskManager } from '../backgroundTasks/manager.js';
 import type { WorkerKind } from '../backgroundTasks/types.js';
 import { routineRepo, type RoutineRecord, type ScheduleExecutionRecord } from '../routines/store.js';
+import type { WorkerType } from '../projectExecution/schema.js';
 import { projectsStore } from '../projectsStore.js';
 import { getWorkspaceRoot } from '../workspaceStore.js';
 
@@ -194,7 +195,102 @@ export async function dispatchScheduledExecution(
     let runId: string | null = null;
     let resultId: string | null = null;
 
-    if (worker === 'hermes') {
+    if (provenance.routineId === 'routine-revenue-supervisor' || schedule.routineId === 'routine-revenue-supervisor') {
+      const { revenueSupervisor } = await import('../revenueOperator/revenueSupervisor.js');
+      // Run the cycle FIRST to obtain the truthful outcome and the real
+      // provider/model returned by the actual worker (if any). Never hardcode.
+      const cycle = await revenueSupervisor.runSupervisorCycle();
+      const action = cycle.action;
+      const run = executionRunService.createRun({
+        taskId: task.id,
+        projectId,
+        goalId: goal.id,
+        workerType: (action?.executor as WorkerType) ?? 'hermes',
+        agentInstanceId: action?.workerInstanceId ?? undefined,
+        provider: action?.provider ?? undefined,
+        model: action?.model ?? undefined,
+        trigger: 'schedule',
+        requestId: executionId,
+        metadata: {
+          routineId: provenance.routineId,
+          executionId,
+          innerRunId: action?.runId ?? null,
+          innerResultId: action?.resultId ?? null,
+          correlationId: action?.correlationId ?? null,
+          actionType: action?.actionType ?? null,
+          outcome: cycle.outcome,
+        },
+      });
+      runId = run.id;
+      executionRunService.updateRun(runId, { status: 'running', startTime: new Date().toISOString() });
+
+      const result = executionRunService.createResult({
+        runId,
+        taskId: task.id,
+        status: cycle.outcome === 'failed' ? 'failed' : 'success',
+        summary: `Revenue Supervisor cycle #${cycle.status.cycleCount} ${cycle.outcome} — ${cycle.reason}`,
+        structuredOutput: { outcome: cycle.outcome, action: action ?? null, cycleCount: cycle.status.cycleCount },
+        metadata: { cycleCount: cycle.status.cycleCount, missionId: cycle.status.activeMissionId, outcome: cycle.outcome },
+      });
+      resultId = result.id;
+      executionRunService.updateRun(runId, {
+        status: cycle.outcome === 'failed' ? 'failed' : 'completed',
+        endTime: new Date().toISOString(),
+        finalResultId: resultId,
+      });
+    } else if (provenance.routineId === 'routine-revenue-daily-briefing' || schedule.routineId === 'routine-revenue-daily-briefing') {
+      const { revenueBriefingService } = await import('../revenueOperator/briefingService.js');
+      const run = executionRunService.createRun({
+        taskId: task.id,
+        projectId,
+        goalId: goal.id,
+        workerType: 'hermes',
+        trigger: 'schedule',
+        requestId: executionId,
+        metadata: { routineId: provenance.routineId, executionId },
+      });
+      runId = run.id;
+      executionRunService.updateRun(runId, { status: 'running', startTime: new Date().toISOString() });
+
+      const briefing = await revenueBriefingService.generateBriefing('mission-616808fe-', 'daily');
+
+      const result = executionRunService.createResult({
+        runId,
+        taskId: task.id,
+        status: 'success',
+        summary: `Daily briefing generated for mission-616808fe- (${briefing.kpis.pipelineValue} EUR pipeline)`,
+        structuredOutput: briefing as any,
+        metadata: { briefingId: briefing.missionId, generatedAt: briefing.generatedAt },
+      });
+      resultId = result.id;
+      executionRunService.updateRun(runId, { status: 'completed', endTime: new Date().toISOString(), finalResultId: resultId });
+    } else if (provenance.routineId === 'routine-revenue-weekly-briefing' || schedule.routineId === 'routine-revenue-weekly-briefing') {
+      const { revenueBriefingService } = await import('../revenueOperator/briefingService.js');
+      const run = executionRunService.createRun({
+        taskId: task.id,
+        projectId,
+        goalId: goal.id,
+        workerType: 'hermes',
+        trigger: 'schedule',
+        requestId: executionId,
+        metadata: { routineId: provenance.routineId, executionId },
+      });
+      runId = run.id;
+      executionRunService.updateRun(runId, { status: 'running', startTime: new Date().toISOString() });
+
+      const briefing = await revenueBriefingService.generateBriefing('mission-616808fe-', 'weekly');
+
+      const result = executionRunService.createResult({
+        runId,
+        taskId: task.id,
+        status: 'success',
+        summary: `Weekly briefing generated for mission-616808fe- (${briefing.kpis.pipelineValue} EUR pipeline)`,
+        structuredOutput: briefing as any,
+        metadata: { briefingId: briefing.missionId, generatedAt: briefing.generatedAt },
+      });
+      resultId = result.id;
+      executionRunService.updateRun(runId, { status: 'completed', endTime: new Date().toISOString(), finalResultId: resultId });
+    } else if (worker === 'hermes') {
       const { executeHermesTask } = await import('../../domains/workerAdapters/hermesAdapter.js');
       const { run } = await executeHermesTask(task, { prompt: objective, requestId: executionId, projectId, goalId: goal.id });
       runId = run.id;

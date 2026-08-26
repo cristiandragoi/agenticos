@@ -1,0 +1,74 @@
+{
+  "phase": "phase2d-acceptance",
+  "startedAt": "2026-08-20T19:54:11.142Z",
+  "missionId": "mission-6f9465a3-",
+  "digitalExperimentId": "expt-e5c7293e-",
+  "smeExperimentId": "expt-fa0ee1aa-",
+  "hermes": {
+    "actionType": "SME_QUALIFY",
+    "correlationId": "corr-5f804d48",
+    "executor": "hermes",
+    "provider": "DeepSeek",
+    "model": "deepseek-chat",
+    "runId": "er-cccf12b7-5",
+    "resultId": "exr-9e38adf7-1",
+    "status": "completed",
+    "detail": "Inspected company profile via Hermes run er-cccf12b7-5.",
+    "workerInstanceId": "hr-b2e6526b-bae",
+    "run": {
+      "runId": "er-cccf12b7-5",
+      "status": "completed",
+      "workerType": "hermes",
+      "agentInstanceId": "hr-b2e6526b-bae",
+      "provider": "DeepSeek",
+      "model": "deepseek-chat",
+      "startTime": "2026-08-20T19:55:15.267Z",
+      "endTime": "2026-08-20T19:55:20.917Z",
+      "durationMs": 5650,
+      "resultId": "exr-9e38adf7-1",
+      "resultSummary": "The public business profile for 'Deterministic Phase 2D test SME (public profile inspect)' appears to be a synthetic or test entity with no verifiable public presence. No concrete AI-automatable pain points, team size signals, or a relevant value proposition could be identified from public sources. The profile name suggests it is a test SME, likely used for deterministic testing of inspection workflows. Therefore, the relevance assessment is low, and the value proposition is generic at best."
+    }
+  },
+  "codex": {
+    "actionType": "DIGITAL_BUILD",
+    "correlationId": "corr-92f80c29",
+    "executor": "codex",
+    "provider": "DeepSeek",
+    "model": "deepseek-chat",
+    "runId": "er-a2c3adae-3",
+    "resultId": "exr-967cd1ec-5",
+    "status": "completed",
+    "detail": "Built artifact via CodeX run er-a2c3adae-3.",
+    "workerInstanceId": "goal-a41ae4ce",
+    "run": {
+      "runId": "er-a2c3adae-3",
+      "status": "completed",
+      "workerType": "codex",
+      "agentInstanceId": "goal-a41ae4ce",
+      "provider": "DeepSeek",
+      "model": "deepseek-chat",
+      "startTime": "2026-08-20T19:54:15.111Z",
+      "endTime": "2026-08-20T19:55:00.679Z",
+      "durationMs": 45568,
+      "resultId": "exr-967cd1ec-5",
+      "resultSummary": "Delivered Phase2D Test Checklist (digital product) at Phase2D_Test_Checklist.md. It includes pre-test prep, functional, non-functional (incl. GDPR), regression/release readiness, and sign-off sections, plus a QA checklist. Target: DE/EU small business."
+    }
+  },
+  "negative": {
+    "experimentId": "expt-b7c58e65-",
+    "status": "blocked",
+    "blockedReason": "SHOPIFY_PUBLISH_NOT_IMPLEMENTED",
+    "detail": "Human gate resolved; Shopify publication is not implemented.",
+    "publishedCount": 0
+  },
+  "orphanCheck": {
+    "runningRuns": []
+  },
+  "gateCheck": {
+    "digital": {
+      "gate_type": "SHOPIFY_AUTH_REQUIRED",
+      "status": "open"
+    }
+  },
+  "truth": null
+}

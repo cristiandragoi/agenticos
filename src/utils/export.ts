@@ -44,7 +44,7 @@ export function exportJSON(goal: GoalRecord, summary: RunSummary, events: GoalEv
   
   const a = document.createElement('a');
   a.href = url;
-  a.download = `codex-run-\${goal.id}.json`;
+  a.download = `codex-run-${goal.id}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -56,20 +56,20 @@ export function generateMarkdownReport(goal: GoalRecord, summary: RunSummary, ev
   const totalEvents = events.length;
   
   return `# CodeX Run Report
-**Run ID:** \${goal.id}
-**Status:** \${sanitizedSummary.status}
-**Started:** \${new Date(sanitizedSummary.startedAt).toLocaleString()}
-**Duration:** \${(sanitizedSummary.durationMs / 1000).toFixed(1)}s
-**Model:** \${sanitizedSummary.runtimeModel}
-**Provider:** \${sanitizedSummary.provider}
+**Run ID:** ${goal.id}
+**Status:** ${sanitizedSummary.status}
+**Started:** ${new Date(sanitizedSummary.startedAt).toLocaleString()}
+**Duration:** ${(sanitizedSummary.durationMs / 1000).toFixed(1)}s
+**Model:** ${sanitizedSummary.runtimeModel}
+**Provider:** ${sanitizedSummary.provider}
 
 ## Diagnostics
-- **Total Events:** \${totalEvents}
-- **Tool Calls:** \${sanitizedSummary.diagnostics?.totalToolCalls || 0}
-- **Retries:** \${sanitizedSummary.diagnostics?.totalRetries || 0}
-- **Validation:** \${sanitizedSummary.validationStatus}
+- **Total Events:** ${totalEvents}
+- **Tool Calls:** ${sanitizedSummary.diagnostics?.totalToolCalls || 0}
+- **Retries:** ${sanitizedSummary.diagnostics?.totalRetries || 0}
+- **Validation:** ${sanitizedSummary.validationStatus}
 
 ## Final Summary
-\${sanitizedSummary.summary}
+${sanitizedSummary.summary}
 `;
 }

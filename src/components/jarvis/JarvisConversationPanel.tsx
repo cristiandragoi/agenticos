@@ -60,15 +60,17 @@ function parseSseFrames(buffer: string) {
   const rest = frames.pop() || '';
   return {
     rest,
-    events: frames.map((frame) => {
-      let event = 'message';
-      let data = '';
-      for (const line of frame.split('\n')) {
-        if (line.startsWith('event:')) event = line.slice(6).trim();
-        if (line.startsWith('data:')) data += line.slice(5).trim();
-      }
-      return { event, data };
-    }),
+    events: frames
+      .filter((frame) => frame.trim().length > 0)
+      .map((frame) => {
+        let event = 'message';
+        let data = '';
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        return { event, data };
+      }),
   };
 }
 
@@ -107,7 +109,9 @@ function writeConversationMode(mode: 'manual' | 'conversation') {
 
 function readPersistedVoice(): string {
   try {
-    const v = sessionStorage.getItem(VOICE_KEY);
+    // localStorage (not sessionStorage) so the chosen voice persists across a
+    // full app restart — the en-AU voice identity must be stable, not per-tab.
+    const v = localStorage.getItem(VOICE_KEY);
     return v && JARVIS_VOICES.some((x) => x.id === v) ? v : JARVIS_VOICES[0].id;
   } catch {
     return JARVIS_VOICES[0].id;
@@ -218,16 +222,37 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
       const decoder = new TextDecoder();
       let buffer = '';
       let route = 'direct';
+      let requestCompletedSuccessfully = false;
+      let sawTerminalEvent = false;
 
       for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        let readResult: ReadableStreamReadResult<Uint8Array>;
+        try {
+          readResult = await reader.read();
+        } catch (readErr: any) {
+          if (requestCompletedSuccessfully || sawTerminalEvent) {
+            break;
+          }
+          throw readErr;
+        }
+        const { done, value } = readResult;
+        if (done) {
+          if (sawTerminalEvent) {
+            requestCompletedSuccessfully = true;
+          }
+          break;
+        }
+        if (controller.signal.aborted) break;
+
         buffer += decoder.decode(value, { stream: true });
         const { rest, events } = parseSseFrames(buffer);
         buffer = rest;
         for (const ev of events) {
           let payload: any = {};
           try { payload = ev.data ? JSON.parse(ev.data) : {}; } catch { /* keep defaults */ }
+          if (['done', 'error', 'execution_failed', 'cancelled'].includes(ev.event)) {
+            sawTerminalEvent = true;
+          }
           if (ev.event === 'status' || ev.event === 'chunk') {
             if (payload.provider || payload.model) {
               setStreamMeta((m) => ({ ...m, provider: payload.provider || m.provider, model: payload.model || m.model }));
@@ -239,10 +264,27 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
           }
           if (ev.event === 'done') {
             route = payload.route || 'direct';
+            requestCompletedSuccessfully = true;
             setStreamMeta((m) => ({ ...m, route }));
           }
           if (ev.event === 'error') {
             throw new Error(payload.error || 'Jarvis stream error');
+          }
+        }
+      }
+
+      if (buffer.trim().length > 0) {
+        const { events } = parseSseFrames(`${buffer}\n\n`);
+        for (const ev of events) {
+          let payload: any = {};
+          try { payload = ev.data ? JSON.parse(ev.data) : {}; } catch { /* keep defaults */ }
+          if (['done', 'error', 'execution_failed', 'cancelled'].includes(ev.event)) {
+            sawTerminalEvent = true;
+          }
+          if (ev.event === 'done') {
+            route = payload.route || 'direct';
+            requestCompletedSuccessfully = true;
+            setStreamMeta((m) => ({ ...m, route }));
           }
         }
       }
@@ -277,7 +319,8 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
         voiceRef.current?.startListening();
       }
     } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+      if (requestCompletedSuccessfully || sawTerminalEvent) return;
+      if (err?.name === 'AbortError' || String(err?.message || '').includes('BodyStreamBuffer was aborted')) return;
       console.error('[JarvisCockpit] Turn failed:', err);
       setLiveStreaming(null);
       liveTextRef.current = '';
@@ -487,7 +530,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
 
   const handleVoiceSelect = useCallback((voiceId: string) => {
     setSelectedVoice(voiceId);
-    try { sessionStorage.setItem(VOICE_KEY, voiceId); } catch { /* ignore */ }
+    try { localStorage.setItem(VOICE_KEY, voiceId); } catch { /* ignore */ }
     voiceRef.current?.setVoiceOverride?.(voiceId);
   }, []);
 

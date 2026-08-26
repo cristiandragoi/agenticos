@@ -17,6 +17,8 @@ import {
   type GroundedWorkerContext
 } from './workerContextHandoff.js';
 import { resolveConversationalTurn, formatNaturalResponse, resolveConversationFocus } from './conversationalTurn.js';
+import { handleMaintenanceTurn } from '../../services/maintenance/maintenanceBridge.js';
+import type { MaintenanceTestGate } from '../../services/maintenance/changeSet.js';
 
 import { z } from 'zod';
 
@@ -51,7 +53,8 @@ export class JarvisOrchestrator {
     workspacePath: string,
     approvalPolicy: 'manual' | 'auto',
     operationId?: string,
-    preclassifiedIntent?: IntentResult
+    preclassifiedIntent?: IntentResult,
+    maintenanceContext?: { files?: string[]; testGates?: MaintenanceTestGate[] }
   ): Promise<OrchestratorResult> {
     const requestMetadata = operationId ? { operationId } : undefined;
 
@@ -62,6 +65,29 @@ export class JarvisOrchestrator {
       content: prompt,
       metadata: requestMetadata
     });
+
+    // 1a. Maintenance Supervisor (Phase 4.1): route self-maintenance
+    //     conversations ("check why the tests are failing", "fix it", "what did
+    //     Hermes recommend?", "where were we?", "commit it") BEFORE generic
+    //     conversational-turn resolution, so maintenance continuations and status
+    //     questions bind to the persisted changeSet rather than the generic
+    //     worker paths. Returns null when the message is not maintenance-related.
+    const maintenanceTurn = await handleMaintenanceTurn({
+      conversationId,
+      prompt,
+      workspacePath,
+      operationId,
+      files: maintenanceContext?.files,
+      testGates: maintenanceContext?.testGates,
+    });
+    if (maintenanceTurn) {
+      return {
+        route: maintenanceTurn.route,
+        status: maintenanceTurn.status,
+        error: maintenanceTurn.error,
+        operationId: maintenanceTurn.operationId,
+      };
+    }
 
     // 1b. Resolve a typed conversational turn (Phase 3): interpret the message
     //     and resolve its references from persisted state BEFORE deciding on a

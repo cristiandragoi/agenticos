@@ -501,11 +501,20 @@ async function nextWithTimeout<T>(
 
 router.post('/conversations/:id/message', async (req, res) => {
   try {
-    const { prompt, approvalPolicy, operationId } = req.body;
+    const { prompt, approvalPolicy, operationId, maintenanceFiles, testGates } = req.body;
     const workspacePath = resolveWorkspacePath(req.body);
     if (!prompt || typeof prompt !== 'string') {
       return res.status(400).json({ error: 'prompt is required' });
     }
+
+    // Optional typed maintenance context (Phase 4 hardening): explicit owned
+    // files + allowlisted test gates for self-maintenance reproduction/ownership.
+    const maintenanceContext = maintenanceFiles || testGates
+      ? {
+          files: Array.isArray(maintenanceFiles) ? maintenanceFiles : undefined,
+          testGates: Array.isArray(testGates) ? testGates : undefined,
+        }
+      : undefined;
 
     // Let the orchestrator handle everything (recording user message, routing, and acting).
     // workspacePath is passed through verbatim: routes that create real work validate
@@ -515,7 +524,9 @@ router.post('/conversations/:id/message', async (req, res) => {
       prompt,
       workspacePath,
       normalizeApprovalPolicy(approvalPolicy),
-      typeof operationId === 'string' ? operationId : undefined
+      typeof operationId === 'string' ? operationId : undefined,
+      undefined,
+      maintenanceContext
     );
 
     if (result?.error) {
@@ -2038,11 +2049,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // approval mode), so task state cannot hijack a simple question.
     let conversationContextPrompt = '';
     let operationalContextInjected = false;
+    let turnContext: any = null;
     try {
       const { assembleConversationContext, contextToSystemPrompt } = await import('../domains/jarvis/conversationContext.js');
-      const ctx = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy) });
+      turnContext = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy) });
       const includeOperational = isOperationalQuestion(prompt);
-      conversationContextPrompt = contextToSystemPrompt(ctx, { includeOperational });
+      conversationContextPrompt = contextToSystemPrompt(turnContext, { includeOperational });
       operationalContextInjected = includeOperational;
     } catch {
       // context optional — direct chat must never break on context failure
@@ -2067,7 +2079,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'Use conversation history to resolve contextual pronouns and references ("that", "it", "this", "again", "the previous one").',
       'PRIOR TURN RECALL: When the user asks what they just said, asked, or told you previously, quote the prior user message from conversation history before the current turn. NEVER quote the current question back to the user.',
       'If the user explicitly asks you to repeat or echo a phrase (e.g. "repeat after me", "say exactly X", "repeat this sentence"), obey verbatim and output ONLY the requested phrase without commentary.',
-      'If the user specifically asks what model or provider you are using, state: "I\'m running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ', with ' + fallbackModelName + ' available locally as a fallback.' : '.') + '" Do not repeat this model identity unless explicitly asked.',
+      'GROUNDING INVARIANT: You are in DIRECT conversational mode. You have NOT inspected the repository for ungrounded claims. If the user asks for repository findings, file contents, code bugs, or architecture details that are NOT present in the grounded evidence below, state: "I need to inspect the repository or use the result from the delegated CodeX task before I can answer that accurately." NEVER speculate, invent, or hallucinate repository blockers, percentages, or code issues.',
+      'CONVERSATIONAL CORRECTIONS: If the user says "You said that already", "Don\'t repeat that", "You don\'t have to repeat", or informs you that a reply was already given, acknowledge the correction concisely (e.g. "Understood. I will not repeat that.") and ask how you can assist next. NEVER repeat previous lists, bullet points, or prior answers.',
+      'MODEL IDENTITY: When asked what model or provider you are using, state ONLY: "I\'m running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ', with ' + fallbackModelName + ' available locally as a fallback.' : '.') + '" NEVER append prior task summaries, repository blockers, or previous conversation outputs.',
       'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
       'Do not ask "How can I help you today?" when the user asked a specific question — answer that question.',
       ...(inputChannel === 'voice' ? [
@@ -2231,8 +2245,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
     // §18/§10: strip any tool-call markup the model emitted as literal text
     // so the user never sees raw <tool_call>…</tool_call> plumbing.
-    const finalReply = stripToolCallMarkup(reply).trim();
-    if (!finalReply) {
+    let rawFinalReply = stripToolCallMarkup(reply).trim();
+    if (!rawFinalReply) {
       if (surfacedError) {
         // A real provider/gateway error was already emitted above — finish the
         // stream honestly instead of overwriting it with the generic message.
@@ -2243,6 +2257,23 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         return res.end();
       }
       throw new Error('Jarvis returned an empty response.');
+    }
+
+    // Architectural Grounding Guardrail sanitization
+    const { sanitizeDirectResponse, isModelIdentityQuery, isConversationalCorrection } = await import('../domains/jarvis/groundingGuardrail.js');
+    let finalReply = sanitizeDirectResponse(rawFinalReply, {
+      prompt,
+      hasGroundedEvidence: Boolean(turnContext?.hasGroundedEvidence || turnContext?.groundedResult),
+      groundedResult: turnContext?.groundedResult,
+      isModelQuery: isModelIdentityQuery(prompt),
+      isCorrection: isConversationalCorrection(prompt),
+    });
+
+    // Benign False-Refusal Recovery boundary
+    const FALSE_REFUSAL_PATTERN = /I can't provide information or guidance on (illegal or harmful activities|child pornography|CSAM)|As an AI, I cannot assist with (illegal|harmful)/i;
+    if (FALSE_REFUSAL_PATTERN.test(finalReply) && !/\b(illegal|harmful|pornography|exploit|weapon|hack)\b/i.test(prompt)) {
+      logger.warn('[JarvisStream] False-positive local model safety refusal intercepted on benign prompt. Recovering with grounded response.');
+      finalReply = "I understand. Let me know what specific task or question you'd like to work on.";
     }
 
     logger.info('[JarvisTrace] provider-response', JSON.stringify({

@@ -3,10 +3,23 @@ import fs from 'fs';
 import path from 'path';
 import { execFile, spawn } from 'child_process';
 import os from 'os';
-
-const ALLOWLIST_BINARIES = ['node', 'npm', 'npx', 'tsc', 'jest', 'git'];
-
 import { minimatch } from 'minimatch';
+
+const ALLOWLIST_BINARIES = [
+  // Primary dev toolchain (always cross-platform)
+  'node', 'npm', 'npx', 'tsc', 'jest', 'vitest', 'git',
+  'python', 'py',
+  // Read-only terminal inspection (git-bash/MSYS; model falls back to
+  // `git`/`node -e` when these are absent from PATH on bare Windows)
+  'pwd', 'ls', 'cat', 'echo', 'cd', 'dir', 'type', 'where', 'which',
+  'find', 'tree', 'head', 'tail', 'grep', 'rg',
+];
+
+// Binaries installed via npm are `.cmd` batch shims on Windows. `spawn()` with
+// `shell: false` cannot execute a `.cmd` file directly (ENOENT), so these must
+// be launched through `cmd.exe /c`. Real `.exe` binaries (node/git/rg/python)
+// stay on the direct `shell: false` path for safety.
+const CMD_SHIM_BINARIES = new Set(['npm', 'npx', 'tsc', 'jest', 'vitest']);
 
 function isPathInScope(absPath: string, workspacePath: string, scopes?: string[]): boolean {
   if (!scopes || scopes.length === 0) return true; // Default to allowing all if no scopes provided
@@ -131,9 +144,10 @@ export async function runSandboxedCommand(
   cmd: string, 
   args: string[], 
   signal?: AbortSignal,
-  workspaceRootOverride?: string
+  workspaceRootOverride?: string,
+  timeoutMs: number = 30000
 ): Promise<{ stdout: string; stderr: string }> {
-  const cwd = workspaceRootOverride ? fs.realpathSync.native(workspaceRootOverride) : process.cwd();
+  let cwd = workspaceRootOverride ? fs.realpathSync.native(workspaceRootOverride) : process.cwd();
   const binary = cmd.trim().toLowerCase();
 
   if (!ALLOWLIST_BINARIES.includes(binary)) {
@@ -141,8 +155,22 @@ export async function runSandboxedCommand(
   }
 
   let safeArgs = [...args];
-  if (binary === 'npm' || binary === 'npx') {
-    if (!safeArgs.includes('--offline') && !safeArgs.includes('--prefer-offline')) {
+  // Auto-route server subproject commands (e.g. vitest on server/src/__tests__/...)
+  // to execute inside the server/ subdirectory where server vitest.config.ts resides.
+  const hasServerTarget = safeArgs.some(a => typeof a === 'string' && (/^server[/\\]/.test(a) || a.includes('/server/') || a.includes('\\server\\')));
+  if (hasServerTarget && fs.existsSync(path.join(cwd, 'server'))) {
+    cwd = path.join(cwd, 'server');
+    safeArgs = safeArgs.map(a => typeof a === 'string' ? a.replace(/^server[/\\]/, '') : a);
+  }
+
+  // Only inject --prefer-offline for npm INSTALL commands (avoid network).
+  // NEVER for npx: npx already prefers the local node_modules, and a trailing
+  // --prefer-offline is forwarded to the invoked command (e.g.
+  // `npx vitest ... --prefer-offline`), which vitest rejects — driving the model
+  // into a --no-preferOffline counter-loop.
+  if (binary === 'npm') {
+    const first = safeArgs[0];
+    if (['install', 'i', 'ci', 'add', 'update'].includes(first) && !safeArgs.includes('--offline') && !safeArgs.includes('--prefer-offline')) {
       safeArgs.push('--prefer-offline');
     }
   }
@@ -170,12 +198,22 @@ export async function runSandboxedCommand(
     let stdoutData = '';
     let stderrData = '';
 
-    const child = spawn(binary, safeArgs, {
-      cwd,
-      env: safeEnv,
-      detached: !isWin, // POSIX process group
-      shell: false
-    });
+    // On Windows, npm-installed CLIs (npm/npx/tsc/jest) are `.cmd` shims that
+    // `spawn()` cannot exec with `shell: false` (ENOENT). Launch them through
+    // `cmd.exe /c`; everything else keeps the direct, no-shell path.
+    const useCmdShim = isWin && CMD_SHIM_BINARIES.has(binary);
+    const child = useCmdShim
+      ? spawn('cmd.exe', ['/d', '/s', '/c', binary, ...safeArgs], {
+          cwd,
+          env: safeEnv,
+          windowsHide: true,
+        })
+      : spawn(binary, safeArgs, {
+          cwd,
+          env: safeEnv,
+          detached: !isWin, // POSIX process group
+          shell: false
+        });
 
     const killTree = () => {
       if (!child.pid) return;
@@ -193,8 +231,8 @@ export async function runSandboxedCommand(
 
     const timeout = setTimeout(() => {
       killTree();
-      reject(new Error(`Command timed out after 30000ms.\nSTDOUT:\n${truncateOutput(stdoutData)}\nSTDERR:\n${truncateOutput(stderrData)}`));
-    }, 30000);
+      reject(new Error(`Command timed out after ${timeoutMs}ms.\nSTDOUT:\n${truncateOutput(stdoutData)}\nSTDERR:\n${truncateOutput(stderrData)}`));
+    }, timeoutMs);
 
     if (signal) {
       signal.addEventListener('abort', killTree);
@@ -211,6 +249,10 @@ export async function runSandboxedCommand(
       }
       
       if (code !== 0) {
+        if ((binary === 'rg' || binary === 'grep') && code === 1) {
+          resolve({ stdout: '', stderr: truncateOutput(stderrData) });
+          return;
+        }
         reject(new Error(`Command failed with code ${code}\nSTDOUT:\n${truncateOutput(stdoutData)}\nSTDERR:\n${truncateOutput(stderrData)}`));
       } else {
         resolve({ stdout: truncateOutput(stdoutData), stderr: truncateOutput(stderrData) });

@@ -1,0 +1,1124 @@
+{
+  "startedAt": "2026-08-19T23:53:48.245Z",
+  "missionId": "mission-616808fe-",
+  "phases": [],
+  "baseline": {
+    "experiments": 1,
+    "gates": 0,
+    "ledger": 0
+  },
+  "digitalDiscovery": [
+    {
+      "count": 6,
+      "created": [
+        {
+          "id": "expt-75f4d6e4-",
+          "title": "Identified 6 concrete, no-inventory digital product opportunities for the DE/EU market tar",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-4b882f3a-7",
+      "verdict": "FAIL",
+      "ok": true,
+      "ms": 19518
+    },
+    {
+      "count": 5,
+      "created": [
+        {
+          "id": "expt-61318fe7-",
+          "title": "Identified 5 concrete, buildable digital product opportunities for the DE/EU market target",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-78a2e299-1",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 21189
+    },
+    {
+      "count": 5,
+      "created": [
+        {
+          "id": "expt-e438c94c-",
+          "title": "Identified 5 concrete, buildable digital product opportunities for the DE/EU market target",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-be7fb25c-1",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 24471
+    },
+    {
+      "count": 4,
+      "created": [
+        {
+          "id": "expt-cb007d5c-",
+          "title": "Identified 4 concrete, zero-inventory digital product opportunities for the DE/EU market t",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-8fbe45dd-6",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 20818
+    },
+    {
+      "count": 6,
+      "created": [
+        {
+          "id": "expt-77a6dee2-",
+          "title": "Identified 6 concrete, zero-inventory digital product opportunities for the DE/EU market t",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-6cab84c3-a",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 25426
+    },
+    {
+      "count": 5,
+      "created": [
+        {
+          "id": "expt-f2a8b842-",
+          "title": "Identified 5 concrete, zero-inventory digital product opportunities for the DE/EU market t",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-ffbe7ad9-c",
+      "verdict": "PASS",
+      "ok": true,
+      "ms": 27861
+    },
+    {
+      "count": 5,
+      "created": [
+        {
+          "id": "expt-13a88c9f-",
+          "title": "Identified 5 concrete, no-inventory digital product opportunities for the DE/EU market tar",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-24b43a3f-6",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 21556
+    },
+    {
+      "count": 4,
+      "created": [
+        {
+          "id": "expt-434afb90-",
+          "title": "Identified 4 concrete, zero-inventory digital product opportunities for the DE/EU market t",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-e38b25b5-4",
+      "verdict": "PASS",
+      "ok": true,
+      "ms": 25362
+    },
+    {
+      "count": 6,
+      "created": [
+        {
+          "id": "expt-11db0cf6-",
+          "title": "A German-language VAT & E-Commerce Compliance Spreadsheet/Calculator for small online sell",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-92f3ecc0-",
+          "title": "A German-language Freelancer Tax & Invoice Tracker (spreadsheet) helps freelancers manage ",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-358996c2-",
+          "title": "A Notion-based 'EU Business Launch OS' for non-EU founders entering the German market (leg",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-0f9716fa-",
+          "title": "A 'GDPR Compliance Checklist & SOP Pack' for small online shops (Shopify) addresses mandat",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-69a27068-",
+          "title": "A 'Dropshipping Supplier Outreach & Negotiation Prompt Pack' (ChatGPT prompts + spreadshee",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-12516d0d-",
+          "title": "A 'German Payroll & Mini-Job Calculator' for small businesses helps calculate wages, socia",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-94e168e2-f",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 24628
+    },
+    {
+      "count": 5,
+      "created": [
+        {
+          "id": "expt-2d63f409-",
+          "title": "A German-language VAT & E-commerce Compliance Spreadsheet Template for small online seller",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-0f240cd6-",
+          "title": "A German Income Tax Calculator for Freelancers (Einkommensteuer) is a viable product oppor",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-2ccb02c2-",
+          "title": "A GDPR Compliance Checklist & SOP Pack for EU-based small businesses is a viable product o",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-6d75fcd5-",
+          "title": "A Notion-based 'Business Starter Kit' for German solopreneurs is a viable product opportun",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-9cfb979d-",
+          "title": "A Prompt Engineering Workflow Pack for German-speaking marketing agencies is a viable prod",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-48210303-8",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 20871
+    },
+    {
+      "count": 5,
+      "created": [
+        {
+          "id": "expt-b85acae3-",
+          "title": "A German-language VAT & E-commerce Compliance Spreadsheet Template for small online seller",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-c0be3255-",
+          "title": "A German-language Rental Property ROI Calculator (Excel/Google Sheets) is a viable product",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-70839c88-",
+          "title": "A German-language Freelancer Tax & Invoice Checklist (SOP Pack) is a viable product for fr",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-5292ddf8-",
+          "title": "A German-language Notion System for Managing EU Business Finances (including VAT, OSS, and",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-6d2c2378-",
+          "title": "A German-language Prompt & Workflow Package for Customer Service Automation (using ChatGPT",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-bdfbfffa-4",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 25019
+    },
+    {
+      "count": 4,
+      "created": [
+        {
+          "id": "expt-a2598507-",
+          "title": "A German-language VAT & E-Commerce Compliance Calculator/Checklist for small online seller",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-978155f7-",
+          "title": "A 'Datenschutz-Kit' (GDPR compliance pack) for German freelancers and micro-businesses, in",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-92877717-",
+          "title": "A 'Buchhaltung auf Autopilot' spreadsheet system for German micro-entrepreneurs (EÜR) simp",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-d5c30af0-",
+          "title": "A 'Notion-Vorlage: Kundenprojekt-Manager' for German-speaking service providers (e.g., web",
+          "status": "DISCOVERED"
+        }
+      ],
+      "dispatchRun": "er-11ea4e07-3",
+      "verdict": "NEEDS_REVISION",
+      "ok": true,
+      "ms": 27271
+    }
+  ],
+  "smeDiscovery": [
+    {
+      "sector": "Handwerk / trades businesses (electricians, plumbers, carpenters)",
+      "count": 8,
+      "created": [
+        {
+          "id": "expt-41592ea7-",
+          "title": "Elektro Meier GmbH is an electrical contracting business in Munich, Germany, with a public",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-c81bbfa3-",
+          "title": "Sanitär Wagner is a plumbing and heating business in Berlin, Germany, with a public websit",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-d9c81fd9-",
+          "title": "Schreinerei Hoffmann is a carpentry business in Hamburg, Germany, with a public website.",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-8bb356e2-",
+          "title": "Elektro Schmidt is an electrical company in Cologne, Germany, with a public website.",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-1d9bdd22-",
+          "title": "Klempnerei Becker is a plumbing business in Frankfurt, Germany, with a public website.",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-ce45ba25-",
+          "title": "Tischlerei Weber is a carpentry business in Stuttgart, Germany, with a public website.",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-00bc05c8-",
+          "title": "Elektro Müller is an electrical business in Düsseldorf, Germany, with a public website.",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-879aba1c-",
+          "title": "Sanitär Fischer is a plumbing and heating business in Leipzig, Germany, with a public webs",
+          "status": "DISCOVERED"
+        }
+      ],
+      "run": "er-7c5226f1-8",
+      "verdict": "FAIL",
+      "ms": 18479
+    },
+    {
+      "sector": "small retail and e-commerce businesses",
+      "count": 7,
+      "created": [
+        {
+          "id": "expt-897b2379-",
+          "title": "Globetrotter Ausrüstung is a German outdoor retail chain with an e-commerce presence, and ",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-587306db-",
+          "title": "Manufactum is a German retailer specializing in high-quality household goods and food, wit",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-17e1a1af-",
+          "title": "Bonprix is a German online fashion retailer that could benefit from AI automation in custo",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-b9aab179-",
+          "title": "Galeria Karstadt Kaufhof is a German department store chain with an online shop, and its m",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-53237bb6-",
+          "title": "Hagebaumarkt is a German DIY/home improvement retailer with an online store, and its quote",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-bf4a2c14-",
+          "title": "Käthe Wohlfahrt is a German retailer specializing in Christmas decorations, with an online",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-b30cb379-",
+          "title": "Tchibo is a German coffee retailer and e-commerce company with a diverse product range, an",
+          "status": "DISCOVERED"
+        }
+      ],
+      "run": "er-630ffb35-8",
+      "verdict": "FAIL",
+      "ms": 22676
+    },
+    {
+      "sector": "professional services (accountants, lawyers, insurance brokers, consultancies)",
+      "count": 8,
+      "created": [
+        {
+          "id": "expt-196b4b22-",
+          "title": "WPS Steuerberatungsgesellschaft mbH is a German tax consultancy (Steuerberater) with a pub",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-be0d55ba-",
+          "title": "Kanzlei Dr. Schmidt & Partner is a German law firm (Rechtsanwälte) with a public website, ",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-a2294de6-",
+          "title": "Versicherungsbüro Müller is a German insurance brokerage (Versicherungsmakler) with a publ",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-667a40a4-",
+          "title": "Berger Consulting GmbH is a German management consultancy with a public website, likely pr",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-15990784-",
+          "title": "Steuerkanzlei Weber is a German tax consultancy with a public website, likely handling pay",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-2825a386-",
+          "title": "Rechtsanwälte Hoffmann & Kollegen is a German law firm with a public website, likely deali",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-fe395ce1-",
+          "title": "ASV Versicherungsmakler GmbH is a German insurance broker with a public website, likely ha",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-f6e5c35a-",
+          "title": "Schneider & Partner Unternehmensberatung is a German consultancy with a public website, li",
+          "status": "DISCOVERED"
+        }
+      ],
+      "run": "er-587bb9d6-c",
+      "verdict": "FAIL",
+      "ms": 17748
+    },
+    {
+      "sector": "medical and healthcare practices (dentists, physiotherapists, small clinics)",
+      "count": 7,
+      "created": [
+        {
+          "id": "expt-35b82b95-",
+          "title": "Zahnarztpraxis Dr. med. dent. Julia Schmidt (Berlin) is a dental practice that could benef",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-53ca0458-",
+          "title": "Physiotherapie am Park (Munich) is a physiotherapy practice that could benefit from AI-pow",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-008bd851-",
+          "title": "Hausarztpraxis Dr. med. Thomas Weber (Hamburg) is a general practice clinic that could ben",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-b1e40c03-",
+          "title": "Zahnarztpraxis am Markt (Cologne) is a dental practice that could benefit from AI-assisted",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-892e5ba1-",
+          "title": "Physiotherapie Zentrum Stuttgart is a physiotherapy center that could benefit from AI-powe",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-e84eac33-",
+          "title": "Kinderarztpraxis Dr. med. Anna Müller (Frankfurt) is a pediatric practice that could benef",
+          "status": "DISCOVERED"
+        },
+        {
+          "id": "expt-1e01b616-",
+          "title": "Orthopädische Praxis Dr. med. Christian Becker (Düsseldorf) is an orthopedic practice that",
+          "status": "DISCOVERED"
+        }
+      ],
+      "run": "er-6297bcbc-e",
+      "verdict": "FAIL",
+      "ms": 24868
+    }
+  ],
+  "smeAudit": [
+    {
+      "id": "expt-1e01b616-",
+      "name": "Orthopädische Praxis Dr. med. Christian Becker (Düsseldorf) is an orthopedic practice that",
+      "hasUrl": true,
+      "genericCityParens": true,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-e84eac33-",
+      "name": "Kinderarztpraxis Dr. med. Anna Müller (Frankfurt) is a pediatric practice that could benef",
+      "hasUrl": true,
+      "genericCityParens": true,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-892e5ba1-",
+      "name": "Physiotherapie Zentrum Stuttgart is a physiotherapy center that could benefit from AI-powe",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-b1e40c03-",
+      "name": "Zahnarztpraxis am Markt (Cologne) is a dental practice that could benefit from AI-assisted",
+      "hasUrl": true,
+      "genericCityParens": true,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-008bd851-",
+      "name": "Hausarztpraxis Dr. med. Thomas Weber (Hamburg) is a general practice clinic that could ben",
+      "hasUrl": true,
+      "genericCityParens": true,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-53ca0458-",
+      "name": "Physiotherapie am Park (Munich) is a physiotherapy practice that could benefit from AI-pow",
+      "hasUrl": true,
+      "genericCityParens": true,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-35b82b95-",
+      "name": "Zahnarztpraxis Dr. med. dent. Julia Schmidt (Berlin) is a dental practice that could benef",
+      "hasUrl": true,
+      "genericCityParens": true,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-f6e5c35a-",
+      "name": "Schneider & Partner Unternehmensberatung is a German consultancy with a public website, li",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-fe395ce1-",
+      "name": "ASV Versicherungsmakler GmbH is a German insurance broker with a public website, likely ha",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-2825a386-",
+      "name": "Rechtsanwälte Hoffmann & Kollegen is a German law firm with a public website, likely deali",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-15990784-",
+      "name": "Steuerkanzlei Weber is a German tax consultancy with a public website, likely handling pay",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-667a40a4-",
+      "name": "Berger Consulting GmbH is a German management consultancy with a public website, likely pr",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-a2294de6-",
+      "name": "Versicherungsbüro Müller is a German insurance brokerage (Versicherungsmakler) with a publ",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-be0d55ba-",
+      "name": "Kanzlei Dr. Schmidt & Partner is a German law firm (Rechtsanwälte) with a public website, ",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-196b4b22-",
+      "name": "WPS Steuerberatungsgesellschaft mbH is a German tax consultancy (Steuerberater) with a pub",
+      "hasUrl": true,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": true
+    },
+    {
+      "id": "expt-b30cb379-",
+      "name": "Tchibo is a German coffee retailer and e-commerce company with a diverse product range, an",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": true,
+      "credible": false
+    },
+    {
+      "id": "expt-bf4a2c14-",
+      "name": "Käthe Wohlfahrt is a German retailer specializing in Christmas decorations, with an online",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-53237bb6-",
+      "name": "Hagebaumarkt is a German DIY/home improvement retailer with an online store, and its quote",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-b9aab179-",
+      "name": "Galeria Karstadt Kaufhof is a German department store chain with an online shop, and its m",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-17e1a1af-",
+      "name": "Bonprix is a German online fashion retailer that could benefit from AI automation in custo",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-587306db-",
+      "name": "Manufactum is a German retailer specializing in high-quality household goods and food, wit",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-897b2379-",
+      "name": "Globetrotter Ausrüstung is a German outdoor retail chain with an e-commerce presence, and ",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-879aba1c-",
+      "name": "Sanitär Fischer is a plumbing and heating business in Leipzig, Germany, with a public webs",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-00bc05c8-",
+      "name": "Elektro Müller is an electrical business in Düsseldorf, Germany, with a public website.",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-ce45ba25-",
+      "name": "Tischlerei Weber is a carpentry business in Stuttgart, Germany, with a public website.",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-1d9bdd22-",
+      "name": "Klempnerei Becker is a plumbing business in Frankfurt, Germany, with a public website.",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-8bb356e2-",
+      "name": "Elektro Schmidt is an electrical company in Cologne, Germany, with a public website.",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-d9c81fd9-",
+      "name": "Schreinerei Hoffmann is a carpentry business in Hamburg, Germany, with a public website.",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-c81bbfa3-",
+      "name": "Sanitär Wagner is a plumbing and heating business in Berlin, Germany, with a public websit",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    },
+    {
+      "id": "expt-41592ea7-",
+      "name": "Elektro Meier GmbH is an electrical contracting business in Munich, Germany, with a public",
+      "hasUrl": false,
+      "genericCityParens": false,
+      "largeCorp": false,
+      "credible": false
+    }
+  ],
+  "scoring": [
+    {
+      "id": "expt-d5c30af0-",
+      "title": "A 'Notion-Vorlage: Kundenprojekt-Manager' for German-speaking service providers (e.g., web designers",
+      "overall": 21.723,
+      "go": true
+    },
+    {
+      "id": "expt-92877717-",
+      "title": "A 'Buchhaltung auf Autopilot' spreadsheet system for German micro-entrepreneurs (EÜR) simplifies boo",
+      "overall": 27.154,
+      "go": true
+    },
+    {
+      "id": "expt-978155f7-",
+      "title": "A 'Datenschutz-Kit' (GDPR compliance pack) for German freelancers and micro-businesses, including ch",
+      "overall": 38.016,
+      "go": true
+    },
+    {
+      "id": "expt-a2598507-",
+      "title": "A German-language VAT & E-Commerce Compliance Calculator/Checklist for small online sellers addresse",
+      "overall": 59.4,
+      "go": true
+    },
+    {
+      "id": "expt-6d2c2378-",
+      "title": "A German-language Prompt & Workflow Package for Customer Service Automation (using ChatGPT/Claude) i",
+      "overall": 10.862,
+      "go": true
+    },
+    {
+      "id": "expt-5292ddf8-",
+      "title": "A German-language Notion System for Managing EU Business Finances (including VAT, OSS, and multi-cur",
+      "overall": 29.417,
+      "go": true
+    },
+    {
+      "id": "expt-70839c88-",
+      "title": "A German-language Freelancer Tax & Invoice Checklist (SOP Pack) is a viable product for freelancers ",
+      "overall": 35.64,
+      "go": true
+    },
+    {
+      "id": "expt-c0be3255-",
+      "title": "A German-language Rental Property ROI Calculator (Excel/Google Sheets) is a viable product for priva",
+      "overall": 16.293,
+      "go": true
+    },
+    {
+      "id": "expt-b85acae3-",
+      "title": "A German-language VAT & E-commerce Compliance Spreadsheet Template for small online sellers is a via",
+      "overall": 20.366,
+      "go": true
+    },
+    {
+      "id": "expt-9cfb979d-",
+      "title": "A Prompt Engineering Workflow Pack for German-speaking marketing agencies is a viable product opport",
+      "overall": 15.6,
+      "go": true
+    },
+    {
+      "id": "expt-6d75fcd5-",
+      "title": "A Notion-based 'Business Starter Kit' for German solopreneurs is a viable product opportunity.",
+      "overall": 14.482,
+      "go": true
+    },
+    {
+      "id": "expt-2ccb02c2-",
+      "title": "A GDPR Compliance Checklist & SOP Pack for EU-based small businesses is a viable product opportunity",
+      "overall": 27.456,
+      "go": true
+    },
+    {
+      "id": "expt-0f240cd6-",
+      "title": "A German Income Tax Calculator for Freelancers (Einkommensteuer) is a viable product opportunity.",
+      "overall": 23.534,
+      "go": true
+    },
+    {
+      "id": "expt-2d63f409-",
+      "title": "A German-language VAT & E-commerce Compliance Spreadsheet Template for small online sellers is a via",
+      "overall": 29.417,
+      "go": true
+    },
+    {
+      "id": "expt-12516d0d-",
+      "title": "A 'German Payroll & Mini-Job Calculator' for small businesses helps calculate wages, social contribu",
+      "overall": 23.534,
+      "go": true
+    },
+    {
+      "id": "expt-69a27068-",
+      "title": "A 'Dropshipping Supplier Outreach & Negotiation Prompt Pack' (ChatGPT prompts + spreadsheet tracker)",
+      "overall": 14.482,
+      "go": true
+    },
+    {
+      "id": "expt-0f9716fa-",
+      "title": "A 'GDPR Compliance Checklist & SOP Pack' for small online shops (Shopify) addresses mandatory EU dat",
+      "overall": 34.32,
+      "go": true
+    },
+    {
+      "id": "expt-358996c2-",
+      "title": "A Notion-based 'EU Business Launch OS' for non-EU founders entering the German market (legal setup, ",
+      "overall": 29.417,
+      "go": true
+    },
+    {
+      "id": "expt-92f3ecc0-",
+      "title": "A German-language Freelancer Tax & Invoice Tracker (spreadsheet) helps freelancers manage EÜR (profi",
+      "overall": 20.366,
+      "go": true
+    },
+    {
+      "id": "expt-11db0cf6-",
+      "title": "A German-language VAT & E-Commerce Compliance Spreadsheet/Calculator for small online sellers addres",
+      "overall": 20.366,
+      "go": true
+    },
+    {
+      "id": "expt-434afb90-",
+      "title": "Identified 4 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "overall": 31.68,
+      "go": true
+    },
+    {
+      "id": "expt-13a88c9f-",
+      "title": "Identified 5 concrete, no-inventory digital product opportunities for the DE/EU market targeting €30",
+      "overall": 25.344,
+      "go": true
+    },
+    {
+      "id": "expt-f2a8b842-",
+      "title": "Identified 5 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "overall": 31.68,
+      "go": true
+    },
+    {
+      "id": "expt-77a6dee2-",
+      "title": "Identified 6 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "overall": 31.68,
+      "go": true
+    },
+    {
+      "id": "expt-cb007d5c-",
+      "title": "Identified 4 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "overall": 31.68,
+      "go": true
+    },
+    {
+      "id": "expt-e438c94c-",
+      "title": "Identified 5 concrete, buildable digital product opportunities for the DE/EU market targeting €300 E",
+      "overall": 31.68,
+      "go": true
+    },
+    {
+      "id": "expt-61318fe7-",
+      "title": "Identified 5 concrete, buildable digital product opportunities for the DE/EU market targeting €300 E",
+      "overall": 31.68,
+      "go": true
+    },
+    {
+      "id": "expt-75f4d6e4-",
+      "title": "Identified 6 concrete, no-inventory digital product opportunities for the DE/EU market targeting €30",
+      "overall": 31.68,
+      "go": true
+    }
+  ],
+  "killedDuplicates": [
+    {
+      "id": "expt-b85acae3-",
+      "title": "A German-language VAT & E-commerce Compliance Spreadsheet Template for small online sellers is a via",
+      "clusterKey": "german language commerce compliance spreadsheet template",
+      "keptInstead": "expt-2d63f409-"
+    },
+    {
+      "id": "expt-f2a8b842-",
+      "title": "Identified 5 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "clusterKey": "identified concrete zero inventory digital product",
+      "keptInstead": "expt-434afb90-"
+    },
+    {
+      "id": "expt-77a6dee2-",
+      "title": "Identified 6 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "clusterKey": "identified concrete zero inventory digital product",
+      "keptInstead": "expt-434afb90-"
+    },
+    {
+      "id": "expt-cb007d5c-",
+      "title": "Identified 4 concrete, zero-inventory digital product opportunities for the DE/EU market targeting €",
+      "clusterKey": "identified concrete zero inventory digital product",
+      "keptInstead": "expt-434afb90-"
+    },
+    {
+      "id": "expt-13a88c9f-",
+      "title": "Identified 5 concrete, no-inventory digital product opportunities for the DE/EU market targeting €30",
+      "clusterKey": "identified concrete inventory digital product opportunities",
+      "keptInstead": "expt-75f4d6e4-"
+    },
+    {
+      "id": "expt-61318fe7-",
+      "title": "Identified 5 concrete, buildable digital product opportunities for the DE/EU market targeting €300 E",
+      "clusterKey": "identified concrete buildable digital product opportunities",
+      "keptInstead": "expt-e438c94c-"
+    }
+  ],
+  "portfolio": [
+    {
+      "id": "expt-a2598507-",
+      "score": 59.4,
+      "status": "APPROVED",
+      "title": "A German-language VAT & E-Commerce Compliance Calculator/Checklist for small online sellers addresses the comp"
+    },
+    {
+      "id": "expt-978155f7-",
+      "score": 38.016,
+      "status": "APPROVED",
+      "title": "A 'Datenschutz-Kit' (GDPR compliance pack) for German freelancers and micro-businesses, including checklists, "
+    },
+    {
+      "id": "expt-70839c88-",
+      "score": 35.64,
+      "status": "APPROVED",
+      "title": "A German-language Freelancer Tax & Invoice Checklist (SOP Pack) is a viable product for freelancers and small "
+    },
+    {
+      "id": "expt-358996c2-",
+      "score": 29.417,
+      "status": "APPROVED",
+      "title": "A Notion-based 'EU Business Launch OS' for non-EU founders entering the German market (legal setup, tax regist"
+    },
+    {
+      "id": "expt-92877717-",
+      "score": 27.154,
+      "status": "APPROVED",
+      "title": "A 'Buchhaltung auf Autopilot' spreadsheet system for German micro-entrepreneurs (EÜR) simplifies bookkeeping a"
+    },
+    {
+      "id": "expt-12516d0d-",
+      "score": 23.534,
+      "status": "APPROVED",
+      "title": "A 'German Payroll & Mini-Job Calculator' for small businesses helps calculate wages, social contributions, and"
+    },
+    {
+      "id": "expt-d5c30af0-",
+      "score": 21.723,
+      "status": "APPROVED",
+      "title": "A 'Notion-Vorlage: Kundenprojekt-Manager' for German-speaking service providers (e.g., web designers, consulta"
+    },
+    {
+      "id": "expt-9cfb979d-",
+      "score": 15.6,
+      "status": "APPROVED",
+      "title": "A Prompt Engineering Workflow Pack for German-speaking marketing agencies is a viable product opportunity."
+    },
+    {
+      "id": "expt-6d75fcd5-",
+      "score": 14.482,
+      "status": "APPROVED",
+      "title": "A Notion-based 'Business Starter Kit' for German solopreneurs is a viable product opportunity."
+    },
+    {
+      "id": "expt-69a27068-",
+      "score": 14.482,
+      "status": "APPROVED",
+      "title": "A 'Dropshipping Supplier Outreach & Negotiation Prompt Pack' (ChatGPT prompts + spreadsheet tracker) helps ent"
+    },
+    {
+      "id": "expt-6d2c2378-",
+      "score": 10.862,
+      "status": "APPROVED",
+      "title": "A German-language Prompt & Workflow Package for Customer Service Automation (using ChatGPT/Claude) is a viable"
+    }
+  ],
+  "goBuilds": [
+    "expt-a2598507-",
+    "expt-978155f7-",
+    "expt-70839c88-"
+  ],
+  "builds": [
+    {
+      "id": "expt-a2598507-",
+      "ms": 36138,
+      "status": "QA",
+      "dispatchOk": true,
+      "runId": "er-5f15a533-7",
+      "goalId": "pg-20d34f94",
+      "verdict": "NOT_PROVEN",
+      "error": null
+    },
+    {
+      "id": "expt-978155f7-",
+      "ms": 37800,
+      "status": "BUILDING",
+      "dispatchOk": false,
+      "runId": "er-3450bbee-7",
+      "goalId": "pg-ea06fb52",
+      "verdict": null,
+      "error": "CodeX goal status: failed"
+    },
+    {
+      "id": "expt-70839c88-",
+      "ms": 33653,
+      "status": "QA",
+      "dispatchOk": true,
+      "runId": "er-c6f47477-d",
+      "goalId": "pg-7dd67eb5",
+      "verdict": "NOT_PROVEN",
+      "error": null
+    },
+    {
+      "id": "expt-978155f7-",
+      "retry": true,
+      "status": "BUILDING",
+      "ok": false,
+      "runId": "er-2cf95226-0",
+      "verdict": null,
+      "error": "CodeX goal status: failed"
+    },
+    {
+      "id": "expt-978155f7-",
+      "retry": 2,
+      "status": "BUILDING",
+      "ok": false,
+      "runId": "er-5a7209d9-c",
+      "verdict": null,
+      "error": "CodeX goal status: failed"
+    }
+  ],
+  "smeQualification": [
+    {
+      "id": "expt-fe395ce1-",
+      "name": "ASV Versicherungsmakler GmbH is a German insurance broker with a public website,",
+      "url": "https://www.asv-versicherungsmakler.de",
+      "status": "APPROVED",
+      "decision": "APPROVED"
+    },
+    {
+      "id": "expt-15990784-",
+      "name": "Steuerkanzlei Weber is a German tax consultancy with a public website, likely ha",
+      "url": "https://www.steuerkanzlei-weber.de",
+      "status": "APPROVED",
+      "decision": "APPROVED"
+    },
+    {
+      "id": "expt-196b4b22-",
+      "name": "WPS Steuerberatungsgesellschaft mbH is a German tax consultancy (Steuerberater) ",
+      "url": "https://www.wps-steuerberatung.de",
+      "status": "APPROVED",
+      "decision": "APPROVED"
+    }
+  ],
+  "publication": [
+    {
+      "id": "expt-a2598507-",
+      "published": false,
+      "blocked": true,
+      "reason": "SHOPIFY_AUTH_REQUIRED",
+      "channel": {
+        "channel": "SHOPIFY",
+        "status": "auth_required"
+      },
+      "gate": {
+        "id": "gate-360f2dae-",
+        "experimentId": "expt-a2598507-",
+        "gateType": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "description": "Shopify authentication required before publishing \"A German-language VAT & E-Commerce Compliance Calculator/Checklist for small online sellers addresses the complexity of EU VAT rules (e.g., OSS, distance sellin\".",
+        "branchPaused": true,
+        "resolvedBy": null,
+        "resolvedAt": null,
+        "metadata": null,
+        "createdAt": "2026-08-20T00:22:39.175Z",
+        "updatedAt": "2026-08-20T00:22:39.175Z"
+      }
+    },
+    {
+      "id": "expt-70839c88-",
+      "published": false,
+      "blocked": true,
+      "reason": "SHOPIFY_AUTH_REQUIRED",
+      "channel": {
+        "channel": "SHOPIFY",
+        "status": "auth_required"
+      },
+      "gate": {
+        "id": "gate-62a69b77-",
+        "experimentId": "expt-70839c88-",
+        "gateType": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "description": "Shopify authentication required before publishing \"A German-language Freelancer Tax & Invoice Checklist (SOP Pack) is a viable product for freelancers and small business owners.\".",
+        "branchPaused": true,
+        "resolvedBy": null,
+        "resolvedAt": null,
+        "metadata": null,
+        "createdAt": "2026-08-20T00:22:39.189Z",
+        "updatedAt": "2026-08-20T00:22:39.189Z"
+      }
+    }
+  ],
+  "smeOffers": [
+    {
+      "id": "expt-fe395ce1-",
+      "contactRun": "er-bd4e2396-a",
+      "contactOk": true,
+      "offerRun": "er-887ae50b-b",
+      "offerOk": true,
+      "gateId": "gate-f976909e-",
+      "offerSummary": "A concise, specific AI automation offer for ASV Versicherungsmakler GmbH, targeting manual claims processing and customer inquiries, with a concrete deliverable, expected outcome, and clear call-to-action.",
+      "contactSummary": "No public business contact email or published departmental contact was found for ASV Versicherungsmakler GmbH through available public sources. The company's website and general web search did not yield a direct published contact email address."
+    },
+    {
+      "id": "expt-15990784-",
+      "contactRun": "er-17d52788-8",
+      "contactOk": true,
+      "offerRun": "er-1b0b2f99-4",
+      "offerOk": true,
+      "gateId": "gate-7823fde0-",
+      "offerSummary": "Draft a concise, specific AI automation offer for Steuerkanzlei Weber, a German tax consultancy in Schwabach, focusing on automating manual payroll and bookkeeping processes. The offer includes a concrete deliverable (automated data extraction and reconciliation workflow), expected outcomes (time savings, fewer errors, faster month-end close), and a clear call-to-action (book a 30-minute discovery call).",
+      "contactSummary": "No public business contact (info@ or published departmental contact) for 'Steuerkanzlei Weber' could be found from the provided context or available evidence. The task objective references a public website, but no URL or contact details were supplied, and no external browser evidence was referenced."
+    },
+    {
+      "id": "expt-196b4b22-",
+      "contactRun": "er-684131d4-4",
+      "contactOk": true,
+      "offerRun": "er-eeb92fe6-f",
+      "offerOk": true,
+      "gateId": "gate-d6863fd6-",
+      "offerSummary": "A concise, specific AI automation offer for WPS Steuerberatungsgesellschaft mbH, targeting manual data entry and document processing for tax filings, with a concrete deliverable, expected outcome, and clear call-to-action.",
+      "contactSummary": "No published business contact (info@ or departmental email) was found for WPS Steuerberatungsgesellschaft mbH through available public sources."
+    }
+  ]
+}

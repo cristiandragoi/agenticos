@@ -200,10 +200,41 @@ export const ExecutionTimeline: React.FC<Props> = ({ events, runIsActive }) => {
     return items.sort((a, b) => a.sequence - b.sequence);
   }, [events, executions, consumedSequences]);
 
+  const [now, setNow] = useState(Date.now());
+  React.useEffect(() => {
+    if (!runIsActive) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [runIsActive]);
+
+  const lastEventTs = useMemo(() => {
+    let max = 0;
+    for (const e of events) {
+      if (e.timestamp) {
+        const ts = new Date(e.timestamp).getTime();
+        if (!isNaN(ts)) max = Math.max(max, ts);
+      }
+    }
+    return max || Date.now();
+  }, [events]);
+
+  const idleSeconds = Math.max(0, Math.floor((now - lastEventTs) / 1000));
+  const isStalled = runIsActive && idleSeconds >= 45;
+
   if (events.length === 0) {
     return (
-      <div data-testid="codex-timeline" className="text-center py-6 text-slate-600 text-xs font-mono">
-        Awaiting execution events...
+      <div data-testid="codex-timeline" className="py-6 flex flex-col items-center justify-center gap-2 text-slate-500 text-xs">
+        {runIsActive ? (
+          <>
+            <div className="flex items-center gap-2 text-emerald-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Starting execution — connecting to worker and initializing workspace…</span>
+            </div>
+            <span className="text-[11px] text-slate-600 font-mono">Waiting for first tool execution event</span>
+          </>
+        ) : (
+          <span className="font-mono">Awaiting execution events...</span>
+        )}
       </div>
     );
   }
@@ -230,6 +261,24 @@ export const ExecutionTimeline: React.FC<Props> = ({ events, runIsActive }) => {
               </div>
             );
           })}
+
+          {/* Live Liveness / Heartbeat banner */}
+          {runIsActive && (
+            <div className={`mt-2 py-1.5 px-3 rounded text-[12px] flex items-center gap-2 border ${
+              isStalled
+                ? 'bg-rose-950/30 border-rose-800/50 text-rose-300'
+                : 'bg-slate-900/80 border-slate-800 text-slate-400'
+            }`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                isStalled ? 'bg-rose-500 animate-ping' : 'bg-emerald-400 animate-pulse'
+              }`} />
+              <span>
+                {isStalled
+                  ? `Possible stall — no worker events received for ${idleSeconds}s`
+                  : `Still working — last heartbeat ${idleSeconds} second${idleSeconds === 1 ? '' : 's'} ago`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </ErrorBoundary>

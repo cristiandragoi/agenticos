@@ -1,0 +1,20 @@
+{
+  "phases": {
+    "p0": "complete", "p1": "complete", "p1b": "complete", "p2": "pass",
+    "p3": "code_done", "p4": "pass", "p5": "pass", "p6": "pass", "p7": "pass",
+    "p8": "pass"
+  },
+  "p8_evidence": {
+    "conversation": "conv-e556162b-",
+    "hermes_plan_run": "er-275265f1-9",
+    "codex_goal": "goal-84c1f20e-",
+    "delegatedBy": "hermes-inrepo",
+    "provider": "DeepSeek",
+    "model": "deepseek-chat",
+    "edit": "server/src/__tests__/phase8CodexRouting.test.ts (added 'hello world' assertion)",
+    "test": "vitest phase8CodexRouting.test.ts -> 5/5 PASS",
+    "external_codex_cli_used": false,
+    "orphans": 0
+  },
+  "updated": "2026-08-21T07:35:00+02:00"
+}

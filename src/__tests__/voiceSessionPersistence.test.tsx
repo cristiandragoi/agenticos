@@ -155,3 +155,7 @@ describe('D: voice identity persistence across 10 turns', () => {
     expect(distinctVoicesInLog(50)).toContain('aura-helios-en');
   });
 });
+  it('resolves en-AU locale for agent-jarvis with null config', () => {
+    const cfg = resolveVoiceSessionConfig('agent-jarvis', null);
+    expect(cfg.locale).toBe('en-AU');
+  });

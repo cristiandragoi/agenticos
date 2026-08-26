@@ -1,1 +1,0 @@
-ALTER TABLE `teams` ADD `status` text DEFAULT 'awaiting_approval' NOT NULL;

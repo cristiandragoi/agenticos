@@ -1,6 +1,6 @@
 import { ModelGateway, ChatRequest, ChatResponse, ChatStreamChunk, ProviderDefinition } from '../types.js';
 import { ProviderCredentialService } from '../credentials.js';
-import { ProviderRateLimitError } from './openai.js';
+import { ProviderRateLimitError, buildRequestSignal } from './openai.js';
 
 /**
  * DeepSeekGateway — first-class DeepSeek V4 provider implementation
@@ -32,14 +32,6 @@ export function resolveDeepSeekWireModel(modelId?: string): string {
   if (m === 'deepseek-v4-flash' || m === 'deepseek-chat' || m === 'auto') return 'deepseek-chat';
   // Pass through any explicit wire id (e.g. deepseek-coder).
   return m;
-}
-
-function buildRequestSignal(req: ChatRequest): AbortSignal {
-  if (req.signal && req.timeoutMs) {
-    return AbortSignal.any([req.signal, AbortSignal.timeout(req.timeoutMs)]);
-  }
-  if (req.signal) return req.signal;
-  return AbortSignal.timeout(req.timeoutMs || 30000);
 }
 
 /** Describe a fetch transport failure with its underlying cause (no secrets).

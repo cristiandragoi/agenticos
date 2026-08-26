@@ -109,6 +109,31 @@ class GoalStore extends EventEmitter {
     };
   }
 
+  list(options?: { limit?: number; status?: string }): GoalRecord[] {
+    const query = db.select().from(goals).orderBy(desc(goals.createdAt));
+    const rows = options?.limit ? query.limit(options.limit).all() : query.all();
+    return rows.map((row) => ({
+      id: row.id,
+      originalGoal: row.originalGoal,
+      status: row.status as GoalState,
+      retryCount: row.retryCount,
+      providerFallbackCount: row.providerFallbackCount,
+      executionOptions: row.executionOptions ? JSON.parse(row.executionOptions) : undefined,
+      checkpointId: row.activeCheckpointId || undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      workspacePath: row.workspacePath || undefined,
+      conversationId: row.conversationId || undefined,
+      workspaceId: row.workspaceId || undefined,
+      workerId: row.workerId || undefined,
+      leaseExpiresAt: row.leaseExpiresAt || undefined,
+      verificationState: (row.verificationState || 'none') as GoalRecord['verificationState'],
+      contractId: row.contractId || undefined,
+      history: [],
+      runSummary: typeof row.runSummary === 'string' ? (() => { try { return JSON.parse(row.runSummary); } catch { return row.runSummary; } })() : (row.runSummary as any)
+    }));
+  }
+
   listByConversation(conversationId: string, limit = 10): GoalRecord[] {
     const query = db.select()
       .from(goals)
@@ -283,22 +308,27 @@ class GoalStore extends EventEmitter {
         .set({ status: 'failed', updatedAt: now.toString(), workerId: null, leaseExpiresAt: null })
         .where(eq(goals.id, g.id))
         .run();
-      db.insert(goalEvents).values({
-        id: `bgevt-sweep-${g.id}-${now}`,
-        goalId: g.id,
-        sequence: (db.select({ m: sql`COALESCE(MAX(${goalEvents.sequence}), 0)` }).from(goalEvents).where(eq(goalEvents.goalId, g.id)).get() as any)?.m + 1,
-        timestamp: new Date(now).toISOString(),
-        state: 'failed',
-        step: 0,
-        message,
-        eventType: 'task_failed',
-        normalizedStatus: 'failed',
-        lifecycleState: 'failed',
-        userMessage: message,
-        technicalMessage: message,
-        provider: 'agentic-os',
-        model: 'goal-sweep',
-      }).run();
+      try {
+        const nextSeq = ((db.select({ m: sql`COALESCE(MAX(${goalEvents.sequence}), 0)` }).from(goalEvents).where(eq(goalEvents.goalId, g.id)).get() as any)?.m ?? 0) + 1;
+        db.insert(goalEvents).values({
+          id: `bgevt-sweep-${g.id}-${now}-${Math.random().toString(36).slice(2, 6)}`,
+          goalId: g.id,
+          sequence: nextSeq,
+          timestamp: new Date(now).toISOString(),
+          state: 'failed',
+          step: 0,
+          message,
+          eventType: 'task_failed',
+          normalizedStatus: 'failed',
+          lifecycleState: 'failed',
+          userMessage: message,
+          technicalMessage: message,
+          provider: 'agentic-os',
+          model: 'goal-sweep',
+        }).onConflictDoNothing().run();
+      } catch (err: any) {
+        console.error('[GoalStore] lease sweep event insert error (non-fatal):', err?.message);
+      }
       this.emit('goal:updated', this.get(g.id));
     }
     return stale.length;

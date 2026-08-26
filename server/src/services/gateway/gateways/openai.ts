@@ -27,21 +27,22 @@ export class ProviderRateLimitError extends Error {
   }
 }
 
+export const DEFAULT_PROVIDER_TIMEOUT_MS = 60_000;
+
 /**
  * Per-attempt request signal: combine the caller's abort signal (client
- * cancel / stream stop) with an internal per-attempt budget WHEN the caller
- * explicitly sets timeoutMs. Without the internal budget, a caller that
- * passes its own signal (e.g. the Jarvis direct stream) had NO timeout of
- * its own — a hung provider stalled until the caller's consumer-side guard
- * aborted, which could not fall back. Callers that pass no timeoutMs keep
- * the legacy behavior (external signal only, else a 30s default).
+ * cancel / stream stop) with a hard timeout.
+ * Every provider request has a hard timeout so no request can wait forever.
  */
-function buildRequestSignal(req: ChatRequest): AbortSignal {
-  if (req.signal && req.timeoutMs) {
-    return AbortSignal.any([req.signal, AbortSignal.timeout(req.timeoutMs)]);
+export function buildRequestSignal(req: ChatRequest): AbortSignal {
+  const timeoutMs = req.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+
+  if (req.signal) {
+    return AbortSignal.any([req.signal, timeoutSignal]);
   }
-  if (req.signal) return req.signal;
-  return AbortSignal.timeout(req.timeoutMs || 30000);
+
+  return timeoutSignal;
 }
 
 export class OpenAICompatibleGateway implements ModelGateway {
@@ -143,8 +144,19 @@ export class OpenAICompatibleGateway implements ModelGateway {
             totalTokens: promptTokens + completionTokens
           };
         } catch (err: any) {
+          if (req.signal?.aborted) throw err;
+          const isTimeout =
+            err?.name === 'TimeoutError' ||
+            err?.cause?.name === 'TimeoutError' ||
+            /timeout|aborted/i.test(err?.message || '') ||
+            /timeout|aborted/i.test(err?.cause?.message || '');
+
+          if (isTimeout) {
+            lastError = new Error(`Provider timeout: request to ${this.name}/${model} exceeded ${req.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms`);
+            break;
+          }
           lastError = err;
-          if (attempt === 0 && !err?.name?.includes('Abort')) {
+          if (attempt === 0) {
             await new Promise(r => setTimeout(r, 800));
             continue;
           }
@@ -164,21 +176,35 @@ export class OpenAICompatibleGateway implements ModelGateway {
 
     const dbKey = await ProviderCredentialService.getCredential(this.name);
     const apiKey = dbKey || this.definition.apiKey;
-    const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-      },
-      body: JSON.stringify({ 
-        model: model, 
-        messages, 
-        max_tokens: req.maxTokens || 1024, 
-        stream: true,
-        // stream_options: { include_usage: true } // Standard OpenAI feature for tokens in stream
-      }),
-      signal: buildRequestSignal(req)
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+        },
+        body: JSON.stringify({ 
+          model: model, 
+          messages, 
+          max_tokens: req.maxTokens || 1024, 
+          stream: true,
+        }),
+        signal: buildRequestSignal(req)
+      });
+    } catch (fetchErr: any) {
+      if (req.signal?.aborted) throw fetchErr;
+      const isTimeout =
+        fetchErr?.name === 'TimeoutError' ||
+        fetchErr?.cause?.name === 'TimeoutError' ||
+        /timeout|aborted/i.test(fetchErr?.message || '') ||
+        /timeout|aborted/i.test(fetchErr?.cause?.message || '');
+
+      if (isTimeout) {
+        throw new Error(`Provider timeout: stream to ${this.name}/${model} exceeded ${req.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS}ms`);
+      }
+      throw fetchErr;
+    }
 
     if (!res.ok) {
       if (res.status === 429) {
@@ -245,5 +271,5 @@ export class OpenAICompatibleGateway implements ModelGateway {
   supportsVision() { return this.definition.capabilities?.includes('supportsVision') ?? false; }
   supportsReasoning() { return this.definition.capabilities?.includes('supportsReasoning') ?? false; }
   supportsStreaming() { return true; } // OpenAI stream=true is standard
-  maxContext() { return this.definition.maxContext || 8192; }
+  maxContext() { return this.definition.maxContext || 128000; }
 }

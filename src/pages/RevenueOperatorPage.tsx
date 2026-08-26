@@ -376,6 +376,8 @@ const RevenueOperatorPage: React.FC = () => {
   const [drawer, setDrawer] = useState<RevenueExperimentTrace | null>(null);
   const [resolvingGateId, setResolvingGateId] = useState<string | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<string>('all');
+  const [supervisorState, setSupervisorState] = useState<any>(null);
+  const [briefingModal, setBriefingModal] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -402,7 +404,7 @@ const RevenueOperatorPage: React.FC = () => {
       }
       setMission(activeMission);
 
-      const [trace, dpBoard, smeBoard, pipeBoard, live, gatesQ, ledgerList, expList] = await Promise.all([
+      const [trace, dpBoard, smeBoard, pipeBoard, live, gatesQ, ledgerList, expList, supStatus] = await Promise.all([
         revenueOperatorClient.traceMission(activeMission.id),
         revenueOperatorClient.board(activeMission.id, 'digital_products'),
         revenueOperatorClient.board(activeMission.id, 'german_sme'),
@@ -411,6 +413,7 @@ const RevenueOperatorPage: React.FC = () => {
         revenueOperatorClient.gateQueue(),
         revenueOperatorClient.listLedger(activeMission.id),
         revenueOperatorClient.listExperiments(activeMission.id),
+        revenueOperatorClient.getSupervisorStatus().catch(() => null),
       ]);
       setMissionTrace(trace);
       setBoards({ digital_products: dpBoard, german_sme: smeBoard, pipeline: pipeBoard });
@@ -419,6 +422,7 @@ const RevenueOperatorPage: React.FC = () => {
       setGateItems(gatesQ);
       setLedger(ledgerList);
       setExperiments(expList);
+      setSupervisorState(supStatus);
     } catch (err: any) {
       console.error('Failed to load Revenue Operator data:', err);
       setError(err?.message || 'Failed to load data');
@@ -426,6 +430,24 @@ const RevenueOperatorPage: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const handleSupervisorControl = async (action: 'START' | 'PAUSE' | 'RESUME' | 'STOP') => {
+    try {
+      await revenueOperatorClient.controlSupervisor(action, mission?.id);
+      await loadData();
+    } catch (err: any) {
+      setError(`Supervisor control failed: ${err.message}`);
+    }
+  };
+
+  const handleOpenBriefing = async () => {
+    try {
+      const b = await revenueOperatorClient.getDailyBriefing(mission?.id);
+      setBriefingModal(b);
+    } catch (err: any) {
+      setError(`Failed to fetch briefing: ${err.message}`);
+    }
+  };
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -510,8 +532,94 @@ const RevenueOperatorPage: React.FC = () => {
         </div>
       )}
 
+      {/* Supervisor Control & Autonomous Continuation Bar */}
+      <div className="px-8 pt-4 pb-0">
+        <div className="bg-[#12151c] border border-slate-800 rounded-xl p-3.5 flex items-center justify-between flex-wrap gap-4" data-testid="supervisor-control-bar">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Supervisor Phase 2C:</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                supervisorState?.controlState === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
+                supervisorState?.controlState === 'PAUSED' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                'bg-slate-800 text-slate-400 border-slate-700'
+              }`}>
+                {supervisorState?.controlState || 'ACTIVE'}
+              </span>
+            </div>
+            <span className="text-slate-600">|</span>
+            <div className="text-xs text-slate-300">
+              <span className="text-emerald-400 font-semibold">{supervisorState?.activeBranchesCount ?? 0}</span> active branches · <span className="text-amber-400 font-semibold">{supervisorState?.pausedBranchesCount ?? 0}</span> gated (isolated) · <span className="text-slate-400">Cycle #{supervisorState?.cycleCount ?? 0}</span>
+            </div>
+            {supervisorState?.lastAction ? (
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5 flex-wrap" data-testid="supervisor-last-action">
+                <span className="text-slate-500">last:</span>
+                <span className="font-mono text-slate-300">{supervisorState.lastAction.actionType}</span>
+                <span className="font-mono">{supervisorState.lastAction.executor ?? '—'}</span>
+                {supervisorState.lastAction.provider ? <span className="font-mono text-slate-300">{supervisorState.lastAction.provider}/{supervisorState.lastAction.model ?? '?'}</span> : null}
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                  supervisorState.lastAction.status === 'completed' ? 'bg-emerald-500/15 text-emerald-300' :
+                  supervisorState.lastAction.status === 'failed' ? 'bg-rose-500/15 text-rose-300' :
+                  supervisorState.lastAction.status === 'blocked' ? 'bg-rose-500/15 text-rose-300' :
+                  'bg-slate-700/50 text-slate-300'
+                }`}>{supervisorState.lastAction.status}</span>
+                {supervisorState.lastAction.runId ? <span className="font-mono text-[10px] text-slate-500">{supervisorState.lastAction.runId.slice(0, 14)}…</span> : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenBriefing}
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-xs font-medium cursor-pointer"
+            >
+              Daily Briefing
+            </button>
+            {supervisorState?.controlState !== 'ACTIVE' ? (
+              <button
+                onClick={() => handleSupervisorControl('START')}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold cursor-pointer shadow-sm"
+              >
+                START / RESUME
+              </button>
+            ) : (
+              <button
+                onClick={() => handleSupervisorControl('PAUSE')}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-semibold cursor-pointer shadow-sm"
+              >
+                PAUSE
+              </button>
+            )}
+            <button
+              onClick={() => handleSupervisorControl('STOP')}
+              className="px-3 py-1 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 border border-slate-700 rounded text-xs font-medium cursor-pointer"
+            >
+              STOP
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {briefingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setBriefingModal(null)}>
+          <div className="bg-[#12151a] border border-slate-700 rounded-xl w-[700px] max-w-[90vw] max-h-[80vh] overflow-y-auto p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Target size={16} className="text-emerald-400" /> Revenue Mission Briefing
+              </h3>
+              <button onClick={() => setBriefingModal(null)} className="text-slate-400 hover:text-white"><X size={16} /></button>
+            </div>
+            <div className="mt-4 whitespace-pre-wrap text-xs text-slate-200 leading-relaxed font-sans">
+              {briefingModal.narrative}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setBriefingModal(null)} className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI strip — every card drills down */}
-      <div className="px-8 pt-6 pb-2">
+      <div className="px-8 pt-4 pb-2">
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {kpiCard('Target (30d)', <Target size={13} className="text-emerald-400" />, fmtEur(k?.target.value ?? mission?.targetAmount ?? 300),
             `${k?.target.activeExperiments ?? experiments.length} active exp · ${k?.target.daysRemaining ?? '—'}d left`, 'text-white', 'target', 'kpi-target')}

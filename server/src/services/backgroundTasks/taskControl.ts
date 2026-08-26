@@ -4,6 +4,12 @@
  * Explicit task-control language overrides normal direct-chat classification.
  * A normal conversation message NEVER touches task state — only these
  * explicit commands do.
+ *
+ * Phase 6 fix: a control verb must ADJACENTLY govern "task" and (for mutating
+ * commands) either carry a real identifier or be a short, unambiguous command.
+ * Ordinary engineering prose ("...parent task after restart...") is NEVER
+ * task control, and identifiers are only extracted from ID-shaped tokens
+ * (never loose "t-" fragments like "t-restart").
  */
 import { backgroundTaskManager } from './manager.js';
 import { taskShortId, type BackgroundTaskRecord } from './types.js';
@@ -21,34 +27,54 @@ export type TaskControlIntent =
   | { type: 'open_board' }
   | null;
 
-const TASK_REF_RE = /(?:task\s+)?(t-\w{3,12}|bgtask-[a-z0-9-]+)/i;
+/**
+ * Canonical identifier shapes — word-bounded and ID-shaped so ordinary prose
+ * can never donate a fabricated id.
+ *
+ *  - `T-ABC123` / `t-ABC123`            : short task id (taskShortId emits `T-` + uppercase)
+ *  - `bgtask-…`, `pt-…`, `task-…`, `goal-…`, `run-…`, `er-…`, `exr-…`, `ver-…`
+ *                                        : full ids (all seen across the canonical DB)
+ *
+ * The suffix must contain at least one digit, which excludes hyphenated English
+ * words like "task-force", "goal-post", "run-time" while still matching real ids
+ * (`goal-456`, `pt-e80a87e3`, `bgtask-1a2b3c`).
+ */
+const TASK_REF_RE = /\b([Tt]-[A-Z0-9]{3,}|(?:bgtask|pt|task|goal|run|er|exr|ver)-[a-z0-9-]*\d[a-z0-9-]*)\b/;
+
+/**
+ * A control verb must directly govern "task"/"tasks" (optionally via a single
+ * determiner): "resume task", "stop the task", "cancel my task". It must NOT
+ * merely co-occur with the word "task" somewhere else in the sentence.
+ */
+const VERB_ADJ_TASK_RE = /\b(pause|suspend|resume|continue|restart|stop|halt|abort|cancel|retry|approve|deny|reject)\s+(?:the\s+|my\s+|a\s+|an\s+)?tasks?(?![-\w])/i;
+
+function extractTaskRef(prompt: string): string {
+  const m = prompt.match(TASK_REF_RE);
+  return m ? m[1] : '';
+}
 
 export function classifyTaskControl(prompt: string): TaskControlIntent {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
-  const refMatch = prompt.match(TASK_REF_RE);
-  const taskRef = refMatch ? refMatch[1] : '';
+  const taskRef = extractTaskRef(prompt);
+  const isShort = p.split(/\s+/).length <= 6;
 
-  // Explicit task verbs take priority over everything.
-  if (/\b(pause|suspend)\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'pause_task', taskRef };
-  }
-  if (/\b(resume|continue|restart)\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'resume_task', taskRef };
-  }
-  if (/\b(stop|halt|abort)\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'stop_task', taskRef };
-  }
-  if (/\bcancel\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'cancel_task', taskRef };
-  }
-  if (/\bretry\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'retry_task', taskRef };
-  }
-  if (/\bapprove\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'approve_task', taskRef, choice: 'allow' };
-  }
-  if (/\b(deny|reject)\b/.test(p) && /\btask\b/.test(p)) {
-    return { type: 'approve_task', taskRef, choice: 'deny' };
+  // A control verb only counts when it ADJACENTLY governs "task".
+  const verbAdj = p.match(VERB_ADJ_TASK_RE);
+  if (verbAdj) {
+    const verb = verbAdj[1];
+    // Mutating commands without an explicit id are only honored when short and
+    // unambiguous ("resume task", "pause task"). A long message that merely
+    // mentions a control verb and "task" is a NEW instruction, not control.
+    const mutatingAllowed = !!taskRef || isShort;
+    if (mutatingAllowed) {
+      if (verb === 'pause' || verb === 'suspend') return { type: 'pause_task', taskRef };
+      if (verb === 'resume' || verb === 'continue' || verb === 'restart') return { type: 'resume_task', taskRef };
+      if (verb === 'stop' || verb === 'halt' || verb === 'abort') return { type: 'stop_task', taskRef };
+      if (verb === 'cancel') return { type: 'cancel_task', taskRef };
+      if (verb === 'retry') return { type: 'retry_task', taskRef };
+      if (verb === 'approve') return { type: 'approve_task', taskRef, choice: 'allow' };
+      if (verb === 'deny' || verb === 'reject') return { type: 'approve_task', taskRef, choice: 'deny' };
+    }
   }
 
   // Agent status queries — "what is Hermes doing" / "what is CodeX doing".
@@ -57,10 +83,9 @@ export function classifyTaskControl(prompt: string): TaskControlIntent {
     return { type: 'agent_status', agent: agentMatch[1] };
   }
 
-  // Single-task inspection FIRST — "show task T-104" / "status of task X".
-  // Must precede the plural listing patterns so "show task <id>" is not
-  // swallowed by "show tasks".
-  if (taskRef && /\b(show|status|progress|inspect)\b/.test(p) && /\btask\b/.test(p)) {
+  // Single-task inspection FIRST — "show task T-104" / "status of task X" /
+  // "what happened to goal-456".
+  if (taskRef && /\b(show|status|progress|inspect|what happened to|tell me about)\b/.test(p)) {
     return { type: 'show_task', taskRef };
   }
   if (/\bprogress of\b/.test(p) && taskRef) {
@@ -95,7 +120,10 @@ export function formatTaskLine(task: BackgroundTaskRecord): string {
     ? ` · ${formatElapsed(Date.now() - new Date(task.startedAt).getTime())}`
     : '';
   const extra = task.blocker ? ` — ${task.blocker}` : task.progressMessage ? ` — ${task.progressMessage}` : '';
-  return `${taskShortId(task.taskId)} [${task.status}] ${task.title} (${task.worker})${elapsed}${extra}`;
+  const provider = (task.metadata as any)?.effectiveProvider || (task.metadata as any)?.assignedProvider;
+  const model = (task.metadata as any)?.effectiveModel || (task.metadata as any)?.assignedModel;
+  const modelInfo = provider ? ` [LLM: ${provider}${model ? `/${model}` : ''}]` : '';
+  return `${taskShortId(task.taskId)} [${task.status.toUpperCase()}] ${task.title} (${task.worker})${modelInfo}${elapsed}${extra}`;
 }
 
 function formatElapsed(ms: number): string {
@@ -125,9 +153,10 @@ export async function executeTaskControl(intent: NonNullable<TaskControlIntent>)
       if (!intent.taskRef) return 'Which task? Say the task id, e.g. "show task T-ABC123".';
       const task = mgr.resolveTaskRef(intent.taskRef);
       if (!task) return `I could not find task ${intent.taskRef}.`;
-      const events = mgr.getEvents(task.taskId).slice(-5);
-      const recent = events.length ? `\nRecent events:\n${events.map(e => `  · ${e.kind}: ${e.summary}`).join('\n')}` : '';
-      return `${formatTaskLine(task)}${recent}`;
+      const events = mgr.getEvents(task.taskId).slice(-8);
+      const recent = events.length ? `\n\nRecent Activity & Events:\n${events.map(e => `  · [${new Date(e.ts).toLocaleTimeString()}] ${e.kind}: ${e.summary}`).join('\n')}` : '';
+      const resultBlock = task.resultText ? `\n\nTask Result:\n${task.resultText.trim()}` : '';
+      return `${formatTaskLine(task)}${resultBlock}${recent}`;
     }
     case 'pause_task': {
       const task = intent.taskRef ? mgr.resolveTaskRef(intent.taskRef) : mgr.listTasks({ activeOnly: true })[0];
@@ -205,8 +234,29 @@ export async function executeTaskControl(intent: NonNullable<TaskControlIntent>)
       const agentMap: Record<string, string> = { hermes: 'hermes', codex: 'codex', jarvis: 'hermes', 'the team': 'team' };
       const worker = agentMap[intent.agent] || intent.agent;
       const tasks = mgr.listTasks({ activeOnly: true }).filter(t => t.worker === worker);
-      if (!tasks.length) return `${intent.agent[0].toUpperCase() + intent.agent.slice(1)} has no active tasks right now.`;
-      return `${intent.agent[0].toUpperCase() + intent.agent.slice(1)} is working on:\n${tasks.map(formatTaskLine).join('\n')}`;
+
+      // Check active CodeX goals from goalStore
+      let activeGoals: any[] = [];
+      if (worker === 'codex' || worker === 'team') {
+        try {
+          const { goalStore } = await import('../goalStore.js');
+          const allGoals = goalStore.list({ limit: 10 }) || [];
+          activeGoals = allGoals.filter(g => ['running', 'queued', 'planning', 'waiting_for_approval'].includes(String(g.status)));
+        } catch { /* best effort */ }
+      }
+
+      if (!tasks.length && !activeGoals.length) {
+        return `${intent.agent[0].toUpperCase() + intent.agent.slice(1)} has no active tasks right now.`;
+      }
+
+      const lines: string[] = [];
+      if (tasks.length) {
+        lines.push(...tasks.map(formatTaskLine));
+      }
+      if (activeGoals.length) {
+        lines.push(...activeGoals.map(g => `• [${String(g.status).toUpperCase()}] ${g.id} — "${(g.originalGoal || 'CodeX Task').slice(0, 70)}"`));
+      }
+      return `${intent.agent[0].toUpperCase() + intent.agent.slice(1)} is working on:\n${lines.join('\n')}`;
     }
     case 'open_board':
       return 'Opening the task board. (Navigate to /boards to see all cards.)';

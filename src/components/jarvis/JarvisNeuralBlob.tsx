@@ -36,6 +36,7 @@ import * as THREE from 'three';
 import blob1ReferenceUrl from '../../assets/jarvis-blob1-reference.png';
 import type { BlobVisualState, NeuralNodeId } from './neuralBlobState';
 import { NODE_ROUTES, nodePulse, toBlobVisualState, modelLabel } from './neuralBlobState';
+import './JarvisNeuralBlob.css';
 
 export interface ProjectNode {
   id: string;
@@ -250,19 +251,43 @@ export function JarvisNeuralBlob({
     };
 
     let raf = 0;
+    // A WebGL context can also be lost AFTER construction (GPU reset, driver
+    // hiccup). `broken` stops the rAF loop on context loss or a render throw,
+    // leaving the transparent canvas so the CSS nebula layers keep the Jarvis
+    // control surface alive and fully usable (milestone: visualization failure
+    // must never kill the Jarvis UI).
+    let broken = false;
     if (typeof WebGLRenderingContext === 'undefined') {
       raf = schedule(() => {});
       return () => { cancel(raf); };
     }
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true,
-      powerPreference: 'high-performance',
-    });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        alpha: true,
+        antialias: true,
+        preserveDrawingBuffer: true,
+        powerPreference: 'high-performance',
+      });
+    } catch (err) {
+      // Graceful WebGL fallback (milestone: visualization failure must never
+      // kill the Jarvis control surface). A lost/failed WebGL context makes
+      // THREE's WebGLRenderer throw (e.g. "reading 'precision'" from a null
+      // getShaderPrecisionFormat). Leave the canvas transparent and bail so
+      // the rest of the Jarvis UI stays fully usable.
+      console.warn('[JarvisNeuralBlob] WebGL unavailable — rendering fallback.', err);
+      return;
+    }
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      console.warn('[JarvisNeuralBlob] WebGL context lost — pausing visual loop.');
+      broken = true;
+      cancel(raf);
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost, false);
     renderer.setPixelRatio(dpr);
     // FREE FROM THE SQUARE: the canvas fills the (larger) shell — size the
     // WebGL buffer from the ACTUAL rendered canvas, not the fixed prop box.
@@ -823,7 +848,15 @@ export function JarvisNeuralBlob({
 
       root.rotation.y = Math.sin(t * 0.16) * 0.18;
       root.rotation.x = -0.08 + Math.sin(t * 0.11) * 0.05;
-      renderer.render(scene, camera);
+      if (broken) return;
+      try {
+        renderer.render(scene, camera);
+      } catch (err) {
+        console.warn('[JarvisNeuralBlob] WebGL render failed — stopping visual loop.', err);
+        broken = true;
+        cancel(raf);
+        return;
+      }
       raf = schedule(draw);
     };
 
@@ -831,6 +864,7 @@ export function JarvisNeuralBlob({
     return () => {
       cancel(raf);
       window.removeEventListener('resize', onWindowResize);
+      canvas.removeEventListener('webglcontextlost', onContextLost, false);
       renderer.dispose();
       disposableTextures.forEach((texture) => texture.dispose());
       scene.traverse((obj) => {
@@ -895,167 +929,11 @@ export function JarvisNeuralBlob({
   const pulseGlow = 0.24 + voicePulse * 0.28;
 
   return (
-    <div data-testid={testId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <style>{`
-        @keyframes jarvisBlob1Drift {
-          0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1.03); }
-          50% { transform: translate3d(2%, 1.5%, 0) rotate(8deg) scale(1.08); }
-          100% { transform: translate3d(-1%, 2%, 0) rotate(-6deg) scale(1.04); }
-        }
-
-        @keyframes jarvisBlob1Sweep {
-          0% { transform: translateX(-72%) rotate(-18deg); opacity: 0; }
-          18% { opacity: 0.34; }
-          55% { opacity: 0.14; }
-          100% { transform: translateX(72%) rotate(-18deg); opacity: 0; }
-        }
-
-        @keyframes jarvisBlob1Pulse {
-          0%, 100% { opacity: 0.36; transform: scale(0.98); }
-          50% { opacity: 0.62; transform: scale(1.04); }
-        }
-
-        @keyframes jarvisBlob1Orbit {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .jarvis-blob1-shell {
-          isolation: isolate;
-          background: transparent;
-          transform: translateZ(0);
-        }
-
-        .jarvis-blob1-universe {
-          position: absolute;
-          inset: -14%;
-          z-index: 0;
-          pointer-events: none;
-          background:
-            radial-gradient(circle at 22% 22%, rgba(20, 184, 166, 0.34), transparent 24%),
-            radial-gradient(circle at 78% 68%, rgba(236, 72, 153, 0.22), transparent 23%),
-            radial-gradient(circle at 50% 54%, rgba(250, 204, 21, 0.18), transparent 18%),
-            radial-gradient(circle at 62% 24%, rgba(59, 130, 246, 0.22), transparent 22%),
-            linear-gradient(145deg, rgba(2, 6, 23, 0.98), rgba(15, 23, 42, 0.96));
-          filter: saturate(1.1) blur(1px);
-          opacity: 0;
-          animation: jarvisBlob1Drift 28s ease-in-out infinite alternate;
-        }
-
-        .jarvis-blob1-stars {
-          position: absolute;
-          inset: 0;
-          z-index: 2;
-          pointer-events: none;
-          background-image:
-            radial-gradient(circle, rgba(255,255,255,0.9) 0 1px, transparent 1.3px),
-            radial-gradient(circle, rgba(94,234,212,0.72) 0 1px, transparent 1.4px),
-            radial-gradient(circle, rgba(250,204,21,0.62) 0 1px, transparent 1.5px);
-          background-size: 38px 38px, 56px 56px, 79px 79px;
-          background-position: 7px 11px, 19px 3px, 4px 29px;
-          mix-blend-mode: screen;
-          opacity: 0.12;
-          animation: jarvisBlob1Pulse 9s ease-in-out infinite;
-        }
-
-        .jarvis-blob1-aurora {
-          position: absolute;
-          inset: -24%;
-          z-index: 3;
-          pointer-events: none;
-          background:
-            conic-gradient(from 140deg at 50% 50%,
-              transparent 0deg,
-              rgba(20,184,166,0.18) 62deg,
-              rgba(250,204,21,0.13) 120deg,
-              rgba(236,72,153,0.16) 190deg,
-              rgba(59,130,246,0.16) 260deg,
-              transparent 360deg);
-          filter: blur(18px) saturate(1.35);
-          mix-blend-mode: screen;
-          opacity: 0.12;
-          animation: jarvisBlob1Orbit 42s linear infinite;
-        }
-
-        .jarvis-blob1-beam {
-          position: absolute;
-          top: -15%;
-          bottom: -15%;
-          left: 16%;
-          z-index: 5;
-          width: 16%;
-          pointer-events: none;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), rgba(94,234,212,0.18), transparent);
-          filter: blur(10px);
-          mix-blend-mode: screen;
-          opacity: 0;
-          animation: none;
-        }
-
-        .jarvis-blob1-rim {
-          position: absolute;
-          inset: 6%;
-          z-index: 6;
-          pointer-events: none;
-          border: 1px solid rgba(148, 163, 184, 0.16);
-          border-radius: 12px;
-          box-shadow:
-            inset 0 0 40px rgba(20,184,166,0.12),
-            inset 0 0 96px rgba(15,23,42,0.8),
-            0 0 26px rgba(20,184,166,0.12);
-          mix-blend-mode: screen;
-          opacity: 0;
-        }
-
-        .jarvis-blob1-photo {
-          filter: saturate(1.08) contrast(1.04);
-          transform: scale(1.04);
-          transform-origin: center;
-          opacity: 0.92;
-          mix-blend-mode: screen;
-          -webkit-mask-image: radial-gradient(ellipse 62% 54% at 50% 51%, #000 0 47%, rgba(0,0,0,0.82) 63%, transparent 86%);
-          mask-image: radial-gradient(ellipse 62% 54% at 50% 51%, #000 0 47%, rgba(0,0,0,0.82) 63%, transparent 86%);
-          transition: transform 90ms linear, filter 90ms linear, opacity 120ms linear;
-        }
-
-        .jarvis-blob1-shell--thinking .jarvis-blob1-stars,
-        .jarvis-blob1-shell--reasoning .jarvis-blob1-stars,
-        .jarvis-blob1-shell--executing .jarvis-blob1-stars,
-        .jarvis-blob1-shell--speaking .jarvis-blob1-stars {
-          opacity: 0.24;
-        }
-
-        .jarvis-blob1-shell--thinking .jarvis-blob1-aurora,
-        .jarvis-blob1-shell--reasoning .jarvis-blob1-aurora,
-        .jarvis-blob1-shell--executing .jarvis-blob1-aurora,
-        .jarvis-blob1-shell--speaking .jarvis-blob1-aurora {
-          opacity: 0.3;
-          animation-duration: 24s;
-        }
-
-        .jarvis-blob1-shell--executing .jarvis-blob1-beam,
-        .jarvis-blob1-shell--speaking .jarvis-blob1-beam {
-          animation: jarvisBlob1Sweep 6.8s ease-in-out infinite;
-        }
-
-        .jarvis-blob1-shell--error .jarvis-blob1-rim,
-        .jarvis-blob1-shell--offline .jarvis-blob1-rim {
-          border-color: rgba(248, 113, 113, 0.36);
-          box-shadow:
-            inset 0 0 28px rgba(248,113,113,0.18),
-            inset 0 0 72px rgba(15,23,42,0.72),
-            0 0 22px rgba(248,113,113,0.16);
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .jarvis-blob1-universe,
-          .jarvis-blob1-stars,
-          .jarvis-blob1-aurora,
-          .jarvis-blob1-beam {
-            animation: none;
-          }
-        }
-      `}</style>
+    <div
+      data-testid={testId}
+      data-orb-state={state.toLowerCase()}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+    >
       <div
         ref={shellRef}
         className={`jarvis-blob1-shell jarvis-blob1-shell--${visualState.toLowerCase()}`}
@@ -1120,7 +998,7 @@ export function JarvisNeuralBlob({
         />
       </div>
       <div
-        data-testid={`${testId}-label`}
+        data-testid={`${testId}-caption`}
         style={{ textAlign: 'center', marginTop: 4, lineHeight: 1.35 }}
         aria-label="Jarvis"
       >

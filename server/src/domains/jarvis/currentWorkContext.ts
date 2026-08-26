@@ -46,18 +46,15 @@ export interface CurrentWorkContext {
 /** Semantic detection — recognizes the QUESTION FAMILY, not exact phrases. */
 const CURRENT_WORK_PATTERNS: RegExp[] = [
   /\b(what|which)\b.*\b(current(ly)?|right now|at the moment|now)\b.*\b(work(ing)?|task|project|milestone|focus|doing|on)\b/i,
-  /\bwhat\b.*\b(are we|we're|are you)\b.*\b(working|doing|on)\b/i,
+  /\bwhat\b.*\b(are we|we're|are you|am i|i am)\b.*\b(working|doing|on)\b/i,
   /\bwhat's\b.*\b(the|our|my)?\s*(current|active)?\s*(task|project|work|milestone)\b/i,
-  /\bwhere\b.*\b(did we leave off|left off)\b/i,
-  /\bwhat\b.*\b(just)?\s*(finished|completed|done)\b.*\b(hermes|codex|task|run|work)\b/i,
   /\bwhat\b.*\b(pending|still pending|waiting|blocked|next|up next)\b/i,
   /\bwhat\b.*\b(should we do next|next step|next action)\b/i,
   /\bwhat\b.*\b(failed|broke|went wrong)\b/i,
   /\b(what are we|we are)\b.*\b(waiting for|waiting on)\b/i,
   /\b(current|active)\b.*\b(milestone|task|project)\b/i,
-  /\bwhat did\b.*\b(hermes|codex)\b.*\b(just)?\s*(finish|do|complete)\b/i,
   // "Which task are we on right now?" — task noun BEFORE the time adverb.
-  /\bwhich\b.*\b(task|project|work|milestone|item)\b.*\b(on|right now|now|currently)\b/i,
+  /\bwhich\b.*\b(task|project|work|milestone|item)\b.*\b(on|right now|now|currently|active|current)\b/i,
 ];
 
 /** Question-family detector — true for any current-work phrasing. */
@@ -71,8 +68,44 @@ export function isCurrentWorkQuestion(text: string): boolean {
   // execution-aware control path, which reports the live operation record).
   // Current-work questions ask about WE/the project/tasks — never hijack.
   if (/\bwhat are you doing\b/i.test(t)) return false;
+  // Explicit worker status queries (CodeX, Hermes, etc.) must route to executiveIntent/workerInsights
+  if (/\bwhat (is|did|are|has)\b.*\b(hermes|codex|research|magnitude)\b/i.test(t)) return false;
+  if (/\b(how is|how are|status of)\b.*\b(hermes|codex|research|magnitude)\b/i.test(t)) return false;
+  if (/\b(hermes|codex|research)\b.*\b(doing|working on|status|finished|result|completed|done)\b/i.test(t)) return false;
+  // Explicit execution/action clause wins over a current-work question. A
+  // prompt that BOTH asks about state AND requests work ("what's broken? fix
+  // it", "what next? have Hermes plan and CodeX execute it") must route to
+  // worker execution — never a status-only current-work answer.
+  if (hasActionClause(t)) return false;
   return CURRENT_WORK_PATTERNS.some((re) => re.test(t));
 }
+
+/**
+ * Explicit execution/action clause detector. True when the prompt contains an
+ * imperative work request (fix/implement/build/execute/delegate/…, a worker
+ * delegation cue "have/ask/tell Hermes|CodeX", a compound "inspect … and fix",
+ * or "continue <work>"). These must take precedence over a current-work
+ * context question so action requests are not swallowed into a status answer.
+ */
+export function hasActionClause(text: string): boolean {
+  const t = (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  return ACTION_CLAUSE_RE.test(t);
+}
+
+const ACTION_CLAUSE_RE = new RegExp(
+  [
+    // Imperative action verbs — explicit work request.
+    '\\b(fix|implement|build|execute|delegate|deploy|proceed|create|run|test|refactor|modify|write|add|remove)\\b',
+    // Worker delegation cue: "have/ask/tell/get/make Hermes|CodeX …".
+    '\\b(have|ask|tell|get|make|instruct)\\s+(hermes|codex)\\b',
+    // Compound "inspect/find/check … and fix/implement/…".
+    '\\b(inspect|find|check|analy[sz]e|look into|investigate)\\b[^.!?\\n]{0,60}\\b(fix|repair|resolve|solve|correct|implement|build|write|add)\\b',
+    // "continue <work>" / "continue the implementation".
+    '\\bcontinue\\b\\s*(the\\s+)?(working|implementing|building|developing|fixing|implementation|work|development)\\b',
+  ].join('|'),
+  'i',
+);
 
 /** Resolve the structured current-work context from real AgenticOS state. */
 export async function resolveCurrentWorkContext(): Promise<CurrentWorkContext> {

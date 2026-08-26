@@ -92,6 +92,7 @@ export async function progressVideoJob(jobId: string): Promise<void> {
 export class VideoAdapter implements RuntimeAdapter {
   id = 'rt-video';
   label = 'Video-Agent Runtime';
+  capabilities = ['video_render', 'workflow.build'];
 
   async health(): Promise<RuntimeHealth> {
     return { status: 'healthy', lastCheck: new Date().toISOString(), latencyMs: 5 };

@@ -22,6 +22,7 @@ import { EventEmitter } from 'node:events';
 import { localDataPort } from '../adapters/localDataPort.js';
 import { routingLedger } from './routingLedger.js';
 import { logger } from '../utils/logger.js';
+import { normalizeApprovalAction } from './backgroundTasks/approvalNormalization.js';
 
 export type HermesRunStatus =
   | 'queued' | 'running' | 'waiting_for_approval' | 'stopping'
@@ -306,21 +307,24 @@ class HermesApiService extends EventEmitter {
 
   /** Forward an approval decision — Allow maps to 'once', Deny to 'deny'. */
   async resolveApproval(id: string, choice: 'allow' | 'deny'): Promise<any> {
-    const record = this.requireRun(id);
+    const record = this.runs.get(id) || Array.from(this.runs.values()).find(r => r.hermesRunId === id);
+    const hermesRunId = record ? record.hermesRunId : id;
     const key = resolveHermesApiKey();
     const baseUrl = await resolveHermesUrl();
     const upstreamChoice = choice === 'allow' ? 'once' : 'deny';
-    const res = await fetch(`${baseUrl}/v1/runs/${record.hermesRunId}/approval`, {
+    const res = await fetch(`${baseUrl}/v1/runs/${hermesRunId}/approval`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ choice: upstreamChoice }),
     });
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error?.message || `Approval failed (HTTP ${res.status})`);
-    record.pendingApproval = null;
-    this.appendEvent(record, 'approval.responded', `Approval ${upstreamChoice === 'once' ? 'allowed' : 'denied'}`, { choice: upstreamChoice });
-    record.status = 'running';
-    this.touch(record);
+    if (record) {
+      record.pendingApproval = null;
+      this.appendEvent(record, 'approval.responded', `Approval ${upstreamChoice === 'once' ? 'allowed' : 'denied'}`, { choice: upstreamChoice });
+      record.status = choice === 'allow' ? 'running' : 'cancelled';
+      this.touch(record);
+    }
     return data;
   }
 
@@ -458,32 +462,42 @@ class HermesApiService extends EventEmitter {
         // Visible final-response text accumulation — progressive TTS source.
         record.finalText += ev?.delta || '';
         this.appendEvent(record, 'assistant.delta', ev?.delta || '', { streaming: true });
+        if (record.status === 'queued') record.status = 'running';
         break;
       case 'assistant.completed':
         this.appendEvent(record, 'assistant.completed', 'Assistant reply completed');
         break;
       case 'tool.started': {
-        const tool = ev?.tool_name || 'tool';
-        const args = ev?.args || {};
-        const summary = this.summarizeTool(tool, args);
-        const kind = this.toolKind(tool, args);
-        this.appendEvent(record, kind, summary, { tool, args });
+        // api_server emits `tool` + `preview` (not `tool_name`/`args`).
+        const tool = ev?.tool || ev?.tool_name || 'tool';
+        const preview = ev?.preview ?? ev?.args ?? null;
+        const summary = this.summarizeTool(tool, preview);
+        const kind = this.toolKind(tool, preview);
+        this.appendEvent(record, kind, summary, { tool, preview });
+        if (record.status === 'queued') record.status = 'running';
         break;
       }
       case 'tool.completed': {
-        const tool = ev?.tool_name || 'tool';
-        const kind = this.toolKind(tool, ev?.args || {});
-        this.appendEvent(record, kind === 'file.changed' ? 'file.changed' : 'tool.completed', `${tool} completed`, { tool, preview: ev?.preview });
+        const tool = ev?.tool || ev?.tool_name || 'tool';
+        const kind = this.toolKind(tool, null);
+        this.appendEvent(record, kind === 'file.changed' ? 'file.changed' : 'tool.completed', `${tool} completed`, { tool, duration: ev?.duration, error: ev?.error });
+        if (record.status === 'queued') record.status = 'running';
         break;
       }
       case 'tool.failed':
-        this.appendEvent(record, 'tool.failed', `${ev?.tool_name || 'tool'} failed`, { tool: ev?.tool_name });
+        this.appendEvent(record, 'tool.failed', `${ev?.tool || ev?.tool_name || 'tool'} failed`, { tool: ev?.tool || ev?.tool_name });
         break;
       case 'approval.request': {
+        const norm = normalizeApprovalAction({
+          action: ev?.tool_name || ev?.action,
+          command: ev?.command,
+          reason: ev?.reason || ev?.description || ev?.preview,
+          files: Array.isArray(ev?.files) ? ev.files : undefined,
+        });
         record.status = 'waiting_for_approval';
         record.pendingApproval = {
-          action: ev?.tool_name || ev?.action || 'Unknown action',
-          reason: ev?.reason || ev?.preview || '',
+          action: norm.label,
+          reason: ev?.reason || ev?.description || ev?.preview || norm.summary,
           command: ev?.command || '',
           files: Array.isArray(ev?.files) ? ev.files : undefined,
           choices: Array.isArray(ev?.choices) ? ev.choices : undefined,
@@ -495,6 +509,17 @@ class HermesApiService extends EventEmitter {
         record.pendingApproval = null;
         record.status = 'running';
         this.appendEvent(record, 'approval.responded', `Approval resolved (${ev?.choice})`);
+        break;
+      case 'reasoning.available':
+        // api_server emits reasoning.available with a `text` field.
+        this.appendEvent(record, 'status.changed', 'Reasoning available', { text: ev?.text });
+        if (record.status === 'queued') record.status = 'running';
+        break;
+      case 'subagent.start':
+        this.appendEvent(record, 'status.changed', `Subagent started${ev?.subagent_id ? `: ${ev.subagent_id}` : ''}`, ev);
+        break;
+      case 'subagent.complete':
+        this.appendEvent(record, 'status.changed', `Subagent ${ev?.status || 'completed'}${ev?.summary ? `: ${String(ev.summary).slice(0, 120)}` : ''}`, ev);
         break;
       case 'run.completed':
         record.status = 'completed';
@@ -525,6 +550,11 @@ class HermesApiService extends EventEmitter {
         this.appendEvent(record, 'status.changed', `run.failed: ${record.errorMessage}`, { error: record.errorMessage, event: 'run.failed' });
         this.finishBoardLinkage(record, 'error');
         break;
+      case 'run.cancelled':
+        record.status = 'cancelled';
+        this.appendEvent(record, 'status.changed', 'Run cancelled');
+        this.finishBoardLinkage(record, 'error');
+        break;
       case 'error':
         record.status = 'failed';
         record.errorMessage = ev?.message || 'Run error';
@@ -540,17 +570,17 @@ class HermesApiService extends EventEmitter {
     this.touch(record);
   }
 
-  private toolKind(tool: string, args: any): HermesActivityEvent['kind'] {
-    if (/write|edit|patch|file/i.test(tool)) return 'file.changed';
-    if (/terminal|shell|command|exec/i.test(tool) || typeof args?.command === 'string') return 'terminal.command';
+  private toolKind(tool: string, preview: any): HermesActivityEvent['kind'] {
+    // Only MUTATING verbs count as file.changed — `read_file`, `list_*`,
+    // `search_*` are reads and must not masquerade as changes.
+    if (/write|edit|patch|apply|create|delete|remove|save|append|mkdir|touch/i.test(tool)) return 'file.changed';
+    if (/terminal|shell|command|exec|bash|process/i.test(tool)) return 'terminal.command';
     return 'tool.started';
   }
 
-  private summarizeTool(tool: string, args: any): string {
-    if (typeof args?.command === 'string') return `${tool}: ${args.command.slice(0, 120)}`;
-    if (typeof args?.path === 'string') return `${tool}: ${args.path}`;
-    if (typeof args?.file_path === 'string') return `${tool}: ${args.file_path}`;
-    return `${tool} started`;
+  private summarizeTool(tool: string, preview: any): string {
+    const p = typeof preview === 'string' && preview.trim() ? preview.trim().slice(0, 120) : '';
+    return p ? `${tool}: ${p}` : `${tool} started`;
   }
 
   private async finishBoardLinkage(record: HermesRunRecord, state: 'done' | 'error'): Promise<void> {

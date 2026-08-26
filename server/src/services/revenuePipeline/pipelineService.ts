@@ -786,8 +786,7 @@ function canonicalDomainOf(url: string | null | undefined): string | null {
 
 function writeMemoryEntry(run: PipelineRunRecord, selected: ProspectRecord): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { db: jsonDb } = require('../db.js');
+    const { db: jsonDb } = require('../../services/db.js');
     const now = new Date().toISOString();
     const summary =
       `Revenue pipeline ${run.runId} completed for ${selected.businessName} (${selected.websiteUrl}). ` +

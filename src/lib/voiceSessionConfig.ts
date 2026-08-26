@@ -23,6 +23,16 @@ export const AGENT_VOICE_DEFAULTS: Record<string, string> = {
   'agent-hermes': 'aura-orion-en',  // Natural male — distinct from Jarvis
 };
 
+/**
+ * Voice session locale — Australian English. Applied to speech recognition
+ * (Deepgram listen `language=en-AU`) and recorded as the session's language
+ * identity. Deepgram Aura (the configured TTS provider) ships no
+ * Australian-accented voice, so synthesis keeps a natural professional male
+ * voice (aura-helios-en) — en-AU governs recognition, not the synthetic
+ * accent. Deterministic and stable across restart.
+ */
+export const VOICE_LOCALE = 'en-AU';
+
 export interface VoiceSessionConfig {
   /** TTS provider (deepgram). */
   provider: 'deepgram';
@@ -30,6 +40,8 @@ export interface VoiceSessionConfig {
   model: string;
   /** Short voice id (same as model for Deepgram). */
   voiceId: string;
+  /** Session recognition/transcription locale (en-AU). */
+  locale: string;
   /** Optional renderer-level override (user picked a voice in the UI). */
   override: string | null;
 }
@@ -49,6 +61,7 @@ export function resolveVoiceSessionConfig(
     provider: 'deepgram',
     model,
     voiceId: model,
+    locale: VOICE_LOCALE,
     override,
   };
 }

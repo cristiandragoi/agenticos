@@ -17,6 +17,18 @@ export class CodexAdapter implements RuntimeAdapter {
   id = 'rt-codex';
   label = 'Codex Runtime';
 
+  /**
+   * Restricted Codex inspection host capabilities.
+   * Only read/write inspection and web access.
+   * Does NOT claim process_exec, localhost_http, sqlite_read/write, node, npm, build, test.
+   */
+  capabilities = [
+    'filesystem_read',
+    'filesystem_write',
+    'browser',
+    'external_web',
+  ];
+
   private get apiKey(): string {
     return process.env.OPENAI_API_KEY || '';
   }

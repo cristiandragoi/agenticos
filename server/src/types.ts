@@ -494,9 +494,39 @@ export interface AgentInvocation {
   requestedOutput?: "text" | "json" | "artifact" | "plan";
 }
 
+export interface CapabilityProofRequest {
+  prompt: string;
+  requiredCapabilities: string[];
+  serverPort: number;
+  correlationId: string;
+}
+
+export interface CapabilityProofOutput {
+  nodeVersion: string;
+  healthStatus: number;
+  resolvedDbPath: string;
+  resolvedMissionId: string;
+  missionTitle: string;
+  digitalItemsCount: number;
+  smeItemsCount: number;
+  humanGatesCount: number;
+}
+
 export interface RuntimeAdapter {
   id: string;
   label: string;
+  /**
+   * Declared execution capabilities for capability-aware routing.
+   * Subset of the capability vocabulary:
+   *   filesystem_read, filesystem_write, process_exec, localhost_http,
+   *   sqlite_read, sqlite_write, node, npm, build, test,
+   *   electron_runtime, browser, external_web
+   *
+   * The CapabilityDispatcher enforces: requiredCapabilities ⊆ adapterCapabilities.
+   * If an adapter lacks required caps it is skipped and the next compatible
+   * adapter is selected automatically (CAPABILITY_MISMATCH → redispatch).
+   */
+  capabilities?: string[];
   health(): Promise<RuntimeHealth>;
   listAgents(): Promise<AgentDefinition[]>;
   invoke(input: AgentInvocation): Promise<InvocationAck>;
@@ -505,6 +535,12 @@ export interface RuntimeAdapter {
   getRun(runId: string): Promise<RunRecord>;
   listTools(agentId?: string): Promise<ToolDefinition[]>;
   listMemoryScopes(agentId?: string): Promise<MemoryScope[]>;
+  /**
+   * Executes the canonical capability-proof operations (process/network/database)
+   * INSIDE this adapter, so capability evidence is produced by the selected
+   * executor host rather than the router/dispatcher/verification script.
+   */
+  executeCapabilityProof?(req: CapabilityProofRequest): Promise<CapabilityProofOutput>;
 }
 
 export interface ChatTargetRequest {

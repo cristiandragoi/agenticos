@@ -1,0 +1,35 @@
+{
+  "status": "success",
+  "startedAt": "2026-08-19T18:13:12.477Z",
+  "completedAt": "2026-08-19T18:13:52.193Z",
+  "missionId": "mission-523431cb-",
+  "strategyRunId": "er-cd66f9df-0",
+  "strategyVerdict": "NEEDS_REVISION",
+  "experimentId": "expt-23d99328-",
+  "experimentStatus": "APPROVED",
+  "resultRunId": "er-195d0640-2",
+  "resultVerdict": "PASS",
+  "nextAction": "build",
+  "steps": [
+    {
+      "step": "mission_persisted",
+      "ok": true,
+      "detail": "mission-523431cb-"
+    },
+    {
+      "step": "hermes_strategy",
+      "ok": true,
+      "detail": "run=er-cd66f9df-0 verdict=NEEDS_REVISION"
+    },
+    {
+      "step": "experiment_discovered",
+      "ok": true,
+      "detail": "expt-23d99328-"
+    },
+    {
+      "step": "score_go_nogo",
+      "ok": true,
+      "detail": "to=APPROVED (Score 16.800 >= threshold 0.35.)"
+    }
+  ]
+}

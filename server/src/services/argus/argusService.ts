@@ -392,6 +392,13 @@ export function _setCorrectionLauncher(fn: (goalId: string, ctx: any) => Promise
 }
 
 async function dispatchCorrection(contract: ArgusContractRecord, defect: ArgusDefectRecord, opts: { signal?: AbortSignal } = {}): Promise<string | null> {
+  // SAFE VERIFICATION MODE: when set, persist the failure honestly (defect +
+  // verification_failed are already written) but do NOT create a correction
+  // goal or launch a Codex loop — no production mutation during verification.
+  if (process.env.ARGUS_DISABLE_CORRECTION === '1') {
+    console.log('[ARGUS] Automatic correction dispatch DISABLED — persisting failure without a correction goal.');
+    return null;
+  }
   const prior = db.select({ attempt: argusCorrections.attempt }).from(argusCorrections).where(eq(argusCorrections.contractId, contract.id)).orderBy(desc(argusCorrections.attempt)).limit(1).get();
   const attempt = (prior?.attempt || 0) + 1;
 

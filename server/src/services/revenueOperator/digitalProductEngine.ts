@@ -23,7 +23,7 @@ import {
   recordLedgerEntry,
   linkExperimentRun,
 } from './operatorService.js';
-import { dispatchCanonicalTask, decideGoNoGo, resolveProjectId, type CanonicalDispatchOutcome } from './revenueEngine.js';
+import { dispatchCanonicalTask, decideGoNoGo, resolveProjectId, type CanonicalDispatchOutcome, type RevenueDispatchHints } from './revenueEngine.js';
 
 const now = () => new Date().toISOString();
 
@@ -51,7 +51,7 @@ export function nextAction(status: string): string | null {
  */
 export async function discoverProducts(
   missionId: string,
-  opts: { projectId?: string; count?: number } = {},
+  opts: { projectId?: string; count?: number } & RevenueDispatchHints = {},
 ): Promise<{ experiments: any[]; dispatch: CanonicalDispatchOutcome }> {
   const mission = await getMission(missionId);
   if (!mission) throw Object.assign(new Error('Mission not found.'), { status: 404 });
@@ -76,6 +76,14 @@ export async function discoverProducts(
     objective,
     taskType: 'research',
     acceptanceCriteria: 'Return a structured list of product opportunities with the requested fields.',
+    requiredCapabilities: opts.requiredCapabilities,
+    preferredExecutorId: opts.preferredExecutorId,
+    excludedExecutorIds: opts.excludedExecutorIds,
+    correlationId: opts.correlationId,
+    idempotencyKey: opts.idempotencyKey,
+    missionId,
+    experimentId: opts.experimentId,
+    actionType: opts.actionType,
   });
 
   // Parse ideas from the result defensively; fall back to a single summary idea.
@@ -232,7 +240,7 @@ export async function decideGoNoGoForExperiment(experimentId: string, threshold?
 /**
  * BUILD — build the product artifact via Codex (requires APPROVED).
  */
-export async function buildProduct(experimentId: string, opts: { projectId?: string } = {}) {
+export async function buildProduct(experimentId: string, opts: { projectId?: string } & RevenueDispatchHints = {}) {
   const exp = await getExperiment(experimentId);
   if (!exp) throw Object.assign(new Error('Experiment not found.'), { status: 404 });
   if (exp.status !== 'APPROVED' && exp.status !== 'BUILDING') {
@@ -257,6 +265,14 @@ export async function buildProduct(experimentId: string, opts: { projectId?: str
     objective,
     taskType: 'engineering',
     acceptanceCriteria: 'A complete, usable product artifact plus a QA checklist is produced.',
+    requiredCapabilities: opts.requiredCapabilities,
+    preferredExecutorId: opts.preferredExecutorId,
+    excludedExecutorIds: opts.excludedExecutorIds,
+    correlationId: opts.correlationId,
+    idempotencyKey: opts.idempotencyKey,
+    missionId: exp.missionId,
+    experimentId,
+    actionType: opts.actionType,
   });
 
   if (dispatch.runId) await linkExperimentRun(experimentId, 'run', dispatch.runId);

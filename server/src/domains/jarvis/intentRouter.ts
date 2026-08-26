@@ -884,6 +884,13 @@ export class IntentRouter {
       );
     }
 
+    // Questions about findings, reports, problems, or evidence from a prior/completed task:
+    const isFindingsOrEvidenceQuery =
+      /\b(what did (?:codex|hermes|it) (?:find|report|see|conclude|say)|where did (?:codex|hermes|it) find|why did (?:codex|hermes|it) (?:say|list|claim|name)|explain the (?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th)?)\s+(?:problem|finding|issue|blocker)|what (?:are|were) the (?:findings|problems|blockers|issues|results))\b/i.test(p);
+    if (isFindingsOrEvidenceQuery) {
+      return direct('conversation', 0.95, 'Inquiry regarding grounded worker findings/evidence');
+    }
+
     if (!delegationSignals.prohibitedWorkers.includes('codex')) {
       if (hasFileTarget && isReadOnlyRepositoryRequest) {
         return operational('codex', 'repository_analysis', 0.9, 'Read-only repository analysis request', 'CodeX', ['Confirm selected repository', 'Inspect relevant files', 'Report findings'], true, false);

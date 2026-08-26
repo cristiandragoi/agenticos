@@ -82,25 +82,6 @@ export function deriveJarvisOrbState(inputs: JarvisOrbStateInputs): JarvisVisual
   // completion must never produce the speaking state.
   if (playbackActive) return 'speaking';
   if (runtimeState === 'error' || micState === 'error') return 'error';
-
-  // Specific runtime → semantic visual state mappings (spec §10–11).
-  // Each maps to the orb state whose color/motion matches operational meaning.
-  switch (runtimeState) {
-    case 'executing':    return 'executing';   // strong cyan — operational/running
-    case 'delegating':  return 'delegated';    // pink — secondary agent active
-    case 'completed':   return 'completed';    // green — success pulse then idle
-    case 'approval_required':
-    case 'paused':      return 'warning';      // yellow — attention/blocked
-    case 'reviewing':   return 'repairing';    // purple — corrective/repair work
-    case 'cancelled':   return 'idle';
-    // thinking/planning/understanding/streaming → cyan/white reasoning state
-    case 'thinking':
-    case 'planning':
-    case 'understanding':
-    case 'streaming':   return 'reasoning';    // cyan/white — model reasoning
-  }
-
-  // Catch-all for any other active states: use reasoning (cyan/white) per spec
-  if (ACTIVE_RUNTIME_STATES.has(runtimeState)) return 'reasoning';
+  if (ACTIVE_RUNTIME_STATES.has(runtimeState)) return 'thinking';
   return 'idle';
 }

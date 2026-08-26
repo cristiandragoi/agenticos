@@ -115,3 +115,148 @@ describe('HermesApiService — run payload + run.failed reconciliation', () => {
     expect(failedEvent).toBeTruthy();
   });
 });
+
+describe('HermesApiService — api_server /v1/runs event schema normalization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.HERMES_API_URL = 'http://127.0.0.1:9999';
+    process.env.HERMES_API_KEY = 'test-key';
+    delete process.env.HERMES_RUN_PROVIDER;
+    delete process.env.HERMES_RUN_MODEL;
+  });
+  afterEach(() => {
+    delete process.env.HERMES_API_URL;
+    delete process.env.HERMES_API_KEY;
+  });
+
+  function frame(obj: Record<string, unknown>): string {
+    return `data: ${JSON.stringify(obj)}\n\n`;
+  }
+
+  it('tool.started reads the real `tool` + `preview` fields and flips queued→running', async () => {
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/runs') && init?.method === 'POST') {
+        return { ok: true, status: 202, json: async () => ({ run_id: 'run_t1', id: 'run_t1', model: 'backend-engineer' }) };
+      }
+      if (url.includes('/events')) {
+        return {
+          ok: true, status: 200,
+          body: sseStream([
+            frame({ event: 'tool.started', run_id: 'run_t1', timestamp: 1, tool: 'read_file', preview: 'path/to/file.ts' }),
+            frame({ event: 'tool.completed', run_id: 'run_t1', timestamp: 2, tool: 'read_file', duration: 0.2, error: false }),
+            frame({ event: 'run.completed', run_id: 'run_t1', timestamp: 3, output: 'done', usage: { total_tokens: 42 } }),
+          ]),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    const service = await importService();
+    const record = await service.createRun({ prompt: 'inspect the file' });
+    const deadline = Date.now() + 5000;
+    let cur = service.getRun(record.id);
+    while (cur?.status !== 'completed' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      cur = service.getRun(record.id);
+    }
+    expect(cur?.status).toBe('completed');
+    const started = cur?.events.find((e) => e.kind === 'tool.started');
+    // Regression: the tool NAME must survive (previously always "tool").
+    expect((started?.detail as any)?.tool).toBe('read_file');
+    expect((started?.detail as any)?.preview).toBe('path/to/file.ts');
+    // Regression: no phantom structured `args` field from the wrong schema.
+    expect((started?.detail as any)?.args).toBeUndefined();
+  });
+
+  it('message.delta flips queued→running even without a run.started event (api_server never emits it)', async () => {
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/runs') && init?.method === 'POST') {
+        return { ok: true, status: 202, json: async () => ({ run_id: 'run_t2', id: 'run_t2', model: 'backend-engineer' }) };
+      }
+      if (url.includes('/events')) {
+        return {
+          ok: true, status: 200,
+          body: sseStream([
+            frame({ event: 'message.delta', run_id: 'run_t2', timestamp: 1, delta: 'hello' }),
+          ]),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    const service = await importService();
+    const record = await service.createRun({ prompt: 'inspect the file' });
+    const deadline = Date.now() + 5000;
+    let cur = service.getRun(record.id);
+    while (cur?.status !== 'running' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      cur = service.getRun(record.id);
+    }
+    // api_server never emits run.started — first activity must move off queued.
+    expect(cur?.status).toBe('running');
+  });
+
+  it('reasoning.available and subagent.* events are normalized, not dropped', async () => {
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/runs') && init?.method === 'POST') {
+        return { ok: true, status: 202, json: async () => ({ run_id: 'run_t3', id: 'run_t3', model: 'backend-engineer' }) };
+      }
+      if (url.includes('/events')) {
+        return {
+          ok: true, status: 200,
+          body: sseStream([
+            frame({ event: 'reasoning.available', run_id: 'run_t3', timestamp: 1, text: 'thinking…' }),
+            frame({ event: 'subagent.start', run_id: 'run_t3', timestamp: 2, subagent_id: 'sub-1' }),
+            frame({ event: 'subagent.complete', run_id: 'run_t3', timestamp: 3, status: 'completed', summary: 'inspected 2 files' }),
+            frame({ event: 'run.completed', run_id: 'run_t3', timestamp: 4, output: 'done', usage: {} }),
+          ]),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    const service = await importService();
+    const record = await service.createRun({ prompt: 'inspect the file' });
+    const deadline = Date.now() + 5000;
+    let cur = service.getRun(record.id);
+    while (cur?.status !== 'completed' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      cur = service.getRun(record.id);
+    }
+    const kinds = (cur?.events || []).map((e) => e.kind);
+    expect(cur?.status).toBe('completed');
+    // reasoning.available → status.changed with text
+    const reasoning = cur?.events.find((e) => (e.detail as any)?.text === 'thinking…');
+    expect(reasoning).toBeTruthy();
+    // subagent lifecycle events survive as status.changed (not dropped)
+    expect(cur?.events.some((e) => e.summary.includes('Subagent completed'))).toBe(true);
+    expect(cur?.events.some((e) => e.summary.includes('Subagent started'))).toBe(true);
+  });
+
+  it('run.cancelled reconciles to cancelled (not stuck running)', async () => {
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/runs') && init?.method === 'POST') {
+        return { ok: true, status: 202, json: async () => ({ run_id: 'run_t4', id: 'run_t4', model: 'backend-engineer' }) };
+      }
+      if (url.includes('/events')) {
+        return {
+          ok: true, status: 200,
+          body: sseStream([
+            frame({ event: 'run.cancelled', run_id: 'run_t4', timestamp: 1 }),
+          ]),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    const service = await importService();
+    const record = await service.createRun({ prompt: 'inspect the file' });
+    const deadline = Date.now() + 5000;
+    let cur = service.getRun(record.id);
+    while (cur?.status !== 'cancelled' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+      cur = service.getRun(record.id);
+    }
+    expect(cur?.status).toBe('cancelled');
+  });
+});

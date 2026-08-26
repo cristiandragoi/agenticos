@@ -1,0 +1,89 @@
+import { fixturesFor } from './fixtures.js';
+import { randomUUID } from 'node:crypto';
+import { discoverRealProspects } from './realDiscovery.js';
+export async function discoverProspects(config, fetchImpl = fetch, onProgress) {
+    const now = new Date().toISOString();
+    if (config.specificUrl) {
+        let host = '';
+        try {
+            host = new URL(config.specificUrl).hostname.replace(/^www\./, '');
+        }
+        catch {
+            host = config.specificUrl;
+        }
+        const prospect = {
+            prospectId: `pp-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+            businessName: host || 'Provided business URL',
+            niche: config.niche,
+            city: config.city,
+            websiteUrl: config.specificUrl,
+            publicContactUrl: null,
+            discoverySource: 'user-url',
+            discoverySourceRecord: null,
+            fixture: false,
+            verifiedFacts: [],
+            unverifiedObservations: [],
+            auditFindings: [],
+            auditScore: null,
+            opportunityScore: null,
+            scoringCriteria: null,
+            confidence: 'low',
+            status: 'discovered',
+            linkedTaskId: null,
+            linkedBoardCardId: null,
+            workspacePath: null,
+            selectedForBuild: false,
+            createdAt: now,
+            updatedAt: now,
+        };
+        return { prospects: [prospect], blocker: null };
+    }
+    if (config.fixturesOnly) {
+        // Test/demo fixtures. Live + fixturesOnly is refused — real discovery is
+        // the only acceptable live source.
+        if (!config.dryRun) {
+            return {
+                prospects: [],
+                blocker: 'Fixture discovery is not allowed in live mode. Real prospect discovery requires a configured research source; provide a specific business URL or retry without fixture mode.',
+            };
+        }
+        const fixtures = fixturesFor(config.niche, config.city);
+        if (fixtures.length === 0) {
+            return {
+                prospects: [],
+                blocker: `No sample fixtures match niche "${config.niche}" and city "${config.city}".`,
+            };
+        }
+        // Discovery headroom: request more than the target so rejections can be
+        // replaced without a second discovery round (contact-quality milestone).
+        const wanted = Math.max(1, Math.min(config.prospectCount * (config.discoveryHeadroomMultiplier ?? 2), fixtures.length));
+        const prospects = fixtures.slice(0, wanted).map((f) => ({
+            prospectId: `pp-${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+            businessName: f.businessName,
+            niche: f.niche,
+            city: f.city,
+            websiteUrl: f.websiteUrl,
+            publicContactUrl: f.publicContactUrl,
+            discoverySource: 'fixture',
+            discoverySourceRecord: null,
+            fixture: true,
+            verifiedFacts: [...f.verifiedFacts],
+            unverifiedObservations: [...f.unverifiedObservations],
+            auditFindings: [],
+            auditScore: null,
+            opportunityScore: null,
+            scoringCriteria: null,
+            confidence: 'low',
+            status: 'discovered',
+            linkedTaskId: null,
+            linkedBoardCardId: null,
+            workspacePath: null,
+            selectedForBuild: false,
+            createdAt: now,
+            updatedAt: now,
+        }));
+        return { prospects, blocker: null };
+    }
+    // REAL public-business discovery — read-only, robots-respecting, legal.
+    return discoverRealProspects(config, fetchImpl, onProgress);
+}

@@ -1,0 +1,57 @@
+[1mdiff --git a/server/src/routers/chat.ts b/server/src/routers/chat.ts[m
+[1mindex c343b3f..958e2a1 100644[m
+[1m--- a/server/src/routers/chat.ts[m
+[1m+++ b/server/src/routers/chat.ts[m
+[36m@@ -187,7 +187,7 @@[m [mrouter.post('/quick', async (req, res) => {[m
+     return;[m
+   }[m
+ [m
+[31m-  const result = await llmChat({ prompt: message, provider, ollamaModel: model });[m
+[32m+[m[32m  const result = await llmChat({ prompt: message, provider, model: model });[m
+   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });[m
+ });[m
+ [m
+[36m@@ -201,7 +201,7 @@[m [mrouter.post('/agents/run', async (req, res) => {[m
+   }[m
+ [m
+   let provider: any = providerOverride;[m
+[31m-  let ollamaModel: string | undefined = modelOverride;[m
+[32m+[m[32m  let model: string | undefined = modelOverride;[m
+ [m
+   if (agent === 'CodeX' && !providerOverride) {[m
+     const codexAssignment = await AgentProviderAssignmentService.getAssignment('agent-codex');[m
+[36m@@ -209,7 +209,7 @@[m [mrouter.post('/agents/run', async (req, res) => {[m
+   }[m
+ [m
+   const systemPrompt = `You are the ${agent} agent inside my Agentic OS. Answer with concrete code patches and plans. Be concise and authoritative. Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.`;[m
+[31m-  const result = await llmChat({ systemPrompt, prompt: message, maxTokens: 2048, provider, ollamaModel });[m
+[32m+[m[32m  const result = await llmChat({ systemPrompt, prompt: message, maxTokens: 2048, provider, model });[m
+   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });[m
+ });[m
+ [m
+[1mdiff --git a/server/src/services/llmGateway.ts b/server/src/services/llmGateway.ts[m
+[1mindex 9c44e9d..2da4174 100644[m
+[1m--- a/server/src/services/llmGateway.ts[m
+[1m+++ b/server/src/services/llmGateway.ts[m
+[36m@@ -23,6 +23,8 @@[m [mexport interface LlmChatOptions {[m
+   routingMode?: 'automatic' | 'preferred' | 'forced';[m
+   /** Planning escalation: stronger sibling model for EMPTY_CONTENT retries. */[m
+   escalationModel?: string;[m
+[32m+[m[32m  /** Providers to EXCLUDE from the fallback chain (parse-failure escalation). */[m
+[32m+[m[32m  excludeProviders?: string[];[m
+   requestId?: string;[m
+   disableFallback?: boolean;[m
+   signal?: AbortSignal;[m
+[36m@@ -101,9 +103,10 @@[m [mfunction toGatewayRequest(opts: LlmChatOptions): ChatRequest {[m
+     requestId: opts.requestId,[m
+     taskProfile,[m
+     agentId: opts.agentId,[m
+[31m-    modelId: opts.model,[m
+[32m+[m[32m    modelId: opts.model ?? opts.ollamaModel,[m
+     routing: opts.routingMode ? { mode: opts.routingMode } : undefined,[m
+[31m-    escalationModel: opts.escalationModel[m
+[32m+[m[32m    escalationModel: opts.escalationModel,[m
+[32m+[m[32m    excludeProviders: opts.excludeProviders[m
+   };[m
+ }[m
+ [m

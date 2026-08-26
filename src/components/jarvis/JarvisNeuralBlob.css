@@ -1,0 +1,162 @@
+@keyframes jarvisBlob1Drift {
+  0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1.03); }
+  50% { transform: translate3d(2%, 1.5%, 0) rotate(8deg) scale(1.08); }
+  100% { transform: translate3d(-1%, 2%, 0) rotate(-6deg) scale(1.04); }
+}
+
+@keyframes jarvisBlob1Sweep {
+  0% { transform: translateX(-72%) rotate(-18deg); opacity: 0; }
+  18% { opacity: 0.34; }
+  55% { opacity: 0.14; }
+  100% { transform: translateX(72%) rotate(-18deg); opacity: 0; }
+}
+
+@keyframes jarvisBlob1Pulse {
+  0%, 100% { opacity: 0.36; transform: scale(0.98); }
+  50% { opacity: 0.62; transform: scale(1.04); }
+}
+
+@keyframes jarvisBlob1Orbit {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.jarvis-blob1-shell {
+  position: relative;
+  width: min(74vmin, 340px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  overflow: visible;
+  border-radius: 0;
+  filter: drop-shadow(0 0 26px rgba(20,184,166,0.28));
+  transform: translate(calc(var(--jarvis-vib-x, 0px) * 1px), calc(var(--jarvis-vib-y, 0px) * 1px)) rotate(calc(var(--jarvis-vib-rot, 0deg) * 1deg)) scale(var(--jarvis-vib-scale, 1));
+  transition: transform 90ms linear;
+}
+
+.jarvis-blob1-universe {
+  position: absolute;
+  inset: -14%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 48% 46%, rgba(20,184,166,0.28) 0%, rgba(13,148,136,0.18) 32%, transparent 72%),
+    radial-gradient(circle at 58% 54%, rgba(250,204,21,0.18) 0%, rgba(236,72,153,0.12) 28%, transparent 68%),
+    radial-gradient(circle at 36% 62%, rgba(59,130,246,0.18) 0%, transparent 64%);
+  filter: blur(14px) saturate(1.2);
+  mix-blend-mode: screen;
+  opacity: 0.88;
+}
+
+.jarvis-blob1-stars {
+  position: absolute;
+  inset: -10%;
+  z-index: 2;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.9) 0 1px, transparent 1.3px),
+    radial-gradient(circle, rgba(94,234,212,0.72) 0 1px, transparent 1.4px),
+    radial-gradient(circle, rgba(250,204,21,0.62) 0 1px, transparent 1.5px);
+  background-size: 38px 38px, 56px 56px, 79px 79px;
+  background-position: 7px 11px, 19px 3px, 4px 29px;
+  mix-blend-mode: screen;
+  opacity: 0.12;
+  animation: jarvisBlob1Pulse 9s ease-in-out infinite;
+}
+
+.jarvis-blob1-aurora {
+  position: absolute;
+  inset: -24%;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    conic-gradient(from 140deg at 50% 50%,
+      transparent 0deg,
+      rgba(20,184,166,0.18) 62deg,
+      rgba(250,204,21,0.13) 120deg,
+      rgba(236,72,153,0.16) 190deg,
+      rgba(59,130,246,0.16) 260deg,
+      transparent 360deg);
+  filter: blur(18px) saturate(1.35);
+  mix-blend-mode: screen;
+  opacity: 0.12;
+  animation: jarvisBlob1Orbit 42s linear infinite;
+}
+
+.jarvis-blob1-beam {
+  position: absolute;
+  top: -15%;
+  bottom: -15%;
+  left: 16%;
+  z-index: 5;
+  width: 16%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), rgba(94,234,212,0.18), transparent);
+  filter: blur(10px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: none;
+}
+
+.jarvis-blob1-rim {
+  position: absolute;
+  inset: 6%;
+  z-index: 6;
+  pointer-events: none;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 40px rgba(20,184,166,0.12),
+    inset 0 0 96px rgba(15,23,42,0.8),
+    0 0 26px rgba(20,184,166,0.12);
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+.jarvis-blob1-photo {
+  filter: saturate(1.08) contrast(1.04);
+  transform: scale(1.04);
+  transform-origin: center;
+  opacity: 0.92;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(ellipse 62% 54% at 50% 51%, #000 0 47%, rgba(0,0,0,0.82) 63%, transparent 86%);
+  mask-image: radial-gradient(ellipse 62% 54% at 50% 51%, #000 0 47%, rgba(0,0,0,0.82) 63%, transparent 86%);
+  transition: transform 90ms linear, filter 90ms linear, opacity 120ms linear;
+}
+
+.jarvis-blob1-shell--thinking .jarvis-blob1-stars,
+.jarvis-blob1-shell--reasoning .jarvis-blob1-stars,
+.jarvis-blob1-shell--executing .jarvis-blob1-stars,
+.jarvis-blob1-shell--speaking .jarvis-blob1-stars {
+  opacity: 0.24;
+}
+
+.jarvis-blob1-shell--thinking .jarvis-blob1-aurora,
+.jarvis-blob1-shell--reasoning .jarvis-blob1-aurora,
+.jarvis-blob1-shell--executing .jarvis-blob1-aurora,
+.jarvis-blob1-shell--speaking .jarvis-blob1-aurora {
+  opacity: 0.3;
+  animation-duration: 24s;
+}
+
+.jarvis-blob1-shell--executing .jarvis-blob1-beam,
+.jarvis-blob1-shell--speaking .jarvis-blob1-beam {
+  animation: jarvisBlob1Sweep 6.8s ease-in-out infinite;
+}
+
+.jarvis-blob1-shell--error .jarvis-blob1-rim,
+.jarvis-blob1-shell--offline .jarvis-blob1-rim {
+  border-color: rgba(248, 113, 113, 0.36);
+  box-shadow:
+    inset 0 0 28px rgba(248,113,113,0.18),
+    inset 0 0 72px rgba(15,23,42,0.72),
+    0 0 22px rgba(248,113,113,0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-blob1-universe,
+  .jarvis-blob1-stars,
+  .jarvis-blob1-aurora,
+  .jarvis-blob1-beam {
+    animation: none;
+  }
+}

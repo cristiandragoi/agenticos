@@ -198,6 +198,7 @@ router.post('/:taskId/approval', async (req, res) => {
   const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
   if (!task) return res.status(404).json({ error: 'Task not found' });
   const choice = req.body?.choice;
+  const force = Boolean(req.body?.force);
   if (choice !== 'allow' && choice !== 'deny') {
     return res.status(400).json({ error: "choice must be 'allow' or 'deny'" });
   }
@@ -212,9 +213,18 @@ router.post('/:taskId/approval', async (req, res) => {
       if (c === 'allow') await codexService.approveAndResume(task.linkedRunId);
       else await codexService.abortGoal(task.linkedRunId);
     }
-  });
+  }, { force });
   if (!result.ok) return res.status(409).json({ error: result.error });
   res.json({ ok: true });
+});
+
+router.post('/:taskId/approval/reconcile', async (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const action = req.body?.action || 'deny';
+  const result = await backgroundTaskManager.reconcileStaleApproval(task.taskId, action, req.body?.reason);
+  if (!result.ok) return res.status(409).json({ error: result.error });
+  res.json({ ok: true, task: result.task });
 });
 
 // P20 — explicit human approval for a pending human-approval gate. Completes

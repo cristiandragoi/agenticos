@@ -7,6 +7,18 @@ import { eq, desc } from 'drizzle-orm';
 
 const router = Router();
 
+/**
+ * Canonical run-input reader: `runs.input` is a JSON-mode column, so drizzle may
+ * hand back an object (new canonical writes) or a legacy string. Return a stable
+ * JSON string that preserves full structured routing metadata. Legacy prompt-only
+ * strings remain readable as-is.
+ */
+function serializeRunInput(input: unknown): string {
+  if (typeof input === 'string') return input;
+  if (input !== null && typeof input === 'object') return JSON.stringify(input);
+  return '';
+}
+
 /* ── POST /api/runs ─────────────────────────────────── */
 router.post('/', async (req, res) => {
   try {
@@ -53,7 +65,13 @@ router.get('/', async (req, res) => {
     }
     
     const allRuns = await query.limit(50);
-    res.json(allRuns);
+    const sanitized = allRuns.map((r: any) => ({
+      ...r,
+      // Canonical API contract: runs.input is a JSON string. Preserve the full
+      // structured routing metadata — never collapse it to a bare prompt string.
+      input: serializeRunInput(r.input),
+    }));
+    res.json(sanitized);
   } catch (err: any) {
     logger.error('[Runs API] Failed to list runs:', err);
     res.status(500).json({ error: { message: err.message } });

@@ -24,7 +24,7 @@ import {
   updateComplianceRecord,
   createHumanGate,
 } from './operatorService.js';
-import { dispatchCanonicalTask, decideGoNoGo, resolveProjectId, type CanonicalDispatchOutcome } from './revenueEngine.js';
+import { dispatchCanonicalTask, decideGoNoGo, resolveProjectId, type CanonicalDispatchOutcome, type RevenueDispatchHints } from './revenueEngine.js';
 
 const now = () => new Date().toISOString();
 
@@ -52,7 +52,7 @@ export function smeNextAction(status: string): string | null {
  */
 export async function discoverCompanies(
   missionId: string,
-  opts: { projectId?: string; count?: number; sector?: string; market?: string } = {},
+  opts: { projectId?: string; count?: number; sector?: string; market?: string } & RevenueDispatchHints = {},
 ): Promise<{ experiments: any[]; dispatch: CanonicalDispatchOutcome }> {
   const mission = await getMission(missionId);
   if (!mission) throw Object.assign(new Error('Mission not found.'), { status: 404 });
@@ -76,6 +76,14 @@ export async function discoverCompanies(
     objective,
     taskType: 'research',
     acceptanceCriteria: 'Return a structured list of German SMEs with public business info and automation pain points.',
+    requiredCapabilities: opts.requiredCapabilities,
+    preferredExecutorId: opts.preferredExecutorId,
+    excludedExecutorIds: opts.excludedExecutorIds,
+    correlationId: opts.correlationId,
+    idempotencyKey: opts.idempotencyKey,
+    missionId,
+    experimentId: opts.experimentId,
+    actionType: opts.actionType,
   });
 
   const ideas = extractCompanies(dispatch.summary, dispatch.structuredOutput);
@@ -185,11 +193,13 @@ export function extractCompanies(summary: string | null, structuredOutput?: Reco
  * INSPECT BUSINESS — research one company's public business profile via Hermes
  * and attach evidence, moving DISCOVERED → VALIDATING.
  */
-export async function inspectCompany(experimentId: string, projectId?: string) {
+export async function inspectCompany(experimentId: string, opts: string | (RevenueDispatchHints & { projectId?: string }) = {}) {
   const exp = await getExperiment(experimentId);
   if (!exp) throw Object.assign(new Error('Experiment not found.'), { status: 404 });
+  const hints = typeof opts === 'string' ? {} : opts;
+  const projectIdArg = typeof opts === 'string' ? opts : opts?.projectId;
   const mission = await getMission(exp.missionId);
-  const pid = resolveProjectId(projectId ?? exp.projectId ?? mission?.projectId);
+  const pid = resolveProjectId(projectIdArg ?? exp.projectId ?? mission?.projectId);
   if (!pid) throw Object.assign(new Error('No canonical project available.'), { status: 400 });
 
   if (exp.status === 'DISCOVERED') await transitionExperiment(experimentId, 'VALIDATING');
@@ -202,6 +212,14 @@ export async function inspectCompany(experimentId: string, projectId?: string) {
       `team size signals, and a relevant value proposition. Use only public sources.`,
     taskType: 'research',
     acceptanceCriteria: 'Return a structured business inspection with pain points and a relevance assessment.',
+    requiredCapabilities: hints.requiredCapabilities,
+    preferredExecutorId: hints.preferredExecutorId,
+    excludedExecutorIds: hints.excludedExecutorIds,
+    correlationId: hints.correlationId,
+    idempotencyKey: hints.idempotencyKey,
+    missionId: exp.missionId,
+    experimentId,
+    actionType: hints.actionType,
   });
 
   await addExperimentEvidence(experimentId, {
@@ -242,11 +260,13 @@ export async function qualifyCompany(experimentId: string, inputs: Record<string
  * FIND LEGITIMATE BUSINESS CONTACT — research a public business contact and
  * create a compliance record with lawful basis + suppression defaults.
  */
-export async function findContact(experimentId: string, projectId?: string) {
+export async function findContact(experimentId: string, opts: string | (RevenueDispatchHints & { projectId?: string }) = {}) {
   const exp = await getExperiment(experimentId);
   if (!exp) throw Object.assign(new Error('Experiment not found.'), { status: 404 });
+  const hints = typeof opts === 'string' ? {} : opts;
+  const projectIdArg = typeof opts === 'string' ? opts : opts?.projectId;
   const mission = await getMission(exp.missionId);
-  const pid = resolveProjectId(projectId ?? exp.projectId ?? mission?.projectId);
+  const pid = resolveProjectId(projectIdArg ?? exp.projectId ?? mission?.projectId);
   if (!pid) throw Object.assign(new Error('No canonical project available.'), { status: 400 });
 
   const dispatch = await dispatchCanonicalTask({
@@ -257,6 +277,14 @@ export async function findContact(experimentId: string, projectId?: string) {
       `Use only published business contact channels. Do NOT source personal data. Return the contact email/source and its public provenance.`,
     taskType: 'research',
     acceptanceCriteria: 'Return a published business contact with its public source, or explicit "none found".',
+    requiredCapabilities: hints.requiredCapabilities,
+    preferredExecutorId: hints.preferredExecutorId,
+    excludedExecutorIds: hints.excludedExecutorIds,
+    correlationId: hints.correlationId,
+    idempotencyKey: hints.idempotencyKey,
+    missionId: exp.missionId,
+    experimentId,
+    actionType: hints.actionType,
   });
 
   const record = await createComplianceRecord({
@@ -282,11 +310,13 @@ export async function findContact(experimentId: string, projectId?: string) {
 /**
  * CREATE SPECIFIC OFFER — draft a tailored offer via Hermes, move to BUILDING.
  */
-export async function createOffer(experimentId: string, projectId?: string) {
+export async function createOffer(experimentId: string, opts: string | (RevenueDispatchHints & { projectId?: string }) = {}) {
   const exp = await getExperiment(experimentId);
   if (!exp) throw Object.assign(new Error('Experiment not found.'), { status: 404 });
+  const hints = typeof opts === 'string' ? {} : opts;
+  const projectIdArg = typeof opts === 'string' ? opts : opts?.projectId;
   const mission = await getMission(exp.missionId);
-  const pid = resolveProjectId(projectId ?? exp.projectId ?? mission?.projectId);
+  const pid = resolveProjectId(projectIdArg ?? exp.projectId ?? mission?.projectId);
   if (!pid) throw Object.assign(new Error('No canonical project available.'), { status: 400 });
 
   await transitionExperiment(experimentId, 'BUILDING');
@@ -299,6 +329,14 @@ export async function createOffer(experimentId: string, projectId?: string) {
       `Include a concrete deliverable, expected outcome, and a clear call-to-action. Compliant, no bulk language.`,
     taskType: 'research',
     acceptanceCriteria: 'Return a specific, human-reviewable offer draft.',
+    requiredCapabilities: hints.requiredCapabilities,
+    preferredExecutorId: hints.preferredExecutorId,
+    excludedExecutorIds: hints.excludedExecutorIds,
+    correlationId: hints.correlationId,
+    idempotencyKey: hints.idempotencyKey,
+    missionId: exp.missionId,
+    experimentId,
+    actionType: hints.actionType,
   });
 
   await addExperimentEvidence(experimentId, {

@@ -1,0 +1,48 @@
+{
+  "results": [
+    {
+      "id": "A",
+      "ok": true,
+      "taskId": "bgtask-1e065013a",
+      "status": "completed",
+      "verificationState": "passed",
+      "goalId": "goal-bd437fc4-",
+      "goalStatus": "completed",
+      "provider": "DeepSeek",
+      "model": "deepseek-chat",
+      "filesChanged": [],
+      "resultText": "Workspace root: B:/AgenticOS\n\nFactual summary:\n\n1. server/src/utils/sandbox.ts (293 lines): Defines the command-execution sandbox. Key findings:\n   - ALLOWLIST_BINARIES constant (line 7) lists allowed binaries: node, npm, npx, tsc, jest, git, python, py, plus read-only inspection tools (pwd, ls, cat, echo, cd, dir, type, where, which, find, tree, head, tail, grep, rg).\n   - CMD_SHIM_BINARIES set (",
+      "syntheticCompletion": false
+    },
+    {
+      "id": "B",
+      "ok": true,
+      "taskId": "bgtask-929ff73fd",
+      "status": "completed",
+      "verificationState": "passed",
+      "goalId": "goal-b900bc34-",
+      "goalStatus": "completed",
+      "provider": "DeepSeek",
+      "model": "deepseek-chat",
+      "filesChanged": [],
+      "resultText": "Created src/__tests__/codexReliabilityGate.test.ts with a single trivial vitest test (describe/it asserting expect(1).toBe(1)). Ran 'npx vitest run src/__tests__/codexReliabilityGate.test.ts' — RESULT: PASSED (1 test file passed, 1 test passed, exit code 0).",
+      "syntheticCompletion": false
+    },
+    {
+      "id": "C",
+      "ok": true,
+      "taskId": "bgtask-7f9a547cf",
+      "status": "completed",
+      "verificationState": "passed",
+      "goalId": "goal-f4f6291f-",
+      "goalStatus": "completed",
+      "provider": "DeepSeek",
+      "model": "deepseek-chat",
+      "filesChanged": [],
+      "resultText": "Inspected src/lib/domainNormalization.ts. Found imports in src/lib/domainNormalization.test.ts, src/components/jarvis/JarvisChat.tsx, and src/__tests__/controlIntent.test.ts. Appended one idempotency test case to src/lib/domainNormalization.test.ts. Ran 'npx vitest run src/lib/domainNormalization.test.ts' — RESULT: PASSED (3 tests passed, 1 test file passed, exit code 0). Files changed: src/lib/do",
+      "syntheticCompletion": false
+    }
+  ],
+  "allOk": true,
+  "noSynthetic": true
+}

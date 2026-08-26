@@ -678,6 +678,7 @@ export default function JarvisStudio() {
   }, [activeRun?.id]);
 
   const [approvalChoiceBusy, setApprovalChoiceBusy] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   // ── Background Tasks (persistent task manager — real events via SSE) ──
   const [taskSummary, setTaskSummary] = useState<BackgroundTaskSummary | null>(null);
@@ -797,18 +798,38 @@ export default function JarvisStudio() {
   const handleApproval = useCallback(async (choice: 'allow' | 'deny') => {
     if (!activeRun || approvalChoiceBusy) return;
     setApprovalChoiceBusy(true);
+    setApprovalError(null);
     try {
-      await fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}/approval`, {
+      const res = await fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice }),
       });
-    } catch { /* modal stays until the run state changes */ }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setApprovalError(data?.error?.message || data?.error || `Approval failed (HTTP ${res.status})`);
+      } else {
+        const detail = await fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`);
+        if (detail.ok) setActiveRun(await detail.json());
+      }
+    } catch (err: any) {
+      setApprovalError(err?.message || 'Network error');
+    }
     setApprovalChoiceBusy(false);
   }, [activeRun, approvalChoiceBusy]);
 
   // ── Task-owned approvals (belong to the background task, not the chat turn) ──
-  const [taskApprovals, setTaskApprovals] = useState<Array<{ taskId: string; action: string; reason: string; command?: string; files?: string[]; choices?: string[] }>>([]);
+  const [taskApprovals, setTaskApprovals] = useState<Array<{
+    taskId: string;
+    action: string;
+    reason: string;
+    command?: string;
+    files?: string[];
+    choices?: string[];
+    canonicalAction?: string;
+    riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+    isReadOnly?: boolean;
+  }>>([]);
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
@@ -822,21 +843,49 @@ export default function JarvisStudio() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
   const pendingTaskApproval = taskApprovals[0] || null;
-  const handleTaskApproval = useCallback(async (choice: 'allow' | 'deny') => {
+  const handleTaskApproval = useCallback(async (choice: 'allow' | 'deny', force?: boolean) => {
     if (!pendingTaskApproval || approvalChoiceBusy) return;
     setApprovalChoiceBusy(true);
+    setApprovalError(null);
     try {
-      await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
+      const res = await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ choice }),
+        body: JSON.stringify({ choice, force }),
       });
-      // Refresh immediately so the modal clears when resolved.
-      const res = await fetch(`${API_BASE}/background-tasks/approvals`);
-      if (res.ok) setTaskApprovals(await res.json());
-    } catch { /* modal stays until the approval state changes */ }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setApprovalError(data?.error || `Approval failed (HTTP ${res.status})`);
+      } else {
+        // Refresh immediately so the modal clears when resolved.
+        const appRes = await fetch(`${API_BASE}/background-tasks/approvals`);
+        if (appRes.ok) setTaskApprovals(await appRes.json());
+        await pollTasks();
+      }
+    } catch (err: any) {
+      setApprovalError(err?.message || 'Network error resolving approval');
+    }
     setApprovalChoiceBusy(false);
-  }, [pendingTaskApproval, approvalChoiceBusy]);
+  }, [pendingTaskApproval, approvalChoiceBusy, pollTasks]);
+
+  const handleReconcileTaskApproval = useCallback(async (action: 'deny' | 'cancel' | 'retry') => {
+    if (!pendingTaskApproval || approvalChoiceBusy) return;
+    setApprovalChoiceBusy(true);
+    setApprovalError(null);
+    try {
+      const res = await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval/reconcile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const appRes = await fetch(`${API_BASE}/background-tasks/approvals`);
+      if (appRes.ok) setTaskApprovals(await appRes.json());
+      await pollTasks();
+    } catch (err: any) {
+      setApprovalError(err?.message || 'Reconciliation failed');
+    }
+    setApprovalChoiceBusy(false);
+  }, [pendingTaskApproval, approvalChoiceBusy, pollTasks]);
 
   // ── Orb state: canonical event-driven contract (real signals only) ──
   const [playbackActive, setPlaybackActive] = useState(false);
@@ -2000,8 +2049,22 @@ export default function JarvisStudio() {
                 Task {pendingTaskApproval.taskId} — this approval belongs to the background task and stays pending while you talk.
               </div>
             )}
-            <div style={{ marginTop: 10, fontSize: 13, color: '#e2e8f0' }}>
+            <div style={{ marginTop: 10, fontSize: 13, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <b>Action:</b> {(pendingTaskApproval || activeRun?.pendingApproval)?.action || 'Unknown action'}
+              {(pendingTaskApproval?.riskLevel || (pendingTaskApproval?.canonicalAction && pendingTaskApproval.canonicalAction !== 'unknown')) && (
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: 4,
+                  textTransform: 'uppercase',
+                  background: pendingTaskApproval?.riskLevel === 'low' ? '#14532d' : pendingTaskApproval?.riskLevel === 'medium' ? '#854d0e' : '#7f1d1d',
+                  color: pendingTaskApproval?.riskLevel === 'low' ? '#86efac' : pendingTaskApproval?.riskLevel === 'medium' ? '#fde047' : '#fca5a5',
+                  border: `1px solid ${pendingTaskApproval?.riskLevel === 'low' ? '#166534' : pendingTaskApproval?.riskLevel === 'medium' ? '#a16207' : '#991b1b'}`,
+                }}>
+                  {pendingTaskApproval?.riskLevel || 'UNCLASSIFIED'}
+                </span>
+              )}
             </div>
             {(pendingTaskApproval || activeRun?.pendingApproval)?.reason && (
               <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8' }}>
@@ -2016,6 +2079,30 @@ export default function JarvisStudio() {
             {Array.isArray((pendingTaskApproval || activeRun?.pendingApproval)?.files) && (((pendingTaskApproval || activeRun?.pendingApproval)?.files) as string[]).length > 0 && (
               <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
                 <b>Files:</b> {((pendingTaskApproval || activeRun?.pendingApproval)?.files as string[]).join(', ')}
+              </div>
+            )}
+            {approvalError && (
+              <div style={{ marginTop: 12, padding: '8px 12px', background: '#450a0a', border: '1px solid #991b1b', borderRadius: 6, color: '#fca5a5', fontSize: 11.5 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Error resolving approval:</div>
+                <div>{approvalError}</div>
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button
+                    data-testid="jarvis-approval-force-dismiss"
+                    onClick={() => void (pendingTaskApproval ? handleReconcileTaskApproval('deny') : setApprovalError(null))}
+                    style={{ padding: '4px 10px', fontSize: 11, background: '#7f1d1d', border: '1px solid #b91c1c', borderRadius: 4, color: '#fee2e2', cursor: 'pointer' }}
+                  >
+                    Force Dismiss / Deny
+                  </button>
+                  {pendingTaskApproval && (
+                    <button
+                      data-testid="jarvis-approval-force-cancel"
+                      onClick={() => void handleReconcileTaskApproval('cancel')}
+                      style={{ padding: '4px 10px', fontSize: 11, background: '#1e293b', border: '1px solid #475569', borderRadius: 4, color: '#cbd5e1', cursor: 'pointer' }}
+                    >
+                      Cancel Task
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

@@ -83,7 +83,11 @@ export function enrichPromptWithResolvedFiles(prompt: string, outcome: FileResol
  * resolved, Jarvis reports exactly what was searched instead of delegating
  * a doomed task. Returns null when delegation should proceed.
  */
-export function buildFileNotFoundReply(outcome: FileResolutionOutcome): string | null {
+export function buildFileNotFoundReply(outcome: FileResolutionOutcome, prompt?: string): string | null {
+  if (prompt && /\b(?:create|write|generate|scaffold|touch|new file|add)\b/i.test(prompt)) {
+    // When the user explicitly requests to create/write a new file, it not existing is expected.
+    return null;
+  }
   const hasTokens = outcome.fileTokens.length > 0;
   const noneResolved = outcome.resolved.length === 0 && outcome.ambiguous.length === 0;
   if (!hasTokens || !noneResolved) return null;

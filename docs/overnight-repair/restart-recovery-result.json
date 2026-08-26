@@ -1,0 +1,9 @@
+{
+  "taskId": "bgtask-deef7125f",
+  "goalId": "goal-574760ed-",
+  "finalTaskStatus": "completed",
+  "verificationState": "passed",
+  "goalStatus": "completed",
+  "fileWritten": true,
+  "resultText": "Created server/src/__tests__/restartRecoveryTmp.test.ts with a trivial passing test and ran it via `npx vitest run --config vitest.server.config.ts server/src/__tests__/restartRecoveryTmp.test.ts` — result: PASS (1 test passed)."
+}

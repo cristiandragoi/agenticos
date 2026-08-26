@@ -41,6 +41,7 @@ describe('llmGateway Ollama fallback', () => {
     process.env = {
       ...originalEnv,
       OPENROUTER_API_KEY: 'test-key',
+      DEEPSEEK_API_KEY: '',
       OPENROUTER_BASE_URL: 'http://openrouter.test/v1',
       OPENROUTER_MODEL: 'rate-limited-model',
       OLLAMA_BASE_URL: 'http://ollama.test',

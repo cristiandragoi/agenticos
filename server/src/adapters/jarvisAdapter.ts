@@ -10,6 +10,25 @@ export class JarvisAdapter implements RuntimeAdapter {
   id = 'rt-jarvis';
   label = 'Jarvis Runtime';
 
+  /**
+   * Full process-enabled capability set.
+   */
+  capabilities = [
+    'filesystem_read',
+    'filesystem_write',
+    'process_exec',
+    'localhost_http',
+    'sqlite_read',
+    'sqlite_write',
+    'node',
+    'npm',
+    'build',
+    'test',
+    'browser',
+    'external_web',
+    'electron_runtime',
+  ];
+
   async health(): Promise<RuntimeHealth> {
     return { status: 'healthy', lastCheck: new Date().toISOString(), latencyMs: 18 };
   }
