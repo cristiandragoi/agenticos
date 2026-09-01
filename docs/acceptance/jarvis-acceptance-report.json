@@ -1,0 +1,256 @@
+{
+  "timestamp": "2026-08-30T19:44:59.225Z",
+  "executablePath": "C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\AgenticOS.exe",
+  "health": {
+    "status": "healthy",
+    "uptime": 15.6849702,
+    "environment": "development",
+    "version": "9.0.0",
+    "build": {
+      "fingerprint": "3b73819355d24e18598b4100a3a304453a497569eea2d8cad728325800180324",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 429,
+      "gitSha": "b32981cdd6cfee9950b989cce8b5b750a4fdbb56",
+      "gitShort": "b32981cd",
+      "isDirty": true,
+      "buildTimestamp": "2026-08-30T16:31:58.557Z",
+      "buildId": "b32981cd-dirty-20260830-163158"
+    }
+  },
+  "scenarios": {
+    "scenarioA": {
+      "userPrompt": "Antworte nur auf Deutsch: Guten Morgen.",
+      "exactAssistantMessage": "Guten Morgen! Ich bin hier und bereit. Was kann ich für Sie tun?",
+      "selectorUsed": "[data-testid=\"jarvis-command-line\"] span:nth-child(2) (filtered by JARVIS speaker)",
+      "languageDetectionResult": "de",
+      "verifiedGerman": true,
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\scenario_a_german.png"
+    },
+    "scenarioB": {
+      "userPrompt": "Răspunde numai în română: Bună dimineața.",
+      "exactAssistantMessage": "Bună dimineața! Sunt aici și sunt pregătit pentru a vă ajuta. Cu ce vă pot ajuta astăzi?",
+      "selectorUsed": "[data-testid=\"jarvis-command-line\"] span:nth-child(2) (filtered by JARVIS speaker)",
+      "languageDetectionResult": "ro",
+      "verifiedRomanian": true,
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\scenario_b_romanian.png"
+    },
+    "scenarioC": {
+      "audioInputPath": "D:\\AgenticOS\\docs\\acceptance\\audio\\german_speech_sample.mp3",
+      "sha256": "7d3379d834f30d4f011b09a6d80d011c24ec15d17a82054692fb567059926f30",
+      "recordingType": "synthetic audio round-trip testing (edge-tts)",
+      "audioSizeBytes": 28080,
+      "mimeType": "audio/mpeg",
+      "exactMultipartResponse": {
+        "text": "Guten Morgen, Javis, bitte erstelle eine neuen Arbeitsbereich.",
+        "provider": "local-whisper",
+        "model": "tiny",
+        "language": "de",
+        "probability": 1
+      },
+      "actualTranscript": "Guten Morgen, Javis, bitte erstelle eine neuen Arbeitsbereich.",
+      "effectiveModel": "tiny",
+      "languageProbability": 1,
+      "exactJarvisResponse": "Ich habe Ihre Anfrage verstanden. Da jedoch kein automatisierter Executor für diese Aktion gestartet wurde, wurde die Aufgabe noch nicht ausgeführt. Möchten Sie, dass ich dafür eine Aufgabe erstelle?"
+    },
+    "scenarioD": {
+      "audioInputPath": "D:\\AgenticOS\\docs\\acceptance\\audio\\romanian_speech_sample.mp3",
+      "sha256": "8e6eff4d3645909bcb89fe1f81e0429ed8d826c2b1b4fd5c665560891b517cef",
+      "recordingType": "synthetic audio round-trip testing (edge-tts)",
+      "audioSizeBytes": 27504,
+      "mimeType": "audio/mpeg",
+      "exactMultipartResponse": {
+        "text": "Buuna din minat sa jarvis, teroc configurată noul project.",
+        "provider": "local-whisper",
+        "model": "tiny",
+        "language": "ro",
+        "probability": 1
+      },
+      "actualTranscript": "Buuna din minat sa jarvis, teroc configurată noul project.",
+      "effectiveModel": "tiny",
+      "languageProbability": 1,
+      "exactJarvisResponse": "Bună dimineața! Sunt aici și sunt pregătit pentru a vă ajuta cu configurarea noului proiect. Puteți să furnizați mai multe detalii despre proiectul nou, cum ar fi numele proiectului și orice alte informații relevante, astfel încât pot vă guverna mai bine procesul?"
+    },
+    "scenarioE": {
+      "exactPrompts": [
+        "Explain recursion in programming in one sentence.",
+        "What is the boiling point of water at standard sea level pressure?",
+        "How many days are in a leap year?"
+      ],
+      "turns": [
+        {
+          "userPrompt": "Explain recursion in programming in one sentence.",
+          "exactAssistantReply": "Recursion in programming is a technique where a function calls itself to solve smaller instances of the same problem until a base case is reached.",
+          "normalizedReply": "recursion in programming is a technique where a function calls itself to solve smaller instances of the same problem until a base case is reached",
+          "prohibitedPhraseCheck": {
+            "hasProhibited": false,
+            "matchedPhrases": []
+          }
+        },
+        {
+          "userPrompt": "What is the boiling point of water at standard sea level pressure?",
+          "exactAssistantReply": "Das Siedepunkt von Wasser unter normaler Meereshöhenluftdruck beträgt 100 Grad Celsius.",
+          "normalizedReply": "das siedepunkt von wasser unter normaler meereshhenluftdruck betrgt 100 grad celsius",
+          "prohibitedPhraseCheck": {
+            "hasProhibited": false,
+            "matchedPhrases": []
+          }
+        },
+        {
+          "userPrompt": "How many days are in a leap year?",
+          "exactAssistantReply": "Ein Schaltjahr hat 366 Tage.",
+          "normalizedReply": "ein schaltjahr hat 366 tage",
+          "prohibitedPhraseCheck": {
+            "hasProhibited": false,
+            "matchedPhrases": []
+          }
+        }
+      ],
+      "computedPairwiseSimilarity": {
+        "turn1_vs_turn2": 0,
+        "turn2_vs_turn3": 0,
+        "turn1_vs_turn3": 0,
+        "isDuplicate": false
+      },
+      "allProhibitedPhrasesClean": true,
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\scenario_e_repetition.png"
+    },
+    "scenarioF": {
+      "userPrompt": "What tasks are active?",
+      "canonicalSnapshot": {
+        "activeCount": 1,
+        "queuedCount": 1,
+        "awaitingApprovalCount": 3,
+        "blockedCount": 1,
+        "completedCount": 45,
+        "failedCount": 3,
+        "cancelledCount": 0,
+        "unknownCount": 0,
+        "totalCount": 54,
+        "sourceErrors": {},
+        "activeTasks": [
+          {
+            "id": "jarvis-conv-cad096fc--1788119186751-7y1gz9",
+            "worker": "jarvis",
+            "status": "active",
+            "rawStatus": "ROUTING",
+            "title": "Routing request",
+            "source": "stream_execution"
+          }
+        ],
+        "recentTasks": [
+          {
+            "id": "bgtask-92688cf1f",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:45:00.018Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-1af6415cc",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:40:00.013Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-ddd51c49e",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:35:00.014Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-77955fa81",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:30:00.016Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-7e42ae29d",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:25:00.005Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-8cd6457ea",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:20:00.009Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-eea8ec585",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:15:00.003Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-20a4f5f14",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:10:00.001Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-b83a60f87",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:05:00.008Z",
+            "source": "background_task"
+          },
+          {
+            "id": "bgtask-0bfd786b2",
+            "worker": "hermes",
+            "status": "completed",
+            "rawStatus": "completed",
+            "title": "Routine: Revenue Supervisor Autonomous Cycle",
+            "createdAt": "2026-08-30T19:00:00.013Z",
+            "source": "background_task"
+          }
+        ],
+        "summaryText": "1 active (jarvis: \"Routing request\"), 1 queued, 3 awaiting approval, 1 blocked, 3 failed, 45 completed",
+        "timestamp": "2026-08-30T19:46:33.619Z"
+      },
+      "exactJarvisResponse": "There are currently 1 active tasks (jarvis: \"Routing request\"), 1 queued, 3 awaiting approval, 1 blocked, 45 completed, 3 failed, and 0 cancelled (total: 54).",
+      "comparison": {
+        "canonicalSnapshotTotal": 54,
+        "canonicalActiveCount": 1,
+        "canonicalQueuedCount": 1,
+        "canonicalAwaitingApprovalCount": 3,
+        "canonicalBlockedCount": 1,
+        "canonicalCompletedCount": 45,
+        "canonicalFailedCount": 3,
+        "canonicalCancelledCount": 0
+      },
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\scenario_f_task_status.png"
+    },
+    "scenarioG": {
+      "userPrompt": "Install quantum computing compiler on the host system right now.",
+      "exactAssistantResponse": "I'm unable to perform that task directly. Instead, I'll delegate this request to CodeX for handling. Could you please provide more details about the quantum computing compiler you'd like to install, such as its name and the specific version? This will help CodeX to proceed with the installation.",
+      "claimedDone": false,
+      "refusalVerified": true,
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\scenario_g_false_completion.png"
+    }
+  }
+}

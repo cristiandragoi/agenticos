@@ -10,7 +10,7 @@ import {
   Package, Radio, BookOpen, Settings, Cpu, Layers, Box,
   GitBranch, Clapperboard, Mic, Terminal, Wrench,
   Eye, MonitorPlay, Folder, ChevronsLeft, ChevronsRight, Brain,
-  FolderOpen, Plus, Circle, Compass, DollarSign
+  FolderOpen, Plus, Circle, Compass, DollarSign, Server
 } from 'lucide-react';
 
 /** Session persistence for the collapsed rail state (survives navigation,
@@ -150,6 +150,9 @@ const LeftRail: React.FC = () => {
         </NavLink>
 
         <div className="nav-section-label">{collapsed ? <Settings size={14} /> : 'SYSTEM'}</div>
+        <NavLink to="/agent-providers" data-testid="nav-agent-providers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Agent Providers">
+          <Server size={16} /> {!collapsed && 'AGENT PROVIDERS'}
+        </NavLink>
         <NavLink to="/memory" data-testid="nav-memory" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Memory">
           <Database size={16} /> {!collapsed && 'MEMORY'}
         </NavLink>

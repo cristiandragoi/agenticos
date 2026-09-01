@@ -1,16 +1,18 @@
 /**
- * Internal API tools for Jarvis/Hermes — call existing backend endpoints.
+ * Internal API tools for Jarvis/Hermes â€” call existing backend endpoints.
  * These are simple, well-defined actions that return clear results.
  * They do NOT loop, retry, or make autonomous decisions.
  */
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 
 const BACKEND = 'http://localhost:4000/api';
-const OBSIDIAN_VAULT = 'C:\\Users\\Cris\\obsidian-vault';
+const OBSIDIAN_VAULT = process.env.OBSIDIAN_VAULT_PATH || path.join(process.env.USERPROFILE || os.homedir(), 'obsidian-vault');
 
-/* ─── getPipelineStatus ─── */
+
+/* â”€â”€â”€ getPipelineStatus â”€â”€â”€ */
 
 export const getPipelineStatusTool = {
   name: 'getPipelineStatus',
@@ -47,11 +49,11 @@ export const getPipelineStatusTool = {
   },
 };
 
-/* ─── runPipeline ─── */
+/* â”€â”€â”€ runPipeline â”€â”€â”€ */
 
 export const runPipelineTool = {
   name: 'runPipeline',
-  description: 'Trigger a pipeline to start running. Returns immediately with a run ID — does NOT wait for the pipeline to finish. Call this ONLY when the user explicitly says "run" or "start" a pipeline. Do NOT call this on your own initiative.',
+  description: 'Trigger a pipeline to start running. Returns immediately with a run ID â€” does NOT wait for the pipeline to finish. Call this ONLY when the user explicitly says "run" or "start" a pipeline. Do NOT call this on your own initiative.',
   parameters: [
     { name: 'pipelineId', type: 'string', description: 'The pipeline ID to trigger (e.g. "loop-welders-pipeline")', required: true },
   ],
@@ -92,7 +94,7 @@ export const runPipelineTool = {
   },
 };
 
-/* ─── readObsidianFile ─── */
+/* â”€â”€â”€ readObsidianFile â”€â”€â”€ */
 
 export const readObsidianFileTool = {
   name: 'readObsidianFile',

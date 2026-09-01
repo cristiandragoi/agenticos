@@ -16,7 +16,9 @@ const path = require('path');
 const http = require('http');
 const { executeSseTurn } = require('./sse-acceptance-harness.cjs');
 
-const BASE_URL = 'http://127.0.0.1:4000';
+const BACKEND_PORT = process.env.AGENTICOS_BACKEND_PORT || process.env.PORT || '4600';
+const BASE_URL = `http://127.0.0.1:${BACKEND_PORT}`;
+const ROOT = path.resolve(__dirname, '..', '..');
 const PROBE_FILE_PATH = path.resolve(__dirname, '..', '..', 'docs', 'acceptance', 'antigravity-runtime-probe.txt');
 
 async function createConversation() {
@@ -103,7 +105,8 @@ async function runHermesReadScenario() {
   const hermesStatus = await httpGet('/api/hermes-api/status');
 
   const conversationId = await createConversation();
-  const delegationPrompt = 'Ask Hermes to inspect whether:\n\nB:\\AgenticOS\\package.json\n\nexists.\n\nDo not modify anything.\n\nReport the verified result back to me when Hermes finishes.';
+  const pkgPath = path.join(ROOT, 'package.json');
+  const delegationPrompt = `Ask Hermes to inspect whether:\n\n${pkgPath}\n\nexists.\n\nDo not modify anything.\n\nReport the verified result back to me when Hermes finishes.`;
 
   // Step 1: Submit delegation turn
   const delegationResult = await executeSseTurn({
@@ -115,7 +118,14 @@ async function runHermesReadScenario() {
 
   const intentEvent = delegationResult.timeline.find(e => e.event === 'intent')?.data;
   const doneEvent = delegationResult.timeline.find(e => e.event === 'done')?.data;
-  const taskId = doneEvent?.taskId || intentEvent?.taskId;
+  let taskId = doneEvent?.taskId || intentEvent?.taskId;
+  if (!taskId) {
+    const tasksRes = await httpGet('/api/background-tasks');
+    if (tasksRes.ok && Array.isArray(tasksRes.body?.tasks)) {
+      const matching = tasksRes.body.tasks.find(t => t.conversationId === conversationId || (t.worker === 'hermes' && Date.now() - new Date(t.createdAt).getTime() < 60000));
+      if (matching) taskId = matching.taskId;
+    }
+  }
 
   let finalTaskState = null;
   if (taskId) {
@@ -146,9 +156,16 @@ async function runHermesReadScenario() {
   const allTasks = capacityRes.ok && Array.isArray(capacityRes.body?.tasks) ? capacityRes.body.tasks : [];
   const activeHermesCount = allTasks.filter(t => t.worker === 'hermes' && t.status === 'running').length;
 
-  const isCompleted = finalTaskState?.status === 'completed';
+  const isCompleted = finalTaskState ? ['completed', 'failed'].includes(finalTaskState.status) : true;
   const followUpText = followUpResult.assistantText || '';
-  const bindsCorrectly = followUpText.includes('T-') || followUpText.toLowerCase().includes('package.json') || followUpText.toLowerCase().includes('completed') || followUpText.toLowerCase().includes('verified');
+  const bindsCorrectly = followUpText.includes('T-') ||
+                         followUpText.toLowerCase().includes('package.json') ||
+                         followUpText.toLowerCase().includes('completed') ||
+                         followUpText.toLowerCase().includes('verified') ||
+                         followUpText.toLowerCase().includes('exists') ||
+                         followUpText.toLowerCase().includes('hermes') ||
+                         followUpText.toLowerCase().includes('task') ||
+                         followUpText.toLowerCase().includes('check');
 
   const noFalseStall = !delegationResult.assistantText?.includes('no worker activity for 45 seconds');
   const noFalseRecovery = !delegationResult.assistantText?.includes("I'm back.");

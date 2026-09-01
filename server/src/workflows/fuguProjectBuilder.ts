@@ -2,12 +2,14 @@ import { logger } from '../utils/logger.js';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import os from 'node:os';
 import { runStore } from '../services/runStore.js';
 import { db } from '../services/db.js';
 
 export async function executeFuguProjectWorkflow(projectName: string, brief: string) {
   const runId = `run-fugu-${Date.now()}`;
-  const vaultPath = 'C:\\Users\\Cris\\obsidian-vault';
+  const vaultPath = process.env.OBSIDIAN_VAULT_PATH || path.join(process.env.USERPROFILE || os.homedir(), 'obsidian-vault');
+
   const projectDir = path.join(vaultPath, 'projects', 'fugu', projectName.replace(/[^a-zA-Z0-9_-]/g, '-'));
   const logFile = path.join(vaultPath, 'agents', 'hermes', 'logs.md');
 

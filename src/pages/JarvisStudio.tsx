@@ -28,8 +28,10 @@ import { GoldenPathPanel } from '../components/jarvis/GoldenPathPanel';
 import type { GoldenPathPanelHandle } from '../components/jarvis/GoldenPathPanel';
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import VoiceTracePanel from '../components/jarvis/VoiceTracePanel';
+import { voiceTracePush } from '../diagnostics/voiceTrace';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import { shouldMarkManualVoiceOwnership } from '../utils/voiceOwnership';
+import { detectControlIntent } from '../lib/controlIntent';
 import styles from './JarvisStudio.module.css';
 import cc from './JarvisCommandCenter.module.css';
 
@@ -72,13 +74,61 @@ function elapsedLabel(task: { startedAt: string | null; completedAt: string | nu
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 const VOICE_KEY = 'jarvis-canonical-voice';
+const VOICE_PROFILE_KEY = 'jarvis-canonical-voice-profile';
+const VOICE_PROVIDER_KEY = 'jarvis-canonical-voice-provider';
 const ACTIVE_CONV_KEY = 'jarvis-active-conversation';
 
-export const JARVIS_VOICES = [
-  { id: 'aura-helios-en', label: 'Helios · British English' },
-  { id: 'aura-zeus-en', label: 'Zeus · American English' },
-  { id: 'aura-athena-en', label: 'Athena · American English' },
-  { id: 'aura-orion-en', label: 'Orion · American English (natural)' },
+export interface JarvisVoiceOption {
+  id: string;
+  label: string;
+  gender: 'male' | 'female';
+  accent: string;
+  provider: 'deepgram' | 'speech-synthesis' | 'piper' | 'edge-tts';
+}
+
+export interface JarvisVoiceProfile {
+  id: string;
+  label: string;
+  description: string;
+  defaultVoice: string;
+}
+
+export const JARVIS_VOICE_PROVIDERS = [
+  { id: 'deepgram', label: 'Deepgram Aura (Neural TTS)' },
+  { id: 'speech-synthesis', label: 'System SpeechSynthesis (Offline)' },
+];
+
+export const JARVIS_VOICES: JarvisVoiceOption[] = [
+  // English (Edge TTS)
+  { id: 'en-GB-RyanNeural', label: 'Ryan · British English · Edge', gender: 'male', accent: 'British', provider: 'edge-tts' },
+  // German: Piper (primary) + Edge (fallback)
+  { id: 'de_DE-thorsten-high', label: 'Thorsten · Native German, Deep Male · Local (Piper)', gender: 'male', accent: 'German', provider: 'piper' },
+  { id: 'de-DE-KillianNeural', label: 'Killian · German Neural · Edge fallback', gender: 'male', accent: 'German', provider: 'edge-tts' },
+  // Romanian: Piper (primary) + Edge (fallback)
+  { id: 'ro_RO-mihai-medium', label: 'Mihai · Native Romanian · Local (Piper)', gender: 'male', accent: 'Romanian', provider: 'piper' },
+  { id: 'ro-RO-EmilNeural', label: 'Emil · Romanian Neural · Edge fallback', gender: 'male', accent: 'Romanian', provider: 'edge-tts' },
+  // English (Deepgram Aura)
+  { id: 'aura-helios-en', label: 'Helios · Deep British English', gender: 'male', accent: 'British', provider: 'deepgram' },
+  { id: 'aura-zeus-en', label: 'Zeus · Authoritative American', gender: 'male', accent: 'American', provider: 'deepgram' },
+  { id: 'aura-orion-en', label: 'Orion · Natural American', gender: 'male', accent: 'American', provider: 'deepgram' },
+  { id: 'aura-athena-en', label: 'Athena · Calm American', gender: 'female', accent: 'American', provider: 'deepgram' },
+  { id: 'aura-angus-en', label: 'Angus · Irish English', gender: 'male', accent: 'Irish', provider: 'deepgram' },
+  { id: 'aura-orpheus-en', label: 'Orpheus · Confident American', gender: 'male', accent: 'American', provider: 'deepgram' },
+];
+
+/** Get the effective TTS provider label for a voice ID */
+export function getVoiceProviderLabel(voiceId: string): string {
+  if (voiceId.startsWith('de_DE-') || voiceId.startsWith('ro_RO-')) return 'piper';
+  if (voiceId.endsWith('Neural')) return 'edge-tts';
+  if (voiceId.startsWith('aura-')) return 'deepgram';
+  return 'edge-tts';
+}
+
+export const JARVIS_PROFILES: JarvisVoiceProfile[] = [
+  { id: 'deep-jarvis', label: 'Deep Jarvis (Calm & Authoritative)', description: 'Deep, measured, British English tone with cinematic presence', defaultVoice: 'aura-helios-en' },
+  { id: 'cinematic', label: 'Cinematic Command', description: 'Authoritative, resonant American delivery', defaultVoice: 'aura-zeus-en' },
+  { id: 'natural', label: 'Natural Conversational', description: 'Fluid, conversational tempo', defaultVoice: 'aura-orion-en' },
+  { id: 'fast', label: 'Tactical Briefing', description: 'Crisp, accelerated information delivery', defaultVoice: 'aura-zeus-en' },
 ];
 
 function readPersistedMode(): 'manual' | 'conversation' {
@@ -86,11 +136,46 @@ function readPersistedMode(): 'manual' | 'conversation' {
     return sessionStorage.getItem(MODE_KEY) === 'conversation' ? 'conversation' : 'manual';
   } catch { return 'manual'; }
 }
+
 function readPersistedVoice(): string {
   try {
-    const v = sessionStorage.getItem(VOICE_KEY);
-    return v && JARVIS_VOICES.some((x) => x.id === v) ? v : JARVIS_VOICES[0].id;
+    const lv = localStorage.getItem(VOICE_KEY);
+    if (lv && JARVIS_VOICES.some((x) => x.id === lv)) return lv;
+    const sv = sessionStorage.getItem(VOICE_KEY);
+    return sv && JARVIS_VOICES.some((x) => x.id === sv) ? sv : JARVIS_VOICES[0].id;
   } catch { return JARVIS_VOICES[0].id; }
+}
+
+function readPersistedProfile(): string {
+  try {
+    const lp = localStorage.getItem(VOICE_PROFILE_KEY);
+    if (lp && JARVIS_PROFILES.some((x) => x.id === lp)) return lp;
+    const sp = sessionStorage.getItem(VOICE_PROFILE_KEY);
+    return sp && JARVIS_PROFILES.some((x) => x.id === sp) ? sp : JARVIS_PROFILES[0].id;
+  } catch { return JARVIS_PROFILES[0].id; }
+}
+
+function readPersistedProvider(): string {
+  try {
+    const lp = localStorage.getItem(VOICE_PROVIDER_KEY);
+    if (lp && JARVIS_VOICE_PROVIDERS.some((x) => x.id === lp)) return lp;
+    return JARVIS_VOICE_PROVIDERS[0].id;
+  } catch { return JARVIS_VOICE_PROVIDERS[0].id; }
+}
+
+function persistVoice(id: string): void {
+  try { localStorage.setItem(VOICE_KEY, id); } catch { /* storage unavailable */ }
+  try { sessionStorage.setItem(VOICE_KEY, id); } catch { /* storage unavailable */ }
+}
+
+function persistProfile(id: string): void {
+  try { localStorage.setItem(VOICE_PROFILE_KEY, id); } catch { /* storage unavailable */ }
+  try { sessionStorage.setItem(VOICE_PROFILE_KEY, id); } catch { /* storage unavailable */ }
+}
+
+function persistProvider(id: string): void {
+  try { localStorage.setItem(VOICE_PROVIDER_KEY, id); } catch { /* storage unavailable */ }
+  try { sessionStorage.setItem(VOICE_PROVIDER_KEY, id); } catch { /* storage unavailable */ }
 }
 
 /* ── Hermes live-run types (adapter contract: /api/hermes-api) ── */
@@ -142,12 +227,25 @@ interface HardwareProfileLite {
   warnings: string[];
 }
 
+export type StatusLevel = 'online' | 'ready' | 'neutral' | 'idle' | 'offline' | 'unavailable' | 'error' | boolean;
+
+interface MagnitudeStatus {
+  available: boolean;
+  reason?: string;
+  provider?: string;
+}
+
 const chip: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap',
 };
-const dot = (on: boolean) => (
-  <span style={{ width: 7, height: 7, borderRadius: '50%', background: on ? '#4ade80' : '#64748b', display: 'inline-block' }} />
+const dotColor = (level?: StatusLevel): string => {
+  if (level === true || level === 'online' || level === 'ready') return '#4ade80';
+  if (level === false || level === 'offline' || level === 'unavailable' || level === 'error') return '#ef4444';
+  return '#64748b';
+};
+const dot = (level?: StatusLevel) => (
+  <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(level), display: 'inline-block' }} />
 );
 
 export default function JarvisStudio() {
@@ -270,13 +368,32 @@ export default function JarvisStudio() {
 
   // ── THE single voice engine — one mic, one VAD, one STT, one TTS ──
   const [mode, setMode] = useState<'manual' | 'conversation'>(readPersistedMode);
+  const [conversationLanguage, setConversationLanguage] = useState<string>('en');
   const [voiceOutEnabled, setVoiceOutEnabled] = useState(true);
   const [selectedVoice, setSelectedVoice] = useState<string>(readPersistedVoice);
+  const [selectedProfile, setSelectedProfile] = useState<string>(readPersistedProfile);
+  const [selectedProvider, setSelectedProvider] = useState<string>(readPersistedProvider);
   const [voiceBusy, setVoiceBusy] = useState(false);
+
+  const handleLanguageChange = useCallback((newLang: string) => {
+    const raw = (newLang || 'en').toLowerCase().trim();
+    const code = raw === 'auto' ? 'en' : raw.slice(0, 2);
+    setConversationLanguage(code);
+    // Piper is primary for de/ro; edge-tts for en.
+    // Voice IDs starting with xx_XX- are Piper; xx-XX- are Edge TTS.
+    const targetVoice =
+      code === 'de' ? 'de_DE-thorsten-high' :
+      code === 'ro' ? 'ro_RO-mihai-medium' :
+      'en-GB-RyanNeural';
+    setSelectedVoice(targetVoice);
+    persistVoice(targetVoice);
+    voiceRef.current?.setLanguage?.(code);
+    voiceRef.current?.setVoiceOverride?.(targetVoice);
+  }, []);
 
   // ── Progressive TTS buffer (sentence chunks, sequential, no overlap) ──
   const speechBufferRef = useRef('');
-  const flushSpeechBuffer = useCallback((force: boolean) => {
+  const flushSpeechBuffer = useCallback((force: boolean, turnId?: number) => {
     const buf = speechBufferRef.current;
     if (!buf) return;
     let cut = -1;
@@ -289,12 +406,16 @@ export default function JarvisStudio() {
     if (cut <= 0 && !force) return;
     const chunk = (cut > 0 ? buf.slice(0, cut) : buf).trim();
     speechBufferRef.current = cut > 0 ? buf.slice(cut) : '';
-    if (chunk) voiceRef.current?.speakProgressive?.(chunk);
+    const effectiveTurnId = typeof turnId === 'number' ? turnId : turnSeqRef.current;
+    if (chunk) voiceRef.current?.speakProgressive?.(chunk, 'CONVERSATION', effectiveTurnId);
   }, []);
 
   /** Insights (Phase 3): last REAL user prompt + last REAL assistant reply. */
   const [lastUserPrompt, setLastUserPrompt] = useState<string | null>(null);
   const [lastReply, setLastReply] = useState<string | null>(null);
+
+  // ── Turn isolation sequence (Requirement 3) ──
+  const turnSeqRef = useRef(0);
 
   /** Streamed assistant deltas → sentence chunks → sequential TTS queue.
    *  Direct-chat replies are spoken whenever voice output is enabled,
@@ -302,26 +423,29 @@ export default function JarvisStudio() {
    *  "text in chat but no spoken response" for a reply they expect to hear.
    *  Routing events, tool events and diagnostics never reach this point with
    *  streamed text (only direct-reply deltas do). */
-  const handleStreamDelta = useCallback((delta: string, channel: 'typed' | 'voice') => {
+  const handleStreamDelta = useCallback((delta: string, channel: 'typed' | 'voice', turnId?: number) => {
     void channel;
+    if (typeof turnId === 'number' && turnId !== turnSeqRef.current) {
+      voiceTracePush('TURN_ISOLATION_REJECT', 'skipped', `Discarded stream delta for stale turn ${turnId} (active=${turnSeqRef.current})`);
+      return;
+    }
     speechBufferRef.current += delta;
-    flushSpeechBuffer(false);
+    flushSpeechBuffer(false, turnId);
   }, [flushSpeechBuffer]);
 
-  const handleAssistantDone = useCallback((text: string, channel: 'typed' | 'voice') => {
+  const handleAssistantDone = useCallback((text: string, channel: 'typed' | 'voice', turnId?: number) => {
     void channel;
+    if (typeof turnId === 'number' && turnId !== turnSeqRef.current) {
+      voiceTracePush('TURN_ISOLATION_REJECT', 'skipped', `Discarded done response for stale turn ${turnId} (active=${turnSeqRef.current})`);
+      return;
+    }
     setLastReply(text);
-    // EMERGENCY FIX: a reply that was served WITHOUT streaming deltas (e.g.
-    // the first reply of a fresh conversation takes the non-streaming path)
-    // never reaches speakProgressive — flush() finds an empty buffer and the
-    // user gets text but no voice. If nothing was buffered/spoken and the
-    // reply actually contains text, speak it directly (the engine's VOICE
-    // ON/OFF gate still applies inside speak()).
     const buffered = speechBufferRef.current;
-    flushSpeechBuffer(true);
+    flushSpeechBuffer(true, turnId);
     const after = speechBufferRef.current;
+    const effectiveTurnId = typeof turnId === 'number' ? turnId : turnSeqRef.current;
     if (!buffered && !after && text && text.trim().length > 0) {
-      voiceRef.current?.speakProgressive?.(text);
+      voiceRef.current?.speakProgressive?.(text, 'CONVERSATION', effectiveTurnId);
     }
   }, [flushSpeechBuffer]);
 
@@ -338,8 +462,30 @@ export default function JarvisStudio() {
 
   const voice = useVoiceIO({
     agentId: 'agent-jarvis',
+    conversationId: activeConversationId,
+    language: conversationLanguage,
+    voiceOverride: selectedVoice,
     endSpeechSilenceMs: 750, // Voice-reliability closure: 900 → 750ms
+
     onAutoSubmit: (text) => {
+      // Guard: while Jarvis is actively generating/thinking, incidental speech/noise must NOT cancel or corrupt the turn
+      if (voiceRef.current?.voiceState === 'thinking') {
+        const ctrl = detectControlIntent(text);
+        if (!ctrl) {
+          console.log('[JarvisStudio] Ignored incidental auto-submit while Jarvis is thinking:', text);
+          return;
+        }
+      }
+      // 1. Cancel previous playback and model response first
+      voiceRef.current?.stopSpeaking?.();
+      chatRef.current?.cancelResponse?.();
+
+      // 2. Create the new turn ID
+      const turnId = ++turnSeqRef.current;
+
+      // 3. Clear the progressive buffer
+      speechBufferRef.current = '';
+
       // Conversation auto-submit — the exact streaming pipeline, no Send.
       // §9 input ownership: a manual edit since the capture began means the
       // voice turn is stale; the engine already dropped it at the source, but
@@ -361,7 +507,12 @@ export default function JarvisStudio() {
         goldenPathRef.current.runPrompt(text);
         return;
       }
-      chatRef.current?.sendMessage(text, 'voice');
+
+      // 4. Arm speech for this explicit new turn ID after cancellation and immediately before sendMessage
+      voiceRef.current?.armSpeech?.(turnId);
+
+      // 5. Send the message with voice channel and turnId
+      chatRef.current?.sendMessage(text, 'voice', turnId);
     },
     onBargeIn: () => {
       // User barged in while Jarvis was speaking: cancel the in-flight MODEL
@@ -436,7 +587,7 @@ export default function JarvisStudio() {
           n.onclick = () => window.focus();
         } catch { /* notifications unavailable */ }
       }
-      if (evt.spokenSummary) voiceRef.current?.speakCompletion?.(evt.spokenSummary);
+      // Isolated: background completions do NOT auto-speak to prevent voice room pollution
     }
   }, [completions]);
 
@@ -488,7 +639,25 @@ export default function JarvisStudio() {
   const handleVoiceSelect = useCallback((id: string) => {
     setSelectedVoice(id);
     voiceRef.current?.setVoiceOverride?.(id);
-    try { sessionStorage.setItem(VOICE_KEY, id); } catch { /* ignore */ }
+    persistVoice(id);
+  }, []);
+
+  const handleProfileSelect = useCallback((id: string) => {
+    setSelectedProfile(id);
+    persistProfile(id);
+    const prof = JARVIS_PROFILES.find((p) => p.id === id);
+    if (prof) {
+      handleVoiceSelect(prof.defaultVoice);
+    }
+  }, [handleVoiceSelect]);
+
+  const handleProviderSelect = useCallback((id: string) => {
+    setSelectedProvider(id);
+    persistProvider(id);
+  }, []);
+
+  const handlePreviewVoice = useCallback(() => {
+    void voiceRef.current?.speak?.('Jarvis voice system online and operational. All core systems responding.');
   }, []);
 
   const toggleVoiceOut = useCallback(() => {
@@ -500,13 +669,17 @@ export default function JarvisStudio() {
   }, []);
 
   const handleStopSpeaking = useCallback(() => {
-    // KILL SWITCH: stop playback, abort synthesis, clear queue, suppress
-    // further speech for this run. Visible text streaming is untouched.
-    voiceRef.current?.killSpeech?.();
+    // AUTHORITATIVE KILL SWITCH: local silence + cancel model stream
+    voiceRef.current?.killSpeechNow?.();
+    chatRef.current?.cancelResponse?.();
   }, []);
 
   const handleNewConversation = useCallback(async () => {
     try {
+      setConversationLanguage('en');
+      setSelectedVoice('en-GB-RyanNeural');
+      voiceRef.current?.setLanguage?.('en');
+      voiceRef.current?.setVoiceOverride?.('en-GB-RyanNeural');
       const res = await fetch(`${API_BASE}/jarvis/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -564,6 +737,7 @@ export default function JarvisStudio() {
 
   // ── Hermes live-run status + current run (real events, no fakes) ──
   const [hermesStatus, setHermesStatus] = useState<HermesStatus | null>(null);
+  const [magnitudeStatus, setMagnitudeStatus] = useState<MagnitudeStatus | null>(null);
   const [hermesRuns, setHermesRuns] = useState<HermesRun[]>([]);
   const [activeRun, setActiveRun] = useState<HermesRun | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -645,11 +819,23 @@ export default function JarvisStudio() {
         const res = await fetch(`${API_BASE}/hermes-api/status`);
         if (res.ok && !cancelled) setHermesStatus(await res.json());
       } catch { /* status chip shows offline */ }
+      try {
+        const magRes = await fetch(`${API_BASE}/magnitude/status`);
+        if (magRes.ok && !cancelled) {
+          setMagnitudeStatus(await magRes.json());
+        } else if (!cancelled) {
+          setMagnitudeStatus({ available: false, reason: 'Magnitude unavailable' });
+        }
+      } catch {
+        if (!cancelled) setMagnitudeStatus({ available: false, reason: 'Magnitude service unreachable' });
+      }
     };
     check();
     const id = window.setInterval(check, 30_000);
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
+
+  const resolvedApprovalKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -661,9 +847,20 @@ export default function JarvisStudio() {
         if (cancelled) return;
         setHermesRuns(runs);
         const live = runs.find(r => ['waiting_for_approval', 'running', 'queued', 'stopping'].includes(r.status));
-        if (live && live.id !== activeRun?.id) {
-          const detail = await fetch(`${API_BASE}/hermes-api/runs/${live.id}`);
-          if (detail.ok && !cancelled) setActiveRun(await detail.json());
+        if (live) {
+          if (live.id !== activeRun?.id || live.status !== activeRun?.status || (activeRun?.pendingApproval && live.status !== 'waiting_for_approval')) {
+            const detail = await fetch(`${API_BASE}/hermes-api/runs/${live.id}`);
+            if (detail.ok && !cancelled) {
+              const runDetail: HermesRun = await detail.json();
+              if (runDetail.pendingApproval) {
+                const k = `${runDetail.id}:${runDetail.pendingApproval.action || ''}:${runDetail.pendingApproval.command || ''}`;
+                if (resolvedApprovalKeysRef.current.has(k)) {
+                  runDetail.pendingApproval = null;
+                }
+              }
+              setActiveRun(runDetail);
+            }
+          }
         } else if (!live) {
           // §4: ACTIVE RUN shows ONLY current work. A finished run is
           // history — the panel renders it under HISTORY, never as the
@@ -675,7 +872,7 @@ export default function JarvisStudio() {
     poll();
     const id = window.setInterval(poll, 3000);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [activeRun?.id]);
+  }, [activeRun?.id, activeRun?.status, activeRun?.pendingApproval]);
 
   const [approvalChoiceBusy, setApprovalChoiceBusy] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
@@ -797,6 +994,8 @@ export default function JarvisStudio() {
 
   const handleApproval = useCallback(async (choice: 'allow' | 'deny') => {
     if (!activeRun || approvalChoiceBusy) return;
+    const approvalKey = `${activeRun.id}:${activeRun.pendingApproval?.action || ''}:${activeRun.pendingApproval?.command || ''}`;
+    resolvedApprovalKeysRef.current.add(approvalKey);
     setApprovalChoiceBusy(true);
     setApprovalError(null);
     try {
@@ -809,8 +1008,21 @@ export default function JarvisStudio() {
         const data = await res.json().catch(() => ({}));
         setApprovalError(data?.error?.message || data?.error || `Approval failed (HTTP ${res.status})`);
       } else {
-        const detail = await fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`);
-        if (detail.ok) setActiveRun(await detail.json());
+        const [detail, appRes] = await Promise.all([
+          fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`),
+          fetch(`${API_BASE}/background-tasks/approvals`),
+        ]);
+        if (detail.ok) {
+          const runDetail = await detail.json();
+          runDetail.pendingApproval = null;
+          setActiveRun(runDetail);
+        } else {
+          setActiveRun(prev => prev ? { ...prev, pendingApproval: null } : null);
+        }
+        if (appRes.ok) {
+          const list: any[] = await appRes.json();
+          setTaskApprovals(list.filter(a => !resolvedApprovalKeysRef.current.has(`${a.taskId}:${a.action}:${a.command || ''}`)));
+        }
       }
     } catch (err: any) {
       setApprovalError(err?.message || 'Network error');
@@ -835,7 +1047,14 @@ export default function JarvisStudio() {
     const poll = async () => {
       try {
         const res = await fetch(`${API_BASE}/background-tasks/approvals`);
-        if (res.ok && !cancelled) setTaskApprovals(await res.json());
+        if (res.ok && !cancelled) {
+          const list: any[] = await res.json();
+          const filtered = list.filter(a => {
+            const k = `${a.taskId}:${a.action}:${a.command || ''}`;
+            return !resolvedApprovalKeysRef.current.has(k);
+          });
+          setTaskApprovals(filtered);
+        }
       } catch { /* keep last known list */ }
     };
     poll();
@@ -845,6 +1064,8 @@ export default function JarvisStudio() {
   const pendingTaskApproval = taskApprovals[0] || null;
   const handleTaskApproval = useCallback(async (choice: 'allow' | 'deny', force?: boolean) => {
     if (!pendingTaskApproval || approvalChoiceBusy) return;
+    const approvalKey = `${pendingTaskApproval.taskId}:${pendingTaskApproval.action}:${pendingTaskApproval.command || ''}`;
+    resolvedApprovalKeysRef.current.add(approvalKey);
     setApprovalChoiceBusy(true);
     setApprovalError(null);
     try {
@@ -858,18 +1079,35 @@ export default function JarvisStudio() {
         setApprovalError(data?.error || `Approval failed (HTTP ${res.status})`);
       } else {
         // Refresh immediately so the modal clears when resolved.
-        const appRes = await fetch(`${API_BASE}/background-tasks/approvals`);
-        if (appRes.ok) setTaskApprovals(await appRes.json());
+        const [appRes, runsRes] = await Promise.all([
+          fetch(`${API_BASE}/background-tasks/approvals`),
+          activeRun ? fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`) : Promise.resolve(null),
+        ]);
+        if (appRes.ok) {
+          const list: any[] = await appRes.json();
+          setTaskApprovals(list.filter(a => !resolvedApprovalKeysRef.current.has(`${a.taskId}:${a.action}:${a.command || ''}`)));
+        } else {
+          setTaskApprovals(prev => prev.filter(a => a.taskId !== pendingTaskApproval.taskId));
+        }
+        if (runsRes && runsRes.ok) {
+          const runDetail = await runsRes.json();
+          runDetail.pendingApproval = null;
+          setActiveRun(runDetail);
+        } else if (activeRun) {
+          setActiveRun(prev => prev ? { ...prev, pendingApproval: null } : null);
+        }
         await pollTasks();
       }
     } catch (err: any) {
       setApprovalError(err?.message || 'Network error resolving approval');
     }
     setApprovalChoiceBusy(false);
-  }, [pendingTaskApproval, approvalChoiceBusy, pollTasks]);
+  }, [pendingTaskApproval, activeRun, approvalChoiceBusy, pollTasks]);
 
   const handleReconcileTaskApproval = useCallback(async (action: 'deny' | 'cancel' | 'retry') => {
     if (!pendingTaskApproval || approvalChoiceBusy) return;
+    const approvalKey = `${pendingTaskApproval.taskId}:${pendingTaskApproval.action}:${pendingTaskApproval.command || ''}`;
+    resolvedApprovalKeysRef.current.add(approvalKey);
     setApprovalChoiceBusy(true);
     setApprovalError(null);
     try {
@@ -878,14 +1116,29 @@ export default function JarvisStudio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const appRes = await fetch(`${API_BASE}/background-tasks/approvals`);
-      if (appRes.ok) setTaskApprovals(await appRes.json());
+      const [appRes, runsRes] = await Promise.all([
+        fetch(`${API_BASE}/background-tasks/approvals`),
+        activeRun ? fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`) : Promise.resolve(null),
+      ]);
+      if (appRes.ok) {
+        const list: any[] = await appRes.json();
+        setTaskApprovals(list.filter(a => !resolvedApprovalKeysRef.current.has(`${a.taskId}:${a.action}:${a.command || ''}`)));
+      } else {
+        setTaskApprovals(prev => prev.filter(a => a.taskId !== pendingTaskApproval.taskId));
+      }
+      if (runsRes && runsRes.ok) {
+        const runDetail = await runsRes.json();
+        runDetail.pendingApproval = null;
+        setActiveRun(runDetail);
+      } else if (activeRun) {
+        setActiveRun(prev => prev ? { ...prev, pendingApproval: null } : null);
+      }
       await pollTasks();
     } catch (err: any) {
       setApprovalError(err?.message || 'Reconciliation failed');
     }
     setApprovalChoiceBusy(false);
-  }, [pendingTaskApproval, approvalChoiceBusy, pollTasks]);
+  }, [pendingTaskApproval, activeRun, approvalChoiceBusy, pollTasks]);
 
   // ── Orb state: canonical event-driven contract (real signals only) ──
   const [playbackActive, setPlaybackActive] = useState(false);
@@ -1267,10 +1520,10 @@ export default function JarvisStudio() {
 
   const filesChanged = (activeRun?.events || []).filter(e => e.kind === 'file.changed').length;
 
-  const statusChip = (label: string, value: string, ok?: boolean) => (
+  const statusChip = (label: string, value: string, level?: StatusLevel) => (
     <span style={chip}>
-      {ok !== undefined && dot(ok)}
-      {label} <b style={{ color: '#cbd5e1' }}>{value}</b>
+      {level !== undefined && dot(level)}
+      {label ? `${label} ` : ''}<b style={{ color: '#cbd5e1' }}>{value}</b>
     </span>
   );
 
@@ -1278,7 +1531,6 @@ export default function JarvisStudio() {
   const primary = (() => {
     if (backendOffline) return { label: 'RECONNECT', onClick: handleReconnect, disabled: false };
     if (voice.isSpeaking) return { label: 'STOP SPEAKING', onClick: handleStopSpeaking, disabled: false };
-    if (voice.voiceState === 'listening') return { label: 'LISTENING…', onClick: undefined as (() => void) | undefined, disabled: true };
     if (mode === 'conversation') return { label: 'END CONVERSATION', onClick: () => void handleModeChange('manual'), disabled: voiceBusy };
     return { label: 'START CONVERSATION', onClick: () => void handleModeChange('conversation'), disabled: voiceBusy };
   })();
@@ -1317,24 +1569,26 @@ export default function JarvisStudio() {
             stack between wordmark and orb (scroll-correction §3): never
             absolutely pinned, so it can never collide with the wordmark. ── */}
         <div data-testid="jarvis-status-strip" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14, zIndex: 5, margin: '16px 0 10px' }}>
-          {statusChip('', backendOffline ? 'BACKEND OFFLINE' : 'CONNECTED', !backendOffline)}
+          {statusChip('', backendOffline ? 'BACKEND OFFLINE' : 'CONNECTED', backendOffline ? 'error' : 'online')}
           {/* Runtime-display truth: ASSIGNED (settings) vs ACTIVE (stream).
               They differ only when a fallback serves the turn — the UI says
               so instead of silently showing one or the other. */}
-          {statusChip('ASSIGNED', jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—')}
-          {statusChip('ACTIVE', activeProvider ? `${activeProvider}/${activeModel ?? '—'}` : '—', !!activeProvider)}
-          {statusChip('HERMES', hermesStatus?.gateway?.reachable ? 'ONLINE' : 'OFFLINE', !!hermesStatus?.gateway?.reachable)}
-          {statusChip('STT', hermesStatus?.stt?.configured ? hermesStatus.stt.provider : 'none', !!hermesStatus?.stt?.configured)}
-          {statusChip('TTS', hermesStatus?.tts?.configured ? hermesStatus.tts.provider : 'none', !!hermesStatus?.tts?.configured)}
-          {statusChip('MIC', mode === 'conversation' ? voice.voiceState.toUpperCase() : micState === 'idle' ? 'manual' : micState, mode === 'conversation')}
-          {statusChip('VOICE', voiceOutEnabled ? selectedVoice.replace('aura-', '') : 'off', voiceOutEnabled)}
+          {statusChip('ASSIGNED', jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : '—', jarvisAssignment?.providerId ? 'neutral' : 'neutral')}
+          {statusChip('ACTIVE', activeProvider ? `${activeProvider}/${activeModel ?? '—'}` : '—', activeProvider ? 'online' : 'neutral')}
+          {statusChip('HERMES', hermesStatus?.gateway?.reachable ? 'ONLINE' : 'OFFLINE', hermesStatus ? (hermesStatus.gateway?.reachable ? 'online' : 'error') : 'neutral')}
+          {statusChip('BROWSER', magnitudeStatus?.available ? 'ONLINE' : 'UNAVAILABLE', magnitudeStatus ? (magnitudeStatus.available ? 'online' : 'error') : 'error')}
+          {statusChip('STT', hermesStatus?.stt?.configured ? hermesStatus.stt.provider : 'local-whisper', 'ready')}
+          {statusChip('TTS', hermesStatus?.tts?.configured ? hermesStatus.tts.provider : 'local-neural-tts', 'ready')}
+          {statusChip('MIC', mode === 'conversation' ? voice.voiceState.toUpperCase() : voice.voiceState === 'listening' ? 'LISTENING' : micState === 'idle' ? 'manual' : micState, mode === 'conversation' ? (voice.voiceState === 'error' ? 'error' : voice.voiceState === 'listening' ? 'online' : 'ready') : (voice.voiceState === 'listening' ? 'online' : 'neutral'))}
+          {statusChip('TTS', voiceOutEnabled ? getVoiceProviderLabel(selectedVoice) : 'off', voiceOutEnabled ? 'ready' : 'neutral')}
+          {statusChip('VOICE', voiceOutEnabled ? selectedVoice.replace('aura-', '').replace('de_DE-', '').replace('ro_RO-', '') : 'off', voiceOutEnabled ? 'online' : 'neutral')}
         </div>
 
         {/* ── CENTRAL CORE ── */}
         <div ref={orbRegionRef} className={cc.centerColumn} data-testid="jarvis-orb-region">
           <div data-testid="jarvis-dashboard" className={cc.coreWrap}>
-            <div data-testid="jarvis-orb-wrapper" style={{ position: 'relative' }}>
-              <div data-testid="jarvis-orb-core" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div data-testid="jarvis-orb-wrapper" style={{ position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div data-testid="jarvis-orb-core" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                 <JarvisNeuralBlob
                   state={orbState}
                   inputLevel={orbState === 'listening' ? inputLevel : 0}
@@ -1351,7 +1605,11 @@ export default function JarvisStudio() {
                 />
               </div>
             </div>
-            <div data-testid="jarvis-orb-status-label" className={cc.stateLabel}>{JARVIS_ORB_LABELS[orbState]}</div>
+            <div data-testid="jarvis-orb-status-label" className={cc.stateLabel}>
+              {orbState === 'thinking'
+                ? `THINKING — ${activeProvider ? `${activeProvider.toUpperCase()} / ${activeModel?.toUpperCase() || 'LLM'}` : 'LOCAL QWEN'}`
+                : JARVIS_ORB_LABELS[orbState]}
+            </div>
             <span data-testid="jarvis-orb-label" aria-hidden="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{JARVIS_ORB_LABELS[orbState]}</span>
             {/* Primary control — its own flow row BELOW the orb (overlap fix):
                 wordmark → orb → state text → control, with real spacing.
@@ -1364,6 +1622,67 @@ export default function JarvisStudio() {
             >
               {primary.label}
             </button>
+
+            {/* ── EMERGENCY STOP BUTTON (PART 2) ── */}
+            {(voice.isSpeaking || voice.voiceState === 'speaking' || voice.voiceState === 'thinking') && (
+              <button
+                data-testid="jarvis-emergency-stop"
+                onClick={() => {
+                  voiceRef.current?.killSpeech?.();
+                  chatRef.current?.cancelResponse?.();
+                }}
+                style={{
+                  marginTop: '10px',
+                  padding: '6px 18px',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: '1px solid #ef4444',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)',
+                }}
+              >
+                ■ STOP (ESC)
+              </button>
+            )}
+
+            {/* ── TRANSCRIPT VISIBILITY HUD (PART 5) ── */}
+            <div
+              data-testid="jarvis-transcript-hud"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                width: '100%',
+                maxWidth: '600px',
+                margin: '14px 0 4px',
+                padding: '8px 12px',
+                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <span style={{ color: '#38bdf8', fontWeight: 'bold', minWidth: '70px' }}>HEARD:</span>
+                <span style={{ color: '#f8fafc', overflowWrap: 'anywhere' }}>{voice.lastTranscript || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <span style={{ color: '#c084fc', fontWeight: 'bold', minWidth: '70px' }}>THINKING:</span>
+                <span style={{ color: '#e2e8f0' }}>{activeProvider ? `${activeProvider}/${activeModel ?? '—'}` : (jarvisAssignment?.providerId ? `${jarvisAssignment.providerId.replace('prov-', '')}/${jarvisAssignment.modelId ?? '—'}` : 'ollama/qwen2.5:7b')}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <span style={{ color: '#4ade80', fontWeight: 'bold', minWidth: '70px' }}>SPEAKING:</span>
+                <span style={{ color: '#f8fafc', overflowWrap: 'anywhere' }}>{lastReply || '—'}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1461,14 +1780,48 @@ export default function JarvisStudio() {
                 VOICE {voiceOutEnabled ? 'ON' : 'OFF'}
               </button>
               <select
+                data-testid="jarvis-voice-provider-select"
+                value={selectedProvider}
+                onChange={(e) => handleProviderSelect(e.target.value)}
+                className={cc.ctl}
+                title="Voice TTS Provider"
+                style={{ background: 'rgba(8,20,40,0.9)' }}
+              >
+                {JARVIS_VOICE_PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+              <select
+                data-testid="jarvis-voice-profile-select"
+                value={selectedProfile}
+                onChange={(e) => handleProfileSelect(e.target.value)}
+                className={cc.ctl}
+                title="Voice Character Profile"
+                style={{ background: 'rgba(8,20,40,0.9)' }}
+              >
+                {JARVIS_PROFILES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+              <select
                 data-testid="jarvis-voice-select"
                 value={selectedVoice}
                 onChange={(e) => handleVoiceSelect(e.target.value)}
                 className={cc.ctl}
+                title="Specific TTS Voice Model"
                 style={{ background: 'rgba(8,20,40,0.9)' }}
               >
-                {JARVIS_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                {JARVIS_VOICES.filter((v) =>
+                  selectedProvider === 'speech-synthesis'
+                    ? v.provider === 'speech-synthesis'
+                    : v.provider !== 'speech-synthesis'
+                ).map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
               </select>
+              <button
+                data-testid="jarvis-voice-preview"
+                onClick={handlePreviewVoice}
+                disabled={voice.isSpeaking}
+                className={cc.ctl}
+                title="Preview / test the selected voice"
+              >
+                TEST VOICE
+              </button>
               <button
                 data-testid="jarvis-stop-speaking"
                 onClick={handleStopSpeaking}
@@ -1688,6 +2041,7 @@ export default function JarvisStudio() {
                 ref={chatRef}
                 conversationId={activeConversationId}
                 onConversationCreated={(id) => setActiveConversationId(id)}
+                onLanguageChange={handleLanguageChange}
                 onStatusChange={(status) => {
                   setRuntimeStatus(status);
                   // EMERGENCY FIX: short replies without punctuation never
@@ -1745,11 +2099,11 @@ export default function JarvisStudio() {
                 manualEditSinceVoiceRef.current = false;
                 setVoiceInterimTranscript('');
               }
-              // EMERGENCY FIX: a NEW user message re-arms speech after a
-              // STOP SPEAKING kill — subsequent voice output must work again.
-              voiceRef.current?.armSpeech?.();
+              const turnId = ++turnSeqRef.current;
+              speechBufferRef.current = '';
+              voiceRef.current?.armSpeech?.(turnId);
               setLastUserPrompt(text);
-              chatRef.current?.sendMessage(text, channel ?? 'typed');
+              chatRef.current?.sendMessage(text, channel ?? 'typed', turnId);
             }}
             isProcessing={['thinking', 'understanding', 'planning', 'delegating', 'executing', 'reviewing', 'streaming'].includes(runtimeStatus.state)}
             onCancelResponse={() => chatRef.current?.cancelResponse()}
@@ -1826,7 +2180,7 @@ export default function JarvisStudio() {
               OPEN BOARD
             </button>
           </div>
-          
+
           <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
             <button
               data-testid="view-related-memories"
@@ -1905,7 +2259,7 @@ export default function JarvisStudio() {
             </div>
           )}
 
-          
+
           {/* ── HISTORY (§4–5): finished work lives here — NEVER under
               ACTIVE RUN. Its own bounded, independently scrollable list so
               a long historical result cannot grow the panel unbounded. ── */}
@@ -2027,7 +2381,7 @@ export default function JarvisStudio() {
               )}
             </div>
           )}
-        
+
           </div>
 </motion.div>
 

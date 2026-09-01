@@ -1,14 +1,14 @@
 /**
  * verify.cjs
  *
- * Antigravity V2 — Central Verification Engine & CLI Runner
+ * Antigravity V2 ï¿½ Central Verification Engine & CLI Runner
  *
  * Verification Levels:
- *   LEVEL 1 — UNIT VERIFIED          (--fast)
- *   LEVEL 2 — INTEGRATION VERIFIED   (--integration)
- *   LEVEL 3 — RUNTIME VERIFIED       (--runtime)
- *   LEVEL 4 — PACKAGED APP VERIFIED  (--acceptance / --packaged)
- *   LEVEL 5 — USER ACCEPTANCE VERIFIED (MANUAL ONLY — NEVER AWARDED AUTOMATICALLY)
+ *   LEVEL 1 ï¿½ UNIT VERIFIED          (--fast)
+ *   LEVEL 2 ï¿½ INTEGRATION VERIFIED   (--integration)
+ *   LEVEL 3 ï¿½ RUNTIME VERIFIED       (--runtime)
+ *   LEVEL 4 ï¿½ PACKAGED APP VERIFIED  (--acceptance / --packaged)
+ *   LEVEL 5 ï¿½ USER ACCEPTANCE VERIFIED (MANUAL ONLY ï¿½ NEVER AWARDED AUTOMATICALLY)
  *
  * Schema Version: 2.0.0
  * Process Safety: Verifier ONLY terminates processes it explicitly spawned (tracked in verifierOwnedPids).
@@ -74,7 +74,7 @@ async function main() {
   const startTime = new Date();
 
   console.log('\n======================================================================');
-  console.log('       ANTIGRAVITY V2 — ENGINEERING VERIFICATION SYSTEM              ');
+  console.log('       ANTIGRAVITY V2 ï¿½ ENGINEERING VERIFICATION SYSTEM              ');
   console.log('======================================================================');
   console.log(`Run ID:   ${acceptanceRunId}`);
   console.log(`Time:     ${startTime.toISOString()}`);
@@ -93,14 +93,14 @@ async function main() {
     console.log('[Level 1] Executing Unit & Stream Lifecycle Tests...');
     const unitRun = runCommandSafe('npx vitest run src/__tests__/jarvisGlobalStreamLifecycle.test.ts', path.join(ROOT, 'server'));
     results.push({
-      level: 'LEVEL 1 — UNIT VERIFIED',
+      level: 'LEVEL 1 ï¿½ UNIT VERIFIED',
       name: 'Stream Lifecycle Unit Tests (15 tests)',
       passed: unitRun.success,
       failureClass: unitRun.success ? null : 'TEST_ENVIRONMENT_FAILURE',
       details: unitRun.success ? '15/15 vitest suites passed' : unitRun.error,
     });
     if (!unitRun.success) overallPass = false;
-    else highestLevelAchieved = 'LEVEL 1 — UNIT VERIFIED';
+    else highestLevelAchieved = 'LEVEL 1 ï¿½ UNIT VERIFIED';
   }
 
   // -- 2. LEVEL 2: SELF-TEST SUITE ------------------------------------------
@@ -108,14 +108,14 @@ async function main() {
     console.log('[Level 2] Executing Verification Self-Test Suite...');
     const selfTestRun = runCommandSafe('npx vitest run src/__tests__/verificationSystemSelfTest.test.ts', path.join(ROOT, 'server'));
     results.push({
-      level: 'LEVEL 2 — INTEGRATION VERIFIED',
+      level: 'LEVEL 2 ï¿½ INTEGRATION VERIFIED',
       name: 'Verification System Self-Test Contract (10 tests)',
       passed: selfTestRun.success,
       failureClass: selfTestRun.success ? null : 'TEST_ENVIRONMENT_FAILURE',
       details: selfTestRun.success ? '10/10 self-test contracts passed' : selfTestRun.error,
     });
     if (!selfTestRun.success) overallPass = false;
-    else highestLevelAchieved = 'LEVEL 2 — INTEGRATION VERIFIED';
+    else highestLevelAchieved = 'LEVEL 2 ï¿½ INTEGRATION VERIFIED';
   }
 
   // -- 3. LEVEL 3: RUNTIME & PROCESS TRUTH -----------------------------------
@@ -152,7 +152,7 @@ async function main() {
 
     const processTruthPassed = diagReport.backendHealthy && !diagReport.duplicateCheck.potentialDuplicateElectron;
     results.push({
-      level: 'LEVEL 3 — RUNTIME VERIFIED',
+      level: 'LEVEL 3 ï¿½ RUNTIME VERIFIED',
       name: 'Process & Port Truth Health Check',
       passed: processTruthPassed,
       failureClass: processTruthPassed ? null : (diagReport.backendHealthy ? 'DUPLICATE_PROCESS' : (diagReport.portOwnerPid ? 'PORT_CONFLICT' : 'BACKEND_CRASH')),
@@ -167,7 +167,7 @@ async function main() {
       const directRes = await runDirectJarvisScenario();
       if (directRes.evidence?.conversationId) lastConversationId = directRes.evidence.conversationId;
       results.push({
-        level: 'LEVEL 3 — RUNTIME VERIFIED',
+        level: 'LEVEL 3 ï¿½ RUNTIME VERIFIED',
         name: directRes.name,
         passed: directRes.passed,
         failureClass: directRes.failureClass,
@@ -179,7 +179,7 @@ async function main() {
       console.log('  -> Executing Hermes Read Scenario...');
       const readRes = await runHermesReadScenario();
       results.push({
-        level: 'LEVEL 3 — RUNTIME VERIFIED',
+        level: 'LEVEL 3 ï¿½ RUNTIME VERIFIED',
         name: readRes.name,
         passed: readRes.passed,
         failureClass: readRes.failureClass,
@@ -191,7 +191,7 @@ async function main() {
       console.log('  -> Executing Hermes Approval & Write Scenario...');
       const writeRes = await runHermesWriteScenario();
       results.push({
-        level: 'LEVEL 3 — RUNTIME VERIFIED',
+        level: 'LEVEL 3 ï¿½ RUNTIME VERIFIED',
         name: writeRes.name,
         passed: writeRes.passed,
         failureClass: writeRes.failureClass,
@@ -203,7 +203,7 @@ async function main() {
       console.log('  -> Executing Codex Verification Scenario...');
       const codexRes = await runCodexScenario();
       results.push({
-        level: 'LEVEL 3 — RUNTIME VERIFIED',
+        level: 'LEVEL 3 ï¿½ RUNTIME VERIFIED',
         name: codexRes.name,
         passed: codexRes.passed,
         failureClass: codexRes.failureClass,
@@ -212,7 +212,7 @@ async function main() {
       });
       if (!codexRes.passed) overallPass = false;
 
-      if (overallPass) highestLevelAchieved = 'LEVEL 3 — RUNTIME VERIFIED';
+      if (overallPass) highestLevelAchieved = 'LEVEL 3 ï¿½ RUNTIME VERIFIED';
     }
 
     // Clean up verifier-owned ephemeral backend
@@ -229,19 +229,19 @@ async function main() {
     if (fs.existsSync(packagedScript)) {
       const pkgRun = runCommandSafe(`node "${packagedScript}"`);
       results.push({
-        level: 'LEVEL 4 — PACKAGED APP VERIFIED',
+        level: 'LEVEL 4 ï¿½ PACKAGED APP VERIFIED',
         name: 'Packaged Electron Executable Acceptance',
         passed: pkgRun.success,
         failureClass: pkgRun.success ? null : 'TEST_ENVIRONMENT_FAILURE',
         details: pkgRun.success ? 'Packaged binary passed acceptance on Mission Control and Jarvis Studio' : pkgRun.error,
       });
-      if (pkgRun.success && overallPass) highestLevelAchieved = 'LEVEL 4 — PACKAGED APP VERIFIED';
+      if (pkgRun.success && overallPass) highestLevelAchieved = 'LEVEL 4 ï¿½ PACKAGED APP VERIFIED';
     }
   }
 
   // -- 5. LEVEL 5: HUMAN USER ACCEPTANCE (NEVER AUTO-AWARDED) ---------------
   results.push({
-    level: 'LEVEL 5 — USER ACCEPTANCE VERIFIED',
+    level: 'LEVEL 5 ï¿½ USER ACCEPTANCE VERIFIED',
     name: 'Production Human User Acceptance',
     passed: false,
     isPending: true,
@@ -318,9 +318,9 @@ async function main() {
 
 | Status | Level | Test / Scenario | Details | Failure Class |
 | :---: | :--- | :--- | :--- | :--- |
-${results.map(r => `| **${r.isPending ? 'PENDING' : (r.passed ? 'PASS' : 'FAIL')}** | \`${r.level}\` | ${r.name} | ${r.details} | ${r.failureClass || '—'} |`).join('\n')}
+${results.map(r => `| **${r.isPending ? 'PENDING' : (r.passed ? 'PASS' : 'FAIL')}** | \`${r.level}\` | ${r.name} | ${r.details} | ${r.failureClass || 'ï¿½'} |`).join('\n')}
 
-_Rule: Antigravity may verify Levels 1–4 automatically. Only the human user may grant Level 5 — User Acceptance Verified._
+_Rule: Antigravity may verify Levels 1ï¿½4 automatically. Only the human user may grant Level 5 ï¿½ User Acceptance Verified._
 `;
   fs.writeFileSync(path.join(EVIDENCE_DIR, 'acceptance-summary.md'), summaryMarkdown, 'utf8');
 

@@ -20,7 +20,7 @@ try {
   $GitShortHash = 'nogit'
 }
 $RendererBuildId = "$GitShortHash-$($RendererBuildTimestamp -replace '[:.]','-')"
-$ElectronRoute = '#/jarvis'
+$ElectronRoute = '#/mission-control'
 $ElectronRemoteDebuggingPort = 9223
 
 function Write-Stage([string]$Message) {
@@ -223,16 +223,17 @@ exit `$LASTEXITCODE
 "@
   Set-Content -LiteralPath $runnerPath -Value $runnerContent -Encoding UTF8
 
-  $proc = Start-Process -FilePath 'powershell.exe' `
-    -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $runnerPath) `
-    -WorkingDirectory $WorkingDirectory `
-    -WindowStyle Hidden `
-    -PassThru
-
-  if (-not $proc -or $proc.HasExited) {
-    throw "$Name failed to start. Exit code: $($proc.ExitCode). Relevant log: $LogFile"
+  $cmdLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$runnerPath`""
+  $cimRes = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+    CommandLine = $cmdLine
+    CurrentDirectory = $WorkingDirectory
   }
 
+  if ($cimRes.ReturnValue -ne 0 -or -not $cimRes.ProcessId) {
+    throw "$Name failed to start via WMI. Return value: $($cimRes.ReturnValue). Relevant log: $LogFile"
+  }
+
+  $proc = Get-Process -Id ([int]$cimRes.ProcessId) -ErrorAction SilentlyContinue
   return $proc
 }
 
@@ -274,12 +275,13 @@ $backendCommand = @"
 `$env:PORT='4600'
 `$env:NODE_ENV='development'
 `$env:AGENTICOS_REPO_ROOT='$($RepoRoot.Replace("'", "''"))'
+`$env:PYTHON_PATH='$($RepoRoot.Replace("'", "''"))\server\.venv\Scripts\python.exe'
 npm.cmd run dev
 "@
 $backendProc = Start-LoggedPowerShell 'backend' $ServerRoot $backendCommand $BackendLog
 
 try {
-  Wait-HttpReady $BackendHealthUrl 'Backend startup' $BackendLog 90 | Out-Null
+  Wait-HttpReady $BackendHealthUrl 'Backend startup' $BackendLog 120 | Out-Null
 } catch {
   Write-Host "[AgenticOS] Backend failed. Exit code: $($backendProc.ExitCode). Relevant log: $BackendLog"
   Stop-StartedProcesses
@@ -296,6 +298,7 @@ $viteCommand = @"
 `$env:VITE_WEB_ONLY='true'
 `$env:BROWSER='none'
 `$env:AGENTICOS_REPO_ROOT='$($RepoRoot.Replace("'", "''"))'
+`$env:VITE_BACKEND_PORT='$BackendPort'
 `$env:VITE_AGENTICOS_BUILD_ID='$RendererBuildId'
 `$env:VITE_AGENTICOS_BUILD_TIMESTAMP='$RendererBuildTimestamp'
 npm.cmd run dev -- --host 127.0.0.1 --port 5173
@@ -319,6 +322,7 @@ Write-ProcessRecord $backendPidToTrack $vitePidToTrack 0 $actualFrontendPort $ac
 Write-Stage 'Starting Electron'
 $electronCommand = @"
 `$env:AGENTICOS_EXTERNAL_SERVERS='true'
+`$env:AGENTICOS_BACKEND_PORT='$BackendPort'
 `$env:VITE_DEV_SERVER_URL='$actualFrontendUrl/'
 `$env:AGENTICOS_REPO_ROOT='$($RepoRoot.Replace("'", "''"))'
 `$env:AGENTICOS_ELECTRON_LOG='$($ElectronLog.Replace("'", "''"))'
@@ -328,17 +332,28 @@ $electronCommand = @"
 `$env:AGENTICOS_RENDERER_BUILD_TIMESTAMP='$RendererBuildTimestamp'
 `$env:VITE_AGENTICOS_BUILD_ID='$RendererBuildId'
 `$env:VITE_AGENTICOS_BUILD_TIMESTAMP='$RendererBuildTimestamp'
-node_modules\.bin\electron.cmd .
+`$electronExe = if (Test-Path 'node_modules\electron\dist\electron.exe') { (Resolve-Path 'node_modules\electron\dist\electron.exe').Path } else { 'node_modules\.bin\electron.cmd' }
+& `$electronExe '.'
 "@
 $electronProc = Start-LoggedPowerShell 'Electron' $RepoRoot $electronCommand $ElectronLog
-Start-Sleep -Seconds 3
-if ($electronProc.HasExited) {
+Start-Sleep -Seconds 5
+
+$electronProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+  Where-Object {
+    $_.Name -match '^electron(\.exe)?$' -or (
+      $_.CommandLine -and
+      $_.CommandLine -match [regex]::Escape($RepoRoot) -and
+      ($_.CommandLine -match 'electron' -or $_.CommandLine -match 'dist-electron\\main\.js' -or $_.CommandLine -match 'AGENTICOS_EXTERNAL_SERVERS')
+    )
+  })
+
+if ($electronProcesses.Count -eq 0 -and $electronProc.HasExited) {
   $tail = ''
   if (Test-Path $ElectronLog) {
     $tail = (Get-Content $ElectronLog -Tail 80 -ErrorAction SilentlyContinue) -join "`n"
   }
   Stop-StartedProcesses
-  throw "Electron failed. Exit code: $($electronProc.ExitCode). Relevant log: $ElectronLog`n$tail"
+  throw "Electron failed to start. Relevant log: $ElectronLog`n$tail"
 }
 
 Write-ProcessRecord $backendPidToTrack $vitePidToTrack $electronProc.Id $actualFrontendPort $actualFrontendUrl

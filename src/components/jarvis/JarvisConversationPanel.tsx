@@ -266,6 +266,11 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
             route = payload.route || 'direct';
             requestCompletedSuccessfully = true;
             setStreamMeta((m) => ({ ...m, route }));
+            if (payload.language) {
+              const targetVoice = payload.language === 'de' ? 'de-DE-KillianNeural' : payload.language === 'ro' ? 'ro-RO-EmilNeural' : 'en-GB-RyanNeural';
+              voiceRef.current?.setLanguage?.(payload.language);
+              voiceRef.current?.setVoiceOverride?.(targetVoice);
+            }
           }
           if (ev.event === 'error') {
             throw new Error(payload.error || 'Jarvis stream error');
@@ -424,6 +429,20 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   useEffect(() => {
     voiceRef.current?.setVoiceOverride?.(readPersistedVoice());
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Listen for language switch events
+  useEffect(() => {
+    const onLangChanged = (e: any) => {
+      const lang = e.detail?.language;
+      if (lang) {
+        const targetVoice = lang === 'de' ? 'de-DE-KillianNeural' : lang === 'ro' ? 'ro-RO-EmilNeural' : 'en-GB-RyanNeural';
+        voiceRef.current?.setLanguage?.(lang);
+        voiceRef.current?.setVoiceOverride?.(targetVoice);
+      }
+    };
+    window.addEventListener('jarvis:language-changed', onLangChanged);
+    return () => window.removeEventListener('jarvis:language-changed', onLangChanged);
   }, []);
 
   // ── Shared transcript persistence (same store as JarvisDrawer) ──

@@ -46,10 +46,17 @@ let cachedRoot: string | null = null;
 
 function readPersistedSelection(): PersistedSelection | null {
   try {
-    if (!fs.existsSync(SELECTION_FILE)) return null;
-    const raw = JSON.parse(fs.readFileSync(SELECTION_FILE, 'utf-8'));
-    if (raw && typeof raw.workspaceRoot === 'string' && raw.workspaceRoot.trim()) {
-      return { workspaceRoot: raw.workspaceRoot.trim(), selectedAt: String(raw.selectedAt || ''), source: raw.source === 'env' ? 'env' : raw.source === 'detected' ? 'detected' : 'user-selection' };
+    const candidates = [
+      SELECTION_FILE,
+      path.join(defaultDataDir, 'workspace-selection.json'),
+    ];
+    for (const file of candidates) {
+      if (fs.existsSync(file)) {
+        const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+        if (raw && typeof raw.workspaceRoot === 'string' && raw.workspaceRoot.trim()) {
+          return { workspaceRoot: raw.workspaceRoot.trim(), selectedAt: String(raw.selectedAt || ''), source: raw.source === 'env' ? 'env' : raw.source === 'detected' ? 'detected' : 'user-selection' };
+        }
+      }
     }
   } catch (err: any) {
     logger.warn(`[workspace] could not read selection file: ${err?.message}`);
@@ -89,9 +96,24 @@ export function getWorkspaceRoot(): string {
 
   // 1. Explicit persisted selection wins (§9: user changed repository).
   const persisted = readPersistedSelection();
-  if (persisted?.workspaceRoot && fs.existsSync(persisted.workspaceRoot)) {
-    cachedRoot = persisted.workspaceRoot;
-    return cachedRoot;
+  if (persisted?.workspaceRoot) {
+    if (fs.existsSync(persisted.workspaceRoot)) {
+      cachedRoot = persisted.workspaceRoot;
+      return cachedRoot;
+    }
+    // §Migrate: if the persisted root is the known stale B:\AgenticOS location
+    // (from a previous host/drive assignment) AND D:\AgenticOS is the real repo,
+    // migrate ONLY that specific entry. Unrelated missing projects are NOT touched.
+    const normalizedStale = normalizeWindowsPath(persisted.workspaceRoot).toUpperCase();
+    const knownStale = 'B:\\AGENTICOS';
+    const migration = 'D:\\AgenticOS';
+    if (normalizedStale === knownStale && fs.existsSync(migration)) {
+      logger.info(`[workspace] Migrating stale path ${persisted.workspaceRoot} → ${migration}`);
+      cachedRoot = migration;
+      writePersistedSelection({ workspaceRoot: migration, selectedAt: new Date().toISOString(), source: 'user-selection' });
+      return cachedRoot;
+    }
+    logger.warn(`[workspace] Persisted workspace does not exist: ${persisted.workspaceRoot}`);
   }
 
   // 2. Env override.
@@ -254,6 +276,16 @@ export function resolveFileReference(candidate: string, rootOverride?: string):
   { status: 'not_found'; report: string } {
   const root = rootOverride ?? getWorkspaceRoot();
   const attempted: string[] = [];
+
+  // Direct absolute path on disk check (handles absolute file queries gracefully)
+  if ((ABS_RE.test(candidate) || POSIX_ABS_RE.test(candidate)) && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+    const effectiveRoot = root || detectRoot(path.dirname(candidate)) || path.dirname(candidate);
+    return {
+      status: 'found',
+      resolvedPath: path.normalize(candidate),
+      relativePath: path.relative(effectiveRoot, candidate).replace(/\\/g, '/') || path.basename(candidate),
+    };
+  }
 
   if (!root) {
     return {

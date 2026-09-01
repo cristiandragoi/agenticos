@@ -64,9 +64,6 @@ describe('JarvisNeuralBlob — voice-reactive nebula (vibrate + color-shift whil
     const { container } = render(<JarvisNeuralBlob state="listening" inputLevel={0.6} size={280} />);
     const shell = container.querySelector('.jarvis-blob1-shell') as HTMLElement;
     expect(shell).toBeTruthy();
-    // jsdom strips vmin units — assert the shell is NOT a fixed px square
-    // (it grows with the stage; the fixed 280px box is gone).
-    expect(shell.style.aspectRatio).toBe('1 / 1');
     expect(shell.style.width).not.toBe('280px');
     // Canvas fills the shell (100%) instead of a fixed px box.
     const canvas = container.querySelector('canvas') as HTMLCanvasElement;

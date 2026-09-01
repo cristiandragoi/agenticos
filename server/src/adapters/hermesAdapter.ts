@@ -10,7 +10,9 @@ import { runAgentLoop, AgentRunResult } from '../services/agent/agentLoop.js';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import os from 'node:os';
 import Database from 'better-sqlite3';
+
 
 export class HermesAdapter implements RuntimeAdapter {
   id = 'rt-hermes';
@@ -190,10 +192,10 @@ ${input.uiContext?.currentRoute === '/hermes-studio' ? '\nCONTEXT: hermes-studio
 
     // Step C: Canonical database read (sqlite_read capability)
     const dbPaths = [
-      'C:\\Users\\Cris\\AppData\\Roaming\\agenticos\\data\\agentic-os.db',
+      path.join(process.env.APPDATA || path.join(process.env.USERPROFILE || os.homedir(), 'AppData', 'Roaming'), 'agenticos', 'data', 'agentic-os.db'),
+
       path.resolve(process.cwd(), 'server', 'data', 'agentic-os.db'),
       path.resolve(process.cwd(), 'data', 'agentic-os.db'),
-      'B:\\AgenticOS\\server\\data\\agentic-os.db',
     ];
 
     let resolvedDbPath: string | null = null;

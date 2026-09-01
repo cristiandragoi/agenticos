@@ -318,4 +318,67 @@ describe('PHASE 4, 5, 6: Background Task Approval State Machine & Deadlock Preve
     const list = mgr.listPendingApprovals();
     expect(list.some((a: any) => a.taskId === task.taskId)).toBe(true);
   });
+
+  it('15. same approval returned by multiple polls does not create duplicate presentation or re-trigger', () => {
+    const { task } = mgr.createTask(baseTaskInput);
+    mgr.requestApproval(task.taskId, {
+      action: 'terminal.execute',
+      command: 'git pull origin main',
+      reason: 'Update codebase',
+    });
+
+    const poll1 = mgr.listPendingApprovals();
+    const poll2 = mgr.listPendingApprovals();
+    const poll3 = mgr.listPendingApprovals();
+
+    expect(poll1.length).toBe(1);
+    expect(poll2.length).toBe(1);
+    expect(poll3.length).toBe(1);
+    expect(poll1[0].taskId).toBe(task.taskId);
+    expect(poll2[0].taskId).toBe(task.taskId);
+  });
+
+  it('16. after Allow, resolved approval does not reappear on subsequent polls or ticks', async () => {
+    const { task } = mgr.createTask(baseTaskInput);
+    mgr.requestApproval(task.taskId, {
+      action: 'terminal.execute',
+      command: 'npm test',
+      reason: 'Run validation suite',
+    });
+
+    expect(mgr.listPendingApprovals().length).toBe(1);
+
+    const resolveRes = await mgr.resolveApproval(task.taskId, 'allow', async () => {});
+    expect(resolveRes.ok).toBe(true);
+
+    const postResolvePoll1 = mgr.listPendingApprovals();
+    const postResolvePoll2 = mgr.listPendingApprovals();
+    expect(postResolvePoll1.length).toBe(0);
+    expect(postResolvePoll2.length).toBe(0);
+    expect(mgr.getPendingApproval(task.taskId)).toBeNull();
+  });
+
+  it('17. a NEW approval with a different stable identity still appears normally', async () => {
+    const { task: task1 } = mgr.createTask(baseTaskInput);
+    mgr.requestApproval(task1.taskId, {
+      action: 'terminal.execute',
+      command: 'rm -rf dist',
+      reason: 'Clean build directory',
+    });
+
+    await mgr.resolveApproval(task1.taskId, 'allow', async () => {});
+    expect(mgr.listPendingApprovals().length).toBe(0);
+
+    const { task: task2 } = mgr.createTask({ ...baseTaskInput, title: 'Second task' });
+    mgr.requestApproval(task2.taskId, {
+      action: 'terminal.execute',
+      command: 'npm run deploy',
+      reason: 'Deploy new artifact',
+    });
+
+    const pending = mgr.listPendingApprovals();
+    expect(pending.length).toBe(1);
+    expect(pending[0].taskId).toBe(task2.taskId);
+    expect(pending[0].command).toBe('npm run deploy');
+  });
 });

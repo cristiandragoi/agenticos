@@ -194,6 +194,20 @@ router.post('/:taskId/complete', (req, res) => {
   res.json(result.task);
 });
 
+router.post('/:taskId/request-approval', (req, res) => {
+  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  const { action, reason, command, files, choices } = req.body || {};
+  backgroundTaskManager.requestApproval(task.taskId, {
+    action: action || 'Action execution',
+    reason: reason || 'Approval requested',
+    command,
+    files,
+    choices,
+  });
+  res.json({ ok: true, task: backgroundTaskRepo.getTask(task.taskId) });
+});
+
 router.post('/:taskId/approval', async (req, res) => {
   const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
   if (!task) return res.status(404).json({ error: 'Task not found' });

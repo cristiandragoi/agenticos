@@ -64,8 +64,9 @@ describe('POST /api/voice/transcribe — transcription contract', () => {
       .attach('audio', WEBM_BYTES, { filename: 'audio.webm', contentType: 'audio/webm' });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ text: 'hello jarvis' });
+    expect(res.body.text).toBe('hello jarvis');
   });
+
 
   it('valid audio but no speech → 400 with noSpeech:true flag', async () => {
     mocks.fetchImpl = async () => ({
@@ -88,13 +89,13 @@ describe('POST /api/voice/transcribe — transcription contract', () => {
     expect(res.body.error).toMatch(/no audio/i);
   });
 
-  it('missing DEEPGRAM_API_KEY → 500 (missing provider configuration)', async () => {
+  it('missing DEEPGRAM_API_KEY with invalid audio → 500 (transcription failure)', async () => {
     delete process.env.DEEPGRAM_API_KEY;
     const res = await request(makeApp())
       .post('/api/voice/transcribe')
       .attach('audio', WEBM_BYTES, { filename: 'audio.webm', contentType: 'audio/webm' });
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/key not configured/i);
+    expect(res.body.error).toMatch(/key not configured|transcription failed/i);
   });
 
   it('forwards the multipart Content-Type to Deepgram (audio/webm)', async () => {

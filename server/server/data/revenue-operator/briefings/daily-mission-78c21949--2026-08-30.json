@@ -1,0 +1,38 @@
+{
+  "id": "briefing-daily-mission-78c21949-2026-08-30",
+  "missionId": "mission-78c21949-",
+  "missionTitle": "Isolated test mission",
+  "type": "daily",
+  "idempotencyKey": "daily-briefing-mission-78c21949--2026-08-30",
+  "periodStart": "2026-08-29T15:14:23.905Z",
+  "periodEnd": "2026-08-30T15:14:23.905Z",
+  "generatedAt": "2026-08-30T15:14:23.905Z",
+  "kpis": {
+    "targetAmount": 300,
+    "realizedRevenue": 0,
+    "verifiedRevenue": 0,
+    "pipelineValue": 1500,
+    "actualSpend": 0,
+    "actualCost": 0,
+    "netRevenue": 0
+  },
+  "digitalProducts": {
+    "total": 0,
+    "readyToPublish": 0,
+    "published": 0,
+    "discovered": 0
+  },
+  "germanSme": {
+    "total": 0,
+    "audited": 0,
+    "qualified": 0,
+    "inOutreach": 0
+  },
+  "humanGates": {
+    "total": 0,
+    "open": 0,
+    "resolved": 0,
+    "gatesList": []
+  },
+  "narrative": "### Revenue Mission Daily Briefing\n**Mission**: Isolated test mission (mission-78c21949-)\n**Target**: €300 | **Pipeline**: €1500 | **Verified Revenue**: €0\n\n#### Engines Breakdown:\n- **Digital Products Engine**: 0 items cataloged (0 ready to publish, 0 live).\n- **German SME Engine**: 0 target leads audited (0 qualified, 0 in outreach).\n- **Human Gates Isolation**: 0 open human gates holding specific branches (0 resolved). Non-gated autonomous actions are running smoothly."
+}

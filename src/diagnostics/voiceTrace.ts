@@ -20,11 +20,16 @@ export type TraceStage =
   | 'response_started'
   | 'response_done'
   | 'tts_request'
-  | 'playback_started';
+  | 'playback_started'
+  | 'VOICE_BARGE_IN_DETECTED'
+  | 'TTS_CANCELLED'
+  | 'VOICE_STATE_LISTENING'
+  | 'TURN_ISOLATION_REJECT'
+  | 'SELF_ECHO_SUPPRESSED';
 
 export interface TraceEntry {
   stage: TraceStage | string;
-  status: 'ok' | 'fail' | 'info';
+  status: 'ok' | 'fail' | 'info' | 'warn' | 'skipped';
   detail: string;
   at: number;
 }
@@ -53,7 +58,7 @@ export function voiceTraceBegin() {
   return runId;
 }
 
-export function voiceTracePush(stage: TraceStage | string, status: 'ok' | 'fail' | 'info', detail: string) {
+export function voiceTracePush(stage: TraceStage | string, status: 'ok' | 'fail' | 'info' | 'warn' | 'skipped', detail: string) {
   entries.push({ stage, status, detail, at: Date.now() });
   // keep the log bounded
   if (entries.length > 40) entries = entries.slice(-40);

@@ -2,16 +2,18 @@ import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'node:os';
 import { loopDefinitions, loopRuns } from '../services/loopEngine.js';
 import { runJobDiscovery, enrichLeads } from '../services/scraperService.js';
 import type { LoopDefinition, LoopRun, StepStatus } from '../types.js';
 
 const router = Router();
-const VAULT_BASE = 'C:\\Users\\Cris\\obsidian-vault';
+const VAULT_BASE = process.env.OBSIDIAN_VAULT_PATH || path.join(process.env.USERPROFILE || os.homedir(), 'obsidian-vault');
 const VAULT_PATH = path.join(VAULT_BASE, 'projects', 'welders-de-nl');
+
 const LOOP_ID_WELDERS = 'loop-welders-pipeline';
 
-/* ─── Pipeline definitions ─── */
+/* â”€â”€â”€ Pipeline definitions â”€â”€â”€ */
 interface PipelineDef {
   id: string;
   name: string;
@@ -23,7 +25,7 @@ const PIPELINES: PipelineDef[] = [
   {
     id: LOOP_ID_WELDERS,
     name: 'Welders Lead Pipeline',
-    description: '4-stage pipeline for welders staffing outreach: research → enrich → template → send.',
+    description: '4-stage pipeline for welders staffing outreach: research â†’ enrich â†’ template â†’ send.',
     stages: [
       { id: 'jobDiscovery', name: 'Job Discovery', agentId: 'agent-scout', dependsOn: [] },
       { id: 'leadEnrichment', name: 'Lead Enrichment', agentId: 'agent-gemini-welders-research', dependsOn: ['jobDiscovery'] },
@@ -34,7 +36,7 @@ const PIPELINES: PipelineDef[] = [
   {
     id: 'jarvis-voice-pipeline',
     name: 'Jarvis Voice Pipeline',
-    description: 'Voice processing pipeline: input → LLM → TTS reply.',
+    description: 'Voice processing pipeline: input â†’ LLM â†’ TTS reply.',
     stages: [
       { id: 'input', name: 'Voice Input / STT', agentId: 'agent-jarvis', dependsOn: [] },
       { id: 'llm', name: 'LLM Reasoning', agentId: 'qwythos:9b', dependsOn: ['input'] },
@@ -44,7 +46,7 @@ const PIPELINES: PipelineDef[] = [
   {
     id: 'qwable-build-pipeline',
     name: 'Qwable Coder Pipeline',
-    description: 'Qwable local build pipeline: code generation → build preview → save workspace.',
+    description: 'Qwable local build pipeline: code generation â†’ build preview â†’ save workspace.',
     stages: [
       { id: 'code_generation', name: 'Code Generation', agentId: 'agent-qwable', dependsOn: [] },
       { id: 'preview_build', name: 'Build Preview', agentId: 'agent-qwable', dependsOn: ['code_generation'] },
@@ -53,10 +55,10 @@ const PIPELINES: PipelineDef[] = [
   },
 ];
 
-/* ─── In-memory stage overrides ─── */
+/* â”€â”€â”€ In-memory stage overrides â”€â”€â”€ */
 let stageOverrides: Record<string, { stageId: string; agentId: string }> = {};
 
-/* ─── Task Status Model ─── */
+/* â”€â”€â”€ Task Status Model â”€â”€â”€ */
 export interface QwythosTask {
   id: string;
   toolName: string;
@@ -66,7 +68,7 @@ export interface QwythosTask {
 }
 let qwythosTasks: QwythosTask[] = [];
 
-/* ─── POST /api/agentic/tasks ─── */
+/* â”€â”€â”€ POST /api/agentic/tasks â”€â”€â”€ */
 router.post('/tasks', (req, res) => {
   const { id, toolName, status, error } = req.body;
   if (!id || !toolName || !status) {
@@ -84,7 +86,7 @@ router.post('/tasks', (req, res) => {
   res.json({ ok: true });
 });
 
-/* ─── GET /api/agentic/tasks/status ─── */
+/* â”€â”€â”€ GET /api/agentic/tasks/status â”€â”€â”€ */
 router.get('/tasks/status', (req, res) => {
   if (qwythosTasks.length === 0) {
     res.json({ status: 'idle' });
@@ -95,10 +97,11 @@ router.get('/tasks/status', (req, res) => {
   res.json({ status: active.status });
 });
 
-/* ─── Qwythos policy-enforced endpoints ─── */
+/* â”€â”€â”€ Qwythos policy-enforced endpoints â”€â”€â”€ */
 import { exec } from 'child_process';
 
-const PROJECT_ROOT = 'C:\\Users\\Cris\\.gemini\\antigravity\\scratch\\agenticos';
+const PROJECT_ROOT = process.env.AGENTICOS_WORKSPACE_ROOT || path.join(os.tmpdir(), 'agenticos-workspace');
+
 
 function checkConfigPolicy(file: string, content: string, existingContent: string) {
   const normalizedFile = file.replace(/\\/g, '/');
@@ -173,7 +176,7 @@ function checkConfigPolicy(file: string, content: string, existingContent: strin
   }
 }
 
-/* ─── GET /api/agentic/config ─── */
+/* â”€â”€â”€ GET /api/agentic/config â”€â”€â”€ */
 router.get('/config', (req, res) => {
   const { file } = req.query;
   if (!file || typeof file !== 'string') {
@@ -206,7 +209,7 @@ router.get('/config', (req, res) => {
   }
 });
 
-/* ─── POST /api/agentic/config ─── */
+/* â”€â”€â”€ POST /api/agentic/config â”€â”€â”€ */
 router.post('/config', (req, res) => {
   const { file, content } = req.body;
   if (!file || content === undefined) {
@@ -239,13 +242,15 @@ router.post('/config', (req, res) => {
   }
 });
 
-/* ─── GET /api/agentic/workspace/inspect ─── */
+/* ——— GET /api/agentic/workspace/inspect ——— */
 router.get('/workspace/inspect', (req, res) => {
   res.json({
     workspaces: [
-      { id: "default", name: "Default Local Workspace", path: "C:\\Users\\Cris\\.gemini\\antigravity\\scratch\\agenticos" },
-      { id: "welders-de-nl", name: "Welders Outreach Workspace", path: "C:\\Users\\Cris\\obsidian-vault\\projects\\welders-de-nl" }
+      { id: 'default', name: 'Default Local Workspace', path: process.env.AGENTICOS_WORKSPACE_ROOT || path.join(os.tmpdir(), 'agenticos-workspace') },
+      { id: 'welders-de-nl', name: 'Welders Outreach Workspace', path: process.env.OBSIDIAN_VAULT_PATH ? path.join(process.env.OBSIDIAN_VAULT_PATH, 'projects', 'welders-de-nl') : '' },
     ],
+
+
     routes: [
       { path: "/", component: "DesktopBoard", description: "System main desktop interface" },
       { path: "/mission-control", component: "MissionControl", description: "Agent fleet topology and logs" },
@@ -263,7 +268,7 @@ router.get('/workspace/inspect', (req, res) => {
   });
 });
 
-/* ─── POST /api/agentic/build/trigger ─── */
+/* â”€â”€â”€ POST /api/agentic/build/trigger â”€â”€â”€ */
 router.post('/build/trigger', (req, res) => {
   logger.info(`[AgenticAPI] Build triggered...`);
   exec('npm run build', { cwd: PROJECT_ROOT }, (error, stdout, stderr) => {
@@ -277,7 +282,7 @@ router.post('/build/trigger', (req, res) => {
   });
 });
 
-/* ─── GET /api/agentic/memory ─── */
+/* â”€â”€â”€ GET /api/agentic/memory â”€â”€â”€ */
 router.get('/memory', (req, res) => {
   const { target, path: filePath } = req.query;
   if (!target || !filePath || typeof target !== 'string' || typeof filePath !== 'string') {
@@ -305,7 +310,7 @@ router.get('/memory', (req, res) => {
   }
 });
 
-/* ─── POST /api/agentic/memory ─── */
+/* â”€â”€â”€ POST /api/agentic/memory â”€â”€â”€ */
 router.post('/memory', (req, res) => {
   const { target, path: filePath, content } = req.body;
   if (!target || !filePath || content === undefined) {
@@ -336,7 +341,7 @@ router.post('/memory', (req, res) => {
   }
 });
 
-/* ─── GET /api/agentic/agents ─── */
+/* â”€â”€â”€ GET /api/agentic/agents â”€â”€â”€ */
 router.get('/agents', async (_req, res) => {
   try {
     const agentsRes = await fetch('http://localhost:4000/api/agents');
@@ -355,7 +360,7 @@ router.get('/agents', async (_req, res) => {
   }
 });
 
-/* ─── GET /api/agentic/pipelines ─── */
+/* â”€â”€â”€ GET /api/agentic/pipelines â”€â”€â”€ */
 router.get('/pipelines', (_req, res) => {
   const enriched = PIPELINES.map((p) => ({
     ...p,
@@ -368,7 +373,7 @@ router.get('/pipelines', (_req, res) => {
   res.json(enriched);
 });
 
-/* ─── POST /api/agentic/pipelines/:id/run ─── */
+/* â”€â”€â”€ POST /api/agentic/pipelines/:id/run â”€â”€â”€ */
 router.post('/pipelines/:id/run', async (req, res) => {
   const { id } = req.params;
   const pipeline = PIPELINES.find((p) => p.id === id);
@@ -405,7 +410,7 @@ router.post('/pipelines/:id/run', async (req, res) => {
       }
       return;
     }
-    // Voice pipeline is always running — just report status
+    // Voice pipeline is always running â€” just report status
     res.json({ message: 'Jarvis Voice Pipeline acknowledged. Stages are processed in real-time.', pipelineId: id });
   } else if (id === 'qwable-build-pipeline') {
     const { command, stageId } = req.body || {};
@@ -450,7 +455,7 @@ router.post('/pipelines/:id/run', async (req, res) => {
   }
 });
 
-/* ─── POST /api/agentic/pipelines/:id/stages/:stageId/update ─── */
+/* â”€â”€â”€ POST /api/agentic/pipelines/:id/stages/:stageId/update â”€â”€â”€ */
 router.post('/pipelines/:id/stages/:stageId/update', (req, res) => {
   const { id, stageId } = req.params;
   const { agentId } = req.body;
@@ -474,7 +479,7 @@ router.post('/pipelines/:id/stages/:stageId/update', (req, res) => {
 
   const key = `${id}:${stageId}`;
   stageOverrides[key] = { stageId, agentId };
-  logger.info(`[AgenticAPI] Pipeline '${id}' stage '${stageId}' → reassigned to agent '${agentId}'`);
+  logger.info(`[AgenticAPI] Pipeline '${id}' stage '${stageId}' â†’ reassigned to agent '${agentId}'`);
 
   res.json({
     ok: true,
@@ -487,3 +492,4 @@ router.post('/pipelines/:id/stages/:stageId/update', (req, res) => {
 });
 
 export default router;
+

@@ -668,6 +668,7 @@ export const verificationReports = sqliteTable('verification_reports', {
 
 export const providerCredentials = sqliteTable('provider_credentials', {
   providerId: text('provider_id').primaryKey(), // canonical id (e.g. 'omniroot')
+  apiKey: text('api_key').default('***'),
   configured: integer('configured', { mode: 'boolean' }).notNull().default(false),
   maskedPreview: text('masked_preview'),
   validationStatus: text('validation_status'), // valid, invalid, etc.

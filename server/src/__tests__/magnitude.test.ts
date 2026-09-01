@@ -126,3 +126,27 @@ describe('A3 — safety / approval classifier', () => {
     expect(c.actionClass).toBe('READ_ONLY');
   });
 });
+
+describe('M10 — Packaged runtime availability & controlled fallback', () => {
+  it('checkAvailability returns a structured truthful object', async () => {
+    const status = await magnitudeService.checkAvailability();
+    expect(status).toHaveProperty('available');
+    expect(typeof status.available).toBe('boolean');
+    if (!status.available) {
+      expect(status.reason).toBeDefined();
+    }
+  });
+
+  it('executeInspect handles missing browser environment without crashing process', async () => {
+    const run = magnitudeService.createRun('https://example.com', 'inspect');
+    try {
+      await magnitudeService.executeInspect(run.id);
+    } catch (err: any) {
+      expect(err.message).toBeDefined();
+      const updated = magnitudeService.getRun(run.id);
+      expect(updated?.status).toMatch(/failed|stopped/);
+      expect(updated?.error).toBeDefined();
+    }
+  });
+});
+

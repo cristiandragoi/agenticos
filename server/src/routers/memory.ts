@@ -6,7 +6,7 @@ import type { MemoryRecord, MemoryType, MemoryStatus } from '../services/memory/
 
 const router = Router();
 
-// ── Legacy scopes/entries + obsidian vault bridge (unchanged) ──────────────
+// â”€â”€ Legacy scopes/entries + obsidian vault bridge (unchanged) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/scopes', (_req, res) => res.json(db.memoryScopes.list()));
 router.get('/scopes/:id', (req, res) => {
   const scope = db.memoryScopes.get(req.params.id);
@@ -27,7 +27,9 @@ router.post('/entries', (req, res) => {
 });
 import fs from 'fs/promises';
 import path from 'path';
-const VAULT_PATH = 'C:\\Users\\Cris\\obsidian-vault';
+import os from 'node:os';
+const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || path.join(process.env.USERPROFILE || os.homedir(), 'obsidian-vault');
+
 function sanitizePath(unsafePath: string) {
   const safe = path.normalize(unsafePath).replace(/^(\.\.(\/|\\|$))+/, '');
   return path.join(VAULT_PATH, safe);
@@ -45,7 +47,7 @@ router.post('/vault/append', async (req, res) => {
   catch (err: any) { res.status(500).json({ error: 'Error appending to file', details: err.message }); }
 });
 
-// ── AgenticOS memory system (Jarvis memory + proactive context milestone) ──
+// â”€â”€ AgenticOS memory system (Jarvis memory + proactive context milestone) â”€â”€
 
 /** Seed canonical decisions once at first API use. */
 seedDecisions();
@@ -94,7 +96,7 @@ router.post('/memories', (req, res) => {
   const body = parseMemoryBody(req.body);
   if (!body) { res.status(400).json({ error: 'Invalid memory (type + title required)' }); return; }
   // Closure (human memory semantics): a direct POST /memories from the human
-  // UI is a HUMAN-created memory — sourceType 'human' + verificationStatus
+  // UI is a HUMAN-created memory â€” sourceType 'human' + verificationStatus
   // 'human_confirmed'. Machine candidates must NOT be posted here as verified
   // facts; worker promotion goes through promoteHermesCandidates which sets
   // 'verified' only after a PASS verdict.
@@ -151,7 +153,7 @@ router.post('/memories/:id/confirm', (req, res) => {
 });
 
 router.post('/memories/:id/correct', (req, res) => {
-  // "That is wrong" — mark the old memory superseded + create the corrected
+  // "That is wrong" â€” mark the old memory superseded + create the corrected
   // one, preserving provenance/history (never silently erase).
   const existing = memoryStore.get(req.params.id);
   if (!existing) { res.status(404).json({ error: 'Memory not found' }); return; }
@@ -205,7 +207,7 @@ router.get('/entities', (_req, res) => {
   res.json(memoryStore.entities());
 });
 
-// ── Candidate memory (closure) ─────────────────────────────────────────────
+// â”€â”€ Candidate memory (closure) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Workers propose candidates; verification gates; PASS promotes. Candidates
 // are persisted and NEVER silently discarded. These endpoints expose the
 // chain for audit/UI.

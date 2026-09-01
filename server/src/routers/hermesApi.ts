@@ -12,6 +12,7 @@
 
 import { Router } from 'express';
 import { hermesApiService } from '../services/hermesApiService.js';
+import { hermesResourceManager } from '../services/hermes/resourceManager.js';
 
 export const hermesApiRouter = Router();
 
@@ -24,8 +25,8 @@ hermesApiRouter.get('/status', async (_req, res) => {
       profile: hermesApiService.getProfile(),
       url: await hermesApiService.getUrl(),
       gateway,
-      stt: { configured: deepgramConfigured, provider: deepgramConfigured ? 'deepgram' : 'none' },
-      tts: { configured: deepgramConfigured, provider: deepgramConfigured ? 'deepgram' : 'none' },
+      stt: { configured: true, provider: deepgramConfigured ? 'deepgram' : 'local-whisper' },
+      tts: { configured: true, provider: deepgramConfigured ? 'deepgram' : 'local-neural-tts' },
       activeRuns: hermesApiService.listRuns().filter(r => ['queued', 'running', 'waiting_for_approval', 'stopping'].includes(r.status)).length,
     });
   } catch (err: any) {
@@ -95,6 +96,65 @@ hermesApiRouter.post('/runs/:id/approval', async (req, res) => {
   }
 });
 
+hermesApiRouter.get('/resources', async (_req, res) => {
+  try {
+    const snapshot = await hermesResourceManager.getObservabilitySnapshot();
+    res.json(snapshot);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'failed to fetch resource status' });
+  }
+});
+
+hermesApiRouter.post('/evaluate', async (req, res) => {
+  try {
+    const { prompt, objective, taskType, complexity, codingIntensity, requiresRemoteSandbox, requiresCodeMutation } = req.body || {};
+    if (!prompt && !objective) {
+      res.status(400).json({ error: 'prompt or objective is required' });
+      return;
+    }
+    const decision = await hermesResourceManager.evaluateTask({
+      prompt: prompt || objective,
+      objective,
+      taskType,
+      complexity,
+      codingIntensity,
+      requiresRemoteSandbox,
+      requiresCodeMutation,
+    });
+    res.json(decision);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'evaluation failed' });
+  }
+});
+
+hermesApiRouter.post('/quota-exhaustion', async (req, res) => {
+  try {
+    const { executor, retryAfterSeconds, resetAt, reason } = req.body || {};
+    if (!executor) {
+      res.status(400).json({ error: 'executor is required' });
+      return;
+    }
+    hermesResourceManager.recordQuotaExhaustion(executor, { retryAfterSeconds, resetAt, reason });
+    res.json({ ok: true, executor, recorded: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'recording quota exhaustion failed' });
+  }
+});
+
+hermesApiRouter.post('/quota-recovery', async (req, res) => {
+  try {
+    const { executor } = req.body || {};
+    if (!executor) {
+      res.status(400).json({ error: 'executor is required' });
+      return;
+    }
+    hermesResourceManager.recordQuotaRecovery(executor);
+    res.json({ ok: true, executor, recovered: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'recording quota recovery failed' });
+  }
+});
+
 hermesApiRouter.post('/runs/:id/stop', async (req, res) => {
   try {
     await hermesApiService.stopRun(req.params.id);
@@ -103,3 +163,4 @@ hermesApiRouter.post('/runs/:id/stop', async (req, res) => {
     res.status(400).json({ error: err?.message || 'stop failed' });
   }
 });
+

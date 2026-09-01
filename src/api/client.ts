@@ -23,7 +23,8 @@ const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:/i;
  */
 export function resolveApiBase(protocol: string, envUrl?: string): string {
   if (envUrl) return envUrl;
-  return protocol === 'file:' ? 'http://localhost:4000/api' : '/api';
+  const port = (typeof window !== 'undefined' && ((window as any).__AGENTICOS_PORT__ || (window as any).AGENTICOS_BACKEND_PORT)) || 4600;
+  return protocol === 'file:' ? `http://127.0.0.1:${port}/api` : '/api';
 }
 
 const BASE_URL = resolveApiBase(

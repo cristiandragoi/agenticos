@@ -70,24 +70,39 @@ async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) 
 }
 
 describe('resolveVoiceSessionConfig (pure)', () => {
-  it('pins the per-agent default when no override', () => {
+  it('pins the per-agent British male default when no override', () => {
     const cfg = resolveVoiceSessionConfig('agent-jarvis', null);
-    expect(cfg.model).toBe('aura-helios-en');
-    expect(cfg.voiceId).toBe('aura-helios-en');
-    expect(cfg.provider).toBe('deepgram');
+    expect(cfg.model).toBe('en-GB-RyanNeural');
+    expect(cfg.voiceId).toBe('en-GB-RyanNeural');
+    expect(cfg.provider).toBe('edge-tts');
+    expect(cfg.locale).toBe('en-GB');
   });
-  it('override wins once set', () => {
-    const cfg = resolveVoiceSessionConfig('agent-jarvis', 'aura-luna-en');
-    expect(cfg.model).toBe('aura-luna-en');
-    expect(cfg.override).toBe('aura-luna-en');
+  it('override wins once set with valid Neural voice', () => {
+    const cfg = resolveVoiceSessionConfig('agent-jarvis', 'en-GB-ThomasNeural');
+    expect(cfg.model).toBe('en-GB-ThomasNeural');
+    expect(cfg.override).toBe('en-GB-ThomasNeural');
   });
   it('agent-hermes keeps its distinct voice', () => {
-    expect(resolveVoiceSessionConfig('agent-hermes', null).model).toBe('aura-orion-en');
+    expect(resolveVoiceSessionConfig('agent-hermes', null).model).toBe('en-GB-ThomasNeural');
+  });
+  it('resolves German and Romanian male voices', () => {
+    const deCfg = resolveVoiceSessionConfig('agent-jarvis', null, undefined, 'de');
+    expect(deCfg.model).toBe('de-DE-KillianNeural');
+    expect(deCfg.locale).toBe('de-DE');
+
+    const roCfg = resolveVoiceSessionConfig('agent-jarvis', null, undefined, 'ro');
+    expect(roCfg.model).toBe('ro-RO-EmilNeural');
+    expect(roCfg.locale).toBe('ro-RO');
+  });
+  it('supports Deepgram aura voice when explicitly configured', () => {
+    const dgCfg = resolveVoiceSessionConfig('agent-jarvis', null, undefined, 'en', true);
+    expect(dgCfg.model).toBe('aura-helios-en');
+    expect(dgCfg.provider).toBe('deepgram');
   });
 });
 
 describe('D: voice identity persistence across 10 turns', () => {
-  it('every synthesis uses aura-helios-en; fallback only when explicitly recorded', async () => {
+  it('every synthesis uses en-GB-RyanNeural; fallback only when explicitly recorded', async () => {
     const onAutoSubmit = vi.fn();
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit }));
     await act(async () => { await result.current.startConversation(); });
@@ -103,11 +118,11 @@ describe('D: voice identity persistence across 10 turns', () => {
 
     expect(ttsBodies.length).toBeGreaterThanOrEqual(10);
     const voicesUsed = new Set(ttsBodies.map((b) => b.voice));
-    expect([...voicesUsed]).toEqual(['aura-helios-en']);
+    expect([...voicesUsed]).toEqual(['en-GB-RyanNeural']);
 
     // Distinct voices in the synthesis diagnostics log is exactly the pinned one.
     const distinct = distinctVoicesInLog(50);
-    expect(distinct).toEqual(['aura-helios-en']);
+    expect(distinct).toEqual(['en-GB-RyanNeural']);
   });
 
   it('rerender/retry/interruption/STOP do not change the voice', async () => {
@@ -136,26 +151,26 @@ describe('D: voice identity persistence across 10 turns', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
     const voicesUsed = new Set(ttsBodies.map((b) => b.voice));
-    expect([...voicesUsed]).toEqual(['aura-helios-en']);
+    expect([...voicesUsed]).toEqual(['en-GB-RyanNeural']);
     // No silent browser fallback: every /voice/tts request carried the voice.
-    expect(ttsBodies.every((b) => b.voice === 'aura-helios-en')).toBe(true);
+    expect(ttsBodies.every((b) => b.voice === 'en-GB-RyanNeural')).toBe(true);
   });
 
   it('an explicit fallback is recorded truthfully (fallbackReason + provider browser)', () => {
     recordVoiceSynthesis({
       voiceSessionId: 'conv-test-1', turnId: 1, ttsProvider: 'browser-speechsynthesis',
-      ttsModel: 'browser', voiceId: 'aura-helios-en', fallbackReason: 'TTS HTTP 502', at: Date.now(),
+      ttsModel: 'browser', voiceId: 'en-GB-RyanNeural', fallbackReason: 'TTS HTTP 502', at: Date.now(),
     });
     const recs = voiceSynthesisLog(5);
     const fb = recs[recs.length - 1];
     expect(fb.ttsProvider).toBe('browser-speechsynthesis');
     expect(fb.fallbackReason).toBe('TTS HTTP 502');
-    expect(fb.voiceId).toBe('aura-helios-en'); // intended voice preserved in record
+    expect(fb.voiceId).toBe('en-GB-RyanNeural'); // intended voice preserved in record
     // Distinct voices still 1 because the fallback record keeps the intended id.
-    expect(distinctVoicesInLog(50)).toContain('aura-helios-en');
+    expect(distinctVoicesInLog(50)).toContain('en-GB-RyanNeural');
   });
 });
-  it('resolves en-AU locale for agent-jarvis with null config', () => {
-    const cfg = resolveVoiceSessionConfig('agent-jarvis', null);
-    expect(cfg.locale).toBe('en-AU');
-  });
+it('resolves en-GB locale for agent-jarvis with null config', () => {
+  const cfg = resolveVoiceSessionConfig('agent-jarvis', null);
+  expect(cfg.locale).toBe('en-GB');
+});

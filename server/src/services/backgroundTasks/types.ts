@@ -26,7 +26,7 @@ export const TERMINAL_STATUSES: ReadonlySet<TaskStatus> = new Set([
   'cancelled',
 ]);
 
-export type WorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | 'magnitude';
+export type WorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | 'magnitude' | 'antigravity';
 
 export type TaskEventKind =
   | 'task.created'

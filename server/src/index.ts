@@ -111,7 +111,7 @@ import { mcpBridgeRouter } from './routers/mcpBridge.js';
 import { initProjectExecutionSchema } from './services/projectExecution/schema.js';
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : (process.env.AGENTICOS_BACKEND_PORT ? parseInt(process.env.AGENTICOS_BACKEND_PORT, 10) : 4600);
 
 /* ── Bootstrap ──────────────────────────────────────── */
 
@@ -295,6 +295,8 @@ import { codingRuntimeRouter } from './routers/codingRuntime.js';
 app.use('/api/coding', codingRuntimeRouter);
 
 app.use('/api/agentic', agenticRouter);
+import antigravityRouter from './routers/antigravity.js';
+app.use('/api/antigravity', antigravityRouter);
 
 import workspaceRouter from './routers/workspace.js';
 app.use('/api/workspace', workspaceRouter);

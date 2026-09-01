@@ -66,7 +66,33 @@ export class JarvisOrchestrator {
       metadata: requestMetadata
     });
 
-    // 1a. Maintenance Supervisor (Phase 4.1): route self-maintenance
+    // 1a. Explicit Language Preference / Switch Command (HIGHEST PRIORITY)
+    //     Must execute BEFORE conversational-turn resolution, contextual interpretation,
+    //     LLM prompting, delegation, grounding guardrails, or maintenance turns.
+    const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('./conversationLanguage.js');
+    const langSwitch = detectLanguageSwitchRequest(prompt);
+    if (langSwitch.isLanguageSwitch && langSwitch.targetLanguage) {
+      const mutation = setConversationLanguage(conversationId, langSwitch.targetLanguage);
+      const reply = mutation.success
+        ? buildLanguageSwitchConfirmation(mutation.activeLanguage)
+        : `Failed to switch language to ${langSwitch.targetLanguage}. Current language is ${mutation.activeLanguage}.`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(operationId ? { operationId } : {}),
+          provider: 'agentic-os',
+          model: 'language-manager',
+          language: mutation.activeLanguage,
+          actionVerified: mutation.success,
+        },
+      });
+      return { route: 'direct', status: 'language_changed', operationId };
+    }
+
+    // 1b. Maintenance Supervisor (Phase 4.1): route self-maintenance
     //     conversations ("check why the tests are failing", "fix it", "what did
     //     Hermes recommend?", "where were we?", "commit it") BEFORE generic
     //     conversational-turn resolution, so maintenance continuations and status
@@ -89,13 +115,14 @@ export class JarvisOrchestrator {
       };
     }
 
-    // 1b. Resolve a typed conversational turn (Phase 3): interpret the message
+    // 1c. Resolve a typed conversational turn (Phase 3): interpret the message
     //     and resolve its references from persisted state BEFORE deciding on a
     //     worker. Direct answers (findings, verdicts, worker status/results),
     //     clarifications, and continuations are handled here with a natural
     //     response; genuine new-work delegations fall through to routing.
     const turnAnswer = await this.tryResolveConversationalTurn(conversationId, prompt, workspacePath, approvalPolicy, operationId);
     if (turnAnswer) return turnAnswer;
+
 
     // 2. Route intent (context-aware: recent turns resolve deictic refs).
     let recentText = '';

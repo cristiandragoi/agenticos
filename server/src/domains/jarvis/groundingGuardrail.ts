@@ -1,11 +1,8 @@
 /**
- * Grounding Guardrail — Architectural enforcement of "NO REPOSITORY CLAIM WITHOUT EVIDENCE".
- *
- * Direct Jarvis conversational mode must NOT generate repository-specific facts unless
- * those facts are grounded in:
- * 1. Completed worker/CodeX inspection results
- * 2. Verified repository/tool evidence available to the current execution path
- * 3. Persisted grounded results from the current conversation/task
+ * Grounding Guardrail — Architectural enforcement of:
+ * 1. "NO REPOSITORY CLAIM WITHOUT EVIDENCE"
+ * 2. "NO COMPLETION CLAIM WITHOUT VERIFIED EXECUTION EVIDENCE" (UNDERSTANDING != EXECUTION)
+ * 3. Sanitization of repetitive canned suffixes ("How can I assist you further", etc.)
  */
 
 const REPOSITORY_QUERY_PATTERNS = [
@@ -37,6 +34,37 @@ const REPOSITORY_CLAIM_SIGNALS = [
   /\bI found .* in (server\/|src\/|[a-zA-Z0-9_-]+\.[a-z]+) on line \d+/i,
 ];
 
+const ACTION_REQUEST_PATTERNS = [
+  /\b(?:install|setup|set up|deploy|download|configure|enable|disable|delete|remove|create|edit|modify|patch|build|run|execute|delegate|ask hermes|tell hermes)\b/i,
+  /\b(?:speak german|speak romanian|sprich deutsch|vorbește română)\b/i,
+  /\b(?:erstelle|erstellen|anlegen|installiere|konfiguriere|arbeitsbereich|neuen arbeitsbereich)\b/i,
+  /\b(?:configurează|creează|instalează|proiectul|noul proiect)\b/i,
+];
+
+const COMPLETION_CLAIM_PATTERNS = [
+  /\b(?:has been|have been|is now|was|successfully)\s+(?:installed|configured|enabled|disabled|changed|fixed|created|switched|updated|completed|set up)\b/i,
+  /\b(?:I have|I've)\s+(?:installed|configured|enabled|disabled|changed|fixed|created|switched|updated|completed|set up)\b/i,
+  /\b(?:done|installed|configured|completed)!?\b/i,
+  /\b(?:habe|haben|wurde|wurden|ist)\s+.*?\b(?:erstellt|konfiguriert|installiert|angelegt|eingerichtet|abgeschlossen)\b/i,
+  /\b(?:ich habe schon|wir haben schon|ich habe bereits|habe ich erstellt|wurde erstellt)\b/i,
+  /\b(?:am|au fost|a fost)\s+.*?\b(?:creat|configurat|instalat|finalizat)\b/i,
+];
+
+
+const FUTURE_PROMISE_PATTERNS = [
+  /\b(?:I will|I'll|let me)\s+(?:coordinate|do that|handle this|create this|set this up|build this|execute this|perform this|start this)\b/i,
+  /\b(?:I will inform you|I'll inform you|I will let you know|I'll let you know)\s+(?:as soon as|when|once)\b/i,
+  /\b(?:ich werde|lass mich)\s+(?:das tun|dies tun|dies für dich koordinieren|das für Sie tun|dies erledigen|dies für Sie koordinieren|einen neuen arbeitsbereich|das übernehmen)\b/i,
+  /\b(?:ich informiere dich|ich gebe dir bescheid|sobald .* bereit ist)\b/i,
+  /\b(?:voi face|lasă-mă să fac|te voi anunța|te voi informa|imediat ce .* este gata)\b/i,
+];
+
+
+const CANNED_SUFFIX_PATTERNS = [
+  /\s*(?:How can I assist you further(?:, operator)?\??|How can I help you further\??|Let me know what specific task or question you'd like to work on\.?|Is there anything else I can assist you with\??)\s*$/i,
+  /\s*(?:How can I assist you today, operator\??|How can I help you today\??)\s*$/i,
+];
+
 export function isRepositorySpecificQuery(prompt: string): boolean {
   if (!prompt || typeof prompt !== 'string') return false;
   return REPOSITORY_QUERY_PATTERNS.some((pattern) => pattern.test(prompt));
@@ -52,8 +80,23 @@ export function isConversationalCorrection(prompt: string): boolean {
   return CONVERSATIONAL_CORRECTION_PATTERNS.some((pattern) => pattern.test(prompt));
 }
 
+export function isActionRequest(prompt: string): boolean {
+  if (!prompt || typeof prompt !== 'string') return false;
+  return ACTION_REQUEST_PATTERNS.some((pattern) => pattern.test(prompt));
+}
+
+export function containsCompletionClaims(reply: string): boolean {
+  if (!reply || typeof reply !== 'string') return false;
+  return COMPLETION_CLAIM_PATTERNS.some((pattern) => pattern.test(reply));
+}
+
+export function containsFuturePromises(reply: string): boolean {
+  if (!reply || typeof reply !== 'string') return false;
+  return FUTURE_PROMISE_PATTERNS.some((pattern) => pattern.test(reply));
+}
+
 export function getUngroundedGroundingStatement(): string {
-  return "I need to inspect the repository or use the result from the delegated CodeX task before I can answer that accurately.";
+  return 'I need to inspect the repository or use the result from the delegated CodeX task before I can answer that accurately.';
 }
 
 export function containsUngroundedRepositoryClaims(reply: string): boolean {
@@ -61,9 +104,18 @@ export function containsUngroundedRepositoryClaims(reply: string): boolean {
   return REPOSITORY_CLAIM_SIGNALS.some((pattern) => pattern.test(reply));
 }
 
+export function stripCannedSuffixes(text: string): string {
+  if (!text) return text;
+  let cleaned = text;
+  for (const pat of CANNED_SUFFIX_PATTERNS) {
+    cleaned = cleaned.replace(pat, '').trim();
+  }
+  return cleaned;
+}
+
 /**
  * Sanitizes a direct-chat response against ungrounded hallucination, repetition,
- * or model identity cross-contamination.
+ * false action completion claims, or model identity cross-contamination.
  */
 export function sanitizeDirectResponse(
   reply: string,
@@ -73,48 +125,84 @@ export function sanitizeDirectResponse(
     groundedResult?: string;
     isModelQuery?: boolean;
     isCorrection?: boolean;
+    isAction?: boolean;
+    hasExecutionEvidence?: boolean;
+    actionDescription?: string;
   }
 ): string {
   if (!reply) return reply;
 
+  let sanitized = reply;
   const prompt = options.prompt || '';
   const isModel = options.isModelQuery || isModelIdentityQuery(prompt);
   const isCorr = options.isCorrection || isConversationalCorrection(prompt);
+  const isAction = options.isAction ?? isActionRequest(prompt);
+  const hasExecEvidence = options.hasExecutionEvidence ?? false;
 
   // 1. Model Identity Query: model statement only. Strip any trailing hallucinated lists.
   if (isModel) {
-    const lines = reply.split('\n');
+    const lines = sanitized.split('\n');
     const modelLineIndex = lines.findIndex((l) => /I'm running .* via /i.test(l));
     if (modelLineIndex !== -1) {
-      const modelLine = lines[modelLineIndex].trim();
-      return modelLine;
+      return lines[modelLineIndex].trim();
     }
   }
 
   // 2. Conversational Correction: "You said that already. Don't repeat it."
   if (isCorr) {
-    if (containsUngroundedRepositoryClaims(reply) || /\b(top \d+|blockers?|production problems?)\b/i.test(reply)) {
-      return "Understood. I will not repeat that. Let me know what you would like to focus on next.";
+    if (containsUngroundedRepositoryClaims(sanitized) || /\b(top \d+|blockers?|production problems?)\b/i.test(sanitized)) {
+      return 'Understood. I will not repeat that. Let me know what you would like to focus on next.';
     }
   }
 
-  // 3. Repository-specific query with claims:
+  // 3. Action Request False Completion or Unsupported Execution Promise Guard:
+  // If the user requested an action (e.g. "erstelle einen neuen Arbeitsbereich" or "install compiler") but NO execution occurred
+  // (no taskId, no tool run, no system mutation), Jarvis MUST NOT say "done", "installed", or "I will do that / let me coordinate".
+  if (isAction && !hasExecEvidence && (containsCompletionClaims(sanitized) || containsFuturePromises(sanitized))) {
+    const isGerman = /\b(erstelle|neuen arbeitsbereich|arbeitsbereich|bitte|guten morgen|installiere)\b/i.test(prompt) || /\b(guten morgen|arbeitsbereich)\b/i.test(sanitized);
+    const isRomanian = /\b(configurează|proiect|te rog|bună dimineața|instalează)\b/i.test(prompt) || /\b(bună dimineața|proiectul)\b/i.test(sanitized);
+
+    if (isGerman) {
+      return 'Ich habe Ihre Anfrage verstanden. Da jedoch kein automatisierter Executor für diese Aktion gestartet wurde, wurde die Aufgabe noch nicht ausgeführt. Möchten Sie, dass ich dafür eine Aufgabe erstelle?';
+    }
+    if (isRomanian) {
+      return 'Am înțeles solicitarea dumneavoastră. Cu toate acestea, niciun executant automat nu a fost alocat pentru această acțiune, astfel încât sarcina nu a fost încă executată. Doriți să creez o sarcină pentru aceasta?';
+    }
+    const match = prompt.match(/\b(?:install|set up|setup|configure|enable|deploy|create)\s+([a-zA-Z0-9_\- ]+)/i);
+    const actionTarget = match ? match[1].trim() : 'the requested action';
+    return `I understood the request regarding ${actionTarget}, but no automated executor was dispatched to perform this action, so it has not been completed. Would you like me to create a task for this?`;
+  }
+
+
+  // 4. Repository-specific query with claims:
   if (isRepositorySpecificQuery(prompt)) {
-    // If the prompt asks about a false premise (e.g. Llama 3.2 / Lumber) when grounded result exists:
-    if (options.hasGroundedEvidence && options.groundedResult && /llama|lumber/i.test(prompt) && !/llama|lumber/i.test(options.groundedResult)) {
-      // If the model's reply attempts to fabricate a file location or validate the false claim:
-      if (/\bI found .* in (server\/|src\/|[a-zA-Z0-9_-]+\.[a-z]+) on line \d+/i.test(reply) || /\b(Llama 3\.2 is indeed a problem|Llama 3\.2 causes issues)\b/i.test(reply)) {
-        return "Codex did not report Llama 3.2 as one of those findings. The repository inspection did not identify Llama 3.2 as a production blocker.";
+    if (
+      options.hasGroundedEvidence &&
+      options.groundedResult &&
+      /llama|lumber/i.test(prompt) &&
+      !/llama|lumber/i.test(options.groundedResult)
+    ) {
+      if (
+        /\bI found .* in (server\/|src\/|[a-zA-Z0-9_-]+\.[a-z]+) on line \d+/i.test(sanitized) ||
+        /\b(Llama 3\.2 is indeed a problem|Llama 3\.2 causes issues)\b/i.test(sanitized)
+      ) {
+        return 'Codex did not report Llama 3.2 as one of those findings. The repository inspection did not identify Llama 3.2 as a production blocker.';
       }
-      return reply;
+      return stripCannedSuffixes(sanitized);
     }
 
     if (!options.hasGroundedEvidence) {
-      if (containsUngroundedRepositoryClaims(reply) || /\b(production blockers?|top \d+|I found .* in .* on line \d+)\b/i.test(reply)) {
+      if (
+        containsUngroundedRepositoryClaims(sanitized) ||
+        /\b(production blockers?|top \d+|I found .* in .* on line \d+)\b/i.test(sanitized)
+      ) {
         return getUngroundedGroundingStatement();
       }
     }
   }
 
-  return reply;
+  // 5. Strip repetitive canned suffixes
+  sanitized = stripCannedSuffixes(sanitized);
+
+  return sanitized;
 }

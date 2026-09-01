@@ -45,6 +45,7 @@ export class ProviderCredentialService {
     db.insert(providerCredentials)
       .values({
         providerId,
+        apiKey: maskedPreview,
         configured: true,
         maskedPreview,
         createdAt: now,
@@ -53,6 +54,7 @@ export class ProviderCredentialService {
       .onConflictDoUpdate({
         target: providerCredentials.providerId,
         set: {
+          apiKey: maskedPreview,
           configured: true,
           maskedPreview,
           updatedAt: now
@@ -69,12 +71,7 @@ export class ProviderCredentialService {
     }
 
     const now = new Date().toISOString();
-    db.update(providerCredentials)
-      .set({
-        configured: false,
-        maskedPreview: null,
-        updatedAt: now
-      })
+    db.delete(providerCredentials)
       .where(eq(providerCredentials.providerId, providerId))
       .run();
   }

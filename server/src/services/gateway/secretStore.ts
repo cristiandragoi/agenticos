@@ -34,6 +34,7 @@ const KEY_ALIASES: Record<string, string[]> = {
   openai: ['openai', 'OPENAI_API_KEY'],
   anthropic: ['anthropic', 'ANTHROPIC_API_KEY', 'ninerouter', 'NINEROUTER_API_KEY'],
   google: ['google', 'GOOGLE_API_KEY', 'gemini', 'GEMINI_API_KEY'],
+  antigravity: ['antigravity', 'ANTIGRAVITY_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'gemini', 'google'],
   groq: ['groq', 'GROQ_API_KEY'],
   perplexity: ['perplexity', 'PERPLEXITY_API_KEY'],
   together: ['together', 'TOGETHER_API_KEY'],
@@ -229,8 +230,9 @@ export function redactSecrets(text: string): string {
   return text
     .replace(/\bBearer\s+[A-Za-z0-9._\-]+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED_KEY]')
+    .replace(/\bAIzaSy[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_KEY]')
     .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+\b/g, '[REDACTED_JWT]')
-    .replace(/([A-Za-z0-9_\-]*(?:api[_-]?key|secret|password|auth[_-]?token)\s*[:=]\s*)([^\s'",]+)/gi, '$1[REDACTED]');
+    .replace(/([A-Za-z0-9_\-]*(?:api[_-]?key|key|secret|password|auth[_-]?token)\s*[:=]\s*)([^\s'",]+)/gi, '$1[REDACTED]');
 }
 
 export function sanitizeDiagnostics(obj: any): any {

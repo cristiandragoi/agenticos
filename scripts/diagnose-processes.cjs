@@ -22,7 +22,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const http = require('http');
 
-const BACKEND_PORT = parseInt(process.env.PORT || '4000', 10);
+const BACKEND_PORT = parseInt(process.env.AGENTICOS_BACKEND_PORT || process.env.PORT || '4600', 10);
 
 function resolveConfiguredHermes() {
   if (process.env.HERMES_API_URL) {

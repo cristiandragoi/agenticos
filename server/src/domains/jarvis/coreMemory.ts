@@ -98,6 +98,11 @@ export function ensureJarvisCoreMemorySeeded(): void {
       source: { sourceType: 'system' },
       verificationStatus: 'human_confirmed',
     });
+  } else if (profileList.items[0]?.content?.includes('Lead Commander')) {
+    memoryStore.update(profileList.items[0].id, {
+      content: JSON.stringify(DEFAULT_USER_PROFILE, null, 2),
+      summary: `Preferred Name: ${DEFAULT_USER_PROFILE.preferredName}, Interaction: ${DEFAULT_USER_PROFILE.preferredInteractionStyle}`,
+    });
   }
 
   // 2. Jarvis Identity
@@ -265,25 +270,58 @@ export function updateInteractionPreferences(update: Partial<InteractionPreferen
   return merged;
 }
 
+export interface ScopedJarvisMemoryResult {
+  text: string;
+  injectedMemoryIds: string[];
+}
+
 /**
  * Build a structured, bounded memory injection block for Jarvis prompts.
- * Injects ONLY relevant memory:
- *   1. User core profile
- *   2. Jarvis operating principles & roles
- *   3. Interaction preferences
- *   4. Active project memory (if project selected)
- *   5. Contextually relevant recent decisions/tasks (max 3)
+ * Injects authoritative core memory with strict precedence:
+ *   1. Pinned & human-confirmed memories from system:principles, system:identity,
+ *      system:roles, system:interaction_preferences, and user:profile
+ *      (e.g., mem-1788142946777-ic51xu and mem-1788143176847-2msl4c).
+ *   2. Active project context and project-scoped memories (if project selected).
+ *   3. Contextually relevant recent decisions/tasks (bounded max 2-3, deduplicated).
+ * Deduplicates by memory ID and records all injected memory IDs for turn metadata.
  * Does NOT dump the entire database.
  */
-export async function getScopedJarvisMemoryContext(
+export async function getScopedJarvisMemoryContextDetailed(
   prompt: string,
   projectId?: string | null
-): Promise<string> {
+): Promise<ScopedJarvisMemoryResult> {
   ensureJarvisCoreMemorySeeded();
 
   const sections: string[] = [];
+  const injectedIds = new Set<string>();
 
-  // 1. User Profile & Working Style
+  // 1. Authoritative Core Scopes: fetch active human-confirmed & pinned memories
+  const coreScopes = [
+    SCOPE_SYSTEM_PRINCIPLES,
+    SCOPE_SYSTEM_IDENTITY,
+    SCOPE_SYSTEM_ROLES,
+    SCOPE_SYSTEM_INTERACTION,
+    SCOPE_USER_PROFILE,
+  ];
+
+  const pinnedCoreMemories: MemoryRecord[] = [];
+  for (const scope of coreScopes) {
+    const list = memoryStore.list({ scope, status: 'active', limit: 20 });
+    for (const mem of list.items) {
+      if (mem.pinned || mem.verificationStatus === 'human_confirmed') {
+        pinnedCoreMemories.push(mem);
+      }
+    }
+  }
+
+  // Deduplicate pinned core memories
+  const uniquePinnedCore = pinnedCoreMemories.filter((m) => {
+    if (injectedIds.has(m.id)) return false;
+    injectedIds.add(m.id);
+    return true;
+  });
+
+  // 2. Format User Profile
   const userProfile = getUserWorkingProfile();
   sections.push(`[USER WORKING PROFILE]
 Preferred Name: ${userProfile.preferredName || 'Operator'}
@@ -293,14 +331,24 @@ ${userProfile.workingPreferences.map(p => `- ${p}`).join('\n')}
 High-Level Goals:
 ${userProfile.highLevelGoals.map(g => `- ${g}`).join('\n')}`);
 
-  // 2. Jarvis Identity & Operating Roles
-  sections.push(`[JARVIS SUPERVISOR IDENTITY & PRINCIPLES]
+  // 3. Inject Pinned Authoritative Principles & Contracts (Explicitly overriding defaults)
+  if (uniquePinnedCore.length > 0) {
+    const coreLines = ['[AUTHORITATIVE PINNED SYSTEM PRINCIPLES & CONTRACTS]'];
+    for (const m of uniquePinnedCore) {
+      coreLines.push(`### ${m.title} (${m.id})`);
+      coreLines.push(m.content.trim());
+      coreLines.push('');
+    }
+    sections.push(coreLines.join('\n'));
+  } else {
+    sections.push(`[JARVIS SUPERVISOR IDENTITY & PRINCIPLES]
 ${DEFAULT_JARVIS_IDENTITY}
 ${DEFAULT_AGENT_ROLES}
 Principles:
 ${DEFAULT_OPERATING_PRINCIPLES}`);
+  }
 
-  // 3. Interaction Preferences
+  // 4. Interaction Preferences
   const interaction = getInteractionPreferences();
   sections.push(`[INTERACTION PREFERENCES]
 - Immediate conversational acknowledgement before long execution
@@ -309,7 +357,7 @@ ${DEFAULT_OPERATING_PRINCIPLES}`);
 - Spoken milestones via TTS enabled (locale: ${interaction.locale})
 - Filter out micro tool calls from voice`);
 
-  // 4. Active Project Memory (Scoped to project, if available)
+  // 5. Active Project Memory (Scoped to project, if available)
   const effectiveProjectId = projectId || projectsStore.getActiveProjectId();
   if (effectiveProjectId) {
     const project = projectsStore.getProject(effectiveProjectId);
@@ -318,7 +366,6 @@ ${DEFAULT_OPERATING_PRINCIPLES}`);
 Project: ${project.name} (${project.id})
 Description: ${project.description || 'No description provided'}`];
 
-      // Retrieve top project-scoped memories relevant to prompt
       const queryTerms = prompt
         .replace(/[^a-z0-9 ]/gi, ' ')
         .split(/\s+/)
@@ -330,14 +377,17 @@ Description: ${project.description || 'No description provided'}`];
       if (projectMemories.hits.length > 0) {
         projectLines.push('Relevant Project Memories:');
         for (const hit of projectMemories.hits.slice(0, 3)) {
-          projectLines.push(`- ${hit.memory.title}: ${hit.memory.summary || hit.memory.content.slice(0, 140)}`);
+          if (!injectedIds.has(hit.memory.id)) {
+            injectedIds.add(hit.memory.id);
+            projectLines.push(`- ${hit.memory.title}: ${hit.memory.summary || hit.memory.content.slice(0, 140)}`);
+          }
         }
       }
       sections.push(projectLines.join('\n'));
     }
   }
 
-  // 5. Relevant Global Decisions / Preferences (Top 2 matches)
+  // 6. Relevant Global Decisions / Preferences (Top 2 matches, deduplicated)
   const cleanTerms = prompt
     .replace(/[^a-z0-9 ]/gi, ' ')
     .split(/\s+/)
@@ -348,16 +398,29 @@ Description: ${project.description || 'No description provided'}`];
   if (cleanTerms) {
     const decisionHits = memoryStore
       .search(cleanTerms, { type: 'decision', status: 'active', limit: 10 })
-      .filter((h) => !h.memory.scope.startsWith('project:'))
+      .filter((h) => !h.memory.scope.startsWith('project:') && !injectedIds.has(h.memory.id))
       .slice(0, 2);
     if (decisionHits.length > 0) {
       const decLines = ['[RELEVANT DECISIONS & CONSTRAINTS]'];
       for (const hit of decisionHits) {
+        injectedIds.add(hit.memory.id);
         decLines.push(`- ${hit.memory.title}: ${hit.memory.summary || hit.memory.content.slice(0, 140)}`);
       }
       sections.push(decLines.join('\n'));
     }
   }
 
-  return sections.join('\n\n');
+  return {
+    text: sections.join('\n\n'),
+    injectedMemoryIds: Array.from(injectedIds),
+  };
+}
+
+/** Convenience wrapper returning the text block. */
+export async function getScopedJarvisMemoryContext(
+  prompt: string,
+  projectId?: string | null
+): Promise<string> {
+  const res = await getScopedJarvisMemoryContextDetailed(prompt, projectId);
+  return res.text;
 }

@@ -6,6 +6,15 @@ import fs from 'node:fs';
 export const magnitudeRouter = Router();
 
 /**
+ * GET /api/magnitude/status
+ * Check availability of the Magnitude browser execution runtime.
+ */
+magnitudeRouter.get('/status', async (_req: Request, res: Response) => {
+  const status = await magnitudeService.checkAvailability();
+  return res.json(status);
+});
+
+/**
  * POST /api/magnitude/runs
  * Create and launch a Magnitude browser inspection run.
  */

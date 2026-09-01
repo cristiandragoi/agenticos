@@ -2,7 +2,7 @@ const { _electron: electron } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const EXE_PATH = path.resolve('B:/AgenticOS/release/win-unpacked/Agentic OS.exe');
+const EXE_PATH = process.env.AGENTICOS_EXE_PATH || path.resolve(__dirname, '..', 'release', 'win-unpacked', 'AgenticOS.exe');
 const PROMPT = 'Explain in two sentences what the current role of Jarvis is inside Agentic OS. Do not delegate this task.';
 
 async function runTest() {

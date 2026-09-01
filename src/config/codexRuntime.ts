@@ -1,4 +1,4 @@
-export const CODEX_REPOSITORY = 'B:\\AgenticOS';
+export const CODEX_REPOSITORY = 'D:\\AgenticOS';
 export const CODEX_PROVIDER = 'ollama';
 export const CODEX_PROVIDER_LABEL = 'Ollama';
 export const CODEX_BASE_URL = 'http://127.0.0.1:11434';

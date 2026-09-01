@@ -109,7 +109,7 @@ function initBackendLifecycle(): BackendLifecycleManager {
   const backendRoot = app.isPackaged ? process.resourcesPath : appRoot;
   const port = process.env['AGENTICOS_BACKEND_PORT']
     ? parseInt(process.env['AGENTICOS_BACKEND_PORT'], 10)
-    : readPortFromServerEnv(backendRoot, 4000);
+    : readPortFromServerEnv(backendRoot, 4600);
 
   // Authoritative production data location: app.getPath('userData')
   const userDataDir = app.getPath('userData');
@@ -123,6 +123,8 @@ function initBackendLifecycle(): BackendLifecycleManager {
 
   const backendEnv: NodeJS.ProcessEnv = {
     ...process.env,
+    PORT: String(port),
+    AGENTICOS_BACKEND_PORT: String(port),
     AGENTICOS_DATA_DIR: canonicalDataDir,
     AGENT_TEAMS_DB_PATH: canonicalDbPath,
     AGENTICOS_USER_DATA_DIR: userDataDir,
@@ -166,6 +168,27 @@ function initBackendLifecycle(): BackendLifecycleManager {
   return manager;
 }
 
+function resolveAppIcon(): string {
+  const appRoot = process.env.APP_ROOT || path.join(__dirname, '..');
+  const candidates = [
+    path.join(appRoot, 'build', 'icons', 'agenticos.ico'),
+    path.join(process.resourcesPath, 'build', 'icons', 'agenticos.ico'),
+    path.join(process.resourcesPath, 'app', 'build', 'icons', 'agenticos.ico'),
+    path.join(appRoot, 'build', 'icons', 'agenticos.png'),
+    path.join(process.resourcesPath, 'build', 'icons', 'agenticos.png'),
+    path.join(process.env.VITE_PUBLIC || path.join(appRoot, 'public'), 'logo.png'),
+    path.join(process.resourcesPath, 'public', 'logo.png'),
+    path.join(process.resourcesPath, 'app', 'public', 'logo.png'),
+  ];
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return path.join(appRoot, 'public', 'logo.png');
+}
+
 function createWindow() {
   logElectron('Creating main window...');
 
@@ -192,8 +215,8 @@ function createWindow() {
     ...(x !== undefined && y !== undefined ? { x, y } : {}),
     minWidth: 800,
     minHeight: 500,
-    title: 'Agentic OS',
-    icon: path.join(process.env.VITE_PUBLIC, 'logo.jpg'),
+    title: 'AgenticOS',
+    icon: resolveAppIcon(),
     frame: false,
     show: true, // Always start visible so the window is never lost
     backgroundColor: '#0a0a0d', // Solid dark color to prevent Windows transparency bugs
@@ -435,6 +458,8 @@ app.on('before-quit', (event) => {
   });
 });
 
+app.setName('AgenticOS');
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   logElectron('Another instance is already running. Quitting this instance immediately.');
@@ -453,19 +478,62 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
-    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      if (permission === 'media') {
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.agenticos.desktop');
+    }
+    const isTrustedOrigin = (originUrl?: string): boolean => {
+      if (!originUrl) return true;
+      try {
+        const parsed = new URL(originUrl);
+        return (
+          parsed.protocol === 'file:' ||
+          ((parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+            (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost'))
+        );
+      } catch {
+        return (
+          originUrl.startsWith('file://') ||
+          originUrl.startsWith('http://127.0.0.1') ||
+          originUrl.startsWith('http://localhost')
+        );
+      }
+    };
+
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+      const requestingUrl = details?.requestingUrl || (webContents && webContents.getURL?.());
+      const trusted = isTrustedOrigin(requestingUrl);
+      if (
+        trusted &&
+        (permission === 'media' ||
+          (permission as string) === 'audioCapture' ||
+          (permission as string) === 'microphone' ||
+          permission === 'notifications')
+      ) {
+        logElectron('[AgenticOS Electron] Permission granted for trusted origin:', { permission, requestingUrl });
         callback(true);
       } else {
-        callback(true);
+        logElectron('[AgenticOS Electron] Permission denied:', { permission, requestingUrl, trusted });
+        callback(false);
       }
     });
-    
-    session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-      if (permission === 'media') {
+
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+      const trusted = isTrustedOrigin(requestingOrigin || (webContents && webContents.getURL?.()));
+      if (
+        trusted &&
+        (permission === 'media' ||
+          (permission as string) === 'audioCapture' ||
+          (permission as string) === 'microphone' ||
+          permission === 'notifications')
+      ) {
         return true;
       }
-      return true;
+      return false;
+    });
+
+    session.defaultSession.setDevicePermissionHandler((details) => {
+      const origin = details?.origin;
+      return isTrustedOrigin(origin);
     });
 
     // ONE lifecycle manager owns backend truth in every mode. The window

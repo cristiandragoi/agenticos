@@ -1,8 +1,10 @@
 import { logger } from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'node:os';
 
-const VAULT_PATH = 'C:\\Users\\Cris\\obsidian-vault';
+const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH || path.join(process.env.USERPROFILE || os.homedir(), 'obsidian-vault');
+
 
 export async function runNewsRadar() {
   logger.info('[News Radar] Starting scheduled news fetch...');

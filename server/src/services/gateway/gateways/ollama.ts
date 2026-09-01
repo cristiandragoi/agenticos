@@ -85,6 +85,12 @@ export class OllamaGateway implements ModelGateway {
       if (defMatch) return defMatch;
     }
 
+    // Provider resilience: if local models exist, use the best installed candidate
+    if (available.length > 0) {
+      const installedFallback = available.find(name => name.startsWith('qwen3.8') || name.startsWith('llama3.1') || name.startsWith('qwen2.5')) || available[0];
+      return installedFallback;
+    }
+
     throw new Error(`Ollama model missing: configured '${model}' (local fallback '${defModel}' also unavailable)`);
   }
 
@@ -119,8 +125,8 @@ export class OllamaGateway implements ModelGateway {
     // P1 — the request layer expresses the output budget. A planning request
     // (large maxTokens) gets a proportional generation cap; a retry gets a
     // strictly larger budget so a thinking-constrained generation can finish.
-    const baseBudget = req.maxTokens ?? 512;
-    const retryBudget = Math.max(baseBudget * 3, 2048);
+    const baseBudget = req.maxTokens ?? 2048;
+    const retryBudget = Math.max(baseBudget * 2, 4096);
     // P4 — planning escalation: the request may name a stronger sibling model
     // on the same provider (e.g. qwen3.5:cloud) used ONLY when the local
     // model exhausts its budget without producing content.
@@ -136,12 +142,16 @@ export class OllamaGateway implements ModelGateway {
       escalationModel: escalationModel || null
     }));
 
+    const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.1:8b';
     const attempts: { model: string; budget: number }[] = [
       { model: baseModel, budget: baseBudget },
-      { model: baseModel, budget: retryBudget },
     ];
+    if (fallbackModel && fallbackModel !== baseModel) {
+      attempts.push({ model: fallbackModel, budget: baseBudget });
+    }
+    attempts.push({ model: baseModel, budget: retryBudget });
     const hasEscalation = Boolean(escalationModel && escalationModel !== baseModel);
-    if (escalationModel && escalationModel !== baseModel) {
+    if (escalationModel && escalationModel !== baseModel && escalationModel !== fallbackModel) {
       attempts.push({ model: escalationModel, budget: retryBudget });
     }
 
@@ -149,12 +159,7 @@ export class OllamaGateway implements ModelGateway {
     for (let attempt = 0; attempt < attempts.length; attempt++) {
       const { model, budget } = attempts[attempt];
       const attemptStart = Date.now();
-      // When an escalation model is configured, the base local attempts are
-      // short probes: the local model either returns fast (empty or content)
-      // or hangs — a 20s cap bounds the hang so the escalation model (the
-      // real generator) is reached promptly. The escalation attempt itself
-      // gets the full timeout.
-      const attemptTimeoutMs = hasEscalation && model !== escalationModel ? Math.min(timeout, 20000) : timeout;
+      const attemptTimeoutMs = timeout;
       let res: Response;
       let fetchError: string | null = null;
       try {

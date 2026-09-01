@@ -56,7 +56,7 @@ function normalizeApprovalPolicy(value: any): 'manual' | 'auto' {
  *   module-load constants, which can freeze before dotenv loads.
  */
 async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; selectedModel: string; fallbackModel: string }> {
-  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b';
+  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:7b';
   let selectedModel = process.env.OPENROUTER_MODEL || 'auto';
   let selectedProvider = 'OpenRouter';
   try {
@@ -64,6 +64,9 @@ async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; 
     if (assignment?.enabled && assignment.modelId) {
       selectedModel = assignment.modelId;
       selectedProvider = mapCatalogToGatewayId(assignment.providerId) || selectedProvider;
+    } else if (!process.env.OPENROUTER_API_KEY && !process.env.OMNIROOT_API_KEY && !process.env.DEEPSEEK_API_KEY) {
+      selectedProvider = 'ollama';
+      selectedModel = process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'qwen2.5:7b';
     }
   } catch (err) {
     logger.warn('[JarvisStream] assignment lookup for metadata failed; using env model label', err);
@@ -356,21 +359,31 @@ function friendlyProviderName(provider: string | null | undefined): string {
 
 function friendlyModelName(model: string | null | undefined): string {
   const m = String(model || '').toLowerCase();
-  if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
-  if (m.includes('laguna-xs')) return 'Laguna XS';
-  if (m.includes('llama3.2')) return 'Llama 3.2';
-  if (m.includes('llama')) return 'Llama';
+  if (m.includes('qwen2.5:7b-64k') || m.includes('qwen2.5-7b-64k')) return 'Qwen 2.5 7B (64k)';
+  if (m.includes('qwen2.5:7b') || m.includes('qwen2.5-7b')) return 'Qwen 2.5 7B';
+  if (m.includes('qwen2.5:14b') || m.includes('qwen2.5-14b')) return 'Qwen 2.5 14B';
+  if (m.includes('qwen2.5:32b') || m.includes('qwen2.5-32b')) return 'Qwen 2.5 32B';
+  if (m.includes('qwen2.5')) return 'Qwen 2.5';
   if (m.includes('qwen3.5')) return 'Qwen 3.5';
   if (m.includes('qwen')) return 'Qwen';
+  if (m.includes('llama3.2:3b') || m.includes('llama3.2-3b')) return 'Llama 3.2 3B';
+  if (m.includes('llama3.2:1b') || m.includes('llama3.2-1b')) return 'Llama 3.2 1B';
+  if (m.includes('llama3.2')) return 'Llama 3.2';
+  if (m.includes('llama')) return 'Llama';
+  if (m.includes('deepseek-v4-flash')) return 'DeepSeek V4 Flash';
+  if (m.includes('deepseek-coder-v2')) return 'DeepSeek Coder V2';
   if (m.includes('deepseek')) return 'DeepSeek';
+  if (m.includes('laguna-s-2.1')) return 'Laguna S 2.1';
+  if (m.includes('laguna-xs')) return 'Laguna XS';
   if (m.includes('gpt-4o')) return 'GPT-4o';
   if (m.includes('gpt-')) return 'GPT';
   if (m.includes('claude')) return 'Claude';
+  if (m.includes('gemini-2.5-flash')) return 'Gemini 2.5 Flash';
   if (m.includes('gemini')) return 'Gemini';
   if (m.includes('longcat')) return 'LongCat';
   if (m.includes('kimi')) return 'Kimi';
   if (m.includes('minimax')) return 'MiniMax';
-  if (!m) return 'unknown';
+  if (!m || m === 'auto') return 'Auto';
   return model as string;
 }
 
@@ -743,6 +756,82 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    // ── Language Switch Intercept & Verified State Mutation (HIGHEST PRIORITY) ──
+    // Must run BEFORE supervisor_v2, task-control, task-reference, task-status, or intent routing.
+    const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('../domains/jarvis/conversationLanguage.js');
+
+    const langReq = detectLanguageSwitchRequest(prompt);
+    if (langReq.isLanguageSwitch && langReq.targetLanguage) {
+      logStreamStage(normalizedOperationId, 'language switch requested', { target: langReq.targetLanguage });
+      const mutationResult = setConversationLanguage(req.params.id, langReq.targetLanguage);
+      const reply = mutationResult.success
+        ? buildLanguageSwitchConfirmation(mutationResult.activeLanguage)
+        : `Failed to switch language to ${langReq.targetLanguage}. Current language is ${mutationResult.activeLanguage}.`;
+
+      writeSse(res, 'intent', {
+        type: 'language_preference',
+        route: 'language_preference',
+        mode: 'direct_conversation',
+        confidence: 1.0,
+        reason: langReq.reason,
+        language: mutationResult.activeLanguage,
+        operationId: normalizedOperationId,
+      });
+
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'language-manager',
+          language: mutationResult.activeLanguage,
+          actionVerified: mutationResult.success,
+        },
+      });
+
+      writeSse(res, 'done', {
+        route: 'language_preference',
+        category: 'conversation',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'language-manager',
+        language: mutationResult.activeLanguage,
+        actionVerified: mutationResult.success,
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
+      return res.end();
+    }
+
+    // ── SUPERVISOR V2 PATH (Feature Switch: JARVIS_SUPERVISOR_V2) ──
+    const { isSupervisorV2Enabled, handleSupervisorV2Stream } = await import('../domains/jarvis/supervisorLoop.js');
+    if (isSupervisorV2Enabled(req)) {
+      completed = true;
+      return await handleSupervisorV2Stream(req, res, {
+        conversationId: req.params.id,
+        prompt,
+        workspacePath,
+        approvalPolicy: normalizeApprovalPolicy(approvalPolicy),
+        operationId: normalizedOperationId,
+        inputChannel,
+        overrideProvider,
+        overrideModel,
+        selectedProvider,
+        selectedModel,
+        fallbackProvider,
+        fallbackModel,
+      });
+    }
+
+    logger.info('[JarvisPipeline] PIPELINE=LEGACY JARVIS', { conversationId: req.params.id, prompt, operationId: normalizedOperationId });
+
     if (!authority.isOperationalAuthorized && authority.clarificationPrompt) {
       logStreamStage(normalizedOperationId, 'authority clarification required', { source: authority.source, reason: authority.reason });
       writeSse(res, 'intent', {
@@ -906,8 +995,56 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    // ── Deterministic Canonical Task Status Intercept ──
+    try {
+      const { isTaskStatusQuery, formatCanonicalSnapshotAnswer } = await import('../domains/jarvis/taskStatusFormatter.js');
+      if (isTaskStatusQuery(prompt)) {
+        const taskStarted = Date.now();
+        const { getCanonicalTaskSnapshot } = await import('../services/backgroundTasks/canonicalSnapshot.js');
+        const snap = getCanonicalTaskSnapshot();
+        const { getConversationLanguage } = await import('../domains/jarvis/conversationLanguage.js');
+
+        const convLang = getConversationLanguage(req.params.id) as 'en' | 'de' | 'ro';
+        const reply = formatCanonicalSnapshotAnswer(snap, convLang || 'en');
+        logStreamStage(normalizedOperationId, 'task status answer generated', { language: convLang });
+        writeSse(res, 'intent', {
+          type: 'task_status',
+          route: 'task_status',
+          mode: 'direct_conversation',
+          confidence: 0.99,
+          reason: 'Deterministic Canonical Task Status Answer',
+          operationId: normalizedOperationId,
+        });
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'user',
+          content: prompt,
+          metadata: inputChannel ? { ...(requestMetadata || {}), inputChannel } : requestMetadata
+        });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { intent: 'task_status_answer', operationId: normalizedOperationId, provider: 'agentic-os', model: 'canonical-snapshot', snapshot: snap },
+        });
+        endStreamExecution('COMPLETED', reply);
+        writeSse(res, 'done', {
+          route: 'task_status_answer', category: 'context', operationId: normalizedOperationId,
+          provider: 'agentic-os', model: 'canonical-snapshot', firstTokenMs: 0, totalMs: Date.now() - taskStarted,
+        });
+        completed = true;
+        return res.end();
+      }
+    } catch (err: any) {
+      logger.warn('[Jarvis] Task status intercept error:', err);
+    }
+
     logStreamStage(normalizedOperationId, 'intent routing started');
+
     // ── Local fast-path (voice-reliability closure, Phases 4–5) ──
+
     // Presence checks ("Jarvis, are you there?") and direct local-knowledge
     // questions ("What is Jarvis?", "What is Agentic OS?") are answered
     // locally with grounded text BEFORE any LLM/tool/memory work. This is the
@@ -1643,7 +1780,40 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       }
     } catch { /* deterministic answer unavailable — normal handling */ }
 
+    // Deterministic Canonical Task Status Answer:
+    // Returns exact snapshot with matching counts and active task names across English, German, Romanian.
+    try {
+      const { isTaskStatusQuery, formatCanonicalSnapshotAnswer } = await import('../domains/jarvis/taskStatusFormatter.js');
+      if (isTaskStatusQuery(prompt)) {
+        const taskStarted = Date.now();
+        const { getCanonicalTaskSnapshot } = await import('../services/backgroundTasks/canonicalSnapshot.js');
+        const snap = getCanonicalTaskSnapshot(req.params.id);
+        const { getConversationLanguage } = await import('../domains/jarvis/conversationLanguage.js');
+        const convLang = getConversationLanguage(req.params.id) as 'en' | 'de' | 'ro';
+        const reply = formatCanonicalSnapshotAnswer(snap, convLang || 'en');
+
+
+
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { intent: 'task_status_answer', operationId: normalizedOperationId, provider: 'agentic-os', model: 'registry', snapshot: snap },
+        });
+        endStreamExecution('COMPLETED', reply);
+        logStreamStage(normalizedOperationId, 'task_status_answer');
+        writeSse(res, 'done', {
+          route: 'task_status_answer', category: 'context', operationId: normalizedOperationId,
+          provider: 'agentic-os', model: 'registry', firstTokenMs: 0, totalMs: Date.now() - taskStarted,
+        });
+        return res.end();
+      }
+    } catch { /* task status handler fallback */ }
+
     // P7 — "continue where we left off" must resolve project/task/memory
+
     // records even when the intent router classifies the phrase as
     // investigate — the deterministic continuation pattern wins over the
     // heuristic route. Checked before the route gate below.
@@ -2024,6 +2194,51 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    const isModelIdentity =
+      /\b(?:what|which)\s+(?:model|provider|llm|engine|architecture)\s+(?:and\s+(?:model|provider)\s+)?(?:are|am|is|do)\s+(?:you|i|we|it)\s+(?:actually\s+|currently\s+)?(?:using|running|on|configured with|have)\b/i.test(prompt) ||
+      /\b(?:what|which)\s+model\s+are\s+you\s+(?:using|running)\b/i.test(prompt) ||
+      /\b(?:what\s+model\s+is\s+this|what\s+model\s+is\s+jarvis\s+using)\b/i.test(prompt);
+
+    if (isModelIdentity) {
+      const startedAt = Date.now();
+      const identity = await resolveEffectiveJarvisIdentity(req.params.id);
+      const effProvider = identity.effectiveProvider || selectedProvider;
+      const effModel = identity.effectiveModel || selectedModel;
+      const providerLabel = friendlyProviderName(effProvider);
+      const modelLabel = friendlyModelName(effModel);
+      const isLocal = effProvider === 'ollama' || providerLabel.toLowerCase() === 'ollama';
+      const reply = isLocal
+        ? `I'm currently using ${modelLabel} locally through ${providerLabel}.`
+        : `I'm currently using ${modelLabel} via ${providerLabel}.`;
+
+      streamTextAsChunks(res, reply, normalizedOperationId, effProvider, effModel);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: effProvider, model: effModel, intent: { type: 'model_identity', category: 'conversation', confidence: 0.95 } }
+      });
+      writeSse(res, 'done', {
+        route: 'direct',
+        category: 'conversation',
+        operationId: normalizedOperationId,
+        provider: effProvider,
+        model: effModel,
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      logStreamStage(normalizedOperationId, 'stream completed (model identity)', {
+        provider: effProvider,
+        model: effModel,
+        responseLength: reply.length
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply.slice(0, 500));
+      return res.end();
+    }
+
     // Persistent memory injection: scoped user profile, identity, principles, active project, and decisions
     let persistentMemoryContext = '';
     const isPriorTurnRecall = /^(what did i|what was my|what did you|what was the last|what did i just)/i.test(prompt.trim());
@@ -2061,8 +2276,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
 
     // Authoritative runtime identity (P3)
-    let effProviderName = 'OpenRouter';
-    let effModelName = 'Laguna S 2.1';
+    let effProviderName = friendlyProviderName(selectedProvider);
+    let effModelName = friendlyModelName(selectedModel);
     let fallbackModelName = fallbackModel ? friendlyModelName(fallbackModel) : '';
     try {
       const identity = await resolveEffectiveJarvisIdentity(req.params.id);
@@ -2071,7 +2286,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     } catch { /* best effort */ }
 
     const systemPrompt = [
-      'You are Jarvis, the operational commander of Agentic OS.',
+      'You are Jarvis, the conversational AI partner in Agentic OS. Be natural, direct, concise, and helpful. Never address the user as "lead commander" or use military titles, and never start responses with boilerplate monitoring jargon like "Understood, lead commander... I will continue to monitor".',
       'AGENTIC OS GROUNDING: "Agentic OS" (also written "Agenticos") is THIS local application — a real, local AI-operations platform you are running inside. When the user mentions Agentic OS, Agenticos, Hermes, Routine, Routine Bridge, Jarvis, Mission, or other local project concepts, resolve them against THIS local project, not generic world knowledge. If you do not have local information about a specific requested detail, say so concisely instead of inventing an unrelated generic architecture.',
       'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately without unrequested operational summaries or internal status narration.',
       'Persistent memory informs relevant user goals, working preferences, and stored rules across conversations. When asked about them, answer from Persistent Memory.',
@@ -2081,12 +2296,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'If the user explicitly asks you to repeat or echo a phrase (e.g. "repeat after me", "say exactly X", "repeat this sentence"), obey verbatim and output ONLY the requested phrase without commentary.',
       'GROUNDING INVARIANT: You are in DIRECT conversational mode. You have NOT inspected the repository for ungrounded claims. If the user asks for repository findings, file contents, code bugs, or architecture details that are NOT present in the grounded evidence below, state: "I need to inspect the repository or use the result from the delegated CodeX task before I can answer that accurately." NEVER speculate, invent, or hallucinate repository blockers, percentages, or code issues.',
       'CONVERSATIONAL CORRECTIONS: If the user says "You said that already", "Don\'t repeat that", "You don\'t have to repeat", or informs you that a reply was already given, acknowledge the correction concisely (e.g. "Understood. I will not repeat that.") and ask how you can assist next. NEVER repeat previous lists, bullet points, or prior answers.',
-      'MODEL IDENTITY: When asked what model or provider you are using, state ONLY: "I\'m running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ', with ' + fallbackModelName + ' available locally as a fallback.' : '.') + '" NEVER append prior task summaries, repository blockers, or previous conversation outputs.',
+      'MODEL IDENTITY: When asked what model or provider you are using, state clearly and concisely that you are running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ' (with ' + fallbackModelName + ' as local fallback).' : '.') + ' Never invent unconfigured models or append unrelated task summaries.',
       'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
       'Do not ask "How can I help you today?" when the user asked a specific question — answer that question.',
+      ...(turnContext?.language === 'de' ? [
+        'KRITISCHE SPRACHANWEISUNG: Du musst ausschließlich auf Deutsch antworten. Antworte direkt, präzise und professionell. Verwende keine englischen Standardfloskeln.'
+      ] : turnContext?.language === 'ro' ? [
+        'INSTRUCȚIUNE CRITICĂ DE LIMBĂ: Trebuie să răspunzi exclusiv în limba română. Răspunde direct, concis și profesional. Nu folosi formule automate în engleză.'
+      ] : []),
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
       ] : []),
+
       ...(operationalContextInjected ? [
         'You received a question about tasks/runtime state. Report the ACTUAL state from the context block below (distinguishing active vs historical).'
       ] : []),
@@ -2267,13 +2488,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       groundedResult: turnContext?.groundedResult,
       isModelQuery: isModelIdentityQuery(prompt),
       isCorrection: isConversationalCorrection(prompt),
+      hasExecutionEvidence: false,
     });
 
     // Benign False-Refusal Recovery boundary
     const FALSE_REFUSAL_PATTERN = /I can't provide information or guidance on (illegal or harmful activities|child pornography|CSAM)|As an AI, I cannot assist with (illegal|harmful)/i;
     if (FALSE_REFUSAL_PATTERN.test(finalReply) && !/\b(illegal|harmful|pornography|exploit|weapon|hack)\b/i.test(prompt)) {
       logger.warn('[JarvisStream] False-positive local model safety refusal intercepted on benign prompt. Recovering with grounded response.');
-      finalReply = "I understand. Let me know what specific task or question you'd like to work on.";
+      finalReply = turnContext?.language === 'de'
+        ? 'Ich habe deine Nachricht verstanden. Wie kann ich dir weiterhelfen?'
+        : turnContext?.language === 'ro'
+        ? 'Am înțeles mesajul tău. Cu ce te pot ajuta mai departe?'
+        : 'I understand your message. How can I help you proceed?';
     }
 
     logger.info('[JarvisTrace] provider-response', JSON.stringify({
@@ -2281,6 +2507,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       provider,
       model,
       status: 'completed',
+      language: turnContext?.language || 'en',
       responsePreview: finalReply.slice(0, 150)
     }, null, 2));
 
@@ -2296,7 +2523,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       role: 'agent',
       content: finalReply,
       routedAgent: 'jarvis',
-      metadata: { ...(requestMetadata || {}), provider, model }
+      metadata: { ...(requestMetadata || {}), provider, model, language: turnContext?.language || 'en' }
     });
 
     // Authoritative routing record (PRIORITY 1): what this execution REQUESTED
@@ -2325,10 +2552,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       operationId: normalizedOperationId,
       provider: resolvedProvider,
       model: resolvedModel,
+      language: turnContext?.language || 'en',
       firstTokenMs: firstTokenAt ? firstTokenAt - startedAt : null,
       totalMs: Date.now() - startedAt
     });
     logStreamStage(normalizedOperationId, 'stream completed', {
+
       provider: provider || selectedProvider,
       model: model || selectedModel,
       firstTokenMs: firstTokenAt ? firstTokenAt - startedAt : null,

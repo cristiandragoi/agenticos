@@ -10,7 +10,7 @@ import { z } from 'zod';
 const router = Router();
 
 // Validate provider IDs against known canonical providers
-const ALLOWLISTED_PROVIDERS = ['omniroot', 'ninerouter', 'openrouter', 'ollama', 'openai', 'anthropic', 'groq', 'google'];
+const ALLOWLISTED_PROVIDERS = ['omniroot', 'ninerouter', 'openrouter', 'ollama', 'openai', 'anthropic', 'groq', 'google', 'antigravity', 'gemini'];
 
 const PutCredentialSchema = z.object({
   apiKey: z.string().min(1).max(2048)

@@ -26,6 +26,9 @@ console.log('═'.repeat(60));
 console.log('  AGENTIC OS — AUTHORITATIVE PACKAGING PIPELINE');
 console.log('═'.repeat(60));
 
+// 0. Generate Core Icons & Logos
+run('powershell.exe -ExecutionPolicy Bypass -File scripts/generate-icons.ps1', ROOT);
+
 // 1. Build Identity
 run('node scripts/build-identity.cjs', ROOT);
 
@@ -44,9 +47,10 @@ console.log(`[package] Staged build identity: ${distId}`);
 run('npx tsc -b', ROOT);
 run('npx vite build', ROOT);
 
-// 5. Electron Packaging
+// 5. Electron Packaging (win-unpacked Directory)
 run('npx electron-builder --win --dir', ROOT);
 
+
 console.log('\n' + '═'.repeat(60));
-console.log('  PACKAGING COMPLETE -> release/win-unpacked/');
+console.log('  PACKAGING COMPLETE -> release/ (Installer & win-unpacked)');
 console.log('═'.repeat(60) + '\n');

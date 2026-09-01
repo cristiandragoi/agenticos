@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import { rawDb } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
 import path from 'node:path';
@@ -98,6 +98,24 @@ export class MagnitudeService extends EventEmitter {
     cleanup: () => Promise<void>;
     approvalResolver?: (approved: boolean) => void;
   }>();
+
+  /**
+   * Check if Playwright browser automation runtime is available.
+   */
+  public async checkAvailability(): Promise<{ available: boolean; reason?: string }> {
+    try {
+      const pw = await import('playwright');
+      if (!pw || !pw.chromium) {
+        return { available: false, reason: 'Playwright chromium module not available.' };
+      }
+      return { available: true };
+    } catch (err: any) {
+      return {
+        available: false,
+        reason: 'Playwright runtime not installed or unavailable in this environment.',
+      };
+    }
+  }
 
   /**
    * Extract or validate an HTTP/HTTPS URL from a goal prompt or URL input.
@@ -465,13 +483,30 @@ export class MagnitudeService extends EventEmitter {
 
       // 1. Launch Browser
       this.appendEvent(runId, seq++, 'browser_launch_started', 'Launching Chromium browser...');
-      browser = await chromium.launch({
-        headless: true,
-        timeout: 15000
-      });
-      this.appendEvent(runId, seq++, 'browser_launched', 'Chromium browser launched successfully.');
+      let chromium: any;
+      try {
+        const pw = await import('playwright');
+        chromium = pw.chromium;
+      } catch (importErr: any) {
+        const unavailableMsg = 'Playwright browser automation is unavailable in this desktop runtime environment.';
+        this.appendEvent(runId, seq++, 'magnitude_failed', unavailableMsg, { error: unavailableMsg });
+        this.updateRunStatus(runId, 'failed', undefined, unavailableMsg);
+        throw new Error(unavailableMsg);
+      }
 
+      try {
+        browser = await chromium.launch({
+          headless: true,
+          timeout: 15000
+        });
+      } catch (launchErr: any) {
+        const launchFailMsg = `Failed to launch browser executable: ${launchErr.message || 'Chromium binary missing'}`;
+        this.appendEvent(runId, seq++, 'magnitude_failed', launchFailMsg, { error: launchFailMsg });
+        this.updateRunStatus(runId, 'failed', undefined, launchFailMsg);
+        throw new Error(launchFailMsg);
+      }
       if (abortController.signal.aborted) throw new Error('Run aborted after browser launch');
+      if (!browser) throw new Error('Browser failed to initialize');
 
       // 2. Create Context & Page
       context = await browser.newContext({

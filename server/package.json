@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsc && node dist/index.js",
-    "build": "tsc && node ../scripts/build-identity.cjs",
+    "dev": "node scripts/ensure-venv.cjs && tsc && node dist/index.js",
+    "build": "node scripts/ensure-venv.cjs && tsc && node ../scripts/build-identity.cjs",
     "start": "node dist/index.js",
     "eval:models": "node dist/evalCli.js",
     "doctor": "tsx src/scripts/agenticos-doctor.ts"

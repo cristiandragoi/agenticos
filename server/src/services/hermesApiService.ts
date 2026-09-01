@@ -82,12 +82,50 @@ const HERMES_RUN_MODEL = process.env.HERMES_RUN_MODEL || HERMES_PROFILE;
  */
 let resolvedUrlCache: string | null = null;
 
+function findHermesConfigFile(): string | null {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const userProfile = process.env.USERPROFILE || '';
+  const candidates = [
+    path.join(localAppData, 'hermes', 'config.yaml'),
+    path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, 'config.yaml'),
+    path.join(userProfile, '.hermes', 'config.yaml'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+function findHermesEnvFile(): string | null {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const userProfile = process.env.USERPROFILE || '';
+  const candidates = [
+    path.join(localAppData, 'hermes', '.env'),
+    path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, '.env'),
+    path.join(userProfile, '.hermes', '.env'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+function findHermesExecutable(): string {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const candidates = [
+    path.join(localAppData, 'hermes', 'bin', 'hermes.exe'),
+    path.join(localAppData, 'hermes', 'bin', 'hermes'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
+  }
+  return 'hermes';
+}
+
 function getConfiguredHermesPort(): number {
   try {
-    const localAppData = process.env.LOCALAPPDATA || '';
-    if (!localAppData) return 8643;
-    const cfgPath = path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, 'config.yaml');
-    if (!fs.existsSync(cfgPath)) return 8643;
+    const cfgPath = findHermesConfigFile();
+    if (!cfgPath) return 8643;
     const content = fs.readFileSync(cfgPath, 'utf8');
     const match = content.match(/platforms:\r?\n[\s\S]*?api_server:\r?\n[\s\S]*?port:[ \t]*['"]?(\d+)['"]?/);
     if (match && match[1]) {
@@ -103,38 +141,35 @@ export async function resolveHermesUrl(forceFresh = false): Promise<string> {
   if (resolvedUrlCache && !forceFresh) return resolvedUrlCache;
 
   const configuredPort = getConfiguredHermesPort();
-  const candidatePorts = Array.from(new Set([configuredPort, 8643, 8642]));
+  const candidatePorts = Array.from(new Set([configuredPort, 8643, 8642, 9119]));
   const key = resolveHermesApiKey();
 
   for (const port of candidatePorts) {
     const url = `http://127.0.0.1:${port}`;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2000);
+      const timer = setTimeout(() => controller.abort(), 1000);
       const res = await fetch(`${url}/v1/models`, {
         headers: key ? { Authorization: `Bearer ${key}` } : {},
         signal: controller.signal,
       });
       clearTimeout(timer);
-      // Any HTTP response proves the api_server platform lives here.
-      resolvedUrlCache = url;
-      return url;
+      if (res.ok) {
+        resolvedUrlCache = url;
+        return url;
+      }
     } catch { /* try next candidate */ }
   }
 
-  // Nothing answered — return candidate without permanently caching a dead URL
   return `http://127.0.0.1:${configuredPort}`;
 }
-
 
 /** Resolve API_SERVER_KEY without ever persisting or logging it. */
 function resolveHermesApiKey(): string {
   if (process.env.HERMES_API_KEY) return process.env.HERMES_API_KEY;
   try {
-    const localAppData = process.env.LOCALAPPDATA || '';
-    if (!localAppData) return '';
-    const envPath = path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, '.env');
-    if (!fs.existsSync(envPath)) return '';
+    const envPath = findHermesEnvFile();
+    if (!envPath) return '';
     const content = fs.readFileSync(envPath, 'utf8');
     const match = content.match(/^API_SERVER_KEY=(.+)$/m);
     return match ? match[1].trim() : '';
@@ -144,34 +179,32 @@ function resolveHermesApiKey(): string {
 }
 
 /**
- * Model-truth resolution (read-only, best effort). Runs created with
- * `model: <profile>` use the profile's configured provider/model — this
- * reads that pair from the profile config so RunLedger can report the
- * ACTUAL provider/model instead of the profile alias. Env overrides
- * (HERMES_RUN_PROVIDER/HERMES_RUN_MODEL) win when set. No secrets touched.
+ * Model-truth resolution (read-only, best effort).
  */
-export function resolveHermesModelTruth(): { provider: string | null; model: string | null } {
+export function resolveHermesModelTruth(): { provider: string | null; model: string | null; baseUrl: string | null; context: number | null } {
   if (process.env.HERMES_RUN_PROVIDER || process.env.HERMES_RUN_MODEL) {
     return {
-      provider: process.env.HERMES_RUN_PROVIDER || null,
-      model: process.env.HERMES_RUN_MODEL || null,
+      provider: process.env.HERMES_RUN_PROVIDER || 'custom',
+      model: process.env.HERMES_RUN_MODEL || 'qwen2.5:7b-64k',
+      baseUrl: 'http://127.0.0.1:11434/v1',
+      context: 65536,
     };
   }
   try {
-    const localAppData = process.env.LOCALAPPDATA || '';
-    if (!localAppData) return { provider: null, model: null };
-    const cfgPath = path.join(localAppData, 'hermes', 'profiles', HERMES_PROFILE, 'config.yaml');
-    if (!fs.existsSync(cfgPath)) return { provider: null, model: null };
+    const cfgPath = findHermesConfigFile();
+    if (!cfgPath) return { provider: 'custom', model: 'qwen2.5:7b-64k', baseUrl: 'http://127.0.0.1:11434/v1', context: 65536 };
     const content = fs.readFileSync(cfgPath, 'utf8');
-    // CRLF-tolerant: Windows config files carry \r\n.
     const modelBlock = content.match(/^model:\r?\n((?:[ \t]+[^\r\n]*\r?\n|\r?\n)*)/m);
-    if (!modelBlock) return { provider: null, model: null };
+    if (!modelBlock) return { provider: 'custom', model: 'qwen2.5:7b-64k', baseUrl: 'http://127.0.0.1:11434/v1', context: 65536 };
     const block = modelBlock[1];
-    const provider = block.match(/^[ \t]+provider:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || null;
-    const model = block.match(/^[ \t]+default:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || null;
-    return { provider, model };
+    const provider = block.match(/^[ \t]+provider:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || 'custom';
+    const model = block.match(/^[ \t]+default:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || 'qwen2.5:7b-64k';
+    const baseUrl = block.match(/^[ \t]+base_url:[ \t]*"?([^"\r\n]+)"?/m)?.[1]?.trim() || 'http://127.0.0.1:11434/v1';
+    const ctxMatch = block.match(/^[ \t]+context_length:[ \t]*"?(\d+)"?/m)?.[1]?.trim();
+    const context = ctxMatch ? parseInt(ctxMatch, 10) : 65536;
+    return { provider, model, baseUrl, context };
   } catch {
-    return { provider: null, model: null };
+    return { provider: 'custom', model: 'qwen2.5:7b-64k', baseUrl: 'http://127.0.0.1:11434/v1', context: 65536 };
   }
 }
 
@@ -180,28 +213,80 @@ class HermesApiService extends EventEmitter {
   private seq = 0;
 
   /** Truthful gateway status probe — never hardcoded healthy. */
-  async getStatus(): Promise<{ reachable: boolean; detail: string }> {
+  async getStatus(): Promise<{ reachable: boolean; detail: string; provider?: string; model?: string; baseUrl?: string; context?: number }> {
+    const truth = resolveHermesModelTruth();
     const key = resolveHermesApiKey();
     const baseUrl = await resolveHermesUrl(true);
-    if (!key) return { reachable: false, detail: 'API_SERVER_KEY not configured' };
+
+    // 1. Probe HTTP gateway if listening
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
+      const timer = setTimeout(() => controller.abort(), 1500);
       const res = await fetch(`${baseUrl}/v1/models`, {
-        headers: { Authorization: `Bearer ${key}` },
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
         signal: controller.signal,
       });
       clearTimeout(timer);
-      if (res.ok) return { reachable: true, detail: `Hermes API online (${baseUrl})` };
-      if (res.status === 401) return { reachable: false, detail: 'Hermes API key rejected (401)' };
-      return { reachable: false, detail: `Hermes API HTTP ${res.status}` };
-    } catch (err: any) {
-      return { reachable: false, detail: `Hermes API unreachable: ${err?.cause?.code || err?.message || err}` };
+      if (res.ok) {
+        return {
+          reachable: true,
+          detail: `Hermes HTTP API online (${baseUrl})`,
+          provider: truth.provider || 'custom',
+          model: truth.model || 'qwen2.5:7b-64k',
+          baseUrl: truth.baseUrl || 'http://127.0.0.1:11434/v1',
+          context: truth.context || 65536,
+        };
+      }
+    } catch {
+      // Gateway HTTP not active, probe Ollama backend
     }
+
+    // 2. Probe local Ollama backend
+    const ollamaUrl = truth.baseUrl || 'http://127.0.0.1:11434/v1';
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${ollamaUrl}/models`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const targetModel = truth.model || 'qwen2.5:7b-64k';
+        return {
+          reachable: true,
+          detail: `Hermes ONLINE (Local Ollama: ${targetModel})`,
+          provider: truth.provider || 'custom',
+          model: targetModel,
+          baseUrl: ollamaUrl,
+          context: truth.context || 65536,
+        };
+      }
+    } catch (err: any) {
+      return {
+        reachable: false,
+        detail: `Hermes Ollama backend unreachable at ${ollamaUrl}: ${err?.message || err}`,
+        provider: truth.provider || 'custom',
+        model: truth.model || 'qwen2.5:7b-64k',
+        baseUrl: ollamaUrl,
+        context: truth.context || 65536,
+      };
+    }
+
+    return {
+      reachable: false,
+      detail: 'Hermes offline (local Ollama backend not reachable)',
+      provider: truth.provider || 'custom',
+      model: truth.model || 'qwen2.5:7b-64k',
+      baseUrl: ollamaUrl,
+      context: truth.context || 65536,
+    };
   }
 
   getProfile() { return HERMES_PROFILE; }
-  async getUrl() { return resolveHermesUrl(); }
+  async getUrl() {
+    const truth = resolveHermesModelTruth();
+    return truth.baseUrl || 'http://127.0.0.1:11434/v1';
+  }
 
   listRuns(): HermesRunRecord[] {
     return [...this.runs.values()].sort((a, b) => b.createdAt - a.createdAt);
@@ -224,75 +309,120 @@ class HermesApiService extends EventEmitter {
    * event consumer. Returns the AgenticOS run record.
    */
   async createRun(opts: { prompt: string; cardId?: string; instructions?: string; provider?: string; model?: string }): Promise<HermesRunRecord> {
-    const key = resolveHermesApiKey();
-    if (!key) throw new Error('HERMES_API_KEY / API_SERVER_KEY not configured');
-    const baseUrl = await resolveHermesUrl();
+    const truth = resolveHermesModelTruth();
     const prompt = (opts.prompt || '').trim();
     if (!prompt) throw new Error('prompt is required');
 
-    // Per-run override (RecoveryPolicy V1): a caller-provided provider/model
-    // (e.g. the recovery-effective model) wins over the process env defaults.
-    // Never rewritten: the ASSIGNED model stays on the task record.
-    const provider = opts.provider || HERMES_RUN_PROVIDER || undefined;
-    const model = opts.model || HERMES_RUN_MODEL || undefined;
+    const provider = opts.provider || HERMES_RUN_PROVIDER || truth.provider || 'custom';
+    const model = opts.model || HERMES_RUN_MODEL || truth.model || 'qwen2.5:7b-64k';
 
-    const body: Record<string, unknown> = {
-      input: prompt,
-      // Default: run as the gateway profile (model = profile id, no
-      // provider) so the profile's configured provider/model is used. An
-      // explicit provider is only sent when the operator sets one — an
-      // unknown provider name fails at run start.
-      ...(provider ? { provider } : {}),
-      ...(model ? { model } : {}),
-    };
-    if (opts.instructions) body.instructions = opts.instructions;
+    // 1. Probe HTTP gateway
+    const baseUrl = await resolveHermesUrl();
+    const key = resolveHermesApiKey();
+    let isHttp = false;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1000);
+      const probe = await fetch(`${baseUrl}/v1/models`, {
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (probe.ok) isHttp = true;
+    } catch {}
 
-    const res = await fetch(`${baseUrl}/v1/runs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-    });
-    const data: any = await res.json().catch(() => ({}));
-    const hermesRunId: string | undefined = data?.run_id || data?.id;
-    if (!res.ok || !hermesRunId) {
-      const msg = data?.error?.message || `Hermes run creation failed (HTTP ${res.status})`;
-      throw new Error(msg);
+    if (isHttp) {
+      const body: Record<string, unknown> = {
+        input: prompt,
+        ...(provider ? { provider } : {}),
+        ...(model ? { model } : {}),
+      };
+      if (opts.instructions) body.instructions = opts.instructions;
+
+      const res = await fetch(`${baseUrl}/v1/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify(body),
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hermesRunId: string | undefined = data?.run_id || data?.id;
+      if (!res.ok || !hermesRunId) {
+        const msg = data?.error?.message || `Hermes run creation failed (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+
+      // Board linkage
+      let cardId = opts.cardId || null;
+      try {
+        if (!cardId) {
+          const card = await localDataPort.createCard({
+            laneId: 'l-hermes-inprogress-hermes',
+            title: prompt.slice(0, 80),
+            body: `Hermes live run — created from Jarvis.\nRun: ${hermesRunId}`,
+            order: Date.now(),
+            agent: 'Hermes',
+            model: 'api_server',
+          });
+          cardId = card.id;
+        }
+        await localDataPort.setCardState(cardId, 'running');
+        const kanbanRun = await localDataPort.createRun({
+          cardId,
+          laneId: 'l-hermes-inprogress-hermes',
+          workerKind: 'hermes-api',
+          input: { hermesRunId, prompt },
+        });
+        await localDataPort.setCardRun(cardId, kanbanRun.id);
+      } catch (err) {
+        logger.warn(`[hermesApi] Board linkage failed (run continues): ${err}`);
+      }
+
+      const record: HermesRunRecord = {
+        id: `hapi-${Date.now().toString(36)}-${(++this.seq).toString(36)}`,
+        hermesRunId,
+        cardId,
+        prompt,
+        status: 'queued',
+        provider,
+        model,
+        events: [],
+        pendingApproval: null,
+        finalText: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      this.runs.set(record.id, record);
+      this.appendEvent(record, 'run.created', `Hermes run ${hermesRunId} created`, { hermesRunId });
+      this.attachEventStream(record);
+      return record;
     }
 
-    // ── Board linkage (existing kanban dataport — no new Kanban system) ──
+    // 2. Direct local CLI execution:
+    const hermesRunId = `hr-${Date.now().toString(36)}`;
     let cardId = opts.cardId || null;
     try {
       if (!cardId) {
         const card = await localDataPort.createCard({
           laneId: 'l-hermes-inprogress-hermes',
           title: prompt.slice(0, 80),
-          body: `Hermes live run — created from Jarvis.\nRun: ${hermesRunId}`,
+          body: `Hermes local execution — created from Jarvis.\nRun: ${hermesRunId}`,
           order: Date.now(),
           agent: 'Hermes',
-          model: 'api_server',
+          model: model || 'qwen2.5:7b-64k',
         });
         cardId = card.id;
       }
       await localDataPort.setCardState(cardId, 'running');
-      const kanbanRun = await localDataPort.createRun({
-        cardId,
-        laneId: 'l-hermes-inprogress-hermes',
-        workerKind: 'hermes-api',
-        input: { hermesRunId, prompt },
-      });
-      await localDataPort.setCardRun(cardId, kanbanRun.id);
-    } catch (err) {
-      logger.warn(`[hermesApi] Board linkage failed (run continues): ${err}`);
-    }
+    } catch {}
 
     const record: HermesRunRecord = {
       id: `hapi-${Date.now().toString(36)}-${(++this.seq).toString(36)}`,
       hermesRunId,
       cardId,
       prompt,
-      status: 'queued',
-      provider: HERMES_RUN_PROVIDER,
-      model: data.model || HERMES_RUN_MODEL,
+      status: 'running',
+      provider,
+      model,
       events: [],
       pendingApproval: null,
       finalText: '',
@@ -300,8 +430,43 @@ class HermesApiService extends EventEmitter {
       updatedAt: Date.now(),
     };
     this.runs.set(record.id, record);
-    this.appendEvent(record, 'run.created', `Hermes run ${hermesRunId} created`, { hermesRunId });
-    this.attachEventStream(record);
+    this.appendEvent(record, 'run.created', `Hermes local CLI run ${hermesRunId} started`, { hermesRunId });
+
+    // Execute via hermes.exe asynchronously
+    (async () => {
+      try {
+        const exe = findHermesExecutable();
+        const { execFile } = await import('child_process');
+        const env = {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1',
+        };
+        execFile(exe, ['-z', prompt], { env, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+          if (err) {
+            record.status = 'failed';
+            record.errorMessage = String(stderr || err.message || err);
+            this.appendEvent(record, 'error', `Hermes execution failed: ${record.errorMessage}`);
+            this.emit('hermes:event', { type: 'error', error: record.errorMessage }, record);
+          } else {
+            record.status = 'completed';
+            record.finalText = stdout.trim();
+            this.appendEvent(record, 'assistant.completed', `Hermes plan produced`, { text: record.finalText });
+            this.appendEvent(record, 'run.completed', `Hermes run completed successfully`);
+            this.emit('hermes:event', { type: 'run.completed', finalText: record.finalText }, record);
+          }
+          this.touch(record);
+          if (record.cardId) {
+            localDataPort.setCardState(record.cardId, record.status === 'completed' ? 'done' : 'error').catch(() => {});
+          }
+        });
+      } catch (err: any) {
+        record.status = 'failed';
+        record.errorMessage = err.message;
+        this.touch(record);
+      }
+    })();
+
     return record;
   }
 

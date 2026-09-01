@@ -2,11 +2,24 @@ import { Router } from 'express';
 import { db } from '../db/index.js';
 import { tasks } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
+import { getCanonicalTaskSnapshot } from '../services/backgroundTasks/canonicalSnapshot.js';
 
 const router = Router();
 
+// GET /api/tasks/canonical-snapshot
+router.get('/canonical-snapshot', (req, res) => {
+  try {
+    const conversationId = typeof req.query.conversationId === 'string' ? req.query.conversationId : undefined;
+    const snap = getCanonicalTaskSnapshot(conversationId);
+    res.json(snap);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/tasks
 router.get('/', async (req, res) => {
+
   try {
     const allTasks = await db.query.tasks.findMany({
       orderBy: [desc(tasks.createdAt)]

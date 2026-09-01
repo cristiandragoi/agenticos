@@ -17,6 +17,7 @@ import AgentDetail from './pages/AgentDetail';
 import OrnithDashboard from './pages/OrnithDashboard';
 import RunsInspector from './pages/RunsInspector';
 import ProvidersBoard from './pages/ProvidersBoard';
+import AgentProvidersPage from './pages/AgentProvidersPage';
 import MemoryBoard from './pages/MemoryBoard';
 import BuildsGallery from './pages/BuildsGallery';
 import ControlRoom from './pages/ControlRoom';
@@ -75,6 +76,7 @@ function App() {
                         <Route path="ornith" element={<OrnithDashboard />} />
                         <Route path="runs" element={<RunsInspector />} />
                         <Route path="skills" element={<SkillsPage />} />
+                        <Route path="agent-providers" element={<AgentProvidersPage />} />
                         <Route path="providers" element={<ProvidersBoard />} />
                         <Route path="memory" element={<MemoryStudio />} />
                         <Route path="builds" element={<BuildsGallery />} />

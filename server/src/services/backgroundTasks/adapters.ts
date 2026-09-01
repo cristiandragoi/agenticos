@@ -408,6 +408,7 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
     });
 
     // Approval resolution bridge (task approval → Hermes approval endpoint).
+    let lastRequestedApprovalKey: string | null = null;
     const approvalWatcher = setInterval(async () => {
       const current = backgroundTaskRepo.getTask(task.taskId);
       if (!current || TERMINAL_STATUSES.has(current.status)) {
@@ -415,14 +416,20 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
         return;
       }
       const rec = hermesApiService.getRun?.(record.id) as HermesRunRecord | undefined;
-      if (rec?.pendingApproval && current.status !== 'waiting_approval') {
-        mgr.requestApproval(task.taskId, {
-          action: rec.pendingApproval.action || 'Command execution',
-          reason: rec.pendingApproval.reason || 'Hermes requests approval.',
-          command: rec.pendingApproval.command,
-          files: rec.pendingApproval.files,
-          choices: rec.pendingApproval.choices,
-        });
+      if (rec?.pendingApproval) {
+        const approvalKey = `${rec.id}:${rec.pendingApproval.action || ''}:${rec.pendingApproval.command || ''}`;
+        if (current.status !== 'waiting_approval' && current.approvalState !== 'allowed' && current.approvalState !== 'denied' && lastRequestedApprovalKey !== approvalKey) {
+          lastRequestedApprovalKey = approvalKey;
+          mgr.requestApproval(task.taskId, {
+            action: rec.pendingApproval.action || 'Command execution',
+            reason: rec.pendingApproval.reason || 'Hermes requests approval.',
+            command: rec.pendingApproval.command,
+            files: rec.pendingApproval.files,
+            choices: rec.pendingApproval.choices,
+          });
+        }
+      } else {
+        lastRequestedApprovalKey = null;
       }
     }, 1500);
 
@@ -1399,6 +1406,10 @@ export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: s
     case 'team': return dispatchTeamTask(task, root);
     case 'automation': return dispatchAutomationTask(task);
     case 'revenue': return dispatchRevenuePipelineTask(task, root || workspacePath);
+    case 'antigravity': {
+      const { dispatchAntigravityTask } = await import('./antigravityAdapter.js');
+      return dispatchAntigravityTask(task, root);
+    }
     default:
       backgroundTaskManager.transition(task.taskId, 'failed', { lastError: `No adapter for worker kind: ${task.worker}` });
       return { ok: false, error: `No adapter for worker kind: ${task.worker}` };

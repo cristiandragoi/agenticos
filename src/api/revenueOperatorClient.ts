@@ -1,5 +1,42 @@
 import { apiFetch } from './client';
 
+export interface RevenueOpportunity {
+  id: string;
+  title: string;
+  description: string | null;
+  source: string;
+  sourceUrl: string | null;
+  category: string;
+  discoveredAt: string;
+  estimatedRevenue: number;
+  estimatedCost: number;
+  estimatedTimeToRevenueDays: number;
+  automationPotential: number;
+  manualWorkload: number;
+  executionDifficulty: number;
+  riskLevel: number;
+  confidence: number;
+  score: number;
+  scoreBreakdown?: {
+    revenuePotentialPts: number;
+    timeToRevenuePts: number;
+    automationPotentialPts: number;
+    lowCapitalPts: number;
+    confidencePts: number;
+    manualWorkloadPenalty: number;
+    riskPenalty: number;
+    totalScore: number;
+    explanation: string;
+  };
+  scoreExplanation: string;
+  status: 'DISCOVERED' | 'EVALUATED' | 'SHORTLISTED' | 'REJECTED' | 'CONVERTED';
+  evidence: any[];
+  notes: string | null;
+  convertedMissionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RevenueMission {
   id: string;
   projectId?: string;
@@ -417,6 +454,38 @@ export const revenueOperatorClient = {
       body: JSON.stringify({ missionId }),
     });
     if (!res.ok) throw new Error('Failed to generate daily briefing');
+    return res.json();
+  },
+
+  // Opportunities Phase 2-4
+  async listOpportunities(): Promise<RevenueOpportunity[]> {
+    const res = await apiFetch('/api/revenue-operator/opportunities');
+    if (!res.ok) throw new Error('Failed to fetch opportunities');
+    const data = await res.json();
+    return data.opportunities || [];
+  },
+
+  async seedOpportunities(): Promise<RevenueOpportunity[]> {
+    const res = await apiFetch('/api/revenue-operator/opportunities/seed', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to seed opportunities');
+    const data = await res.json();
+    return data.opportunities || [];
+  },
+
+  async getOpportunity(id: string): Promise<RevenueOpportunity> {
+    const res = await apiFetch(`/api/revenue-operator/opportunities/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch opportunity');
+    const data = await res.json();
+    return data.opportunity;
+  },
+
+  async convertOpportunityToMission(id: string, options: any = {}): Promise<{ opportunity: RevenueOpportunity; mission: any }> {
+    const res = await apiFetch(`/api/revenue-operator/opportunities/${id}/convert-to-mission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    });
+    if (!res.ok) throw new Error('Failed to convert opportunity to mission');
     return res.json();
   }
 };

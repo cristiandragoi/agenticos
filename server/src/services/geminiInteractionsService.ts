@@ -1,9 +1,11 @@
 import { logger } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
+import os from 'node:os';
 import { db } from './db.js';
 
-const VAULT_PATH = 'C:\\Users\\Cris\\obsidian-vault\\projects\\welders-de-nl';
+const VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH ? path.join(process.env.OBSIDIAN_VAULT_PATH, 'projects', 'welders-de-nl') : path.join(os.homedir(), 'obsidian-vault', 'projects', 'welders-de-nl');
+
 
 interface ResearchJob {
   id: string;

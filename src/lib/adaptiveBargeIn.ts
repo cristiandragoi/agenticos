@@ -21,14 +21,18 @@ export type InterruptionClass =
   | 'takeover'
   | 'noise';
 
-/** Short acknowledgement words (lowercase, trimmed). */
+/** Short acknowledgement words (lowercase, trimmed) across English, German, Romanian. */
 const ACK_WORDS = new Set([
   'yes', 'yeah', 'yep', 'yup', 'okay', 'ok', 'right', 'sure', 'mhm', 'uh-huh',
   'mm-hmm', 'no', 'nope', 'got it', 'gotcha', 'fine', 'alright', 'k', 'kk',
   'thanks', 'thank you', 'cool', 'great', 'good', 'nice',
+  // German acks
+  'ja', 'genau', 'richtig', 'danke', 'gut', 'schön', 'schoen', 'alles klar', 'verstanden',
+  // Romanian acks
+  'da', 'bine', 'mersi', 'mulțumesc', 'multumesc', 'corect', 'am înțeles', 'am inteles', 'super',
 ]);
 
-const CONTROL_RE = /\b(stop|cancel|abort|quiet|shut up|silence|terminate)\b/i;
+const CONTROL_RE = /\b(stop|cancel|abort|quiet|shut up|silence|terminate|stopp|halt|h[oö]r\s+auf|aufh[oö]ren|schweig|ruhe|opre[sș]te|taci|lini[sș]te)\b/i;
 
 /**
  * Classify an interruption transcript.

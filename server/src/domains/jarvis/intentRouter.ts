@@ -119,8 +119,12 @@ const BUG_SIGNAL_PATTERNS: RegExp[] = [
 
 export function isBugReportStatement(prompt: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\b(speak|sprich|vorbește|deutsch|română|romanian|german|english|hallo|salut|bună|hello|hi|hey)\b/i.test(p)) {
+    return false;
+  }
   return BUG_SIGNAL_PATTERNS.some((re) => re.test(p));
 }
+
 
 /**
  * Detect obvious speech-recognition corruption (conversation-state milestone).
@@ -478,11 +482,20 @@ const APP_ENTITY_RE =
 
 export function isContextualInvestigationRequest(prompt: string, recentText?: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\b(speak|sprich|vorbește|deutsch|română|romanian|german|english|hallo|salut|bună|hello|hi|hey)\b/i.test(p)) {
+    return false;
+  }
   if (!CONTEXTUAL_SIGNAL_PATTERNS.some((re) => re.test(p))) return false;
-  if (!recentText) return false; // no context — don't classify
-  // The prompt itself or the recent turns must mention an AgenticOS entity.
-  return APP_ENTITY_RE.test(p) || APP_ENTITY_RE.test(recentText);
+  if (!recentText) return false;
+  const cleanRecent = recentText
+    .replace(/Runtime diagnostics for.*$/s, '')
+    .replace(/•.*$/gm, '')
+    .replace(/I checked the live AgenticOS state.*$/gm, '')
+    .trim();
+  if (!cleanRecent) return false;
+  return APP_ENTITY_RE.test(p) || APP_ENTITY_RE.test(cleanRecent);
 }
+
 
 /**
  * Live AgenticOS system/runtime/UI state inspection.
@@ -498,11 +511,11 @@ export function isContextualInvestigationRequest(prompt: string, recentText?: st
  *  - The phrase "read-only" alone never implies repository analysis here.
  */
 const LIVE_STATE_TARGET_RE =
-  /\b(model|provider|gateway|hermes|ollama|openrouter|runtime|ui|frontend|backend|stream|task|operation|error|failure|health|status|state|config|configuration|badge|assignment|selection|agent|registry|mismatch|agree|active model|selected model|displayed model|voice|logs|log|file|files|workspace|crash|crashing|500)\b/i;
+  /\b(model|models|provider|providers|gateway|gateways|hermes|codex|jarvis|agenticos|agentic os|agentico os|revenue operator|operator|ollama|openrouter|runtime|runtimes|ui|frontend|backend|stream|streams|task|tasks|operation|operations|error|errors|failure|failures|health|status|state|config|configuration|badge|assignment|selection|agent|agents|registry|mismatch|agree|active model|selected model|displayed model|voice|logs|log|file|files|workspace|crash|crashing|500|broken)\b/i;
 const LIVE_STATE_VERB_RE =
-  /\b(check|inspect|verify|investigate|diagnose|compare|monitor|probe|find out|tell me whether|tell me if|see if|look at)\b/i;
+  /\b(check|inspect|verify|investigate|diagnose|compare|monitor|probe|find out|tell me whether|tell me if|see if|look at|why is|what is|how is)\b/i;
 const LIVE_STATE_PREDICATE_RE =
-  /\b(is|are|does|do)\s+[a-z0-9 ,&/.-]{0,60}\b(online|working|up|running|active|down|offline|responding|reachable|stuck|broken)\b/i;
+  /\b(is|are|does|do|what is|what are)\s+[a-z0-9 ,&/.-]{0,60}\b(online|working|up|running|active|down|offline|responding|reachable|stuck|broken|doing|executing|working on)\b/i;
 const CODE_SIGNAL_RE =
   /\b(source|code|codebase|repository|repo|component|function|class|module|implementation|workspace)\b|\.(tsx?|jsx?|json|md|css)\b/i;
 
@@ -513,11 +526,10 @@ export function isLiveSystemInvestigationRequest(prompt: string): boolean {
   // Project/milestone/goal/plan tracking belongs to Hermes orchestration,
   // not live runtime investigation.
   if (/\b(project|milestone|goal|plan|sprint|roadmap)\b/.test(p)) return false;
-  // Runtime-identity questions ("What model are you using?", "What provider
-  // is this?") are conversational — the direct-chat LLM receives provider/
-  // model context and answers them directly. No investigate hijack.
-  if (/\bwhat (model|provider)( and (model|provider))? (are|am|is) (you|i|we|it) (actually |currently )?(using|running|on|configured with)\b/.test(p)) return false;
-  const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /^(check|inspect|verify|investigate|diagnose|trace|probe)\b/.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
+  // Conversational model questions ("What model are you using?", "Which model are you running?", "What provider is this?") are direct conversation
+  if (/\b(?:what|which)\s+(?:model|provider|llm|engine|architecture)\s+(?:and\s+(?:model|provider)\s+)?(?:are|am|is|do)\s+(?:you|i|we|it)\s+(?:actually\s+|currently\s+)?(?:using|running|on|configured with|have)\b/i.test(p) || /\b(?:what|which)\s+model\s+are\s+you\s+(?:using|running)\b/i.test(p)) return false;
+  if (/\b(?:who\s+are\s+you|what\s+are\s+you|how\s+are\s+you|what\s+is\s+\d+\s*[\+\-\*\/]|what's\s+\d+\s*[\+\-\*\/])\b/i.test(p)) return false;
+  const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /^(check|inspect|verify|investigate|diagnose|trace|probe|why is)\b/.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
   if (!hasLiveVerb) return false;
   if (!LIVE_STATE_TARGET_RE.test(p)) return false;
   if (CODE_SIGNAL_RE.test(p)) return false;
@@ -547,7 +559,8 @@ export class IntentRouter {
       selectedCapability: 'none',
       category: 'conversation',
       mode: 'direct_conversation',
-      confidence: auth.confidence ?? 0.3,
+      confidence: typeof context?.confidence === 'number' ? context.confidence : 0.35,
+
       reason,
       voiceIssue,
       requiresWorkspace: false,
@@ -654,7 +667,15 @@ export class IntentRouter {
 
     // ── 0. EXPLICIT WORKER & DELEGATION PRECEDENCE ──
 
+    // 00. Explicit Language Preference / Switch Command
+    const { detectLanguageSwitchRequest } = await import('./conversationLanguage.js');
+    const langSwitch = detectLanguageSwitchRequest(prompt);
+    if (langSwitch.isLanguageSwitch) {
+      return direct('conversation', 0.99, `Language preference instruction: ${langSwitch.targetLanguage}`);
+    }
+
     // 0A. Global non-delegation ("answer directly", "do not delegate")
+
     if (delegationSignals.globalNonDelegationRequested && !delegationSignals.explicitWorkerRequested) {
       return direct(
         hasFileTarget || hasAny('branch', 'commit', 'repository', 'repo')
@@ -727,8 +748,13 @@ export class IntentRouter {
       );
     }
 
+    // ── CLOSED-WORLD LOCAL AGENTICOS BOUNDARY ──
+    const isExplicitWebSearch = /\b(?:search (?:the )?(?:web|internet|online|google|bing)|look up online|search online|browse the web|google (?:for )?)\b/i.test(p);
+    const mentionsLocalEntities = /\b(agenticos|agentic os|agentico os|jarvis|codex|hermes|revenue operator|operator|local agents?|providers?|models?|builds?|repository|repo|tasks?|queues?|approvals?|workers?|local status)\b/i.test(p);
+
     // ── HERMES RESEARCH & PROJECT PLANNING CHECK (Pattern-based) ──
-    const isHermesResearchOrPlan =
+    // Public web search and generic external research are NEVER triggered for local entities unless explicitly requested.
+    const isHermesResearchOrPlan = !mentionsLocalEntities &&
       /\b(research (this|the|a|these|our)?|analy[sz]e (the|these|our)? competitors|analy[sz]e (the|this|these)? market|competitor analysis|market analysis|investigate what .* is for|research-backed plan|plan for (an?|this|the)|project plan|affiliate-commerce|turn this objective into a structured (execution )?plan|compare (these|the)? business opportunities|lead research|recruiting research|campaign planning)\b/i.test(p);
 
     if (isHermesResearchOrPlan && !delegationSignals.prohibitedWorkers.includes('hermes') && (!hasFileTarget || isReadOnlyRepositoryRequest)) {
@@ -780,12 +806,14 @@ export class IntentRouter {
     // Bare "what happened?" (no subject) is a conversational follow-up — the
     // continuation resolver routes it against recent context; only subject-
     // bearing recall ("what happened in our last search") is a memory query.
-    const isPriorTurnRecall = /^(what did (i|you) (just |recently )?(say|ask|tell)|what was (my|your) (last|previous) (message|question|prompt)|what did i ask you)/i.test(p);
+    const isPriorTurnRecall = /^(what did (?:i|you) (?:just |recently )?(?:say|ask|tell)(?: to you| me)?(?:[?!.]*)$|what was (?:my|your) (?:last|previous) (?:message|question|prompt)|what did i ask you)/i.test(p.trim());
     const isMemoryQuery = !isPriorTurnRecall && (
       p.includes('my preferences')
-      || /\b(what (do|does) (you|we) remember|do you remember|do we remember|what did we (do|decide|find|learn)|whats? our (last|most recent))\b/i.test(p)
+      || /\b(what (do|does) (you|we) remember|do you remember|do we remember|what did (?:i|we) (?:say|do|decide|find|learn) about|whats? our (?:last|most recent))\b/i.test(p)
       || (/\bwhat happened\b/i.test(p) && !/^what happened[?!.]*$/i.test(p.trim()))
     );
+
+
     if (isMemoryQuery) {
       return operational('memory', 'file_operation', 0.9, 'Explicit memory operation detected', 'Jarvis', ['Validate memory service availability', 'Route the request to memory tooling'], false, hasWriteVerb);
     }
@@ -794,7 +822,7 @@ export class IntentRouter {
       return direct('system_status', 0.92, 'Live Agentic OS capability/status request', ['Read registered agents', 'Read registered runtimes', 'Summarize available tools']);
     }
 
-    if (hasAny('latest documentation', 'search the latest', 'research ', 'look up documentation', 'find current docs')) {
+    if (hasAny('latest documentation', 'search the latest', 'research ', 'look up documentation', 'find current docs', 'search the web', 'search the internet', 'search online', 'look up online')) {
       if (!delegationSignals.prohibitedWorkers.includes('hermes')) {
         return operational(
           'hermes',
@@ -943,8 +971,9 @@ export class IntentRouter {
     // "track execution").
     const projectActionSignal =
       hasWriteVerb ||
-      /\b(track|plan|schedule|assign|start|stop|pause|resume|execute|run|continue|create a plan|update the)\b/i.test(p) ||
-      /\b(status of|set up|setup)\b/i.test(p);
+      /\b(track|plan|schedule|assign|start|stop|pause|resume|execute|run|continue|create a plan|update the|show me the|list all|list tasks)\b/i.test(p) ||
+      /\b(status of|set up|setup|project status|sprint)\b/i.test(p);
+
     if (
       projectActionSignal &&
       (p.includes('project') ||
@@ -981,6 +1010,17 @@ export class IntentRouter {
     const agentNames = ['jarvis', 'hermes', 'codex', 'athena', 'sentinel', 'qwable', 'qwythos'];
     if (words.length === 1 && agentNames.includes(words[0])) {
       return direct('conversation', 0.6, 'Agent invocation — direct conversation');
+    }
+
+    // Direct model identity and conversational / math questions ("what model are you using", "what is 2 plus 2", "who are you")
+    const isModelOrDirectQuestion =
+      /\b(?:what|which)\s+(?:model|provider|llm|engine|architecture)\s+(?:and\s+(?:model|provider)\s+)?(?:are|am|is|do)\s+(?:you|i|we|it)\s+(?:actually\s+|currently\s+)?(?:using|running|on|configured with|have)\b/i.test(p) ||
+      /\b(?:what|which)\s+model\s+are\s+you\s+(?:using|running)\b/i.test(p) ||
+      /\b(?:what\s+is|what's|calculate|compute)\s+\d+\s*[\+\-\*\/]/i.test(p) ||
+      /\b(?:what\s+is|what's)\s+(?:two|one|three|four|five|six|seven|eight|nine|ten)\s+plus/i.test(p) ||
+      /\b(?:who\s+are\s+you|what\s+are\s+you|how\s+are\s+you)\b/i.test(p);
+    if (isModelOrDirectQuestion) {
+      return direct('conversation', 0.95, 'Direct conversational question');
     }
 
     // ── §8 (stabilization): complaints ABOUT Jarvis/AgenticOS itself ──

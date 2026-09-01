@@ -14,6 +14,10 @@ import {
   missionObservability,
 } from '../services/revenueOperator/operatorService.js';
 import {
+  listOpportunities, getOpportunity, createOpportunity, updateOpportunity,
+  convertOpportunityToMission, seedCanonicalOpportunities,
+} from '../services/revenueOperator/opportunityService.js';
+import {
   traceMission, kpiBreakdown, engineBoard, liveExecution, gateQueue,
   traceExperiment, traceLedgerEntry, type KpiKey,
 } from '../services/revenueOperator/traceService.js';
@@ -27,6 +31,44 @@ function wrap(fn: (req: any, res: any) => Promise<void> | void) {
     });
   };
 }
+
+// ── Opportunities ───────────────────────────────────────────────────────────
+router.get('/opportunities', wrap(async (_req, res) => {
+  const opps = await listOpportunities();
+  if (opps.length === 0) {
+    // Auto-seed if empty
+    const seeded = await seedCanonicalOpportunities();
+    return res.json({ opportunities: seeded });
+  }
+  res.json({ opportunities: opps });
+}));
+
+router.post('/opportunities/seed', wrap(async (_req, res) => {
+  const seeded = await seedCanonicalOpportunities();
+  res.json({ opportunities: seeded });
+}));
+
+router.get('/opportunities/:id', wrap(async (req, res) => {
+  const opp = await getOpportunity(req.params.id);
+  if (!opp) return res.status(404).json({ error: 'Opportunity not found.' });
+  res.json({ opportunity: opp });
+}));
+
+router.post('/opportunities', wrap(async (req, res) => {
+  const opp = await createOpportunity(req.body || {});
+  res.status(201).json({ opportunity: opp });
+}));
+
+router.patch('/opportunities/:id', wrap(async (req, res) => {
+  const opp = await updateOpportunity(req.params.id, req.body || {});
+  if (!opp) return res.status(404).json({ error: 'Opportunity not found.' });
+  res.json({ opportunity: opp });
+}));
+
+router.post('/opportunities/:id/convert-to-mission', wrap(async (req, res) => {
+  const result = await convertOpportunityToMission(req.params.id, req.body || {});
+  res.json(result);
+}));
 
 // ── Missions ────────────────────────────────────────────────────────────────
 router.post('/missions', wrap(async (req, res) => {

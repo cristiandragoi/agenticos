@@ -202,15 +202,18 @@ function Stop-StaleAgenticProcesses {
       )
     })
 
-  $electronPathCandidates = @(Get-Process electron -ErrorAction SilentlyContinue |
-    Where-Object { $_.Path -and $_.Path -match $repoPattern } |
+  $electronPathCandidates = @(Get-CimInstance Win32_Process -Filter "Name = 'electron.exe'" -ErrorAction SilentlyContinue |
+    Where-Object {
+      ($_.ExecutablePath -and $_.ExecutablePath -match $repoPattern) -or
+      ($_.CommandLine -and $_.CommandLine -match $repoPattern)
+    } |
     ForEach-Object {
       [pscustomobject]@{
-        ProcessId = $_.Id
-        ParentProcessId = 0
-        Name = $_.ProcessName
-        CommandLine = ''
-        ExecutablePath = $_.Path
+        ProcessId = [int]$_.ProcessId
+        ParentProcessId = [int]$_.ParentProcessId
+        Name = $_.Name
+        CommandLine = $_.CommandLine
+        ExecutablePath = $_.ExecutablePath
       }
     })
 

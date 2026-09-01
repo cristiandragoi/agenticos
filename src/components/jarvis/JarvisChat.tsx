@@ -55,6 +55,8 @@ export interface JarvisChatProps {
   onConversationCreated?: (id: string) => void;
   composerText?: string;
   onComposerTextChange?: (text: string) => void;
+  /** When language changes or is reported by SSE frames. */
+  onLanguageChange?: (language: string) => void;
   /** When provided, the next message send will include this channel tag. */
   pendingInputChannel?: 'typed' | 'voice';
   /** Forwarded to the composer: real microphone capture state changes. */
@@ -64,14 +66,14 @@ export interface JarvisChatProps {
    * with the full accumulated assistant text and the input channel that
    * originated the request. Consumers (e.g. TTS) must dedupe/guard further.
    */
-  onAssistantResponse?: (text: string, inputChannel: 'typed' | 'voice') => void;
+  onAssistantResponse?: (text: string, inputChannel: 'typed' | 'voice', turnId?: number) => void;
   /**
    * Progressive TTS hook: fires on every streamed assistant delta of a
    * DIRECT reply. When provided, the page owns speech (chunked, sequential)
    * and the one-shot `onAssistantResponse` speech trigger is skipped for
    * that turn — exactly one TTS path per reply, never both.
    */
-  onStreamDelta?: (delta: string, inputChannel: 'typed' | 'voice') => void;
+  onStreamDelta?: (delta: string, inputChannel: 'typed' | 'voice', turnId?: number) => void;
   /**
    * PHASE 15 (multi-turn reliability): fired when a voice-channel turn's
    * response cycle is TRULY over — every terminal stream path (done, error,
@@ -113,7 +115,7 @@ export interface JarvisChatProps {
 /** Imperative API — lets the single canonical voice engine auto-submit a
  *  transcribed turn through the exact same streaming pipeline as Send. */
 export interface JarvisChatHandle {
-  sendMessage: (text: string, inputChannel?: 'typed' | 'voice') => void;
+  sendMessage: (text: string, inputChannel?: 'typed' | 'voice', turnId?: number) => void;
   /** Final layout correction (§8): the sticky page-level composer cancels
    *  the in-flight response through the same pipeline as the inline one. */
   cancelResponse: () => void;
@@ -235,6 +237,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   onComposerTextChange,
   pendingInputChannel,
   onMicStateChange,
+  onLanguageChange,
   onAssistantResponse,
   onStreamDelta,
   onNavigate,
@@ -334,6 +337,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   const onAssistantResponseRef = useRef(onAssistantResponse);
   const onStreamDeltaRef = useRef(onStreamDelta);
   const onResponseSettledRef = useRef(onResponseSettled);
+  const onLanguageChangeRef = useRef(onLanguageChange);
   /** operationId → conversationId used for that stream (first turn of a fresh
    *  conversation creates a NEW id that the prop hasn't propagated yet). */
   const opConversationRef = useRef<Record<string, string>>({});
@@ -346,6 +350,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   useEffect(() => {
     onResponseSettledRef.current = onResponseSettled;
   }, [onResponseSettled]);
+  useEffect(() => {
+    onLanguageChangeRef.current = onLanguageChange;
+  }, [onLanguageChange]);
 
   // Sync isProcessing to ref
   useEffect(() => {
@@ -649,7 +656,11 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     return body;
   };
 
-  const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = pendingInputChannel ?? 'typed') => {
+  const currentTurnIdRef = useRef<number | null>(null);
+
+  const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = 'voice', turnId?: number) => {
+    if (!text.trim()) return;
+    currentTurnIdRef.current = typeof turnId === 'number' ? turnId : null;
     // Offline gate: never route a request into Jarvis logic while the
     // backend is definitively unavailable — answer truthfully instead.
     if (offlineGateReasonRef.current) {
@@ -928,13 +939,17 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   // restore effect — a `[]`-deps handle would capture `conversationId === null`
   // forever and force every typed/voice send to auto-create a NEW conversation
   // (follow-up turns lost context; live acceptance showed T1→conv-A, T2→conv-B).
-  const handleSendRef = useRef<((text: string, channel: 'typed' | 'voice') => void) | null>(null);
-  handleSendRef.current = (text: string, channel: 'typed' | 'voice') => { void handleSendMessage(text, channel); };
+  const handleSendRef = useRef<((text: string, channel: 'typed' | 'voice', turnId?: number) => void) | null>(null);
+  handleSendRef.current = (text: string, channel: 'typed' | 'voice', turnId?: number) => { void handleSendMessage(text, channel, turnId); };
   const cancelResponseRef = useRef<(() => void) | null>(null);
   cancelResponseRef.current = () => cancelResponse();
   React.useImperativeHandle(ref, () => ({
-    sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice') => {
-      handleSendRef.current?.(text, inputChannel);
+    sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice', turnId?: number) => {
+      if (typeof turnId === 'number') {
+        handleSendRef.current?.(text, inputChannel, turnId);
+      } else {
+        handleSendRef.current?.(text, inputChannel);
+      }
     },
     cancelResponse: () => cancelResponseRef.current?.(),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1031,18 +1046,22 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         onResponseSettledRef.current?.();
       } else if (event.event === 'progress') {
         appendOperationalEvent(operationId, 'progress', data.content || data.summary || 'Progress update', data);
-        if (data.isSpoken && typeof onAssistantResponseRef.current === 'function') {
-          onAssistantResponseRef.current(data.content || data.summary, pendingChannelRef.current);
-        }
+        // Isolated: background task progress updates never trigger TTS auto-speech
       } else if (event.event === 'intermediate_finding') {
         appendOperationalEvent(operationId, 'intermediate_finding', data.content || data.summary || 'Intermediate finding', data);
-        if (data.isSpoken && typeof onAssistantResponseRef.current === 'function') {
-          onAssistantResponseRef.current(data.content || data.summary, pendingChannelRef.current);
-        }
+        // Isolated: intermediate findings never trigger TTS auto-speech
       } else if (event.event === 'paused') {
         emitStatus({ state: 'paused' });
         appendOperationalEvent(operationId, 'paused', `Execution paused${data.reason ? `: ${data.reason}` : ''}`, data);
       } else if (event.event === 'intent') {
+        if (data.language) {
+          onLanguageChangeRef.current?.(data.language);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('jarvis:language-changed', {
+              detail: { language: data.language, conversationId }
+            }));
+          }
+        }
         voiceTracePush('intent_route', 'ok', `Intent ${data.type || data.route || '?'} (${Math.round((data.confidence || 0) * 100)}%)`);
       } else if (event.event === 'heartbeat') {
         // Transport keepalive: resets liveness watchdog without modifying transcript
@@ -1067,19 +1086,20 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           provider: data.provider ?? null,
           model: data.model ?? null
         });
-        // Model/provider failure (HTTP 402 etc.) arrives as a token chunk
-        // whose content starts with "[Stream Error: …]" (llmGateway swallows
-        // the router failure into a token). Surface it in the runtime error
-        // state so the BLOCKED/ATTENTION row shows the failure durably until
-        // the next request — the transcript copy is the chunk itself.
         if (typeof data.delta === 'string' && data.delta.includes('[Stream Error:')) {
           const errMsg = data.delta.replace(/^[\s\n]*\[Stream Error:\s*/, '').replace(/\]\s*$/, '').trim() || 'Stream error.';
           emitStatus({ state: 'error', error: errMsg.slice(0, 200) });
         }
-        // Diagnostic: report what the UI is streaming (current active stream).
         uiDiagnostics.setStreamActive(data.provider ?? null, data.model ?? null, operationId);
         appendStreamingAssistantText(operationId, data.delta || '');
-        if (data.delta) onStreamDeltaRef.current?.(data.delta, pendingChannelRef.current);
+        if (data.delta) {
+          const channel = pendingChannelRef.current || 'typed';
+          if (typeof currentTurnIdRef.current === 'number') {
+            onStreamDeltaRef.current?.(data.delta, channel, currentTurnIdRef.current);
+          } else {
+            onStreamDeltaRef.current?.(data.delta, channel);
+          }
+        }
       } else if (event.event === 'error') {
         const message = data.error || 'Jarvis response failed.';
         setSendError({ message, operationId });
@@ -1088,44 +1108,43 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         onResponseSettledRef.current?.();
         await fetchMessages();
       } else if (event.event === 'done') {
+        if (data.language) {
+          onLanguageChangeRef.current?.(data.language);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('jarvis:language-changed', {
+              detail: { language: data.language, conversationId }
+            }));
+          }
+        }
         voiceTracePush('response_done', 'ok', `Stream done (route ${data.route || 'direct'})`);
-        // PHASE 15 (multi-turn reliability, Failure A): the response cycle is
-        // over — even if this turn played no audio (delegated route, empty
-        // reply, voice disabled), the conversation engine re-arms the mic.
         onResponseSettledRef.current?.();
         appendStreamingAssistantText(operationId, '', true);
-        // ── TTS trigger: fires EXACTLY ONCE per completed DIRECT Jarvis reply.
-        //    Delegated (CodeX/team), telemetry and system messages never reach
-        //    this point with streamed text; the consumer gates on the channel. ──
         const finalText = (streamedTextByOpRef.current[operationId] || '').trim();
         const hadStreamedText = finalText.length > 0;
         delete streamedTextByOpRef.current[operationId];
-        if (!data.route || data.route === 'direct') {
-          if (hadStreamedText) {
-            // One-shot TTS only when the page did NOT take the progressive path.
-            if (!onStreamDeltaRef.current) {
-              onAssistantResponseRef.current?.(finalText, pendingChannelRef.current);
+        delete opConversationRef.current[operationId];
+        const isDelegatedRoute = data.route === 'codex' || data.route === 'delegated' || data.route === 'hermes';
+        const isSpokenRoute = !isDelegatedRoute && (
+          !data.route ||
+          data.route === 'direct' ||
+          data.route === 'investigate' ||
+          data.route === 'clarification_required' ||
+          data.route === 'system_attention' ||
+          data.route === 'system_event' ||
+          data.route === 'presence' ||
+          data.route === 'decision_statement' ||
+          data.route === 'task_control'
+        );
+
+        if (isSpokenRoute && hadStreamedText) {
+          // One-shot TTS only when the page did NOT take the progressive path.
+          if (!onStreamDeltaRef.current) {
+            const channel = pendingChannelRef.current || 'typed';
+            if (typeof currentTurnIdRef.current === 'number') {
+              onAssistantResponseRef.current?.(finalText, channel, currentTurnIdRef.current);
+            } else {
+              onAssistantResponseRef.current?.(finalText, channel);
             }
-          } else if (onStreamDeltaRef.current) {
-            // EMERGENCY FIX: a DIRECT reply served WITHOUT streamed chunks
-            // (e.g. the first reply of a fresh conversation) produced no
-            // deltas, so the progressive path never fired and the one-shot
-            // was skipped — the user gets text but never a spoken reply.
-            // The reply text is persisted; load it and speak ONCE (the
-            // consumer's VOICE ON/OFF gate still applies inside speak()).
-            void (async () => {
-              try {
-                const convId = opConversationRef.current[operationId] || conversationId;
-                delete opConversationRef.current[operationId];
-                const res = await fetch(`${API_BASE}/jarvis/conversations/${convId}/messages`);
-                const msgs = await res.json();
-                if (Array.isArray(msgs)) {
-                  const lastAgent = msgs.slice().reverse().find((m: any) => m?.role === 'assistant' || m?.role === 'agent');
-                  const t = lastAgent ? String(lastAgent.content || '').trim() : '';
-                  if (t) onAssistantResponseRef.current?.(t, pendingChannelRef.current);
-                }
-              } catch { /* best effort — visible text already delivered */ }
-            })();
           }
         }
         if (data.goalId) setCreatedGoalId(data.goalId);

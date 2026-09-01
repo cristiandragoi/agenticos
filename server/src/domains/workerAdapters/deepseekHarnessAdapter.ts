@@ -1,4 +1,4 @@
-/**
+﻿/**
  * domains/workerAdapters/deepseekHarnessAdapter.ts
  *
  * EXPERIMENTAL DeepSeek Harness (DSH) Execution Runtime Adapter.
@@ -157,7 +157,7 @@ export class DeepSeekHarnessAdapter {
     const forbiddenRoots = [
       path.normalize('C:/Windows'),
       path.normalize('C:/Program Files'),
-      path.normalize('C:/Users/Cris/AppData'),
+      path.normalize(process.env.APPDATA || require('path').join(require('os').homedir(), 'AppData', 'Roaming')),
     ];
 
     for (const forbidden of forbiddenRoots) {

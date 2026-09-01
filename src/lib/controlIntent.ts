@@ -25,23 +25,52 @@ const WAKE_PATTERNS = [
   /\b(?:hey\s+|ok(?:ay)?\s+)?computer\b[,\s.:!]*/i,
 ];
 
-/** Stop phrases — exact-ish matches after normalization. */
+/** Stop phrases — exact-ish matches after normalization (English, German, Romanian). */
 const STOP_PATTERNS: RegExp[] = [
+  // English
   /^stop\s*$/,
   /^stop\s+talking\s*$/,
   /^stop\s+speaking\s*$/,
-  /^stop\s+please\s*$/,
-  /^please\s+stop\s*$/,
+  /^stop\s+it\s*$/,
+  /^don'?t\s+talk\s*$/,
+  /^do\s+not\s+talk\s*$/,
   /^be\s+quiet\s*$/,
   /^quiet\s*$/,
+  /^shut\s+up\s*$/,
+  /^silence\s*$/,
+  /^halt\s*$/,
+  /^hush\s*$/,
   /^cancel\s*$/,
   /^cancel\s+that\s*$/,
   /^cancel\s+please\s*$/,
   /^never\s*mind\s*$/,
   /^nevermind\s*$/,
-  /^shut\s+up\s*$/,
   /^stop\s+now\s*$/,
   /^that['’]?s?\s+enough\s*$/,
+  /^please\s+stop\s*$/,
+  /^stop\s+please\s*$/,
+
+  // German: stopp, halt, hör auf, aufhören, schweig, ruhe
+  /^stopp\s*$/,
+  /^stopp\s+jetzt\s*$/,
+  /^h[oö]r\s+auf\s*$/,
+  /^aufh[oö]ren\s*$/,
+  /^schweig\s*$/,
+  /^schweigen\s*$/,
+  /^ruhe\s*$/,
+  /^sei\s+still\s*$/,
+  /^stille\s*$/,
+  /^genug\s*$/,
+  /^nicht\s+mehr\s+sprechen\s*$/,
+
+  // Romanian: stop, oprește, opreste, taci, liniște, liniste
+  /^opre[sș]te\s*$/,
+  /^opre[sș]te-?te\s*$/,
+  /^taci\s*$/,
+  /^taci\s+din\s+gur[aă]\s*$/,
+  /^lini[sș]te\s*$/,
+  /^gata\s*$/,
+  /^nu\s+mai\s+vorbi\s*$/,
 ];
 
 /** Terminate phrases — end the discussion entirely. */
@@ -58,6 +87,13 @@ const TERMINATE_PATTERNS: RegExp[] = [
   /^close\s+the\s+discussion\s*$/,
   /^we['’]?re\s+done\s*$/,
   /^that['’]?s?\s+all\s*$/,
+  // German terminate
+  /^gespr[aä]ch\s+beenden\s*$/,
+  /^unterhaltung\s+beenden\s*$/,
+  // Romanian terminate
+  /^termin[aă]\s+conversa[tț]ia\s*$/,
+  /^inchide\s+conversa[tț]ia\s*$/,
+  /^închide\s+conversa[tț]ia\s*$/,
 ];
 
 /**

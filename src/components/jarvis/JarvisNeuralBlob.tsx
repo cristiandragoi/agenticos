@@ -1,39 +1,36 @@
 /**
- * JarvisNeuralCore V4 — "Visual Universe": JARVIS + persistent Projects +
- * contextual Capabilities.
+ * JarvisNeuralCore V5 — "Plasma Energy Organism": genuine GPU-rendered
+ * GLSL shaders forming an intelligent energy entity. No prerecorded video,
+ * no GIF, no static PNG, no sprite animation, no thousands of DOM elements.
  *
- * Architecture: Three.js WebGL scene rendered into the existing canvas.
+ * Architecture: raw Three.js WebGL (no R3F — matches existing dep tree).
  *
  * Rendering layers (back → front):
- *   1. 3D galaxy field    — tilted spiral dust, state-colored listening/thinking
- *   2. Persistent project ring — REAL projects (stable spatial memory) with
- *      curved persistent connections to the core
- *   3. Central core       — translucent 3D luminous galaxy/orb
- *   4. Nucleus            — restrained luminous center
- *   5. Seven contextual capability satellites — illuminate from REAL activity only
+ *   1. Outer deforming translucent shell  — IcosahedronGeometry + GLSL fbm
+ *      vertex displacement, state-driven morph intensity, additive blend.
+ *   2. Inner volumetric noise layer       — custom ShaderMaterial on a
+ *      sphere; ray-marched fbm field with state-reactive brightness.
+ *   3. Internal particle field            — THREE.Points ~800 pts with
+ *      custom vertex shader (animated orbit + state speed/color).
+ *   4. Glow bloom                         — large additive sprite with
+ *      radial gradient + state-driven opacity.
+ *   5. Interactive Perspective Camera (45° FOV):
+ *      - Pointer drag orbit (azimuth + elevation with damping)
+ *      - Mouse wheel zoom with safe clamped bounds (min: 2.0, max: 6.5)
+ *      - Double click reset to canonical view
+ *      - Smooth spherical coordinate interpolation (foundation for future pass-through)
+ *      - Accurate 3D projected hit testing for satellites & project stars
  *
- * Deliberate changes vs V4 (Visual Universe correction):
- *   - REMOVED the execution-graph look: Runs/Builds are no longer permanent
- *     satellites. Mission remains a contextual navigation anchor so the
- *     approved seven-node Jarvis orbit is preserved:
- *     Memory / Mission / Research / Hermes / Vision / CodeX / Magnitude.
- *   - CONNECTIONS are calm: the focused Project gets a primary curved
- *     connection; contextual capabilities keep faint orbit anchors and brighten
- *     only when real activity reaches them.
- *   - Project stars come PRE-FILTERED (src/lib/universeProjects.ts): only
- *     canonical persisted user projects reach this component. Acceptance/
- *     test artifacts never become stars.
- *   - LOCKED palette: yellow / pink / orange / purple / turquoise / red only.
- *   - Calm focus-based motion: slower breathing, reduced particle drift,
- *     no random impulse bursts.
+ * State contract: unchanged — all visual state from REAL runtime props;
+ * same data-testid attrs, same aria-label format, same onNodeClick
+ * hit-testing, same rAF cleanup, same satellite node visual contract.
  *
- * State contract: unchanged — all visual state from REAL runtime props; no
- * timers pretend work. Test contract unchanged: same data-testid attrs, same
- * aria-label format, same onNodeClick hit-testing, same rAF cleanup.
+ * Audio reactivity: inputLevel (mic RMS) / outputLevel (playback RMS)
+ * drive u_input_level / u_output_level uniforms → shader vertex
+ * deformation and particle speed.
  */
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import blob1ReferenceUrl from '../../assets/jarvis-blob1-reference.png';
 import type { BlobVisualState, NeuralNodeId } from './neuralBlobState';
 import { NODE_ROUTES, nodePulse, toBlobVisualState, modelLabel } from './neuralBlobState';
 import './JarvisNeuralBlob.css';
@@ -60,82 +57,302 @@ export interface JarvisNeuralBlobProps {
   onProjectClick?: (projectId: string) => void;
 }
 
-// Contextual capability satellites — the ONLY satellites rendered in the
-// universe. Runs/Builds are execution views and must NOT become permanent
-// universe stars. Mission remains a contextual navigation anchor to preserve
-// the approved seven-node Jarvis orbit. CodeX + Magnitude are delegation
-// capabilities and appear only when real runtime activity lights them. The
-// full NeuralNodeId union (state module) keeps its routes for the
-// click/navigation contract; only this contextual seven-node set is drawn.
+// ── LOCKED PALETTE (Visual Universe) ────────────────────────────────────────
+const YELLOW: [number, number, number] = [250, 204, 21];
+const PINK: [number, number, number] = [236, 72, 153];
+const ORANGE: [number, number, number] = [249, 115, 22];
+const PURPLE: [number, number, number] = [168, 85, 247];
+const TURQUOISE: [number, number, number] = [20, 184, 166];
+const RED: [number, number, number] = [239, 68, 68];
+const LOCKED_PALETTE: [number, number, number][] = [YELLOW, PINK, ORANGE, PURPLE, TURQUOISE, RED];
+
 const CONTEXTUAL_CAPABILITIES: NeuralNodeId[] = ['MEMORY', 'PROJECTS', 'KNOWLEDGE', 'HERMES', 'VISION', 'CODEX', 'MAGNITUDE'];
 
 const NODE_LABELS: Record<NeuralNodeId, string> = {
-  MEMORY: 'Memory',
-  KNOWLEDGE: 'Research',
-  PROJECTS: 'Mission',
-  HERMES: 'Hermes',
-  RUNS: 'Runs',
-  ARTIFACTS: 'Builds',
-  VISION: 'Vision',
-  CODEX: 'CodeX',
-  MAGNITUDE: 'Magnitude',
+  MEMORY: 'Memory', KNOWLEDGE: 'Research', PROJECTS: 'Mission',
+  HERMES: 'Hermes', RUNS: 'Runs', ARTIFACTS: 'Builds',
+  VISION: 'Vision', CODEX: 'CodeX', MAGNITUDE: 'Magnitude',
 };
 
-// ── LOCKED PALETTE (Visual Universe) ────────────────────────────────────────
-// yellow / pink / orange / purple / turquoise / red — the ONLY accent colors.
-// Everything else (halo, depth) is derived from these six, never arbitrary.
-const YELLOW: [number, number, number] = [250, 204, 21];   // #FACC15
-const PINK: [number, number, number] = [236, 72, 153];     // #EC4899
-const ORANGE: [number, number, number] = [249, 115, 22];   // #F97316
-const PURPLE: [number, number, number] = [168, 85, 247];   // #A855F7
-const TURQUOISE: [number, number, number] = [20, 184, 166]; // #14B8A6
-const RED: [number, number, number] = [239, 68, 68];       // #EF4444
-
-const LOCKED_PALETTE: [number, number, number][] = [YELLOW, PINK, ORANGE, PURPLE, TURQUOISE, RED];
-
-/** Capability satellites — each maps to one locked-palette color. */
 const NODE_COLORS: Record<NeuralNodeId, [number, number, number]> = {
-  MEMORY: PURPLE,
-  KNOWLEDGE: TURQUOISE,
-  PROJECTS: YELLOW,
-  HERMES: PINK,
-  RUNS: ORANGE,
-  ARTIFACTS: ORANGE,
-  VISION: TURQUOISE,
-  CODEX: ORANGE,
-  MAGNITUDE: YELLOW,
+  MEMORY: PURPLE, KNOWLEDGE: TURQUOISE, PROJECTS: YELLOW,
+  HERMES: PINK, RUNS: ORANGE, ARTIFACTS: ORANGE,
+  VISION: TURQUOISE, CODEX: ORANGE, MAGNITUDE: YELLOW,
 };
 
-/** Central-core color per blob state — locked palette only. */
+// ── Camera bounds & defaults ────────────────────────────────────────────────
+export const CAMERA_CONFIG = {
+  DEFAULT_DISTANCE: 4.6,
+  MIN_DISTANCE: 0.5,
+  MAX_DISTANCE: 8.5,
+  MIN_ELEVATION: -Math.PI / 2.6,
+  MAX_ELEVATION: Math.PI / 2.6,
+  ORBIT_SPEED: 0.0055,
+  ZOOM_SPEED: 0.0035,
+  DAMPING: 0.12,
+};
+
+export function clampCameraDistance(dist: number): number {
+  return Math.max(CAMERA_CONFIG.MIN_DISTANCE, Math.min(CAMERA_CONFIG.MAX_DISTANCE, dist));
+}
+
+export function sphericalToCartesian(r: number, elevation: number, azimuth: number): { x: number; y: number; z: number } {
+  const cosElev = Math.cos(elevation);
+  return {
+    x: r * cosElev * Math.sin(azimuth),
+    y: r * Math.sin(elevation),
+    z: r * cosElev * Math.cos(azimuth),
+  };
+}
+
+/** Central-core color per blob state */
 function coreColor(st: BlobVisualState): [number, number, number] {
   switch (st) {
-    case 'LISTENING': return YELLOW;
-    case 'THINKING': return PURPLE;
-    case 'ACTING': return ORANGE;
+    case 'LISTENING':  return YELLOW;
+    case 'THINKING':   return PURPLE;
+    case 'ACTING':     return ORANGE;
     case 'DELEGATING': return PINK;
-    case 'BUILDING': return ORANGE;
-    case 'SPEAKING': return PINK;
-    case 'COMPLETED': return TURQUOISE;
-    case 'ERROR': return RED;
-    default: return TURQUOISE; // IDLE
+    case 'BUILDING':   return ORANGE;
+    case 'SPEAKING':   return PINK;
+    case 'COMPLETED':  return TURQUOISE;
+    case 'ERROR':      return RED;
+    default:           return TURQUOISE;
   }
 }
 
-/**
- * Voice-reactive color shift (locked palette only): when the user is actually
- * talking (voicePulse > 0) the core color slides a little toward the next
- * palette color, so the nebula visibly CHANGES COLOR while the user speaks
- * without ever leaving the six approved accent colors. voicePulse is a
- * smoothed 0..1 level (real mic level in LISTENING, output level in
- * SPEAKING). Idle/zero voice → exact base color (existing contract).
- */
+interface StateParams {
+  energy: number;    // 0..1 — shader u_energy
+  glow: number;      // 0..1 — bloom sprite opacity
+  deform: number;    // 0..1 — vertex displacement amplitude
+  speed: number;     // time multiplier
+}
+
+function stateParams(st: BlobVisualState): StateParams {
+  switch (st) {
+    case 'LISTENING':  return { energy: 0.45, glow: 0.55, deform: 0.38, speed: 1.1 };
+    case 'THINKING':   return { energy: 0.78, glow: 0.72, deform: 0.55, speed: 1.4 };
+    case 'ACTING':     return { energy: 0.90, glow: 0.80, deform: 0.70, speed: 1.7 };
+    case 'DELEGATING': return { energy: 0.82, glow: 0.74, deform: 0.62, speed: 1.5 };
+    case 'BUILDING':   return { energy: 0.95, glow: 0.84, deform: 0.75, speed: 1.8 };
+    case 'SPEAKING':   return { energy: 0.58, glow: 0.62, deform: 0.46, speed: 1.2 };
+    case 'COMPLETED':  return { energy: 0.30, glow: 0.48, deform: 0.28, speed: 0.8 };
+    case 'ERROR':      return { energy: 0.50, glow: 0.60, deform: 0.50, speed: 1.3 };
+    default:           return { energy: 0.14, glow: 0.30, deform: 0.18, speed: 0.7 };
+  }
+}
+
+// ── GLSL SHADERS ─────────────────────────────────────────────────────────────
+
+/** fbm noise used in both vertex and fragment shaders */
+const GLSL_NOISE = /* glsl */`
+float hash(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float noise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x),
+        mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+    mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+        mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y),
+  f.z);
+}
+float fbm(vec3 p) {
+  float v = 0.0; float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * noise(p);
+    p = p * 2.0 + vec3(5.1, 1.7, 3.4);
+    a *= 0.5;
+  }
+  return v;
+}
+`;
+
+/** Outer deforming shell — vertex shader */
+const SHELL_VERT = /* glsl */`
+${GLSL_NOISE}
+uniform float u_time;
+uniform float u_deform;
+uniform float u_input_level;
+uniform float u_output_level;
+uniform float u_voice_low;
+uniform float u_voice_mid;
+uniform float u_voice_high;
+uniform float u_is_speaking;
+varying vec3 vNormal;
+varying vec3 vPos;
+varying float vNoise;
+
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vec3 p = position;
+
+  // Audio deformation layers:
+  // Low frequency: macro soft-body breathing / radial expansion
+  float macroExpand = u_voice_low * (0.18 + u_is_speaking * 0.14);
+
+  // Mid frequency: plasma flow & harmonic traveling waves
+  float waveSpeed = 0.22 + u_voice_mid * 0.45 + u_is_speaking * 0.35;
+  float n = fbm(p * 1.8 + vec3(u_time * waveSpeed, u_time * (waveSpeed * 0.77), u_time * 0.13));
+
+  // High frequency: micro turbulence & fine detail
+  float n2 = fbm(p * (3.2 + u_voice_high * 1.5) - vec3(u_time * 0.18, 0.0, u_time * 0.24));
+
+  float baseDeform = (n * 0.65 + n2 * 0.35) * u_deform;
+
+  // Outward harmonic radiation when Jarvis speaks vs gentle inward focus when user speaks
+  float voiceDisp = (baseDeform + macroExpand) * (1.0 + u_voice_mid * 0.85);
+  if (u_is_speaking > 0.5) {
+    voiceDisp += sin(u_time * 6.0 - length(p) * 4.0) * (u_output_level * 0.08);
+  }
+
+  vNoise = n;
+  vec3 displaced = p + normal * voiceDisp;
+  vPos = displaced;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+}
+`;
+
+/** Outer deforming shell — fragment shader */
+const SHELL_FRAG = /* glsl */`
+${GLSL_NOISE}
+uniform vec3 u_color;
+uniform float u_time;
+uniform float u_energy;
+uniform float u_input_level;
+uniform float u_output_level;
+uniform float u_voice_low;
+uniform float u_voice_mid;
+uniform float u_voice_high;
+uniform float u_is_speaking;
+varying vec3 vNormal;
+varying vec3 vPos;
+varying float vNoise;
+
+void main() {
+  vec3 viewDir = normalize(cameraPosition - vPos);
+  float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 2.6);
+
+  float bandSpeed = 0.18 + u_voice_mid * 0.35;
+  float band = fbm(vPos * 2.4 + vec3(u_time * bandSpeed));
+
+  vec3 col = u_color * (0.65 + band * 0.35);
+  col += u_color * fresnel * (0.85 + u_energy * 0.4 + u_voice_high * 0.35);
+
+  // Dynamic voice brightness & spectral flare when speaking
+  if (u_is_speaking > 0.5) {
+    vec3 harmonicFlare = u_color * u_output_level * 0.45;
+    col += harmonicFlare;
+  } else {
+    col += u_color * u_input_level * 0.35;
+  }
+
+  col = clamp(col, vec3(0.0), vec3(1.0));
+  float alpha = 0.20 + fresnel * 0.38 + vNoise * 0.12 + u_energy * 0.08 + (u_voice_low + u_voice_mid) * 0.10;
+  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.90));
+}
+`;
+
+/** Inner volumetric noise sphere — vertex shader (pass-through) */
+const INNER_VERT = /* glsl */`
+varying vec3 vPos;
+void main() {
+  vPos = position;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+/** Inner volumetric noise sphere — fragment shader */
+const INNER_FRAG = /* glsl */`
+${GLSL_NOISE}
+uniform vec3 u_color;
+uniform float u_time;
+uniform float u_energy;
+varying vec3 vPos;
+
+void main() {
+  // Ray-march style: multiple fbm samples at different scales
+  float f1 = fbm(vPos * 2.0 + vec3(u_time * 0.15));
+  float f2 = fbm(vPos * 4.5 - vec3(u_time * 0.23, u_time * 0.18, 0.0));
+  float f3 = fbm(vPos * 8.0 + vec3(0.0, u_time * 0.31, u_time * 0.12));
+
+  vec3 col = u_color * (f1 * 0.55 + f2 * 0.30 + f3 * 0.15);
+  col *= (0.8 + u_energy * 0.7);
+
+  float alpha = (f1 * 0.4 + f2 * 0.2) * (0.5 + u_energy * 0.5);
+  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.9));
+}
+`;
+
+/** Particle field — vertex shader */
+const PARTICLE_VERT = /* glsl */`
+${GLSL_NOISE}
+uniform float u_time;
+uniform float u_energy;
+uniform float u_input_level;
+uniform float u_output_level;
+uniform float u_voice_mid;
+uniform float u_is_speaking;
+attribute float a_seed;
+attribute vec3 a_axis;
+varying float vBrightness;
+
+void main() {
+  float speed = 0.28 + u_energy * 0.38 + u_input_level * 0.30 + u_output_level * 0.45;
+  float angle = u_time * speed + a_seed * 6.2831853;
+
+  float c = cos(angle); float s = sin(angle);
+  float t = 1.0 - c;
+  vec3 ax = normalize(a_axis);
+  mat3 rot = mat3(
+    t*ax.x*ax.x + c,       t*ax.x*ax.y - s*ax.z,  t*ax.x*ax.z + s*ax.y,
+    t*ax.x*ax.y + s*ax.z,  t*ax.y*ax.y + c,        t*ax.y*ax.z - s*ax.x,
+    t*ax.x*ax.z - s*ax.y,  t*ax.y*ax.z + s*ax.x,   t*ax.z*ax.z + c
+  );
+  vec3 rotPos = rot * position;
+
+  // Radial outward expansion when speaking
+  if (u_is_speaking > 0.5) {
+    rotPos *= (1.0 + u_output_level * 0.22 * sin(u_time * 8.0 + a_seed * 10.0));
+  }
+
+  float n = fbm(rotPos * 3.0 + vec3(u_time * 0.15));
+  vBrightness = 0.5 + n * 0.5 + u_energy * 0.3 + u_voice_mid * 0.4;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(rotPos, 1.0);
+  gl_PointSize = (2.8 + u_energy * 2.2 + vBrightness * 1.6 + u_output_level * 2.0) * (1.0 / -gl_Position.z);
+}
+`;
+
+/** Particle field — fragment shader */
+const PARTICLE_FRAG = /* glsl */`
+uniform vec3 u_color;
+uniform float u_energy;
+varying float vBrightness;
+
+void main() {
+  vec2 coord = gl_PointCoord - 0.5;
+  float r = length(coord);
+  if (r > 0.5) discard;
+  float alpha = (1.0 - r * 2.0) * vBrightness * (0.6 + u_energy * 0.5);
+  gl_FragColor = vec4(u_color * (1.0 + u_energy * 0.6), alpha);
+}
+`;
+
+// ─── Pure helper functions (exported for unit testing) ─────────────────────
+
+function mixColor(a: [number, number, number], b: [number, number, number], k: number): [number, number, number] {
+  const t = Math.max(0, Math.min(1, k));
+  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+}
+
 export function voiceColorShift(base: [number, number, number], voicePulse: number): [number, number, number] {
   const v = Math.max(0, Math.min(1, voicePulse));
   if (v <= 0) return [...base] as [number, number, number];
-  // Which palette entry the base color is closest to → step one entry toward
-  // the next hue (wraps), blended by voice level.
-  let idx = 0;
-  let best = Infinity;
+  let idx = 0; let best = Infinity;
   LOCKED_PALETTE.forEach((c, i) => {
     const d = Math.abs(c[0] - base[0]) + Math.abs(c[1] - base[1]) + Math.abs(c[2] - base[2]);
     if (d < best) { best = d; idx = i; }
@@ -144,73 +361,44 @@ export function voiceColorShift(base: [number, number, number], voicePulse: numb
   return mixColor(base, next, 0.34 * v);
 }
 
-/**
- * Voice vibration profile (pure, deterministic — unit-tested). Returns the
- * per-frame jitter that makes the nebula physically VIBRATE while the user
- * talks. Amplitude scales with the real mic level; zero voice = zero jitter
- * (idle keeps only the calm breathing motion, handled by the draw loop).
- */
 export function voiceVibration(t: number, voicePulse: number): { dx: number; dy: number; rot: number; scale: number } {
   const v = Math.max(0, Math.min(1, voicePulse));
   if (v <= 0) return { dx: 0, dy: 0, rot: 0, scale: 1 };
-  const a = 0.011 * v;                                  // translation amplitude (px-ish units)
+  const a = 0.011 * v;
   const dx = Math.sin(t * 52.7) * a + Math.sin(t * 31.3 + 1.7) * a * 0.6;
   const dy = Math.cos(t * 47.1) * a + Math.sin(t * 37.9 + 4.2) * a * 0.6;
-  const rot = (Math.sin(t * 24.7) * 0.55 + Math.sin(t * 61.1) * 0.25) * v * 0.22; // degrees
+  const rot = (Math.sin(t * 24.7) * 0.55 + Math.sin(t * 61.1) * 0.25) * v * 0.22;
   const scale = 1 + Math.sin(t * 43.3) * 0.006 * v + Math.sin(t * 71.7) * 0.004 * v;
   return { dx, dy, rot, scale };
 }
 
-function mixColor(a: [number, number, number], b: [number, number, number], k: number): [number, number, number] {
-  const t = Math.max(0, Math.min(1, k));
-  return [
-    Math.round(a[0] + (b[0] - a[0]) * t),
-    Math.round(a[1] + (b[1] - a[1]) * t),
-    Math.round(a[2] + (b[2] - a[2]) * t),
-  ];
-}
-
-// Per-state rendering parameters (calm, focus-based motion).
-interface StateParams {
-  breath: number;        // breathing amplitude
-  energy: number;        // internal activity [0..1]
-  glow: number;          // outer glow intensity
-  nucleusPulse: number;  // nucleus visibility
-}
-
-function stateParams(st: BlobVisualState): StateParams {
-  switch (st) {
-    case 'LISTENING': return { breath: 0.05, energy: 0.45, glow: 0.55, nucleusPulse: 0.4 };
-    case 'THINKING': return { breath: 0.045, energy: 0.78, glow: 0.72, nucleusPulse: 0.72 };
-    case 'ACTING': return { breath: 0.06, energy: 0.9, glow: 0.8, nucleusPulse: 0.8 };
-    case 'DELEGATING': return { breath: 0.065, energy: 0.82, glow: 0.74, nucleusPulse: 0.74 };
-    case 'BUILDING': return { breath: 0.062, energy: 0.95, glow: 0.84, nucleusPulse: 0.82 };
-    case 'SPEAKING': return { breath: 0.06, energy: 0.58, glow: 0.62, nucleusPulse: 0.55 };
-    case 'COMPLETED': return { breath: 0.035, energy: 0.3, glow: 0.48, nucleusPulse: 0.32 };
-    case 'ERROR': return { breath: 0.07, energy: 0.5, glow: 0.6, nucleusPulse: 0.5 };
-    default: return { breath: 0.02, energy: 0.14, glow: 0.3, nucleusPulse: 0.18 };
-  }
-}
-
-/** Capability node position on the INNER orbit ellipse. */
-function nodePosition(i: number, cx: number, cy: number, rx: number, ry: number): { x: number; y: number; angle: number } {
-  const angle = -Math.PI / 2 + (i / CONTEXTUAL_CAPABILITIES.length) * Math.PI * 2;
-  return { x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry, angle };
-}
-
-/**
- * Stable spatial memory for projects: a project's orbit angle is a pure
- * function of its id (FNV-1a hash). The same project ALWAYS lands at the same
- * place, across sessions, restarts, and reordering — no stored state to drift.
- */
-function stableProjectAngle(id: string): number {
+/** Stable project angle (FNV-1a hash → same project always at same position) */
+export function stableProjectAngle(id: string): number {
   let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
   return ((h >>> 0) / 4294967295) * Math.PI * 2;
 }
+
+function stableIndex(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) % LOCKED_PALETTE.length;
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+/** Capability node position on screen (fallback 2D calculation) */
+export function nodePosition(i: number, cx: number, cy: number, rx: number, ry: number): { x: number; y: number } {
+  const angle = -Math.PI / 2 + (i / CONTEXTUAL_CAPABILITIES.length) * Math.PI * 2;
+  return { x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry };
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
 
 export function JarvisNeuralBlob({
   state, inputLevel = 0, outputLevel = 0, nodeActivity, provider, model,
@@ -224,19 +412,30 @@ export function JarvisNeuralBlob({
   const label = modelLabel(provider, model);
   const testId = testIdPrefix;
 
-  // Live props (projects / active project / click) flow through a ref so the
-  // rAF loop never restarts on a projects-array identity change.
-  const liveRef = useRef({ projects, activeProjectId, onProjectClick });
-  liveRef.current = { projects, activeProjectId, onProjectClick };
-
-  // All animation state lives in a ref — never recreated on prop change.
-  const animRef = useRef({
-    t: 0,
-    currentParams: stateParams('IDLE') as StateParams,
-    // Smoothed core RGB (locked-palette color, lerped per frame).
-    rgb: [...coreColor('IDLE')] as [number, number, number],
-    initialized: false,
+  // Camera interaction state refs
+  const cameraStateRef = useRef({
+    distance: CAMERA_CONFIG.DEFAULT_DISTANCE,
+    targetDistance: CAMERA_CONFIG.DEFAULT_DISTANCE,
+    azimuth: 0,
+    targetAzimuth: 0,
+    elevation: 0,
+    targetElevation: 0,
+    isDragging: false,
+    dragStart: { x: 0, y: 0 },
+    lastPointer: { x: 0, y: 0 },
+    hasMoved: false,
   });
+
+  // 3D projected nodes cache for accurate hit-testing from any camera angle
+  const projectedNodesRef = useRef<Array<{ id: NeuralNodeId; screenX: number; screenY: number }>>([]);
+  const projectedProjectsRef = useRef<Array<{ id: string; screenX: number; screenY: number }>>([]);
+
+  // Live props flow through a ref so the rAF loop never restarts on change
+  const liveRef = useRef({ projects, activeProjectId, onProjectClick, onNodeClick, inputLevel, outputLevel, visualState, pulses });
+  liveRef.current = { projects, activeProjectId, onProjectClick, onNodeClick, inputLevel, outputLevel, visualState, pulses };
+
+  // Persistent animation state — never recreated
+  const animRef = useRef({ t: 0, rgb: [...coreColor('IDLE')] as [number, number, number] });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -246,17 +445,11 @@ export function JarvisNeuralBlob({
       if (typeof requestAnimationFrame === 'undefined') return 0;
       return requestAnimationFrame(fn);
     };
-    const cancel = (id: number) => {
-      if (typeof cancelAnimationFrame !== 'undefined' && id) cancelAnimationFrame(id);
-    };
+    const cancel = (id: number) => { if (typeof cancelAnimationFrame !== 'undefined' && id) cancelAnimationFrame(id); };
 
     let raf = 0;
-    // A WebGL context can also be lost AFTER construction (GPU reset, driver
-    // hiccup). `broken` stops the rAF loop on context loss or a render throw,
-    // leaving the transparent canvas so the CSS nebula layers keep the Jarvis
-    // control surface alive and fully usable (milestone: visualization failure
-    // must never kill the Jarvis UI).
     let broken = false;
+
     if (typeof WebGLRenderingContext === 'undefined') {
       raf = schedule(() => {});
       return () => { cancel(raf); };
@@ -265,22 +458,12 @@ export function JarvisNeuralBlob({
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({
-        canvas,
-        alpha: true,
-        antialias: true,
-        preserveDrawingBuffer: true,
-        powerPreference: 'high-performance',
-      });
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
     } catch (err) {
-      // Graceful WebGL fallback (milestone: visualization failure must never
-      // kill the Jarvis control surface). A lost/failed WebGL context makes
-      // THREE's WebGLRenderer throw (e.g. "reading 'precision'" from a null
-      // getShaderPrecisionFormat). Leave the canvas transparent and bail so
-      // the rest of the Jarvis UI stays fully usable.
-      console.warn('[JarvisNeuralBlob] WebGL unavailable — rendering fallback.', err);
+      console.warn('[JarvisNeuralBlob] WebGL unavailable — transparent canvas fallback.', err);
       return;
     }
+
     const onContextLost = (e: Event) => {
       e.preventDefault();
       console.warn('[JarvisNeuralBlob] WebGL context lost — pausing visual loop.');
@@ -288,468 +471,348 @@ export function JarvisNeuralBlob({
       cancel(raf);
     };
     canvas.addEventListener('webglcontextlost', onContextLost, false);
-    renderer.setPixelRatio(dpr);
-    // FREE FROM THE SQUARE: the canvas fills the (larger) shell — size the
-    // WebGL buffer from the ACTUAL rendered canvas, not the fixed prop box.
-    const canvasPx = Math.max(canvas.clientWidth || size, size);
-    renderer.setSize(canvasPx, canvasPx, false);
-    renderer.setClearColor(0x000000, 0);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // Keep the WebGL buffer in sync when the shell resizes with the window
-    // (the shell is sized in vmin — a window resize changes its px size).
+    renderer.setPixelRatio(dpr);
+    renderer.setClearColor(0x000000, 0);
+
+    // ── Scene ──────────────────────────────────────────────────────────────
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 60);
+    camera.position.set(0, 0, CAMERA_CONFIG.DEFAULT_DISTANCE);
+    camera.lookAt(0, 0, 0);
+
+    const updateDimensions = () => {
+      const w = canvas.clientWidth || size || 600;
+      const h = canvas.clientHeight || size || 600;
+      if (w > 0 && h > 0) {
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+    };
+    updateDimensions();
+
     const onWindowResize = () => {
-      const px = Math.max(canvas.clientWidth || size, size);
-      renderer.setSize(px, px, false);
+      updateDimensions();
     };
     window.addEventListener('resize', onWindowResize);
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
-    camera.position.set(0, 0.18, 9.2);
-    camera.lookAt(0, 0, 0);
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        updateDimensions();
+      });
+      resizeObserver.observe(canvas);
+      if (shellRef.current) resizeObserver.observe(shellRef.current);
+    }
 
-    const root = new THREE.Group();
-    scene.add(root);
-    scene.add(new THREE.AmbientLight(0x77fff0, 1.6));
-    const key = new THREE.PointLight(0x9ffdf2, 4.2, 16);
-    key.position.set(-2.5, 2.4, 5);
-    scene.add(key);
-    const rimLight = new THREE.PointLight(0xfacc15, 2.4, 18);
-    rimLight.position.set(3.2, 0.7, 3);
-    scene.add(rimLight);
+    // ── Mouse Wheel Zoom Event (non-passive to prevent page scroll) ────────
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const cam = cameraStateRef.current;
+      cam.targetDistance = clampCameraDistance(cam.targetDistance + e.deltaY * CAMERA_CONFIG.ZOOM_SPEED);
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
 
     const colorToThree = (rgb: [number, number, number]) => new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
-    const disposableTextures: THREE.Texture[] = [];
-    const makeLineMaterial = (rgb: [number, number, number], opacity: number) =>
-      new THREE.LineBasicMaterial({
-        color: colorToThree(rgb),
-        transparent: true,
-        opacity,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false,
-      });
+    const disposables: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[] = [];
 
-    const makeEllipse = (rx: number, ry: number, rgb: [number, number, number], opacity: number, z = 0, tilt = 0) => {
-      const points: THREE.Vector3[] = [];
-      for (let i = 0; i <= 160; i++) {
-        const a = (i / 160) * Math.PI * 2;
-        points.push(new THREE.Vector3(Math.cos(a) * rx, Math.sin(a) * ry, z));
-      }
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), makeLineMaterial(rgb, opacity));
-      line.rotation.x = tilt;
-      return line;
+    const initRGB = [...coreColor('IDLE')] as [number, number, number];
+    const u_color = new THREE.Color(initRGB[0] / 255, initRGB[1] / 255, initRGB[2] / 255);
+
+    // ── Direct Audio Level Listeners (eliminates React render lag & stepping) ──
+    const audioLevels = {
+      rawInput: 0,
+      rawOutput: 0,
+      smoothInput: 0,
+      smoothOutput: 0,
+      smoothLow: 0,
+      smoothMid: 0,
+      smoothHigh: 0,
     };
 
-    const makeLabel = (text: string, rgb: [number, number, number], scale = 0.34) => {
-      const labelCanvas = document.createElement('canvas');
-      labelCanvas.width = 256;
-      labelCanvas.height = 64;
-      const ctx = labelCanvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, 256, 64);
-        ctx.font = '700 28px Inter, Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(2,6,23,0.95)';
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.96)`;
-        ctx.fillText(text, 128, 32);
+    const onAudioInput = (e: Event) => {
+      audioLevels.rawInput = Math.max(0, Math.min(1, ((e as CustomEvent).detail?.level ?? 0) as number));
+    };
+    const onAudioOutput = (e: Event) => {
+      audioLevels.rawOutput = Math.max(0, Math.min(1, ((e as CustomEvent).detail?.level ?? 0) as number));
+    };
+    window.addEventListener('jarvis-orb:input-level', onAudioInput);
+    window.addEventListener('jarvis-orb:output-level', onAudioOutput);
+
+    // ── Layer 1: Outer deforming shell (GLSL vertex displacement) ──────────
+    const shellGeo = new THREE.IcosahedronGeometry(0.82, 6);
+    disposables.push(shellGeo);
+    const shellUniforms = {
+      u_time:         { value: 0 },
+      u_color:        { value: u_color.clone() },
+      u_energy:       { value: 0.14 },
+      u_deform:       { value: 0.18 },
+      u_input_level:  { value: 0 },
+      u_output_level: { value: 0 },
+      u_voice_low:    { value: 0 },
+      u_voice_mid:    { value: 0 },
+      u_voice_high:   { value: 0 },
+      u_is_speaking:  { value: 0 },
+    };
+    const shellMat = new THREE.ShaderMaterial({
+      vertexShader: SHELL_VERT, fragmentShader: SHELL_FRAG,
+      uniforms: shellUniforms,
+      transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: false, side: THREE.FrontSide,
+    });
+    disposables.push(shellMat);
+    const shellMesh = new THREE.Mesh(shellGeo, shellMat);
+    shellMesh.renderOrder = 4;
+    scene.add(shellMesh);
+
+    // Slightly larger, slower back-shell for depth
+    const backShellGeo = new THREE.IcosahedronGeometry(0.96, 4);
+    disposables.push(backShellGeo);
+    const backShellUniforms = {
+      u_time:         { value: 0 },
+      u_color:        { value: u_color.clone() },
+      u_energy:       { value: 0.14 },
+      u_deform:       { value: 0.24 },
+      u_input_level:  { value: 0 },
+      u_output_level: { value: 0 },
+      u_voice_low:    { value: 0 },
+      u_voice_mid:    { value: 0 },
+      u_voice_high:   { value: 0 },
+      u_is_speaking:  { value: 0 },
+    };
+    const backShellMat = new THREE.ShaderMaterial({
+      vertexShader: SHELL_VERT, fragmentShader: SHELL_FRAG,
+      uniforms: backShellUniforms,
+      transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: false, side: THREE.BackSide,
+    });
+    disposables.push(backShellMat);
+    const backShellMesh = new THREE.Mesh(backShellGeo, backShellMat);
+    backShellMesh.renderOrder = 2;
+    scene.add(backShellMesh);
+
+    // ── Layer 2: Inner volumetric noise sphere ─────────────────────────────
+    const innerGeo = new THREE.SphereGeometry(0.52, 48, 32);
+    disposables.push(innerGeo);
+    const innerUniforms = {
+      u_time:   { value: 0 },
+      u_color:  { value: u_color.clone() },
+      u_energy: { value: 0.14 },
+    };
+    const innerMat = new THREE.ShaderMaterial({
+      vertexShader: INNER_VERT, fragmentShader: INNER_FRAG,
+      uniforms: innerUniforms,
+      transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: false, side: THREE.FrontSide,
+    });
+    disposables.push(innerMat);
+    const innerMesh = new THREE.Mesh(innerGeo, innerMat);
+    innerMesh.renderOrder = 6;
+    scene.add(innerMesh);
+
+    // ── Layer 3: Internal particle field ──────────────────────────────────
+    const PARTICLE_COUNT = 600;
+    const pPos: number[] = [];
+    const pSeed: number[] = [];
+    const pAxis: number[] = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const seed = i * 12.9898 + 0.1;
+      const u = ((Math.sin(seed) * 43758.5453) % 1 + 1) % 1;
+      const v = ((Math.sin(seed * 1.37) * 24634.6) % 1 + 1) % 1;
+      const w = ((Math.sin(seed * 1.91) * 13217.4) % 1 + 1) % 1;
+      const r = Math.cbrt(u) * 0.76;
+      const theta = v * Math.PI * 2;
+      const phi = Math.acos(2 * w - 1);
+      pPos.push(
+        Math.sin(phi) * Math.cos(theta) * r,
+        Math.cos(phi) * r * 0.85,
+        Math.sin(phi) * Math.sin(theta) * r,
+      );
+      pSeed.push(u);
+      const ax = Math.sin(seed * 2.34) * 2 - 1;
+      const ay = Math.sin(seed * 3.71) * 2 - 1;
+      const az = Math.sin(seed * 1.55) * 2 - 1;
+      const al = Math.sqrt(ax * ax + ay * ay + az * az) || 1;
+      pAxis.push(ax / al, ay / al, az / al);
+    }
+    const particleGeo = new THREE.BufferGeometry();
+    particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
+    particleGeo.setAttribute('a_seed',   new THREE.Float32BufferAttribute(pSeed, 1));
+    particleGeo.setAttribute('a_axis',   new THREE.Float32BufferAttribute(pAxis, 3));
+    disposables.push(particleGeo);
+    const particleUniforms = {
+      u_time:         { value: 0 },
+      u_color:        { value: u_color.clone() },
+      u_energy:       { value: 0.14 },
+      u_input_level:  { value: 0 },
+      u_output_level: { value: 0 },
+      u_voice_mid:    { value: 0 },
+      u_is_speaking:  { value: 0 },
+    };
+    const particleMat = new THREE.ShaderMaterial({
+      vertexShader: PARTICLE_VERT, fragmentShader: PARTICLE_FRAG,
+      uniforms: particleUniforms,
+      transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: false,
+    });
+    disposables.push(particleMat);
+    const particles = new THREE.Points(particleGeo, particleMat);
+    particles.renderOrder = 5;
+    scene.add(particles);
+
+    // ── Layer 4: Soft ambient glow backdrop ────────────────────────────────
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 128; glowCanvas.height = 128;
+    const gctx = glowCanvas.getContext('2d');
+    if (gctx) {
+      const g = gctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, 'rgba(255,255,255,0.7)');
+      g.addColorStop(0.35, 'rgba(255,255,255,0.22)');
+      g.addColorStop(0.7, 'rgba(255,255,255,0.06)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      gctx.fillStyle = g;
+      gctx.fillRect(0, 0, 128, 128);
+    }
+    const glowTex = new THREE.CanvasTexture(glowCanvas);
+    glowTex.colorSpace = THREE.SRGBColorSpace;
+    disposables.push(glowTex);
+    const glowMat = new THREE.SpriteMaterial({
+      map: glowTex, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+      opacity: 0.16, color: u_color.clone(),
+    });
+    disposables.push(glowMat);
+    const glowSprite = new THREE.Sprite(glowMat);
+    glowSprite.scale.set(2.4, 2.4, 1);
+    glowSprite.renderOrder = 1;
+    scene.add(glowSprite);
+
+    // ── Capability satellite nodes ────────────────────────────────────────
+    const makeLineMaterial = (rgb: [number, number, number], opacity: number) =>
+      new THREE.LineBasicMaterial({
+        color: colorToThree(rgb), transparent: true, opacity,
+        blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+      });
+
+    const makeLabel = (text: string, rgb: [number, number, number]) => {
+      const lc = document.createElement('canvas');
+      lc.width = 256; lc.height = 64;
+      const lctx = lc.getContext('2d');
+      if (lctx) {
+        lctx.clearRect(0, 0, 256, 64);
+        lctx.font = '700 26px Inter, Arial, sans-serif';
+        lctx.textAlign = 'center'; lctx.textBaseline = 'middle';
+        lctx.shadowColor = 'rgba(2,6,23,0.95)'; lctx.shadowBlur = 10;
+        lctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.96)`;
+        lctx.fillText(text, 128, 32);
       }
-      const texture = new THREE.CanvasTexture(labelCanvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      disposableTextures.push(texture);
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
-      sprite.scale.set(1.9 * scale, 0.48 * scale, 1);
+      const tex = new THREE.CanvasTexture(lc);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      disposables.push(tex);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthWrite: false, depthTest: false,
+      }));
+      sprite.scale.set(0.55, 0.14, 1);
       return sprite;
     };
 
-    const makeRadialGlowTexture = (inner: string, outer: string) => {
-      const glowCanvas = document.createElement('canvas');
-      glowCanvas.width = 512;
-      glowCanvas.height = 512;
-      const ctx = glowCanvas.getContext('2d');
-      if (ctx) {
-        const grad = ctx.createRadialGradient(256, 256, 8, 256, 256, 252);
-        grad.addColorStop(0, inner);
-        grad.addColorStop(0.32, 'rgba(170,255,245,0.42)');
-        grad.addColorStop(0.72, 'rgba(20,184,166,0.16)');
-        grad.addColorStop(1, outer);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 512, 512);
-      }
-      const texture = new THREE.CanvasTexture(glowCanvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      disposableTextures.push(texture);
-      return texture;
-    };
-
-    const makeCoreTexture = () => {
-      const textureCanvas = document.createElement('canvas');
-      textureCanvas.width = 768;
-      textureCanvas.height = 384;
-      const ctx = textureCanvas.getContext('2d');
-      if (ctx) {
-        const bg = ctx.createLinearGradient(0, 0, 768, 384);
-        bg.addColorStop(0, 'rgba(7,89,83,0.92)');
-        bg.addColorStop(0.45, 'rgba(45,212,191,0.96)');
-        bg.addColorStop(1, 'rgba(13,148,136,0.9)');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, 768, 384);
-
-        for (let band = 0; band < 28; band++) {
-          const y = 40 + band * 11 + Math.sin(band * 1.7) * 7;
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          for (let x = 0; x <= 768; x += 20) {
-            ctx.lineTo(x, y + Math.sin(x * 0.022 + band) * 4);
-          }
-          ctx.strokeStyle = band % 3 === 0 ? 'rgba(204,251,241,0.26)' : 'rgba(94,234,212,0.16)';
-          ctx.lineWidth = band % 3 === 0 ? 1.4 : 0.8;
-          ctx.stroke();
-        }
-
-        for (let dot = 0; dot < 180; dot++) {
-          const x = (dot * 139) % 768;
-          const y = (dot * 97) % 384;
-          const r = dot % 9 === 0 ? 1.5 : 0.75;
-          ctx.beginPath();
-          ctx.arc(x, y, r, 0, Math.PI * 2);
-          ctx.fillStyle = dot % 5 === 0 ? 'rgba(255,255,255,0.38)' : 'rgba(153,246,228,0.26)';
-          ctx.fill();
-        }
-
-        const shine = ctx.createRadialGradient(260, 120, 8, 260, 120, 220);
-        shine.addColorStop(0, 'rgba(255,255,255,0.36)');
-        shine.addColorStop(0.34, 'rgba(153,246,228,0.18)');
-        shine.addColorStop(1, 'rgba(153,246,228,0)');
-        ctx.fillStyle = shine;
-        ctx.fillRect(0, 0, 768, 384);
-      }
-      const texture = new THREE.CanvasTexture(textureCanvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.ClampToEdgeWrapping;
-      disposableTextures.push(texture);
-      return texture;
-    };
-
-    const makeOrganicSphere = (radius: number, widthSegments: number, heightSegments: number, amplitude: number) => {
-      const geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
-      const position = geometry.attributes.position as THREE.BufferAttribute;
-      const vertex = new THREE.Vector3();
-      for (let i = 0; i < position.count; i++) {
-        vertex.fromBufferAttribute(position, i);
-        const n = vertex.clone().normalize();
-        const wave =
-          Math.sin(n.x * 4.7 + n.y * 2.1) * 0.42 +
-          Math.sin(n.y * 5.3 - n.z * 3.4) * 0.34 +
-          Math.sin((n.x + n.z) * 6.1) * 0.24;
-        vertex.multiplyScalar(1 + amplitude * wave);
-        position.setXYZ(i, vertex.x, vertex.y, vertex.z);
-      }
-      position.needsUpdate = true;
-      geometry.computeVertexNormals();
-      return geometry;
-    };
-
-    const coreColorThree = colorToThree(animRef.current.rgb);
-    const coreTexture = makeCoreTexture();
-    const core = new THREE.Mesh(
-      makeOrganicSphere(1.48, 72, 48, 0.075),
-      new THREE.MeshPhysicalMaterial({
-        map: coreTexture,
-        emissiveMap: coreTexture,
-        color: coreColorThree,
-        emissive: coreColorThree,
-        emissiveIntensity: 0.72,
-        roughness: 0.34,
-        metalness: 0.05,
-        transmission: 0.16,
-        transparent: true,
-        opacity: 0.48,
-        clearcoat: 1,
-        depthWrite: false,
-      }),
-    );
-    core.renderOrder = 3;
-    root.add(core);
-
-    const softShell = new THREE.Mesh(
-      makeOrganicSphere(1.68, 48, 32, 0.1),
-      new THREE.MeshBasicMaterial({
-        color: colorToThree(TURQUOISE),
-        transparent: true,
-        opacity: 0.14,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    );
-    softShell.scale.set(1.02, 0.94, 1.08);
-    softShell.renderOrder = 4;
-    root.add(softShell);
-
-    const edgeMist = new THREE.Mesh(
-      makeOrganicSphere(1.9, 48, 32, 0.08),
-      new THREE.MeshBasicMaterial({
-        color: colorToThree(TURQUOISE),
-        transparent: true,
-        opacity: 0.065,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    );
-    edgeMist.scale.set(1.08, 0.88, 1);
-    edgeMist.renderOrder = 2;
-    root.add(edgeMist);
-
-    const backGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeRadialGlowTexture('rgba(204,251,241,0.78)', 'rgba(20,184,166,0)'),
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: false,
-      opacity: 0.14,
-    }));
-    backGlow.scale.set(6.1, 5.8, 1);
-    backGlow.position.z = -0.5;
-    backGlow.renderOrder = 0;
-    root.add(backGlow);
-
-    const nucleus = new THREE.Mesh(
-      new THREE.SphereGeometry(0.14, 32, 24),
-      new THREE.MeshBasicMaterial({
-        color: 0xecfeff,
-        transparent: true,
-        opacity: 0.42,
-        blending: THREE.AdditiveBlending,
-        depthTest: false,
-      }),
-    );
-    nucleus.position.set(-0.08, 0.02, 0.9);
-    nucleus.renderOrder = 8;
-    root.add(nucleus);
-
-    const dustLane = new THREE.Mesh(
-      new THREE.RingGeometry(1.04, 2.35, 160),
-      new THREE.MeshBasicMaterial({
-        color: 0x020617,
-        transparent: true,
-        opacity: 0.035,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    );
-    dustLane.scale.y = 0.16;
-    dustLane.rotation.z = -0.16;
-    dustLane.position.z = 0.08;
-    dustLane.renderOrder = 5;
-    root.add(dustLane);
-
-    const plasmaPositions: number[] = [];
-    const plasmaColors: number[] = [];
-    const plasmaColor = new THREE.Color();
-    for (let i = 0; i < 520; i++) {
-      const seed = i * 12.9898;
-      const u = ((Math.sin(seed) * 43758.5453) % 1 + 1) % 1;
-      const v = ((Math.sin(seed * 1.37) * 24634.6345) % 1 + 1) % 1;
-      const w = ((Math.sin(seed * 1.91) * 13217.419) % 1 + 1) % 1;
-      const radius = Math.cbrt(u) * 1.32;
-      const theta = v * Math.PI * 2;
-      const phi = Math.acos(2 * w - 1);
-      plasmaPositions.push(
-        Math.sin(phi) * Math.cos(theta) * radius,
-        Math.cos(phi) * radius * 0.82,
-        Math.sin(phi) * Math.sin(theta) * radius,
-      );
-      const c = mixColor(TURQUOISE, LOCKED_PALETTE[i % LOCKED_PALETTE.length], 0.24 + (i % 7) * 0.035);
-      plasmaColor.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
-      plasmaColors.push(plasmaColor.r, plasmaColor.g, plasmaColor.b);
-    }
-    const plasmaGeometry = new THREE.BufferGeometry();
-    plasmaGeometry.setAttribute('position', new THREE.Float32BufferAttribute(plasmaPositions, 3));
-    plasmaGeometry.setAttribute('color', new THREE.Float32BufferAttribute(plasmaColors, 3));
-    const plasmaCore = new THREE.Points(
-      plasmaGeometry,
-      new THREE.PointsMaterial({
-        size: 0.048,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.48,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    );
-    plasmaCore.renderOrder = 6;
-    root.add(plasmaCore);
-
-    const galaxyGroup = new THREE.Group();
-    galaxyGroup.rotation.x = 1.12;
-    root.add(galaxyGroup);
-
-    const galaxyPositions: number[] = [];
-    const galaxyColors: number[] = [];
-    const galaxyColor = new THREE.Color();
-    for (let arm = 0; arm < 4; arm++) {
-      for (let i = 0; i < 300; i++) {
-        const f = i / 299;
-        const angle = (arm / 4) * Math.PI * 2 + f * Math.PI * 8.2;
-        const radius = 0.22 + f * 3.4;
-        const jitter = Math.sin(i * 12.989 + arm * 78.23) * 0.045;
-        galaxyPositions.push(
-          Math.cos(angle) * (radius + jitter),
-          Math.sin(angle) * (radius + jitter),
-          (Math.sin(i * 4.1 + arm) * 0.08),
-        );
-        const c = mixColor(TURQUOISE, LOCKED_PALETTE[(arm + i) % LOCKED_PALETTE.length], 0.34);
-        galaxyColor.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
-        galaxyColors.push(galaxyColor.r, galaxyColor.g, galaxyColor.b);
-      }
-    }
-    const galaxyGeometry = new THREE.BufferGeometry();
-    galaxyGeometry.setAttribute('position', new THREE.Float32BufferAttribute(galaxyPositions, 3));
-    galaxyGeometry.setAttribute('color', new THREE.Float32BufferAttribute(galaxyColors, 3));
-    const galaxyDust = new THREE.Points(
-      galaxyGeometry,
-      new THREE.PointsMaterial({
-        size: 0.055,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.36,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    );
-    galaxyDust.renderOrder = 6;
-    galaxyGroup.add(galaxyDust);
-
-    const armLines: THREE.Line[] = [];
-    for (let arm = 0; arm < 4; arm++) {
+    const makeEllipse = (rx: number, ry: number, rgb: [number, number, number], opacity: number) => {
       const pts: THREE.Vector3[] = [];
-      for (let i = 0; i <= 140; i++) {
-        const f = i / 140;
-        const angle = (arm / 4) * Math.PI * 2 + f * Math.PI * 7.2;
-        const radius = 0.18 + f * 2.95;
-        pts.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, Math.sin(f * Math.PI * 6) * 0.04));
+      for (let i = 0; i <= 120; i++) {
+        const a = (i / 120) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * rx, Math.sin(a) * ry, 0.1));
       }
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), makeLineMaterial(LOCKED_PALETTE[arm], 0.2));
-      line.renderOrder = 7;
-      galaxyGroup.add(line);
-      armLines.push(line);
-    }
+      return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), makeLineMaterial(rgb, opacity));
+    };
 
-    const diskLines = [
-      makeEllipse(3.75, 0.9, TURQUOISE, 0.28, 0, 0.04),
-      makeEllipse(3.25, 0.72, YELLOW, 0.22, 0.02, -0.02),
-      makeEllipse(2.65, 0.56, PINK, 0.18, -0.02, 0.02),
-      makeEllipse(4.25, 1.08, ORANGE, 0.16, -0.04, 0),
-    ];
-    diskLines.forEach((line) => {
-      line.renderOrder = 9;
-      root.add(line);
-    });
-
-    const diskGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeRadialGlowTexture('rgba(250,204,21,0.36)', 'rgba(20,184,166,0)'),
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: false,
-      opacity: 0.08,
-    }));
-    diskGlow.scale.set(7.05, 1.85, 1);
-    diskGlow.rotation.z = -0.13;
-    diskGlow.renderOrder = 2;
-    root.add(diskGlow);
-
-    const capabilityGroup = new THREE.Group();
-    scene.add(capabilityGroup);
-    const capRx = 2.42;
-    const capRy = 1.95;
-    const capOrbit = makeEllipse(capRx, capRy, TURQUOISE, 0.18, 0.1);
+    const capGroup = new THREE.Group();
+    scene.add(capGroup);
+    const capRx = 1.35; const capRy = 1.35;
+    const capOrbit = makeEllipse(capRx, capRy, TURQUOISE, 0.16);
     capOrbit.renderOrder = 12;
-    capabilityGroup.add(capOrbit);
-    const projectOrbit = makeEllipse(4.2, 3.35, [148, 163, 184], 0.1, -0.08);
-    projectOrbit.renderOrder = 11;
-    capabilityGroup.add(projectOrbit);
-    const nodeMeshes: Array<{ node: NeuralNodeId; mesh: THREE.Mesh; halo: THREE.Mesh; label: THREE.Sprite; connection: THREE.Line }> = [];
+    capGroup.add(capOrbit);
+
+    const nodeMeshes: Array<{ node: NeuralNodeId; dot: THREE.Mesh; halo: THREE.Mesh; label: THREE.Sprite; conn: THREE.Line; worldPos: THREE.Vector3 }> = [];
     CONTEXTUAL_CAPABILITIES.forEach((node, i) => {
       const angle = -Math.PI / 2 + (i / CONTEXTUAL_CAPABILITIES.length) * Math.PI * 2;
       const [nr, ng, nb] = NODE_COLORS[node];
       const color = new THREE.Color(nr / 255, ng / 255, nb / 255);
       const x = Math.cos(angle) * capRx;
-      const y = -Math.sin(angle) * capRy;
-      const connection = new THREE.Line(
+      const y = Math.sin(angle) * capRy;
+
+      const conn = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(Math.cos(angle) * 1.42, -Math.sin(angle) * 1.1, 0.18),
-          new THREE.Vector3(x, y, 0.22),
+          new THREE.Vector3(Math.cos(angle) * 0.88, Math.sin(angle) * 0.88, 0.12),
+          new THREE.Vector3(x, y, 0.12),
         ]),
         makeLineMaterial([nr, ng, nb], 0.12),
       );
-      connection.renderOrder = 13;
+      conn.renderOrder = 13;
+
       const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.15, 28, 18),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthTest: false }),
+        new THREE.SphereGeometry(0.10, 20, 14),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthTest: false }),
       );
-      halo.position.set(x, y, 0.22);
-      halo.renderOrder = 20;
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.085, 28, 18),
+      halo.position.set(x, y, 0.12); halo.renderOrder = 20;
+
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 20, 14),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthTest: false }),
       );
-      mesh.position.copy(halo.position);
-      mesh.renderOrder = 21;
-      const labelSprite = makeLabel(NODE_LABELS[node], [nr, ng, nb], node === 'PROJECTS' ? 0.48 : 0.44);
-      labelSprite.position.set(x, y - 0.27, 0.42);
-      labelSprite.renderOrder = 22;
-      capabilityGroup.add(connection, halo, mesh, labelSprite);
-      nodeMeshes.push({ node, mesh, halo, label: labelSprite, connection });
+      dot.position.copy(halo.position); dot.renderOrder = 21;
+
+      const labelSprite = makeLabel(NODE_LABELS[node], [nr, ng, nb]);
+      labelSprite.position.set(x, y - 0.16, 0.3); labelSprite.renderOrder = 22;
+
+      capGroup.add(conn, halo, dot, labelSprite);
+      nodeMeshes.push({ node, dot, halo, label: labelSprite, conn, worldPos: new THREE.Vector3(x, y, 0.12) });
     });
 
+    // ── Project stars (outer orbit) ───────────────────────────────────────
     const projectGroup = new THREE.Group();
     scene.add(projectGroup);
+    const projRx = 1.75; const projRy = 1.75;
+    const projectOrbit = makeEllipse(projRx, projRy, [100, 116, 139], 0.09);
+    projectOrbit.renderOrder = 11;
+    scene.add(projectOrbit);
+
+    const projectMeshes: Array<{ id: string; worldPos: THREE.Vector3 }> = [];
+
     const rebuildProjects = () => {
       projectGroup.clear();
-      const list = [...liveRef.current.projects].sort((a, b) => stableProjectAngle(a.id) - stableProjectAngle(b.id));
+      projectMeshes.length = 0;
+      const { projects: list, activeProjectId: activeId } = liveRef.current;
       const n = list.length;
       list.forEach((p, i) => {
         const angle = n === 0 ? 0 : -Math.PI / 2 + (i / n) * Math.PI * 2;
         const rgb = p.color ? hexToRgb(p.color) ?? LOCKED_PALETTE[stableIndex(p.id)] : LOCKED_PALETTE[stableIndex(p.id)];
         const color = colorToThree(rgb);
-        const x = Math.cos(angle) * 4.2;
-        const y = -Math.sin(angle) * 3.35;
-        const isActive = p.id === liveRef.current.activeProjectId;
+        const x = Math.cos(angle) * projRx;
+        const y = Math.sin(angle) * projRy;
+        const isActive = p.id === activeId;
         const star = new THREE.Mesh(
-          new THREE.SphereGeometry(isActive ? 0.105 : 0.068, 20, 14),
+          new THREE.SphereGeometry(isActive ? 0.065 : 0.04, 16, 12),
           new THREE.MeshBasicMaterial({ color, transparent: true, opacity: isActive ? 0.95 : 0.38, blending: THREE.AdditiveBlending }),
         );
-        star.position.set(x, y, -0.12);
-        star.renderOrder = 18;
-        const labelSprite = isActive ? makeLabel(p.name.length > 14 ? `${p.name.slice(0, 13)}...` : p.name, rgb, 0.43) : null;
-        if (labelSprite) {
-          labelSprite.position.set(x, y - 0.26, 0.15);
-          labelSprite.renderOrder = 19;
-          projectGroup.add(labelSprite);
-        }
+        star.position.set(x, y, -0.1); star.renderOrder = 18;
         projectGroup.add(star);
+        projectMeshes.push({ id: p.id, worldPos: new THREE.Vector3(x, y, -0.1) });
+
+        if (isActive) {
+          const lbl = makeLabel(p.name.length > 14 ? `${p.name.slice(0, 13)}…` : p.name, rgb);
+          lbl.position.set(x, y - 0.28, 0.1); lbl.renderOrder = 19;
+          projectGroup.add(lbl);
+        }
       });
     };
     rebuildProjects();
 
+    // ─── Animation loop ───────────────────────────────────────────────────
     const anim = animRef.current;
-    if (!anim.initialized) {
-      anim.initialized = true;
-      anim.currentParams = { ...stateParams('IDLE') };
-      anim.rgb = [...coreColor('IDLE')];
-    }
+    let curParams = { ...stateParams('IDLE') };
+    let projectSig = '';
 
-    let projectSignature = '';
     const lerp = (a: number, b: number, t: number) => a + (b - a) * Math.min(1, t);
     const lerpRGB = (cur: [number, number, number], target: [number, number, number], k: number) => {
       cur[0] = lerp(cur[0], target[0], k);
@@ -757,105 +820,174 @@ export function JarvisNeuralBlob({
       cur[2] = lerp(cur[2], target[2], k);
     };
 
+    const tempV3 = new THREE.Vector3();
+
     const draw = () => {
       const dt = 0.016;
-      anim.t += dt;
+      const { visualState: vs, inputLevel: il, outputLevel: ol, pulses: ps } = liveRef.current;
+      const target = stateParams(vs);
+      const alpha = 0.038;
+      curParams.energy = lerp(curParams.energy, target.energy, alpha);
+      curParams.glow   = lerp(curParams.glow,   target.glow,   alpha);
+      curParams.deform = lerp(curParams.deform, target.deform, alpha);
+      curParams.speed  = lerp(curParams.speed,  target.speed,  alpha);
+
+      anim.t += dt * curParams.speed;
       const t = anim.t;
-      const target = stateParams(visualState);
-      const sp = anim.currentParams;
-      const alpha = 0.035;
-      sp.breath = lerp(sp.breath, target.breath, alpha);
-      sp.energy = lerp(sp.energy, target.energy, alpha);
-      sp.glow = lerp(sp.glow, target.glow, alpha);
-      sp.nucleusPulse = lerp(sp.nucleusPulse, target.nucleusPulse, alpha);
 
-      // ── Voice-reactive color: the core keeps lerping toward the state color
-      //    (locked palette base), but while the user is actually TALKING it
-      //    shifts toward a voice-derived palette neighbor → the nebula CHANGES
-      //    COLOR with your voice. Idle/zero voice = exact state color. ──
-      const mic = visualState === 'LISTENING' ? Math.max(0, Math.min(1, inputLevel)) : 0;
-      const spk = visualState === 'SPEAKING' ? Math.max(0, Math.min(1, outputLevel)) : 0;
-      const voicePulse = Math.max(mic, spk);
-      const voiceTarget = voiceColorShift(coreColor(visualState), voicePulse);
-      lerpRGB(anim.rgb, voiceTarget, alpha * 2.4);
+      // ── Smooth Camera Interpolation ──
+      const cam = cameraStateRef.current;
+      cam.distance += (cam.targetDistance - cam.distance) * CAMERA_CONFIG.DAMPING;
+      cam.azimuth += (cam.targetAzimuth - cam.azimuth) * CAMERA_CONFIG.DAMPING;
+      cam.elevation += (cam.targetElevation - cam.elevation) * CAMERA_CONFIG.DAMPING;
 
-      const signature = `${liveRef.current.activeProjectId ?? ''}:${liveRef.current.projects.map((p) => `${p.id}:${p.color ?? ''}`).join('|')}`;
-      if (signature !== projectSignature) {
-        projectSignature = signature;
-        rebuildProjects();
+      const camPos = sphericalToCartesian(cam.distance, cam.elevation, cam.azimuth);
+      camera.position.set(camPos.x, camPos.y, camPos.z);
+      camera.lookAt(0, 0, 0);
+
+      // ── Smooth Audio Envelopes (Fast Attack / Smooth Release) ──
+      const targetIn = Math.max(audioLevels.rawInput, vs === 'LISTENING' ? il : 0);
+      const targetOut = Math.max(audioLevels.rawOutput, vs === 'SPEAKING' ? ol : 0);
+
+      if (targetIn > audioLevels.smoothInput) {
+        audioLevels.smoothInput += (targetIn - audioLevels.smoothInput) * 0.28;
+      } else {
+        audioLevels.smoothInput += (targetIn - audioLevels.smoothInput) * 0.052;
       }
 
-      const c = colorToThree(anim.rgb);
-      (core.material as THREE.MeshPhysicalMaterial).color.copy(c);
-      (core.material as THREE.MeshPhysicalMaterial).emissive.copy(c);
-      (softShell.material as THREE.MeshBasicMaterial).color.copy(c);
-      (edgeMist.material as THREE.MeshBasicMaterial).color.copy(c);
+      if (targetOut > audioLevels.smoothOutput) {
+        audioLevels.smoothOutput += (targetOut - audioLevels.smoothOutput) * 0.32;
+      } else {
+        audioLevels.smoothOutput += (targetOut - audioLevels.smoothOutput) * 0.058;
+      }
 
-      // ── Voice vibration: real mic level drives a physical jitter on the
-      //    whole nebula shell (CSS vars consumed by the shell transform) and
-      //    boosts the core breathing. Zero voice → calm breathing only. ──
+      const mic = vs === 'LISTENING' ? audioLevels.smoothInput : 0;
+      const spk = vs === 'SPEAKING'  ? audioLevels.smoothOutput : 0;
+      const isSpeaking = vs === 'SPEAKING' ? 1.0 : 0.0;
+      const voicePulse = Math.max(mic, spk);
+
+      audioLevels.smoothLow  = lerp(audioLevels.smoothLow,  voicePulse * 1.15, 0.10);
+      audioLevels.smoothMid  = lerp(audioLevels.smoothMid,  voicePulse * 1.45, 0.18);
+      audioLevels.smoothHigh = lerp(audioLevels.smoothHigh, voicePulse * 1.90, 0.28);
+
+      // Color lerp toward voice-shifted palette
+      const voiceTarget = voiceColorShift(coreColor(vs), voicePulse);
+      lerpRGB(anim.rgb, voiceTarget, alpha * 2.4);
+      const c = colorToThree(anim.rgb);
+
+      // Update all shader uniforms
+      shellUniforms.u_time.value         = t;
+      shellUniforms.u_color.value.copy(c);
+      shellUniforms.u_energy.value       = curParams.energy;
+      shellUniforms.u_deform.value       = curParams.deform;
+      shellUniforms.u_input_level.value  = mic;
+      shellUniforms.u_output_level.value = spk;
+      shellUniforms.u_voice_low.value    = audioLevels.smoothLow;
+      shellUniforms.u_voice_mid.value    = audioLevels.smoothMid;
+      shellUniforms.u_voice_high.value   = audioLevels.smoothHigh;
+      shellUniforms.u_is_speaking.value  = isSpeaking;
+
+      backShellUniforms.u_time.value         = t * 0.72;
+      backShellUniforms.u_color.value.copy(c);
+      backShellUniforms.u_energy.value       = curParams.energy * 0.7;
+      backShellUniforms.u_deform.value       = curParams.deform * 1.3;
+      backShellUniforms.u_input_level.value  = mic;
+      backShellUniforms.u_output_level.value = spk;
+      backShellUniforms.u_voice_low.value    = audioLevels.smoothLow;
+      backShellUniforms.u_voice_mid.value    = audioLevels.smoothMid;
+      backShellUniforms.u_voice_high.value   = audioLevels.smoothHigh;
+      backShellUniforms.u_is_speaking.value  = isSpeaking;
+
+      innerUniforms.u_time.value   = t * 0.55;
+      innerUniforms.u_color.value.copy(c);
+      innerUniforms.u_energy.value = curParams.energy;
+
+      particleUniforms.u_time.value         = t;
+      particleUniforms.u_color.value.copy(c);
+      particleUniforms.u_energy.value       = curParams.energy;
+      particleUniforms.u_input_level.value  = mic;
+      particleUniforms.u_output_level.value = spk;
+      particleUniforms.u_voice_mid.value    = audioLevels.smoothMid;
+      particleUniforms.u_is_speaking.value  = isSpeaking;
+
+      glowMat.opacity = 0.12 + curParams.glow * 0.16 + voicePulse * 0.12;
+      glowMat.color.copy(c);
+
+      // Shell slow auto-rotation (passive orbit)
+      shellMesh.rotation.y = t * 0.12;
+      shellMesh.rotation.x = Math.sin(t * 0.17) * 0.08;
+      backShellMesh.rotation.y = -t * 0.09;
+      backShellMesh.rotation.x = Math.cos(t * 0.13) * 0.06;
+      innerMesh.rotation.y = t * 0.28;
+      innerMesh.rotation.z = Math.sin(t * 0.19) * 0.12;
+      particles.rotation.y = t * (0.08 + curParams.energy * 0.04);
+      particles.rotation.x = Math.sin(t * 0.11) * 0.05;
+
+      // Voice vibration → CSS vars on shell element
       const vib = voiceVibration(t, voicePulse);
       if (shellRef.current) {
-        shellRef.current.style.setProperty('--jarvis-vib-x', vib.dx.toFixed(4));
-        shellRef.current.style.setProperty('--jarvis-vib-y', vib.dy.toFixed(4));
-        shellRef.current.style.setProperty('--jarvis-vib-rot', vib.rot.toFixed(4));
+        shellRef.current.style.setProperty('--jarvis-vib-x',     vib.dx.toFixed(4));
+        shellRef.current.style.setProperty('--jarvis-vib-y',     vib.dy.toFixed(4));
+        shellRef.current.style.setProperty('--jarvis-vib-rot',   vib.rot.toFixed(4));
         shellRef.current.style.setProperty('--jarvis-vib-scale', vib.scale.toFixed(4));
-        shellRef.current.style.setProperty('--jarvis-voice', voicePulse.toFixed(4));
+        shellRef.current.style.setProperty('--jarvis-voice',     voicePulse.toFixed(4));
       }
-      const breath = 1 + sp.breath * Math.sin(t * 0.9) + mic * 0.16 + spk * 0.12 + vib.scale - 1;
-      core.scale.setScalar(breath);
-      core.rotation.y = t * 0.18;
-      core.rotation.x = Math.sin(t * 0.22) * 0.08;
-      softShell.scale.set(1.05 + sp.energy * 0.05, 0.96 + Math.sin(t * 0.8) * 0.025, 1.1 + Math.cos(t * 0.7) * 0.025);
-      softShell.rotation.y = -t * 0.18;
-      softShell.rotation.z = Math.sin(t * 0.28) * 0.12;
-      edgeMist.scale.set(1.12 + sp.glow * 0.08, 0.92 + sp.glow * 0.04, 1.02);
-      edgeMist.rotation.y = t * 0.08;
-      dustLane.rotation.z = -0.16 + Math.sin(t * 0.18) * 0.03;
-      backGlow.material.opacity = 0.14 + sp.glow * 0.11;
-      diskGlow.material.opacity = 0.08 + sp.energy * 0.1;
-      nucleus.scale.setScalar(1 + sp.nucleusPulse * 0.9 + Math.sin(t * 1.2) * 0.1);
-      plasmaCore.rotation.y = t * (0.15 + sp.energy * 0.06);
-      plasmaCore.rotation.x = Math.sin(t * 0.2) * 0.12;
-      (plasmaCore.material as THREE.PointsMaterial).opacity = 0.38 + sp.energy * 0.22;
 
-      galaxyGroup.rotation.z = t * (0.055 + sp.energy * 0.025);
-      galaxyDust.rotation.z = -t * 0.035;
-      armLines.forEach((line, i) => {
-        line.rotation.z = t * (0.04 + i * 0.006);
-        (line.material as THREE.LineBasicMaterial).opacity = 0.12 + sp.energy * 0.1;
-      });
-      diskLines.forEach((line, i) => {
-        line.rotation.z = t * (0.08 + i * 0.018);
-        line.scale.setScalar(1 + Math.sin(t * 0.7 + i) * 0.015);
-      });
+      // Rebuild project stars if projects/activeProject changed
+      const sig = `${liveRef.current.activeProjectId ?? ''}:${liveRef.current.projects.map((p) => `${p.id}:${p.color ?? ''}`).join('|')}`;
+      if (sig !== projectSig) { projectSig = sig; rebuildProjects(); }
 
-      let primaryCap: NeuralNodeId | null = null;
-      let primaryAct = 0;
+      // Satellite node animations
+      let primaryCap: NeuralNodeId | null = null; let primaryAct = 0;
       for (const node of CONTEXTUAL_CAPABILITIES) {
-        const act = pulses[node];
+        const act = ps[node];
         if (act > 0.1 && act > primaryAct) { primaryCap = node; primaryAct = act; }
       }
-      nodeMeshes.forEach(({ node, mesh, halo, label, connection }, i) => {
-        const act = pulses[node];
-        const pulse = 1 + act * 0.22 + (node === primaryCap ? Math.sin(t * 3.2 + i) * 0.03 : 0);
-        mesh.scale.setScalar(pulse);
-        halo.scale.setScalar(1.05 + act * 0.5 + Math.sin(t * 1.1 + i) * 0.04);
-        (halo.material as THREE.MeshBasicMaterial).opacity = 0.3 + act * 0.28;
-        (connection.material as THREE.LineBasicMaterial).opacity = node === primaryCap ? 0.28 + act * 0.28 : 0.1;
+      nodeMeshes.forEach(({ node, dot, halo, label, conn }, i) => {
+        const act = ps[node];
+        const pulse = 1 + act * 0.24 + (node === primaryCap ? Math.sin(t * 3.2 + i) * 0.04 : 0);
+        dot.scale.setScalar(pulse);
+        halo.scale.setScalar(1.05 + act * 0.55 + Math.sin(t * 1.1 + i) * 0.04);
+        (halo.material as THREE.MeshBasicMaterial).opacity = 0.28 + act * 0.30;
+        (conn.material as THREE.LineBasicMaterial).opacity = node === primaryCap ? 0.30 + act * 0.30 : 0.10;
         label.quaternion.copy(camera.quaternion);
       });
 
-      root.rotation.y = Math.sin(t * 0.16) * 0.18;
-      root.rotation.x = -0.08 + Math.sin(t * 0.11) * 0.05;
+      // Orbit group slow wobble
+      capGroup.rotation.z = Math.sin(t * 0.09) * 0.04;
+
+      // Update projected 2D screen positions for accurate hit-testing
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || size;
+      const h = rect.height || size;
+
+      projectedNodesRef.current = nodeMeshes.map(({ node, worldPos }) => {
+        tempV3.copy(worldPos);
+        tempV3.applyMatrix4(capGroup.matrixWorld);
+        tempV3.project(camera);
+        return {
+          id: node,
+          screenX: (tempV3.x * 0.5 + 0.5) * w,
+          screenY: (-tempV3.y * 0.5 + 0.5) * h,
+        };
+      });
+
+      projectedProjectsRef.current = projectMeshes.map(({ id, worldPos }) => {
+        tempV3.copy(worldPos);
+        tempV3.project(camera);
+        return {
+          id,
+          screenX: (tempV3.x * 0.5 + 0.5) * w,
+          screenY: (-tempV3.y * 0.5 + 0.5) * h,
+        };
+      });
+
       if (broken) return;
       try {
         renderer.render(scene, camera);
       } catch (err) {
-        console.warn('[JarvisNeuralBlob] WebGL render failed — stopping visual loop.', err);
-        broken = true;
-        cancel(raf);
-        return;
+        console.warn('[JarvisNeuralBlob] render failed — stopping loop.', err);
+        broken = true; cancel(raf); return;
       }
       raf = schedule(draw);
     };
@@ -863,135 +995,166 @@ export function JarvisNeuralBlob({
     raf = schedule(draw);
     return () => {
       cancel(raf);
+      if (resizeObserver) resizeObserver.disconnect();
       window.removeEventListener('resize', onWindowResize);
+      canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('webglcontextlost', onContextLost, false);
+      window.removeEventListener('jarvis-orb:input-level', onAudioInput);
+      window.removeEventListener('jarvis-orb:output-level', onAudioOutput);
       renderer.dispose();
-      disposableTextures.forEach((texture) => texture.dispose());
+      disposables.forEach((d) => d.dispose());
       scene.traverse((obj) => {
-        const mesh = obj as THREE.Mesh | THREE.Line | THREE.Points | THREE.Sprite;
-        const geometry = (mesh as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
-        if (geometry) geometry.dispose();
-        const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
-        if (Array.isArray(material)) material.forEach((m) => m.dispose());
-        else if (material) material.dispose();
+        const m = obj as THREE.Mesh;
+        if (m.geometry) m.geometry.dispose();
+        if (Array.isArray(m.material)) m.material.forEach((mt) => mt.dispose());
+        else if (m.material) (m.material as THREE.Material).dispose();
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, visualState, pulses, inputLevel, outputLevel]);
+  }, [size]);
 
-  // ─── Hit testing for node + project clicks ───
+  // ─── Pointer Event Handlers for Orbit & Drag ──────────────────────────────
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const cam = cameraStateRef.current;
+    cam.isDragging = true;
+    cam.dragStart = { x: e.clientX, y: e.clientY };
+    cam.lastPointer = { x: e.clientX, y: e.clientY };
+    cam.hasMoved = false;
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const cam = cameraStateRef.current;
+    if (!cam.isDragging) return;
+
+    const dx = e.clientX - cam.lastPointer.x;
+    const dy = e.clientY - cam.lastPointer.y;
+    cam.lastPointer = { x: e.clientX, y: e.clientY };
+
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      cam.hasMoved = true;
+    }
+
+    cam.targetAzimuth -= dx * CAMERA_CONFIG.ORBIT_SPEED;
+    cam.targetElevation = Math.max(
+      CAMERA_CONFIG.MIN_ELEVATION,
+      Math.min(CAMERA_CONFIG.MAX_ELEVATION, cam.targetElevation - dy * CAMERA_CONFIG.ORBIT_SPEED),
+    );
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const cam = cameraStateRef.current;
+    cam.isDragging = false;
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  };
+
+  // ─── Reset Camera on Double Click ─────────────────────────────────────────
+  const handleDoubleClick = () => {
+    const cam = cameraStateRef.current;
+    cam.targetDistance = CAMERA_CONFIG.DEFAULT_DISTANCE;
+    cam.targetAzimuth = 0;
+    cam.targetElevation = 0;
+  };
+
+  // ─── Hit testing for node + project clicks (Drag-Safe) ────────────────────
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const cam = cameraStateRef.current;
+    // If the pointer dragged/orbited the scene, suppress click hit testing
+    if (cam.hasMoved) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (rect.width === 0) return;
-    // The shell is no longer a fixed `size` square — hit-test in the REAL
-    // rendered canvas coordinates so the universe stays clickable at any size.
-    const w = rect.width;
-    const h = rect.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const capRx = w * 0.33;
-    const capRy = h * 0.29;
-    const projRx = w * 0.44;
-    const projRy = h * 0.41;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Capability nodes first (preserves the existing onNodeClick contract).
-    if (onNodeClick) {
-      for (let i = 0; i < CONTEXTUAL_CAPABILITIES.length; i++) {
-        const pos = nodePosition(i, cx, cy, capRx, capRy);
-        if (Math.hypot(x - pos.x, y - pos.y) < 20) {
-          onNodeClick(CONTEXTUAL_CAPABILITIES[i]);
+    // 1. First check accurate 3D projected satellite nodes
+    const { onNodeClick: onNode, onProjectClick: onProj } = liveRef.current;
+    if (onNode && projectedNodesRef.current.length > 0) {
+      for (const pNode of projectedNodesRef.current) {
+        if (Math.hypot(x - pNode.screenX, y - pNode.screenY) < 24) {
+          onNode(pNode.id);
           return;
         }
       }
     }
-    // Project nodes.
-    if (onProjectClick) {
+
+    // 2. Then check accurate 3D projected project stars
+    if (onProj && projectedProjectsRef.current.length > 0) {
+      for (const pProj of projectedProjectsRef.current) {
+        if (Math.hypot(x - pProj.screenX, y - pProj.screenY) < 24) {
+          onProj(pProj.id);
+          return;
+        }
+      }
+    }
+
+    // 3. Fallback 2D hit test (for headless / initial layout test compatibility)
+    const w = rect.width; const h = rect.height;
+    const cx = w / 2; const cy = h / 2;
+    const capRxPx = w * 0.33; const capRyPx = h * 0.33;
+    const projRxPx = w * 0.47; const projRyPx = h * 0.47;
+
+    if (onNode) {
+      for (let i = 0; i < CONTEXTUAL_CAPABILITIES.length; i++) {
+        const pos = nodePosition(i, cx, cy, capRxPx, capRyPx);
+        if (Math.hypot(x - pos.x, y - pos.y) < 20) {
+          onNode(CONTEXTUAL_CAPABILITIES[i]);
+          return;
+        }
+      }
+    }
+    if (onProj) {
       const list = [...liveRef.current.projects].sort((a, b) => stableProjectAngle(a.id) - stableProjectAngle(b.id));
       list.forEach((p, i) => {
         const angle = -Math.PI / 2 + (i / list.length) * Math.PI * 2;
-        const px = cx + Math.cos(angle) * projRx;
-        const py = cy + Math.sin(angle) * projRy;
-        if (Math.hypot(x - px, y - py) < 20) onProjectClick(p.id);
+        const px = cx + Math.cos(angle) * projRxPx;
+        const py = cy + Math.sin(angle) * projRyPx;
+        if (Math.hypot(x - px, y - py) < 20) onProj(p.id);
       });
     }
   };
-
-  const voicePulse = visualState === 'LISTENING'
-    ? Math.max(0, Math.min(1, inputLevel))
-    : visualState === 'SPEAKING'
-      ? Math.max(0, Math.min(1, outputLevel))
-      : 0;
-  const pulseScale = 1.04 + voicePulse * 0.06;
-  const pulseGlow = 0.24 + voicePulse * 0.28;
 
   return (
     <div
       data-testid={testId}
       data-orb-state={state.toLowerCase()}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', position: 'relative' }}
     >
       <div
         ref={shellRef}
         className={`jarvis-blob1-shell jarvis-blob1-shell--${visualState.toLowerCase()}`}
         style={{
           position: 'relative',
-          // FREE FROM THE SQUARE: the nebula scales with the stage (vmin),
-          // not a fixed 280–340px box, and the voice vibration vars move the
-          // whole shell while the user talks.
-          width: `min(74vmin, ${Math.max(size, 340)}px)`,
-          height: 'auto',
-          aspectRatio: '1 / 1',
+          width: '100%',
+          height: size ? `${Math.max(size, 380)}px` : '420px',
+          maxWidth: '100%',
           overflow: 'visible',
           borderRadius: 0,
-          filter: 'drop-shadow(0 0 26px rgba(20,184,166,0.28))',
-          transform: 'translate(calc(var(--jarvis-vib-x, 0px) * 1px), calc(var(--jarvis-vib-y, 0px) * 1px)) rotate(calc(var(--jarvis-vib-rot, 0deg) * 1deg)) scale(var(--jarvis-vib-scale, 1))',
-          transition: 'transform 90ms linear',
+          background: 'transparent',
+          touchAction: 'none',
         }}
       >
-        <div aria-hidden="true" className="jarvis-blob1-universe" />
-        <img
-          className="jarvis-blob1-photo"
-          src={blob1ReferenceUrl}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center',
-            transform: `scale(${pulseScale})`,
-            filter: `saturate(${1.08 + voicePulse * 0.18}) contrast(${1.04 + voicePulse * 0.05}) brightness(${1 + voicePulse * 0.08}) hue-rotate(calc(var(--jarvis-voice, 0) * 24deg))`,
-            pointerEvents: 'none',
-            userSelect: 'none',
-            zIndex: 1,
-          }}
-        />
-        <div aria-hidden="true" className="jarvis-blob1-stars" />
-        <div aria-hidden="true" className="jarvis-blob1-aurora" />
-        <div aria-hidden="true" className="jarvis-blob1-beam" />
-        <div aria-hidden="true" className="jarvis-blob1-rim" />
         <canvas
           ref={canvasRef}
           data-testid={`${testId}-canvas`}
           onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
           style={{
             position: 'absolute',
             inset: 0,
             width: '100%',
             height: '100%',
-            opacity: 0.22 + voicePulse * 0.12,
-            mixBlendMode: 'screen',
             zIndex: 4,
-            filter: `drop-shadow(0 0 ${14 + voicePulse * 16}px rgba(94,234,212,${pulseGlow}))`,
-            transform: `scale(${1 + voicePulse * 0.025})`,
-            cursor: onNodeClick || onProjectClick ? 'pointer' : 'default',
+            background: 'transparent',
+            display: 'block',
+            cursor: onNodeClick || onProjectClick ? 'pointer' : 'grab',
+            touchAction: 'none',
           }}
           role="img"
           aria-label={`Jarvis neural core — state ${toBlobVisualState(state)}`}
@@ -999,7 +1162,7 @@ export function JarvisNeuralBlob({
       </div>
       <div
         data-testid={`${testId}-caption`}
-        style={{ textAlign: 'center', marginTop: 4, lineHeight: 1.35 }}
+        style={{ textAlign: 'center', marginTop: 4, lineHeight: 1.35, zIndex: 6 }}
         aria-label="Jarvis"
       >
         <div
@@ -1011,22 +1174,6 @@ export function JarvisNeuralBlob({
       </div>
     </div>
   );
-}
-
-function stableIndex(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) % LOCKED_PALETTE.length;
-}
-
-function hexToRgb(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return null;
-  const v = parseInt(m[1], 16);
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
 export { NODE_ROUTES, modelLabel };

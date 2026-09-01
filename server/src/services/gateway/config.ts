@@ -70,7 +70,7 @@ export function loadGatewayConfig(): GatewayConfig {
   providers.push({
     name: 'ollama',
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-    model: process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b',
+    model: process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'qwen2.5:7b',
     type: 'ollama',
     capabilities: ['supportsStreaming'],
     tags: ['local', 'cheap'],
@@ -93,9 +93,9 @@ export function loadGatewayConfig(): GatewayConfig {
     }
   }
 
-  // Load priorities
+  // Load priorities (Local Qwen First policy)
   const envOrder = process.env.GATEWAY_PROVIDER_ORDER;
-  let providerOrder = ['omniroot', 'openrouter', 'ninerouter', 'ollama'];
+  let providerOrder = ['ollama', 'openrouter', 'omniroot', 'ninerouter', 'DeepSeek'];
   if (envOrder) {
     providerOrder = envOrder.split(',').map(s => s.trim());
   }
@@ -106,7 +106,7 @@ export function loadGatewayConfig(): GatewayConfig {
   return {
     providers,
     providerOrder,
-    timeoutMs: parseInt(process.env.GATEWAY_TIMEOUT_PRIMARY || '30000', 10),
+    timeoutMs: parseInt(process.env.GATEWAY_TIMEOUT_PRIMARY || '120000', 10),
     workspaceRoot,
     logsPath,
 

@@ -63,7 +63,21 @@ export const JarvisWorkspaceBar: React.FC = () => {
 
   // Initial detection on mount (validates any pre-existing selection too).
   useEffect(() => {
-    detect(runSettings.folderTree || runSettings.workspacePath || undefined);
+    const initialPath = runSettings.folderTree || runSettings.workspacePath;
+    if (initialPath) {
+      detect(initialPath);
+    } else {
+      // No stored path — fetch the canonical server workspace root first
+      apiFetch('/api/workspace/current').then(r => r.ok ? r.json() : null).then(data => {
+        const serverRoot = data?.workspaceRoot || '';
+        if (serverRoot && data?.exists) {
+          setRunSettings(prev => ({ ...prev, folderTree: serverRoot, workspacePath: serverRoot }));
+          detect(serverRoot);
+        } else {
+          detect(undefined);
+        }
+      }).catch(() => detect(undefined));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -168,7 +182,9 @@ export const JarvisWorkspaceBar: React.FC = () => {
           style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-error)', fontWeight: 600 }}
         >
           <AlertTriangle size={14} />
-          {workspaceError ? `Select repository — ${workspaceError}` : 'Select repository — execution actions are disabled until a valid repository is chosen.'}
+          {workspaceError
+            ? `Select repository — ${workspaceError}`
+            : 'Select repository — execution actions are disabled until a valid repository is chosen.'}
         </span>
       )}
 

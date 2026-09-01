@@ -57,6 +57,9 @@ describe('useVoiceIO speak logic', () => {
     vi.stubGlobal('speechSynthesis', {
       cancel: vi.fn(),
       speak: speechSynthesisSpeakSpy,
+      // getVoices() must return at least one voice — without it the Electron guard
+      // (voices.length === 0) fires and re-arms conversation instead of calling speak().
+      getVoices: vi.fn().mockReturnValue([{ name: 'Mock Voice', lang: 'en-US' }]),
     });
   });
 
@@ -81,7 +84,7 @@ describe('useVoiceIO speak logic', () => {
     expect(speechSynthesisSpeakSpy).not.toHaveBeenCalled();
   });
 
-  it('calls fallback speechSynthesis.speak exactly once on fetch failure', async () => {
+  it('does NOT call fallback speechSynthesis.speak on fetch failure (prohibits robotic fallback)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 
     const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
@@ -91,7 +94,7 @@ describe('useVoiceIO speak logic', () => {
     });
 
     expect(playSpy).not.toHaveBeenCalled();
-    expect(speechSynthesisSpeakSpy).toHaveBeenCalledTimes(1);
+    expect(speechSynthesisSpeakSpy).not.toHaveBeenCalled();
   });
 
   it('performs no playback after AbortError', async () => {

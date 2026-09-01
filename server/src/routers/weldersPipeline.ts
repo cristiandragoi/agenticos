@@ -12,9 +12,11 @@ import { loopDefinitions, loopRuns } from '../services/loopEngine.js';
 import { runJobDiscovery, enrichLeads } from '../services/scraperService.js';
 import nodemailer from 'nodemailer';
 import type { LoopDefinition, LoopRun, StepStatus } from '../types.js';
+import os from 'node:os';
 
 const router = Router();
-const VAULT_BASE = 'C:\\Users\\Cris\\obsidian-vault';
+const VAULT_BASE = process.env.OBSIDIAN_VAULT_PATH || path.join(process.env.USERPROFILE || os.homedir(), 'obsidian-vault');
+
 const VAULT_PATH = path.join(VAULT_BASE, 'projects', 'welders-de-nl');
 const LOGS_PATH  = path.join(VAULT_BASE, 'logs', 'daily-briefings');
 const LOOP_ID    = 'loop-welders-pipeline';
@@ -126,7 +128,7 @@ async function runStageLeadEnrichment(loopRunId: string, ss: StepStatus[], loopR
     for (const comp of enriched) {
       let emailStr = comp.emails.length > 0 ? comp.emails[0].address : '*No email found*';
       if (comp.error) emailStr = `*Failed to scrape: ${comp.error}*`;
-      leadsMd += `## Lead – ${comp.companyName}\n- Country: ${comp.country || 'Unknown'}\n- Role: ${comp.role || 'Unknown'}\n- Website: ${comp.websiteUrl}\n- Job posting: ${comp.jobUrl || comp.websiteUrl}\n- Email: ${emailStr}\n- Phone: ${comp.phone || 'N/A'}\n- Address: ${comp.address || 'N/A'}\n- Notes: Found via Stage A.\n\n`;
+      leadsMd += `## Lead â€“ ${comp.companyName}\n- Country: ${comp.country || 'Unknown'}\n- Role: ${comp.role || 'Unknown'}\n- Website: ${comp.websiteUrl}\n- Job posting: ${comp.jobUrl || comp.websiteUrl}\n- Email: ${emailStr}\n- Phone: ${comp.phone || 'N/A'}\n- Address: ${comp.address || 'N/A'}\n- Notes: Found via Stage A.\n\n`;
     }
     writeVault('leads.md', leadsMd);
     writeVault('status.md', buildStatusMd('running', ss, loopRunId));
@@ -341,7 +343,7 @@ router.get('/leads', (req, res) => {
     if (!fs.existsSync(leadsPath)) return res.json([]);
     const content = fs.readFileSync(leadsPath, 'utf-8');
     
-    const leads = content.split('## Lead – ').slice(1).map(block => {
+    const leads = content.split('## Lead â€“ ').slice(1).map(block => {
       const lines = block.split('\n');
       const companyName = lines[0].trim();
       const extract = (key: string) => {
@@ -372,7 +374,7 @@ router.get('/leads.csv', (req, res) => {
     if (!fs.existsSync(leadsPath)) return res.status(404).send('No leads found.');
     const content = fs.readFileSync(leadsPath, 'utf-8');
     
-    const leads = content.split('## Lead – ').slice(1).map(block => {
+    const leads = content.split('## Lead â€“ ').slice(1).map(block => {
       const lines = block.split('\n');
       const companyName = lines[0].trim();
       const extract = (key: string) => {

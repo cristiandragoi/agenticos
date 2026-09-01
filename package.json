@@ -21,7 +21,7 @@
     "preview": "vite preview",
     "electron:build": "npm run build && electron-builder",
     "package": "node scripts/package.cjs",
-    "deploy:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$src='B:\\\\AgenticOS\\\\release\\\\win-unpacked'; $dst='C:\\\\Users\\\\Cris\\\\Desktop\\\\desktop\\\\Agentic_OS\\\\Agentic OS'; Write-Host 'Copying from' $src 'to' $dst; Copy-Item -Path \\\"$src\\\\*\\\" -Destination $dst -Recurse -Force; Write-Host 'Deploy complete. Run: Agentic OS.exe'\""
+    "deploy:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$src=Join-Path (Get-Location) 'release\\win-unpacked'; $dst=Join-Path $env:LOCALAPPDATA 'Programs\\AgenticOS'; Write-Host 'Copying from' $src 'to' $dst; Copy-Item -Path \\\"$src\\*\\\" -Destination $dst -Recurse -Force; Write-Host 'Deploy complete.'\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -38,7 +38,8 @@
     "react-router-dom": "^7.18.0",
     "react-virtuoso": "^4.18.11",
     "styled-components": "^6.4.4",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "playwright": "^1.61.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -58,7 +59,6 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
-    "playwright": "^1.61.1",
     "postcss": "^8.5.19",
     "tailwindcss": "^3.4.19",
     "ts-jest": "^29.4.12",
@@ -69,17 +69,27 @@
     "vitest": "^4.1.10"
   },
   "build": {
-    "appId": "com.agenticos.app",
-    "productName": "Agentic OS",
+    "appId": "com.agenticos.desktop",
+    "productName": "AgenticOS",
+    "compression": "normal",
     "win": {
-      "target": "dir",
-      "icon": "build/icons/agenticos.ico"
+      "target": [
+        "nsis",
+        "dir"
+      ],
+      "icon": "build/icons/agenticos.ico",
+      "executableName": "AgenticOS",
+      "sign": null
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": true,
-      "shortcutName": "Agentic OS"
+      "perMachine": false,
+      "shortcutName": "AgenticOS",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "uninstallDisplayName": "AgenticOS",
+      "artifactName": "AgenticOS-Setup-${version}.${ext}"
     },
     "directories": {
       "output": "release"
@@ -88,6 +98,8 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "build/icons/**/*",
+      "public/**/*",
       "agentos-config.json"
     ],
     "extraResources": [
@@ -106,6 +118,10 @@
       {
         "from": "server/drizzle",
         "to": "server/drizzle"
+      },
+      {
+        "from": "server/scripts",
+        "to": "server/scripts"
       }
     ]
   }

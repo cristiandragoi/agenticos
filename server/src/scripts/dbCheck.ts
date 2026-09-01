@@ -1,7 +1,10 @@
 import { logger } from '../utils/logger.js';
 import Database from 'better-sqlite3';
+import path from 'node:path';
+import os from 'node:os';
 
-const DB_PATH = 'C:/Users/Cris/.agentic-os/agentic-os.db';
+const DB_PATH = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'agenticos', 'data', 'agentic-os.db');
+
 const db = new Database(DB_PATH, { readonly: true });
 
 // List all tables

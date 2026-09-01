@@ -38,8 +38,8 @@ export interface BackendLifecycleState {
 const FALLBACK_STATE: BackendLifecycleState = {
   mode: 'UNKNOWN',
   status: 'starting',
-  backendUrl: typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:4000',
-  port: 4000,
+  backendUrl: typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:4600',
+  port: 4600,
   pid: null,
   owned: false,
   startedAt: null,
