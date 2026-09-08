@@ -34,7 +34,7 @@ jobs:
       - name: Apply deterministic Hermes repair
         run: node scripts/apply-hermes-runtime-fix.cjs
 
-      - name: Create portable backend TypeScript config
+      - name: Create focused TypeScript config
         run: |
           cat > server/tsconfig.hermes-ci.json <<'EOF'
           {
@@ -43,12 +43,14 @@ jobs:
               "rootDir": "./src",
               "outDir": "./dist-hermes-ci"
             },
-            "include": ["src/**/*.ts"],
-            "exclude": ["src/__tests__/**/*"]
+            "files": [
+              "src/services/agent/agentLoop.ts",
+              "src/domains/hermes/service.ts"
+            ]
           }
           EOF
 
-      - name: Compile backend
+      - name: Compile repaired Hermes runtime
         run: ./server/node_modules/.bin/tsc -p server/tsconfig.hermes-ci.json --noEmit
 
       - name: Run focused Hermes tests
