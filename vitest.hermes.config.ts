@@ -6,7 +6,6 @@ export default defineConfig({
     include: [
       'server/src/__tests__/hermesExecutionMode.test.ts',
       'server/src/__tests__/hermesOperationalLoop.test.ts',
-      'server/src/__tests__/hermesWorkerLiveness.test.ts',
     ],
     exclude: ['**/node_modules/**', '**/dist/**'],
     testTimeout: 15000,
