@@ -25,6 +25,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Install native test dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-0
+
       - name: Install root dependencies
         run: npm ci
 
@@ -32,7 +37,9 @@ jobs:
         run: npm ci --prefix server
 
       - name: Apply deterministic Hermes repair
-        run: node scripts/apply-hermes-runtime-fix.cjs
+        run: |
+          node scripts/apply-hermes-runtime-fix.cjs
+          node scripts/apply-hermes-path-fix.cjs
 
       - name: Create focused TypeScript config
         run: |
