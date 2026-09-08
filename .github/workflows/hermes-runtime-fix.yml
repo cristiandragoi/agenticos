@@ -49,7 +49,7 @@ jobs:
           EOF
 
       - name: Compile backend
-        run: npx tsc -p server/tsconfig.hermes-ci.json --noEmit
+        run: ./server/node_modules/.bin/tsc -p server/tsconfig.hermes-ci.json --noEmit
 
       - name: Run focused Hermes tests
         run: npx vitest run --config vitest.hermes.config.ts
