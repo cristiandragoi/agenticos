@@ -189,9 +189,6 @@ export class JarvisExecutionSupervisor extends EventEmitter {
       const active = backgroundTaskRepo.listTasks({ activeOnly: true });
       for (const t of active) {
         if (!this.activeTasks.has(t.taskId)) {
-          if (t.createdAt && new Date(t.createdAt).getTime() >= SERVER_BOOT_TIME - 2000) {
-            continue;
-          }
           const initialState: SupervisorState =
             t.status === 'waiting_approval' || t.approvalState === 'pending'
               ? 'WAITING_FOR_APPROVAL'

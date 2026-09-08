@@ -18,7 +18,8 @@ export type CapabilityId =
   | 'boards'
   | 'memory'
   | 'automations'
-  | 'revenue_pipeline';
+  | 'revenue_pipeline'
+  | 'revenue_operator';
 
 export type TaskWorkerKind = 'hermes' | 'codex' | 'magnitude' | 'research' | 'team' | 'automation' | 'revenue' | null;
 
@@ -197,6 +198,25 @@ export const CAPABILITY_REGISTRY: Capability[] = [
     route: '/kanban/b-sales',
     limitations: 'V1 discovery uses clearly-labelled sample fixtures or a user-provided URL; no automated outreach or publishing.',
   },
+  {
+    id: 'revenue_operator',
+    displayName: 'Revenue Operator',
+    aliases: ['revenue operator', 'the revenue operator', 'revenue workspace'],
+    responsibilities:
+      'Revenue Operator is the automated business operating engine that discovers market opportunities, executes digital product and German SME campaigns, coordinates browser tasks, and tracks validated revenue.',
+    supportedActions: [
+      'open Revenue Operator',
+      'start Revenue Operator',
+      'run bounded mission',
+      'inspect revenue opportunities and experiments',
+      'view compliance gates and ledger',
+    ],
+    statusSource: 'revenue-engine runs + e2e-mission-trace + revenue_missions table',
+    assignmentAgentId: null,
+    taskWorkerKind: 'revenue',
+    route: '/revenue-operator',
+    limitations: 'Live payments and public outreach require human gate approval.',
+  },
 ];
 
 export function getCapability(id: CapabilityId): Capability | undefined {
@@ -217,10 +237,9 @@ export function resolveCapability(text: string): Capability | undefined {
   let bestLen = 0;
   let bestPriority = -1;
   for (const cap of CAPABILITY_REGISTRY) {
-    // Priority: core workers (codex/hermes/magnitude/research/agent_teams) beat
-    // auxiliary capabilities (automations/boards/memory/revenue_pipeline)
+    // Priority: core workers beat auxiliary capabilities
     const isCoreWorker = ['codex', 'hermes', 'magnitude', 'research', 'agent_teams'].includes(cap.id);
-    const priority = isCoreWorker ? 3 : cap.id === 'revenue_pipeline' ? 1 : cap.id === 'automations' || cap.id === 'boards' || cap.id === 'memory' ? 1 : 0;
+    const priority = isCoreWorker ? 3 : cap.id === 'revenue_operator' ? 2 : cap.id === 'revenue_pipeline' ? 1 : cap.id === 'automations' || cap.id === 'boards' || cap.id === 'memory' ? 1 : 0;
     for (const alias of cap.aliases) {
       if (p.includes(alias) && (priority > bestPriority || (priority === bestPriority && alias.length > bestLen))) {
         best = cap;

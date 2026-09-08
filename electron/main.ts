@@ -344,13 +344,31 @@ function createWindow() {
       buildTimestamp: process.env['VITE_AGENTICOS_BUILD_TIMESTAMP'] || process.env['AGENTICOS_RENDERER_BUILD_TIMESTAMP'] || 'unknown'
     });
     win.loadURL(targetUrl);
-    win.webContents.openDevTools(); // Force DevTools in dev
+    if (process.env.AGENTICOS_OPEN_DEVTOOLS === '1' || process.env.AGENTICOS_OPEN_DEVTOOLS === 'true') {
+      win.webContents.openDevTools();
+    }
   } else {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'), { hash: '/mission-control' });
   }
+
+  // Manual DevTools shortcut support (F12 or Ctrl+Shift+I / Cmd+Option+I)
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const isF12 = input.key === 'F12';
+    const isDevToolsCombo = (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i';
+    if (isF12 || isDevToolsCombo) {
+      win?.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 }
 
 // Window control IPCs
+ipcMain.on('window-toggle-devtools', () => {
+  if (win && !win.isDestroyed()) {
+    win.webContents.toggleDevTools();
+  }
+});
 ipcMain.on('window-minimize', () => win?.minimize());
 ipcMain.on('window-maximize', () => {
   if (win?.isMaximized()) win?.unmaximize();
@@ -458,7 +476,15 @@ app.on('before-quit', (event) => {
   });
 });
 
-app.setName('AgenticOS');
+if (app.isPackaged) {
+  app.setName('AgenticOS');
+  app.setPath('userData', path.join(app.getPath('appData'), 'AgenticOS'));
+} else {
+  app.setName('AgenticOS-dev');
+  app.setPath('userData', path.join(app.getPath('appData'), 'AgenticOS-dev'));
+}
+
+logElectron(`userData initialized: ${app.getPath('userData')} (isPackaged=${app.isPackaged})`);
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -469,7 +495,7 @@ if (!gotTheLock) {
     logElectron('Second instance requested. Focusing or creating window.');
     if (win && !win.isDestroyed()) {
       if (win.isMinimized()) win.restore();
-      win.show();
+      if (!win.isVisible()) win.show();
       win.focus();
       win.moveTop();
     } else {

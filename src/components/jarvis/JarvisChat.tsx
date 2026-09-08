@@ -21,6 +21,7 @@ import { GatewayNotice } from '../gateway/GatewayNotice';
 import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
 import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
 import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
+import { ChatActionStatusCard } from './ChatActionStatusCard';
 
 import styles from '../../pages/JarvisStudio.module.css';
 
@@ -46,6 +47,8 @@ export const JARVIS_NAVIGATION_TARGETS = new Set<string>([
   '/automations',
   '/settings',
   '/projects',
+  '/revenue',
+  '/revenue-operator',
 ]);
 
 export interface JarvisChatProps {
@@ -57,6 +60,15 @@ export interface JarvisChatProps {
   onComposerTextChange?: (text: string) => void;
   /** When language changes or is reported by SSE frames. */
   onLanguageChange?: (language: string) => void;
+  /** Structured workspace context representing the active module/route/mission */
+  workspaceContext?: {
+    activeModule?: string;
+    activeRoute?: string;
+    selectedProject?: string;
+    selectedMission?: string;
+    selectedArtifact?: string;
+    moduleStateSummary?: string;
+  };
   /** When provided, the next message send will include this channel tag. */
   pendingInputChannel?: 'typed' | 'voice';
   /** Forwarded to the composer: real microphone capture state changes. */
@@ -90,6 +102,11 @@ export interface JarvisChatProps {
    * never reach the consumer. The navigation itself never touches task state.
    */
   onNavigate?: (target: string) => void;
+  /**
+   * Action runtime hook: fires when the backend emits a structured `action_record`
+   * event (e.g. OPEN_ENTITY, OPEN_MODULE, SHOW_ACTIVITY).
+   */
+  onActionRecord?: (record: any) => void;
   /**
    * Canonical-voice integration: when true the composer's OWN microphone
    * button is hidden — the page-level useVoiceIO engine is the single mic
@@ -241,10 +258,12 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   onAssistantResponse,
   onStreamDelta,
   onNavigate,
+  onActionRecord,
   onResponseSettled,
   hideComposerMic,
   transcriptVariant = 'chat',
   hideComposer = false,
+  workspaceContext,
 }, ref) => {
   const { runSettings } = useCodexStore();
   const [messages, setMessages] = useState<any[]>([]);
@@ -328,6 +347,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   // the same navigation event is never forwarded twice (the stream loop can
   // flush the same SSE frame list in two passes).
   const firedNavigationRef = useRef<Set<string>>(new Set());
+  const failedActionIdsRef = useRef<Set<string>>(new Set());
   // ── TTS trigger bookkeeping ─────────────────────────────────────────────
   // Input channel of the in-flight request ('voice' → reply may be spoken).
   const pendingChannelRef = useRef<'typed' | 'voice'>('typed');
@@ -593,7 +613,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       const nextMessage = {
         id,
         role: 'system',
-        messageType: eventName === 'plan' ? 'plan' : eventName === 'approval_required' ? 'approval_request' : 'system_status',
+        messageType: eventName === 'action_status' ? 'action_status' : eventName === 'plan' ? 'plan' : eventName === 'approval_required' ? 'approval_request' : 'system_status',
         content,
         createdAt: new Date().toISOString(),
         metadata: { operationId, eventName, ...metadata }
@@ -651,6 +671,10 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       body.workspacePath = runSettings.workspacePath;
       body.repositoryPath = runSettings.workspacePath;
       body.approvalPolicy = runSettings.approvalPolicy;
+    }
+
+    if (workspaceContext) {
+      (body as any).workspaceContext = workspaceContext;
     }
 
     return body;
@@ -974,7 +998,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     }
   };
 
-  const handleStreamEvents = async (events: Array<{ event: string; data: string }>, operationId: string, sawTextChunk: boolean) => {
+  const handleStreamEvents = async (events: Array<{ event: string; data: string }>, operationId: string, sawTextChunk: boolean): Promise<boolean> => {
     let nextSawTextChunk = sawTextChunk;
     for (const event of events) {
       // Hard turn invalidation: a cancelled stream must never process the
@@ -1002,22 +1026,80 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         emitStatus({ state: 'delegating' });
         appendOperationalEvent(operationId, 'agent_selected', `Selected agent: ${data.agent}${data.reason ? ` - ${data.reason}` : ''}`, data);
       } else if (event.event === 'navigation') {
-        // Only forward supported internal targets; reject everything else so a
-        // backend event can never navigate somewhere unexpected. Navigation is
-        // a pure UI action — it never touches background-task state. The
-        // exactly-once guard prevents a duplicate forward when the stream
-        // loop processes the same frame list twice.
         const target = typeof data.target === 'string' ? data.target : '';
-        if (JARVIS_NAVIGATION_TARGETS.has(target)) {
-          const navKey = `${operationId}:${target}`;
-          if (!firedNavigationRef.current.has(navKey)) {
-            firedNavigationRef.current.add(navKey);
-            appendOperationalEvent(operationId, 'navigation', `Opening ${target}`, data);
-            onNavigate?.(target);
+        const targetPath = target.split('?')[0];
+        try {
+          if (target === 'GO_BACK') {
+            window.history.back();
+            appendOperationalEvent(operationId, 'navigation', 'Navigating back', data);
+          } else if (JARVIS_NAVIGATION_TARGETS.has(target) || JARVIS_NAVIGATION_TARGETS.has(targetPath)) {
+            if ((window as any).__SIMULATE_NAVIGATION_FAILURE__) {
+              throw new Error('Controlled test: Navigation dispatch failed: Router could not activate target entity view in Revenue Operator');
+            }
+            const navKey = `${operationId}:${target}`;
+            if (!firedNavigationRef.current.has(navKey)) {
+              firedNavigationRef.current.add(navKey);
+              appendOperationalEvent(operationId, 'navigation', `Opening ${target}`, data);
+              onNavigate?.(target);
+            }
+          } else {
+            throw new Error(`Navigation rejected: unsupported target "${target || data.capability || 'unknown'}"`);
           }
-        } else {
-          appendOperationalEvent(operationId, 'navigation', `Navigation rejected: unsupported target "${target || data.capability || 'unknown'}"`, data);
+        } catch (navErr: any) {
+          console.error('[JarvisChat] Navigation execution failed:', navErr);
+          const actionId = data.actionId || `action-${Date.now()}`;
+          failedActionIdsRef.current.add(actionId);
+          const failedRecord = {
+            id: actionId,
+            ownerAgent: 'jarvis',
+            command: data.command || 'Open entity',
+            actionType: 'OPEN_ENTITY',
+            entityType: data.entityType,
+            entityId: data.entityId,
+            displayName: data.displayName,
+            destination: target,
+            status: 'failed',
+            errorCode: 'NAVIGATION_FAILED',
+            error: navErr.message || 'Navigation dispatch failed',
+            startedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            evidence: [
+              { type: 'navigation_error', detail: navErr.message || 'Navigation dispatch failed', timestamp: new Date().toISOString() }
+            ]
+          };
+          onActionRecord?.(failedRecord);
+          if (data.actionId) {
+            fetch(`${API_BASE}/jarvis/actions/${data.actionId}/status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'failed',
+                errorCode: 'NAVIGATION_FAILED',
+                error: navErr.message || 'Navigation dispatch failed'
+              })
+            }).catch(() => {});
+          }
+          emitStatus({ state: 'error', error: navErr.message || 'Navigation failed.' });
+          appendOperationalEvent(operationId, 'navigation', `Navigation failed: ${navErr.message || 'Dispatch error'}`, data);
         }
+      } else if (event.event === 'action_record') {
+        if (data.id && failedActionIdsRef.current.has(data.id)) {
+          return nextSawTextChunk;
+        }
+        onActionRecord?.(data);
+        appendOperationalEvent(operationId, 'action_record', `Action ${data.actionType || 'Action'} (${data.status || 'running'}): ${data.displayName || data.command || ''}`, data);
+      } else if (event.event === 'action_status') {
+        if ((data.actionId && failedActionIdsRef.current.has(data.actionId)) || (data.executionId && failedActionIdsRef.current.has(data.executionId))) {
+          return nextSawTextChunk;
+        }
+        const statusState = data.status === 'completed' ? 'completed' : data.status === 'failed' ? 'error' : 'executing';
+        emitStatus({ state: statusState });
+        appendOperationalEvent(
+          operationId,
+          'action_status',
+          `${data.actionName || 'Action'}: ${data.status} - ${data.currentStep || data.error || ''}`,
+          { actionStatus: data }
+        );
       } else if (event.event === 'approval_required') {
         emitStatus({ state: 'approval_required' });
         appendOperationalEvent(
@@ -1242,6 +1324,18 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
             return 'SYSTEM';
           })();
           const color = ({ YOU: '#7dd3fc', JARVIS: '#e2e8f0', HERMES: '#fb923c', CODEX: '#4ade80', REVIEWER: '#c084fc', SYSTEM: '#64748b' } as Record<string, string>)[label] || '#94a3b8';
+          if (msg.messageType === 'action_status' || msg.metadata?.actionStatus) {
+            return (
+              <div key={msg.id} data-testid="jarvis-command-action-status" style={{ padding: '4px 2px', borderBottom: '1px solid rgba(30,41,59,0.4)' }}>
+                <ChatActionStatusCard data={msg.metadata?.actionStatus || {
+                  actionName: 'Action Execution',
+                  targetCapability: 'system',
+                  status: 'running',
+                  currentStep: msg.content
+                }} />
+              </div>
+            );
+          }
           return (
             <div key={msg.id} data-testid="jarvis-command-line" style={{ display: 'flex', gap: 10, padding: '5px 2px', borderBottom: '1px solid rgba(30,41,59,0.4)', fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace", fontSize: 12, lineHeight: 1.55 }}>
               <span style={{ color, flexShrink: 0, width: 78, letterSpacing: 1, fontWeight: 700 }}>{label}</span>
@@ -1335,7 +1429,16 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
                   </div>
                 )}
 
-                {isSystem && !['routing_event', 'error', 'system_status', 'plan', 'approval_request', 'team_preview', 'team_execution'].includes(msg.messageType || '') && (
+                {((isSystem && msg.messageType === 'action_status') || msg.metadata?.actionStatus) && (
+                  <ChatActionStatusCard data={msg.metadata?.actionStatus || {
+                    actionName: 'Action Execution',
+                    targetCapability: 'system',
+                    status: 'running',
+                    currentStep: msg.content
+                  }} />
+                )}
+
+                {isSystem && !['routing_event', 'error', 'system_status', 'plan', 'approval_request', 'team_preview', 'team_execution', 'action_status'].includes(msg.messageType || '') && (
                   <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                     {renderMessageContent(msg.content)}
                   </div>

@@ -61,8 +61,22 @@ const FUTURE_PROMISE_PATTERNS = [
 
 
 const CANNED_SUFFIX_PATTERNS = [
-  /\s*(?:How can I assist you further(?:, operator)?\??|How can I help you further\??|Let me know what specific task or question you'd like to work on\.?|Is there anything else I can assist you with\??)\s*$/i,
-  /\s*(?:How can I assist you today, operator\??|How can I help you today\??)\s*$/i,
+  /\s*(?:How can I assist you further(?:,?\s*operator)?\??|How can I help you further\??|Let me know what specific task or question you'd like to work on\.?|Is there anything else I can assist you with\??)\s*$/i,
+  /\s*(?:How can I assist you today(?:,?\s*operator)?\??|How can I help you today\??)\s*$/i,
+  // Strip the specific "I'm here and ready" suffix when appended after a real reply
+  /\s*I'?m here and ready\.?\s*(?:How can I (?:assist|help) you\s*(?:today|further)?\??)?\s*$/i,
+];
+
+/**
+ * Phrases that, when they compose the ENTIRE reply, indicate the model produced
+ * pure assistant-greeting filler instead of an operational response.
+ * Replaceable with a concise operational fallback.
+ */
+const BARE_FILLER_PATTERNS = [
+  /^i'?m here and ready\.?\s*(?:how can i (?:assist|help) you\s*(?:today|further)?\??)?$/i,
+  /^hey[!.]?\s*i'?m here\.?\s*(?:what can i do for you\??)?$/i,
+  /^how can i (?:assist|help) you today\??$/i,
+  /^i am ready and listening\.?\s*(?:how can i help you today\??)?$/i,
 ];
 
 export function isRepositorySpecificQuery(prompt: string): boolean {
@@ -113,6 +127,12 @@ export function stripCannedSuffixes(text: string): string {
   return cleaned;
 }
 
+export function containsBareFiller(reply: string): boolean {
+  if (!reply || typeof reply !== 'string') return false;
+  const t = reply.trim();
+  return BARE_FILLER_PATTERNS.some((p) => p.test(t));
+}
+
 /**
  * Sanitizes a direct-chat response against ungrounded hallucination, repetition,
  * false action completion claims, or model identity cross-contamination.
@@ -138,6 +158,15 @@ export function sanitizeDirectResponse(
   const isCorr = options.isCorrection || isConversationalCorrection(prompt);
   const isAction = options.isAction ?? isActionRequest(prompt);
   const hasExecEvidence = options.hasExecutionEvidence ?? false;
+
+  // 0. Bare filler guard (FIX 4 — JARVIS-LIVE-RUNTIME-FIX-003):
+  // If the ENTIRE reply is a canned greeting/filler phrase, replace it with a
+  // concise operational acknowledgement. This prevents the model from emitting
+  // "I'm here and ready. How can I assist you today?" in response to garbled
+  // or unclear transcripts.
+  if (containsBareFiller(sanitized)) {
+    return "I didn't catch that — what would you like to do?";
+  }
 
   // 1. Model Identity Query: model statement only. Strip any trailing hallucinated lists.
   if (isModel) {

@@ -653,7 +653,10 @@ export class JarvisOrchestrator {
         goalId: goal.id,
       });
 
-      // 3. Wait for the canonical execution run to finish
+      // Hermes owns its long-running execution. Return the acknowledgement
+      // immediately so the transport is not held open while tools/model work.
+      void (async () => {
+      // 3. Wait for the canonical execution run to finish in the background
       let completedRun = executionRunService.getRun(run.id);
       const startPoll = Date.now();
       while (completedRun && (completedRun.status === 'running' || completedRun.status === 'queued') && (Date.now() - startPoll < 90000)) {
@@ -784,6 +787,17 @@ export class JarvisOrchestrator {
         resultId: result?.id,
         verificationId: verificationRecord?.id,
         verdict,
+        operationId,
+      };
+      })();
+
+      return {
+        route: 'hermes',
+        status: 'running',
+        goalId: goal.id,
+        taskId: task.id,
+        runId: run.id,
+        hermesRunId,
         operationId,
       };
     } catch (err: any) {

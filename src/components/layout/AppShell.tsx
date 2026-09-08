@@ -11,6 +11,8 @@ import { useData } from '../../store/dataStore';
 import { useCodexStore } from '../../store/codexStore';
 import { useBackendLifecycle } from '../../diagnostics/useBackendLifecycle';
 import { backendLifecycleStore } from '../../diagnostics/backendLifecycleStore';
+import { JarvisRuntimeProvider } from '../../context/JarvisRuntimeContext';
+import { PersistentJarvisDock } from '../jarvis/PersistentJarvisDock';
 
 const AppShell: React.FC = () => {
   const { isOpen: commandPaletteOpen, toggle: toggleCommandPalette } = useCommandPalette();
@@ -144,42 +146,37 @@ const AppShell: React.FC = () => {
   // command-center composition stays dominant (visual replacement cycle +
   // navigation restoration cycle).
   const jarvisFullscreen = location.pathname === '/jarvis';
-  if (jarvisFullscreen) {
-    return (
+  return (
+    <JarvisRuntimeProvider>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
         <CustomTitlebar />
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          <LeftRail />
-          <div className="route-viewport route-viewport--fullscreen" style={{ flex: 1, minWidth: 0, height: '100%' }} key={location.pathname}>
-            <Outlet />
+        {jarvisFullscreen ? (
+          <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+            <LeftRail />
+            <div className="route-viewport route-viewport--fullscreen" style={{ flex: 1, minWidth: 0, height: '100%' }} key={location.pathname}>
+              <Outlet />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="app-shell" style={{ flex: 1, minHeight: 0, height: 'auto', display: 'flex' }}>
+            <LeftRail />
+            <div className="main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <TopContextBar />
+              <div
+                className={`route-viewport${(location.pathname === '/hermes-studio' || location.pathname === '/codex') ? ' route-viewport--fullscreen' : ''}`}
+                key={location.pathname}
+                style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+              >
+                <Outlet />
+              </div>
+            </div>
+            <PersistentJarvisDock />
+            {location.pathname !== '/jarvis' && <InspectorDrawer />}
+          </div>
+        )}
         {commandPaletteOpen && <CommandPalette />}
       </div>
-    );
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      <CustomTitlebar />
-      <div className="app-shell" style={{ flex: 1, minHeight: 0, height: 'auto' }}>
-        <LeftRail />
-
-        <div className="main-column">
-          <TopContextBar />
-
-          <div
-            className={`route-viewport${(location.pathname === '/hermes-studio' || location.pathname === '/jarvis' || location.pathname === '/codex') ? ' route-viewport--fullscreen' : ''}`}
-            key={location.pathname}
-          >
-            <Outlet />
-          </div>
-        </div>
-
-        {!hideGlobalChatDock && <UniversalChatDock />}
-        {location.pathname !== '/jarvis' && <InspectorDrawer />}
-        {commandPaletteOpen && <CommandPalette />}
-      </div>
-    </div>
+    </JarvisRuntimeProvider>
   );
 };
 

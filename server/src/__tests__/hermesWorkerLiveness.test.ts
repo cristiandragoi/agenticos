@@ -239,10 +239,11 @@ describe('Hermes Worker Liveness, Model Truth, and Stall Lifecycle', () => {
     expect(supervised.state).toBe('COMPLETED');
   });
 
-  it('5. model truth is preserved truthfully (provider: ollama-cloud, model: gpt-oss:20b)', () => {
+  it('5. model truth is preserved truthfully from the active Hermes configuration', () => {
     const truth = resolveHermesModelTruth();
-    expect(truth.provider || 'ollama-cloud').toBe('ollama-cloud');
-    expect(truth.model || 'gpt-oss:20b').toContain('gpt-oss');
+    expect(truth.provider).toBeTruthy();
+    expect(truth.model).toBeTruthy();
+    expect(truth.baseUrl).toMatch(/^https?:\/\//);
   });
 
   it('6. executionState carries actual provider and model on Hermes delegation', async () => {

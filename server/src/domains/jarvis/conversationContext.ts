@@ -11,6 +11,18 @@ import { AgentProviderAssignmentService } from '../../services/agent/assignments
 import { getConversationLanguage, LANGUAGE_CONFIGS, SupportedLanguage } from './conversationLanguage.js';
 import { getCanonicalTaskSnapshot, CanonicalTaskSummary } from '../../services/backgroundTasks/canonicalSnapshot.js';
 
+export interface WorkspaceContext {
+  activeModule?: string;
+  activeRoute?: string;
+  selectedProject?: string;
+  selectedMission?: string;
+  selectedArtifact?: string;
+  moduleStateSummary?: string;
+  activeEntityId?: string | null;
+  activeEntityType?: string | null;
+  availableLocalEntities?: any[];
+}
+
 export interface ConversationContext {
   conversationId: string;
   currentPrompt: string;
@@ -30,6 +42,7 @@ export interface ConversationContext {
   activeProject: { id: string; name: string; description?: string | null } | null;
   injectedMemoryContext?: string;
   injectedMemoryIds: string[];
+  workspaceContext?: WorkspaceContext;
 }
 
 const CLARIFICATION_PATTERN =
@@ -38,7 +51,7 @@ const CLARIFICATION_PATTERN =
 export async function assembleConversationContext(
   conversationId: string,
   currentPrompt: string,
-  options: { approvalMode?: 'manual' | 'auto'; language?: SupportedLanguage } = {}
+  options: { approvalMode?: 'manual' | 'auto'; language?: SupportedLanguage; workspaceContext?: WorkspaceContext } = {}
 ): Promise<ConversationContext> {
   const language = options.language || getConversationLanguage(conversationId);
 
@@ -58,6 +71,7 @@ export async function assembleConversationContext(
     approvalMode: options.approvalMode || 'manual',
     activeProject: null,
     injectedMemoryIds: [],
+    workspaceContext: options.workspaceContext,
   };
 
   // 1. Recent turns (bounded window, newest first)
@@ -217,6 +231,14 @@ export function contextToSystemPrompt(
     lines.push(`Active project: ${ctx.activeProject.name}`);
   }
 
+  if (ctx.workspaceContext?.activeModule) {
+    lines.push(`Active workspace module: ${ctx.workspaceContext.activeModule} (route: ${ctx.workspaceContext.activeRoute || 'unknown'})`);
+    if (ctx.workspaceContext.selectedMission) lines.push(`Active mission: ${ctx.workspaceContext.selectedMission}`);
+    if (ctx.workspaceContext.selectedProject) lines.push(`Active project in view: ${ctx.workspaceContext.selectedProject}`);
+    if (ctx.workspaceContext.selectedArtifact) lines.push(`Active artifact: ${ctx.workspaceContext.selectedArtifact}`);
+    if (ctx.workspaceContext.moduleStateSummary) lines.push(`Workspace module state: ${ctx.workspaceContext.moduleStateSummary}`);
+  }
+
   if (ctx.previousWasClarification) {
     lines.push(
       'Note: your previous reply asked the user to clarify. If this message supplies additional information, reinterpret the combined context instead of asking again.'
@@ -229,6 +251,7 @@ export function contextToSystemPrompt(
 /** Short structured hints for intent routing (deictic / continuation resolution). */
 export function contextToRouterHint(ctx: ConversationContext): string {
   const parts: string[] = [];
+  if (ctx.workspaceContext?.activeModule) parts.push(`active-module: ${ctx.workspaceContext.activeModule}`);
   if (ctx.previousUserMessage) parts.push(`prev-user: ${ctx.previousUserMessage}`);
   if (ctx.previousAssistantMessage) {
     // Strip diagnostics blocks from router hint so they don't corrupt next turn's intent

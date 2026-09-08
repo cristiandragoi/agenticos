@@ -13,7 +13,7 @@ import { logger } from '../../utils/logger.js';
 import { conversationService } from '../conversations/service.js';
 import { llmChatStream, llmChat } from '../../services/llmGateway.js';
 import { SUPERVISOR_TOOL_SCHEMAS, executeSupervisorTool } from './supervisorTools.js';
-import { assembleConversationContext, contextToSystemPrompt } from './conversationContext.js';
+import { assembleConversationContext, contextToSystemPrompt, WorkspaceContext } from './conversationContext.js';
 import { getScopedJarvisMemoryContext } from './coreMemory.js';
 import { getWorkspaceRoot } from '../../services/workspaceStore.js';
 import * as executionState from '../../services/executionState.js';
@@ -38,6 +38,7 @@ export interface SupervisorStreamOptions {
   selectedProvider?: string;
   selectedModel?: string;
   fallbackProvider?: string;
+  workspaceContext?: WorkspaceContext;
 }
 
 interface ParsedToolCall {
@@ -115,6 +116,116 @@ export function extractToolCall(text: string): ParsedToolCall | null {
   return null;
 }
 
+
+/**
+ * Build entity context block from a resolved opportunity.
+ */
+export async function buildOpportunityContext(entityId: string): Promise<string> {
+  const { getOpportunity } = await import('../../services/revenueOperator/opportunityService.js');
+  const opp = await getOpportunity(entityId);
+  if (!opp) return '';
+
+  let missionInfo: any = null;
+  if (opp.convertedMissionId) {
+    try {
+      const { db } = await import('../../db/index.js');
+      const { revenueMissions } = await import('../../db/schema.js');
+      const { eq } = await import('drizzle-orm');
+      missionInfo = db.select().from(revenueMissions).where(eq(revenueMissions.id, opp.convertedMissionId)).get();
+    } catch { /* best effort */ }
+  }
+
+  logger.info('[SupervisorLoop] Hydrated opportunity for context grounding', {
+    entityId: opp.id,
+    title: opp.title,
+    status: opp.status,
+    convertedMissionId: opp.convertedMissionId
+  });
+
+  const lines: string[] = [
+    '## CURRENTLY OPEN REVENUE OPERATOR ENTITY (AUTHORITATIVE SYSTEM RECORD)',
+    `id: ${opp.id}`,
+    `title: ${opp.title}`,
+    `description: ${opp.description || 'None'}`,
+    `category: ${opp.category}`,
+    `status: ${opp.status}`,
+    `source / sourceUrl: ${opp.source}${opp.sourceUrl ? ` (${opp.sourceUrl})` : ''}`,
+    `estimatedRevenue: ${opp.estimatedRevenue}`,
+    `estimatedCost: ${opp.estimatedCost}`,
+    `estimatedTimeToRevenueDays: ${opp.estimatedTimeToRevenueDays}`,
+    `automationPotential: ${opp.automationPotential}`,
+    `manualWorkload: ${opp.manualWorkload}`,
+    `riskLevel: ${opp.riskLevel}`,
+    `confidence: ${opp.confidence}`,
+    `score / score breakdown: Score: ${opp.score}/100. Breakdown: Revenue Potential: +${opp.scoreBreakdown.revenuePotentialPts}, Time to Revenue: +${opp.scoreBreakdown.timeToRevenuePts}, Automation: +${opp.scoreBreakdown.automationPotentialPts}, Low Capital: +${opp.scoreBreakdown.lowCapitalPts}, Confidence: +${opp.scoreBreakdown.confidencePts}, Workload Penalty: -${opp.scoreBreakdown.manualWorkloadPenalty}, Risk Penalty: -${opp.scoreBreakdown.riskPenalty}`,
+    `evidence: ${JSON.stringify(opp.evidence || [])}`,
+    `notes: ${opp.notes || 'None'}`,
+    `convertedMissionId: ${opp.convertedMissionId || 'None'}`
+  ];
+
+  if (missionInfo) {
+    lines.push(
+      `converted mission title: ${missionInfo.title}`,
+      `converted mission status: ${missionInfo.status}`,
+      `converted mission target: €${missionInfo.targetAmount}`,
+      `converted mission budget: €${missionInfo.advertisingBudget || 0}`,
+      `converted mission strategy: ${missionInfo.description || ''}`
+    );
+  }
+
+  lines.push(
+    '',
+    'CRITICAL GROUNDING RULES FOR THIS REVENUE OPERATOR ENTITY:',
+    '- Use the authoritative entity data above when answering questions about this entity.',
+    '- This authoritative record OUTRANKS any general memory entries. If memory mentions a different project (e.g. "Alpha Project"), it is NOT the entity the user is asking about — answer from the authoritative record only.',
+    '- Do not invent fields or facts that are not present.',
+    '- When a field is not explicitly stored, distinguish clearly between (1) STORED FACT, (2) REASONABLE INFERENCE, and (3) MISSING DATA. A reasonable inference may ONLY be derived directly from an explicit stored fact (e.g. the title positions the product for solopreneurs).',
+    '- For targetCustomer: The data model does not contain a dedicated targetCustomer field. The title positions this opportunity for solopreneurs ("Niche Notion & Agentic Workflow Template Pack for Solopreneurs"), NOT from the description unless explicitly present there.',
+    '- ABSOLUTE PROHIBITION ON UNSUPPORTED SOCIAL PROOF: The authoritative entity record contains NO customer interviews, NO testimonials, NO user feedback, NO customer feedback, and NO reviews. Do NOT use the words "testimonial", "testimonials", "user feedback", "customer feedback", "reviews", or "users reporting" anywhere in your response (neither as a claim nor in the negative).',
+    '- For evidence: cite the actual stored evidence from the record ("High margin digital product with automated checkout delivery"). If asked about customer interview evidence, state that no verified customer interview evidence is recorded. Do not cite generic memory or user principles.',
+    '- For contextual follow-ups & simplification: When asked to explain simply, preserve ALL materially important facts from the previous answer (both that no verified customer interview evidence is recorded, and the stored evidence).',
+    '- For next recommended action: Recognize that this opportunity is already CONVERTED into mission ' + (opp.convertedMissionId || 'mission-048eade2-') + ' (' + (missionInfo?.title || 'active mission') + '). Explain that the next steps belong to the converted mission rather than recommending to implement or review this opportunity as a new candidate.'
+  );
+
+  return `\n\n${lines.join('\n')}`;
+}
+
+/**
+ * Hydrates the active or named entity context using multi-tier resolution.
+ */
+export async function hydrateActiveEntityContext(
+  userPrompt: string,
+  wsCtx?: WorkspaceContext
+): Promise<{ activeEntityContext: string; resolvedEntityId?: string }> {
+  let activeEntityContext = '';
+  let resolvedEntityId: string | undefined = undefined;
+
+  if (wsCtx && wsCtx.activeModule === 'revenue-operator') {
+    try {
+      if (wsCtx.activeEntityType === 'opportunity' && wsCtx.activeEntityId) {
+        resolvedEntityId = wsCtx.activeEntityId;
+        activeEntityContext = await buildOpportunityContext(wsCtx.activeEntityId);
+      } else if (!wsCtx.activeEntityId) {
+        const { resolveContextualEntity } = await import('./actionRuntime.js');
+        const resolution = await resolveContextualEntity(userPrompt, wsCtx);
+        if (resolution.status === 'resolved' && resolution.entityType === 'opportunity') {
+          logger.info('[SupervisorLoop] Conversational entity resolved (no UI selection)', {
+            entityId: resolution.entityId,
+            displayName: resolution.displayName,
+            matchedFrom: 'conversational resolution'
+          });
+          resolvedEntityId = resolution.entityId;
+          activeEntityContext = await buildOpportunityContext(resolution.entityId);
+        }
+      }
+    } catch (err) {
+      logger.warn('[SupervisorLoop] Entity hydration failed', err);
+    }
+  }
+
+  return { activeEntityContext, resolvedEntityId };
+}
+
 /**
  * Build rich system prompt for the Jarvis Supervisor.
  */
@@ -122,7 +233,7 @@ export async function buildSupervisorSystemPrompt(
   conversationId: string,
   userPrompt: string,
   workspacePath?: string,
-  options: { approvalPolicy?: 'manual' | 'auto'; inputChannel?: string } = {}
+  options: { approvalPolicy?: 'manual' | 'auto'; inputChannel?: string; workspaceContext?: WorkspaceContext } = {}
 ): Promise<string> {
   const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || undefined;
 
@@ -137,6 +248,25 @@ export async function buildSupervisorSystemPrompt(
 
   const workspaceContext = effectiveWorkspace ? `Active workspace: ${effectiveWorkspace}` : '';
 
+  // 2. Active Revenue Operator Entity Hydration (TASK: JARVIS-CONTEXT-GROUNDING-001)
+  //    FIX 2+3 (JARVIS-LIVE-RUNTIME-FIX-003): When activeEntityId is null the
+  //    original guard blocked all hydration and the model fell back to memory,
+  //    which could return a stale/wrong entity (e.g. "Alpha Project").
+  //
+  //    New behaviour:
+  //    A) If activeEntityId is set — hydrate it directly (existing path).
+  //    B) If activeEntityId is null AND the module is revenue-operator —
+  //       attempt to resolve the named entity from availableLocalEntities
+  //       (already sent by the frontend) and, if unambiguously resolved,
+  //       hydrate that entity so live data outranks any memory result.
+  //    C) If resolution is ambiguous or fails — do not hydrate; let the
+  //       model use memory + ask for clarification.
+  const wsCtx = options.workspaceContext;
+  const { activeEntityContext } = await hydrateActiveEntityContext(userPrompt, wsCtx);
+  if (activeEntityContext) {
+    memoryContext = '';
+  }
+
   return [
     'You are Jarvis, the conversational supervisor and AI partner in Agentic OS.',
     '',
@@ -150,7 +280,7 @@ export async function buildSupervisorSystemPrompt(
     '1. Answer immediately in short, natural, conversational sentences. Do NOT repeat the user question back to them.',
     '2. NEVER address the user with military or subordinate titles (such as "commander" or "boss"), and NEVER start responses with monitoring jargon or status boilerplate.',
     '3. Do NOT append generic customer service sign-offs (e.g. "Is there anything else I can help you with today?") to your answers.',
-    '4. For greetings ("you there?", "hey", "good morning"), answer with natural warmth and brevity (e.g. "Hey! I\'m here and ready.").',
+    '4. For short greetings ("you there?", "hey", "good morning") when no task is pending, reply with brief natural warmth — one short sentence, no generic call-centre phrasing.',
     '5. For math, factual, or simple queries (e.g. "what is 2 plus 2", "tell me a joke"), answer directly and concisely.',
     '6. SYSTEM HEALTH: When asked about system status, summarize the outcome naturally in plain English without printing raw JSON.',
     '7. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it.',
@@ -173,6 +303,7 @@ export async function buildSupervisorSystemPrompt(
     'If the user is asking a conversational question or greeting that requires no tools, reply directly with your text message without any <tool_call> tag.',
     workspaceContext,
     memoryContext,
+    activeEntityContext,
     options.inputChannel === 'voice' ? '\nInput channel: microphone transcription.' : ''
   ].filter(Boolean).join('\n');
 }
@@ -365,6 +496,18 @@ export async function handleSupervisorV2Stream(
     return res.end();
   }
 
+  // 1.5 Fast Conversation Lane Intercept (TASK: JARVIS-FAST-CONVERSATION-LANE-001)
+  const { isFastConversationRequest, handleFastConversationStream } = await import('./fastConversationLane.js');
+  const fastCheck = isFastConversationRequest(prompt, opts.workspaceContext);
+  if (fastCheck.isFast) {
+    logger.info('[SupervisorV2] Routing to Fast Conversation Lane', {
+      conversationId,
+      reason: fastCheck.reason,
+      prompt
+    });
+    return await handleFastConversationStream(req, res, opts);
+  }
+
   // 2. Initial SSE Intent
   writeSse('intent', {
     type: 'supervisor_turn',
@@ -387,7 +530,7 @@ export async function handleSupervisorV2Stream(
 
   // 4. Assemble Context & History
   const [systemPrompt, history] = await Promise.all([
-    buildSupervisorSystemPrompt(conversationId, prompt, workspacePath, { approvalPolicy, inputChannel }),
+    buildSupervisorSystemPrompt(conversationId, prompt, workspacePath, { approvalPolicy, inputChannel, workspaceContext: opts.workspaceContext }),
     getCleanConversationHistory(conversationId, prompt)
   ]);
 

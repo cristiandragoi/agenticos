@@ -553,9 +553,25 @@ router.post('/conversations/:id/message', async (req, res) => {
   }
 });
 
+router.get('/actions/latest', async (req, res) => {
+  const { getLatestAction } = await import('../domains/jarvis/actionRuntime.js');
+  res.json({ action: getLatestAction() });
+});
+
+router.get('/actions/history', async (req, res) => {
+  const { getActionHistory } = await import('../domains/jarvis/actionRuntime.js');
+  res.json({ actions: getActionHistory() });
+});
+
+router.post('/actions/:id/status', async (req, res) => {
+  const { updateActionRecord } = await import('../domains/jarvis/actionRuntime.js');
+  const updated = updateActionRecord(req.params.id, req.body || {});
+  res.json({ success: !!updated, action: updated });
+});
+
 /* ── POST /api/jarvis/conversations/:id/approve_team ──────── */
 router.post('/conversations/:id/message/stream', async (req, res) => {
-  const { prompt, approvalPolicy, operationId } = req.body;
+  const { prompt, approvalPolicy, operationId, workspaceContext } = req.body;
   const inputChannel = typeof req.body.inputChannel === 'string' ? req.body.inputChannel : undefined;
   const workspacePath = resolveWorkspacePath(req.body);
   const normalizedOperationId = typeof operationId === 'string' ? operationId : undefined;
@@ -810,6 +826,345 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    // ── Deterministic Action Runtime & Contextual Entity Resolution (TASK: JARVIS-ACTION-RUNTIME-001) ──
+    const { parseJarvisAction, recordAction, getLatestAction } = await import('../domains/jarvis/actionRuntime.js');
+    const actionResult = await parseJarvisAction(prompt, workspaceContext);
+    if (actionResult.isAction) {
+      const startedAt = Date.now();
+      let reply = actionResult.explanation;
+      let actionStatusMeta: any = null;
+      let actionRecordMeta: any = null;
+
+      if ('action' in actionResult) {
+        const act = actionResult.action;
+        if (act.type === 'OPEN_MODULE') {
+          const destination = act.route;
+          actionRecordMeta = {
+            id: `action-${Date.now()}`,
+            ownerAgent: 'jarvis',
+            module: act.module,
+            command: prompt,
+            actionType: 'OPEN_MODULE',
+            displayName: act.displayName,
+            status: 'completed',
+            startedAt: new Date(startedAt).toISOString(),
+            completedAt: new Date().toISOString(),
+            destination,
+            evidence: [
+              { type: 'navigation_request', detail: `User requested opening ${act.displayName}`, timestamp: new Date(startedAt).toISOString() },
+              { type: 'route_dispatch', detail: `Dispatched navigation to ${destination}`, timestamp: new Date().toISOString() }
+            ]
+          };
+          recordAction(actionRecordMeta);
+
+          writeSse(res, 'intent', {
+            type: 'navigation',
+            route: 'navigation',
+            mode: 'operational_execution',
+            confidence: 0.99,
+            reason: `Explicit navigation request to ${act.displayName}`,
+            capability: act.module,
+            operationId: normalizedOperationId
+          });
+          writeSse(res, 'navigation', {
+            target: destination,
+            capability: act.module,
+            operationId: normalizedOperationId
+          });
+          actionStatusMeta = {
+            actionName: `Open ${act.displayName}`,
+            targetCapability: act.module,
+            status: 'completed',
+            destination,
+            operationId: normalizedOperationId
+          };
+          writeSse(res, 'action_status', actionStatusMeta);
+          writeSse(res, 'action_record', actionRecordMeta);
+          reply = `Opening ${act.displayName}.`;
+        } else if (act.type === 'OPEN_ENTITY') {
+          const destination = act.destination;
+          actionRecordMeta = {
+            id: `action-${Date.now()}`,
+            ownerAgent: 'jarvis',
+            module: act.module,
+            command: prompt,
+            actionType: 'OPEN_ENTITY',
+            entityType: act.entityType,
+            entityId: act.entityId,
+            displayName: act.displayName,
+            status: 'completed',
+            startedAt: new Date(startedAt).toISOString(),
+            completedAt: new Date().toISOString(),
+            destination,
+            evidence: [
+              { type: 'entity_resolution', detail: `Resolved "${act.displayName}" (${act.entityId}) in ${act.module}`, timestamp: new Date(startedAt).toISOString() },
+              { type: 'route_dispatch', detail: `Dispatched navigation to ${destination}`, timestamp: new Date().toISOString() }
+            ]
+          };
+          recordAction(actionRecordMeta);
+
+          writeSse(res, 'intent', {
+            type: 'navigation',
+            route: 'navigation',
+            mode: 'operational_execution',
+            confidence: 0.98,
+            reason: `Contextual navigation to ${act.displayName}`,
+            capability: act.module,
+            operationId: normalizedOperationId
+          });
+          writeSse(res, 'navigation', {
+            target: destination,
+            capability: act.module,
+            entityId: act.entityId,
+            entityType: act.entityType,
+            displayName: act.displayName,
+            actionId: actionRecordMeta.id,
+            command: prompt,
+            operationId: normalizedOperationId
+          });
+          actionStatusMeta = {
+            actionName: `Open ${act.displayName}`,
+            targetCapability: act.module || 'revenue-operator',
+            status: 'completed',
+            executionId: act.entityId,
+            destination,
+            operationId: normalizedOperationId
+          };
+          writeSse(res, 'action_status', actionStatusMeta);
+          writeSse(res, 'action_record', actionRecordMeta);
+          reply = `Opening ${act.displayName} in ${act.module || 'workspace'}.`;
+        } else if (act.type === 'SHOW_ACTIVITY') {
+          const prev = getLatestAction();
+          if (prev) {
+            writeSse(res, 'intent', {
+              type: 'show_activity',
+              route: 'show_activity',
+              mode: 'operational_execution',
+              confidence: 1.0,
+              operationId: normalizedOperationId
+            });
+            actionStatusMeta = {
+              actionName: 'Recent Activity',
+              targetCapability: prev.module || 'jarvis',
+              status: prev.status,
+              destination: prev.destination,
+              operationId: normalizedOperationId
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            writeSse(res, 'action_record', prev);
+            if (prev.destination) {
+              writeSse(res, 'navigation', {
+                target: prev.destination,
+                capability: prev.module || 'workspace',
+                operationId: normalizedOperationId
+              });
+            }
+            reply = `Here is what I did: Executed "${prev.command || prev.actionType}" with status "${prev.status}"${prev.destination ? ` for ${prev.destination}` : ''}.${prev.displayName ? ` (${prev.displayName})` : ''}`;
+          } else {
+            reply = 'No previous actions have been recorded in this session yet.';
+          }
+        } else if (act.type === 'GO_BACK') {
+          writeSse(res, 'intent', {
+            type: 'navigation',
+            route: 'navigation',
+            mode: 'operational_execution',
+            confidence: 1.0,
+            operationId: normalizedOperationId
+          });
+          writeSse(res, 'navigation', {
+            target: 'GO_BACK',
+            operationId: normalizedOperationId
+          });
+          reply = 'Navigating back.';
+        }
+      } else if ('failure' in actionResult) {
+        const fail = actionResult.failure;
+        actionRecordMeta = {
+          id: `action-${Date.now()}`,
+          ownerAgent: 'jarvis',
+          module: workspaceContext?.activeModule || 'workspace',
+          command: prompt,
+          actionType: 'OPEN_ENTITY',
+          status: 'failed',
+          errorCode: fail.code,
+          error: fail.message,
+          startedAt: new Date(startedAt).toISOString(),
+          completedAt: new Date().toISOString(),
+          evidence: fail.candidates
+            ? fail.candidates.map(c => ({ type: 'candidate', detail: `${c.displayName} (${c.entityId})`, timestamp: new Date().toISOString() }))
+            : [{ type: 'error', detail: fail.message, timestamp: new Date().toISOString() }]
+        };
+        recordAction(actionRecordMeta);
+
+        writeSse(res, 'intent', {
+          type: 'action_failure',
+          route: 'action_failure',
+          mode: 'direct_conversation',
+          confidence: 1.0,
+          operationId: normalizedOperationId
+        });
+        actionStatusMeta = {
+          actionName: 'Open Entity',
+          status: 'failed',
+          errorCode: fail.code,
+          error: fail.message,
+          candidates: fail.candidates,
+          operationId: normalizedOperationId
+        };
+        writeSse(res, 'action_status', actionStatusMeta);
+        writeSse(res, 'action_record', actionRecordMeta);
+        reply = fail.message;
+      }
+
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'action-runtime',
+          intent: { type: 'action', confidence: 0.98 },
+          ...(actionStatusMeta ? { actionStatus: actionStatusMeta } : {}),
+          ...(actionRecordMeta ? { actionRecord: actionRecordMeta } : {})
+        }
+      });
+      writeSse(res, 'done', {
+        route: 'action',
+        category: 'action',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'action-runtime',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
+      return res.end();
+    }
+
+    // ── Deterministic Executive Capabilities (Navigation & Capability Start) ──
+    // Commands like "Open <capability>" or "Start <capability>" must never
+    // fall through to generic LLM chat. They execute deterministically.
+    const { classifyExecutiveIntent } = await import('../domains/jarvis/executiveIntent.js');
+    const deterministicExec = classifyExecutiveIntent(prompt);
+    if (deterministicExec && (deterministicExec.intent === 'navigation' || deterministicExec.intent === 'capability_start')) {
+      const execRoute = deterministicExec.intent;
+      logStreamStage(normalizedOperationId, 'deterministic executive command', {
+        intent: execRoute,
+        capability: deterministicExec.capability.id,
+        confidence: deterministicExec.confidence
+      });
+      writeSse(res, 'intent', {
+        type: execRoute,
+        route: execRoute,
+        mode: 'operational_execution',
+        confidence: deterministicExec.confidence,
+        reason: deterministicExec.reason,
+        capability: deterministicExec.capability.id,
+        operationId: normalizedOperationId
+      });
+
+      const startedAt = Date.now();
+      let reply = '';
+      let actionStatusMeta: any = null;
+      if (execRoute === 'navigation') {
+        writeSse(res, 'navigation', {
+          target: deterministicExec.capability.route,
+          capability: deterministicExec.capability.id,
+          operationId: normalizedOperationId
+        });
+        reply = `Opening ${deterministicExec.capability.displayName}.`;
+      } else if (execRoute === 'capability_start') {
+        writeSse(res, 'action_status', {
+          actionName: `Start ${deterministicExec.capability.displayName}`,
+          targetCapability: deterministicExec.capability.id,
+          status: 'running',
+          currentStep: deterministicExec.capability.id === 'revenue_operator'
+            ? 'Initializing bounded DEV revenue mission...'
+            : `Invoking ${deterministicExec.capability.displayName}...`,
+          operationId: normalizedOperationId
+        });
+
+        if (deterministicExec.capability.id === 'revenue_operator') {
+          try {
+            const { runBoundedE2EMission } = await import('../services/revenueOperator/revenueMissionRunner.js');
+            const trace = await runBoundedE2EMission();
+            const isSuccess = trace.status === 'success';
+            actionStatusMeta = {
+              actionName: 'Start Revenue Operator',
+              targetCapability: 'revenue_operator',
+              status: isSuccess ? 'completed' : 'failed',
+              executionId: trace.missionId,
+              currentStep: trace.nextAction || 'Mission evaluated',
+              error: isSuccess ? undefined : (trace.steps.find(s => !s.ok)?.detail || 'Mission incomplete'),
+              steps: trace.steps,
+              operationId: normalizedOperationId
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            if (isSuccess) {
+              reply = `Revenue Operator started. Bounded mission ${trace.missionId} completed successfully with strategy run and scored experiment.`;
+            } else {
+              const failStep = trace.steps.find(s => !s.ok);
+              reply = `Revenue Operator could not complete mission because ${failStep?.detail || 'a step failed'}.`;
+            }
+          } catch (err: any) {
+            const blockerMsg = err?.message || 'Execution error';
+            actionStatusMeta = {
+              actionName: 'Start Revenue Operator',
+              targetCapability: 'revenue_operator',
+              status: 'failed',
+              error: blockerMsg,
+              operationId: normalizedOperationId
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            reply = `Revenue Operator could not start because ${blockerMsg}.`;
+          }
+        } else {
+          actionStatusMeta = {
+            actionName: `Start ${deterministicExec.capability.displayName}`,
+            targetCapability: deterministicExec.capability.id,
+            status: 'completed',
+            operationId: normalizedOperationId
+          };
+          writeSse(res, 'action_status', actionStatusMeta);
+          reply = `${deterministicExec.capability.displayName} started.`;
+        }
+      }
+
+      streamTextAsChunks(res, reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'registry',
+          intent: { type: execRoute, capability: deterministicExec.capability.id, confidence: deterministicExec.confidence },
+          ...(actionStatusMeta ? { actionStatus: actionStatusMeta } : {})
+        }
+      });
+      writeSse(res, 'done', {
+        route: execRoute,
+        category: execRoute,
+        capability: deterministicExec.capability.id,
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'registry',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
+      return res.end();
+    }
+
     // ── SUPERVISOR V2 PATH (Feature Switch: JARVIS_SUPERVISOR_V2) ──
     const { isSupervisorV2Enabled, handleSupervisorV2Stream } = await import('../domains/jarvis/supervisorLoop.js');
     if (isSupervisorV2Enabled(req)) {
@@ -827,6 +1182,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         selectedModel,
         fallbackProvider,
         fallbackModel,
+        workspaceContext: req.body?.workspaceContext,
       });
     }
 
@@ -1181,14 +1537,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // When the prompt names an internal capability (Hermes/CodeX/Research/
     // Teams/Boards/Memory/Automations), the executive classifier decides
     // between explanation, status, feedback, delegation, or navigation.
-    const { classifyExecutiveIntent } = await import('../domains/jarvis/executiveIntent.js');
     const { buildWorkerFeedback, buildWorkerStatus, buildCapabilityExplanation } = await import('../domains/jarvis/workerInsights.js');
     const { investigateAgenticState } = await import('../domains/jarvis/investigation.js');
     const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
     const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
     const { taskShortId } = await import('../services/backgroundTasks/types.js');
 
-    const executive = classifyExecutiveIntent(prompt);
+    const executive = deterministicExec || (await import('../domains/jarvis/executiveIntent.js')).classifyExecutiveIntent(prompt);
 
     // direct_explanation (e.g. "What can Codex do?", "What is Hermes for?") must
     // flow through the conversational LLM with structured capability context injected
@@ -1239,6 +1594,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
       const startedAt = Date.now();
       let reply = '';
+      let actionStatusMeta: any = null;
       if (execRoute === 'navigation') {
         writeSse(res, 'navigation', {
           target: executive.capability.route,
@@ -1246,6 +1602,61 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           operationId: normalizedOperationId
         });
         reply = `Opening ${executive.capability.displayName}.`;
+      } else if (execRoute === 'capability_start') {
+        writeSse(res, 'action_status', {
+          actionName: `Start ${executive.capability.displayName}`,
+          targetCapability: executive.capability.id,
+          status: 'running',
+          currentStep: executive.capability.id === 'revenue_operator'
+            ? 'Initializing bounded DEV revenue mission...'
+            : `Invoking ${executive.capability.displayName}...`,
+          operationId: normalizedOperationId
+        });
+
+        if (executive.capability.id === 'revenue_operator') {
+          try {
+            const { runBoundedE2EMission } = await import('../services/revenueOperator/revenueMissionRunner.js');
+            const trace = await runBoundedE2EMission();
+            const isSuccess = trace.status === 'success';
+            actionStatusMeta = {
+              actionName: 'Start Revenue Operator',
+              targetCapability: 'revenue_operator',
+              status: isSuccess ? 'completed' : 'failed',
+              executionId: trace.missionId,
+              currentStep: trace.nextAction || 'Mission evaluated',
+              error: isSuccess ? undefined : (trace.steps.find(s => !s.ok)?.detail || 'Mission incomplete'),
+              steps: trace.steps,
+              operationId: normalizedOperationId
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            if (isSuccess) {
+              reply = `Revenue Operator started. Bounded mission ${trace.missionId} completed successfully with strategy run and scored experiment.`;
+            } else {
+              const failStep = trace.steps.find(s => !s.ok);
+              reply = `Revenue Operator could not complete mission because ${failStep?.detail || 'a step failed'}.`;
+            }
+          } catch (err: any) {
+            const blockerMsg = err?.message || 'Execution error';
+            actionStatusMeta = {
+              actionName: 'Start Revenue Operator',
+              targetCapability: 'revenue_operator',
+              status: 'failed',
+              error: blockerMsg,
+              operationId: normalizedOperationId
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            reply = `Revenue Operator could not start because ${blockerMsg}.`;
+          }
+        } else {
+          actionStatusMeta = {
+            actionName: `Start ${executive.capability.displayName}`,
+            targetCapability: executive.capability.id,
+            status: 'completed',
+            operationId: normalizedOperationId
+          };
+          writeSse(res, 'action_status', actionStatusMeta);
+          reply = `${executive.capability.displayName} started.`;
+        }
       } else if (execRoute === 'board_query') {
         reply = buildCapabilityExplanation(executive.capability) + '\n\nOpen the task board to see live cards.';
       } else if (execRoute === 'memory_query') {
@@ -1271,7 +1682,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           ...(requestMetadata || {}),
           provider: 'agentic-os',
           model: 'registry',
-          intent: { type: execRoute, capability: executive.capability.id, confidence: executive.confidence }
+          intent: { type: execRoute, capability: executive.capability.id, confidence: executive.confidence },
+          ...(actionStatusMeta ? { actionStatus: actionStatusMeta } : {})
         }
       });
       writeSse(res, 'done', {
@@ -2267,7 +2679,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     let turnContext: any = null;
     try {
       const { assembleConversationContext, contextToSystemPrompt } = await import('../domains/jarvis/conversationContext.js');
-      turnContext = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy) });
+      turnContext = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy), workspaceContext });
       const includeOperational = isOperationalQuestion(prompt);
       conversationContextPrompt = contextToSystemPrompt(turnContext, { includeOperational });
       operationalContextInjected = includeOperational;

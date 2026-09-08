@@ -138,60 +138,127 @@ function countModels(body: any): number | undefined {
 }
 
 router.get('/gateway', async (_req, res) => {
+  const defaultProvider = (process.env.DEFAULT_LLM_PROVIDER || '').trim().toLowerCase();
+  const providerOrder = (process.env.GATEWAY_PROVIDER_ORDER || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
   const openrouterUrl = process.env.OPENROUTER_BASE_URL
     || (process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : '');
-  const omnirootUrl = process.env.OMNIROUTE_BASE_URL || '';
+  const omnirootUrl = process.env.OMNIROUTE_BASE_URL || process.env.OMNIROOT_BASE_URL || '';
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-  const configured = openrouterUrl.length > 0;
+  const openrouterConfigured = openrouterUrl.length > 0;
   const omnirootConfigured = omnirootUrl.length > 0;
-  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b';
+  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || process.env.DEFAULT_LLM_MODEL || process.env.OLLAMA_MODEL || 'llama3.2:3b';
+
+  const isOllamaPrimary = defaultProvider === 'ollama' || (providerOrder.length > 0 && providerOrder[0] === 'ollama');
 
   try {
+    let gateway = 'OpenRouter';
     let status: 'online' | 'degraded' | 'offline' | 'error' = 'offline';
     let reachable = false;
+    let url = openrouterUrl;
+    let configured = openrouterConfigured;
     let latencyMs: number | undefined;
     let models: number | undefined;
     let error: string | undefined;
     let fallbackReachable = false;
     let omnirootReachable = false;
+    let fallbackInfo = {
+      provider: 'ollama',
+      reachable: false,
+      active: false,
+      currentModel: null as string | null
+    };
 
-    if (!configured) {
-      status = 'error';
-      error = 'no primary gateway configured';
-    } else {
-      // Probe the effective primary (OpenRouter), the Ollama fallback, and
-      // the legacy OmniRoot relay ALL in parallel. OmniRoot is optional
-      // metadata only — it never determines global health. Parallel probes
-      // keep worst-case latency at one timeout interval, so the UI health
-      // poll never hangs, and fallback.reachable is always truthful.
-      const [primary, fallback, omniroot] = await Promise.all([
-        probe(`${openrouterUrl.replace(/\/$/, '')}/models`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS),
+    if (isOllamaPrimary) {
+      gateway = 'ollama';
+      url = ollamaUrl;
+      configured = true;
+
+      const [primaryOllama, secondaryOpenRouter, omniroot] = await Promise.all([
         probe(`${ollamaUrl.replace(/\/$/, '')}/api/tags`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS),
+        openrouterConfigured
+          ? probe(`${openrouterUrl.replace(/\/$/, '')}/models`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS)
+          : Promise.resolve(null),
         omnirootConfigured
           ? probe(`${omnirootUrl.replace(/\/$/, '')}/models`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS)
           : Promise.resolve(null)
       ]);
-      fallbackReachable = isUp(fallback);
+
+      const secondaryReachable = secondaryOpenRouter !== null && isUp(secondaryOpenRouter);
       omnirootReachable = omniroot !== null && isUp(omniroot);
 
-      if (isUp(primary)) {
+      if (isUp(primaryOllama)) {
         status = 'online';
         reachable = true;
-        latencyMs = primary.latencyMs;
-        models = countModels(primary.body);
+        latencyMs = primaryOllama.latencyMs;
+        models = countModels(primaryOllama.body);
+        fallbackInfo = {
+          provider: openrouterConfigured ? 'openrouter' : 'ollama',
+          reachable: openrouterConfigured ? secondaryReachable : true,
+          active: false,
+          currentModel: fallbackModel
+        };
+      } else if (secondaryReachable) {
+        status = 'degraded';
+        error = describeProbeFailure(primaryOllama);
+        fallbackInfo = {
+          provider: 'openrouter',
+          reachable: true,
+          active: true,
+          currentModel: process.env.OPENROUTER_MODEL || 'auto'
+        };
       } else {
-        status = fallbackReachable ? 'degraded' : 'offline';
-        error = describeProbeFailure(primary);
+        status = 'offline';
+        error = describeProbeFailure(primaryOllama);
+        fallbackInfo = {
+          provider: 'ollama',
+          reachable: false,
+          active: false,
+          currentModel: null
+        };
+      }
+    } else {
+      if (!configured) {
+        status = 'error';
+        error = 'no primary gateway configured';
+      } else {
+        const [primary, fallback, omniroot] = await Promise.all([
+          probe(`${openrouterUrl.replace(/\/$/, '')}/models`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS),
+          probe(`${ollamaUrl.replace(/\/$/, '')}/api/tags`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS),
+          omnirootConfigured
+            ? probe(`${omnirootUrl.replace(/\/$/, '')}/models`, GATEWAY_HEALTH_PROBE_TIMEOUT_MS)
+            : Promise.resolve(null)
+        ]);
+        fallbackReachable = isUp(fallback);
+        omnirootReachable = omniroot !== null && isUp(omniroot);
+
+        if (isUp(primary)) {
+          status = 'online';
+          reachable = true;
+          latencyMs = primary.latencyMs;
+          models = countModels(primary.body);
+        } else {
+          status = fallbackReachable ? 'degraded' : 'offline';
+          error = describeProbeFailure(primary);
+        }
+
+        fallbackInfo = {
+          provider: 'ollama',
+          reachable: fallbackReachable,
+          active: status === 'degraded',
+          currentModel: status === 'degraded' ? fallbackModel : null
+        };
       }
     }
 
-    // HTTP 200 for every valid health response — including degraded/offline —
-    // so the UI poll keeps working and can read the honest status.
     res.status(200).json({
-      gateway: 'OpenRouter',
+      gateway,
       status,
       reachable,
-      url: openrouterUrl,
+      url,
       configured,
       ...(latencyMs !== undefined ? { latencyMs } : {}),
       ...(models !== undefined ? { models } : {}),
@@ -200,22 +267,15 @@ router.get('/gateway', async (_req, res) => {
         configured: omnirootConfigured,
         reachable: omnirootReachable
       },
-      fallback: {
-        provider: 'ollama',
-        reachable: fallbackReachable,
-        active: status === 'degraded',
-        currentModel: status === 'degraded' ? fallbackModel : null
-      }
+      fallback: fallbackInfo
     });
   } catch (err: any) {
-    // Unexpected failure inside the endpoint itself: report it honestly
-    // instead of crashing the poll. Never leak secrets — exception text only.
     res.status(200).json({
-      gateway: 'OpenRouter',
+      gateway: isOllamaPrimary ? 'ollama' : 'OpenRouter',
       status: 'error',
       reachable: false,
-      url: openrouterUrl,
-      configured,
+      url: isOllamaPrimary ? ollamaUrl : openrouterUrl,
+      configured: isOllamaPrimary ? true : openrouterConfigured,
       error: err?.message || 'unexpected health check failure',
       omniroot: {
         configured: omnirootConfigured,

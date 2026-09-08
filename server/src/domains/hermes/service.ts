@@ -18,6 +18,7 @@
 
 import { randomUUID } from 'crypto';
 import { llmChat } from '../../services/llmGateway.js';
+import { runAgentLoop, type AgentRunResult } from '../../services/agent/agentLoop.js';
 import { executionRunService } from '../../services/projectExecution/executionRunService.js';
 import { projectTaskService } from '../../services/projectExecution/projectTaskService.js';
 import { executeMagnitudeTask } from '../workerAdapters/magnitudeAdapter.js';
@@ -88,6 +89,86 @@ interface ActiveRunState {
   goalId: string;
   taskId: string;
   runId: string;
+}
+
+export type HermesExecutionMode = 'agent' | 'planning';
+
+export function resolveHermesExecutionMode(
+  objective: string,
+  explicitMode?: HermesExecutionMode
+): HermesExecutionMode {
+  if (explicitMode === 'agent' || explicitMode === 'planning') {
+    return explicitMode;
+  }
+  const lower = (objective || '').toLowerCase();
+  const hasStrategicRevenue = lower.includes('strategic revenue plan') || lower.includes('business plan');
+  const hasOperational = /\b(?:inspect|status|git|terminal|read|write|search|list|test|check|examine|investigate repository)\b/i.test(lower);
+  if (hasOperational && !hasStrategicRevenue) {
+    return 'agent';
+  }
+  const hasPlanning = /\b(?:plan|planning|roadmap|milestone|decompose|affiliate|business plan|strategy)\b/i.test(lower);
+  if (hasPlanning) {
+    return 'planning';
+  }
+  return 'agent';
+}
+
+export interface HermesModelPhaseInput {
+  executionMode: HermesExecutionMode;
+  systemPrompt: string;
+  prompt: string;
+  runId?: string;
+  signal?: AbortSignal;
+  workspaceRoot?: string;
+  maxIterations?: number;
+  executionOptions?: any;
+}
+
+export interface HermesModelPhaseDeps {
+  planningChat?: typeof llmChat;
+  agentRunner?: typeof runAgentLoop;
+}
+
+export async function executeHermesModelPhase(
+  input: HermesModelPhaseInput,
+  deps: HermesModelPhaseDeps = {}
+): Promise<
+  | { executionMode: 'agent'; response: AgentRunResult }
+  | { executionMode: 'planning'; response: { reply: string; provider: string; model: string; offline?: boolean } }
+> {
+  const planningChat = deps.planningChat ?? llmChat;
+  const agentRunner = deps.agentRunner ?? runAgentLoop;
+
+  if (input.executionMode === 'agent') {
+    const resp = await agentRunner(
+      input.systemPrompt,
+      input.prompt,
+      input.maxIterations ?? 25,
+      'agent-hermes',
+      input.runId,
+      input.executionOptions,
+      undefined,
+      {
+        workspaceRoot: input.workspaceRoot,
+      } as any
+    );
+    return { executionMode: 'agent', response: resp };
+  } else {
+    const resp = await planningChat({
+      systemPrompt: input.systemPrompt,
+      prompt: input.prompt,
+      agentId: 'agent-hermes',
+      signal: input.signal,
+      maxTokens: 2500,
+    });
+    return { executionMode: 'planning', response: resp as any };
+  }
+}
+
+export function assertHermesAgentCompleted(result: Partial<AgentRunResult>): void {
+  if (result.completionStatus === 'max_iterations' || result.failureReason) {
+    throw new Error(result.failureReason || 'MAX_AGENT_ITERATIONS_REACHED');
+  }
 }
 
 // ── Service ──
@@ -267,8 +348,9 @@ export class HermesService {
 
       if (signal.aborted) throw new Error('Hermes execution aborted');
 
-      // 3. Determine if this is a Planning task or Research task
-      const isPlanning = /\b(?:plan|planning|roadmap|milestone|decompose|affiliate|business plan|strategy)\b/i.test(objective);
+      // 3. Determine if this is a Planning task or Research/Operational task
+      const executionMode = resolveHermesExecutionMode(objective);
+      const isPlanning = executionMode === 'planning';
 
       // 3b. Project Memory retrieval (closure): Hermes receives bounded,
       // research/planning-relevant Project Memory. Engineering debug logs and
@@ -295,9 +377,9 @@ export class HermesService {
         });
       } catch { /* memory retrieval must never break Hermes */ }
 
-      // 4. Synthesize with LLM
+      // 4. Synthesize with LLM or execute with Agent Loop
       const systemPrompt = isPlanning ? HERMES_PLANNING_SYSTEM_PROMPT : HERMES_RESEARCH_SYSTEM_PROMPT;
-      const userPrompt = `TASK OBJECTIVE:
+      const userPrompt = isPlanning ? `TASK OBJECTIVE:
 ${objective}
 
 ACCEPTANCE CRITERIA:
@@ -313,24 +395,47 @@ ${memoryPacket.items.map((i) => `- [${i.type}] ${i.title}: ${i.content}`).join('
 
 ${magnitudeEvidence ? `VERIFIED BROWSER EVIDENCE FROM MAGNITUDE (Run ${childMagnitudeRunId}):\n${JSON.stringify(magnitudeEvidence, null, 2)}` : 'NO EXTERNAL BROWSER EVIDENCE REFERENCED'}
 
-Respond ONLY with a valid JSON object matching the requested schema.`;
+Respond ONLY with a valid JSON object matching the requested schema.` : objective;
 
-      const chatResp = await llmChat({
-        systemPrompt,
-        prompt: userPrompt,
-        agentId: 'agent-hermes',
-        signal,
-        maxTokens: 2500,
-      });
+      const phaseResult = await executeHermesModelPhase(
+        {
+          executionMode,
+          systemPrompt,
+          prompt: userPrompt,
+          runId: run.id,
+          signal,
+          workspaceRoot: 'D:\\AgenticOS',
+      executionOptions: {
+        providerOverride: 'ollama',
+        ...(process.env.HERMES_OLLAMA_MODEL || process.env.OLLAMA_MODEL
+          ? { modelOverride: process.env.HERMES_OLLAMA_MODEL || process.env.OLLAMA_MODEL }
+          : {}),
+        disableFallback: true,
+      },
+        },
+        { planningChat: llmChat, agentRunner: runAgentLoop }
+      );
 
       if (signal.aborted) throw new Error('Hermes execution aborted after LLM synthesis');
 
-      const rawContent = chatResp.reply?.trim() || '';
+      let rawContent = '';
+      let resolvedProvider = 'openrouter';
+      let resolvedModel = 'auto';
+
+      if (phaseResult.executionMode === 'agent') {
+        assertHermesAgentCompleted(phaseResult.response);
+        rawContent = phaseResult.response.text;
+        resolvedProvider = phaseResult.response.provider || 'local';
+        resolvedModel = phaseResult.response.model || 'hermes-agent';
+      } else {
+        rawContent = phaseResult.response.reply?.trim() || '';
+        resolvedProvider = phaseResult.response.provider || 'openrouter';
+        resolvedModel = phaseResult.response.model || 'auto';
+      }
+
       const parsedResult = this.parseHermesOutput(rawContent, isPlanning ? 'planning' : 'research', magnitudeEvidence, childMagnitudeRunId);
 
       const endNow = new Date().toISOString();
-      const resolvedProvider = chatResp.provider || 'openrouter';
-      const resolvedModel = chatResp.model || 'auto';
 
       // 5. Record canonical Execution Result
       const executionResult = executionRunService.createResult({

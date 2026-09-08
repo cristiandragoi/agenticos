@@ -1,30 +1,30 @@
 {
   "status": "success",
-  "startedAt": "2026-08-19T18:13:12.477Z",
-  "completedAt": "2026-08-19T18:13:52.193Z",
-  "missionId": "mission-523431cb-",
-  "strategyRunId": "er-cd66f9df-0",
+  "startedAt": "2026-09-06T12:27:46.502Z",
+  "completedAt": "2026-09-06T12:30:53.237Z",
+  "missionId": "mission-1779e7b6-",
+  "strategyRunId": "er-0b536ee5-b",
   "strategyVerdict": "NEEDS_REVISION",
-  "experimentId": "expt-23d99328-",
+  "experimentId": "expt-00b020d1-",
   "experimentStatus": "APPROVED",
-  "resultRunId": "er-195d0640-2",
-  "resultVerdict": "PASS",
+  "resultRunId": "er-3298bdb0-d",
+  "resultVerdict": "NEEDS_REVISION",
   "nextAction": "build",
   "steps": [
     {
       "step": "mission_persisted",
       "ok": true,
-      "detail": "mission-523431cb-"
+      "detail": "mission-1779e7b6-"
     },
     {
       "step": "hermes_strategy",
       "ok": true,
-      "detail": "run=er-cd66f9df-0 verdict=NEEDS_REVISION"
+      "detail": "run=er-0b536ee5-b verdict=NEEDS_REVISION"
     },
     {
       "step": "experiment_discovered",
       "ok": true,
-      "detail": "expt-23d99328-"
+      "detail": "expt-00b020d1-"
     },
     {
       "step": "score_go_nogo",

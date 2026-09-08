@@ -313,7 +313,7 @@ class HermesApiService extends EventEmitter {
     const prompt = (opts.prompt || '').trim();
     if (!prompt) throw new Error('prompt is required');
 
-    const provider = opts.provider || HERMES_RUN_PROVIDER || truth.provider || 'custom';
+    const provider = opts.provider || HERMES_RUN_PROVIDER || undefined;
     const model = opts.model || HERMES_RUN_MODEL || truth.model || 'qwen2.5:7b-64k';
 
     // 1. Probe HTTP gateway
@@ -383,7 +383,7 @@ class HermesApiService extends EventEmitter {
         cardId,
         prompt,
         status: 'queued',
-        provider,
+        provider: provider || 'custom',
         model,
         events: [],
         pendingApproval: null,
@@ -421,8 +421,8 @@ class HermesApiService extends EventEmitter {
       cardId,
       prompt,
       status: 'running',
-      provider,
-      model,
+      provider: provider || HERMES_RUN_PROVIDER || 'custom',
+      model: model || HERMES_RUN_MODEL,
       events: [],
       pendingApproval: null,
       finalText: '',

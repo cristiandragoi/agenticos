@@ -188,31 +188,42 @@ varying vec3 vPos;
 varying float vNoise;
 
 void main() {
-  vNormal = normalize(normalMatrix * normal);
   vec3 p = position;
+  vec3 norm = normalize(position);
 
-  // Audio deformation layers:
-  // Low frequency: macro soft-body breathing / radial expansion
-  float macroExpand = u_voice_low * (0.18 + u_is_speaking * 0.14);
+  // Soft organic breathing and audio pulsation under liquid surface tension
+  float breathing = sin(u_time * 1.2) * 0.025;
+  float voicePulse = u_voice_low * 0.08 + u_voice_mid * 0.06;
 
-  // Mid frequency: plasma flow & harmonic traveling waves
-  float waveSpeed = 0.22 + u_voice_mid * 0.45 + u_is_speaking * 0.35;
-  float n = fbm(p * 1.8 + vec3(u_time * waveSpeed, u_time * (waveSpeed * 0.77), u_time * 0.13));
+  // Fluid speed driven by audio energy
+  float waveSpeed = 0.18 + u_voice_mid * 0.25 + u_is_speaking * 0.22;
 
-  // High frequency: micro turbulence & fine detail
-  float n2 = fbm(p * (3.2 + u_voice_high * 1.5) - vec3(u_time * 0.18, 0.0, u_time * 0.24));
+  // Coherent low-frequency domain warping (liquid folds, no spikes)
+  vec3 warp = vec3(
+    fbm(p * 1.2 + vec3(u_time * (waveSpeed * 0.7), 0.0, u_time * (waveSpeed * 0.5))),
+    fbm(p * 1.2 + vec3(4.3, u_time * (waveSpeed * 0.6), 1.2)),
+    fbm(p * 1.2 + vec3(u_time * (waveSpeed * 0.5), 3.1, u_time * (waveSpeed * 0.8)))
+  );
 
-  float baseDeform = (n * 0.65 + n2 * 0.35) * u_deform;
+  // Smooth laminar plasma folds
+  float n1 = fbm(p * 1.35 + warp * 0.60 + vec3(u_time * (waveSpeed * 0.35)));
+  float n2 = fbm(p * 2.20 - warp * 0.35 - vec3(u_time * (waveSpeed * 0.45), 0.0, 0.0));
+  float fluid = (n1 * 0.65 + n2 * 0.35) * u_deform * 0.85;
 
-  // Outward harmonic radiation when Jarvis speaks vs gentle inward focus when user speaks
-  float voiceDisp = (baseDeform + macroExpand) * (1.0 + u_voice_mid * 0.85);
+  // Harmonic traveling waves during speech / listening
+  float waves = 0.0;
   if (u_is_speaking > 0.5) {
-    voiceDisp += sin(u_time * 6.0 - length(p) * 4.0) * (u_output_level * 0.08);
+    waves = sin(u_time * 7.5 - length(p) * 5.5) * (u_output_level * 0.045);
+  } else if (u_input_level > 0.01) {
+    waves = cos(u_time * 5.5 + length(p) * 4.5) * (u_input_level * 0.035);
   }
 
-  vNoise = n;
-  vec3 displaced = p + normal * voiceDisp;
+  float totalDisp = fluid + breathing + voicePulse + waves;
+  vec3 displaced = p + norm * totalDisp;
+
+  vNoise = n1;
   vPos = displaced;
+  vNormal = normalize(normalMatrix * norm);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
 }
 `;
@@ -234,26 +245,33 @@ varying vec3 vPos;
 varying float vNoise;
 
 void main() {
+  vec3 smoothNormal = normalize(vNormal);
+
   vec3 viewDir = normalize(cameraPosition - vPos);
-  float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 2.6);
+  float NdotV = max(dot(viewDir, smoothNormal), 0.0);
+  float fresnel = pow(1.0 - NdotV, 2.4);
 
-  float bandSpeed = 0.18 + u_voice_mid * 0.35;
-  float band = fbm(vPos * 2.4 + vec3(u_time * bandSpeed));
+  // Flowing liquid plasma color bands
+  float flowSpeed = 0.16 + u_voice_mid * 0.28;
+  float band1 = fbm(vPos * 1.8 + vec3(u_time * flowSpeed));
+  float band2 = fbm(vPos * 3.2 - vec3(u_time * (flowSpeed * 0.8), 0.0, u_time * flowSpeed));
 
-  vec3 col = u_color * (0.65 + band * 0.35);
-  col += u_color * fresnel * (0.85 + u_energy * 0.4 + u_voice_high * 0.35);
+  // Base liquid body
+  vec3 col = u_color * (0.80 + band1 * 0.20 + band2 * 0.10);
+  // Luminous rim highlight
+  vec3 rimColor = mix(u_color, vec3(1.0), 0.50);
+  col = mix(col, rimColor, fresnel * 0.85);
 
-  // Dynamic voice brightness & spectral flare when speaking
+  // Dynamic voice brightness & spectral flare
   if (u_is_speaking > 0.5) {
-    vec3 harmonicFlare = u_color * u_output_level * 0.45;
-    col += harmonicFlare;
+    col += rimColor * (u_output_level * 0.35);
   } else {
-    col += u_color * u_input_level * 0.35;
+    col += rimColor * (u_input_level * 0.25);
   }
 
-  col = clamp(col, vec3(0.0), vec3(1.0));
-  float alpha = 0.20 + fresnel * 0.38 + vNoise * 0.12 + u_energy * 0.08 + (u_voice_low + u_voice_mid) * 0.10;
-  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.90));
+  // Liquid translucency: translucent in center to reveal inner volumetric core, dense at grazing rim
+  float alpha = 0.42 + fresnel * 0.52 + vNoise * 0.08 + u_energy * 0.08;
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), clamp(alpha, 0.0, 0.95));
 }
 `;
 
@@ -541,7 +559,8 @@ export function JarvisNeuralBlob({
     window.addEventListener('jarvis-orb:output-level', onAudioOutput);
 
     // ── Layer 1: Outer deforming shell (GLSL vertex displacement) ──────────
-    const shellGeo = new THREE.IcosahedronGeometry(0.82, 6);
+    // Continuous smooth geometry with sub-pixel vertex spacing to prevent faceted edges
+    const shellGeo = new THREE.SphereGeometry(0.82, 128, 96);
     disposables.push(shellGeo);
     const shellUniforms = {
       u_time:         { value: 0 },
@@ -558,7 +577,7 @@ export function JarvisNeuralBlob({
     const shellMat = new THREE.ShaderMaterial({
       vertexShader: SHELL_VERT, fragmentShader: SHELL_FRAG,
       uniforms: shellUniforms,
-      transparent: true, blending: THREE.AdditiveBlending,
+      transparent: true, blending: THREE.NormalBlending,
       depthWrite: false, depthTest: false, side: THREE.FrontSide,
     });
     disposables.push(shellMat);
@@ -566,34 +585,8 @@ export function JarvisNeuralBlob({
     shellMesh.renderOrder = 4;
     scene.add(shellMesh);
 
-    // Slightly larger, slower back-shell for depth
-    const backShellGeo = new THREE.IcosahedronGeometry(0.96, 4);
-    disposables.push(backShellGeo);
-    const backShellUniforms = {
-      u_time:         { value: 0 },
-      u_color:        { value: u_color.clone() },
-      u_energy:       { value: 0.14 },
-      u_deform:       { value: 0.24 },
-      u_input_level:  { value: 0 },
-      u_output_level: { value: 0 },
-      u_voice_low:    { value: 0 },
-      u_voice_mid:    { value: 0 },
-      u_voice_high:   { value: 0 },
-      u_is_speaking:  { value: 0 },
-    };
-    const backShellMat = new THREE.ShaderMaterial({
-      vertexShader: SHELL_VERT, fragmentShader: SHELL_FRAG,
-      uniforms: backShellUniforms,
-      transparent: true, blending: THREE.AdditiveBlending,
-      depthWrite: false, depthTest: false, side: THREE.BackSide,
-    });
-    disposables.push(backShellMat);
-    const backShellMesh = new THREE.Mesh(backShellGeo, backShellMat);
-    backShellMesh.renderOrder = 2;
-    scene.add(backShellMesh);
-
     // ── Layer 2: Inner volumetric noise sphere ─────────────────────────────
-    const innerGeo = new THREE.SphereGeometry(0.52, 48, 32);
+    const innerGeo = new THREE.SphereGeometry(0.55, 64, 48);
     disposables.push(innerGeo);
     const innerUniforms = {
       u_time:   { value: 0 },
@@ -608,7 +601,7 @@ export function JarvisNeuralBlob({
     });
     disposables.push(innerMat);
     const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-    innerMesh.renderOrder = 6;
+    innerMesh.renderOrder = 2;
     scene.add(innerMesh);
 
     // ── Layer 3: Internal particle field ──────────────────────────────────
@@ -658,7 +651,7 @@ export function JarvisNeuralBlob({
     });
     disposables.push(particleMat);
     const particles = new THREE.Points(particleGeo, particleMat);
-    particles.renderOrder = 5;
+    particles.renderOrder = 3;
     scene.add(particles);
 
     // ── Layer 4: Soft ambient glow backdrop ────────────────────────────────
@@ -887,17 +880,6 @@ export function JarvisNeuralBlob({
       shellUniforms.u_voice_high.value   = audioLevels.smoothHigh;
       shellUniforms.u_is_speaking.value  = isSpeaking;
 
-      backShellUniforms.u_time.value         = t * 0.72;
-      backShellUniforms.u_color.value.copy(c);
-      backShellUniforms.u_energy.value       = curParams.energy * 0.7;
-      backShellUniforms.u_deform.value       = curParams.deform * 1.3;
-      backShellUniforms.u_input_level.value  = mic;
-      backShellUniforms.u_output_level.value = spk;
-      backShellUniforms.u_voice_low.value    = audioLevels.smoothLow;
-      backShellUniforms.u_voice_mid.value    = audioLevels.smoothMid;
-      backShellUniforms.u_voice_high.value   = audioLevels.smoothHigh;
-      backShellUniforms.u_is_speaking.value  = isSpeaking;
-
       innerUniforms.u_time.value   = t * 0.55;
       innerUniforms.u_color.value.copy(c);
       innerUniforms.u_energy.value = curParams.energy;
@@ -916,8 +898,6 @@ export function JarvisNeuralBlob({
       // Shell slow auto-rotation (passive orbit)
       shellMesh.rotation.y = t * 0.12;
       shellMesh.rotation.x = Math.sin(t * 0.17) * 0.08;
-      backShellMesh.rotation.y = -t * 0.09;
-      backShellMesh.rotation.x = Math.cos(t * 0.13) * 0.06;
       innerMesh.rotation.y = t * 0.28;
       innerMesh.rotation.z = Math.sin(t * 0.19) * 0.12;
       particles.rotation.y = t * (0.08 + curParams.energy * 0.04);

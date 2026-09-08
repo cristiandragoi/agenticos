@@ -81,6 +81,46 @@ describe('Jarvis Supervisor Loop — Phase 1 Conversational Reasoning & Multi-Tu
       expect(prompt).toContain('delegate_codex_goal');
       expect(prompt).toContain('delegate_hermes_task');
     });
+
+    it('hydrates active Revenue Operator entity and enforces STORED FACT vs REASONABLE INFERENCE vs MISSING DATA', async () => {
+      const oppService = await import('../services/revenueOperator/opportunityService.js');
+      vi.spyOn(oppService, 'getOpportunity').mockResolvedValueOnce({
+        id: 'opp-dfd16cad-',
+        title: 'Niche Notion & Agentic Workflow Template Pack for Solopreneurs',
+        category: 'digital_products',
+        status: 'CONVERTED',
+        description: 'Digital asset bundle containing proven client management dashboards, prompt systems, and project trackers sold directly on Gumroad/Shopify.',
+        source: 'gumroad_market_signals',
+        sourceUrl: 'https://gumroad.com/discover?query=notion+template+freelance',
+        estimatedRevenue: 800,
+        estimatedCost: 20,
+        estimatedTimeToRevenueDays: 7,
+        automationPotential: 95,
+        manualWorkload: 10,
+        riskLevel: 15,
+        confidence: 75,
+        score: 70,
+        scoreBreakdown: { revenuePotentialPts: 24, timeToRevenuePts: 25, automationPotentialPts: 19, lowCapitalPts: 20, confidencePts: 15, manualWorkloadPenalty: 3, riskPenalty: 30 } as any,
+        evidence: [{ type: 'ecom_volume', detail: 'High margin digital product with automated checkout delivery.' }] as any,
+        notes: null,
+        convertedMissionId: 'mission-048eade2-'
+      } as any);
+
+      const prompt = await buildSupervisorSystemPrompt('conv-test-grounding', 'Tell me what this opportunity is', undefined, {
+        workspaceContext: {
+          activeModule: 'revenue-operator',
+          activeEntityType: 'opportunity',
+          activeEntityId: 'opp-dfd16cad-'
+        }
+      });
+      expect(prompt).toContain('CURRENTLY OPEN REVENUE OPERATOR ENTITY');
+      expect(prompt).toContain('opp-dfd16cad-');
+      expect(prompt).toContain('STORED FACT');
+      expect(prompt).toContain('REASONABLE INFERENCE');
+      expect(prompt).toContain('MISSING DATA');
+      expect(prompt).toContain('The data model does not contain a dedicated targetCustomer field');
+      expect(prompt).toContain('The title positions this opportunity for solopreneurs');
+    });
   });
 
   /* ──────────────────────────────────────────────────────────

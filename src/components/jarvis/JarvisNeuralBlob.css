@@ -52,14 +52,7 @@
 }
 
 .jarvis-blob1-photo {
-  filter: saturate(1.08) contrast(1.04);
-  transform: scale(1.04);
-  transform-origin: center;
-  opacity: 0.92;
-  mix-blend-mode: screen;
-  -webkit-mask-image: radial-gradient(ellipse 62% 54% at 50% 51%, #000 0 47%, rgba(0,0,0,0.82) 63%, transparent 86%);
-  mask-image: radial-gradient(ellipse 62% 54% at 50% 51%, #000 0 47%, rgba(0,0,0,0.82) 63%, transparent 86%);
-  transition: transform 90ms linear, filter 90ms linear, opacity 120ms linear;
+  display: none;
 }
 
 .jarvis-blob1-shell--thinking .jarvis-blob1-stars,

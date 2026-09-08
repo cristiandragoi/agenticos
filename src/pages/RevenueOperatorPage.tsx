@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useJarvisRuntime } from '../context/JarvisRuntimeContext';
 import {
   TrendingUp, ShieldCheck, DollarSign, Target, Clock, AlertTriangle,
   RefreshCw, CheckCircle2, Package, Building2, Layers, Activity,
@@ -582,6 +584,49 @@ const RevenueOperatorPage: React.FC = () => {
   const [ledgerFilter, setLedgerFilter] = useState<string>('all');
   const [supervisorState, setSupervisorState] = useState<any>(null);
   const [briefingModal, setBriefingModal] = useState<any>(null);
+
+  const [searchParams] = useSearchParams();
+  const { setWorkspaceContext } = useJarvisRuntime();
+
+  // Handle deep-link parameters: /revenue-operator?opportunity=opp-xxx or ?tab=yyy
+  useEffect(() => {
+    const oppId = searchParams.get('opportunity');
+    const tabParam = searchParams.get('tab') as Tab | null;
+    if (tabParam && ['opportunities', 'mission', 'overview', 'digital_products', 'german_sme', 'pipeline', 'ledger', 'gates'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+    if (oppId && opportunities.length > 0) {
+      setActiveTab('opportunities');
+      const found = opportunities.find(o => o.id === oppId || o.id.startsWith(oppId) || oppId.startsWith(o.id));
+      if (found) {
+        setSelectedOpp(found);
+      }
+    }
+  }, [searchParams, opportunities]);
+
+  // Sync available local entities into Jarvis runtime context
+  useEffect(() => {
+    if (opportunities.length > 0) {
+      setWorkspaceContext(prev => ({
+        ...prev,
+        activeModule: 'revenue-operator',
+        activeRoute: '/revenue-operator',
+        activeMissionId: mission?.id || null,
+        activeEntityId: selectedOpp?.id || null,
+        activeEntityType: selectedOpp ? 'opportunity' : null,
+        availableLocalEntities: opportunities.map(o => ({
+          entityType: 'opportunity',
+          entityId: o.id,
+          displayName: o.title,
+          aliases: [
+            o.title,
+            ...(o.category === 'digital_products' ? ['template', 'workflow template'] : []),
+            ...(/notion/i.test(o.title) ? ['notion template', 'notion agentic template', 'notion workflow template', 'the notion template', 'notion and agentic workflow template'] : [])
+          ]
+        }))
+      }));
+    }
+  }, [opportunities, mission, selectedOpp, setWorkspaceContext]);
 
   const loadData = useCallback(async () => {
     try {

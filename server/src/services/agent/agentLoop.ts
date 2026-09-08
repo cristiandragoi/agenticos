@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { logger } from '../../utils/logger.js';
 import { toolRegistry } from './toolRegistry.js';
 import { runStore } from '../runStore.js';
@@ -64,7 +65,7 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
     // ── Local Ollama General Models ─────────────────────────────────────────
     { name: 'Qwen 3.8', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.8:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
     { name: 'Qwythos 9B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
-    { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.5:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: process.env.OLLAMA_MODEL || 'qwen3.5:27b-hermes-64k', key: process.env.OLLAMA_API_KEY || 'ollama' },
     // ── Remote Providers ────────────────────────────────────────────────────
     { name: 'OpenRouter Fallback', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4o-mini', key: process.env.OPENROUTER_API_KEY },
     { name: 'DeepSeek', url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-v4-flash', key: process.env.DEEPSEEK_API_KEY },
@@ -224,7 +225,7 @@ async function callLLM(
       providers = [{
         name: 'Ollama',
         url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions',
-        model: executionOptions.modelOverride || 'qwen3.5:latest',
+        model: executionOptions.modelOverride || process.env.OLLAMA_MODEL || 'qwen3.5:27b-hermes-64k',
         key: process.env.OLLAMA_API_KEY || 'ollama',
       }];
     } else {
@@ -316,6 +317,9 @@ async function callLLM(
       body.tools = toolRegistry.getToolSchemas() as unknown as unknown[];
       // Force tool use on first iteration to avoid generic chat responses
       body.tool_choice = messages.length <= 2 ? 'required' : 'auto';
+    } else {
+      delete body.tools;
+      delete body.tool_choice;
     }
 
     const isHermesStudio = systemPrompt?.includes('CONTEXT: hermes-studio');
@@ -456,12 +460,52 @@ async function callLLM(
 
 /* ─── Result ─── */
 
+export interface ToolEvent {
+  toolName: string;
+  toolCallId: string;
+  iteration: number;
+  success: boolean;
+  arguments: Record<string, unknown>;
+  output?: string;
+}
+
+export interface AgentLoopOptions {
+  workspaceRoot?: string;
+  onToolEvent?: (event: ToolEvent) => void;
+  finalizeAfterTestCommand?: boolean;
+}
+
 export interface AgentRunResult {
   text: string;
   provider: string;
   model: string;
   toolCalls: number;
   iterations: number;
+  completionStatus?: 'completed' | 'max_iterations' | 'failed';
+  failureReason?: string;
+  toolEvents?: ToolEvent[];
+}
+
+export function normalizeAgentFinalText(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/(?<=^|\s)__(.+?)__(?=\s|[.,:;!?]|$)/g, '$1')
+    .replace(/#{1,6}\s/g, '')
+    .replace(/`{1,3}([^`]*)`{1,3}/g, '$1')
+    .trim();
+}
+
+function redactToolArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const redacted: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(args)) {
+    if (/key|token|secret|auth|password/i.test(key)) {
+      redacted[key] = '[REDACTED]';
+    } else {
+      redacted[key] = val;
+    }
+  }
+  return redacted;
 }
 
 /* ─── MAIN LOOP ─── */
@@ -472,7 +516,9 @@ export async function runAgentLoop(
   maxIterations: number = 25,
   agentName?: string,
   runId?: string,
-  executionOptions?: ExecutionOptions
+  executionOptions?: ExecutionOptions,
+  _unused?: unknown,
+  loopOptions?: AgentLoopOptions
 ): Promise<AgentRunResult> {
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -483,6 +529,8 @@ export async function runAgentLoop(
   let iterations = 0;
   let providerIndex = 0;
   let seenNudges = 0;
+  const toolEvents: ToolEvent[] = [];
+  let forceFinalizeNext = false;
 
   while (iterations < maxIterations) {
     iterations++;
@@ -509,7 +557,7 @@ export async function runAgentLoop(
     }
 
     // Determine if tools are available (after first call, only if we just had tool calls)
-    const hasTools = toolRegistry.list().length > 0;
+    const hasTools = forceFinalizeNext ? false : toolRegistry.list().length > 0;
     const activeMessages = compactMessageHistory(messages);
 
     let response: { message: ChatMessage; provider: string; model: string };
@@ -531,7 +579,10 @@ export async function runAgentLoop(
           provider: 'error-fallback',
           model: 'N/A',
           toolCalls,
-          iterations
+          iterations,
+          completionStatus: 'failed',
+          failureReason: err.message,
+          toolEvents,
         };
       }
 
@@ -543,7 +594,10 @@ export async function runAgentLoop(
           provider: 'timeout-fallback',
           model: 'N/A',
           toolCalls,
-          iterations
+          iterations,
+          completionStatus: 'failed',
+          failureReason: err.message,
+          toolEvents,
         };
       }
 
@@ -557,6 +611,9 @@ export async function runAgentLoop(
             model: 'N/A',
             toolCalls,
             iterations,
+            completionStatus: 'failed',
+            failureReason: err.message,
+            toolEvents,
           };
         }
       }
@@ -578,13 +635,58 @@ export async function runAgentLoop(
           args = {};
         }
 
+        // Workspace grounding
+        if (loopOptions?.workspaceRoot) {
+          const ws = loopOptions.workspaceRoot;
+          if (tc.function.name === 'terminal') {
+            if (!args.workdir) args.workdir = ws;
+          } else if (tc.function.name === 'read_file' || tc.function.name === 'write_file' || tc.function.name === 'patch_file') {
+            if (typeof args.path === 'string' && !path.isAbsolute(args.path)) {
+              args.path = path.resolve(ws, args.path);
+            }
+          } else if (tc.function.name === 'search_files') {
+            if (!args.path) args.path = ws;
+          }
+        }
+
+        // Finalize after test command
+        if (loopOptions?.finalizeAfterTestCommand) {
+          if (
+            tc.function.name === 'terminal' &&
+            typeof args.command === 'string' &&
+            /\b(?:test|vitest|jest|pytest|npm\s+test)\b/i.test(args.command)
+          ) {
+            forceFinalizeNext = true;
+          }
+        }
+
         logger.info(`[AgentLoop] Executing ${tc.function.name}(${JSON.stringify(args).slice(0, 100)})`);
 
+        let isSuccess = true;
         let result: string;
         try {
           result = await toolRegistry.execute(tc.function.name, args);
         } catch (err: any) {
+          isSuccess = false;
           result = JSON.stringify({ error: err.message });
+        }
+
+        const toolEvent: ToolEvent = {
+          toolName: tc.function.name,
+          toolCallId: tc.id,
+          iteration: iterations,
+          success: isSuccess,
+          arguments: redactToolArgs(args),
+          output: result,
+        };
+        toolEvents.push(toolEvent);
+
+        if (loopOptions?.onToolEvent) {
+          try {
+            loopOptions.onToolEvent(toolEvent);
+          } catch (callbackErr) {
+            logger.warn('[AgentLoop] onToolEvent threw error:', callbackErr);
+          }
         }
 
         // Bound tool result to prevent context explosion
@@ -608,13 +710,27 @@ export async function runAgentLoop(
 
     // No tool calls — this is the final response
     if (response.message.content) {
-      // Strip markdown from voice responses
-      const text = response.message.content
-        .replace(/\*\*(.*?)\*\*/g, '$1')
-        .replace(/__(.*?)__/g, '$1')
-        .replace(/#{1,6}\s/g, '')
-        .replace(/`{1,3}[^`]*`{1,3}/g, '')
-        .trim();
+      const operationalRequest = /\b(?:git\s+(?:branch|status|diff|log)|package\.json|terminal|read(?:\s+the)?\s+(?:file|repository)|inspect(?:\s+the)?\s+repository|search\s+files|run\s+(?:the\s+)?tests?|read-only)\b/i.test(`${systemPrompt}\n${userMessage}`);
+      if (operationalRequest && toolCalls === 0) {
+        if (iterations < maxIterations) {
+          messages.push({
+            role: 'user',
+            content: 'This is an operational task. Use the provided function tools now; Markdown or imagined shell commands do not count as execution.',
+          });
+          continue;
+        }
+        return {
+          text: normalizeAgentFinalText(response.message.content),
+          provider: response.provider,
+          model: response.model,
+          toolCalls,
+          iterations,
+          completionStatus: 'failed',
+          failureReason: 'NO_REAL_TOOL_CALLS',
+          toolEvents,
+        };
+      }
+      const text = normalizeAgentFinalText(response.message.content);
 
       return {
         text,
@@ -622,6 +738,8 @@ export async function runAgentLoop(
         model: response.model,
         toolCalls,
         iterations,
+        completionStatus: 'completed',
+        toolEvents,
       };
     }
 
@@ -635,5 +753,8 @@ export async function runAgentLoop(
     model: 'N/A',
     toolCalls,
     iterations,
+    completionStatus: 'max_iterations',
+    failureReason: 'MAX_AGENT_ITERATIONS_REACHED',
+    toolEvents,
   };
 }

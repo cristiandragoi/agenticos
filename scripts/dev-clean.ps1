@@ -319,6 +319,23 @@ $vitePidToTrack = $viteProc.Id
 if ($viteOwner) { $vitePidToTrack = [int]$viteOwner.ProcessId }
 Write-ProcessRecord $backendPidToTrack $vitePidToTrack 0 $actualFrontendPort $actualFrontendUrl
 
+$electronFiles = Get-ChildItem -Path (Join-Path $RepoRoot 'electron') -Recurse -File
+$mainJsPath = Join-Path $RepoRoot 'dist-electron\main.js'
+$needsElectronBuild = -not (Test-Path $mainJsPath)
+if (-not $needsElectronBuild) {
+  $mainJsTime = (Get-Item $mainJsPath).LastWriteTime
+  foreach ($ef in $electronFiles) {
+    if ($ef.LastWriteTime -gt $mainJsTime) {
+      $needsElectronBuild = $true
+      break
+    }
+  }
+}
+if ($needsElectronBuild) {
+  Write-Stage 'Rebuilding Electron distribution'
+  & npx.cmd vite build
+}
+
 Write-Stage 'Starting Electron'
 $electronCommand = @"
 `$env:AGENTICOS_EXTERNAL_SERVERS='true'

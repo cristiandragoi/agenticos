@@ -29,6 +29,7 @@ export type ExecutiveIntentType =
   | 'worker_feedback'
   | 'worker_delegation'
   | 'navigation'
+  | 'capability_start'
   | 'board_query'
   | 'memory_query'
   | 'automation_request'
@@ -48,7 +49,8 @@ export interface ExecutiveIntent {
 const EXPLAIN_VERBS = /\b(explain|what does|what is|describe|tell me about|how does|what are|who is|what's|do you know about|what\s+\w+\s+does|what\s+\w+\s+do|what\s+can\s+\w+\s+do|what\s+can\s+you\s+do|what\s+capabilities)\b/;
 const STATUS_VERBS = /\b(status|how is|how are|doing|working on|using|what model|what provider|active|busy|health|healthy|alive|up to|did|what did|what has|done|finish|finished|completed|result)\b/;
 const FEEDBACK_VERBS = /\b(feedback|assessment|evaluate|review|audit|assess|how (good|well)|report on)\b/;
-const NAV_VERBS = /\b(open|go to|take me to|navigate to|launch|show me the page|switch to)\b/;
+const NAV_VERBS = /\b(open|go to|take me to|navigate to|show me the page|show me|switch to|show)\b/;
+const START_VERBS = /\b(start|run|execute|trigger|begin|invoke|launch)\b/;
 const DELEGATE_VERBS =
   /\b(ask|have|tell|get|make|delegate|instruct|send|request|ask the|tell the|use the|create|add|queue|file|raise|log)\b/;
 const TASK_WORDS = /\b(inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build|trace|read|investigate|report|find|look at|examine|check|write)\b/;
@@ -165,6 +167,19 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
         capability: cap,
         confidence: 0.97,
         reason: `Explicit navigation request to ${cap.displayName}`,
+      };
+    }
+  }
+
+  // Capability execution: "Start Revenue Operator."
+  if (START_VERBS.test(p)) {
+    const delegationAhead = DELEGATE_VERBS.test(p) && TASK_WORDS.test(p) && !/^(start|run|execute|trigger|begin|invoke|launch)/.test(p.trim());
+    if (!delegationAhead) {
+      return {
+        intent: 'capability_start',
+        capability: cap,
+        confidence: 0.98,
+        reason: `Explicit capability execution request for ${cap.displayName}`,
       };
     }
   }

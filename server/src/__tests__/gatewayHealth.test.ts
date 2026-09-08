@@ -250,4 +250,46 @@ describe('GET /api/health/gateway', () => {
       else process.env.OPENROUTER_API_KEY = savedKey;
     }
   });
+
+  it('DEFAULT_LLM_PROVIDER=ollama → Ollama online → status online, gateway ollama', async () => {
+    process.env.DEFAULT_LLM_PROVIDER = 'ollama';
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url === `${OLLAMA}/api/tags`) return jsonResponse({ models: [{ name: 'qwen3:14b' }] });
+      throw new Error(`unexpected probe: ${url}`);
+    }));
+
+    try {
+      const res = await request(makeApp()).get('/api/health/gateway');
+      expect(res.status).toBe(200);
+      expect(res.body.gateway).toBe('ollama');
+      expect(res.body.status).toBe('online');
+      expect(res.body.reachable).toBe(true);
+      expect(res.body.models).toBe(1);
+      expect(typeof res.body.latencyMs).toBe('number');
+    } finally {
+      delete process.env.DEFAULT_LLM_PROVIDER;
+    }
+  });
+
+  it('DEFAULT_LLM_PROVIDER=ollama → Ollama down + OpenRouter online → degraded', async () => {
+    process.env.DEFAULT_LLM_PROVIDER = 'ollama';
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url === `${OLLAMA}/api/tags`) throw new Error('connection refused');
+      if (url === `${OPENROUTER}/models`) return jsonResponse({ data: [{ id: 'a' }] });
+      throw new Error(`unexpected probe: ${url}`);
+    }));
+
+    try {
+      const res = await request(makeApp()).get('/api/health/gateway');
+      expect(res.status).toBe(200);
+      expect(res.body.gateway).toBe('ollama');
+      expect(res.body.status).toBe('degraded');
+      expect(res.body.reachable).toBe(false);
+      expect(res.body.fallback.provider).toBe('openrouter');
+      expect(res.body.fallback.reachable).toBe(true);
+      expect(res.body.fallback.active).toBe(true);
+    } finally {
+      delete process.env.DEFAULT_LLM_PROVIDER;
+    }
+  });
 });

@@ -29,7 +29,7 @@ import type { GoldenPathPanelHandle } from '../components/jarvis/GoldenPathPanel
 import { AgentRuntimeSelector } from '../components/agents/AgentRuntimeSelector';
 import VoiceTracePanel from '../components/jarvis/VoiceTracePanel';
 import { voiceTracePush } from '../diagnostics/voiceTrace';
-import { useVoiceIO } from '../hooks/useVoiceIO';
+import { useJarvisRuntime } from '../context/JarvisRuntimeContext';
 import { shouldMarkManualVoiceOwnership } from '../utils/voiceOwnership';
 import { detectControlIntent } from '../lib/controlIntent';
 import styles from './JarvisStudio.module.css';
@@ -250,58 +250,44 @@ const dot = (level?: StatusLevel) => (
 
 export default function JarvisStudio() {
   const navigate = useNavigate();
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [composerText, setComposerText] = useState('');
-  // Separate voice-interim transcript state (§9): STT that cannot enter the
-  // composer (manual ownership) is surfaced as a preview — never a mutable
-  // shared string with typed input.
-  const [voiceInterimTranscript, setVoiceInterimTranscript] = useState('');
+  const {
+    voice,
+    voiceRef,
+    micState,
+    setMicState,
+    runtimeStatus,
+    setRuntimeStatus,
+    activeConversationId,
+    setActiveConversationId,
+    conversationLanguage,
+    setConversationLanguage,
+    selectedVoice,
+    setSelectedVoice,
+    handleLanguageChange,
+    voiceInterimTranscript,
+    setVoiceInterimTranscript,
+    composerText,
+    setComposerText,
+    handleComposerTextChange,
+    handleVoiceTranscript,
+    handleStreamDelta,
+    handleAssistantDone,
+    flushSpeechBuffer,
+    workspaceContext,
+    setLatestActionRecord,
+    activeChatRef,
+    turnSeqRef,
+  } = useJarvisRuntime();
+
   const chatRef = useRef<JarvisChatHandle | null>(null);
 
-  // ── Input ownership (§9 input-ownership milestone) ──
-  // Manual keyboard input OWNS the composer. When the user types/pastes/edits,
-  // the voice engine is told (notifyManualEdit) so any in-flight STT event is
-  // dropped by generation identity. A transcript may only write the composer
-  // when the user has NOT edited since the voice capture began. The mic-off
-  // state is also pushed to the engine so a late STT event after the user
-  // turned the mic off is ignored at the source.
-  const manualEditSinceVoiceRef = useRef(false);
-  const handleComposerTextChange = useCallback((text: string) => {
-    setComposerText(text);
-    // A user edit with CONTENT takes ownership — notify the voice engine so
-    // stale STT is dropped and the typed text is never overwritten. Program-
-    // matic clears (NOTABLY the post-send composer clear at JarvisComposer's
-    // handleSend/handleKeyDown → setText('')) must NOT mark manual ownership:
-    // they ran immediately after every typed send, leaving the flag stuck
-    // true and silently dropping every subsequent voice auto-submit at the
-    // onAutoSubmit guard — the 'Transcribing → Ready → no response' symptom.
-    // An empty field has nothing to protect, so voice-owned writes may take
-    // it again.
-    if (shouldMarkManualVoiceOwnership(text)) {
-      manualEditSinceVoiceRef.current = true;
-      voiceRef.current?.notifyManualEdit?.();
-    } else {
-      manualEditSinceVoiceRef.current = false;
-    }
-  }, []);
-  const handleVoiceTranscript = useCallback((text: string) => {
-    // Only voice-owned writes may enter the composer, and only when the user
-    // has NOT taken manual ownership since the capture began. Otherwise the
-    // transcript is shown as a separate interim preview (voiceInterim) and the
-    // typed text is preserved.
-    if (manualEditSinceVoiceRef.current) {
-      // Manual ownership wins — never overwrite typed text. Surface as preview.
-      setVoiceInterimTranscript(text);
-      return;
-    }
-    setComposerText(text);
-    setVoiceInterimTranscript('');
-  }, []);
-
-  // ── Orb inputs: REAL signals only ──
-  const [micState, setMicState] = useState<MicState>('idle');
-  const [runtimeStatus, setRuntimeStatus] = useState<JarvisRuntimeStatus>({
-    state: 'idle', elapsedMs: 0, firstTokenMs: null, provider: null, model: null, error: null,
+  useEffect(() => {
+    activeChatRef.current = chatRef.current;
+    return () => {
+      if (activeChatRef.current === chatRef.current) {
+        activeChatRef.current = null;
+      }
+    };
   });
 
   // ── Backend runtime-state (holographic Jarvis): the stream state above only
@@ -366,193 +352,22 @@ export default function JarvisStudio() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
-  // ── THE single voice engine — one mic, one VAD, one STT, one TTS ──
+  // ── Jarvis Studio UI modes & diagnostics (voice pipeline owned by JarvisRuntimeContext) ──
   const [mode, setMode] = useState<'manual' | 'conversation'>(readPersistedMode);
-  const [conversationLanguage, setConversationLanguage] = useState<string>('en');
   const [voiceOutEnabled, setVoiceOutEnabled] = useState(true);
-  const [selectedVoice, setSelectedVoice] = useState<string>(readPersistedVoice);
   const [selectedProfile, setSelectedProfile] = useState<string>(readPersistedProfile);
   const [selectedProvider, setSelectedProvider] = useState<string>(readPersistedProvider);
   const [voiceBusy, setVoiceBusy] = useState(false);
-
-  const handleLanguageChange = useCallback((newLang: string) => {
-    const raw = (newLang || 'en').toLowerCase().trim();
-    const code = raw === 'auto' ? 'en' : raw.slice(0, 2);
-    setConversationLanguage(code);
-    // Piper is primary for de/ro; edge-tts for en.
-    // Voice IDs starting with xx_XX- are Piper; xx-XX- are Edge TTS.
-    const targetVoice =
-      code === 'de' ? 'de_DE-thorsten-high' :
-      code === 'ro' ? 'ro_RO-mihai-medium' :
-      'en-GB-RyanNeural';
-    setSelectedVoice(targetVoice);
-    persistVoice(targetVoice);
-    voiceRef.current?.setLanguage?.(code);
-    voiceRef.current?.setVoiceOverride?.(targetVoice);
-  }, []);
-
-  // ── Progressive TTS buffer (sentence chunks, sequential, no overlap) ──
-  const speechBufferRef = useRef('');
-  const flushSpeechBuffer = useCallback((force: boolean, turnId?: number) => {
-    const buf = speechBufferRef.current;
-    if (!buf) return;
-    let cut = -1;
-    for (let i = buf.length - 1; i >= 0; i--) {
-      if (/[.!?…]\s/.test(buf.slice(i, i + 2)) || /[.!?…]$/.test(buf.slice(i, i + 1))) { cut = i + 1; break; }
-    }
-    if (cut < 0 && (buf.includes('\n') || buf.length > 200)) {
-      cut = buf.lastIndexOf('\n') >= 0 ? buf.lastIndexOf('\n') + 1 : buf.length;
-    }
-    if (cut <= 0 && !force) return;
-    const chunk = (cut > 0 ? buf.slice(0, cut) : buf).trim();
-    speechBufferRef.current = cut > 0 ? buf.slice(cut) : '';
-    const effectiveTurnId = typeof turnId === 'number' ? turnId : turnSeqRef.current;
-    if (chunk) voiceRef.current?.speakProgressive?.(chunk, 'CONVERSATION', effectiveTurnId);
-  }, []);
 
   /** Insights (Phase 3): last REAL user prompt + last REAL assistant reply. */
   const [lastUserPrompt, setLastUserPrompt] = useState<string | null>(null);
   const [lastReply, setLastReply] = useState<string | null>(null);
 
-  // ── Turn isolation sequence (Requirement 3) ──
-  const turnSeqRef = useRef(0);
-
-  /** Streamed assistant deltas → sentence chunks → sequential TTS queue.
-   *  Direct-chat replies are spoken whenever voice output is enabled,
-   *  regardless of input channel (typed OR voice) — the user must never get
-   *  "text in chat but no spoken response" for a reply they expect to hear.
-   *  Routing events, tool events and diagnostics never reach this point with
-   *  streamed text (only direct-reply deltas do). */
-  const handleStreamDelta = useCallback((delta: string, channel: 'typed' | 'voice', turnId?: number) => {
-    void channel;
-    if (typeof turnId === 'number' && turnId !== turnSeqRef.current) {
-      voiceTracePush('TURN_ISOLATION_REJECT', 'skipped', `Discarded stream delta for stale turn ${turnId} (active=${turnSeqRef.current})`);
-      return;
-    }
-    speechBufferRef.current += delta;
-    flushSpeechBuffer(false, turnId);
-  }, [flushSpeechBuffer]);
-
-  const handleAssistantDone = useCallback((text: string, channel: 'typed' | 'voice', turnId?: number) => {
-    void channel;
-    if (typeof turnId === 'number' && turnId !== turnSeqRef.current) {
-      voiceTracePush('TURN_ISOLATION_REJECT', 'skipped', `Discarded done response for stale turn ${turnId} (active=${turnSeqRef.current})`);
-      return;
-    }
-    setLastReply(text);
-    const buffered = speechBufferRef.current;
-    flushSpeechBuffer(true, turnId);
-    const after = speechBufferRef.current;
-    const effectiveTurnId = typeof turnId === 'number' ? turnId : turnSeqRef.current;
-    if (!buffered && !after && text && text.trim().length > 0) {
-      voiceRef.current?.speakProgressive?.(text, 'CONVERSATION', effectiveTurnId);
-    }
-  }, [flushSpeechBuffer]);
-
-  // GOLDEN-PATH DIAGNOSTIC (development-only, hidden by default): the panel
-  // and the voice→golden control exist only when enabled explicitly via
-  //   ?jarvisDiag=1   or   localStorage['jarvisDiag']='1'
-  // The default packaged UI never shows it — the normal Jarvis layout is
-  // untouched. The core typed/golden pipeline is known-good; this isolates
-  // the voice capture/transcription layer against that control.
+  // GOLDEN-PATH DIAGNOSTIC (development-only, hidden by default)
   const diagEnabled = import.meta.env.DEV && import.meta.env.VITE_JARVIS_DIAG === '1' && typeof window !== 'undefined'
     && (new URLSearchParams(window.location.search).get('jarvisDiag') === '1'
         || (typeof localStorage !== 'undefined' && localStorage.getItem('jarvisDiag') === '1'));
   const goldenPathRef = useRef<GoldenPathPanelHandle>(null);
-
-  const voice = useVoiceIO({
-    agentId: 'agent-jarvis',
-    conversationId: activeConversationId,
-    language: conversationLanguage,
-    voiceOverride: selectedVoice,
-    endSpeechSilenceMs: 750, // Voice-reliability closure: 900 → 750ms
-
-    onAutoSubmit: (text) => {
-      // Guard: while Jarvis is actively generating/thinking, incidental speech/noise must NOT cancel or corrupt the turn
-      if (voiceRef.current?.voiceState === 'thinking') {
-        const ctrl = detectControlIntent(text);
-        if (!ctrl) {
-          console.log('[JarvisStudio] Ignored incidental auto-submit while Jarvis is thinking:', text);
-          return;
-        }
-      }
-      // 1. Cancel previous playback and model response first
-      voiceRef.current?.stopSpeaking?.();
-      chatRef.current?.cancelResponse?.();
-
-      // 2. Create the new turn ID
-      const turnId = ++turnSeqRef.current;
-
-      // 3. Clear the progressive buffer
-      speechBufferRef.current = '';
-
-      // Conversation auto-submit — the exact streaming pipeline, no Send.
-      // §9 input ownership: a manual edit since the capture began means the
-      // voice turn is stale; the engine already dropped it at the source, but
-      // this guard is the final deterministic barrier.
-      if (manualEditSinceVoiceRef.current) {
-        // Typed text owns the composer — never overwrite it, but never drop
-        // the voice turn silently either: surface the transcript as a preview
-        // so the user knows it was heard but not submitted (they can Send it).
-        setVoiceInterimTranscript(text);
-        return;
-      }
-      // VOICE→GOLDEN CONTROL (dev-only): when enabled, a successfully
-      // transcribed voice turn is sent into the golden stream (typed-text
-      // control) instead of the full Jarvis route — separating
-      //   voice capture/transcription/auto-submit
-      // from
-      //   full Jarvis intent/context/TTS.
-      if (diagEnabled && goldenPathRef.current?.isVoiceRoutingEnabled()) {
-        goldenPathRef.current.runPrompt(text);
-        return;
-      }
-
-      // 4. Arm speech for this explicit new turn ID after cancellation and immediately before sendMessage
-      voiceRef.current?.armSpeech?.(turnId);
-
-      // 5. Send the message with voice channel and turnId
-      chatRef.current?.sendMessage(text, 'voice', turnId);
-    },
-    onBargeIn: () => {
-      // User barged in while Jarvis was speaking: cancel the in-flight MODEL
-      // stream too, so a late token can never re-enter the progressive TTS
-      // queue for the cancelled turn (the hook already cleared the queue).
-      // Also drop the partial sentence buffer — a cancelled turn's half-spoken
-      // text must never be prefixed onto the NEXT turn's reply.
-      speechBufferRef.current = '';
-      chatRef.current?.cancelResponse();
-    },
-    onControlCommand: (cmd) => {
-      // Local control command (stop/terminate) — never routed to the LLM.
-      // The hook already stopped audio + cleared the queue; cancel the model
-      // stream, drop the partial progressive buffer (STOP is terminal for the
-      // current turn's speech), and (for terminate) end the session cleanly.
-      speechBufferRef.current = '';
-      chatRef.current?.cancelResponse();
-      if (cmd.kind === 'terminate') {
-        setMode('manual');
-        try { sessionStorage.setItem(MODE_KEY, 'manual'); } catch { /* ignore */ }
-        voiceRef.current?.endConversation();
-      }
-    },
-    onTranscript: handleVoiceTranscript, // Manual mode: ownership-guarded
-    onStateChange: () => { /* voiceState below is the single orb source */ },
-  });
-  const voiceRef = useRef(voice);
-  voiceRef.current = voice;
-
-  // §9 input ownership: mic turning OFF invalidates every in-flight voice
-  // event in the engine (late STT after the user disabled the mic is dropped
-  // by identity). Mic returning to idle/listening/error does NOT clear manual
-  // ownership — only a successful send or explicit clear does.
-  useEffect(() => {
-    if (micState !== 'listening') {
-      voiceRef.current?.notifyMicOff?.();
-    }
-  }, [micState]);
-
-  useEffect(() => { voiceRef.current?.setVoiceOverride?.(readPersistedVoice()); }, []);
 
   // ── Task-completion UX (task-completion milestone) ──
   // One chime + one desktop notification + one voice announcement per
@@ -2040,6 +1855,7 @@ export default function JarvisStudio() {
               <JarvisChat
                 ref={chatRef}
                 conversationId={activeConversationId}
+                workspaceContext={workspaceContext}
                 onConversationCreated={(id) => setActiveConversationId(id)}
                 onLanguageChange={handleLanguageChange}
                 onStatusChange={(status) => {
@@ -2055,7 +1871,10 @@ export default function JarvisStudio() {
                 onComposerTextChange={handleComposerTextChange}
                 onMicStateChange={setMicState}
                 onStreamDelta={handleStreamDelta}
-                onAssistantResponse={handleAssistantDone}
+                onAssistantResponse={(text, channel, turnId) => {
+                  setLastReply(text);
+                  handleAssistantDone(text, channel, turnId);
+                }}
                 onResponseSettled={() => voiceRef.current?.notifyResponseSettled?.()}
                 onNavigate={(target) => {
                   // Navigation is a pure UI action — the conversation and
@@ -2063,6 +1882,7 @@ export default function JarvisStudio() {
                   // change (JarvisStudio unmount/remount restores them).
                   navigate(target);
                 }}
+                onActionRecord={(rec) => setLatestActionRecord(rec)}
                 hideComposerMic
                 hideComposer
                 transcriptVariant="command"
@@ -2092,15 +1912,10 @@ export default function JarvisStudio() {
           )}
           <JarvisComposer
             onSendMessage={(text, channel) => {
-              // §9 input ownership: a successful send ends manual ownership —
-              // the next voice turn may write the composer again. Voice-owned
-              // sends do NOT reset it (they are the same ownership).
               if (channel !== 'voice') {
-                manualEditSinceVoiceRef.current = false;
                 setVoiceInterimTranscript('');
               }
               const turnId = ++turnSeqRef.current;
-              speechBufferRef.current = '';
               voiceRef.current?.armSpeech?.(turnId);
               setLastUserPrompt(text);
               chatRef.current?.sendMessage(text, channel ?? 'typed', turnId);

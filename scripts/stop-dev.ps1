@@ -217,8 +217,19 @@ function Stop-StaleAgenticProcesses {
       }
     })
 
+  $agenticOsCandidates = @(Get-CimInstance Win32_Process -Filter "Name = 'AgenticOS.exe'" -ErrorAction SilentlyContinue |
+    ForEach-Object {
+      [pscustomobject]@{
+        ProcessId = [int]$_.ProcessId
+        ParentProcessId = [int]$_.ParentProcessId
+        Name = $_.Name
+        CommandLine = $_.CommandLine
+        ExecutablePath = $_.ExecutablePath
+      }
+    })
+
   $candidatesByPid = @{}
-  foreach ($candidate in (@($candidates) + @($electronPathCandidates))) {
+  foreach ($candidate in (@($candidates) + @($electronPathCandidates) + @($agenticOsCandidates))) {
     if ($candidate -and -not $candidatesByPid.ContainsKey([int]$candidate.ProcessId)) {
       $candidatesByPid[[int]$candidate.ProcessId] = $candidate
     }

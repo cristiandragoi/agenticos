@@ -21,9 +21,9 @@ interface GatewayStatus {
 const GatewayStatusChip: React.FC = () => {
   const [state, setState] = useState<GatewayStatus>({ gateway: 'GatewayRouter', status: 'loading' });
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (): Promise<boolean> => {
     try {
-      // Actually fetch the new endpoint that returns the gateway state from Phase 2
+      // Actually fetch the endpoint that returns the gateway state
       const res = await apiFetch('/api/health/gateway', { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
         const data = await res.json();
@@ -34,13 +34,11 @@ const GatewayStatusChip: React.FC = () => {
         // marks the gateway as failed — an absent field must not read as failure.
         const gatewayDown = data.reachable === false || data.status === 'error' || data.status === 'offline';
         if (gatewayDown) {
-          // §6 (stabilization) gateway/fallback truth: a down gateway with an
-          // ACTIVE local fallback (Ollama etc.) is NOT a dead end — Jarvis is
-          // still operating, just through the fallback. Say so explicitly
-          // instead of a bare "Gateway: offline".
           const fb: GatewayFallback | undefined = data.fallback;
           derivedStatus = fb?.active && fb.reachable !== false ? 'fallback' : 'error';
-        } else if (data.status === 'degraded') derivedStatus = 'degraded';
+        } else if (data.status === 'degraded') {
+          derivedStatus = 'degraded';
+        }
 
         setState({
           gateway: data.providerName || data.gateway || 'GatewayRouter',
@@ -49,20 +47,40 @@ const GatewayStatusChip: React.FC = () => {
           latencyMs: data.latencyMs,
           fallback: data.fallback
         });
+        return derivedStatus === 'online' || derivedStatus === 'degraded' || derivedStatus === 'fallback';
       } else {
         setState(s => ({ ...s, status: 'error' }));
+        return false;
       }
     } catch {
       setState(s => ({ ...s, status: 'offline' }));
+      return false;
     }
   };
 
   useEffect(() => {
-    fetchStatus();
+    let unmounted = false;
+    let retryTimer: NodeJS.Timeout | null = null;
+    let startupRetries = 0;
+    const maxStartupRetries = 3;
+
+    const startupProbe = async () => {
+      const ok = await fetchStatus();
+      if (!ok && startupRetries < maxStartupRetries && !unmounted) {
+        startupRetries++;
+        const delay = startupRetries * 1500; // 1.5s, 3s, 4.5s bounded retry
+        retryTimer = setTimeout(startupProbe, delay);
+      }
+    };
+
+    startupProbe();
     const interval = setInterval(fetchStatus, 30_000);
     
-    // Also listen to SSE events if available globally? For now we just poll.
-    return () => clearInterval(interval);
+    return () => {
+      unmounted = true;
+      clearInterval(interval);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, []);
 
   const fallbackName = state.fallback?.provider || 'local provider';
