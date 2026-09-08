@@ -33,7 +33,7 @@ describe('Hermes execution mode routing', () => {
     expect(executionMode).toBe('agent');
     expect(agentRunner).toHaveBeenCalledOnce();
     expect(agentRunner.mock.calls[0][3]).toBe('agent-hermes');
-    expect(agentRunner.mock.calls[0][7]).toMatchObject({ workspaceRoot: 'D:\\AgenticOS' });
+    expect(agentRunner.mock.calls[0][7]).toMatchObject({ workspaceRoot: 'D:\\AgenticOS', requireToolExecution: true });
     expect(planningChat).not.toHaveBeenCalled();
     expect(result.executionMode).toBe('agent');
     if (result.executionMode === 'agent') {
