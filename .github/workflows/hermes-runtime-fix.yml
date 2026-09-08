@@ -34,8 +34,22 @@ jobs:
       - name: Apply deterministic Hermes repair
         run: node scripts/apply-hermes-runtime-fix.cjs
 
+      - name: Create portable backend TypeScript config
+        run: |
+          cat > server/tsconfig.hermes-ci.json <<'EOF'
+          {
+            "extends": "./tsconfig.json",
+            "compilerOptions": {
+              "rootDir": "./src",
+              "outDir": "./dist-hermes-ci"
+            },
+            "include": ["src/**/*.ts"],
+            "exclude": ["src/__tests__/**/*"]
+          }
+          EOF
+
       - name: Compile backend
-        run: npm --prefix server run build
+        run: npx tsc -p server/tsconfig.hermes-ci.json --noEmit
 
       - name: Run focused Hermes tests
         run: npx vitest run --config vitest.hermes.config.ts
