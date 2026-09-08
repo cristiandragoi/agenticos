@@ -63,7 +63,6 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
     { name: 'Qwen2.5-Coder 14B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen2.5-coder:14b', key: 'ollama' },
     { name: 'DeepSeek Coder V2 16B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'deepseek-coder-v2:16b', key: 'ollama' },
     // ── Local Ollama General Models ─────────────────────────────────────────
-    { name: 'Qwen 3.8', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.8:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
     { name: 'Qwythos 9B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
     { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: process.env.OLLAMA_MODEL || 'qwen3.5:27b-hermes-64k', key: process.env.OLLAMA_API_KEY || 'ollama' },
     // ── Remote Providers ────────────────────────────────────────────────────
@@ -112,8 +111,8 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
       // Local coding models have zero cost and full privacy — they run entirely on-device
       prioritize('qwen2.5-coder');
     } else if (nameLower.includes('hermes')) {
-      // Hermes local operation prefers Qwen 3.8 (Ollama)
-      prioritize('qwen 3.8');
+      // Hermes local operation prefers the configurable Ollama provider.
+      prioritize('ollama (local)');
     }
   }
 
@@ -210,7 +209,8 @@ async function callLLM(
   providerIndex: number = 0,
   systemPrompt?: string,
   agentName?: string,
-  executionOptions?: ExecutionOptions
+  executionOptions?: ExecutionOptions,
+  forceToolUse: boolean = false
 ): Promise<{ message: ChatMessage; provider: string; model: string }> {
   let providers: ProviderConfig[] = [];
   const resolvedAgentId = agentName === 'codex' ? 'agent-codex' : agentName;
@@ -315,8 +315,8 @@ async function callLLM(
 
     if (toolsAvailable) {
       body.tools = toolRegistry.getToolSchemas() as unknown as unknown[];
-      // Force tool use on first iteration to avoid generic chat responses
-      body.tool_choice = messages.length <= 2 ? 'required' : 'auto';
+      // Execution policy, not message count, decides whether a real tool is mandatory.
+      body.tool_choice = forceToolUse ? 'required' : 'auto';
     } else {
       delete body.tools;
       delete body.tool_choice;
@@ -473,6 +473,8 @@ export interface AgentLoopOptions {
   workspaceRoot?: string;
   onToolEvent?: (event: ToolEvent) => void;
   finalizeAfterTestCommand?: boolean;
+  /** Fail closed until at least one registered tool executes successfully. */
+  requireToolExecution?: boolean;
 }
 
 export interface AgentRunResult {
@@ -531,6 +533,7 @@ export async function runAgentLoop(
   let seenNudges = 0;
   const toolEvents: ToolEvent[] = [];
   let forceFinalizeNext = false;
+  const requireToolExecution = loopOptions?.requireToolExecution === true;
 
   while (iterations < maxIterations) {
     iterations++;
@@ -556,13 +559,28 @@ export async function runAgentLoop(
       }
     }
 
-    // Determine if tools are available (after first call, only if we just had tool calls)
+    const hasSuccessfulToolExecution = toolEvents.some((event) => event.success);
+    const mustUseTool = requireToolExecution && !hasSuccessfulToolExecution;
     const hasTools = forceFinalizeNext ? false : toolRegistry.list().length > 0;
+
+    if (mustUseTool && !hasTools) {
+      return {
+        text: 'This task requires real tool execution, but no registered tools are available.',
+        provider: 'system',
+        model: 'N/A',
+        toolCalls,
+        iterations,
+        completionStatus: 'failed',
+        failureReason: 'NO_REGISTERED_TOOLS_AVAILABLE',
+        toolEvents,
+      };
+    }
+
     const activeMessages = compactMessageHistory(messages);
 
     let response: { message: ChatMessage; provider: string; model: string };
     try {
-      response = await callLLM(activeMessages, hasTools, providerIndex, systemPrompt, agentName, executionOptions);
+      response = await callLLM(activeMessages, hasTools, providerIndex, systemPrompt, agentName, executionOptions, mustUseTool);
       providerIndex = 0; // Reset for subsequent calls (first successful provider)
     } catch (err: any) {
       logger.error(`[AgentLoop] Fatal error at iteration ${iterations}:`, err.message);
@@ -626,8 +644,6 @@ export async function runAgentLoop(
     // Check for tool calls
     if (response.message.tool_calls && response.message.tool_calls.length > 0) {
       for (const tc of response.message.tool_calls) {
-        toolCalls++;
-
         let args: Record<string, unknown>;
         try {
           args = JSON.parse(tc.function.arguments);
@@ -641,8 +657,13 @@ export async function runAgentLoop(
           if (tc.function.name === 'terminal') {
             if (!args.workdir) args.workdir = ws;
           } else if (tc.function.name === 'read_file' || tc.function.name === 'write_file' || tc.function.name === 'patch_file') {
-            if (typeof args.path === 'string' && !path.isAbsolute(args.path)) {
-              args.path = path.resolve(ws, args.path);
+            if (typeof args.path === 'string') {
+              const alreadyAbsolute = path.isAbsolute(args.path) || path.win32.isAbsolute(args.path);
+              if (!alreadyAbsolute) {
+                args.path = path.win32.isAbsolute(ws)
+                  ? path.win32.resolve(ws, args.path)
+                  : path.resolve(ws, args.path);
+              }
             }
           } else if (tc.function.name === 'search_files') {
             if (!args.path) args.path = ws;
@@ -666,6 +687,7 @@ export async function runAgentLoop(
         let result: string;
         try {
           result = await toolRegistry.execute(tc.function.name, args);
+          toolCalls++;
         } catch (err: any) {
           isSuccess = false;
           result = JSON.stringify({ error: err.message });
@@ -710,12 +732,11 @@ export async function runAgentLoop(
 
     // No tool calls — this is the final response
     if (response.message.content) {
-      const operationalRequest = /\b(?:git\s+(?:branch|status|diff|log)|package\.json|terminal|read(?:\s+the)?\s+(?:file|repository)|inspect(?:\s+the)?\s+repository|search\s+files|run\s+(?:the\s+)?tests?|read-only)\b/i.test(`${systemPrompt}\n${userMessage}`);
-      if (operationalRequest && toolCalls === 0) {
+      if (requireToolExecution && !toolEvents.some((event) => event.success)) {
         if (iterations < maxIterations) {
           messages.push({
             role: 'user',
-            content: 'This is an operational task. Use the provided function tools now; Markdown or imagined shell commands do not count as execution.',
+            content: 'Execution is required. Use a registered function tool now; prose, Markdown, or imagined commands do not count.',
           });
           continue;
         }

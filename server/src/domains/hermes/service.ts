@@ -150,6 +150,7 @@ export async function executeHermesModelPhase(
       undefined,
       {
         workspaceRoot: input.workspaceRoot,
+        requireToolExecution: true,
       } as any
     );
     return { executionMode: 'agent', response: resp };
