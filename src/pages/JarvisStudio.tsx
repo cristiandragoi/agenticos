@@ -32,6 +32,7 @@ import { voiceTracePush } from '../diagnostics/voiceTrace';
 import { useJarvisRuntime } from '../context/JarvisRuntimeContext';
 import { shouldMarkManualVoiceOwnership } from '../utils/voiceOwnership';
 import { detectControlIntent } from '../lib/controlIntent';
+import { jarvisLiveKitSession, type JarvisLiveKitState } from '../lib/jarvisLiveKitSession';
 import styles from './JarvisStudio.module.css';
 import cc from './JarvisCommandCenter.module.css';
 
@@ -277,6 +278,11 @@ export default function JarvisStudio() {
     setLatestActionRecord,
     activeChatRef,
     turnSeqRef,
+    stopSpeaking,
+    cancelRequest,
+    endConversation,
+    lastVoiceRejection,
+    clearVoiceRejection,
   } = useJarvisRuntime();
 
   const chatRef = useRef<JarvisChatHandle | null>(null);
@@ -358,6 +364,39 @@ export default function JarvisStudio() {
   const [selectedProfile, setSelectedProfile] = useState<string>(readPersistedProfile);
   const [selectedProvider, setSelectedProvider] = useState<string>(readPersistedProvider);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  // ── UI diagnostics for control-fire inspection (temporary) ──
+  const [controlDiagnostic, setControlDiagnostic] = useState({
+    lastAction: '—',
+    handleCalled: false,
+    requestedMode: '—',
+    voiceRefExists: false,
+    startMethodExists: false,
+    endMethodExists: false,
+    startReturned: '—',
+    stopClicked: '—',
+    stopHandlerCalled: false,
+    stopExists: false,
+    stopInvoked: false,
+    endClicked: '—',
+    endHandlerCalled: false,
+    endExists: false,
+    endInvoked: false,
+    // ── START invocation tracking (observable promise state) ──
+    startStatus: 'NOT CALLED',
+    startInvokedAt: '—',
+    startSettledAt: '—',
+    startResult: '—',
+    startError: '—',
+  });
+
+  // ── LiveKit diagnostic state (display-only — surfaces runtime errors verbatim) ──
+  const [liveKitDiagnosticState, setLiveKitDiagnosticState] = useState<JarvisLiveKitState>(() => jarvisLiveKitSession.getState());
+  useEffect(() => {
+    const unsub = jarvisLiveKitSession.subscribe(() => {
+      setLiveKitDiagnosticState(jarvisLiveKitSession.getState());
+    });
+    return unsub;
+  }, []);
 
   /** Insights (Phase 3): last REAL user prompt + last REAL assistant reply. */
   const [lastUserPrompt, setLastUserPrompt] = useState<string | null>(null);
@@ -429,19 +468,58 @@ export default function JarvisStudio() {
 
   // ── Mode switching ──
   const handleModeChange = useCallback(async (next: 'manual' | 'conversation') => {
+    setControlDiagnostic(prev => ({ ...prev, handleCalled: true, requestedMode: next }));
     setMode(next);
-    try { sessionStorage.setItem(MODE_KEY, next); } catch { /* ignore */ }
+    
     if (next === 'conversation') {
+      console.log('[JFE] HANDLE_MODE_CONVERSATION');
+      const startTime = Date.now();
+      const nowStr = new Date().toLocaleTimeString(undefined, { hour12: false, fractionalSecondDigits: 3 });
+      setControlDiagnostic(prev => ({ ...prev, 
+        startStatus: 'PENDING',
+        startInvokedAt: nowStr,
+      }));
+      
       setVoiceBusy(true);
-      voiceRef.current?.armSpeech?.();
-      const ok = await voiceRef.current?.startConversation();
-      setVoiceBusy(false);
+      const safeStart = async () => {
+        try {
+          voiceRef.current?.armSpeech?.();
+          const ok = await voiceRef.current?.startConversation();
+          const nowEndStr = new Date().toLocaleTimeString(undefined, { hour12: false, fractionalSecondDigits: 3 });
+          
+          setControlDiagnostic(prev => ({ ...prev, 
+            settledAt: nowEndStr, startSettledAt: nowEndStr, 
+            startStatus: 'RESOLVED', startResult: String(ok), startError: '', statusText: 'RESOLVED', }));
+          
+          setControlDiagnostic(prev => ({ ...prev, startReturned: String(ok) }));
+          
+          return ok;
+        } catch (error) {
+          const nowEndStr = new Date().toLocaleTimeString(undefined, { hour12: false, fractionalSecondDigits: 3 });
+          setControlDiagnostic(prev => ({ ...prev, 
+            settledAt: nowEndStr, startSettledAt: nowEndStr, 
+            startStatus: 'ERROR', startError: String(error) || 'Unknown error', statusText: 'ERROR', }));
+          return false;
+        } finally {
+          setVoiceBusy(false);
+        }
+      };
+      const ok = await safeStart();
       if (!ok) {
         setMode('manual');
         try { sessionStorage.setItem(MODE_KEY, 'manual'); } catch { /* ignore */ }
       }
     } else {
       voiceRef.current?.endConversation();
+      
+      setControlDiagnostic(prev => ({ ...prev, 
+        endButtonClicked: true,
+        endHandlerCalled: true,
+        endFunctionExists: typeof voiceRef.current?.endConversation === 'function',
+        endFunctionInvoked: true,
+      }));
+      
+      setVoiceBusy(false);
     }
   }, []);
 
@@ -451,15 +529,42 @@ export default function JarvisStudio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sync local mode with canonical voice session state across UI entry points
+  useEffect(() => {
+    if (!voice.conversationActive && mode === 'conversation' && !voiceBusy) {
+      setMode('manual');
+      try { sessionStorage.setItem(MODE_KEY, 'manual'); } catch { /* ignore */ }
+    } else if (voice.conversationActive && mode !== 'conversation') {
+      setMode('conversation');
+      try { sessionStorage.setItem(MODE_KEY, 'conversation'); } catch { /* ignore */ }
+    }
+  }, [voice.conversationActive, mode, voiceBusy]);
+
   const handleVoiceSelect = useCallback((id: string) => {
     setSelectedVoice(id);
     voiceRef.current?.setVoiceOverride?.(id);
     persistVoice(id);
+    void apiFetch('/api/jarvis-next/agent/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voiceId: id }),
+    }).catch(() => {});
+    try {
+      jarvisLiveKitSession.sendData({ type: 'set_voice', voiceId: id });
+    } catch {}
   }, []);
 
   const handleProfileSelect = useCallback((id: string) => {
     setSelectedProfile(id);
     persistProfile(id);
+    void apiFetch('/api/jarvis-next/agent/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voiceProfile: id }),
+    }).catch(() => {});
+    try {
+      jarvisLiveKitSession.sendData({ type: 'voice_config', voiceProfile: id });
+    } catch {}
     const prof = JARVIS_PROFILES.find((p) => p.id === id);
     if (prof) {
       handleVoiceSelect(prof.defaultVoice);
@@ -487,22 +592,14 @@ export default function JarvisStudio() {
     // AUTHORITATIVE KILL SWITCH: local silence + cancel model stream
     voiceRef.current?.killSpeechNow?.();
     chatRef.current?.cancelResponse?.();
-  }, []);
-
-  const handleNewConversation = useCallback(async () => {
-    try {
-      setConversationLanguage('en');
-      setSelectedVoice('en-GB-RyanNeural');
-      voiceRef.current?.setLanguage?.('en');
-      voiceRef.current?.setVoiceOverride?.('en-GB-RyanNeural');
-      const res = await fetch(`${API_BASE}/jarvis/conversations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New Conversation' }),
-      });
-      const data = await res.json();
-      if (data?.id) setActiveConversationId(data.id);
-    } catch { /* surface stays usable */ }
+    
+    setControlDiagnostic(prev => ({ 
+      ...prev,
+      stopButtonClicked: true,
+      stopHandlerCalled: true,
+      stopFunctionExists: typeof voiceRef.current?.killSpeechNow === 'function',
+      stopFunctionInvoked: true,
+    }));
   }, []);
 
   // Restore the most recent conversation on mount so /jarvis always shows
@@ -525,11 +622,34 @@ export default function JarvisStudio() {
         setActiveConversationId(rememberedExists ? remembered : data[0].id);
       } catch { /* clean-slate fallback */ }
     })();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true; }
+    }, []);
 
-  // Persist the active conversation id for session restore on return.
-  useEffect(() => {
+    // Generate a new conversation by pushing to the LiveKit session.
+    const handleNewConversation = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/jarvis/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'New Conversation' }),
+      });
+      if (!res.ok) return; // silent for non-modal fallback surface
+      const data = await res.json();
+      if (data?.id) setActiveConversationId(data.id);
+
+      setControlDiagnostic(prev => ({ ...prev, 
+        lastAction: 'NEW CONV REQUESTED', 
+        requestedMode: 'conversation' }));
+
+      voiceRef.current?.stopAudio?.();
+      voiceRef.current?.speak?.(
+        "I'll generate a new conversation for you now. Please stay tuned."
+      );
+    } catch { /* silent fallback — orb stays usable */ }
+    }, [voiceRef, setActiveConversationId]);
+
+    // Persist the active conversation id for session restore on return.
+    useEffect(() => {
     if (!activeConversationId) return;
     try { sessionStorage.setItem(ACTIVE_CONV_KEY, activeConversationId); } catch { /* ignore */ }
   }, [activeConversationId]);
@@ -1347,7 +1467,14 @@ export default function JarvisStudio() {
     if (backendOffline) return { label: 'RECONNECT', onClick: handleReconnect, disabled: false };
     if (voice.isSpeaking) return { label: 'STOP SPEAKING', onClick: handleStopSpeaking, disabled: false };
     if (mode === 'conversation') return { label: 'END CONVERSATION', onClick: () => void handleModeChange('manual'), disabled: voiceBusy };
-    return { label: 'START CONVERSATION', onClick: () => void handleModeChange('conversation'), disabled: voiceBusy };
+    return {
+      label: 'START CONVERSATION',
+      onClick: () => {
+        console.log('[JFE] START_BUTTON');
+        void handleModeChange('conversation');
+      },
+      disabled: voiceBusy,
+    };
   })();
 
   return (
@@ -1398,6 +1525,33 @@ export default function JarvisStudio() {
           {statusChip('TTS', voiceOutEnabled ? getVoiceProviderLabel(selectedVoice) : 'off', voiceOutEnabled ? 'ready' : 'neutral')}
           {statusChip('VOICE', voiceOutEnabled ? selectedVoice.replace('aura-', '').replace('de_DE-', '').replace('ro_RO-', '') : 'off', voiceOutEnabled ? 'online' : 'neutral')}
         </div>
+
+        {/* ── Control diagnostics (button fire-tracking) ── */}
+        {(mode === 'conversation' || mode === 'manual') && <div data-testid="jarvis-control-diagnostics" style={{ position: 'fixed', top: 80, left: 16, background: '#1e293b', border: '1px solid #475569', borderRadius: 8, padding: '6px 10px', fontSize: 9.5, color: '#cbd5e1 zIndex: 1000', maxWidth: 280, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontWeight: 700, borderBottom: '1px solid #475569', marginBottom: 4, letterSpacing: 0.5 }}>BUTTON DIAGNOSTICS</div>
+          <div>BUTTON LAST ACTION: {controlDiagnostic.lastAction || '—'}</div>
+          <div>HANDLE MODE CHANGE CALLED: {String(controlDiagnostic.handleCalled)}</div>
+          <div>REQUESTED MODE: {controlDiagnostic.requestedMode || '—'}</div>
+          <div>VOICE REF EXISTS: {String(controlDiagnostic.voiceRefExists)}</div>
+          <div>START METHOD EXISTS: {String(controlDiagnostic.startMethodExists)}</div>
+          <div>END METHOD EXISTS: {String(controlDiagnostic.endMethodExists)}</div>
+          <div>START STATUS: {controlDiagnostic.startStatus || '—'}</div>
+          <div>START INVOKED AT: {controlDiagnostic.startInvokedAt || '—'}</div>
+          <div>START SETTLED AT: {controlDiagnostic.startSettledAt || '—'}</div>
+          <div>START RESULT: {controlDiagnostic.startResult || '—'}</div>
+          <div>CURRENT MODE: {mode}</div>
+          <div>VOICE BUSY: {String(voiceBusy)}</div>
+          {/* ── Stop button diagnostics ── */}
+          <div>STOP BUTTON CLICKED: {controlDiagnostic.stopClicked || '—'}</div>
+          <div>STOP HANDLER CALLED: {String(controlDiagnostic.stopHandlerCalled)}</div>
+          <div>STOP EXISTS: {String(controlDiagnostic.stopExists)}</div>
+          <div>STOP INVOKED: {String(controlDiagnostic.stopInvoked)}</div>
+          {/* ── End button diagnostics ── */}
+          <div>END BUTTON CLICKED: {controlDiagnostic.endClicked || '—'}</div>
+          <div>END HANDLER CALLED: {String(controlDiagnostic.endHandlerCalled)}</div>
+          <div>END EXISTS: {String(controlDiagnostic.endExists)}</div>
+          <div>END INVOKED: {String(controlDiagnostic.endInvoked)}</div>
+        </div>}
 
         {/* ── CENTRAL CORE ── */}
         <div ref={orbRegionRef} className={cc.centerColumn} data-testid="jarvis-orb-region">
@@ -1495,7 +1649,7 @@ export default function JarvisStudio() {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ color: '#4ade80', fontWeight: 'bold', minWidth: '70px' }}>SPEAKING:</span>
-                <span style={{ color: '#f8fafc', overflowWrap: 'anywhere' }}>{lastReply || '—'}</span>
+                <span style={{ color: '#f8fafc', overflowWrap: 'anywhere' }}>{voice.lastResponse || lastReply || '—'}</span>
               </div>
             </div>
           </div>
@@ -1910,18 +2064,57 @@ export default function JarvisStudio() {
               <span className={cc.voiceInterimText}>{voiceInterimTranscript}</span>
             </div>
           )}
+          {lastVoiceRejection && (
+            <div
+              data-testid="voice-rejection-notice"
+              className="voice-rejection-notice mb-2 p-2 rounded bg-amber-500/15 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between"
+              role="alert"
+            >
+              <span className="truncate mr-2">
+                <strong>Voice ignored ({lastVoiceRejection.category}):</strong> {lastVoiceRejection.reason}
+              </span>
+              <button
+                onClick={clearVoiceRejection}
+                className="px-1 text-amber-400 hover:text-amber-100 font-bold"
+                aria-label="Dismiss rejection notice"
+              >
+                ×
+              </button>
+            </div>
+          )}
+          {liveKitDiagnosticState.sessionState === 'error' && liveKitDiagnosticState.errorMsg && (
+            <div
+              data-testid="jarvis-voice-error"
+              role="alert"
+              style={{
+                marginBottom: 8,
+                padding: '10px 14px',
+                borderRadius: 8,
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#fca5a5',
+                fontSize: 13,
+                fontFamily: 'monospace',
+                lineHeight: 1.5,
+                wordBreak: 'break-word',
+              }}
+            >
+              <strong style={{ color: '#ef4444' }}>VOICE ERROR:</strong>{' '}
+              {liveKitDiagnosticState.errorMsg}
+            </div>
+          )}
           <JarvisComposer
-            onSendMessage={(text, channel) => {
+            onSendMessage={(text, channel, attachments) => {
               if (channel !== 'voice') {
                 setVoiceInterimTranscript('');
               }
               const turnId = ++turnSeqRef.current;
               voiceRef.current?.armSpeech?.(turnId);
               setLastUserPrompt(text);
-              chatRef.current?.sendMessage(text, channel ?? 'typed', turnId);
+              chatRef.current?.sendMessage(text, channel ?? 'typed', turnId, attachments);
             }}
             isProcessing={['thinking', 'understanding', 'planning', 'delegating', 'executing', 'reviewing', 'streaming'].includes(runtimeStatus.state)}
-            onCancelResponse={() => chatRef.current?.cancelResponse()}
+            onCancelResponse={cancelRequest}
             composerText={composerText}
             onComposerTextChange={handleComposerTextChange}
             onMicStateChange={setMicState}

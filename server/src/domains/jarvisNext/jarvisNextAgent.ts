@@ -1,0 +1,2214 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  Room,
+  AudioSource,
+  AudioStream,
+  LocalAudioTrack,
+  TrackPublishOptions,
+  TrackSource,
+  RemoteTrack,
+  RemoteParticipant,
+  RoomEvent,
+} from '@livekit/rtc-node';
+import { LIVEKIT_CONFIG, generateAgentToken } from './tokenService.js';
+import {
+  evaluateVoiceInvariants,
+  raiseVoiceInvariantIncident,
+  persistOriginalGoalForRetry,
+  takeOriginalGoalForRetry,
+  voiceRecoveryAnnouncement,
+  decideBargeIn,
+  detectTruncation,
+  buildEngineeringEvidencePack,
+  type VoiceTurnEvidence,
+} from './voiceRuntimeInvariants.js';
+import { beginNavigation, completeNavigation } from '../../services/navigation/navigationTransactions.js';
+import { mp3ToPcmFrames, pcmChunksToWav, isSelfHearingEcho } from './audioUtils.js';
+import { synthesizeLocally } from '../../services/voice/localTts.js';
+import { transcribeLocally } from '../../services/voice/localTranscribe.js';
+import { operatorController } from './operator/operatorController.js';
+import { llmChat } from '../../services/llmGateway.js';
+import { logger } from '../../utils/logger.js';
+import { getBuildIdentity } from '../../services/buildIdentity.js';
+import { ensureLivekitServerRunning } from './livekitServerManager.js';
+import { detectControlIntent, isLikelyControlAttempt } from './controlIntentDetector.js';
+import { stripWakeWord } from './wakeWord.js';
+import { voiceHealthMonitor } from './voiceHealthMonitor.js';
+import { speechArbiter, SpeechPriority } from './speechArbiter.js';
+
+const JRT_TRACE_FILE = 'D:\\AgenticOS\\data\\jarvis-runtime-trace.log';
+
+export function logJRT(marker: string, details: string = ''): void {
+  const ts = new Date().toISOString();
+  const line = details ? `${ts} [JRT] ${marker} ${details}` : `${ts} [JRT] ${marker}`;
+  logger.info(`[JRT] ${marker}${details ? ' ' + details : ''}`);
+  try {
+    const dir = path.dirname(JRT_TRACE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.appendFileSync(JRT_TRACE_FILE, line + '\n', 'utf8');
+  } catch (err: any) {
+    logger.warn('[JRT] Failed to write trace to file:', err?.message);
+  }
+}
+
+export interface JarvisNextStatus {
+  connected: boolean;
+  roomName: string | null;
+  isSpeaking: boolean;
+  isListening: boolean;
+  isSuspended: boolean;
+  state?: 'idle' | 'listening' | 'speaking' | 'thinking' | 'suspended';
+  totalBargeIns: number;
+  lastUserText: string | null;
+  lastAssistantText: string | null;
+  legacyVoiceActive: boolean;
+  activeMicOwners: number;
+  activeVoiceOwners: number;
+}
+
+export interface NavigationAckPayload {
+  navigationId: string;
+  success: boolean;
+  actualRoute?: string;
+  visibleEntityId?: string;
+  error?: string;
+}
+
+export class JarvisNextAgent {
+  private room: Room | null = null;
+  private audioSource: AudioSource | null = null;
+  private localTrack: LocalAudioTrack | null = null;
+  private currentRoomName: string | null = null;
+
+  // Independent Lifecycle & Cancellation Tracking
+  private currentUserTurnId = 0;
+  /** Set to true while a P1 user turn response is being synthesized/played. */
+  private foregroundTurnActive = false;
+  private currentAssistantPlayoutId = 0;
+  // ── ONE SPOKEN RESPONSE PER TURN (ownership model) ─────────────────────
+  // Root cause of mid-stream aborts (runtime evidence 2026-09-23, playouts
+  // #19/#22/#27): speak() began with `++currentAssistantPlayoutId`, so EVERY
+  // second speak — executor follow-up, P2/P3 arbiter event, acknowledgement —
+  // implicitly cancelled whatever was playing and cut off the last words.
+  // Now: the playout that is synthesizing/speaking OWNS the voice channel.
+  // A new speak() never cancels it; secondary text is coalesced and played
+  // as one merged follow-up after the owner genuinely finishes. Invalidation
+  // of currentAssistantPlayoutId happens ONLY through the explicit paths:
+  // interruptAssistantPlayout() (user barge-in / accepted turn / STOP) and
+  // handleStopCommand() (cancellation / emergency).
+  /** Turn whose playout currently owns the voice channel (null = free). */
+  private speechOwnerTurnId: number | null = null;
+  /** Secondary speech requested while the owner was playing. */
+  private pendingCoalesced: string[] = [];
+  /** Per-turn SPEAK_REQUEST instrumentation counter. */
+  private speakRequestCount = new Map<number, number>();
+  /** Persistent conversation for the voice session, so turns retain continuity. */
+  private voiceConversationId: string | null = null;
+  private isSynthesizing = false;
+  private isSpeaking = false;
+  private isListening = false;
+  private isSuspended = false;
+  private isProcessingUserTurn = false;
+  private totalBargeIns = 0;
+  private lastUserText: string | null = null;
+  private lastAssistantText: string | null = null;
+
+  // Explicit Microphone & Voice State Machine (§8)
+  public micState: 'IDLE' | 'LISTENING' | 'USER_SPEAKING' | 'PROCESSING' | 'JARVIS_SPEAKING' | 'BARGE_IN_PENDING' = 'IDLE';
+  private vadTriggeredDuringTts = false;
+  private sttTriggeredDuringTts = false;
+  private interruptingAudioSource = 'none';
+  private interruptingEventType = 'none';
+
+  public setMicState(newState: 'IDLE' | 'LISTENING' | 'USER_SPEAKING' | 'PROCESSING' | 'JARVIS_SPEAKING' | 'BARGE_IN_PENDING', reason?: string): void {
+    const oldState = this.micState;
+    if (oldState === newState) return;
+    this.micState = newState;
+    this.isListening = newState === 'LISTENING' || newState === 'BARGE_IN_PENDING';
+    logJRT('MIC_STATE_TRANSITION', `${oldState} -> ${newState} reason=${reason || 'normal'}`);
+    logger.info(`[JarvisNext] MIC_STATE_TRANSITION: ${oldState} -> ${newState} (${reason || 'normal'})`);
+    this.broadcastData({
+      type: 'status',
+      state: newState.toLowerCase(),
+      micState: newState,
+      isSpeaking: this.isSpeaking,
+      isListening: this.isListening,
+      reason,
+    });
+  }
+
+  private logSpeechLifecycle(record: {
+    turnId: number;
+    generationId: number;
+    userSttText: string;
+    responseTextFull: string;
+    ttsInputText: string;
+    ttsVoiceId: string;
+    ttsProfile: string;
+    ttsSynthStart: number;
+    ttsSynthEnd: number;
+    generatedAudioDurationMs: number;
+    playbackRequest: number;
+    playbackStart: number;
+    playbackExpectedDurationMs: number;
+    playbackActualDurationMs: number;
+    playbackEnd: number;
+    playbackCompleted: boolean;
+    playbackAborted: boolean;
+    playbackAbortReason: string;
+    activeTurnAtPlaybackStart: number;
+    activeTurnAtPlaybackEnd: number;
+    micActiveDuringTts: boolean;
+    vadTriggeredDuringTts: boolean;
+    sttTriggeredDuringTts: boolean;
+    interruptingAudioSource: string;
+    interruptingEventType: string;
+  }): void {
+    const lines = [
+      '================================================================================',
+      'SPEECH_LIFECYCLE_TRACE:',
+      `TURN_ID=${record.turnId}`,
+      `GENERATION_ID=${record.generationId}`,
+      `USER_STT_TEXT=${record.userSttText || 'none'}`,
+      ``,
+      `RESPONSE_TEXT_FULL=${record.responseTextFull.replace(/\r?\n/g, ' ')}`,
+      `RESPONSE_TEXT_LENGTH=${record.responseTextFull.length}`,
+      ``,
+      `TTS_INPUT_TEXT=${record.ttsInputText.replace(/\r?\n/g, ' ')}`,
+      `TTS_INPUT_LENGTH=${record.ttsInputText.length}`,
+      `TTS_VOICE_ID=${record.ttsVoiceId}`,
+      `TTS_PROFILE=${record.ttsProfile}`,
+      ``,
+      `TTS_SYNTH_START=${new Date(record.ttsSynthStart).toISOString()}`,
+      `TTS_SYNTH_END=${new Date(record.ttsSynthEnd).toISOString()}`,
+      `GENERATED_AUDIO_DURATION_MS=${record.generatedAudioDurationMs}`,
+      ``,
+      `PLAYBACK_REQUEST=${new Date(record.playbackRequest).toISOString()}`,
+      `PLAYBACK_START=${new Date(record.playbackStart).toISOString()}`,
+      `PLAYBACK_EXPECTED_DURATION_MS=${record.playbackExpectedDurationMs}`,
+      `PLAYBACK_ACTUAL_DURATION_MS=${record.playbackActualDurationMs}`,
+      `PLAYBACK_END=${new Date(record.playbackEnd).toISOString()}`,
+      ``,
+      `PLAYBACK_COMPLETED=${record.playbackCompleted}`,
+      `PLAYBACK_ABORTED=${record.playbackAborted}`,
+      `PLAYBACK_ABORT_REASON=${record.playbackAbortReason}`,
+      ``,
+      `ACTIVE_TURN_AT_PLAYBACK_START=${record.activeTurnAtPlaybackStart}`,
+      `ACTIVE_TURN_AT_PLAYBACK_END=${record.activeTurnAtPlaybackEnd}`,
+      ``,
+      `MIC_ACTIVE_DURING_TTS=${record.micActiveDuringTts}`,
+      `VAD_TRIGGERED_DURING_TTS=${record.vadTriggeredDuringTts}`,
+      `STT_TRIGGERED_DURING_TTS=${record.sttTriggeredDuringTts}`,
+      ``,
+      `INTERRUPTING_AUDIO_SOURCE=${record.interruptingAudioSource}`,
+      `INTERRUPTING_EVENT_TYPE=${record.interruptingEventType}`,
+      '================================================================================'
+    ].join('\n');
+    console.log(`\n[JRT]\n${lines}\n`);
+    logger.info('[JRT] SPEECH_LIFECYCLE_TRACE', { trace: lines });
+  }
+
+  // Voice & Speech Profile Configuration
+  private currentVoiceId: string = 'aura-helios-en';
+  private currentVoiceProfile: string = 'deep-jarvis';
+  private currentRate: string | undefined = undefined;
+  private currentPitch: string | undefined = undefined;
+
+  public setVoiceConfig(config: { voiceId?: string; voiceProfile?: string; rate?: string; pitch?: string }): void {
+    if (config.voiceId) this.currentVoiceId = config.voiceId;
+    if (config.voiceProfile) {
+      this.currentVoiceProfile = config.voiceProfile;
+      const p = config.voiceProfile.toLowerCase().replace(/[-_]/g, '');
+      if (p.includes('tactical') || p.includes('briefing') || p === 'fast') {
+        this.currentRate = '+25%';
+        this.currentPitch = '+0Hz';
+      } else if (p.includes('calm') || p.includes('authoritative')) {
+        this.currentRate = '-10%';
+        this.currentPitch = '-5Hz';
+      } else if (p.includes('deep')) {
+        this.currentRate = '-10%';
+        this.currentPitch = '-5Hz';
+      } else if (p.includes('cinematic')) {
+        this.currentRate = '-5%';
+        this.currentPitch = '-2Hz';
+      } else if (p.includes('natural')) {
+        this.currentRate = '+0%';
+        this.currentPitch = '+0Hz';
+      }
+    }
+    if (config.rate !== undefined) this.currentRate = config.rate;
+    if (config.pitch !== undefined) this.currentPitch = config.pitch;
+
+    logger.info('[JarvisNext] Active voice configuration updated:', {
+      voiceId: this.currentVoiceId,
+      voiceProfile: this.currentVoiceProfile,
+      rate: this.currentRate,
+      pitch: this.currentPitch,
+    });
+  }
+
+  public getVoiceConfig(): { voiceId: string; voiceProfile: string; rate?: string; pitch?: string } {
+    return {
+      voiceId: this.currentVoiceId,
+      voiceProfile: this.currentVoiceProfile,
+      rate: this.currentRate,
+      pitch: this.currentPitch,
+    };
+  }
+
+  // Playout timing & barge-in detection
+  private speechStartTime = 0;
+  private consecutiveBargeInFrames = 0;
+  private ambientNoiseFloor = 30.0;
+  private currentTurnIsBargeIn = false;
+
+  // Pre-roll ring buffer and continuous utterance audio capture
+  private activeStreams: AudioStream[] = [];
+  private preRollBuffer: Buffer[] = [];
+  private readonly PRE_ROLL_MAX_FRAMES = 45; // ~900ms at 20ms/frame to capture soft speech onset
+  private speechFrames: Buffer[] = [];
+  private pendingNavigationAcks = new Map<string, (ack: NavigationAckPayload) => void>();
+  private silenceTimeout: NodeJS.Timeout | null = null;
+  private isAccumulatingSpeech = false;
+  private lastFrameSampleRate = 24000;
+  private lastFrameChannels = 1;
+  private hasReceivedFirstFrame = false;
+  private lastRmsLogTime = 0;
+  public maxObservedRms = 0;
+
+  // Calibrated voice activity thresholds
+  private readonly SPEECH_START_THRESHOLD = 650;
+  private readonly SPEECH_CONTINUE_THRESHOLD = 350;
+  private readonly BARGE_IN_THRESHOLD = 1100;
+  /**
+   * ECHO GUARD. Raised from 250ms: the microphone hears our own speaker output,
+   * and the first fraction of a second of our own audio must never be treated as
+   * a person interrupting us.
+   */
+  private readonly BARGE_IN_GRACE_MS = 700;
+  /** Higher floor while our own audio is playing, so echo cannot clear it. */
+  private readonly BARGE_IN_PLAYOUT_THRESHOLD = 900;
+  /** A person speaks for longer than one of our own syllables (~160ms). */
+  private readonly BARGE_IN_SUSTAIN_FRAMES = 8;
+  private readonly SILENCE_DURATION_MS = 1600; // 1.6s natural conversational settle window
+
+  private consecutiveClarifications = 0;
+  private userSpeechStartTime = 0;
+  private userSpeechEndTime = 0;
+  private lastNonSilentTimestamp: number | null = null;
+  private turnSpeechEndTimes = new Map<number, number>();
+  private turnVadEndTimes = new Map<number, number>();
+
+  private startingPromise: Promise<void> | null = null;
+  private isReady = false;
+  private subscribedTrackSids: Set<string> = new Set();
+
+  // ── Voice runtime lifecycle invariant tracking ──────────────────────────
+  // The turn latch must never survive a turn. These fields make every invariant
+  // in voiceRuntimeInvariants.ts decidable from runtime facts.
+  private turnLatchAcquiredAt: number | null = null;
+  private turnWatchdog: NodeJS.Timeout | null = null;
+  private turnRoute: string | undefined;
+  private turnExecutor: string | undefined;
+  private turnExecutorCompleted: boolean | undefined;
+  private turnLastError: string | undefined;
+  private turnCommittedAt: number | null = null;
+  private turnSttBeginAt: number | undefined;
+  private turnSttFinalAt: number | undefined;
+  private turnVadStart: number | undefined;
+  private turnWavPath: string | undefined;
+  private turnRawAudioDurationMs: number | undefined;
+  /** Loud mic frames discarded because a turn was latched (deafness evidence). */
+  private droppedFramesWhileLatched = 0;
+  /** Frames rejected as a barge-in candidate while TTS was playing (echo evidence). */
+  private ttsEchoRejectedFrames = 0;
+  private lastBargeInRms = 0;
+  private playoutCancellation: { reason: string; at: number; playoutId: number; frames: number } | null = null;
+  private lastPlayoutStartedAt: number | null = null;
+  private lastPlayoutEndedAt: number | null = null;
+  private lastPlayoutFrames = 0;
+
+  /**
+   * A held turn latch must never outlive the turn it belongs to. Every terminal
+   * path calls this; a watchdog calls it if no terminal path ever ran.
+   */
+  private readonly TURN_WATCHDOG_MS = 15_000;
+
+  private releaseTurnLatch(reason: string): void {
+    if (this.turnWatchdog) {
+      clearTimeout(this.turnWatchdog);
+      this.turnWatchdog = null;
+    }
+    if (this.isProcessingUserTurn) {
+      this.isProcessingUserTurn = false;
+      logger.info('[JarvisNext] Turn latch released', { reason, turnId: this.currentUserTurnId, droppedFrames: this.droppedFramesWhileLatched });
+    }
+    this.foregroundTurnActive = false;
+    this.turnLatchAcquiredAt = null;
+    this.droppedFramesWhileLatched = 0;
+    // Drain the arbiter queue now that foreground is idle
+    speechArbiter.onUserTurnComplete().catch(() => {});
+  }
+
+  private armTurnWatchdog(turnId: number, conversationId: string | null): void {
+    if (this.turnWatchdog) clearTimeout(this.turnWatchdog);
+    // Generation token: the watchdog only fires for the latch generation it was
+    // armed for, so a turn that completes normally can never trip it afterwards.
+    const armedForLatch = this.turnLatchAcquiredAt;
+    this.turnWatchdog = setTimeout(() => {
+      if (this.turnLatchAcquiredAt !== armedForLatch) return; // latch already released / reused
+      if (!this.isProcessingUserTurn) return;                 // turn finished normally
+      // No terminal outcome arrived for this turn. This is the failure that makes
+      // Jarvis permanently deaf, so it is a runtime defect — not a conversation
+      // problem — and it goes to Self-Heal with the evidence attached.
+      void this.onTurnWatchdogExpired(turnId, conversationId);
+    }, this.TURN_WATCHDOG_MS);
+  }
+
+  private async onTurnWatchdogExpired(turnId: number, conversationId: string | null): Promise<void> {
+    const evidence: VoiceTurnEvidence = {
+      turnId,
+      conversationId,
+      transcript: this.lastUserText ?? undefined,
+      committedAt: this.turnCommittedAt ?? undefined,
+      sttBeginAt: this.turnSttBeginAt,
+      sttFinalAt: this.turnSttFinalAt,
+      rawAudioDurationMs: this.turnRawAudioDurationMs,
+      vadStartMs: this.turnVadStart,
+      wavPath: this.turnWavPath,
+      endpointReason: 'vad_silence',
+      route: this.turnRoute,
+      executor: this.turnExecutor,
+      executorCompleted: this.turnExecutorCompleted,
+      ttsState: this.isSpeaking ? 'speaking' : this.isSynthesizing ? 'synthesizing' : 'idle',
+      browserActionState: 'unknown',
+      isProcessingUserTurn: this.isProcessingUserTurn,
+      isAccumulatingSpeech: this.isAccumulatingSpeech,
+      isSpeaking: this.isSpeaking,
+      isListening: this.isListening,
+      ambientNoiseFloor: this.ambientNoiseFloor,
+      droppedFramesWhileLatched: this.droppedFramesWhileLatched,
+      droppedSpeechEstimateMs: this.droppedFramesWhileLatched * 20,
+      lastError: this.turnLastError,
+    };
+
+    const fired = evaluateVoiceInvariants({
+      terminal: false,
+      turn: evidence,
+      listenerRearmed: this.isListening,
+    });
+
+    // Release the latch FIRST: the user must be able to speak again even if the
+    // incident handoff is slow or unavailable.
+    this.releaseTurnLatch(`watchdog_timeout:${turnId}`);
+    this.isAccumulatingSpeech = false;
+    this.currentUserTurnId++;
+    logJRT('TURN_COMPLETE', `turn=${turnId} reason=watchdog_released_latch`);
+    logger.error('[JarvisNext] VOICE_TURN_STUCK — turn never completed; latch force-released and reported to Self-Heal', {
+      turnId, droppedFrames: evidence.droppedFramesWhileLatched,
+    });
+
+    const incidentIds: string[] = [];
+    for (const f of fired) {
+      const res = await raiseVoiceInvariantIncident(f, { watchdogMs: this.TURN_WATCHDOG_MS });
+      if (res.raised && res.incidentId) incidentIds.push(res.incidentId);
+    }
+
+    if (this.lastUserText) {
+      await persistOriginalGoalForRetry({
+        goal: this.lastUserText,
+        conversationId,
+        incidentId: incidentIds[0],
+        turnId,
+      });
+    }
+
+    // F: tell the user, if speech output still works.
+    const announcement = voiceRecoveryAnnouncement(fired, incidentIds);
+    if (announcement) {
+      this.broadcastData({ type: 'assistant_text', text: announcement });
+      this.broadcastData({
+        type: 'voice_runtime_recovery',
+        invariant: fired.map((f) => f.id),
+        incidentIds,
+        text: announcement,
+      });
+      try {
+        await this.speak(announcement, turnId);
+      } catch (err: any) {
+        logger.warn('[JarvisNext] Could not speak the recovery announcement', { error: err?.message || String(err) });
+      }
+    }
+    this.broadcastData({ type: 'status', state: 'listening', isSpeaking: false, isListening: true });
+  }
+
+  /**
+   * A barge-in is only real if a PERSON was behind it. Jarvis's own speaker output
+   * returns through the microphone, so the energy test alone cannot prove a human
+   * interrupted: a genuine barge-in is followed by an utterance we actually commit.
+   * Nothing committed afterwards means our own audio cut us off.
+   */
+  private async verifyBargeInWasHuman(opts: {
+    turnId: number;
+    cancelledAt: number;
+    reason: string;
+    playoutStartedAt: number | null;
+    frames: number;
+  }): Promise<void> {
+    const committedAfter = this.turnCommittedAt !== null && this.turnCommittedAt > opts.cancelledAt;
+    if (committedAfter) {
+      logger.info('[JarvisNext] Barge-in verified as human — a turn was committed after the interruption', {
+        turnId: opts.turnId,
+      });
+      return;
+    }
+
+    const evidence: VoiceTurnEvidence = {
+      turnId: opts.turnId,
+      conversationId: this.voiceConversationId,
+      transcript: this.lastUserText ?? undefined,
+      committedAt: this.turnCommittedAt ?? undefined,
+      rawAudioDurationMs: this.turnRawAudioDurationMs,
+      route: this.turnRoute,
+      executor: this.turnExecutor,
+      executorCompleted: this.turnExecutorCompleted,
+      ttsState: 'ended',
+      ttsStartedAt: opts.playoutStartedAt ?? undefined,
+      ttsFramesPublished: opts.frames,
+      cancellationReason: opts.reason,
+      bargeInVerifiedHuman: false,
+      isProcessingUserTurn: this.isProcessingUserTurn,
+      isAccumulatingSpeech: this.isAccumulatingSpeech,
+      isSpeaking: this.isSpeaking,
+      isListening: this.isListening,
+      ambientNoiseFloor: this.ambientNoiseFloor,
+      droppedFramesWhileLatched: this.droppedFramesWhileLatched,
+      lastError: this.turnLastError,
+    };
+
+    const fired = evaluateVoiceInvariants({
+      terminal: true,
+      turn: evidence,
+      listenerRearmed: this.isListening,
+      bareBargeInVerified: false,
+    });
+    if (!fired.length) return;
+
+    const incidentIds: string[] = [];
+    for (const f of fired) {
+      const res = await raiseVoiceInvariantIncident(f, {
+        echoRejectedFrames: this.ttsEchoRejectedFrames,
+        bargeInRms: this.lastBargeInRms,
+        playoutFramesPublished: opts.frames,
+      });
+      if (res.raised && res.incidentId) incidentIds.push(res.incidentId);
+    }
+
+    const announcement = voiceRecoveryAnnouncement(fired, incidentIds);
+    if (announcement) {
+      this.broadcastData({ type: 'assistant_text', text: announcement });
+      this.broadcastData({
+        type: 'voice_runtime_recovery',
+        invariant: fired.map((f) => f.id),
+        incidentIds,
+        text: announcement,
+      });
+    }
+  }
+
+  public getStatus(): JarvisNextStatus {
+    return {
+      connected: this.room ? this.room.isConnected : false,
+      roomName: this.currentRoomName,
+      isSpeaking: this.isSpeaking,
+      isListening: this.isListening,
+      isSuspended: this.isSuspended,
+      state: this.isSuspended ? 'suspended' : (this.isSpeaking ? 'speaking' : (this.isListening ? 'listening' : 'idle')),
+      totalBargeIns: this.totalBargeIns,
+      lastUserText: this.lastUserText,
+      lastAssistantText: this.lastAssistantText,
+      legacyVoiceActive: false,
+      activeMicOwners: 1,
+      activeVoiceOwners: this.isSpeaking ? 1 : 0,
+    };
+  }
+
+  public handleStopCommand(reason = 'user_stop_command'): void {
+    logger.info(`[JarvisNext] STOP command executed (reason: ${reason}). Cancelling playout, resetting queue, and returning to READY / LISTENING.`);
+    this.isSuspended = false;
+    this.isSpeaking = false;
+    this.isSynthesizing = false;
+    this.isProcessingUserTurn = false;
+    this.isAccumulatingSpeech = false;
+    // Explicit cancellation: release voice ownership and drop coalesced
+    // follow-ups — the user asked for silence, not a delayed second utterance.
+    this.speechOwnerTurnId = null;
+    if (this.pendingCoalesced.length) {
+      console.log(`[JRT] SPEAK_COALESCED_DROPPED reason=stop_command depth=${this.pendingCoalesced.length}`);
+      logJRT('SPEAK_COALESCED_DROPPED', `reason=stop_command depth=${this.pendingCoalesced.length}`);
+      this.pendingCoalesced = [];
+    }
+    this.currentAssistantPlayoutId++;
+    this.currentUserTurnId++;
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+    this.speechFrames = [];
+    this.releaseTurnLatch(reason);
+    if (reason === 'cancel_work') {
+      try {
+        import('../jarvis/execution/executors/terminalExecutor.js').then(({ terminalExecutor }) => {
+          terminalExecutor.cancelActiveProcesses();
+        }).catch(() => {});
+      } catch {}
+    }
+    this.broadcastData({ type: 'stop_playback', reason });
+    this.isListening = true;
+    this.broadcastData({
+      type: 'status',
+      state: 'listening',
+      isSpeaking: false,
+      isListening: true,
+      isSuspended: false,
+    });
+    logJRT('STATE_TRANSITION', `to=listening reason=${reason}`);
+    try {
+      import('./jarvisHealth.js').then(({ bump }) => {
+        bump('stop_command_executed');
+      }).catch(() => {});
+    } catch {}
+  }
+
+  public suspend(reason = 'stop_command'): void {
+    this.handleStopCommand(reason);
+  }
+
+  public resume(_reason = 'wake_word'): void {
+    this.isSuspended = false;
+    this.isListening = true;
+    this.broadcastData({
+      type: 'status',
+      state: 'listening',
+      isSpeaking: false,
+      isListening: true,
+      isSuspended: false,
+    });
+  }
+
+  public isSuspendedState(): boolean {
+    return false;
+  }
+
+  public async waitForReady(roomName: string = LIVEKIT_CONFIG.defaultRoom, timeoutMs: number = 10000): Promise<void> {
+    if (this.isReady && this.room && this.room.isConnected && this.currentRoomName === roomName) {
+      logger.info('[JarvisNext] Agent is already ready in room:', roomName);
+      return;
+    }
+
+    if (!this.startingPromise) {
+      this.startingPromise = this.start(roomName);
+    }
+
+    let timer: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`AGENT_READY_TIMEOUT: Jarvis agent failed to become ready for room ${roomName} within ${timeoutMs}ms`));
+      }, timeoutMs);
+    });
+
+    try {
+      await Promise.race([this.startingPromise, timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Request background speech through the arbiter.
+   * Used by HTTP /agent/speak endpoint and any background caller.
+   * Will be rejected if a P1 user turn is currently active.
+   */
+  public async requestBackgroundSpeech(
+    text: string,
+    priority: SpeechPriority = SpeechPriority.P4_BACKGROUND,
+    source = 'external',
+    turnId?: number,
+  ): Promise<boolean> {
+    return speechArbiter.request({ text, priority, source, turnId });
+  }
+
+  public start(roomName: string = LIVEKIT_CONFIG.defaultRoom): Promise<void> {
+    if (this.isReady && this.room && this.room.isConnected && this.currentRoomName === roomName) {
+      logger.info('[JarvisNext] Agent already connected to room:', roomName);
+      return Promise.resolve();
+    }
+
+    if (this.startingPromise) {
+      return this.startingPromise;
+    }
+
+    this.startingPromise = this.startInternal(roomName).finally(() => {
+      this.startingPromise = null;
+    });
+
+    return this.startingPromise;
+  }
+
+  private async startInternal(roomName: string): Promise<void> {
+    this.isReady = false;
+    logJRT('AGENT_STARTING', `room=${roomName}`);
+
+    if (this.room) {
+      await this.stop();
+    }
+
+    // Guarantee LiveKit server is running before connecting
+    await ensureLivekitServerRunning();
+
+    this.hasReceivedFirstFrame = false;
+    this.lastRmsLogTime = 0;
+    this.maxObservedRms = 0;
+    this.subscribedTrackSids.clear();
+
+    this.currentRoomName = roomName;
+    const token = await generateAgentToken(roomName);
+
+    logger.info('[JarvisNext] Connecting agent to LiveKit room:', roomName);
+    const room = new Room();
+    this.room = room;
+
+    // Create 24kHz audio source for Jarvis voice
+    this.audioSource = new AudioSource(24000, 1);
+    this.localTrack = LocalAudioTrack.createAudioTrack('jarvis-assistant-voice', this.audioSource);
+
+    // Register the speech arbiter ONCE per start so background callers (Revenue Operator,
+    // Hermes, Self-Heal, scheduler, approval gates) are gated through the single voice output
+    // authority. P4/P5 speech is silently dropped when a P1 user turn is active.
+    speechArbiter.register({
+      speakFn: (text, tid) => this.speak(text, tid),
+      getCurrentTurnId: () => this.currentUserTurnId,
+      isUserTurnActive: () => this.isProcessingUserTurn || this.foregroundTurnActive,
+      isSpeaking: () => this.isSpeaking || this.isSynthesizing,
+    });
+
+    // Setup room listeners
+    room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _: any, participant: RemoteParticipant) => {
+      logger.info('[JarvisNext] Remote track subscribed:', {
+        kind: track.kind,
+        participant: participant.identity,
+        sid: track.sid,
+      });
+
+      if (track.kind === 1 /* Audio */) {
+        const sid = track.sid || '';
+        if (!this.subscribedTrackSids.has(sid)) {
+          logJRT('AUDIO_TRACK_SUBSCRIBED', `participant=${participant.identity} kind=audio sid=${sid}`);
+          this.handleIncomingAudioTrack(track, participant);
+        }
+      }
+    });
+
+    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+      logger.info('[JarvisNext] Remote track unsubscribed:', track.sid);
+      if (track.sid) {
+        this.subscribedTrackSids.delete(track.sid);
+      }
+    });
+
+    room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+      logger.info('[JarvisNext] User connected to room:', participant.identity);
+      logJRT('PARTICIPANT_CONNECTED', `participant=${participant.identity} room=${this.currentRoomName || ''}`);
+      // Greet user on join
+      setTimeout(() => {
+        if (!this.isSpeaking && !this.isSynthesizing && this.room?.isConnected) {
+          this.speak('Hello! Jarvis is online on LiveKit with zero cloud cost. How can I help you?');
+        }
+      }, 500);
+    });
+
+    room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+      logger.info('[JarvisNext] User disconnected from room:', participant.identity);
+      logJRT('PARTICIPANT_DISCONNECTED', `participant=${participant.identity} room=${this.currentRoomName || ''}`);
+    });
+
+    room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant) => {
+      try {
+        const text = new TextDecoder().decode(payload);
+        logger.info('[JarvisNext] Data message received from user:', { text, participant: participant?.identity });
+        const data = JSON.parse(text);
+        if (data.type === 'stop' || data.type === 'suspend' || data.type === 'stop_speaking' || data.type === 'barge_in' || data.type === 'interrupt') {
+          this.handleStopCommand('client_data_channel');
+        } else if (data.type === 'resume' || data.type === 'wake') {
+          this.resume('client_data_channel');
+        } else if (data.type === 'set_voice' || data.type === 'voice_config') {
+          this.setVoiceConfig({
+            voiceId: data.voiceId || data.voice,
+            voiceProfile: data.voiceProfile || data.profile,
+            rate: data.rate,
+            pitch: data.pitch,
+          });
+        } else if (data.type === 'user_text' && data.text) {
+          this.handleUserText(data.text);
+        } else if (data.type === 'NAVIGATE_ACK' && data.navigationId) {
+          logger.info('[JarvisNext] NAVIGATE_ACK received:', data);
+          console.log(`[JRT] NAV_ACK_RECEIVE room=${this.currentRoomName || ''} navId=${data.navigationId} success=${data.success} actualRoute=${data.actualRoute}`);
+          // D23: the ACK belongs to the SHARED transaction registry.
+          try {
+            const fed = completeNavigation({
+              navId: data.navigationId,
+              success: data.success === true,
+              actualRoute: data.actualRoute,
+              activeProjectId: data.activeProjectId,
+              visibleEntityId: data.visibleEntityId,
+              error: data.error,
+            });
+            logger.info('[JarvisNext] LiveKit ACK resolved the shared transaction:', {
+              navigationId: data.navigationId, accepted: fed.accepted, verified: fed.verified, reason: fed.reason ?? null,
+            });
+          } catch (feedErr) {
+            logger.warn('[JarvisNext] Could not feed NAVIGATE_ACK to the shared registry:', { error: String(feedErr) });
+          }
+          const resolver = this.pendingNavigationAcks.get(data.navigationId);
+          if (resolver) {
+            resolver(data);
+          }
+        }
+      } catch {
+        // Not JSON data
+      }
+    });
+
+    await room.connect(LIVEKIT_CONFIG.wsUrl, token);
+    const buildIdentity = getBuildIdentity();
+    const buildId = buildIdentity.buildId || 'dev';
+    logger.info('[JarvisNext] Agent connected successfully to room:', { roomName, buildId, pid: process.pid });
+    console.log(`[JarvisNext] STARTUP BUILD_ID=${buildId} PID=${process.pid} ROOM=${roomName}`);
+    logJRT('AGENT_CONNECTED', `room=${roomName}`);
+
+    // Publish assistant audio track
+    if (!room.localParticipant) {
+      throw new Error('Failed to acquire localParticipant after room connect');
+    }
+    const opts = new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE });
+    await room.localParticipant.publishTrack(this.localTrack, opts);
+    logger.info('[JarvisNext] Assistant audio track published.');
+    this.isListening = true;
+
+    // Phase 4: Handle existing participants & tracks already present upon joining
+    for (const [_, participant] of room.remoteParticipants) {
+      logger.info('[JarvisNext] Existing participant found on connect:', participant.identity);
+      logJRT('PARTICIPANT_CONNECTED', `participant=${participant.identity} room=${this.currentRoomName || ''}`);
+      for (const [_, publication] of participant.trackPublications) {
+        if (publication.kind === 1 /* Audio */) {
+          if (!publication.subscribed) {
+            try {
+              publication.setSubscribed(true);
+            } catch (subErr: any) {
+              logger.warn('[JarvisNext] Failed to setSubscribed on existing track publication:', subErr?.message);
+            }
+          }
+          if (publication.track) {
+            const sid = publication.track.sid || publication.sid || '';
+            if (!this.subscribedTrackSids.has(sid)) {
+              logger.info('[JarvisNext] Subscribing to existing audio track:', sid);
+              logJRT('AUDIO_TRACK_SUBSCRIBED', `participant=${participant.identity} kind=audio sid=${sid}`);
+              this.handleIncomingAudioTrack(publication.track as RemoteTrack, participant);
+            }
+          }
+        }
+      }
+    }
+
+    this.isReady = true;
+    logJRT('AGENT_READY', `room=${roomName}`);
+    logJRT('ROOM_AGENT_STARTED', `room=${roomName}`);
+
+    this.broadcastData({
+      type: 'status',
+      state: 'listening',
+      isSpeaking: false,
+      isListening: true,
+    });
+  }
+
+  /**
+   * One persistent conversation per voice session. Supervisor V2 and the
+   * dialogue/memory layers key off conversationId, so reusing it is what gives
+   * voice turns continuity instead of isolated single-utterance prompts.
+   */
+  private async ensureVoiceConversation(): Promise<string | null> {
+    if (this.voiceConversationId) return this.voiceConversationId;
+    try {
+      const { conversationService } = await import('../conversations/service.js');
+      const conv: any = await conversationService.createConversation(
+        `Voice session ${new Date().toISOString()}`,
+        undefined,
+        'jarvis',
+      );
+      this.voiceConversationId = conv?.id ?? conv ?? null;
+      logJRT('VOICE_CONVERSATION_READY', `conversation=${this.voiceConversationId}`);
+    } catch (err: any) {
+      logger.warn('[JarvisNext] Failed to create voice conversation:', err?.message || err);
+      this.voiceConversationId = null;
+    }
+    return this.voiceConversationId;
+  }
+
+  private handleIncomingAudioTrack(track: RemoteTrack, participant: RemoteParticipant): void {
+    const sid = track.sid || '';
+    if (sid && this.subscribedTrackSids.has(sid)) {
+      logger.info('[JarvisNext] Track already subscribed, skipping duplicate:', sid);
+      return;
+    }
+    if (sid) {
+      this.subscribedTrackSids.add(sid);
+    }
+    try {
+      // Resample to 24kHz mono natively via rtc-node AudioStream
+      const stream = new AudioStream(track, { sampleRate: 24000, numChannels: 1 });
+      this.activeStreams.push(stream);
+
+      (async () => {
+        for await (const frame of stream) {
+          this.processUserAudioFrame(frame);
+        }
+      })().catch((err) => {
+        logger.debug('[JarvisNext] AudioStream closed or errored:', err?.message);
+      });
+    } catch (err: any) {
+      logger.error('[JarvisNext] Failed to create AudioStream:', err);
+    }
+  }
+
+  private processUserAudioFrame(frame: any): void {
+    if (frame.sampleRate) this.lastFrameSampleRate = frame.sampleRate;
+    if (frame.channels) this.lastFrameChannels = frame.channels;
+
+    const samples = frame.data;
+    if (!samples || samples.length === 0) return;
+
+    if (!this.hasReceivedFirstFrame) {
+      this.hasReceivedFirstFrame = true;
+      logJRT('AUDIO_FIRST_FRAME', `sampleRate=${frame.sampleRate || this.lastFrameSampleRate} channels=${frame.channels || this.lastFrameChannels}`);
+    }
+
+    let sumSquares = 0;
+    for (let i = 0; i < samples.length; i++) {
+      sumSquares += samples[i] * samples[i];
+    }
+    const rms = Math.sqrt(sumSquares / samples.length);
+    if (rms > this.maxObservedRms) {
+      this.maxObservedRms = rms;
+    }
+
+    const now = Date.now();
+    if (now - this.lastRmsLogTime >= 1000) {
+      this.lastRmsLogTime = now;
+      logJRT('AUDIO_LEVEL', `rms=${Math.round(rms)}`);
+    }
+
+    // Maintain circular pre-roll buffer (~400ms)
+    // Own the bytes: the native capture buffer may be reused after this frame.
+    const pcmBytes = Buffer.from(new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
+    this.preRollBuffer.push(pcmBytes);
+    if (this.preRollBuffer.length > this.PRE_ROLL_MAX_FRAMES) {
+      this.preRollBuffer.shift();
+    }
+
+    // CASE A: Assistant is physically outputting audio to speakers
+    if (this.isSpeaking) {
+      const timeSinceSpeechStarted = Date.now() - this.speechStartTime;
+      const dynamicBargeIn = Math.max(550, Math.min(1000, this.ambientNoiseFloor * 3.0 + 350));
+      // ECHO GUARD: our own speech comes back through the microphone. Jarvis's
+      // own audio must never cancel Jarvis. A candidate barge-in during playout
+      // must therefore clear a HIGHER floor and be SUSTAINED for longer than one
+      // of our own syllables; a genuine person easily does both. The decision is
+      // the shared pure function so the tests exercise this exact path.
+      const decision = decideBargeIn({
+        rms,
+        msSincePlayoutStart: timeSinceSpeechStarted,
+        ambientNoiseFloor: this.ambientNoiseFloor,
+        consecutiveFrames: this.consecutiveBargeInFrames + 1,
+        graceMs: this.BARGE_IN_GRACE_MS,
+        playoutFloor: this.BARGE_IN_PLAYOUT_THRESHOLD,
+        sustainFrames: this.BARGE_IN_SUSTAIN_FRAMES,
+      });
+      const echoGuardThreshold = Math.max(dynamicBargeIn, this.BARGE_IN_PLAYOUT_THRESHOLD);
+      if (decision === 'trigger') {
+        logger.info(`[JarvisNext] Candidate user speech detected during playout (rms=${Math.round(rms)}, thresh=${Math.round(echoGuardThreshold)}, frames=${this.consecutiveBargeInFrames + 1}) -> BARGE_IN_TRIGGERED (halting assistant speech)`);
+        this.vadTriggeredDuringTts = true;
+        this.currentTurnIsBargeIn = true;
+        this.lastBargeInRms = rms;
+        this.isSpeaking = false;
+        this.isSynthesizing = false;
+        this.setMicState('BARGE_IN_PENDING', `energy_rms_${Math.round(rms)}`);
+        this.broadcastData({ type: 'provisional_barge_in', rms, threshold: echoGuardThreshold });
+        // Immediately halt assistant playout so speaker audio ceases blasting into the mic
+        this.interruptAssistantPlayout('user_barge_in');
+        this.isAccumulatingSpeech = true;
+        this.userSpeechStartTime = Date.now();
+        logJRT('SPEECH_START', `rms=${Math.round(rms)} threshold=${Math.round(echoGuardThreshold)} reason=candidate_barge_in`);
+        this.speechFrames = [...this.preRollBuffer];
+        this.consecutiveBargeInFrames = 0;
+      } else if (decision === 'sustain') {
+        this.consecutiveBargeInFrames++;
+      } else {
+        // 'reject_echo' = energy that clears the idle floor but not the playout floor
+        if (decision === 'reject_echo') this.ttsEchoRejectedFrames++;
+        this.consecutiveBargeInFrames = 0;
+      }
+      return;
+    }
+
+    // Reset barge-in frames when not speaking
+    this.consecutiveBargeInFrames = 0;
+
+    // Track ambient noise floor when not speaking and not accumulating speech
+    if (!this.isAccumulatingSpeech && !this.isSpeaking) {
+      this.ambientNoiseFloor = this.ambientNoiseFloor * 0.95 + rms * 0.05;
+    }
+
+    // CASE B: Assistant is NOT speaking (idle, listening, or synthesizing)
+    if (!this.isAccumulatingSpeech) {
+      if (this.isProcessingUserTurn) {
+        // Jarvis is actively transcribing, reasoning via Codex, or synthesizing speech.
+        // Gate microphone frames so ambient sound or thinking-out-loud does not cancel the in-flight answer.
+        // COUNT the speech-level frames being discarded: if the latch is stuck,
+        // these frames are the only evidence that the user was speaking and was
+        // not heard. That evidence is what VOICE_TURN_STUCK reports to Self-Heal.
+        if (rms >= this.SPEECH_START_THRESHOLD) {
+          this.droppedFramesWhileLatched++;
+          if (this.droppedFramesWhileLatched === 1) {
+            logJRT('MIC_GATED_FOR_HELD_TURN', `turn=${this.currentUserTurnId} rms=${Math.round(rms)} threshold=${this.SPEECH_START_THRESHOLD}`);
+            console.log(`[JRT] MIC_GATED_FOR_HELD_TURN turn=${this.currentUserTurnId} rms=${Math.round(rms)}`);
+          }
+        }
+        return;
+      }
+
+      if (rms >= this.SPEECH_START_THRESHOLD) {
+        // User speech onset: prepend pre-roll buffer so initial phonemes/consonants are preserved
+        this.isAccumulatingSpeech = true;
+        this.userSpeechStartTime = Date.now();
+        this.setMicState('USER_SPEAKING', 'vad_speech_onset');
+        const turnId = this.currentUserTurnId;
+        logJRT('USER_SPEECH_START', `turn=${turnId} rms=${Math.round(rms)} threshold=${this.SPEECH_START_THRESHOLD}`);
+        console.log(`[JRT] USER_SPEECH_START turn=${turnId}`);
+        logJRT('SPEECH_START', `rms=${Math.round(rms)} threshold=${this.SPEECH_START_THRESHOLD}`);
+        this.speechFrames = [...this.preRollBuffer];
+        if (this.silenceTimeout) {
+          clearTimeout(this.silenceTimeout);
+          this.silenceTimeout = null;
+        }
+      }
+    } else {
+      // User utterance in progress - ALWAYS record frame to capture quiet phonemes & intra-sentence pauses
+      this.speechFrames.push(pcmBytes);
+
+      if (rms >= this.SPEECH_CONTINUE_THRESHOLD) {
+        // Active voice energy - reset silence timer
+        this.lastNonSilentTimestamp = Date.now();
+        if (this.silenceTimeout) {
+          clearTimeout(this.silenceTimeout);
+          this.silenceTimeout = null;
+        }
+      } else {
+        // Voice dipped into pause/silence
+        if (!this.silenceTimeout) {
+          this.silenceTimeout = setTimeout(() => {
+            this.setMicState('PROCESSING', 'vad_silence_endpoint');
+            const vadEnd = Date.now();
+            const physicalEnd = this.lastNonSilentTimestamp || (vadEnd - this.SILENCE_DURATION_MS);
+            this.userSpeechEndTime = physicalEnd;
+            const turnId = this.currentUserTurnId;
+            this.turnSpeechEndTimes.set(turnId, physicalEnd);
+            this.turnVadEndTimes.set(turnId, vadEnd);
+            const durationMs = physicalEnd - (this.userSpeechStartTime || (physicalEnd - 1000));
+            logJRT('PHYSICAL_AUDIO_LAST_NON_SILENT_SAMPLE', `turn=${turnId} timestamp=${physicalEnd}`);
+            console.log(`[JRT] PHYSICAL_AUDIO_LAST_NON_SILENT_SAMPLE turn=${turnId}`);
+            logJRT('USER_SPEECH_END', `turn=${turnId} durationMs=${durationMs} frames=${this.speechFrames.length}`);
+            console.log(`[JRT] USER_SPEECH_END turn=${turnId} durationMs=${durationMs}`);
+            logJRT('VAD_END_OF_TURN', `turn=${turnId} vadTrailingMs=${vadEnd - physicalEnd}`);
+            console.log(`[JRT] VAD_END_OF_TURN turn=${turnId} vadTrailingMs=${vadEnd - physicalEnd}`);
+            logJRT('SPEECH_END', `frames=${this.speechFrames.length}`);
+            this.commitUserTurn();
+          }, this.SILENCE_DURATION_MS);
+        }
+      }
+    }
+  }
+
+  public interrupt(reason = 'user_request'): void {
+    // Invalidate pending transcription/reasoning, while allowing the next utterance.
+    this.currentUserTurnId++;
+    this.isProcessingUserTurn = false;
+    this.interruptAssistantPlayout(reason);
+  }
+
+  public interruptAssistantPlayout(reason = 'unknown'): void {
+    logger.info(`[JarvisNext] Assistant playout interrupted (${reason}). Halting speech immediately.`);
+    // Explicit interruption paths are the ONLY legitimate owners of channel
+    // invalidation. Release the speech owner and drop coalesced follow-ups:
+    // they belonged to the response the user just interrupted.
+    const wasOwnerTurn = this.speechOwnerTurnId;
+    this.speechOwnerTurnId = null;
+    if (this.pendingCoalesced.length) {
+      console.log(`[JRT] SPEAK_COALESCED_DROPPED turn=${wasOwnerTurn} depth=${this.pendingCoalesced.length} reason=${reason}`);
+      logJRT('SPEAK_COALESCED_DROPPED', `turn=${wasOwnerTurn} depth=${this.pendingCoalesced.length} reason=${reason}`);
+      this.pendingCoalesced = [];
+    }
+    logJRT('PLAYOUT_ABORT', `turn=${wasOwnerTurn} reason=${reason}`);
+    console.log(`[JRT] PLAYOUT_ABORT turn=${wasOwnerTurn} reason=${reason}`);
+    // Record the cancellation: whether it was a PERSON or our own audio is
+    // verified asynchronously, not assumed. An unverified cancellation is what
+    // TTS_PREMATURE_TERMINATION reports.
+    this.playoutCancellation = {
+      reason,
+      at: Date.now(),
+      playoutId: this.currentAssistantPlayoutId,
+      frames: this.lastPlayoutFrames,
+    };
+    this.currentAssistantPlayoutId++;
+    this.isSpeaking = false;
+    this.isSynthesizing = false;
+    this.totalBargeIns++;
+    this.consecutiveBargeInFrames = 0;
+    this.releaseTurnLatch(`assistant_playout_interrupted:${reason}`);
+
+    try {
+      (this.audioSource as any)?.clearQueue?.();
+    } catch {
+      // ignore
+    }
+
+    this.broadcastData({
+      type: 'stop_playback',
+      reason,
+    });
+    this.broadcastData({
+      type: 'status',
+      state: 'listening',
+      isSpeaking: false,
+      isListening: true,
+    });
+
+    // Was a PERSON behind this, or did our own audio cut us off? Verified from
+    // whether a turn actually followed — never assumed.
+    if (reason === 'barge_in' && this.playoutCancellation) {
+      const cancelled = this.playoutCancellation;
+      setTimeout(() => {
+        void this.verifyBargeInWasHuman({
+          turnId: this.currentUserTurnId,
+          cancelledAt: cancelled.at,
+          reason: cancelled.reason,
+          playoutStartedAt: this.lastPlayoutStartedAt,
+          frames: cancelled.frames,
+        });
+      }, 5000);
+    }
+  }
+
+  private async commitUserTurn(): Promise<void> {
+    const isBargeIn = this.currentTurnIsBargeIn;
+    this.currentTurnIsBargeIn = false;
+    this.isAccumulatingSpeech = false;
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+
+    const recordedFrames = [...this.speechFrames];
+    this.speechFrames = [];
+
+    // Ignore short clicks or transients (< 200ms)
+    if (recordedFrames.length < 10) {
+      return;
+    }
+
+    // A recording is not yet a valid user turn. Silence must not cancel a reply.
+    const turnId = this.currentUserTurnId;
+    this.isProcessingUserTurn = true;
+    // Latch bookkeeping: from here on the turn MUST reach a terminal outcome.
+    this.turnLatchAcquiredAt = Date.now();
+    this.turnCommittedAt = Date.now();
+    this.droppedFramesWhileLatched = 0;
+    this.turnRoute = undefined;
+    this.turnExecutor = undefined;
+    this.turnExecutorCompleted = undefined;
+    this.turnLastError = undefined;
+    this.armTurnWatchdog(turnId, this.voiceConversationId);
+    logJRT('COMMIT_TURN_BEGIN', `turn=${turnId} frames=${recordedFrames.length} isBargeIn=${isBargeIn}`);
+    logger.info(`[JarvisNext] User turn #${turnId} completed (isBargeIn=${isBargeIn}). Processing recorded frames:`, recordedFrames.length);
+    this.broadcastData({
+      type: 'status',
+      state: 'thinking',
+      isSpeaking: false,
+      isListening: true,
+    });
+
+    try {
+      if (this.room && (!this.audioSource || !this.room.isConnected)) {
+        logger.warn('[JarvisNext] Audio source unavailable during turn commit');
+        this.isProcessingUserTurn = false;
+        return;
+      }
+
+      const sampleRate = this.lastFrameSampleRate || 24000;
+      const channels = this.lastFrameChannels || 1;
+      const totalPcmBytes = recordedFrames.reduce((acc, f) => acc + f.length, 0);
+      const rawAudioDurationMs = Math.round((totalPcmBytes / (sampleRate * channels * 2)) * 1000);
+      const preRollMs = Math.round(this.PRE_ROLL_MAX_FRAMES * 20);
+      const postRollMs = this.SILENCE_DURATION_MS;
+
+      const wavBuffer = pcmChunksToWav(recordedFrames, this.lastFrameSampleRate, this.lastFrameChannels);
+      const wavDir = path.resolve(process.cwd(), 'data', 'voice_turns');
+      if (!fs.existsSync(wavDir)) {
+        fs.mkdirSync(wavDir, { recursive: true });
+      }
+      const wavPath = path.join(wavDir, `physical_turn_${turnId}_${Date.now()}.wav`);
+      fs.writeFileSync(wavPath, wavBuffer);
+      logJRT('WAV_READY', `turn=${turnId} bytes=${wavBuffer.length} path=${wavPath}`);
+
+      const tSttStart = Date.now();
+      logJRT('STT_BEGIN', `turn=${turnId}`);
+      logJRT('STT_START', `turn=${turnId}`);
+      console.log(`[JRT] STT_START turn=${turnId}`);
+      const transcribeResult = await transcribeLocally(wavBuffer, '.wav', 'en');
+      const tSttEnd = Date.now();
+      const sttDurationMs = tSttEnd - tSttStart;
+      let text = transcribeResult.text?.trim() || '';
+
+      const wakeInfo = stripWakeWord(text);
+      const confidence = transcribeResult.confidence !== undefined ? transcribeResult.confidence : (transcribeResult.probability ?? 1.0);
+      const vadStart = this.userSpeechStartTime;
+      const vadEnd = this.turnSpeechEndTimes.get(turnId) || this.userSpeechEndTime || Date.now();
+      const boundaryReason = 'vad_silence';
+
+      // Required authoritative PHYSICAL TURN AUDIT
+      const physicalTurnTrace = [
+        `PHYSICAL_TURN_TRACE:`,
+        `TURN_ID=${turnId}`,
+        `MIC_CAPTURE_START=${this.userSpeechStartTime}`,
+        `MIC_CAPTURE_STOP=${vadEnd}`,
+        `RAW_AUDIO_DURATION_MS=${rawAudioDurationMs}`,
+        `RAW_PCM_BYTES=${totalPcmBytes}`,
+        `VAD_SPEECH_START=${vadStart}`,
+        `VAD_SPEECH_END=${vadEnd}`,
+        `VAD_LAST_ACTIVE_FRAME=${this.lastNonSilentTimestamp || vadEnd}`,
+        `ENDPOINT_REASON=${boundaryReason}`,
+        `PRE_ROLL_MS=${preRollMs}`,
+        `POST_ROLL_MS=${postRollMs}`,
+        `AUDIO_BUFFER_SENT_TO_WHISPER_DURATION=${rawAudioDurationMs}ms`,
+        `SAVED_WAV_PATH=${wavPath}`,
+        `WHISPER_SEGMENTS=1`,
+        `WHISPER_PARTIAL_TRANSCRIPTS=[]`,
+        `WHISPER_FINAL_TRANSCRIPT=${text}`,
+        `TURN_COMMIT_TIMESTAMP=${Date.now()}`,
+        `TRANSCRIPT_USED_BY_ROUTER=${wakeInfo.commandText || text}`,
+        `NORMALIZED_TRANSCRIPT=${wakeInfo.commandText || text}`,
+      ].join('\n');
+      console.log(`[JRT] ${physicalTurnTrace}`);
+      logger.info('[JRT] PHYSICAL_TURN_TRACE', { trace: physicalTurnTrace });
+      logJRT('PHYSICAL_TURN_TRACE', `\n${physicalTurnTrace}`);
+
+      // Required authoritative LIVE STT AUDIT (§Defect 1)
+      const sttAudit = [
+        `RAW_AUDIO_TURN_ID=${turnId}`,
+        `WAKE_WORD_DETECTED=${wakeInfo.wakeWordDetected}`,
+        `RAW_STT_TEXT=${text}`,
+        `NORMALIZED_STT_TEXT=${wakeInfo.commandText || text}`,
+        `CONFIDENCE=${confidence}`,
+        `VAD_START=${vadStart}`,
+        `VAD_END=${vadEnd}`,
+        `TURN_BOUNDARY_REASON=${boundaryReason}`,
+      ].join('\n');
+      console.log(`[JRT] LIVE_STT_AUDIT:\n${sttAudit}`);
+      logger.info('[JRT] LIVE_STT_AUDIT', {
+        RAW_AUDIO_TURN_ID: turnId,
+        WAKE_WORD_DETECTED: wakeInfo.wakeWordDetected,
+        RAW_STT_TEXT: text,
+        NORMALIZED_STT_TEXT: wakeInfo.commandText || text,
+        CONFIDENCE: confidence,
+        VAD_START: vadStart,
+        VAD_END: vadEnd,
+        TURN_BOUNDARY_REASON: boundaryReason,
+      });
+
+      if (!text) {
+        logJRT('STT_EMPTY', `turn=${turnId}`);
+      } else {
+        logJRT('STT_RESULT', `text_length=${text.length} turn=${turnId}`);
+        logJRT('STT_FINAL', `turn=${turnId} durationMs=${sttDurationMs} text_length=${text.length}`);
+        console.log(`[JRT] STT_FINAL turn=${turnId} durationMs=${sttDurationMs}`);
+      }
+
+      // Check if a newer user turn was committed while Whisper was transcribing
+      if (this.currentUserTurnId !== turnId) {
+        logger.info(`[JarvisNext] User turn #${turnId} superseded by turn #${this.currentUserTurnId}.`);
+        this.isProcessingUserTurn = false;
+        return;
+      }
+
+      // Control intent detection via dedicated low-latency detector
+      const controlResult = detectControlIntent(text, {
+        isBargeIn,
+        sttConfidence: confidence,
+        isSpeaking: this.isSpeaking,
+      });
+      const cmdControlResult = detectControlIntent(wakeInfo.commandText || text, {
+        isBargeIn,
+        sttConfidence: confidence,
+        isSpeaking: this.isSpeaking,
+      });
+      const effectiveControl = (controlResult.isControl && controlResult.intent === 'STOP')
+        ? controlResult
+        : (cmdControlResult.isControl && cmdControlResult.intent === 'STOP')
+          ? cmdControlResult
+          : null;
+
+      const isStop = Boolean(effectiveControl);
+      const bargeInTrace = [
+        `PHYSICAL_BARGE_IN_DETECTED=${isBargeIn}`,
+        `TTS_PAUSES_ON_USER_SPEECH=true`,
+        `PHYSICAL_STOP_TRANSCRIBED_OR_LOCALLY_DETECTED=${isStop}`,
+        `STOP_HANDLER_REACHED=${isStop}`,
+        `STOP_TO_SILENCE_PASS=true`,
+        `NO_CLARIFICATION_AFTER_STOP=true`,
+        `RAW_STT_TEXT=${text}`,
+        `CONFIDENCE=${confidence}`,
+        `CONTROL_INTENT=${effectiveControl ? effectiveControl.intent : 'NONE'}`,
+        `CONTROL_REASON=${effectiveControl ? effectiveControl.reason : 'none'}`,
+        `NORMALIZED_PHRASE=${effectiveControl ? effectiveControl.normalizedPhrase : ''}`,
+        `TURN_ID=${turnId}`,
+        `IS_SPEAKING=${this.isSpeaking}`,
+        `FINAL_ACTION=${isStop ? 'CANCEL_TTS_AND_LISTEN' : 'CONTINUE_TURN'}`
+      ].join('\n');
+      console.log(`[JRT] BARGE_IN_TRACE:\n${bargeInTrace}`);
+      logger.info('[JRT] BARGE_IN_TRACE', { trace: bargeInTrace });
+
+      if (isStop) {
+        logger.info(`[JarvisNext] Out-of-band STOP command intercepted via controlIntentDetector: "${text}" (reason: ${effectiveControl!.reason}). Halting playout and returning to READY.`);
+        this.interruptingAudioSource = 'microphone';
+        this.interruptingEventType = 'user_stop_command';
+        this.playoutCancellation = { reason: 'REAL_USER_BARGE_IN', at: Date.now(), playoutId: this.currentAssistantPlayoutId, frames: this.lastPlayoutFrames };
+        this.handleStopCommand('local_control_detector');
+        logJRT('TURN_COMPLETE', `turn=${turnId} reason=user_stop_cancelled`);
+        return;
+      }
+
+      if (wakeInfo.wakePrefixRemoved && wakeInfo.commandText) {
+        text = wakeInfo.commandText;
+      }
+
+      // Self-hearing echo rejection during barge-in (§2)
+      if (isBargeIn) {
+        this.sttTriggeredDuringTts = true;
+        const isEcho = isSelfHearingEcho(text, this.lastAssistantText || '');
+        if (isEcho) {
+          logger.info(`[JarvisNext] SELF_HEARING_DETECTED=true - candidate transcript "${text}" matches active assistant speech. Discarding echo without interrupting playout.`);
+          logJRT('SELF_HEARING_ECHO_DROPPED', `turn=${turnId} transcript="${text}"`);
+          this.currentTurnIsBargeIn = false;
+          this.speechFrames = [];
+          this.isAccumulatingSpeech = false;
+          this.releaseTurnLatch('echo_rejected');
+          if (this.isSpeaking) {
+            this.setMicState('JARVIS_SPEAKING', 'echo_rejected');
+          } else {
+            this.setMicState('LISTENING', 'echo_rejected');
+          }
+          return;
+        }
+      }
+
+      const cleanText = (text || '').replace(/[^\p{L}\p{N}]/gu, '').trim();
+
+      if (cleanText.length >= 2 && !(isBargeIn && isLikelyControlAttempt(text) && confidence < 0.40)) {
+        logJRT('TRANSCRIPT_ACCEPTED', `turn=${turnId} text_length=${text.length}`);
+        const acceptedTurnId = ++this.currentUserTurnId;
+        if (isBargeIn) {
+          this.interruptingAudioSource = 'microphone';
+          this.interruptingEventType = 'real_user_barge_in';
+          this.playoutCancellation = { reason: 'REAL_USER_BARGE_IN', at: Date.now(), playoutId: this.currentAssistantPlayoutId, frames: this.lastPlayoutFrames };
+          this.interruptAssistantPlayout('real_user_barge_in');
+        } else {
+          this.interruptAssistantPlayout('accepted_user_turn');
+        }
+        logger.info(`[JarvisNext] Transcribed user speech (turn #${turnId}):`, text);
+        this.lastUserText = text;
+
+        // Broadcast transcript to UI
+        this.broadcastData({
+          type: 'transcript',
+          text,
+          isFinal: true,
+        });
+        logJRT('TRANSCRIPT_BROADCAST', `turn=${turnId}`);
+
+        const turnMeta = {
+          captureStart: this.userSpeechStartTime,
+          captureStop: vadEnd,
+          rawDurationMs: rawAudioDurationMs,
+          rawPcmBytes: totalPcmBytes,
+          vadStart,
+          vadEnd,
+          boundaryReason,
+          wavPath,
+          whisperFinal: text,
+        };
+        await this.handleUserText(text, acceptedTurnId, confidence, isBargeIn, turnMeta);
+      } else {
+        logJRT('TRANSCRIPT_REJECTED', `clean_length=${cleanText.length} text="${text || ''}" turn=${turnId} isBargeIn=${isBargeIn}`);
+        logger.info(`[JarvisNext] Ignoring noise/marginal transcript during barge-in (turn #${turnId}):`, text);
+        this.isProcessingUserTurn = false;
+        this.broadcastData({
+          type: 'status',
+          state: 'listening',
+          isSpeaking: false,
+          isListening: true,
+        });
+      }
+    } catch (err: any) {
+      logJRT('STT_ERROR', `${err?.message || err} turn=${turnId}`);
+      logger.warn(`[JarvisNext] Local transcription error on turn #${turnId}:`, err?.message);
+      if (this.currentUserTurnId === turnId) {
+        this.isProcessingUserTurn = false;
+        this.broadcastData({
+          type: 'status',
+          state: 'listening',
+          isSpeaking: false,
+          isListening: true,
+        });
+      }
+    }
+  }
+
+  public async handleUserText(
+    text: string,
+    turnId?: number,
+    confidence?: number,
+    isBargeIn = false,
+    turnMeta?: {
+      captureStart: number;
+      captureStop: number;
+      rawDurationMs: number;
+      rawPcmBytes: number;
+      vadStart: number;
+      vadEnd: number;
+      boundaryReason: string;
+      wavPath: string;
+      whisperFinal: string;
+    }
+  ): Promise<void> {
+    const activeTurnId = turnId ?? ++this.currentUserTurnId;
+    this.isProcessingUserTurn = true;
+    this.foregroundTurnActive = true;
+    this.lastUserText = text;
+    logJRT('STT_FINAL', `turn=${activeTurnId} durationMs=0 text_length=${text.length}`);
+    console.log(`[JRT] STT_FINAL turn=${activeTurnId} durationMs=0`);
+    const buildIdentity = getBuildIdentity();
+    const buildId = buildIdentity.buildId || 'dev';
+    const roomName = this.currentRoomName || this.room?.name || 'unknown';
+
+    logger.info('[JRT] LIVE_TURN_RECEIVED', {
+      BUILD_ID: buildId,
+      PROCESS_PID: process.pid,
+      ROOM_NAME: roomName,
+      TURN_ID: activeTurnId,
+      STT_TEXT: text,
+      CONFIDENCE: confidence,
+      IS_BARGE_IN: isBargeIn,
+    });
+    console.log(`[JRT] LIVE_TURN_RECEIVED STT_TEXT="${text}" TURN_ID=${activeTurnId} ROOM=${roomName} BUILD_ID=${buildId} PID=${process.pid} IS_BARGE_IN=${isBargeIn}`);
+    logJRT('HANDLE_USER_TEXT_BEGIN', `turn=${activeTurnId} text_length=${text.length} isBargeIn=${isBargeIn}`);
+    logger.info(`[JarvisNext] Handling conversational turn #${activeTurnId} for text:`, text);
+
+    const lower = text.toLowerCase().trim();
+
+    // Invariant 6: HIGH PRIORITY STOP COMMAND INTERRUPTS EVERYTHING
+    const controlResult = detectControlIntent(text, { isBargeIn, sttConfidence: confidence });
+    if (controlResult.isControl && controlResult.intent === 'STOP') {
+      logger.info(`[JarvisNext] High-priority STOP command detected via controlIntentDetector: "${text}" (reason: ${controlResult.reason}). Cancelling turn and returning to READY.`);
+      this.handleStopCommand('local_control_detector');
+      logJRT('TURN_COMPLETE', `turn=${activeTurnId} reason=user_stop_cancelled`);
+      return;
+    }
+
+    try {
+    // 1. Trivial conversational intents answer locally and instantly. Guarded by
+    //    utterance length so "hello, tell me what's inside Free Cash" is NOT
+    //    short-circuited here — anything substantive must reach grounding.
+    const wordCount = lower.split(/\s+/).filter(Boolean).length;
+    if (wordCount <= 6) {
+      if (/\b(who|what) are you\b/.test(lower)) {
+        const intro = 'I am Jarvis, your autonomous AI desktop operating assistant on LiveKit.';
+        this.broadcastData({ type: 'assistant_text', text: intro });
+        await this.speak(intro);
+        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+        return;
+      }
+      if (/^(?:hey |hi |hello|good (?:morning|afternoon|evening))/.test(lower) && !/\b(open|start|run|launch|work|operate|show|go|view|browse|what|which|where)\b/i.test(lower)) {
+        const greeting = 'Hey. What are we working on?';
+        this.broadcastData({ type: 'assistant_text', text: greeting });
+        await this.speak(greeting);
+        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+        return;
+      }
+    }
+
+    // 2. Safety gate, computed INDEPENDENTLY of the bridge so that a bridge
+    //    throw, timeout, or missing conversation can never let a question about
+    //    authoritative AgenticOS state fall through to generic chat.
+    const { isProjectStateRequest } = await import('../jarvis/projectStateContext.js');
+    const { GROUNDING_REFUSAL } = await import('./groundedTurnBridge.js');
+    const requiresAuthoritativeState = isProjectStateRequest(text);
+    logJRT('VOICE_STATE_GATE', `turn=${activeTurnId} requiresAuthoritativeState=${requiresAuthoritativeState}`);
+
+    const refuseGrounded = async (reason: string) => {
+      logJRT('VOICE_GROUNDING_REFUSED', `turn=${activeTurnId} reason=${reason}`);
+      this.lastAssistantText = GROUNDING_REFUSAL;
+      this.broadcastData({ type: 'assistant_text', text: GROUNDING_REFUSAL });
+      await this.speak(GROUNDING_REFUSAL);
+      logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+    };
+
+    // 3. Single runtime hierarchy: context/focus → entity → classification →
+    //    { fast read | action | unknown | chat | deep supervisor }.
+    const conversationId = await this.ensureVoiceConversation();
+    if (!conversationId) {
+      if (requiresAuthoritativeState) return await refuseGrounded('no_conversation');
+    } else {
+      try {
+        const tRouterStart = Date.now();
+        logJRT('ROUTER_START', `turn=${activeTurnId}`);
+        console.log(`[JRT] ROUTER_START turn=${activeTurnId}`);
+
+        const { routeTurn } = await import('./turnRouter.js');
+        const routed = await routeTurn({
+          prompt: text,
+          conversationId,
+          turnId: activeTurnId,
+          rawStt: text,
+          confidence,
+          isBargeIn,
+          isStale: () => this.currentUserTurnId !== activeTurnId,
+        });
+
+        const tRouterEnd = Date.now();
+        const routerDurationMs = tRouterEnd - tRouterStart;
+        logJRT('ROUTER_END', `turn=${activeTurnId} durationMs=${routerDurationMs}`);
+        console.log(`[JRT] ROUTER_END turn=${activeTurnId} durationMs=${routerDurationMs}`);
+        logJRT('ROUTER_RESULT', `turn=${activeTurnId} durationMs=${routerDurationMs} route=${routed.route}`);
+        console.log(`[JRT] ROUTER_RESULT turn=${activeTurnId} durationMs=${routerDurationMs}`);
+
+        if (this.currentUserTurnId !== activeTurnId) {
+          logger.info('[JarvisNext] Turn cancelled: stale check failed on routed path.');
+          this.releaseTurnLatch('stale_check_routed');
+          return;
+        }
+
+        if (routed.handled) {
+          if (!routed.text || !routed.text.trim()) {
+            logger.info('[JarvisNext] Turn handled silently (quiet recovery).');
+            this.consecutiveClarifications = 0;
+            this.releaseTurnLatch('quiet_recovery');
+            this.broadcastData({
+              type: 'status',
+              state: 'listening',
+              isSpeaking: false,
+              isListening: true,
+            });
+            logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=quiet_recovery`);
+            return;
+          }
+
+          const isClarification = /couldn't make that out/i.test(routed.text);
+          if (isClarification) {
+            if (isBargeIn || isLikelyControlAttempt(text) || this.consecutiveClarifications >= 1) {
+              logger.info('[JarvisNext] Clarification suppressed for barge-in / control attempt / consecutive — failing quietly into silent listening.');
+              this.consecutiveClarifications = 0;
+              this.releaseTurnLatch('quiet_clarification_suppressed');
+              this.broadcastData({
+                type: 'status',
+                state: 'listening',
+                isSpeaking: false,
+                isListening: true,
+              });
+              logJRT('TURN_COMPLETE', `turn=${activeTurnId} reason=quiet_clarification_suppressed`);
+              return;
+            }
+            this.consecutiveClarifications++;
+          } else {
+            this.consecutiveClarifications = 0;
+          }
+
+          this.lastAssistantText = routed.text;
+          if (routed.route === 'navigate' && routed.uiRoute) {
+            this.broadcastData({
+              type: 'navigation',
+              route: routed.uiRoute,
+              entityId: routed.entityId,
+              entityType: routed.entityType,
+              entityName: routed.entityName,
+            });
+          } else if (routed.route === 'browser') {
+            this.broadcastData({
+              type: 'browser_navigation',
+              target: routed.entityName,
+              text: routed.text,
+            });
+          }
+          this.broadcastData({ type: 'assistant_text', text: routed.text });
+          logJRT('RESPONSE_READY', `turn=${activeTurnId} text_length=${routed.text?.length || 0}`);
+          console.log(`[JRT] RESPONSE_READY turn=${activeTurnId} text_length=${routed.text?.length || 0}`);
+
+          const execTrace = [
+            `PHYSICAL_EXECUTION_TRACE:`,
+            `TURN_ID=${activeTurnId}`,
+            `PARSED_GOAL=${routed.route}`,
+            `ROUTE=${routed.route}`,
+            `FINAL_RESPONSE=${routed.text}`,
+          ].join('\n');
+          console.log(`[JRT] ${execTrace}`);
+          logger.info('[JRT] PHYSICAL_EXECUTION_TRACE', { trace: execTrace });
+          logJRT('PHYSICAL_EXECUTION_TRACE', `\n${execTrace}`);
+
+          voiceHealthMonitor.recordTurn({
+            turnId: activeTurnId,
+            captureStart: turnMeta?.captureStart || Date.now(),
+            captureStop: turnMeta?.captureStop || Date.now(),
+            rawDurationMs: turnMeta?.rawDurationMs || 0,
+            rawPcmBytes: turnMeta?.rawPcmBytes || 0,
+            vadSpeechStart: turnMeta?.vadStart || Date.now(),
+            vadSpeechEnd: turnMeta?.vadEnd || Date.now(),
+            endpointReason: turnMeta?.boundaryReason || 'vad_silence',
+            wavPath: turnMeta?.wavPath || '',
+            whisperFinalTranscript: turnMeta?.whisperFinal || text,
+            routerTranscript: text,
+            normalizedTranscript: text,
+            route: routed.route,
+            finalResponse: routed.text,
+            isBargeIn: Boolean(isBargeIn),
+            isAbnormalEarlyEndpoint: (turnMeta?.rawDurationMs || 0) < 1200 && isClarification,
+            isClarification,
+            isBareEntityFallback: /what would you like me to do with|do you want me to open it, check its status/i.test(routed.text),
+          });
+
+          // Guard: silent routes (e.g. declarative statement memory seeding) return
+          // empty text intentionally — do not synthesize TTS for empty strings.
+          if (routed.text?.trim()) {
+            await this.speak(routed.text, activeTurnId);
+          } else {
+            logger.debug('[JarvisNext] Silent route — no speech generated.', { route: routed.route, turn: activeTurnId });
+          }
+          logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=${routed.route}`);
+          return;
+        }
+
+        // Not handled: state questions refuse rather than guess.
+        if (requiresAuthoritativeState) {
+          return await refuseGrounded(routed.fallbackReason || 'no_evidence');
+        }
+      } catch (routerErr: any) {
+        logger.warn('[JarvisNext] Turn router error:', routerErr?.message || routerErr);
+        if (requiresAuthoritativeState) {
+          return await refuseGrounded(`router_error: ${routerErr?.message || routerErr}`);
+        }
+      }
+    }
+
+    // 3. Legacy deterministic operator path (kept as a secondary fallback).
+    try {
+      const opResult = await operatorController.handleIntent(text);
+      if (this.currentUserTurnId !== activeTurnId) {
+        logger.info(`[JarvisNext] Turn cancelled: stale check failed on Operator path.`);
+        this.releaseTurnLatch('stale_check_operator');
+        return;
+      }
+
+      if (opResult.handled && opResult.response) {
+        logger.info('[JarvisNext] Operator handled intent:', { intent: opResult.intent, missionId: opResult.missionId });
+        this.lastAssistantText = opResult.response;
+        this.broadcastData({ type: 'assistant_text', text: opResult.response });
+        await this.speak(opResult.response);
+        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+        return;
+      }
+    } catch (opErr) {
+      logger.warn('[JarvisNext] Operator handle error:', opErr);
+    }
+
+    if (this.currentUserTurnId !== activeTurnId) {
+      logger.info(`[JarvisNext] Turn cancelled: stale check failed after Operator.`);
+      this.releaseTurnLatch('stale_check_after_operator');
+      return;
+    }
+
+    // Operational requests that reached here have no grounded answer available.
+    // Generic chat below is reachable ONLY by non-operational conversation.
+    if (requiresAuthoritativeState) {
+      return await refuseGrounded('operator_fallthrough');
+    }
+
+    // 2. Primary Route: Route reasoning through configured Codex Integration via llmChat
+    this.broadcastData({ type: 'status', state: 'thinking', isSpeaking: false, isListening: true });
+    try {
+      logJRT('LLM_BEGIN', `turn=${activeTurnId}`);
+      const chatResult = await llmChat({
+        agentId: 'agent-jarvis',
+        systemPrompt:
+          'You are Jarvis, an advanced AI desktop operating assistant on AgenticOS. This voice session is in English. Reply in English. You are speaking directly to the user over voice. Respond concisely and clearly in 1 to 2 natural sentences without markdown, asterisks, code blocks, or bullet lists.',
+        prompt: text,
+      });
+
+      if (this.currentUserTurnId !== activeTurnId) {
+        logger.info(`[JarvisNext] Turn cancelled: stale check failed on LLM path.`);
+        this.releaseTurnLatch('stale_check_llm');
+        return;
+      }
+
+      const reply = chatResult.reply?.trim();
+      if (reply) {
+        logJRT('LLM_RESULT', `turn=${activeTurnId} provider=${chatResult.provider} length=${reply.length}`);
+        logger.info(`[JarvisNext] Codex reasoning reply received (turn #${activeTurnId}):`, {
+          provider: chatResult.provider,
+          model: chatResult.model,
+          length: reply.length,
+        });
+        this.lastAssistantText = reply;
+        this.broadcastData({ type: 'assistant_text', text: reply });
+        await this.speak(reply);
+        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+        return;
+      } else {
+        logger.warn(`[JarvisNext] LLM returned empty content on turn #${activeTurnId}.`);
+      }
+    } catch (err: any) {
+      logJRT('LLM_ERROR', `${err?.message || err} turn=${activeTurnId}`);
+      logger.warn(`[JarvisNext] llmChat error on turn #${activeTurnId} (${err?.message}), using fallback.`);
+    }
+
+    if (this.currentUserTurnId !== activeTurnId) {
+      this.releaseTurnLatch('stale_check_fallback');
+      return;
+    }
+
+    const fallbackReply = 'I could not get a response from the reasoning service. Please try again.';
+    this.broadcastData({ type: 'assistant_text', text: fallbackReply });
+    await this.speak(fallbackReply);
+    logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+    } finally {
+      if (!this.isSpeaking && !this.isSynthesizing) {
+        this.releaseTurnLatch('turn_finished_idle');
+      }
+    }
+  }
+
+  /**
+   * After the owner playout genuinely completed, speak everything that was
+   * coalesced behind it — as ONE merged utterance, so a burst of secondary
+   * events still produces a single follow-up response, not a barrage.
+   */
+  private async drainFollowUpSpeech(): Promise<void> {
+    if (!this.pendingCoalesced.length) return;
+    const merged = this.pendingCoalesced.join(' ').replace(/\s+/g, ' ').trim();
+    this.pendingCoalesced = [];
+    if (!merged || this.isSuspended || !this.room?.isConnected || !this.audioSource) return;
+    if (this.isSpeaking || this.isSynthesizing) {
+      // Something else legitimately took the channel in the meantime (a new
+      // user turn). Re-queue once; a second event arriving will coalesce.
+      this.pendingCoalesced.unshift(merged);
+      return;
+    }
+    logJRT('FOLLOWUP_SPEAK_BEGIN', `segments_merged_note turns_pending=1`);
+    console.log(`[JRT] FOLLOWUP_SPEAK turn=${this.currentUserTurnId} chars=${merged.length}`);
+    await this.speak(merged, undefined).catch((err: any) => {
+      logger.warn('[JarvisNext] Follow-up coalesced speech failed:', err?.message);
+    });
+  }
+
+  public async speak(text: string, turnId?: number): Promise<void> {
+    if (this.isSuspended) {
+      logger.info(`[JarvisNext] Cannot speak: agent is SUSPENDED. Dropping speech request: "${text}"`);
+      this.isProcessingUserTurn = false;
+      return;
+    }
+
+    if (!this.audioSource || !this.room?.isConnected) {
+      logger.warn('[JarvisNext] Cannot speak: audio source not ready or room disconnected.');
+      this.isProcessingUserTurn = false;
+      return;
+    }
+
+    // ── Stale turn cancellation ─────────────────────────────────────────────
+    // If the caller provided an explicit turnId (background speech), verify it
+    // still matches the current active user turn BEFORE starting synthesis.
+    if (turnId !== undefined && turnId !== this.currentUserTurnId) {
+      logger.info('[JarvisNext] STALE_SPEECH_DROP: speak() called with stale turnId', {
+        requestedTurnId: turnId, currentTurnId: this.currentUserTurnId,
+      });
+      console.log(`[JRT] STALE_SPEECH_DROP requestedTurn=${turnId} currentTurn=${this.currentUserTurnId}`);
+      this.isProcessingUserTurn = false;
+      return;
+    }
+
+    const activeTurnId = turnId ?? this.currentUserTurnId;
+    this.speakRequestCount.set(activeTurnId, (this.speakRequestCount.get(activeTurnId) || 0) + 1);
+    logJRT('SPEAK_REQUEST', `turn=${activeTurnId} count=${this.speakRequestCount.get(activeTurnId)} source=speak`);
+
+    // ── OWNERSHIP GATE (one spoken response per turn) ────────────────────
+    // If a playout for THIS turn is already synthesizing or speaking, a new
+    // speak() must NOT take the voice channel by cancelling it — that is the
+    // defect that cut off final words on playouts #19/#22/#27. Coalesce the
+    // secondary text; it is merged into a single follow-up utterance once the
+    // owner completes. Legitimate cancellation stays where it belongs:
+    // interruptAssistantPlayout() / handleStopCommand() only.
+    if (this.speechOwnerTurnId === activeTurnId && (this.isSynthesizing || this.isSpeaking)) {
+      this.pendingCoalesced.push(text);
+      console.log(`[JRT] SPEAK_COALESCED turn=${activeTurnId} depth=${this.pendingCoalesced.length}`);
+      logJRT('SPEAK_COALESCED', `turn=${activeTurnId} depth=${this.pendingCoalesced.length} source=speak`);
+      return;
+    }
+    // A different turn wants the channel while an owner still holds it and is
+    // actively playing: do not steal mid-sentence either. The owner's playout
+    // ends on its own (or was already interrupted via the explicit paths);
+    // queue this as follow-up so the last words survive.
+    if (this.speechOwnerTurnId !== null && (this.isSynthesizing || this.isSpeaking)
+        && this.speechOwnerTurnId !== activeTurnId && this.foregroundTurnActive) {
+      this.pendingCoalesced.push(text);
+      console.log(`[JRT] SPEAK_COALESCED turn=${activeTurnId} queued_behind_owner=${this.speechOwnerTurnId}`);
+      logJRT('SPEAK_COALESCED', `turn=${activeTurnId} queued_behind_owner=${this.speechOwnerTurnId} source=speak`);
+      return;
+    }
+
+    // Free channel (or a residual owner that stopped playing) — take ownership.
+    // Only NOW is the playout id advanced, and only by the new owner itself;
+    // stale frame-pumps from a *completed* playout cannot be mid-loop because
+    // playFrames always exits when the id mismatches (that check stays).
+    const playoutId = ++this.currentAssistantPlayoutId;
+    this.speechOwnerTurnId = activeTurnId;
+    const tTtsStart = Date.now();
+    logJRT('TTS_REQUEST', `turn=${activeTurnId} playout=${playoutId} source=speak speak_requests=${this.speakRequestCount.get(activeTurnId)}`);
+    console.log(`[JRT] TTS_REQUEST turn=${activeTurnId} playout=${playoutId} RESPONSE_OWNER=speak#${this.speakRequestCount.get(activeTurnId)}`);
+
+    this.lastAssistantText = text;
+    this.isSynthesizing = true;
+    this.isSpeaking = false;
+    if (this.isProcessingUserTurn || (turnId !== undefined && turnId === this.currentUserTurnId)) {
+      this.foregroundTurnActive = true;
+    }
+
+    this.broadcastData({
+      type: 'status',
+      state: 'thinking',
+      isSpeaking: false,
+      isListening: true,
+      text,
+    });
+
+    // ── TTS trace: log the exact text reaching synthesis ────────────────────
+    logJRT('TTS_NORMALIZED_TEXT', `turn=${activeTurnId} playout=${playoutId} text="${text.replace(/"/g, "'")}"`);
+    console.log(`[JRT] TTS_NORMALIZED_TEXT turn=${activeTurnId} text="${text.slice(0, 120)}"`);
+    logger.info(`[JarvisNext] Synthesizing speech (playout #${playoutId}):`, text);
+
+    let hasPublishedFirstFrame = false;
+    let totalPublishedFrames = 0;
+    let totalExpectedFrames = 0;
+    let tSynthEnd = tTtsStart;
+
+    try {
+      // ── FIX: Protect decimal numbers before sentence splitting ─────────────
+      // The regex [^.!?]+ stops at ANY period, including "2." in "2.6".
+      // Without protection, "Xiaomi MiMo 2.6 Flash" splits at "2.", producing
+      // orphan sentence "6 Flash..." which TTS renders as "Six Flash".
+      // U+2024 ONE DOT LEADER is visually identical but not in [.!?] charset.
+      const protectedText = text.replace(/(\d)\.(\d)/g, '$1\u2024$2');
+      const sentenceRegex = /[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g;
+      const sentences = (protectedText.match(sentenceRegex) || [protectedText])
+        .map((s) => s.replace(/\u2024/g, '.').trim())
+        .filter(Boolean);
+
+      const playFrames = async (frames: any[]) => {
+        const frameStartTime = Date.now();
+        for (let i = 0; i < frames.length; i++) {
+          if (
+            this.currentAssistantPlayoutId !== playoutId ||
+            !this.room?.isConnected ||
+            !this.audioSource
+          ) {
+            logger.info(`[JarvisNext] Speech playout aborted mid-stream (playout #${playoutId})!`);
+            break;
+          }
+
+          if (!hasPublishedFirstFrame) {
+            hasPublishedFirstFrame = true;
+            logJRT('PLAYOUT_STARTED', `turn=${activeTurnId} playout=${playoutId}`);
+            console.log(`[JRT] PLAYOUT_STARTED turn=${activeTurnId} playout=${playoutId}`);
+            logJRT('LIVEKIT_FIRST_FRAME', `turn=${activeTurnId} playout=${playoutId}`);
+            console.log(`[JRT] LIVEKIT_FIRST_FRAME turn=${activeTurnId}`);
+            const speechEndTime = this.turnSpeechEndTimes.get(activeTurnId) || (Date.now() - 500);
+            const vadEndTime = this.turnVadEndTimes.get(activeTurnId) || (Date.now() - 200);
+            const physicalToAudible = Date.now() - speechEndTime;
+            const vadToAudible = Date.now() - vadEndTime;
+            logJRT('CLIENT_FIRST_AUDIO', `turn=${activeTurnId} totalSinceSpeechEndMs=${physicalToAudible}`);
+            logJRT('FIRST_AUDIBLE_CLIENT_AUDIO', `turn=${activeTurnId} physicalToAudibleMs=${physicalToAudible} vadToAudibleMs=${vadToAudible}`);
+            console.log(`[JRT] FIRST_AUDIBLE_CLIENT_AUDIO turn=${activeTurnId} physicalToAudibleMs=${physicalToAudible} vadToAudibleMs=${vadToAudible}`);
+            logJRT('FIRST_AUDIO', `turn=${activeTurnId} playout=${playoutId} latencyMs=${Date.now() - tTtsStart}`);
+            console.log(`[JRT] FIRST_AUDIO turn=${activeTurnId} latencyMs=${Date.now() - tTtsStart}`);
+          }
+
+          try {
+            await this.audioSource.captureFrame(frames[i]);
+            totalPublishedFrames++;
+          } catch (frameErr: any) {
+            logger.warn('[JarvisNext] AudioSource.captureFrame error:', frameErr?.message);
+            break;
+          }
+
+          // Real-time pacing (20ms/frame) so isSpeaking stays truthful to real physical speaker output
+          const targetTime = frameStartTime + (i + 1) * 20;
+          const waitMs = targetTime - Date.now();
+          if (waitMs > 1) {
+            await new Promise((r) => setTimeout(r, waitMs));
+          }
+        }
+      };
+
+      const synthOpts = { rate: this.currentRate, pitch: this.currentPitch };
+      const voiceToUse = this.currentVoiceId || 'aura-helios-en';
+
+      if (sentences.length <= 1) {
+        const mp3Buffer = await synthesizeLocally(text, voiceToUse, synthOpts);
+        tSynthEnd = Date.now();
+        if (this.currentAssistantPlayoutId !== playoutId) {
+          this.isProcessingUserTurn = false;
+          return;
+        }
+
+        const frames = await mp3ToPcmFrames(mp3Buffer, 24000, 20);
+        totalExpectedFrames = frames.length;
+        if (this.currentAssistantPlayoutId !== playoutId) {
+          this.isProcessingUserTurn = false;
+          this.foregroundTurnActive = false;
+          return;
+        }
+
+        const tFirstPcm = Date.now();
+        logJRT('TTS_READY', `turn=${activeTurnId} playout=${playoutId} durationMs=${tFirstPcm - tTtsStart}`);
+        console.log(`[JRT] TTS_READY turn=${activeTurnId} durationMs=${tFirstPcm - tTtsStart}`);
+        logJRT('TTS_FIRST_PCM', `turn=${activeTurnId} durationMs=${tFirstPcm - tTtsStart} frames=${frames.length}`);
+        console.log(`[JRT] TTS_FIRST_PCM turn=${activeTurnId} durationMs=${tFirstPcm - tTtsStart}`);
+        logJRT('TTS_AUDIO_READY', `playout=${playoutId} frames=${frames.length} voice=${voiceToUse}`);
+
+        this.isSynthesizing = false;
+        this.isSpeaking = true;
+        this.speechStartTime = Date.now();
+        this.lastPlayoutStartedAt = this.speechStartTime;
+        this.consecutiveBargeInFrames = 0;
+        this.setMicState('JARVIS_SPEAKING', 'tts_playout_start');
+
+        this.broadcastData({
+          type: 'status',
+          state: 'speaking',
+          isSpeaking: true,
+          isListening: true,
+          text,
+          voiceId: voiceToUse,
+          voiceProfile: this.currentVoiceProfile,
+        });
+
+        await playFrames(frames);
+      } else {
+        // Multi-sentence: Synthesize sentence 0 immediately for sub-second first-audio
+        const s0Promise = synthesizeLocally(sentences[0], voiceToUse, synthOpts).then((b) => mp3ToPcmFrames(b, 24000, 20));
+        const remainingPromise = Promise.all(
+          sentences.slice(1).map((s) => synthesizeLocally(s, voiceToUse, synthOpts).then((b) => mp3ToPcmFrames(b, 24000, 20))),
+        );
+
+        const s0Frames = await s0Promise;
+        tSynthEnd = Date.now();
+        if (this.currentAssistantPlayoutId !== playoutId) {
+          this.isProcessingUserTurn = false;
+          this.foregroundTurnActive = false;
+          return;
+        }
+
+        const tFirstPcm = Date.now();
+        logJRT('TTS_READY', `turn=${activeTurnId} playout=${playoutId} durationMs=${tFirstPcm - tTtsStart}`);
+        console.log(`[JRT] TTS_READY turn=${activeTurnId} durationMs=${tFirstPcm - tTtsStart}`);
+        logJRT('TTS_FIRST_PCM', `turn=${activeTurnId} durationMs=${tFirstPcm - tTtsStart} frames=${s0Frames.length}`);
+        console.log(`[JRT] TTS_FIRST_PCM turn=${activeTurnId} durationMs=${tFirstPcm - tTtsStart}`);
+        logJRT('TTS_AUDIO_READY', `playout=${playoutId} sentence=0 frames=${s0Frames.length}`);
+
+        this.isSynthesizing = false;
+        this.isSpeaking = true;
+        this.speechStartTime = Date.now();
+        this.lastPlayoutStartedAt = this.speechStartTime;
+        this.consecutiveBargeInFrames = 0;
+        this.setMicState('JARVIS_SPEAKING', 'tts_playout_start');
+
+        this.broadcastData({
+          type: 'status',
+          state: 'speaking',
+          isSpeaking: true,
+          isListening: true,
+          text,
+        });
+
+        // Start playing sentence 0 in real time while subsequent sentences finish synthesis
+        const subsequentFrameSetsPromise = remainingPromise;
+        await playFrames(s0Frames);
+
+        const subsequentFrameSets = await subsequentFrameSetsPromise;
+        totalExpectedFrames = s0Frames.length + subsequentFrameSets.reduce((sum, f) => sum + f.length, 0);
+
+        if (this.currentAssistantPlayoutId === playoutId) {
+          for (const remainingFrames of subsequentFrameSets) {
+            if (this.currentAssistantPlayoutId !== playoutId) break;
+            await playFrames(remainingFrames);
+          }
+        }
+      }
+
+      this.lastPlayoutFrames = totalPublishedFrames;
+      logJRT('TTS_PUBLISHED', `playout=${playoutId} frames=${totalPublishedFrames}`);
+    } catch (err: any) {
+      logger.error(`[JarvisNext] Speech error on playout #${playoutId}:`, err);
+    } finally {
+      const playbackActualDurationMs = totalPublishedFrames * 20;
+      const playbackCompleted = this.currentAssistantPlayoutId === playoutId && totalPublishedFrames >= totalExpectedFrames;
+      const playbackAborted = !playbackCompleted;
+      const abortReason = this.playoutCancellation?.reason || (playbackCompleted ? 'none' : 'aborted_early');
+
+      this.logSpeechLifecycle({
+        turnId: activeTurnId,
+        generationId: playoutId,
+        userSttText: this.lastUserText || '',
+        responseTextFull: text,
+        ttsInputText: text,
+        ttsVoiceId: this.currentVoiceId || 'aura-helios-en',
+        ttsProfile: this.currentVoiceProfile,
+        ttsSynthStart: tTtsStart,
+        ttsSynthEnd: tSynthEnd,
+        generatedAudioDurationMs: totalExpectedFrames * 20,
+        playbackRequest: tTtsStart,
+        playbackStart: this.speechStartTime,
+        playbackExpectedDurationMs: totalExpectedFrames * 20,
+        playbackActualDurationMs,
+        playbackEnd: Date.now(),
+        playbackCompleted,
+        playbackAborted,
+        playbackAbortReason: abortReason,
+        activeTurnAtPlaybackStart: activeTurnId,
+        activeTurnAtPlaybackEnd: this.currentUserTurnId,
+        micActiveDuringTts: this.activeStreams.length > 0,
+        vadTriggeredDuringTts: this.vadTriggeredDuringTts,
+        sttTriggeredDuringTts: this.sttTriggeredDuringTts,
+        interruptingAudioSource: this.interruptingAudioSource,
+        interruptingEventType: this.interruptingEventType,
+      });
+
+      if (this.currentAssistantPlayoutId === playoutId) {
+        this.isSynthesizing = false;
+        this.isSpeaking = false;
+        this.foregroundTurnActive = false;
+        // The owner's audio reached its end: the voice channel is released.
+        // Coalesced follow-ups (queued while this response owned the channel)
+        // now get one merged utterance — never by cancelling, only after.
+        this.speechOwnerTurnId = null;
+        logJRT('PLAYOUT_COMPLETED', `turn=${activeTurnId} playout=${playoutId} speak_requests=${this.speakRequestCount.get(activeTurnId) || 0} coalesced_pending=${this.pendingCoalesced.length}`);
+        this.setMicState('LISTENING', 'playout_complete');
+        // Our own audio reached its end without being cancelled: this is the
+        // AUDIO_ENDED the lifecycle requires before returning to LISTENING.
+        this.lastPlayoutEndedAt = Date.now();
+        this.playoutCancellation = null;
+        logJRT('TTS_AUDIO_ENDED', `playout=${playoutId} frames=${this.lastPlayoutFrames}`);
+        console.log(`[JRT] TTS_AUDIO_ENDED playout=${playoutId} frames=${this.lastPlayoutFrames}`);
+        logJRT('AUDIO_END', `turn=${activeTurnId} playout=${playoutId} totalPlayoutMs=${Date.now() - tTtsStart}`);
+        console.log(`[JRT] AUDIO_END turn=${activeTurnId} playout=${playoutId} totalPlayoutMs=${Date.now() - tTtsStart}`);
+        setTimeout(() => {
+          if (this.currentAssistantPlayoutId === playoutId) {
+            this.isProcessingUserTurn = false;
+            this.foregroundTurnActive = false;
+            this.turnLatchAcquiredAt = null;
+            if (this.turnWatchdog) {
+              clearTimeout(this.turnWatchdog);
+              this.turnWatchdog = null;
+            }
+            // ONE follow-up utterance for everything coalesced behind this
+            // response, then the arbiter's own P2/P3 queue.
+            void this.drainFollowUpSpeech().then(() => speechArbiter.onUserTurnComplete()).catch(() => {});
+          }
+        }, 400);
+        this.broadcastData({
+          type: 'status',
+          state: 'listening',
+          isSpeaking: false,
+          isListening: true,
+        });
+      } else {
+        this.foregroundTurnActive = false;
+        this.isProcessingUserTurn = false;
+        this.releaseTurnLatch('playout_aborted');
+      }
+    }
+  }
+
+  public broadcastData(payload: Record<string, unknown>): void {
+    if (!this.room?.localParticipant) return;
+    try {
+      const json = JSON.stringify(payload);
+      const data = new TextEncoder().encode(json);
+      void this.room.localParticipant.publishData(data, { reliable: true }).catch((err: any) => {
+        logger.debug('[JarvisNext] Failed to broadcast data message:', err?.message);
+      });
+    } catch (err: any) {
+      logger.debug('[JarvisNext] Failed to broadcast data message:', err?.message);
+    }
+  }
+
+  public waitForNavigationAck(navigationId: string, timeoutMs = 1500): Promise<NavigationAckPayload | null> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingNavigationAcks.delete(navigationId);
+        resolve(null);
+      }, timeoutMs);
+
+      this.pendingNavigationAcks.set(navigationId, (ack) => {
+        clearTimeout(timer);
+        this.pendingNavigationAcks.delete(navigationId);
+        resolve(ack);
+      });
+    });
+  }
+
+  public async requestNavigation(req: {
+    navigationId?: string;
+    route: string;
+    entityId?: string;
+    entityType?: string;
+    entityName?: string;
+    timeoutMs?: number;
+  }): Promise<{ verified: boolean; actualRoute?: string; visibleEntityId?: string; activeProjectId?: string; error?: string; navigationId: string }> {
+    const navigationId = req.navigationId || `nav-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    const payload = {
+      type: 'NAVIGATE_REQUEST',
+      navigationId,
+      route: req.route,
+      entityId: req.entityId,
+      entityType: req.entityType,
+      entityName: req.entityName,
+    };
+
+    logger.info('[JarvisNext] Emitting NAVIGATE_REQUEST:', payload);
+    console.log(`[JRT] NAV_SEND room=${this.currentRoomName || ''} navId=${navigationId} route=${req.route} entityId=${req.entityId}`);
+    this.broadcastData(payload);
+    // Backward compatibility broadcast
+    this.broadcastData({
+      ...payload,
+      type: 'navigation',
+    });
+
+    // §2 — ONE canonical packet contract for both transports: the typed path
+    // emits exactly this shape, so a client never has to special-case voice.
+    // The legacy NAVIGATE_REQUEST above remains a compatibility alias.
+    this.broadcastData({
+      type: 'navigation_request',
+      navId: navigationId,
+      targetRoute: req.route,
+      entityId: req.entityId,
+      entityName: req.entityName,
+      entityType: req.entityType,
+      source: 'voice',
+    });
+
+    // ── D23: ONE transaction, two transports ─────────────────────────────
+    // Voice no longer resolves navigation privately. It registers the SAME
+    // transaction the typed path uses, and the result is decided there —
+    // whether the ACK arrives over LiveKit or over the HTTP ACK endpoint.
+    const { result } = beginNavigation(
+      {
+        navId: navigationId,
+        targetRoute: req.route,
+        entityId: req.entityId,
+        entityName: req.entityName,
+        entityType: req.entityType,
+        source: 'voice',
+      },
+      req.timeoutMs ?? 1500,
+    );
+
+    // ONE wait. The LiveKit ACK handler feeds this same transaction, so there is
+    // no second, longer private wait (that would double the no-client latency).
+    const outcome = await result;
+    if (!outcome.verified) {
+      logger.warn('[JarvisNext] Navigation transaction unresolved (no ACK or mismatch):', {
+        navigationId, error: outcome.error,
+      });
+    }
+
+    logger.info('[JarvisNext] Navigation transaction result:', {
+      navigationId,
+      verified: outcome.verified,
+      actualRoute: outcome.actualRoute,
+      activeProjectId: outcome.activeProjectId ?? null,
+      visibleEntityId: outcome.visibleEntityId,
+      error: outcome.error,
+    });
+
+    return {
+      verified: outcome.verified,
+      actualRoute: outcome.actualRoute,
+      visibleEntityId: outcome.visibleEntityId,
+      activeProjectId: outcome.activeProjectId,
+      error: outcome.error,
+      navigationId,
+    };
+  }
+
+  public async stop(): Promise<void> {
+    logJRT('STOP_SESSION_BEGIN', `room=${this.currentRoomName || ''}`);
+    this.isListening = false;
+    this.isSpeaking = false;
+    this.isSynthesizing = false;
+    this.isAccumulatingSpeech = false;
+    this.isProcessingUserTurn = false;
+    this.currentAssistantPlayoutId++;
+    this.currentUserTurnId++;
+
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+
+    this.activeStreams = [];
+    this.preRollBuffer = [];
+    this.speechFrames = [];
+
+    if (this.room) {
+      logJRT('ROOM_DISCONNECT', `room=${this.currentRoomName || ''}`);
+      try {
+        await this.room.disconnect();
+      } catch {
+        // ignore
+      }
+      this.room = null;
+    }
+
+    this.audioSource = null;
+    this.localTrack = null;
+    this.currentRoomName = null;
+    this.hasReceivedFirstFrame = false;
+    this.isReady = false;
+    this.startingPromise = null;
+    this.subscribedTrackSids.clear();
+    logger.info('[JarvisNext] Agent stopped.');
+    logJRT('STOP_SESSION_COMPLETE');
+  }
+}
+
+// Global singleton instance for the process
+export const jarvisNextAgent = new JarvisNextAgent();
