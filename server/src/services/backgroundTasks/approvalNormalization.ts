@@ -225,8 +225,26 @@ export function normalizeApprovalAction(input: RawApprovalInput): NormalizedAppr
     }
   }
 
-  // 6. Filesystem Tool Aliases
+  // 6. Filesystem Tool Aliases & Code Inspection
   const normAction = rawAction.toLowerCase();
+  if (
+    normAction === 'repository.inspect' ||
+    normAction.startsWith('repository.inspect') ||
+    /^(?:where in the code|where is .*implemented|where are .*implemented|how is .*implemented|which file|what file)\b/i.test(normAction) ||
+    (/\b(?:in the code|codebase|source code|implementation)\b/i.test(normAction) && !/\b(?:modify|write|edit|change|delete|remove|patch)\b/i.test(normAction))
+  ) {
+    const allFilesSafe = workspaceRoot ? files.every(f => isPathInsideWorkspace(f, workspaceRoot)) : false;
+    return {
+      canonicalAction: 'filesystem.read',
+      label: 'Inspect Repository Code',
+      category: 'filesystem',
+      riskLevel: 'low',
+      isReadOnly: true,
+      isWorkspaceSafe: allFilesSafe || files.length === 0,
+      summary: 'Reads or inspects repository code structure and implementation.',
+    };
+  }
+
   if (normAction === 'read_file' || normAction === 'search_files' || normAction === 'list_dir' || /^(cat|head|tail|grep|find|dir|ls)\b/i.test(rawCmd)) {
     const allFilesSafe = workspaceRoot ? files.every(f => isPathInsideWorkspace(f, workspaceRoot)) : false;
     return {

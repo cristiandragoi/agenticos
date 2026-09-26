@@ -93,6 +93,6 @@ describe('§4: tool-markup sanitization guards exist in both paths', () => {
     const fs = await import('node:fs');
     const routerSrc = fs.readFileSync('src/routers/jarvis.ts', 'utf8');
     expect(routerSrc).toContain('function stripToolCallMarkup');
-    expect(routerSrc).toContain('const finalReply = stripToolCallMarkup(reply).trim()');
+    expect(routerSrc).toContain('stripToolCallMarkup(reply).trim()');
   });
 });

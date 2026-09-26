@@ -63,8 +63,10 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
     { name: 'Qwen2.5-Coder 14B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen2.5-coder:14b', key: 'ollama' },
     { name: 'DeepSeek Coder V2 16B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'deepseek-coder-v2:16b', key: 'ollama' },
     // ── Local Ollama General Models ─────────────────────────────────────────
-    { name: 'Qwythos 9B', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
-    { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: process.env.OLLAMA_MODEL || 'qwen3.5:27b-hermes-64k', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Qwen 3.8', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.8:latest', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Hermes 9B (Ollama)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen3.5:9b-hermes-64k', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Qwen 2.5 7B (Ollama)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: 'qwen2.5:7b', key: process.env.OLLAMA_API_KEY || 'ollama' },
+    { name: 'Ollama (Local)', url: (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434') + '/v1/chat/completions', model: process.env.OLLAMA_MODEL || 'qwen3.5:9b-hermes-64k', key: process.env.OLLAMA_API_KEY || 'ollama' },
     // ── Remote Providers ────────────────────────────────────────────────────
     { name: 'OpenRouter Fallback', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4o-mini', key: process.env.OPENROUTER_API_KEY },
     { name: 'DeepSeek', url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-v4-flash', key: process.env.DEEPSEEK_API_KEY },
@@ -111,8 +113,8 @@ function getProviders(systemPrompt?: string, agentName?: string): ProviderConfig
       // Local coding models have zero cost and full privacy — they run entirely on-device
       prioritize('qwen2.5-coder');
     } else if (nameLower.includes('hermes')) {
-      // Hermes local operation prefers the configurable Ollama provider.
-      prioritize('ollama (local)');
+      // Hermes local operation prefers Qwen 3.8 / Hermes 9B
+      prioritize('qwen 3.8');
     }
   }
 
@@ -342,7 +344,11 @@ async function callLLM(
         logger.warn(`[AgentLoop] ${p.name} failed (${res.status}): ${errText.slice(0, 200)}`);
         
         if (executionOptions?.modelOverride === 'qwen3.5:cloud' && (res.status === 402 || res.status === 403 || res.status === 429)) {
-          throw new Error(`Provider Error (${res.status}): Ollama Cloud account limit reached or unauthorized.`);
+          if (executionOptions?.disableFallback) {
+            throw new Error(`Provider Error (${res.status}): Ollama Cloud account limit reached or unauthorized.`);
+          }
+          lastError = `Provider Error (${res.status}): Ollama Cloud account limit reached or unauthorized.`;
+          continue;
         }
 
         lastError = `${p.name} failed (HTTP ${res.status}: Invalid request or rate limit)`;

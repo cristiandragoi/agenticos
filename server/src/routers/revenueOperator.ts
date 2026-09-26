@@ -242,4 +242,11 @@ router.get('/ledger/:id/trace', wrap(async (req, res) => {
   res.json(await traceLedgerEntry(req.params.id));
 }));
 
+// ── Portfolio & Multi-Project Priorities ────────────────────────────────────
+router.get('/portfolio', wrap(async (_req, res) => {
+  const { revenueSupervisor } = await import('../services/revenueOperator/revenueSupervisor.js');
+  const portfolio = await revenueSupervisor.getPortfolioStatus();
+  res.json(portfolio);
+}));
+
 export default router;

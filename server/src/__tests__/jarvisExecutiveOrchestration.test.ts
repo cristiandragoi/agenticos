@@ -258,6 +258,8 @@ After approval, verify the file and report the result.`;
       conversationId: convId,
     });
 
+    backgroundTaskManager.transition(task.taskId, 'running');
+
     jarvisExecutionSupervisor.superviseTask({
       taskId: task.taskId,
       operationId: opId,

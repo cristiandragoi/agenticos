@@ -19,6 +19,20 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
+// Permanently stub console writes at the Node global level for the lifetime of this worker thread
+global.console.log = () => {};
+global.console.warn = () => {};
+global.console.error = () => {};
+
+vi.mock('../utils/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn()
+  }
+}));
+
 vi.setConfig({ hookTimeout: 60000, testTimeout: 30000 });
 
 let tmpDir: string;
@@ -50,13 +64,23 @@ async function freshModules() {
 
 describe('Transport & Delegation Lifecycle Suite', () => {
   beforeEach(async () => {
+    vi.useFakeTimers();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'trans-life-'));
     process.env.AGENT_TEAMS_DB_PATH = path.join(tmpDir, 'test.db');
     ({ manager: mgr, repo, orchestrator } = await freshModules());
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    try {
+      const tasks = repo?.listTasks() || [];
+      for (const t of tasks) {
+        if (t && !['completed', 'failed', 'cancelled'].includes(t.status)) {
+          mgr.transition(t.taskId, 'failed', { lastError: 'Test context teardown' });
+        }
+      }
+    } catch {}
+    vi.useRealTimers();
+    // Keep console spy stubs active during thread discard to prevent late microtask logs from hitting the RPC
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 

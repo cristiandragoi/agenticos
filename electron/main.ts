@@ -143,7 +143,7 @@ function initBackendLifecycle(): BackendLifecycleManager {
     nodeExec: process.execPath,
     env: backendEnv,
     healthPath: '/api/health',
-    healthProbeTimeoutMs: 2500,
+    healthProbeTimeoutMs: 5000,
     readinessPollMs: 1000,
     // Observed cold boot is ~20s (migrations + gateway checks); allow room
     // while still failing clearly when readiness never arrives.
@@ -153,7 +153,7 @@ function initBackendLifecycle(): BackendLifecycleManager {
     backoffMs: [1000, 3000, 8000],
     crashThreshold: 3,
     crashWindowMs: 60000,
-    unhealthyTolerance: 3,
+    unhealthyTolerance: 4,
     logFile: path.join(app.isPackaged ? userDataDir : appRoot, '.agentos', 'logs', 'backend-managed.log'),
   }, {
     probe: httpHealthProbe,

@@ -11,6 +11,7 @@ const router = Router();
 // GET /api/projects
 router.get('/', (_req, res) => {
   try {
+    projectsStore.ensureRevenueProjects();
     const list = projectsStore.listProjects();
     // Active-project truth: the raw stored id is only reported when it
     // resolves to a REAL project. A stale/ghost id must never be exposed as
@@ -49,10 +50,10 @@ router.post('/active', (req, res) => {
 // POST /api/projects
 router.post('/', (req, res) => {
   try {
-    const { name, description, status, tags, workspacePath, color } = req.body;
+    const { name, description, status, tags, workspacePath, color, priority, revenueVertical } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const id = `proj-${randomUUID().slice(0, 8)}`;
-    const project = projectsStore.createProject({ id, name, description, status, tags, workspacePath, color });
+    const project = projectsStore.createProject({ id, name, description, status, tags, workspacePath, color, priority, revenueVertical });
     res.json(project);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -73,8 +74,23 @@ router.get('/:id', (req, res) => {
 // PUT /api/projects/:id
 router.put('/:id', (req, res) => {
   try {
-    const { name, description, status, tags, workspacePath, color } = req.body;
-    const project = projectsStore.updateProject(req.params.id, { name, description, status, tags, workspacePath, color });
+    const { name, description, status, tags, workspacePath, color, priority, revenueVertical } = req.body;
+    const project = projectsStore.updateProject(req.params.id, { name, description, status, tags, workspacePath, color, priority, revenueVertical });
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    res.json(project);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/projects/:id/priority
+router.patch('/:id/priority', (req, res) => {
+  try {
+    const { priority } = req.body;
+    if (priority === undefined || typeof priority !== 'number') {
+      return res.status(400).json({ error: 'priority number is required' });
+    }
+    const project = projectsStore.setPriority(req.params.id, priority);
     if (!project) return res.status(404).json({ error: 'Project not found' });
     res.json(project);
   } catch (err: any) {
@@ -315,6 +331,120 @@ router.post('/:id/goals/:goalId/tasks', (req, res) => {
       metadata,
     });
     res.json(task);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── FreeCash authentication prerequisite (session lifecycle) ────────────────
+//
+// Safe status only: boolean prerequisite state plus the blocker text. Cookie
+// values, credentials and tokens are NEVER read, stored or returned.
+
+function freeCashAuthStatus(projectId: string) {
+  return (async () => {
+    const { checkPrerequisites, describeService } = await import('../services/prerequisites/prerequisiteService.js');
+    const { getOpenGoalForService } = await import('../services/prerequisites/activeGoalRegistry.js');
+    const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+    const state = checkPrerequisites('freecash');
+    const goal = getOpenGoalForService('freecash');
+    const tasks = backgroundTaskManager
+      .listTasks({ projectId, limit: 50 })
+      .filter((t) => t.route === 'freecash_execution' || t.route === 'freecash_auth_gate' || t.status === 'waiting_for_auth')
+      .map((t) => ({
+        taskId: t.taskId,
+        title: t.title,
+        status: t.status,
+        route: t.route,
+        blocker: t.blocker,
+        verified: t.verificationState === 'passed',
+      }));
+    return {
+      service: 'freecash',
+      label: describeService('freecash'),
+      /** 'authenticated' only when LIVE evidence exists and is fresh. */
+      sessionState: state.sessionValid ? 'authenticated' : 'unauthenticated',
+      satisfied: state.satisfied,
+      blocker: state.blocker,
+      checkedAt: state.checkedAt,
+      evidence: {
+        sessionValid: state.sessionValid,
+        credentialAvailable: state.credentialAvailable,
+        externalConnected: state.externalConnected,
+      },
+      goal,
+      tasks,
+    };
+  })();
+}
+
+async function handleFreeCashAuthStatus(req: any, res: any) {
+  try {
+    res.json(await freeCashAuthStatus(req.params.projectId));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET  /api/projects/:projectId/freecash/auth  → current safe auth/session state
+// POST /api/projects/:projectId/freecash/auth  → same (POST alias for clients)
+router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+
+// POST /api/projects/:projectId/freecash/auth/login
+// Opens the managed browser window ON the real sign-in page. The user types
+// their own credentials there; AgenticOS never sees them.
+router.post('/:projectId/freecash/auth/login', async (req, res) => {
+  try {
+    const { startInteractiveLogin } = await import('../services/freeCash/freeCashExecutor.js');
+    const result = await startInteractiveLogin();
+    res.status(result.started ? 200 : 502).json({
+      ...result,
+      status: await freeCashAuthStatus(req.params.projectId),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/projects/:projectId/freecash/auth/verify
+// Re-probes the live session against the managed profile. Only a real
+// 'authenticated' probe result writes evidence, arms the resume and pumps it.
+router.post('/:projectId/freecash/auth/verify', async (req, res) => {
+  try {
+    const { checkAuthenticatedSession, markResumePending, resumePendingGoals } =
+      await import('../services/freeCash/freeCashExecutor.js');
+    const probe = await checkAuthenticatedSession();
+    let resumed = 0;
+    if (probe.state === 'authenticated') {
+      markResumePending('freecash');
+      resumed = await resumePendingGoals();
+    }
+    res.json({
+      probe: {
+        state: probe.state,
+        observed: probe.observed,
+        evidencePath: probe.evidencePath,
+        inspectedAt: probe.inspectedAt,
+        error: probe.error,
+      },
+      resumedGoals: resumed,
+      status: await freeCashAuthStatus(req.params.projectId),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/projects/:projectId/freecash/auth/clear
+// Explicitly drops stale session evidence (e.g. the user signed out). The
+// durable goal is NOT deleted — it returns to waiting_for_auth on the next
+// operate, because no live session exists.
+router.post('/:projectId/freecash/auth/clear', async (req, res) => {
+  try {
+    const { clearSessionEvidence } = await import('../services/freeCash/freeCashExecutor.js');
+    clearSessionEvidence('freecash');
+    res.json({ cleared: true, status: await freeCashAuthStatus(req.params.projectId) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

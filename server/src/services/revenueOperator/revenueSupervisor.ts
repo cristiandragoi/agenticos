@@ -1,12 +1,13 @@
 import { logger } from '../../utils/logger.js';
 import { db, rawDb } from '../../db/index.js';
-import { revenueMissions, revenueExperiments, revenueHumanGates } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { revenueMissions, revenueExperiments, revenueHumanGates, projects } from '../../db/schema.js';
+import { eq, desc } from 'drizzle-orm';
 import { resolveProjectId } from './revenueEngine.js';
 import { resolveAction, type ResolvedAction } from './actionResolver.js';
 import { executeAction, type ActionResult } from './revenueActionExecutor.js';
 import { branchScheduler } from './branchScheduler.js';
-import { listCompliance } from './operatorService.js';
+import { listCompliance, createHumanGate } from './operatorService.js';
+import { projectsStore } from '../projectsStore.js';
 import { revenueBriefingService, BriefingData } from './briefingService.js';
 
 export type SupervisorControlState = 'ACTIVE' | 'WAITING' | 'BLOCKED' | 'PAUSED' | 'STOPPED';
@@ -57,6 +58,37 @@ export interface SupervisorCycleResult {
   status: SupervisorStatus;
 }
 
+/**
+ * Detect human-only barriers from execution error strings or status messages.
+ * Does not bypass security controls; records the gate truthfully and pauses the branch.
+ */
+function detectHumanGateType(text: string): {
+  gateType: 'CAPTCHA' | 'KYC' | 'OAUTH_REQUIRED' | 'SHOPIFY_AUTH_REQUIRED' | 'PAYMENT_APPROVAL' | 'LEGAL_REVIEW' | 'PLATFORM_RESTRICTION';
+  userAction: string;
+  platform?: string;
+} | null {
+  const lower = text.toLowerCase();
+  if (/\b(?:captcha|recaptcha|turnstile|hcaptcha|bot\s*detection|bot\s*challenge)\b/i.test(lower)) {
+    return { gateType: 'CAPTCHA', userAction: 'Complete the security verification challenge.' };
+  }
+  if (/\b(?:kyc|identity\s*verif|id\s*verification|document\s*upload|verify\s*identity)\b/i.test(lower)) {
+    return { gateType: 'KYC', userAction: 'Complete the identity verification / KYC process.' };
+  }
+  if (/\b(?:shopify.*(?:auth|login|connect)|connect.*shopify)\b/i.test(lower)) {
+    return { gateType: 'SHOPIFY_AUTH_REQUIRED', userAction: 'Authorize the Shopify store connection in browser.', platform: 'Shopify' };
+  }
+  if (/\b(?:oauth|authorization\s*required|authorize\s*app|token\s*expired|login\s*required|sign\s*in\s*required)\b/i.test(lower)) {
+    return { gateType: 'OAUTH_REQUIRED', userAction: 'Sign in and authorize account access.' };
+  }
+  if (/\b(?:payment\s*required|billing\s*required|card\s*required|payment\s*authorization)\b/i.test(lower)) {
+    return { gateType: 'PAYMENT_APPROVAL', userAction: 'Authorize payment or billing approval.' };
+  }
+  if (/\b(?:terms\s*of\s*service|legal\s*review|compliance\s*review|accept\s*agreement)\b/i.test(lower)) {
+    return { gateType: 'LEGAL_REVIEW', userAction: 'Review and accept the platform terms or legal agreement.' };
+  }
+  return null;
+}
+
 export class RevenueMissionSupervisor {
   private controlState: SupervisorControlState = 'ACTIVE';
   private cycleCount = 0;
@@ -64,6 +96,7 @@ export class RevenueMissionSupervisor {
   private activeMissionId: string | null = null;
   private isProcessing = false;
   private lastAction: SupervisorStatus['lastAction'] = null;
+  private maxConcurrency = parseInt(process.env.REVENUE_MAX_CONCURRENCY || '4', 10);
 
   constructor() {
     this.ensureStateTable();
@@ -123,9 +156,22 @@ export class RevenueMissionSupervisor {
 
   private async resolveMission(): Promise<{ id: string; title: string; projectId: string | null }> {
     const targetId = this.activeMissionId || 'mission-616808fe-';
-    const mission = await db.query.revenueMissions.findFirst({
+    let mission = await db.query.revenueMissions.findFirst({
       where: eq(revenueMissions.id, targetId),
     });
+
+    if (!mission) {
+      mission = await db.query.revenueMissions.findFirst({
+        where: eq(revenueMissions.status, 'active'),
+        orderBy: desc(revenueMissions.createdAt),
+      });
+    }
+
+    if (!mission) {
+      mission = await db.query.revenueMissions.findFirst({
+        orderBy: desc(revenueMissions.createdAt),
+      });
+    }
 
     if (!mission) {
       throw new Error(`[RevenueSupervisor] MISSION_NOT_FOUND: Canonical mission '${targetId}' does not exist.`);
@@ -159,25 +205,19 @@ export class RevenueMissionSupervisor {
 
   /**
    * Event-Driven Hook: called when a Human Gate is resolved in the canonical DB.
-   *
-   * Phase 2D: resolution only wakes the branch — it does NOT create a fake
-   * completed continuation. The branch becomes schedulable; the next cycle
-   * resolves the real next action (or blocks truthfully on a missing
-   * integration). The immutable resolution event is recorded by operatorService.
    */
   async onGateResolved(gate: { id: string; experimentId?: string | null }): Promise<void> {
     if (!gate.experimentId) return;
     logger.info(`[RevenueSupervisor] Gate ${gate.id} resolved for experiment ${gate.experimentId}. Branch becomes schedulable; no fake continuation.`);
-
-    // Make the branch immediately eligible for the next cycle (clear backoff /
-    // permanent-failure markers from prior attempts) without fabricating work.
     branchScheduler.recordSuccess(gate.experimentId, 'gate_resolved', 'resolved');
   }
 
   /**
    * Main Canonical Supervisor Cycle.
-   * Executes ONE fairly-selected real action per cycle (bounded, no fan-out).
-   * Returns a truthful outcome driven by the real action result.
+   * Priority-aware and conflict-safe execution:
+   * 1. Evaluates all eligible branches against project priorities (Free Cash #1, Shopify #2, TikTok Shop #3).
+   * 2. Checks conflict locks so no two workers edit the same files/entities/targets simultaneously.
+   * 3. Detects human gates on CAPTCHA/KYC/login/OAuth/payment/legal; pauses only that branch and moves capacity immediately to next independent task.
    */
   async runSupervisorCycle(): Promise<SupervisorCycleResult> {
     if (this.controlState !== 'ACTIVE') {
@@ -204,9 +244,17 @@ export class RevenueMissionSupervisor {
       const exps = await db.select().from(revenueExperiments).where(eq(revenueExperiments.missionId, targetMission.id)).all();
       const allGates = await db.select().from(revenueHumanGates).all();
 
-      // Resolve actions for every branch and collect eligible candidates.
+      // Build project priority lookup map
+      const projectList = projectsStore.listProjects();
+      const projectPriorityMap = new Map<string, number>();
+      for (const p of projectList) {
+        projectPriorityMap.set(p.id, p.priority ?? 999);
+      }
+
+      // Resolve actions for every branch and collect eligible candidates with priorities
       const actionByExp = new Map<string, ResolvedAction>();
       const candidates: string[] = [];
+      const priorityMap: Record<string, number> = {};
 
       for (const exp of exps) {
         const expGates = allGates.filter((g) => g.experimentId === exp.id);
@@ -225,15 +273,19 @@ export class RevenueMissionSupervisor {
         });
         actionByExp.set(exp.id, action);
 
-        // NO_WORK branches never need execution; everything else is a candidate
-        // (real worker actions, gate creation, and truthful block records).
-        if (action.actionType !== 'NO_WORK') {
+        // Check if resource is currently locked by another task
+        const expResourceKey = `exp:${exp.id}`;
+        const isLocked = branchScheduler.isResourceLocked(expResourceKey, exp.id);
+
+        if (action.actionType !== 'NO_WORK' && !isLocked) {
           candidates.push(exp.id);
+          const prio = exp.projectId ? (projectPriorityMap.get(exp.projectId) ?? 999) : 999;
+          priorityMap[exp.id] = prio;
         }
       }
 
-      // Deterministic fair selection (least-recently-selected eligible first).
-      const selectedId = branchScheduler.selectNext(candidates);
+      // Deterministic priority-aware selection (Free Cash priority 1 first, then Shopify #2, TikTok Shop #3)
+      const selectedId = branchScheduler.selectNext(candidates, priorityMap);
       if (!selectedId) {
         this.persistState();
         const status = await this.getStatus();
@@ -241,12 +293,35 @@ export class RevenueMissionSupervisor {
       }
 
       const action = actionByExp.get(selectedId)!;
-      logger.info(`[RevenueSupervisor] Cycle #${this.cycleCount}: executing ${action.actionType} for ${selectedId}`);
+      const resourceLockKey = `exp:${selectedId}`;
+      branchScheduler.acquireLock(resourceLockKey, selectedId);
 
-      const result = await executeAction(action, targetMission.id, projectId);
+      logger.info(`[RevenueSupervisor] Cycle #${this.cycleCount}: executing ${action.actionType} for ${selectedId} (priority=${priorityMap[selectedId] ?? 999})`);
 
-      // Update persistent branch state truthfully from the real outcome.
-      if (result.status === 'completed') {
+      let result: ActionResult;
+      try {
+        result = await executeAction(action, targetMission.id, projectId);
+      } finally {
+        branchScheduler.releaseLock(resourceLockKey, selectedId);
+      }
+
+      // Check for human gate barrier in result (CAPTCHA, KYC, MFA, OAuth, login, payment, legal)
+      const gateDetection = detectHumanGateType(`${result.error || ''} ${result.detail || ''}`);
+      if (gateDetection) {
+        logger.warn(`[RevenueSupervisor] Human gate detected (${gateDetection.gateType}) on ${selectedId}: ${result.detail}. Pausing only this branch.`);
+        createHumanGate({
+          experimentId: selectedId,
+          projectId,
+          gateType: gateDetection.gateType,
+          platform: gateDetection.platform || undefined,
+          description: result.error || result.detail,
+          userAction: gateDetection.userAction,
+          branchPaused: true,
+        });
+        // Branch is held waiting for gate — do not increment failure retry budget
+        branchScheduler.recordSuccess(selectedId, action.actionType, 'waiting_for_gate');
+        result.status = 'waiting_for_gate';
+      } else if (result.status === 'completed') {
         branchScheduler.recordSuccess(selectedId, action.actionType, result.status);
       } else if (result.status === 'failed') {
         const { exhausted } = branchScheduler.recordTransientFailure(selectedId, action.actionType, result.status, result.error ?? 'failed');
@@ -256,7 +331,6 @@ export class RevenueMissionSupervisor {
       } else if (result.status === 'blocked') {
         branchScheduler.recordPermanentFailure(selectedId, action.actionType, result.status, result.error ?? 'blocked');
       } else {
-        // waiting_for_gate / no_work — no backoff, record the hold truthfully.
         branchScheduler.recordSuccess(selectedId, action.actionType, result.status);
       }
 
@@ -275,7 +349,6 @@ export class RevenueMissionSupervisor {
       this.persistState();
       const status = await this.getStatus();
 
-      // Map the real action result to a scheduler-level outcome.
       const outcome: SupervisorCycleOutcome =
         result.status === 'completed' ? 'completed'
         : result.status === 'blocked' ? 'blocked'
@@ -287,6 +360,36 @@ export class RevenueMissionSupervisor {
     } finally {
       this.isProcessing = false;
     }
+  }
+
+  /**
+   * Portfolio-level status summary:
+   * Returns deterministic project priorities (Free Cash #1, Shopify #2, TikTok Shop #3),
+   * active tasks, human gates, and resource locks.
+   */
+  async getPortfolioStatus(): Promise<{
+    projects: Array<{ id: string; name: string; priority: number; revenueVertical: string | null; status: string }>;
+    activeLocks: Array<{ resourceKey: string; taskId: string; acquiredAt: string }>;
+    openGates: any[];
+    supervisor: SupervisorStatus;
+  }> {
+    const projectList = projectsStore.listProjects();
+    const openGates = await db.select().from(revenueHumanGates).where(eq(revenueHumanGates.status, 'open')).all();
+    const activeLocks = branchScheduler.getActiveLocks();
+    const supervisor = await this.getStatus();
+
+    return {
+      projects: projectList.map(p => ({
+        id: p.id,
+        name: p.name,
+        priority: p.priority ?? 999,
+        revenueVertical: p.revenueVertical,
+        status: p.status,
+      })),
+      activeLocks,
+      openGates,
+      supervisor,
+    };
   }
 
   async getStatus(): Promise<SupervisorStatus> {

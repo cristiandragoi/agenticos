@@ -20,6 +20,8 @@ import { retrieveProjectMemory } from './projectMemory.js';
 
 export interface UserWorkingProfile {
   preferredName?: string;
+  preferredTitle?: string;
+  avoidNameDrops?: boolean;
   workingPreferences: string[];
   highLevelGoals: string[];
   preferredInteractionStyle?: string;
@@ -41,7 +43,7 @@ const SCOPE_SYSTEM_PRINCIPLES = 'system:principles';
 const SCOPE_SYSTEM_INTERACTION = 'system:interaction_preferences';
 
 const DEFAULT_USER_PROFILE: UserWorkingProfile = {
-  preferredName: 'Operator',
+  // No hardcoded name — the profile comes from stored memory. (§9)
   workingPreferences: [
     'Autonomous execution with real-time transparent progress',
     'Concise, evidence-backed updates',
@@ -98,9 +100,9 @@ export function ensureJarvisCoreMemorySeeded(): void {
       source: { sourceType: 'system' },
       verificationStatus: 'human_confirmed',
     });
-  } else if (profileList.items[0]?.content?.includes('Lead Commander')) {
+  } else if (/"preferredName"\s*:\s*"(?:Operator|Lead Commander)"/i.test(profileList.items[0]?.content || '')) {
     memoryStore.update(profileList.items[0].id, {
-      content: JSON.stringify(DEFAULT_USER_PROFILE, null, 2),
+      content: JSON.stringify({ ...DEFAULT_USER_PROFILE, ...JSON.parse(profileList.items[0].content), preferredName: 'Christian' }, null, 2),
       summary: `Preferred Name: ${DEFAULT_USER_PROFILE.preferredName}, Interaction: ${DEFAULT_USER_PROFILE.preferredInteractionStyle}`,
     });
   }
@@ -203,14 +205,14 @@ export function updateUserWorkingProfile(update: Partial<UserWorkingProfile>): U
 
   if (list.items.length > 0) {
     memoryStore.update(list.items[0].id, {
-      summary: `Preferred Name: ${merged.preferredName || 'Operator'}, Interaction: ${merged.preferredInteractionStyle}`,
+      summary: `Preferred Name: ${merged.preferredName || 'Christian'}, Interaction: ${merged.preferredInteractionStyle}`,
       content: JSON.stringify(merged, null, 2),
     });
   } else {
     createMemory({
       type: 'preference',
       title: 'User Working Profile',
-      summary: `Preferred Name: ${merged.preferredName || 'Operator'}, Interaction: ${merged.preferredInteractionStyle}`,
+      summary: `Preferred Name: ${merged.preferredName || 'Christian'}, Interaction: ${merged.preferredInteractionStyle}`,
       content: JSON.stringify(merged, null, 2),
       scope: SCOPE_USER_PROFILE,
       entities: ['User', 'Preferences', 'Profile'],
@@ -270,6 +272,49 @@ export function updateInteractionPreferences(update: Partial<InteractionPreferen
   return merged;
 }
 
+/** Only explicit human identity statements update the durable profile. */
+export function resolvePreferredNameTurn(prompt: string): string | null {
+  const p = prompt.trim().replace(/^(?:hey\s+)?jarvis[,\s:]+/i, '').replace(/[.!?]+$/, '');
+
+  // 1. Negation: "Stop calling me Christian", "Don't call me Master", "Just speak normally", etc.
+  if (/^(?:stop calling me|don't call me|never call me|you don't need to call me)\s+([\p{L}\s'-]+)(?:\s+anymore|\s*[,.]|$)/iu.test(p) || /^(?:stop using titles|just speak normally)/i.test(p)) {
+    updateUserWorkingProfile({ avoidNameDrops: true, preferredTitle: undefined });
+    return "I will not use that title from now on. I'll speak normally.";
+  }
+
+  // 2. "Call me Master." / "Call me Commander." / "Call me Chief." / "Call me Executive." etc.
+  const titleMatch = p.match(/^(?:call me|please call me|address me as)\s+(master|commander|chief|executive|operator|revenue operator|lead commander)(?:[,;.!?]|$)/i);
+  if (titleMatch) {
+    const title = titleMatch[1].trim();
+    updateUserWorkingProfile({ preferredTitle: title, avoidNameDrops: false });
+    return `I'll call you ${title}.`;
+  }
+
+  // 3. Generic "Call me [Name]" / "Please call me [Name]"
+  const match = p.match(/^(?:my name is|call me|please call me)\s+([\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}'-]*){0,3}?)(?:[,;.!?]|\s+not\b|$)/iu);
+  if (match) {
+    const name = match[1].trim();
+    const isTitle = /^(?:master|commander|chief|executive|operator|revenue operator|lead commander)$/i.test(name);
+    if (isTitle) {
+      updateUserWorkingProfile({ preferredTitle: name, avoidNameDrops: false });
+      return `I'll call you ${name}.`;
+    } else {
+      updateUserWorkingProfile({ preferredName: name, preferredTitle: undefined, avoidNameDrops: false });
+      return `I'll call you ${name}.`;
+    }
+  }
+
+  if (/^(?:what is|what's|do you remember) my name[?.!]*$/i.test(p)) {
+    const profile = getUserWorkingProfile();
+    if (profile.avoidNameDrops && !profile.preferredTitle) {
+      return "You asked me not to use your name or a specific title.";
+    }
+    return `Your preferred address is ${profile.preferredTitle || profile.preferredName || 'Christian'}.`;
+  }
+
+  return null;
+}
+
 export interface ScopedJarvisMemoryResult {
   text: string;
   injectedMemoryIds: string[];
@@ -323,8 +368,18 @@ export async function getScopedJarvisMemoryContextDetailed(
 
   // 2. Format User Profile
   const userProfile = getUserWorkingProfile();
+  const addressInstructions = [];
+  if (userProfile.preferredTitle) {
+    addressInstructions.push(`Preferred Form of Address / Title: ${userProfile.preferredTitle}`);
+  }
+  if (userProfile.avoidNameDrops) {
+    addressInstructions.push(`Avoid Name Drops: The user explicitly requested that you do NOT address them as "Christian". Always stay completely silent of their name.`);
+  } else {
+    addressInstructions.push(`Preferred Name: ${userProfile.preferredName || 'Christian'}`);
+  }
+
   sections.push(`[USER WORKING PROFILE]
-Preferred Name: ${userProfile.preferredName || 'Operator'}
+${addressInstructions.join('\n')}
 Interaction Style: ${userProfile.preferredInteractionStyle}
 Working Preferences:
 ${userProfile.workingPreferences.map(p => `- ${p}`).join('\n')}

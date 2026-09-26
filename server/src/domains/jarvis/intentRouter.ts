@@ -523,6 +523,16 @@ export function isLiveSystemInvestigationRequest(prompt: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
   // Informational "how does X work" explanations stay direct.
   if (/^how\s+(does|do|is|are|can|would|should|come)\b/.test(p)) return false;
+  // General explanation/role questions stay direct ("What is CodeX for?", "What does Hermes do?").
+// "What is X working on?" and "How is X doing?" are worker_STATUS questions —
+// exempting them sends them to the conversational worker-status handler, not
+// the runtime-investigation path. "What is X doing?" (present-progressive
+// state) is intentionally NOT exempt: it must reach the investigation branch.
+  if (/\bwhat is \w+ for\b/i.test(p) || /\bwhat is the purpose of\b/i.test(p) || /\bexplain what \w+ does\b/i.test(p) || /\bwhat does \w+ do\b/i.test(p) || /\bwhat does \w+ mean\b/i.test(p) || /\bwhat is \w+ working on\b/i.test(p) || /\bhow is \w+ doing\b/i.test(p)) return false;
+  // Bare informational "What is <concept>?" stays direct (no live-state
+  // predicate present). Anchored so "What is CodeX doing?" still falls through
+  // to the predicate-based investigation branch below.
+  if (/^what is(?: the)? (?:a |an )?(openrouter|provider|gateway|model|llm|runtime|capability|agent|hermes|codex|argus|jarvis|ollama|deepseek|qwen|revenue operator|operator)[?]?$/i.test(p)) return false;
   // Project/milestone/goal/plan tracking belongs to Hermes orchestration,
   // not live runtime investigation.
   if (/\b(project|milestone|goal|plan|sprint|roadmap)\b/.test(p)) return false;
@@ -542,6 +552,49 @@ export class IntentRouter {
    * Promoted to an independent service layer for future ML replacement.
    */
   async routeIntent(prompt: string, context?: { recentText?: string; confidence?: number; sourceLabel?: string }): Promise<IntentResult> {
+    const delegationSignals = detectDelegationSignals(prompt);
+    const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+    const hasAny = (...terms: string[]) => terms.some(term => p.includes(term));
+    const hasFileTarget = hasAny('.ts', '.tsx', '.js', '.json', '.md', 'file', 'component', 'router', 'implementation', 'workspace', 'repository', 'repo', 'source', 'code', 'codebase', 'branch', 'commit');
+
+    if (delegationSignals.prohibitedWorkers.includes('codex') && hasFileTarget) {
+      return {
+        route: 'direct',
+        semanticIntent: 'repository_analysis',
+        executionMode: 'direct_conversation',
+        selectedCapability: 'none',
+        category: 'repository_analysis',
+        mode: 'direct_conversation',
+        confidence: 0.99,
+        reason: 'Explicit non-delegation instruction requires Jarvis direct handling',
+        selectedAgent: 'Jarvis',
+        requiresWorkspace: false,
+        requiresApproval: false
+      };
+    }
+
+    const result = await this._routeIntent(prompt, context);
+    if (
+      result.route !== 'direct' &&
+      ((delegationSignals.globalNonDelegationRequested && !delegationSignals.explicitWorkerRequested) ||
+       delegationSignals.prohibitedWorkers.includes(result.route as any))
+    ) {
+      return {
+        ...result,
+        route: 'direct',
+        mode: 'direct_conversation',
+        confidence: 0.99,
+        reason: 'Explicit non-delegation instruction requires Jarvis direct handling',
+        selectedAgent: 'Jarvis',
+        requiresWorkspace: false,
+        requiresApproval: false,
+        plan: undefined
+      };
+    }
+    return result;
+  }
+
+  async _routeIntent(prompt: string, context?: { recentText?: string; confidence?: number; sourceLabel?: string }): Promise<IntentResult> {
     const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
     const words = p.split(' ').filter(Boolean);
     const recentText = context?.recentText;
@@ -914,7 +967,7 @@ export class IntentRouter {
 
     // Questions about findings, reports, problems, or evidence from a prior/completed task:
     const isFindingsOrEvidenceQuery =
-      /\b(what did (?:codex|hermes|it) (?:find|report|see|conclude|say)|where did (?:codex|hermes|it) find|why did (?:codex|hermes|it) (?:say|list|claim|name)|explain the (?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th)?)\s+(?:problem|finding|issue|blocker)|what (?:are|were) the (?:findings|problems|blockers|issues|results))\b/i.test(p);
+      /\b(what did (?:codex|hermes|it) (?:find|report|see|conclude|say)|where did (?:codex|hermes|it) find|why did (?:codex|hermes|it) (?:say|list|claim|name)|explain the (?:first|second|third|fourth|fifth|\d+(?:st|nd|rd|th)?)\s+(?:problem|finding|issue|blocker)|what (?:are|were) the (?:findings|problems|blockers|issues|results)|why did the (?:code|test|run|agent|task|goal|it) fail)\b/i.test(p);
     if (isFindingsOrEvidenceQuery) {
       return direct('conversation', 0.95, 'Inquiry regarding grounded worker findings/evidence');
     }

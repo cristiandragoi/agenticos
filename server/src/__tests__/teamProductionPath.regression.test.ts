@@ -133,7 +133,7 @@ describe('Production-path regression (real paused run shape)', () => {
     eq = (await import('drizzle-orm')).eq;
     schema = await import('../db/schema.js');
     const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
-    migrate(db, { migrationsFolder: path.join(originalCwd, 'server', 'drizzle') });
+    migrate(db, { migrationsFolder: path.resolve(__dirname, '../../drizzle') });
 
     conversationService = (await import('../domains/conversations/service.js')).conversationService;
     jarvisOrchestrator = (await import('../domains/jarvis/orchestrator.js')).jarvisOrchestrator;

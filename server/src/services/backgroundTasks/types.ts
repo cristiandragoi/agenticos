@@ -12,6 +12,15 @@ export type TaskStatus =
   | 'running'
   | 'verifying'
   | 'waiting_approval'
+  /**
+   * WAITING_FOR_AUTH (§ prerequisites): the work is REGISTERED but no worker
+   * has started, because an external service prerequisite (e.g. an
+   * authenticated FreeCash browser session) is not satisfied. This is NOT an
+   * executing status — a task in this state must never be reported as running,
+   * because no external action has been performed. It clears only when LIVE
+   * external evidence proves the prerequisite is satisfied.
+   */
+  | 'waiting_for_auth'
   | 'paused'
   | 'review'
   | 'completed'
@@ -26,7 +35,7 @@ export const TERMINAL_STATUSES: ReadonlySet<TaskStatus> = new Set([
   'cancelled',
 ]);
 
-export type WorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | 'magnitude' | 'antigravity';
+export type WorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | 'magnitude' | 'antigravity' | 'self-heal';
 
 export type TaskEventKind =
   | 'task.created'
@@ -58,6 +67,8 @@ export type TaskEventKind =
   | 'task.gate_failed'
   | 'task.verification_started'
   | 'task.verification_completed'
+  | 'task.handoff_initiated'
+  | 'task.handoff_delivered'
   | 'run.recovery.started'
   | 'run.recovery.classified'
   | 'run.recovery.retry'
@@ -146,11 +157,85 @@ export const TASK_LIMITS = {
   maxQueued: Number(process.env.BG_TASK_MAX_QUEUED ?? 10),
 };
 
+export function isExecutingStatus(s: TaskStatus): boolean {
+  return s === 'planning' || s === 'running' || s === 'verifying';
+}
+
 export function isActiveStatus(s: TaskStatus): boolean {
-  return s === 'queued' || s === 'planning' || s === 'running' || s === 'verifying' || s === 'waiting_approval' || s === 'review';
+  return s === 'queued' || s === 'planning' || s === 'running' || s === 'verifying' || s === 'waiting_approval' || s === 'waiting_for_auth' || s === 'review';
 }
 
 export function taskShortId(taskId: string): string {
   const m = taskId.match(/-(\w+)$/);
   return m ? `T-${m[1].slice(0, 6).toUpperCase()}` : taskId;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Delegation Contract (§14 of Jarvis repair — Phase 1 minimum)
+ *
+ * Structured context carried in BackgroundTaskRecord.metadata.delegationEnvelope
+ * when Jarvis delegates to Hermes/CodeX. Preserves authoritative context that
+ * would otherwise be lost when flattening to a bare prompt string. Phase 1
+ * stores it in typed metadata; Phase 2 promotes it to first-class fields.
+ * ───────────────────────────────────────────────────────────── */
+
+/** Canonical entity reference a delegation operates on. */
+export interface DelegationTarget {
+  id: string;
+  /** 'revenue_opportunity' | 'capability' | 'project' | 'task' | 'agent' */
+  type: string;
+  /** 'revenue_operator' | 'capabilities' | 'projects' | 'tasks' | 'agents' */
+  domain: string;
+  displayName: string;
+}
+
+export interface DelegationEnvelope {
+  /** The pending action that triggered this delegation (idempotency key). */
+  pendingActionId?: string;
+  /** Canonical target entity the delegation operates on. */
+  target?: DelegationTarget;
+  /** Exact resolved objective — NOT the truncated title. */
+  objective: string;
+  /** What "done" means for this delegation. */
+  acceptanceCriteria?: string[];
+  constraints?: {
+    /** e.g. "5m", "30m" */
+    maxRuntime?: string;
+    readOnly?: boolean;
+    /** Specific files or directories. */
+    fileScope?: string[];
+    allowedTools?: string[];
+  };
+  /** Relevant instruction from the user or conversation context. */
+  relevantInstruction?: string;
+  /** Previous related tasks/results for continuity. */
+  relatedTaskIds?: string[];
+  relatedResultIds?: string[];
+  /** Parent goal from dialogue state. */
+  parentGoal?: string;
+  /** Worker requested at delegation time. */
+  worker?: 'hermes' | 'codex' | 'research' | 'magnitude';
+}
+
+/** Structured result from a worker back to Jarvis — Phase 1 extraction from
+ *  existing task result fields; Phase 2 canonical return type. */
+export interface ResultEnvelope {
+  taskId: string;
+  status: 'completed' | 'failed' | 'blocked' | 'cancelled';
+  /** Human-readable result summary. */
+  summary: string;
+  artifactReferences?: Array<{ path: string; type: 'file' | 'link' | 'data' }>;
+  verificationState?: string;
+  error?: string;
+  blocker?: string;
+  filesChanged?: string[];
+}
+
+/** Helper: read the delegation envelope from task metadata, if present. */
+export function getDelegationEnvelope(task: { metadata?: Record<string, unknown> }): DelegationEnvelope | null {
+  const env = (task.metadata || {})['delegationEnvelope'];
+  if (env && typeof env === 'object' && typeof (env as DelegationEnvelope).objective === 'string') {
+    return env as DelegationEnvelope;
+  }
+  return null;
 }

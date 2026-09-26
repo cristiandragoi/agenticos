@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useVoiceIO } from '../hooks/useVoiceIO';
+import { withJarvisVoiceEndpoints, resetJarvisVoiceHarness } from './helpers/jarvisVoiceHarness';
+
+// Jarvis voice is LiveKit-first: for agentId 'agent-jarvis' the client calls
+// POST /api/jarvis-next/token and then constructs a Room. Without this the real
+// livekit-client was loaded and the token request fell through to the generic `{}`
+// catch-all, so the session errored before the mic path under test ever ran.
+vi.mock('livekit-client', async () => (await import('./helpers/jarvisVoiceHarness')).liveKitClientMock());
 
 /**
  * controlCommandRouting.test.tsx — hook-level proof that a LOCAL control
@@ -45,12 +52,14 @@ class MockAudio {
   constructor() { lastAudio = this; }
 }
 let transcribeText = 'hello jarvis';
-const fetchMock = vi.fn(async (input: unknown) => {
-  const url = String(input);
+// The canonical Jarvis voice endpoints (/api/jarvis-next/token + livekit-client) are
+// supplied by the shared harness, so this catch-all can no longer silently answer the
+// token request with `{}`.
+const fetchMock = vi.fn(withJarvisVoiceEndpoints((url: string) => {
   if (url.includes('/voice/transcribe')) return { ok: true, json: async () => ({ text: transcribeText }) };
   if (url.includes('/voice/tts')) return { ok: true, json: async () => ({ audioData: 'QkFTRTY0QVVESU8=' }) };
-  return { ok: true, json: async () => ({}) };
-});
+  return undefined;
+}));
 const trackStopMock = vi.fn();
 const getUserMediaMock = vi.fn();
 function setupNavigator() {
@@ -61,8 +70,26 @@ async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) 
   rmsLevel = 0; await act(async () => { flushRaf(1); });
   await act(async () => { vi.advanceTimersByTime(20); });
   await act(async () => { flushRaf(1); });
+  // The transcribe → submit chain is async (fetch then submitConversationTurn), and
+  // handleConversationTranscript holds an utterance for the bounded continuation window
+  // (continuationWindowMs = 2500) before submitting. Controls resolve synchronously; a
+  // normal prompt needs this window to elapse or the assertion races it.
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
 }
-const FAST_VAD = { agentId: 'agent-jarvis', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+// LEGACY BROWSER-VAD COVERAGE (non-Jarvis agent mode).
+//
+// These are hook-level assertions about the browser VAD → /voice/transcribe → submit
+// control-command path. `agent-jarvis` no longer runs that architecture — it is
+// LiveKit-first, with transcription and turn handling in the server-side voice agent —
+// and useVoiceIO explicitly suppresses both submitConversationTurn and the local control
+// callback for it ("[LegacyVoice] Suppressed ... deactivated for LiveKit replacement").
+//
+// So this suite is configured with a non-Jarvis agent, which is the mode the legacy
+// browser-VAD path still serves. Jarvis control-command behaviour is covered at the
+// LiveKit boundary instead (JarvisCanonicalVoicePath: STOP → publishData stop_speaking).
+// Every assertion below is unchanged.
+const LEGACY_VAD_AGENT = { agentId: 'agent-hermes', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+const FAST_VAD = LEGACY_VAD_AGENT;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -76,6 +103,7 @@ beforeEach(() => {
   (globalThis as any).Audio = MockAudio;
   (globalThis as any).fetch = fetchMock;
   fetchMock.mockClear(); trackStopMock.mockClear(); getUserMediaMock.mockReset();
+  resetJarvisVoiceHarness();
   getUserMediaMock.mockResolvedValue({ getTracks: () => [{ stop: trackStopMock }] });
   setupNavigator();
   (globalThis as any).AudioContext = class {
@@ -88,7 +116,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-describe('control command routing', () => {
+describe('control command routing — legacy browser-VAD hook mode (non-Jarvis agent)', () => {
   it('A: "Jarvis stop" bypasses the model — onAutoSubmit NOT called, onControlCommand called', async () => {
     const onAutoSubmit = vi.fn();
     const onControlCommand = vi.fn();
@@ -135,7 +163,7 @@ describe('control command routing', () => {
     expect(onControlCommand.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
-  it('H: standalone "Jarvis" is routed as a presence check (never silence, never the LLM — server fast-path replies)', async () => {
+  it('H: standalone Jarvis opens the existing wake window without a model turn', async () => {
     // Voice-reliability closure (Phase 4): a bare wake is a presence prompt.
     // The hook submits it through the normal auto-submit path so the SERVER's
     // local fast-path answers "Yes, I'm here." — no LLM, no tool chain.
@@ -147,9 +175,16 @@ describe('control command routing', () => {
     transcribeText = 'Jarvis';
     await speakOneTurn(result);
 
-    expect(onAutoSubmit).toHaveBeenCalledTimes(1);
-    expect(onAutoSubmit.mock.calls[0][0]).toBe('Jarvis');
+    expect(onAutoSubmit).not.toHaveBeenCalled();
     expect(onControlCommand).not.toHaveBeenCalled();
+  });
+
+  it.each(['stop', 'shut up'])('accepts %s after the wake window expires', async (text) => {
+    const onAutoSubmit = vi.fn(); const onControlCommand = vi.fn();
+    const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit, onControlCommand }));
+    await act(async () => { await result.current.startConversation(); await vi.advanceTimersByTimeAsync(9000); });
+    transcribeText = text; await speakOneTurn(result);
+    expect(onAutoSubmit).not.toHaveBeenCalled(); expect(onControlCommand).toHaveBeenCalledTimes(1);
   });
 
   it('normal conversational prompt still routes to the model', async () => {

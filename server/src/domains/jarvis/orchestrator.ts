@@ -279,6 +279,11 @@ export class JarvisOrchestrator {
   }
 
   private async handleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string, readOnly = false, forceVerification = false) {
+    logger.warn('[JarvisOrchestrator] handleCodex called. CODEX_INVOCATION_DISABLED=true: rerouting engineering task directly to Hermes.');
+    return this.handleHermes(conversationId, prompt, operationId);
+  }
+
+  private async legacyHandleCodex(conversationId: string, prompt: string, workspacePath: string, approvalPolicy: 'manual' | 'auto', operationId?: string, readOnly = false, forceVerification = false) {
     const requestMetadata = operationId ? { operationId } : undefined;
     // §1: ONE canonical workspace. When the request omits a repository, fall
     // back to the canonical workspaceStore root — never fail with "select a

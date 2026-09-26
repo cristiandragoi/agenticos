@@ -6,8 +6,20 @@ import { useVoiceIO } from '../hooks/useVoiceIO';
  * speak() contract: resolves after REAL playback completes (onended) or
  * rejects on playback failure. The mock must therefore emulate the full
  * playback lifecycle: play() → onplay → onended, not just onplay.
+ *
+ * LEGACY BROWSER-VAD COVERAGE (non-Jarvis agent mode). The client-side
+ * speak() → `/api/voice/tts` → HTMLAudioElement path is the LEGACY voice
+ * architecture: `useVoiceIO.speak` is hard-suppressed for `agent-jarvis`
+ * ("[LegacyVoice] Suppressed speak — Legacy Jarvis voice deactivated for LiveKit
+ * replacement"), whose speech is produced by the server-side LiveKit voice agent.
+ * So this suite runs under a non-Jarvis agent — the mode that still owns the
+ * legacy path. (With agentId 'agent-jarvis' every assertion here would be vacuous:
+ * speak() returns before ever synthesising.) Jarvis speech is covered at the
+ * LiveKit boundary by JarvisCanonicalVoicePath.
  */
-describe('useVoiceIO speak logic', () => {
+const LEGACY_AGENT = 'agent-hermes';
+
+describe('useVoiceIO speak logic — legacy browser-TTS mode (non-Jarvis agent)', () => {
   let playSpy: any;
   let speechSynthesisSpeakSpy: any;
 
@@ -34,6 +46,18 @@ describe('useVoiceIO speak logic', () => {
       pause = vi.fn();
       removeAttribute = vi.fn((name: string) => { if (name === 'src') this.src = ''; });
       load = vi.fn();
+      // HTMLMediaElement listener surface — see registerActiveAudio().
+      private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+      addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+        const l = this.listeners.get(type) ?? [];
+        l.push(cb);
+        this.listeners.set(type, l);
+      };
+      removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+        this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+      };
+      currentTime = 0;
+      volume = 1;
     }
     vi.stubGlobal('Audio', MockAudio);
 
@@ -74,7 +98,7 @@ describe('useVoiceIO speak logic', () => {
       json: () => Promise.resolve({ audioData: 'test-audio-data' }),
     }));
 
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: LEGACY_AGENT }));
 
     await act(async () => {
       await result.current.speak('Hello world');
@@ -87,7 +111,7 @@ describe('useVoiceIO speak logic', () => {
   it('does NOT call fallback speechSynthesis.speak on fetch failure (prohibits robotic fallback)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: LEGACY_AGENT }));
 
     await act(async () => {
       await result.current.speak('Fallback text');
@@ -100,7 +124,7 @@ describe('useVoiceIO speak logic', () => {
   it('performs no playback after AbortError', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')));
 
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: LEGACY_AGENT }));
 
     await act(async () => {
       await result.current.speak('Never spoken');
@@ -121,6 +145,17 @@ describe('useVoiceIO speak logic', () => {
       pause = vi.fn();
       removeAttribute = vi.fn((name: string) => { if (name === 'src') this.src = ''; });
       load = vi.fn();
+      private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+      addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+        const l = this.listeners.get(type) ?? [];
+        l.push(cb);
+        this.listeners.set(type, l);
+      };
+      removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+        this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+      };
+      currentTime = 0;
+      volume = 1;
     }
     vi.stubGlobal('Audio', RejectingAudio);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -128,7 +163,7 @@ describe('useVoiceIO speak logic', () => {
       json: () => Promise.resolve({ audioData: 'real-audio-data' }),
     }));
 
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: LEGACY_AGENT }));
 
     await act(async () => {
       await result.current.speak('Spoken once');

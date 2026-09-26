@@ -212,13 +212,13 @@ class HermesApiService extends EventEmitter {
   private runs = new Map<string, HermesRunRecord>();
   private seq = 0;
 
-  /** Truthful gateway status probe — never hardcoded healthy. */
-  async getStatus(): Promise<{ reachable: boolean; detail: string; provider?: string; model?: string; baseUrl?: string; context?: number }> {
+  /** Truthful gateway status probe — directly probes configured Hermes service. Never fabricates a healthy gateway. */
+  async getStatus(): Promise<{ reachable: boolean; detail: string; provider?: string; model?: string; baseUrl?: string; context?: number; nextAction?: string }> {
     const truth = resolveHermesModelTruth();
     const key = resolveHermesApiKey();
     const baseUrl = await resolveHermesUrl(true);
 
-    // 1. Probe HTTP gateway if listening
+    // Probe configured Hermes HTTP gateway service directly
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 1500);
@@ -238,47 +238,17 @@ class HermesApiService extends EventEmitter {
         };
       }
     } catch {
-      // Gateway HTTP not active, probe Ollama backend
-    }
-
-    // 2. Probe local Ollama backend
-    const ollamaUrl = truth.baseUrl || 'http://127.0.0.1:11434/v1';
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${ollamaUrl}/models`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (res.ok) {
-        const targetModel = truth.model || 'qwen2.5:7b-64k';
-        return {
-          reachable: true,
-          detail: `Hermes ONLINE (Local Ollama: ${targetModel})`,
-          provider: truth.provider || 'custom',
-          model: targetModel,
-          baseUrl: ollamaUrl,
-          context: truth.context || 65536,
-        };
-      }
-    } catch (err: any) {
-      return {
-        reachable: false,
-        detail: `Hermes Ollama backend unreachable at ${ollamaUrl}: ${err?.message || err}`,
-        provider: truth.provider || 'custom',
-        model: truth.model || 'qwen2.5:7b-64k',
-        baseUrl: ollamaUrl,
-        context: truth.context || 65536,
-      };
+      // Hermes HTTP gateway service is not listening
     }
 
     return {
       reachable: false,
-      detail: 'Hermes offline (local Ollama backend not reachable)',
+      detail: `Hermes service offline / not started (${baseUrl} is not responding)`,
       provider: truth.provider || 'custom',
       model: truth.model || 'qwen2.5:7b-64k',
-      baseUrl: ollamaUrl,
+      baseUrl,
       context: truth.context || 65536,
+      nextAction: 'Start the Hermes gateway service via "hermes gateway start" or start the local Hermes daemon.',
     };
   }
 
@@ -314,22 +284,33 @@ class HermesApiService extends EventEmitter {
     if (!prompt) throw new Error('prompt is required');
 
     const provider = opts.provider || HERMES_RUN_PROVIDER || undefined;
-    const model = opts.model || HERMES_RUN_MODEL || truth.model || 'qwen2.5:7b-64k';
+    const rawModel = opts.model || HERMES_RUN_MODEL || truth.model || 'hermes-agent';
 
     // 1. Probe HTTP gateway
     const baseUrl = await resolveHermesUrl();
     const key = resolveHermesApiKey();
     let isHttp = false;
+    let availableModels: string[] = [];
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1000);
+      const timer = setTimeout(() => controller.abort(), 2000);
       const probe = await fetch(`${baseUrl}/v1/models`, {
         headers: key ? { Authorization: `Bearer ${key}` } : {},
         signal: controller.signal,
       });
       clearTimeout(timer);
-      if (probe.ok) isHttp = true;
+      if (probe.ok) {
+        isHttp = true;
+        const pJson: any = await probe.json().catch(() => null);
+        if (Array.isArray(pJson?.data)) {
+          availableModels = pJson.data.map((m: any) => m.id).filter(Boolean);
+        }
+      }
     } catch {}
+
+    const model = (isHttp && availableModels.length > 0 && !availableModels.includes(rawModel))
+      ? availableModels[0]
+      : rawModel;
 
     if (isHttp) {
       const body: Record<string, unknown> = {

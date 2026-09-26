@@ -409,7 +409,7 @@ async function pingProvider(provider: any): Promise<boolean> {
     'prov-longcat': 'https://openrouter.ai/api/v1/models',
     'prov-minimax': 'https://api.minimax.chat/v1/models',
     'prov-kimi': 'https://api.moonshot.cn/v1/models',
-    'prov-qwen': 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+    'prov-qwen': (process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1') + '/models',
     'prov-xai': 'https://api.x.ai/v1/models',
     'prov-mistral': 'https://api.mistral.ai/v1/models',
     'prov-gemini': 'https://generativelanguage.googleapis.com/v1/models',

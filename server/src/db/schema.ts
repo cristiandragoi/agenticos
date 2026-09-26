@@ -721,6 +721,8 @@ export const projects = sqliteTable('projects', {
   tags: text('tags', { mode: 'json' }), // string[]
   workspacePath: text('workspace_path'), // optional default repo
   color: text('color'), // optional UI accent color
+  priority: integer('priority').notNull().default(999), // 1 = Free Cash, 2 = Shopify, 3 = TikTok Shop, etc.
+  revenueVertical: text('revenue_vertical'), // 'free_cash' | 'shopify' | 'tiktok_shop' | null
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -1011,16 +1013,68 @@ export const revenueComplianceRecords = sqliteTable('revenue_compliance_records'
 export const revenueHumanGates = sqliteTable('revenue_human_gates', {
   id: text('id').primaryKey(),
   experimentId: text('experiment_id').references(() => revenueExperiments.id),
+  projectId: text('project_id'),
+  taskId: text('task_id'),
   gateType: text('gate_type').notNull(), // SHOPIFY_AUTH_REQUIRED | OAUTH_REQUIRED | CAPTCHA | KYC | CONTRACT_APPROVAL | PAYMENT_APPROVAL | OUTBOUND_APPROVAL | LEGAL_REVIEW | PLATFORM_RESTRICTION
-  status: text('status').notNull().default('open'), // open | resolved | blocked
+  status: text('status').notNull().default('open'), // open | resolved | blocked | expired | denied | failed
   description: text('description'),
+  platform: text('platform'),
+  userAction: text('user_action'),
+  gateUrl: text('gate_url'),
   branchPaused: integer('branch_paused', { mode: 'boolean' }).notNull().default(false),
   resolvedBy: text('resolved_by'),
   resolvedAt: text('resolved_at'),
+  expiresAt: text('expires_at'),
+  notifiedConversation: text('notified_conversation'),
+  evidence: text('evidence', { mode: 'json' }),
   metadata: text('metadata', { mode: 'json' }),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => ({
   expIdx: index('idx_rev_human_gates_exp').on(table.experimentId),
   statusIdx: index('idx_rev_human_gates_status').on(table.status),
+}));
+
+// ── Jarvis Semantic Turn Repair (§1 of plan) ──────────────────────────────────
+
+/** Persistent dialogue state per conversation. SQLite is authoritative; in-memory LRU is read-through cache. */
+export const jarvisDialogueState = sqliteTable('jarvis_dialogue_state', {
+  conversationId: text('conversation_id').primaryKey(),
+  activeEntityId: text('active_entity_id'),
+  activeEntityType: text('active_entity_type'),
+  activeEntityDomain: text('active_entity_domain'),
+  activeEntityName: text('active_entity_name'),
+  activeGoal: text('active_goal', { mode: 'json' }),
+  activeTaskId: text('active_task_id'),
+  pendingActionId: text('pending_action_id'),
+  delegatedTaskId: text('delegated_task_id'),
+  lastCompletedActionId: text('last_completed_action_id'),
+  lastResolvedIntent: text('last_resolved_intent'),
+  lastRecommendation: text('last_recommendation', { mode: 'json' }),
+  userTimezone: text('user_timezone').default('Europe/Berlin'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/** Structured pending actions awaiting confirmation before delegation. */
+export const jarvisPendingActions = sqliteTable('jarvis_pending_actions', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull(),
+  intent: text('intent').notNull(),
+  targetEntityId: text('target_entity_id'),
+  targetEntityType: text('target_entity_type'),
+  targetEntityDomain: text('target_entity_domain'),
+  targetEntityName: text('target_entity_name'),
+  executor: text('executor'),
+  objective: text('objective'),
+  args: text('args', { mode: 'json' }),
+  status: text('status').notNull().default('proposed'),
+  // proposed | awaiting_confirmation | approved | executing | completed | failed | rejected | expired
+  delegatedTaskId: text('delegated_task_id'),
+  expiresAt: text('expires_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  convIdIdx: index('idx_pa_conv').on(table.conversationId),
+  statusIdx: index('idx_pa_status').on(table.status),
 }));

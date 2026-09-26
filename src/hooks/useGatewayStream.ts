@@ -30,6 +30,26 @@ export function useGatewayStream({ conversationId, onMessage, onGatewayEvent }: 
       } catch {}
     });
 
+    es.addEventListener('hermes_progress', (e: any) => {
+      try {
+        const data = JSON.parse(e.data);
+        onMessage({
+          id: `hermes-prog-${data.id || data.timestamp || Date.now()}`,
+          role: 'system',
+          messageType: 'hermes_progress',
+          content: data.message || data.summary || 'Hermes working...',
+          createdAt: data.timestamp ? new Date(data.timestamp).toISOString() : new Date().toISOString(),
+          metadata: {
+            ...data,
+            phase: data.phase,
+            worker: data.worker,
+            status: data.status,
+            evidenceSummary: data.evidenceSummary,
+          }
+        });
+      } catch {}
+    });
+
     es.addEventListener('gateway.selected', (e: any) => {
       try {
         const data = JSON.parse(e.data);

@@ -36,19 +36,40 @@ export const CONTINUATION_TAIL_WORDS: ReadonlySet<string> = new Set([
   // discourse fillers
   'basically', 'actually', 'like', 'just', 'really', 'now', 'here', 'there',
   'also', 'kind', 'kinda', 'sort', 'sorta', 'pretty', 'quite', 'very',
-  'anyway', 'honestly', 'literally', 'then',
+  // German continuation words and discourse markers
+  'und', 'oder', 'aber', 'weil', 'dass', 'wenn', 'um', 'zu', 'mit', 'für',
+  'in', 'auf', 'an', 'bei', 'von', 'nach', 'aus', 'ist', 'sind', 'war',
+  'kann', 'können', 'will', 'wollen', 'möchte', 'möchten', 'soll', 'sollen',
+  'ich', 'du', 'wir', 'sie', 'er', 'es', 'mein', 'meine', 'dein', 'deine',
+  'bitte', 'also', 'halt', 'quasi', 'sozusagen',
 ]);
 
 /** True when the transcript reads like a finished utterance. */
 export function isUtteranceComplete(text: string): boolean {
   const t = (text || '').trim();
   if (!t) return false;
-  if (/[.!?…]$/.test(t)) return true;
-  const words = t.toLowerCase().split(/[^a-zäöüß0-9']+/i).filter(Boolean);
-  if (!words.length) return true;
-  // Contractions keep their stem for the finality check ("isn't" → "isn").
+
+  // Extract content words ignoring trailing punctuation
+  const cleaned = t.replace(/[.!?…,:;\s]+$/, '');
+  const words = cleaned.toLowerCase().split(/[^a-zäöüß0-9']+/i).filter(Boolean);
+  if (!words.length) return false;
+
+  // If the last word is in the closed-class continuation set, it is INCOMPLETE
+  // even if STT synthetically appended terminal punctuation (. ! ?).
   const last = words[words.length - 1].replace(/'t$/, '');
-  return !CONTINUATION_TAIL_WORDS.has(last);
+  if (CONTINUATION_TAIL_WORDS.has(last)) {
+    return false;
+  }
+
+  // If the utterance ended with an ellipsis or comma, more was clearly intended.
+  if (/[,…]$/.test(t)) return false;
+
+  // If terminal punctuation exists and the last word was NOT a continuation marker:
+  if (/[.!?]$/.test(t)) return true;
+
+  // Utterance without terminal punctuation whose last word is not a continuation word:
+  // complete statement/command.
+  return true;
 }
 
 export type ContinuationDecision =

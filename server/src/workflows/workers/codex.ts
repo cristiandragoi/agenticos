@@ -1,4 +1,5 @@
-import { runProcess } from "./claude.js";
+import { dispatchHermes } from "./hermes.js";
+import { logger } from "../../utils/logger.js";
 
 export async function dispatchCodex({
   input,
@@ -7,20 +8,7 @@ export async function dispatchCodex({
   input: unknown;
   config: Record<string, unknown>;
 }) {
-  const prompt = (input as { prompt?: string }).prompt ?? "";
-  const args = [
-    "launch-codex",
-    "--profile",
-    "auto",
-    "--",
-    "exec",
-    prompt,
-    "--model",
-    "auto",
-    "--approval",
-    String(config.approval ?? "never"),
-    "--json",
-  ];
-  const cwd = String(config.workdir ?? ".");
-  return await runProcess("omniroute", args, cwd);
+  // CODEX_INVOCATION_DISABLED=true: Route engineering requests to Hermes
+  logger.warn('[dispatchCodex] CODEX_INVOCATION_DISABLED=true. Redirecting worker execution directly to Hermes.');
+  return await dispatchHermes({ input, config });
 }

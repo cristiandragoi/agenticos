@@ -28,14 +28,14 @@ const BOARD_COLUMNS: Array<{ key: string; label: string; match: (s: string) => b
   { key: 'backlog', label: 'BACKLOG', match: (s) => s === 'queued' },
   { key: 'ready', label: 'READY', match: (s) => s === 'planning' },
   { key: 'running', label: 'RUNNING', match: (s) => s === 'running' },
-  { key: 'blocked', label: 'BLOCKED', match: (s) => ['blocked', 'waiting_approval', 'paused'].includes(s) },
+  { key: 'blocked', label: 'BLOCKED', match: (s) => ['blocked', 'waiting_approval', 'waiting_for_auth', 'paused'].includes(s) },
   { key: 'review', label: 'REVIEW', match: (s) => s === 'review' },
   { key: 'completed', label: 'COMPLETED', match: (s) => ['completed', 'failed', 'cancelled'].includes(s) },
 ];
 
 const STATUS_COLOR: Record<string, string> = {
   queued: '#64748b', planning: '#f5b50a', running: '#00d4ff',
-  waiting_approval: '#f59e0b', paused: '#64748b', review: '#a855f7',
+  waiting_approval: '#f59e0b', waiting_for_auth: '#f97316', paused: '#64748b', review: '#a855f7',
   completed: '#22c55e', failed: '#ef4444', cancelled: '#374151', blocked: '#f59e0b',
 };
 

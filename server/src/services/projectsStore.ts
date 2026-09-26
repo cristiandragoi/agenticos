@@ -1,10 +1,11 @@
 import { rawDb } from '../db/index.js';
 import { db } from '../db/index.js';
 import { projects, knowledgeItems, entityLinks } from '../db/schema.js';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, asc, and } from 'drizzle-orm';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 // Run DDL idempotently on first import
 rawDb.exec(`
@@ -16,6 +17,8 @@ rawDb.exec(`
     tags TEXT,
     workspace_path TEXT,
     color TEXT,
+    priority INTEGER NOT NULL DEFAULT 999,
+    revenue_vertical TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -44,13 +47,47 @@ rawDb.exec(`
   );
 `);
 
+// Idempotent column migrations for existing databases
+try {
+  const pragma = rawDb.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>;
+  const cols = new Set(pragma.map(c => c.name));
+  if (!cols.has('priority')) {
+    rawDb.exec('ALTER TABLE projects ADD COLUMN priority INTEGER NOT NULL DEFAULT 999');
+  }
+  if (!cols.has('revenue_vertical')) {
+    rawDb.exec('ALTER TABLE projects ADD COLUMN revenue_vertical TEXT');
+  }
+} catch { /* best effort */ }
+
+// Idempotent column migrations for revenue_human_gates if table exists
+try {
+  const gatePragma = rawDb.prepare('PRAGMA table_info(revenue_human_gates)').all() as Array<{ name: string }>;
+  if (gatePragma.length > 0) {
+    const gateCols = new Set(gatePragma.map(c => c.name));
+    if (!gateCols.has('project_id')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN project_id TEXT');
+    if (!gateCols.has('task_id')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN task_id TEXT');
+    if (!gateCols.has('platform')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN platform TEXT');
+    if (!gateCols.has('user_action')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN user_action TEXT');
+    if (!gateCols.has('gate_url')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN gate_url TEXT');
+    if (!gateCols.has('expires_at')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN expires_at TEXT');
+    if (!gateCols.has('notified_conversation')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN notified_conversation TEXT');
+    if (!gateCols.has('evidence')) rawDb.exec('ALTER TABLE revenue_human_gates ADD COLUMN evidence TEXT');
+  }
+} catch { /* best effort */ }
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // Env-overridable data dir (tests isolate the active-project file); defaults
-// to the repo's server/data in production.
+// to Roaming in packaged app / repo's server/data in dev.
+const roamingDataDir = process.env.APPDATA
+  ? path.join(process.env.APPDATA, 'agenticos', 'data')
+  : path.join(os.homedir(), 'AppData', 'Roaming', 'agenticos', 'data');
+const defaultDataDir = (path.resolve(__dirname, '..', '..').toLowerCase().includes('agenticos') && fs.existsSync(roamingDataDir))
+  ? roamingDataDir
+  : path.resolve(__dirname, '..', '..', 'data');
 const dataDir = process.env.AGENTICOS_DATA_DIR
   ? path.resolve(process.env.AGENTICOS_DATA_DIR)
-  : path.resolve(__dirname, '..', '..', 'data');
+  : defaultDataDir;
 const activeProjectFile = path.join(dataDir, 'active-project.json');
 
 function readActiveProjectId(): string | null {
@@ -74,7 +111,11 @@ let _activeProjectId: string | null = readActiveProjectId();
 export const projectsStore = {
   listProjects() {
     try {
-      return db.select().from(projects).orderBy(desc(projects.updatedAt)).all();
+      return db
+        .select()
+        .from(projects)
+        .orderBy(asc(projects.priority), desc(projects.updatedAt))
+        .all();
     } catch { return []; }
   },
 
@@ -92,6 +133,8 @@ export const projectsStore = {
     tags?: string[];
     workspacePath?: string;
     color?: string;
+    priority?: number;
+    revenueVertical?: string | null;
   }) {
     const now = new Date().toISOString();
     db.insert(projects).values({
@@ -102,6 +145,8 @@ export const projectsStore = {
       tags: data.tags ?? [],
       workspacePath: data.workspacePath ?? null,
       color: data.color ?? null,
+      priority: data.priority ?? 999,
+      revenueVertical: data.revenueVertical ?? null,
       createdAt: now,
       updatedAt: now,
     }).run();
@@ -117,10 +162,111 @@ export const projectsStore = {
       tags: string[];
       workspacePath: string;
       color: string;
+      priority: number;
+      revenueVertical: string | null;
     }>,
   ) {
     db.update(projects).set({ ...patch, updatedAt: new Date().toISOString() }).where(eq(projects.id, id)).run();
     return this.getProject(id);
+  },
+
+  setPriority(id: string, priority: number) {
+    return this.updateProject(id, { priority });
+  },
+
+  setRevenueVertical(id: string, revenueVertical: string | null) {
+    return this.updateProject(id, { revenueVertical });
+  },
+
+  /**
+   * Deterministic and persistent project priority ordering across restarts:
+   * 1. Free Cash (priority 1) — identified from Alpha Project proj-a-1787333810947 or existing record
+   * 2. Shopify (priority 2) — e-commerce storefront integration
+   * 3. TikTok Shop (priority 3) — merchant & creator channel
+   * 4. All remaining projects keep existing priority / order by updatedAt
+   */
+  ensureRevenueProjects() {
+    try {
+      const all = this.listProjects();
+
+      // 1. Free Cash (Priority 1) — preserve Alpha Project untouched
+      const existingFreeCash = all.find(
+        p => p.revenueVertical === 'free_cash' || p.name.toLowerCase() === 'free cash'
+      );
+
+      if (existingFreeCash) {
+        this.updateProject(existingFreeCash.id, {
+          priority: 1,
+          revenueVertical: 'free_cash',
+        });
+      } else {
+        this.createProject({
+          id: 'proj-free-cash',
+          name: 'Free Cash',
+          description: 'Primary active initiative — free and low-barrier monetization workflows',
+          status: 'active',
+          priority: 1,
+          revenueVertical: 'free_cash',
+          tags: ['revenue', 'free_cash', 'p1'],
+        });
+      }
+
+      // Re-read after Free Cash check
+      const currentProjects = this.listProjects();
+
+      // 2. Shopify (Priority 2)
+      const existingShopify = currentProjects.find(
+        p => p.revenueVertical === 'shopify' || p.name.toLowerCase() === 'shopify'
+      );
+      if (existingShopify) {
+        this.updateProject(existingShopify.id, {
+          priority: 2,
+          revenueVertical: 'shopify',
+        });
+      } else {
+        this.createProject({
+          id: 'proj-shopify',
+          name: 'Shopify',
+          description: 'Shopify storefront and e-commerce channel operations',
+          status: 'active',
+          priority: 2,
+          revenueVertical: 'shopify',
+          tags: ['revenue', 'shopify', 'p2'],
+        });
+      }
+
+      // Re-read after Shopify check
+      const currentProjects2 = this.listProjects();
+
+      // 3. TikTok Shop (Priority 3)
+      const existingTikTok = currentProjects2.find(
+        p => p.revenueVertical === 'tiktok_shop' || p.name.toLowerCase() === 'tiktok shop'
+      );
+      if (existingTikTok) {
+        this.updateProject(existingTikTok.id, {
+          priority: 3,
+          revenueVertical: 'tiktok_shop',
+        });
+      } else {
+        this.createProject({
+          id: 'proj-tiktok-shop',
+          name: 'TikTok Shop',
+          description: 'TikTok Shop merchant and creator operations',
+          status: 'active',
+          priority: 3,
+          revenueVertical: 'tiktok_shop',
+          tags: ['revenue', 'tiktok_shop', 'p3'],
+        });
+      }
+      // Do NOT auto-select an active project here. The active project must be
+      // explicitly set by the user or via API. Auto-selection violates the
+      // active-project truth contract (tests expect explicit null to persist).
+
+      return this.listProjects();
+    } catch (e) {
+      /* best effort */
+      return [];
+    }
   },
 
   deleteProject(id: string) {

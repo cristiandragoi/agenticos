@@ -259,4 +259,29 @@ describe('HermesApiService — api_server /v1/runs event schema normalization', 
     }
     expect(cur?.status).toBe('cancelled');
   });
+
+  it('resolves model to available model exposed by /v1/models (e.g. hermes-agent) when profile model is not in gateway', async () => {
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/v1/models')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [{ id: 'hermes-agent', object: 'model', owned_by: 'hermes' }],
+          }),
+        };
+      }
+      if (url.includes('/v1/runs') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        expect(body.model).toBe('hermes-agent');
+        return { ok: true, status: 202, json: async () => ({ run_id: 'run_m1', id: 'run_m1', model: 'hermes-agent' }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    const service = await importService();
+    const record = await service.createRun({ prompt: 'check status', model: 'backend-engineer' });
+    expect(record.model).toBe('hermes-agent');
+  });
 });

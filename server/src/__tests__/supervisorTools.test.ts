@@ -13,6 +13,8 @@ import {
 } from '../domains/jarvis/supervisorTools.js';
 
 import { rawDb } from '../db/index.js';
+import { hermesApiService } from '../services/hermesApiService.js';
+import { backgroundTaskRepo } from '../services/backgroundTasks/store.js';
 
 describe('Jarvis Supervisor Tools (Phase 1)', () => {
   beforeEach(async () => {
@@ -26,11 +28,11 @@ describe('Jarvis Supervisor Tools (Phase 1)', () => {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
   });
 
-  it('SUPERVISOR_TOOL_SCHEMAS defines the 5 required supervisor tools', () => {
+  it('SUPERVISOR_TOOL_SCHEMAS defines the active supervisor tools (delegate_hermes_task active, codex removed)', () => {
     const names = SUPERVISOR_TOOL_SCHEMAS.map(s => s.name);
     expect(names).toContain('get_system_health');
     expect(names).toContain('delegate_hermes_task');
-    expect(names).toContain('delegate_codex_goal');
+    expect(names).not.toContain('delegate_codex_goal');
     expect(names).toContain('recall_memory');
     expect(names).toContain('get_current_work');
   });
@@ -53,7 +55,14 @@ describe('Jarvis Supervisor Tools (Phase 1)', () => {
     expect(Array.isArray(result.tasks.recentTasks)).toBe(true);
   });
 
-  it('delegate_hermes_task creates a structured Hermes delegation payload', async () => {
+  it('delegate_hermes_task creates a structured Hermes delegation payload when Hermes is reachable', async () => {
+    vi.spyOn(hermesApiService, 'getStatus').mockResolvedValue({
+      reachable: true,
+      detail: 'Hermes HTTP API online (http://127.0.0.1:11434/v1)',
+      provider: 'custom',
+      model: 'qwen2.5:7b-64k',
+    });
+
     const result = await delegateHermesTask({
       objective: 'Research state of AI multi-agent orchestration architecture',
       context: 'User requested a roadmap analysis'
@@ -67,7 +76,31 @@ describe('Jarvis Supervisor Tools (Phase 1)', () => {
     expect(result.taskId).toBeTruthy();
   });
 
-  it('delegate_codex_goal creates a structured CodeX delegation payload', async () => {
+  it('delegate_hermes_task transitions to blocked with diagnostic when Hermes is offline', async () => {
+    vi.spyOn(hermesApiService, 'getStatus').mockResolvedValue({
+      reachable: false,
+      detail: 'Hermes service offline / not started',
+      nextAction: 'Start the Hermes gateway service via "hermes gateway start"',
+    });
+
+    const result = await delegateHermesTask({
+      objective: 'Research state of AI multi-agent orchestration architecture',
+      context: 'User requested a roadmap analysis'
+    });
+
+    expect(result).toBeDefined();
+    expect(result.worker).toBe('hermes');
+    expect(result.status).toBe('blocked');
+    expect(result.message).toContain('Hermes service is offline');
+    expect(result.message).toContain('hermes gateway start');
+    expect(result.taskId).toBeTruthy();
+
+    const task = backgroundTaskRepo.getTask(result.taskId);
+    expect(task?.status).toBe('blocked');
+    expect(task?.blocker).toContain('hermes gateway start');
+  });
+
+  it('delegate_codex_goal redirects to Hermes delegation under CODEX_INVOCATION_DISABLED=true', async () => {
     const result = await delegateCodexGoal({
       goal: 'Fix the aspect-ratio scaling issue on the central Jarvis 3D canvas',
       context: 'The user noticed the sphere was stretched into an oval',
@@ -76,11 +109,8 @@ describe('Jarvis Supervisor Tools (Phase 1)', () => {
     });
 
     expect(result).toBeDefined();
-    expect(result.worker).toBe('codex');
-    expect(result.status).toBe('waiting_for_approval');
-    expect(result.goal).toBe('Fix the aspect-ratio scaling issue on the central Jarvis 3D canvas');
-    expect(result.targetFiles).toEqual(['src/components/jarvis/JarvisNeuralBlob.tsx']);
-    expect(result.approvalRequired).toBe(true);
+    expect(result.worker).toBe('hermes');
+    expect(result.objective).toBe('Fix the aspect-ratio scaling issue on the central Jarvis 3D canvas');
     expect(result.taskId).toBeTruthy();
   });
 

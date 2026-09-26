@@ -8,6 +8,7 @@ import {
   Sparkles, Award, Cpu, AlertCircle, FileText, CheckCircle
 } from 'lucide-react';
 import { revenueOperatorClient } from '../api/revenueOperatorClient';
+import { useProjects } from '../store/projectStore';
 import type {
   RevenueMission, RevenueExperiment, RevenueLedgerEntry, RevenueHumanGate,
   RevenueMissionTrace, RevenueKpiBreakdown, RevenueKpiKey, RevenueBoard,
@@ -15,7 +16,7 @@ import type {
   RevenueExperimentTrace, RevenueOpportunity
 } from '../api/revenueOperatorClient';
 
-type Tab = 'opportunities' | 'mission' | 'overview' | 'digital_products' | 'german_sme' | 'pipeline' | 'ledger' | 'gates';
+type Tab = 'portfolio' | 'opportunities' | 'mission' | 'overview' | 'digital_products' | 'german_sme' | 'pipeline' | 'ledger' | 'gates';
 
 const fmtEur = (v: number | null | undefined): string => `€${(v ?? 0).toFixed(2)}`;
 const fmtDate = (iso: string | null | undefined): string =>
@@ -575,7 +576,7 @@ const RevenueOperatorPage: React.FC = () => {
   const [gateItems, setGateItems] = useState<RevenueGateQueueItem[]>([]);
   const [ledger, setLedger] = useState<RevenueLedgerEntry[]>([]);
   const [experiments, setExperiments] = useState<RevenueExperiment[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>('opportunities');
+  const [activeTab, setActiveTab] = useState<Tab>('portfolio');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [kpiModal, setKpiModal] = useState<{ kpi: RevenueKpiKey; title: string; data: RevenueKpiBreakdown } | null>(null);
@@ -585,6 +586,17 @@ const RevenueOperatorPage: React.FC = () => {
   const [supervisorState, setSupervisorState] = useState<any>(null);
   const [briefingModal, setBriefingModal] = useState<any>(null);
 
+  const { projects, activeProjectId, setActiveProject, refresh: refreshProjects } = useProjects();
+
+  const sortedProjects = [...projects].sort((a, b) => {
+    const pA = a.priority ?? 999;
+    const pB = b.priority ?? 999;
+    if (pA !== pB) return pA - pB;
+    return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+  });
+
+  const primaryActiveProject = sortedProjects.find(p => p.priority === 1 || p.revenueVertical === 'free_cash') || sortedProjects[0];
+
   const [searchParams] = useSearchParams();
   const { setWorkspaceContext } = useJarvisRuntime();
 
@@ -592,7 +604,7 @@ const RevenueOperatorPage: React.FC = () => {
   useEffect(() => {
     const oppId = searchParams.get('opportunity');
     const tabParam = searchParams.get('tab') as Tab | null;
-    if (tabParam && ['opportunities', 'mission', 'overview', 'digital_products', 'german_sme', 'pipeline', 'ledger', 'gates'].includes(tabParam)) {
+    if (tabParam && ['portfolio', 'opportunities', 'mission', 'overview', 'digital_products', 'german_sme', 'pipeline', 'ledger', 'gates'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
     if (oppId && opportunities.length > 0) {
@@ -632,6 +644,7 @@ const RevenueOperatorPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      refreshProjects();
 
       const [oppsList, missionsList] = await Promise.all([
         revenueOperatorClient.listOpportunities().catch(() => []),
@@ -758,13 +771,22 @@ const RevenueOperatorPage: React.FC = () => {
             <p className="text-xs text-slate-400">Discover → Evaluate → Score → Rank → Create Revenue Mission → Execute</p>
           </div>
         </div>
-        <button
-          onClick={loadData}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-medium text-slate-300 transition-colors"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <div
+            data-testid="header-primary-active"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Primary Active: <strong>{primaryActiveProject?.name || 'Free Cash'}</strong> (Priority {primaryActiveProject?.priority ?? 1})</span>
+          </div>
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-medium text-slate-300 transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -802,6 +824,7 @@ const RevenueOperatorPage: React.FC = () => {
       <div className="px-8 pt-4">
         <div className="flex border-b border-slate-800 gap-6 flex-wrap">
           {([
+            ['portfolio', `Project Portfolio (${sortedProjects.length})`, <Layers size={14} key="port" />],
             ['opportunities', `Opportunity Pipeline (${opportunities.length})`, <TrendingUp size={14} key="opp" />],
             ['mission', 'Revenue Mission View', <Target size={14} key="m" />],
             ['overview', 'Live Execution', <Activity size={14} key="o" />],
@@ -830,6 +853,142 @@ const RevenueOperatorPage: React.FC = () => {
 
       {/* Content */}
       <div className="px-8 py-6 flex-1">
+        {/* Projects Portfolio View */}
+        {activeTab === 'portfolio' && (
+          <div className="space-y-6" data-testid="portfolio-view">
+            {/* Active Project Banner */}
+            <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-slate-900/40 border border-emerald-500/30 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Primary Active Initiative
+                  </span>
+                  <span className="text-xs text-slate-400">Deterministic Portfolio Priority 1</span>
+                </div>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  {primaryActiveProject?.name || 'Free Cash'}
+                </h3>
+                <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                  {primaryActiveProject?.description ||
+                    'Primary active monetization initiative — low barrier revenue workflows with human gate isolation.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => {
+                    const freeCash = sortedProjects.find(p => p.priority === 1 || p.revenueVertical === 'free_cash');
+                    if (freeCash) setActiveProject(freeCash.id);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 transition-colors"
+                >
+                  {activeProjectId === 'proj-free-cash' || sortedProjects.find(p => p.id === activeProjectId)?.priority === 1
+                    ? '✓ Active Project Selected'
+                    : 'Set Free Cash as Active'}
+                </button>
+              </div>
+            </div>
+
+            {/* Warning if Hermes test project is currently active */}
+            {activeProjectId === 'proj-3edb8bb8' && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={16} className="text-amber-400 shrink-0" />
+                  <span>
+                    <strong>Note:</strong> Active project was temporarily set to Hermes Acceptance test (<code>proj-3edb8bb8</code>). Revenue Operator active portfolio prioritizes Free Cash (#1).
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    const freeCash = sortedProjects.find(p => p.priority === 1 || p.revenueVertical === 'free_cash');
+                    if (freeCash) setActiveProject(freeCash.id);
+                  }}
+                  className="px-3 py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 font-semibold"
+                >
+                  Switch to Free Cash
+                </button>
+              </div>
+            )}
+
+            {/* Portfolio Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="portfolio-grid">
+              {sortedProjects.map((project, idx) => {
+                const isP1 = project.priority === 1 || project.revenueVertical === 'free_cash';
+                const isP2 = project.priority === 2 || project.revenueVertical === 'shopify';
+                const isP3 = project.priority === 3 || project.revenueVertical === 'tiktok_shop';
+                const isActive = project.id === activeProjectId;
+
+                return (
+                  <div
+                    key={project.id}
+                    data-testid={`portfolio-card-${project.id}`}
+                    className={`rounded-2xl border p-5 flex flex-col justify-between transition-all ${
+                      isP1
+                        ? 'bg-[#131b1b] border-emerald-500/40 shadow-lg shadow-emerald-950/20 ring-1 ring-emerald-500/20'
+                        : isP2
+                        ? 'bg-[#151922] border-indigo-500/30'
+                        : isP3
+                        ? 'bg-[#181622] border-purple-500/30'
+                        : 'bg-[#14161d] border-slate-800'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                              isP1
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                : isP2
+                                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                                : isP3
+                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                                : 'bg-slate-700/50 text-slate-300 border-slate-600/40'
+                            }`}
+                          >
+                            Priority {project.priority ?? idx + 1}
+                          </span>
+                          {isP1 && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              Primary Active Initiative
+                            </span>
+                          )}
+                        </div>
+                        {isActive && (
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                            <CheckCircle2 size={12} /> Active
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-base font-bold text-white mb-1.5">{project.name}</h4>
+                      <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed mb-4">
+                        {project.description || 'No description provided.'}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        {project.id}
+                      </span>
+                      <button
+                        onClick={() => setActiveProject(project.id)}
+                        disabled={isActive}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isActive
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                        }`}
+                      >
+                        {isActive ? 'Active Project' : 'Set as Active'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Opportunity Pipeline View */}
         {activeTab === 'opportunities' && (
           <OpportunityPipelineView

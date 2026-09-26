@@ -3,6 +3,9 @@ import { IntentRouter } from '../domains/jarvis/intentRouter.js';
 import { buildSupervisorSystemPrompt } from '../domains/jarvis/supervisorLoop.js';
 import { hermesApiService } from '../services/hermesApiService.js';
 
+process.env.HERMES_RUN_PROVIDER = 'custom';
+process.env.HERMES_RUN_MODEL = 'qwen2.5:7b-64k';
+
 describe('JARVIS COMPLETE STABILIZATION — SERVER ACCEPTANCE', () => {
   const router = new IntentRouter();
 
@@ -50,11 +53,11 @@ describe('JARVIS COMPLETE STABILIZATION — SERVER ACCEPTANCE', () => {
   });
 
   // Test N: System prompt contains no commander boilerplate
-  it('N. System prompt contains no commander roleplay or monitoring boilerplate', async () => {
+  it('N. System prompt contains no commander roleplay or monitoring boilerplate', async () => { 
     const prompt = await buildSupervisorSystemPrompt('conv-test-acc', 'Hello Jarvis');
     expect(prompt).not.toContain('lead commander');
     expect(prompt).not.toContain('I will continue to monitor');
-    expect(prompt).toContain('Answer immediately in short, natural, conversational sentences');
+    expect(prompt).toContain('Answer immediately in short, natural, conversational sentences'); 
     expect(prompt).toContain('NEVER address the user with military');
   });
 });

@@ -48,6 +48,7 @@ import { errorHandler, notFound } from './middleware/errors.js';
 import { legacyHeadersMiddleware } from './middleware/legacyHeaders.js';
 import { runStore } from './services/runStore.js';
 import { runtimeRegistry } from './services/runtimeRegistry.js';
+import { getBuildIdentity } from './services/buildIdentity.js';
 import { HermesAdapter } from './adapters/hermesAdapter.js';
 import { JarvisAdapter } from './adapters/jarvisAdapter.js';
 import { VideoAdapter } from './adapters/videoAdapter.js';
@@ -64,6 +65,14 @@ startRunWorker();
 
 // Initialize the cron scheduler
 initScheduler();
+
+// Initialize the Codex OpenAI Bridge (Phase 2B)
+import { startCodexBridgeServer } from './services/gateway/codexBridge.js';
+startCodexBridgeServer().catch(err => logger.warn('[CodexBridge] Bridge start warning:', err));
+
+// Initialize LiveKit WebRTC Server
+import { ensureLivekitServerRunning } from './domains/jarvisNext/livekitServerManager.js';
+ensureLivekitServerRunning().catch(err => logger.warn('[LiveKitManager] LiveKit start warning:', err));
 
 // Initialize Event Bus Listeners
 import './services/revenue/attributionEngine.js';
@@ -134,6 +143,21 @@ runtimeRegistry.register(new JarvisAdapter());
 runtimeRegistry.register(new CodexAdapter());
 runtimeRegistry.register(new VideoAdapter());
 runtimeRegistry.register(new HeavyGenAdapter());
+
+// Register Jarvis entity providers (§5) — Projects BEFORE Revenue Operator
+// so queries like "Free Cash" or "Shopify" resolve to the project, with Revenue Operator as secondary.
+import { registerEntityProvider } from './domains/jarvis/entityResolver.js';
+import { ProjectEntityProvider } from './domains/jarvis/entityProviders/project.js';
+import { RevenueOperatorEntityProvider } from './domains/jarvis/entityProviders/revenueOperator.js';
+import { CapabilityEntityProvider } from './domains/jarvis/entityProviders/capability.js';
+import { TaskEntityProvider } from './domains/jarvis/entityProviders/task.js';
+// Ensure persistence tables exist before any request can reach the resolver.
+import { ensureJarvisDialogueTables } from './domains/jarvis/dialogueState.js';
+ensureJarvisDialogueTables();
+registerEntityProvider(ProjectEntityProvider);
+registerEntityProvider(RevenueOperatorEntityProvider);
+registerEntityProvider(CapabilityEntityProvider);
+registerEntityProvider(TaskEntityProvider);
 
 import { videoJobStore, progressVideoJob } from './adapters/videoAdapter.js';
 import { loopRuns } from './services/loopEngine.js';
@@ -238,9 +262,16 @@ import runtimeIdentityRouter from './routers/runtimeIdentity.js';
 app.use('/api/runtime', runtimeIdentityRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/workspace-index', workspaceIndexRouter);
+
+import { selfHealRouter } from './routers/selfHeal.js';
+app.use('/api/self-heal', selfHealRouter);
+
 app.use('/api/gemini', authMiddleware, geminiRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/providers', providersRouter);
+import { providerStatusRouter } from './routers/providerStatus.js';
+app.use('/api/providers/observability', providerStatusRouter);
+app.use('/api/system/providers', providerStatusRouter);
 app.use('/api/runtimes', runtimesRouter);
 app.use('/api/teams', teamsRouter);
 app.use('/api/runs', runsRouter);
@@ -277,7 +308,17 @@ app.use('/api/connectors', connectorRouter);
 app.use('/api/pipeline/welders', weldersPipelineRouter);
 import projectsRouter from './routers/projects.js';
 app.use('/api/projects', projectsRouter);
+try {
+  const { projectsStore } = await import('./services/projectsStore.js');
+  projectsStore.ensureRevenueProjects();
+} catch (e) {
+  logger.warn('Failed to ensure revenue projects on startup:', e);
+}
 app.use('/api/jarvis', jarvisRouter);
+import jarvisV2Router from './routers/jarvisV2.js';
+app.use('/api/jarvis-v2', jarvisV2Router);
+import jarvisNextRouter from './routers/jarvisNext.js';
+app.use('/api/jarvis-next', jarvisNextRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/routing', routingRouter);
 app.use('/api/execution', executionRouter);
@@ -352,6 +393,10 @@ import { backgroundTaskManager } from './services/backgroundTasks/manager.js';
 import './domains/jarvis/executionSupervisor.js';
 backgroundTaskManager.restoreAfterRestart();
 
+// FreeCash is no longer our objective. Do not resume its tasks on startup; preserve existing records.
+// import { reconcileGoalsOnStartup } from './services/freeCash/freeCashExecutor.js';
+// void reconcileGoalsOnStartup().catch(...);
+
 // CodeX goals: reconcile orphaned goals (backend restarted while their loop
 // ran and the worker lease expired) so they never show "Waiting for local
 // model response" forever. Boot-only — no loop can be active in a fresh process.
@@ -368,6 +413,9 @@ const sweptStaleQueued = goalStore.sweepStaleQueuedGoals();
 if (sweptStaleQueued > 0) {
   logger.info(`[GoalMode] Marked ${sweptStaleQueued} stale queued goal(s) failed (no lease, no events — abandoned).`);
 }
+
+import { selfHealSupervisor } from './domains/selfHeal/index.js';
+selfHealSupervisor.initialize().catch(err => console.error('[SelfHeal] Failed to initialize:', err));
 
 // Legacy compatibility redirects (keep old paths working)
 app.get('/api/memory-scopes', (_req, res) => res.redirect('/api/memory/scopes'));
@@ -389,9 +437,55 @@ if (!process.env.VERCEL) {
     logger.info(`  │  Agentic OS Backend  v9.0              │`);
     logger.info(`  │  http://localhost:${PORT}${' '.repeat(20 - PORT.toString().length)}│`);
     logger.info(`  │  ENV: ${process.env.NODE_ENV || 'development'}${' '.repeat(30 - (process.env.NODE_ENV || 'development').length)}│`);
+    const buildIdentity = getBuildIdentity();
+    const buildId = buildIdentity.buildId || 'dev';
+    logger.info(`  │  BUILD: ${buildId}${' '.repeat(Math.max(0, 28 - buildId.length))}│`);
     logger.info(`  └─────────────────────────────────────────┘\n`);
     logger.info(`  Adapters: Hermes ✓  Jarvis ✓  VideoAgent ✓`);
     logger.info(`  Routes:   13 registered\n`);
+    console.log(`[BACKEND_STARTUP] JARVIS_BUILD_ID=${buildId} BACKEND_PID=${process.pid} BACKEND_CWD=${process.cwd()} PORT=${PORT}`);
+
+    // Supervisor critical runtime dependency verification:
+    // • backend
+    // • Whisper worker
+    // • Hermes gateway / local Hermes model
+    // • browser operator
+    // • project database
+    setTimeout(async () => {
+      try {
+        const { hermesWatchdog } = await import('./services/hermesWatchdog.js');
+        const { projectsStore } = await import('./services/projectsStore.js');
+
+        logger.info('[Supervisor] Verifying critical runtime dependencies...');
+        const hermesHealth = await hermesWatchdog.checkHealth();
+        if (!hermesHealth.reachable) {
+          logger.warn('[Supervisor] DEPENDENCY_FAILURE: Hermes is offline. Initiating automated recovery...', {
+            component: 'Hermes',
+            recoverable: true,
+          });
+          console.log('[JRT] DEPENDENCY_FAILURE component=Hermes recoverable=true');
+          const recovery = await hermesWatchdog.recoverHermes('Startup dependency initialization');
+          if (recovery.success) {
+            logger.info('[Supervisor] Hermes gateway recovered and verified online.');
+            console.log('[JRT] HERMES_RECOVERED component=Hermes');
+          } else {
+            logger.error('[Supervisor] Hermes gateway recovery failed after bounded attempts.');
+          }
+        } else {
+          logger.info('[Supervisor] Hermes gateway dependency HEALTHY.');
+        }
+
+        const projectCount = typeof (projectsStore as any).listProjects === 'function' ? (projectsStore as any).listProjects().length : 0;
+        logger.info('[Supervisor] Runtime dependencies check complete', {
+          backend: 'online',
+          hermes: hermesWatchdog.getState(),
+          projects: projectCount,
+          browser: 'ready',
+        });
+      } catch (err: any) {
+        logger.warn('[Supervisor] Dependency verification notice:', { message: err?.message || err });
+      }
+    }, 1500).unref();
   });
 
   /* Graceful shutdown (backend lifecycle milestone): when Electron owns this

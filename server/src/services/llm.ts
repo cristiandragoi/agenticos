@@ -13,7 +13,7 @@ export async function executeWithFailover(systemPrompt: string, userPrompt: stri
     { name: 'Qwable Coder', url: 'http://localhost:8642/v1/chat/completions', model: 'qwable-27b-coder', key: process.env.QWABLE_API_KEY || 'qwable' },
     { name: 'Qwythos 9B', url: 'http://localhost:11434/v1/chat/completions', model: 'qwythos:9b', key: process.env.QWYTHOS_API_KEY || 'qwythos' },
     { name: 'DeepSeek', url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-v4-flash', key: process.env.DEEPSEEK_API_KEY },
-    { name: 'Qwen 3.5', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', model: 'qwen3-5-72b-instruct', key: process.env.QWEN_API_KEY },
+    { name: 'Qwen 3.5 / DashScope', url: (process.env.DASHSCOPE_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1') + '/chat/completions', model: process.env.DASHSCOPE_MODEL || 'qwen3.8-flash', key: process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY || process.env.ALIBABA_API_KEY },
     { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openai/gpt-4o-mini', key: process.env.OPENROUTER_API_KEY },
     { name: 'Groq', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', key: process.env.GROQ_API_KEY },
     { name: 'Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-2.5-flash', key: process.env.GOOGLE_API_KEY },

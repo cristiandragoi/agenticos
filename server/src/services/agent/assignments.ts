@@ -17,9 +17,10 @@ export interface AgentProviderAssignment {
  */
 export function mapCatalogToGatewayId(catalogId: string): string {
   const map: Record<string, string> = {
+    'prov-codex': 'codex',
     'prov-ollama': 'ollama',
-    'prov-omniroute': 'omniroot',
-    'prov-omni': 'omniroot',
+    'prov-omniroute': 'omniroute',
+    'prov-omni': 'omniroute',
     'prov-openrouter': 'OpenRouter',
     'prov-deepseek': 'DeepSeek',
     'prov-longcat': 'openrouter',
@@ -44,6 +45,22 @@ export class AgentProviderAssignmentService {
         record.modelId === (process.env.OLLAMA_FALLBACK_MODEL || 'llama3.2:3b') &&
         record.routingMode === 'forced';
 
+      // Stale pre-Phase 2 Ollama override for Hermes: relax to OmniRoute policy
+      const isStaleHermesOllama = (agentId === 'agent-hermes' || agentId === 'hermes') &&
+        record.providerId === 'prov-ollama' &&
+        record.modelId === 'qwen3.5:27b';
+
+      if (isStaleHermesOllama) {
+        return {
+          agentId: record.agentId,
+          providerId: 'prov-omniroute',
+          modelId: 'auto/reasoning',
+          routingMode: 'preferred',
+          enabled: true,
+          updatedAt: new Date().toISOString()
+        };
+      }
+
       return {
         agentId: record.agentId,
         providerId: isForcedEmergencyFallback ? (process.env.OPENROUTER_API_KEY ? 'prov-openrouter' : record.providerId) : record.providerId,
@@ -54,37 +71,48 @@ export class AgentProviderAssignmentService {
       };
     }
 
-    if (agentId === 'agent-jarvis') {
+    const norm = (agentId || '').toLowerCase();
+    if (norm === 'agent-jarvis' || norm === 'jarvis') {
+      const providerId = (process.env.JARVIS_MODEL_PROVIDER === 'openrouter' || !process.env.JARVIS_MODEL_PROVIDER)
+        ? 'prov-openrouter'
+        : (process.env.JARVIS_MODEL_PROVIDER.startsWith('prov-') ? process.env.JARVIS_MODEL_PROVIDER : `prov-${process.env.JARVIS_MODEL_PROVIDER}`);
       return {
         agentId: 'agent-jarvis',
-        providerId: 'prov-openrouter',
-        modelId: process.env.OPENROUTER_MODEL || 'auto',
+        providerId,
+        modelId: process.env.JARVIS_PRIMARY_MODEL || 'xiaomi/mimo-v2.6-flash',
         routingMode: 'preferred',
         enabled: true,
         updatedAt: new Date().toISOString()
       };
     }
 
-    if (agentId === 'agent-codex') {
+    if (norm === 'agent-codex' || norm === 'codex') {
       return {
         agentId: 'agent-codex',
-        providerId: 'prov-deepseek',
-        modelId: 'deepseek-v4-flash',
-        // Preferred (not forced): keeps the gateway fallback chain alive so a
-        // transient transport failure of DeepSeek can resolve on the next
-        // available provider. (CODEX PROVIDER ROUTING RECOVERY — the previous
-        // 'forced' default made any DeepSeek blip a hard goal failure.)
+        providerId: 'prov-omniroute',
+        modelId: 'auto/coding',
         routingMode: 'preferred',
         enabled: true,
         updatedAt: new Date().toISOString()
       };
     }
 
-    if (agentId === 'agent-hermes') {
+    if (norm === 'agent-hermes' || norm === 'hermes') {
       return {
         agentId: 'agent-hermes',
-        providerId: 'prov-deepseek',
-        modelId: 'deepseek-v4-flash',
+        providerId: 'prov-omniroute',
+        modelId: 'auto/reasoning',
+        routingMode: 'preferred',
+        enabled: true,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    if (norm === 'agent-argus' || norm === 'argus') {
+      return {
+        agentId: 'agent-argus',
+        providerId: 'prov-omniroute',
+        modelId: 'auto/claude-sonnet',
         routingMode: 'preferred',
         enabled: true,
         updatedAt: new Date().toISOString()

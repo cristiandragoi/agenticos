@@ -14,6 +14,7 @@ import { conversationService } from '../conversations/service.js';
 import { llmChatStream, llmChat } from '../../services/llmGateway.js';
 import { SUPERVISOR_TOOL_SCHEMAS, executeSupervisorTool } from './supervisorTools.js';
 import { assembleConversationContext, contextToSystemPrompt, WorkspaceContext } from './conversationContext.js';
+import type { SemanticContext } from './semanticTurnResolver.js';
 import { getScopedJarvisMemoryContext } from './coreMemory.js';
 import { getWorkspaceRoot } from '../../services/workspaceStore.js';
 import * as executionState from '../../services/executionState.js';
@@ -39,6 +40,15 @@ export interface SupervisorStreamOptions {
   selectedModel?: string;
   fallbackProvider?: string;
   workspaceContext?: WorkspaceContext;
+  /** Structured semantic context from the deterministic resolver (§6, §11). */
+  semanticContext?: SemanticContext;
+  /**
+   * Caller has determined this turn asks about authoritative system state
+   * (projects, operators, missions, tasks, status, blockers) or requests an
+   * execution. Such turns must not be intercepted by the fast conversation
+   * lane, which answers socially without consulting any store.
+   */
+  requiresAuthoritativeState?: boolean;
 }
 
 interface ParsedToolCall {
@@ -223,6 +233,29 @@ export async function hydrateActiveEntityContext(
     }
   }
 
+  // Channels without a UI workspace context (voice) never satisfy the branch
+  // above. Fall back to provider-driven resolution over the authoritative
+  // project/capability/revenue stores so project-state questions are grounded
+  // regardless of which module the UI happens to have open.
+  if (!activeEntityContext) {
+    try {
+      const { buildProjectStateContext } = await import('./projectStateContext.js');
+      const evidence = await buildProjectStateContext(userPrompt);
+      if (evidence.hasEvidence) {
+        activeEntityContext = evidence.context;
+        resolvedEntityId = evidence.entityId ?? resolvedEntityId;
+        logger.info('[SupervisorLoop] Hydrated project/capability state for context grounding', {
+          entityId: evidence.entityId,
+          entityType: evidence.entityType,
+          entityName: evidence.entityName,
+          source: evidence.source,
+        });
+      }
+    } catch (err) {
+      logger.warn('[SupervisorLoop] Project state hydration failed', err);
+    }
+  }
+
   return { activeEntityContext, resolvedEntityId };
 }
 
@@ -233,7 +266,7 @@ export async function buildSupervisorSystemPrompt(
   conversationId: string,
   userPrompt: string,
   workspacePath?: string,
-  options: { approvalPolicy?: 'manual' | 'auto'; inputChannel?: string; workspaceContext?: WorkspaceContext } = {}
+  options: { approvalPolicy?: 'manual' | 'auto'; inputChannel?: string; workspaceContext?: WorkspaceContext; semanticContext?: SemanticContext; selectedModel?: string } = {}
 ): Promise<string> {
   const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || undefined;
 
@@ -248,23 +281,56 @@ export async function buildSupervisorSystemPrompt(
 
   const workspaceContext = effectiveWorkspace ? `Active workspace: ${effectiveWorkspace}` : '';
 
-  // 2. Active Revenue Operator Entity Hydration (TASK: JARVIS-CONTEXT-GROUNDING-001)
-  //    FIX 2+3 (JARVIS-LIVE-RUNTIME-FIX-003): When activeEntityId is null the
-  //    original guard blocked all hydration and the model fell back to memory,
-  //    which could return a stale/wrong entity (e.g. "Alpha Project").
-  //
-  //    New behaviour:
-  //    A) If activeEntityId is set — hydrate it directly (existing path).
-  //    B) If activeEntityId is null AND the module is revenue-operator —
-  //       attempt to resolve the named entity from availableLocalEntities
-  //       (already sent by the frontend) and, if unambiguously resolved,
-  //       hydrate that entity so live data outranks any memory result.
-  //    C) If resolution is ambiguous or fails — do not hydrate; let the
-  //       model use memory + ask for clarification.
+  // 2. Active Revenue Operator Entity Hydration
   const wsCtx = options.workspaceContext;
   const { activeEntityContext } = await hydrateActiveEntityContext(userPrompt, wsCtx);
-  if (activeEntityContext) {
-    memoryContext = '';
+
+  // 3. Authoritative Project Priorities Context (dynamically from projectsStore)
+  let projectContext = '';
+  try {
+    const { getAuthoritativeProjectContext } = await import('./projectMemory.js');
+    projectContext = getAuthoritativeProjectContext();
+  } catch {}
+
+  // §9 — name handling from profile, never hardcoded. No fabricated name.
+  let nameRule = '';
+  try {
+    const { getUserWorkingProfile } = await import('./coreMemory.js');
+    const userProfile = getUserWorkingProfile();
+    if (userProfile.avoidNameDrops) {
+      nameRule = 'Do not address the user by name. Stay completely silent of their name.';
+    } else if (userProfile.preferredName) {
+      nameRule = `The user's preferred name is "${userProfile.preferredName}". Use it only in greetings or when identity correction is needed, never as a repetitive salutation.`;
+    } else if (userProfile.preferredTitle) {
+      nameRule = `The user's preferred title/form of address is "${userProfile.preferredTitle}". Use this title naturally and sparingly—never in every sentence.`;
+    } else {
+      nameRule = 'Address the user naturally without using a specific name.';
+    }
+  } catch {
+    nameRule = 'Address the user naturally without using a specific name.';
+  }
+
+  // §11 — structured semantic context from the deterministic resolver. The LLM
+  // MUST use these authoritative values; it must not re-derive or fabricate.
+  let semanticContextBlock = '';
+  const sc = options.semanticContext;
+  if (sc) {
+    const lines: string[] = [
+      '## STRUCTURED CONTEXT (from deterministic semantic resolver — do not re-derive)',
+    ];
+    if (sc.activeEntity) {
+      lines.push(`- Active entity: ${sc.activeEntity.displayName} (${sc.activeEntity.type}, ${sc.activeEntity.domain}, ID: ${sc.activeEntity.id})`);
+    }
+    if (sc.pendingAction) {
+      lines.push(`- Pending action: ${sc.pendingAction.intent} → ${sc.pendingAction.target?.displayName || sc.pendingAction.objective || '?'} via ${sc.pendingAction.executor || '?'} (status: ${sc.pendingAction.status})`);
+    }
+    if (sc.activeGoal) lines.push(`- Active goal: ${sc.activeGoal}`);
+    if (sc.activeTaskId) lines.push(`- Active task: ${sc.activeTaskId}`);
+    if (sc.delegatedTaskId) lines.push(`- Delegated task: ${sc.delegatedTaskId}`);
+    lines.push(`- User timezone: ${sc.userTimezone}`);
+    lines.push(`- Current local time: ${sc.currentLocalTime}`);
+    lines.push('You MUST use the entity/task IDs above. Do not fabricate entity names, task IDs, or action states.');
+    semanticContextBlock = `\n\n${lines.join('\n')}`;
   }
 
   return [
@@ -278,14 +344,23 @@ export async function buildSupervisorSystemPrompt(
     '',
     '## CONVERSATIONAL STYLE & GROUNDING INVARIANTS',
     '1. Answer immediately in short, natural, conversational sentences. Do NOT repeat the user question back to them.',
-    '2. NEVER address the user with military or subordinate titles (such as "commander" or "boss"), and NEVER start responses with monitoring jargon or status boilerplate.',
-    '3. Do NOT append generic customer service sign-offs (e.g. "Is there anything else I can help you with today?") to your answers.',
-    '4. For short greetings ("you there?", "hey", "good morning") when no task is pending, reply with brief natural warmth — one short sentence, no generic call-centre phrasing.',
-    '5. For math, factual, or simple queries (e.g. "what is 2 plus 2", "tell me a joke"), answer directly and concisely.',
-    '6. SYSTEM HEALTH: When asked about system status, summarize the outcome naturally in plain English without printing raw JSON.',
-    '7. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it.',
-    '8. REFERENT RESOLUTION: When the user says "Do that", "Fix it", "Check that", "Continue", or "Ask CodeX to check that", resolve the pronoun from the previous conversation turns into an EXPLICIT, DETAILED objective before delegating.',
-    '9. MODEL IDENTITY: When asked what model, provider, or architecture you are using, state clearly and concisely: "I\'m using the local Ollama qwen2.5:7b model."',
+    '2. STRICT ACTION-DRIVEN BEHAVIOR: NEVER begin your response with "Understood", "Acknowledged", "Got it", or the user\'s name/title. Do NOT repeat or paraphrase the user\'s instruction.',
+    `3. ${nameRule} NEVER address the user with military or subordinate titles unless explicitly requested as a preferred title (e.g. Master, Commander, Chief, Executive). Never start responses with boilerplate monitoring jargon.`,
+    '4. Do NOT append generic customer service sign-offs (e.g. "Is there anything else I can help you with today?") to your answers.',
+    '5. For short greetings ("you there?", "hey", "good morning") when no task is pending, reply with brief natural warmth — one short sentence, no generic call-centre phrasing.',
+    '6. For math, factual, or simple queries (e.g. "what is 2 plus 2", "tell me a joke"), answer directly and concisely.',
+    '7. SYSTEM HEALTH: When asked about system status, summarize the outcome naturally in plain English without printing raw JSON.',
+    '8. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it. Never say you are "starting" or "initiating" an implementation unless you have successfully called the delegate_hermes_task tool.',
+    '9. REFERENT RESOLUTION: When the user says "Do that", "Fix it", "Check that", "Continue", "Proceed with it", or "Ask Hermes to check that", resolve the pronoun from the previous conversation turns AND active workspace/memory context into an EXPLICIT, DETAILED objective before delegating.',
+    '10. AUTHORITY PRECEDENCE: AUTHORITATIVE CURRENT RUNTIME STATE > tool results > structured memory/project/dialogue state > conversation history > model inference.',
+    '11. HISTORICAL CLAIM VERIFICATION: Past assistant statements about system/tool availability are not authoritative operational evidence. Verify them against current tool schemas and runtime health before repeating them as facts. Never repeat past assistant claims such as "browser failed", "terminal disconnected", "memory unavailable", or "tools missing" as facts unless current structured state verifies them.',
+    '12. CLOSED-WORLD TOOL LANGUAGE: If a tool is NOT registered in your schema, state that the capability is not available directly in this Jarvis session; never claim it failed or crashed. If a registered tool was called and errored, report the verified error. If a tool was not called, never fabricate an invocation or failure. If a service health probe is explicitly unreachable, report it; otherwise do not speculate.',
+    '13. ROLE BOUNDARIES (Browser & Terminal Operations): Jarvis interactive supervisor tool authority consists strictly of the registered tools below. Jarvis itself does NOT directly execute browser or terminal operations. Direct browser, terminal, or implementation work belongs to Hermes or capability workers. When asked to "Click in", "Start", "Open browser", or perform direct UI/terminal operations, explain the available path or route/delegate to Hermes/capability workers; NEVER claim browser or terminal "connections failed".',
+    '14. MEMORY AVAILABILITY: Structured core memory, active projects, and dialogue state are hosted locally in AgenticOS. NEVER claim memory service is "disconnected" or "missing" unless an explicit diagnostic check verifies storage failure.',
+    '15. TASK QUEUE & HERMES RESTRICTION: NEVER volunteer task queue status, background job reports, Hermes jobs, Free Cash status, or recommendations unless the user EXPLICITLY asked about tasks, the queue, background work, or project status. If the user provided a short query or keyword (e.g. related to web search, browsing, or clarification), address only what they asked; do not mention the task queue or Hermes.',
+    options.selectedModel
+      ? `MODEL IDENTITY: When asked what model, provider, or architecture you are using, state clearly and truthfully: "${options.selectedModel}". Never invent a model name.`
+      : 'MODEL IDENTITY: When asked what model you are using, report the actually configured runtime model truthfully; never invent a model name.',
     '',
     '## AVAILABLE SUPERVISOR TOOLS',
     'You can call tools when needed by outputting a tool call block formatted exactly as:',
@@ -295,15 +370,16 @@ export async function buildSupervisorSystemPrompt(
     '',
     'Available tools:',
     '- get_system_health({ component?: "gateways"|"tasks"|"all" }): Check health of gateways and active tasks',
-    '- delegate_hermes_task({ objective: string, context?: string }): Queue deep planning or research to Hermes',
-    '- delegate_codex_goal({ goal: string, context?: string, targetFiles?: string[], approvalRequired?: boolean }): Queue code inspection, debugging, or fixes to CodeX',
+    '- delegate_hermes_task({ objective: string, context?: string }): Queue deep planning, engineering, code inspection, fixes, or research to Hermes',
     '- recall_memory({ query: string }): Search persistent memory',
     '- get_current_work({ scope?: "active"|"recent"|"all" }): Query active and recent background work',
     '',
     'If the user is asking a conversational question or greeting that requires no tools, reply directly with your text message without any <tool_call> tag.',
     workspaceContext,
     memoryContext,
+    projectContext,
     activeEntityContext,
+    semanticContextBlock,
     options.inputChannel === 'voice' ? '\nInput channel: microphone transcription.' : ''
   ].filter(Boolean).join('\n');
 }
@@ -372,6 +448,28 @@ export async function handleSupervisorV2Stream(
   };
 
   const startedAt = Date.now();
+  // The stream router creates the canonical Jarvis execution record before
+  // entering Supervisor V2.  Supervisor V2 owns several early-return paths;
+  // finish or client-close must therefore settle that record, otherwise a
+  // successfully answered turn leaves the dock permanently at ROUTING.
+  let responseFinished = false;
+  let terminalStatus: 'COMPLETED' | 'FAILED' | 'CANCELLED' = 'COMPLETED';
+  const settleExecution = () => {
+    const record = executionState.get(operationId);
+    if (record?.worker === 'jarvis' && !record.note) {
+      executionState.end(operationId, terminalStatus);
+    }
+  };
+  res.once?.('finish', () => {
+    responseFinished = true;
+    settleExecution();
+  });
+  req.once?.('close', () => {
+    if (!responseFinished) {
+      terminalStatus = 'CANCELLED';
+      settleExecution();
+    }
+  });
   logger.info('[JarvisPipeline] PIPELINE=JARVIS SUPERVISOR V2', { conversationId, prompt, operationId });
   logger.info('[SupervisorV2] Beginning supervisor turn', { conversationId, prompt, operationId });
 
@@ -433,6 +531,26 @@ export async function handleSupervisorV2Stream(
       totalMs: Date.now() - startedAt,
     });
 
+    return res.end();
+  }
+
+  // ── Operational Controller Intercept (Evidence-First Grounding) ──
+  const { OperationalController } = await import('./operationalEvidence.js');
+  const opIntercept = await OperationalController.handleOperationalRequest(prompt, conversationId);
+  if (opIntercept) {
+    writeSse('intent', { type: 'operational_control', route: 'operational_control', mode: 'direct_conversation', confidence: 1, operationId });
+    const parts = opIntercept.reply.match(/.{1,140}(?:\s|$)/g) || [opIntercept.reply];
+    for (const p of parts) {
+      if (p) writeSse('chunk', { delta: p, operationId, provider: 'agentic-os', model: 'operational-controller' });
+    }
+    await conversationService.appendMessage({
+      conversationId,
+      role: 'agent',
+      content: opIntercept.reply,
+      routedAgent: 'jarvis',
+      metadata: { operationId, provider: 'agentic-os', model: 'operational-controller', supervisorV2: true }
+    });
+    writeSse('done', { route: 'operational_control', category: 'operational_control', operationId, provider: 'agentic-os', model: 'operational-controller', totalMs: Date.now() - startedAt });
     return res.end();
   }
 
@@ -499,7 +617,14 @@ export async function handleSupervisorV2Stream(
   // 1.5 Fast Conversation Lane Intercept (TASK: JARVIS-FAST-CONVERSATION-LANE-001)
   const { isFastConversationRequest, handleFastConversationStream } = await import('./fastConversationLane.js');
   const fastCheck = isFastConversationRequest(prompt, opts.workspaceContext);
-  if (fastCheck.isFast) {
+  if (fastCheck.isFast && opts.requiresAuthoritativeState) {
+    logger.info('[SupervisorV2] Fast Conversation Lane suppressed: turn requires authoritative state', {
+      conversationId,
+      reason: fastCheck.reason,
+      prompt,
+    });
+  }
+  if (fastCheck.isFast && !opts.requiresAuthoritativeState) {
     logger.info('[SupervisorV2] Routing to Fast Conversation Lane', {
       conversationId,
       reason: fastCheck.reason,
@@ -530,7 +655,7 @@ export async function handleSupervisorV2Stream(
 
   // 4. Assemble Context & History
   const [systemPrompt, history] = await Promise.all([
-    buildSupervisorSystemPrompt(conversationId, prompt, workspacePath, { approvalPolicy, inputChannel, workspaceContext: opts.workspaceContext }),
+    buildSupervisorSystemPrompt(conversationId, prompt, workspacePath, { approvalPolicy, inputChannel, workspaceContext: opts.workspaceContext, semanticContext: opts.semanticContext, selectedModel }),
     getCleanConversationHistory(conversationId, prompt)
   ]);
 
@@ -558,6 +683,7 @@ export async function handleSupervisorV2Stream(
       activeEffModel = firstPass.model;
     }
   } catch (err: any) {
+    terminalStatus = 'FAILED';
     logger.error('[SupervisorV2] LLM invocation failed', err);
     const errMsg = 'I encountered an issue connecting to my reasoning model. Please check the model gateway status.';
     writeSse('error', { error: String(err?.message || err), provider: activeEffProvider, model: activeEffModel, operationId });
@@ -591,11 +717,18 @@ export async function handleSupervisorV2Stream(
 
     // Apply grounding guardrail sanitization (action promises / repetition / false completions)
     const { sanitizeDirectResponse } = await import('./groundingGuardrail.js');
-    const cleanReply = sanitizeDirectResponse(rawClean, {
+    let cleanReply = sanitizeDirectResponse(rawClean, {
       prompt,
       hasGroundedEvidence: false,
       hasExecutionEvidence: false,
     });
+
+    // §11/§12: Operational Claim Gate — secure against hallucinated/fabricated operational state
+    const { OperationalClaimGate } = await import('./operationalEvidence.js');
+    const claimCheck = OperationalClaimGate.verifyClaims(cleanReply, conversationId, prompt);
+    if (!claimCheck.ok) {
+      cleanReply = claimCheck.response;
+    }
 
     // Stream text in chunks
     const parts = cleanReply.match(/.{1,140}(?:\s|$)/g) || [cleanReply];
@@ -654,16 +787,7 @@ export async function handleSupervisorV2Stream(
   }
 
   // Emit intention if a task was created
-  if (toolCall.name === 'delegate_codex_goal') {
-    writeSse('intent', {
-      type: 'worker_delegation',
-      route: 'codex',
-      worker: 'codex',
-      taskId: toolResult?.taskId,
-      status: toolResult?.status,
-      operationId
-    });
-  } else if (toolCall.name === 'delegate_hermes_task') {
+  if (toolCall.name === 'delegate_hermes_task' || toolCall.name === 'delegate_codex_goal') {
     writeSse('intent', {
       type: 'worker_delegation',
       route: 'hermes',
@@ -685,8 +809,9 @@ export async function handleSupervisorV2Stream(
     '',
     'INSTRUCTION:',
     '- Provide a natural, concise, conversational response to the user explaining the result.',
+    '- ACTION-DRIVEN BEHAVIOR: NEVER begin your response with "Understood", "Acknowledged", or the user\'s name/title. Do NOT repeat or paraphrase the user\'s instruction.',
+    '- If a task was delegated to CodeX or Hermes, state the action directly (e.g. "I\'ve queued the task for CodeX", or "CodeX has started the implementation"). State the task ID or status if provided in the tool result. Do NOT claim the task has completed.',
     '- If this was a health/system query, explain the status conversationally (e.g. "Everything is running smoothly" or "Hermes is currently unreachable"). Do NOT dump raw JSON or telemetry lists unless requested.',
-    '- If a task was delegated to CodeX or Hermes, confirm that the task was queued/started. Do NOT claim the task has completed.',
     '- If the tool reported an error, explain the situation truthfully without fabricating success.',
     '- Do NOT output any XML tags or <tool_call> blocks in this response.'
   ].join('\n');

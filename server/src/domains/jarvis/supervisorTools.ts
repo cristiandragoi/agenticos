@@ -8,7 +8,9 @@
 
 import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../../services/agent/assignments.js';
 import { hermesApiService } from '../../services/hermesApiService.js';
+import { hermesWatchdog } from '../../services/hermesWatchdog.js';
 import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js';
+import type { DelegationEnvelope } from '../../services/backgroundTasks/types.js';
 import { getScopedJarvisMemoryContext } from './coreMemory.js';
 import { memoryStore } from '../../services/memory/store.js';
 import { getCurrent as getCurrentExecution } from '../../services/executionState.js';
@@ -153,19 +155,22 @@ export interface DelegateHermesInput {
   context?: string;
   conversationId?: string;
   workspacePath?: string;
+  /** Structured delegation envelope (§14) — preserves entity/acceptance/parent context. */
+  envelope?: Partial<DelegationEnvelope>;
 }
 
 export interface DelegateHermesOutput {
   taskId: string;
   worker: 'hermes';
-  status: 'queued' | 'running';
+  status: 'queued' | 'running' | 'blocked';
   objective: string;
   context?: string;
   message: string;
+  error?: string;
 }
 
 export async function delegateHermesTask(input: DelegateHermesInput): Promise<DelegateHermesOutput> {
-  const { objective, context, conversationId, workspacePath } = input;
+  const { objective, context, conversationId, workspacePath, envelope } = input;
   if (!objective || typeof objective !== 'string') {
     throw new Error('delegate_hermes_task requires a non-empty "objective" parameter.');
   }
@@ -178,7 +183,29 @@ export async function delegateHermesTask(input: DelegateHermesInput): Promise<De
   try {
     const { projectsStore } = await import('../../services/projectsStore.js');
     activeProjectId = projectsStore.getActiveProjectId();
+    if (activeProjectId === 'proj-free-cash') {
+      activeProjectId = null;
+    }
+    const objLower = (objective + ' ' + (context || '')).toLowerCase();
+    if (objLower.includes('jarvis') || objLower.includes('agenticos') || objLower.includes('attachment') || objLower.includes('chat interface')) {
+      activeProjectId = null;
+    }
   } catch {}
+
+  // Structured delegation envelope (§14) — carried in metadata so the worker
+  // receives authoritative context, never a flattened prompt string.
+  const delegationEnvelope: DelegationEnvelope = {
+    pendingActionId: envelope?.pendingActionId,
+    target: envelope?.target,
+    objective: envelope?.objective || objective,
+    acceptanceCriteria: envelope?.acceptanceCriteria,
+    constraints: envelope?.constraints,
+    relevantInstruction: envelope?.relevantInstruction || context,
+    relatedTaskIds: envelope?.relatedTaskIds,
+    relatedResultIds: envelope?.relatedResultIds,
+    parentGoal: envelope?.parentGoal,
+    worker: 'hermes',
+  };
 
   const { task, error } = backgroundTaskManager.createTask({
     title,
@@ -193,7 +220,8 @@ export async function delegateHermesTask(input: DelegateHermesInput): Promise<De
     projectId: activeProjectId || undefined,
     metadata: {
       delegatedBy: 'jarvis-supervisor',
-      context: context || null
+      context: context || null,
+      delegationEnvelope,
     }
   });
 
@@ -201,18 +229,55 @@ export async function delegateHermesTask(input: DelegateHermesInput): Promise<De
     throw new Error(error || 'Failed to create Hermes background task.');
   }
 
+  let status = await hermesApiService.getStatus();
+  if (!status.reachable) {
+    logger.warn('[Supervisor] HERMES_REQUIRED: Hermes offline detected automatically. Initiating automated recovery...');
+    const recovery = await hermesWatchdog.recoverHermes('Supervisor engineering task delegation');
+    if (recovery.success) {
+      status = await hermesApiService.getStatus();
+      logger.info('[Supervisor] Hermes gateway recovered and verified online', { status });
+    } else {
+      logger.error('[Supervisor] Automated Hermes recovery failed:', { error: recovery.error });
+    }
+  }
+
+  if (!status.reachable) {
+    const reason = `Hermes service is offline and automatic recovery failed (${hermesWatchdog.getState()}). Next action: ${status.nextAction || 'Check Hermes daemon'}`;
+    backgroundTaskManager.transition(task.taskId, 'blocked', {
+      currentStage: 'hermes_service_offline',
+      progressMessage: reason,
+      blocker: reason,
+      resumable: true,
+    });
+    return {
+      taskId: task.taskId,
+      worker: 'hermes',
+      status: 'blocked',
+      objective,
+      context,
+      message: `Hermes task ${task.taskId.slice(0, 8)} could not be started: Hermes service is offline and automatic recovery failed.`,
+      error: reason,
+    };
+  }
+
+  // Dispatch task to worker adapter so it is consumed from the queue
+  const { dispatchTask } = await import('../../services/backgroundTasks/adapters.js');
+  dispatchTask(task, effectiveWorkspace).catch((err: any) => {
+    logger.error(`[supervisorTools] dispatch error for ${task.taskId}: ${err?.message}`);
+  });
+
   return {
     taskId: task.taskId,
     worker: 'hermes',
     status: 'queued',
     objective,
     context,
-    message: `Hermes task ${task.taskId.slice(0, 8)} has been queued.`
+    message: `Hermes task ${task.taskId.slice(0, 8)} has been queued and dispatched.`
   };
 }
 
 /* ────────────────────────────────────────────────────────────
- * Tool 3: delegate_codex_goal
+ * Tool 3: delegate_codex_goal (LEGACY REDIRECT - CODEX_INVOCATION_DISABLED=true)
  * ──────────────────────────────────────────────────────────── */
 
 export interface DelegateCodexInput {
@@ -222,74 +287,19 @@ export interface DelegateCodexInput {
   approvalRequired?: boolean;
   conversationId?: string;
   workspacePath?: string;
+  /** Structured delegation envelope (§14) — preserves entity/acceptance/parent context. */
+  envelope?: Partial<DelegationEnvelope>;
 }
 
-export interface DelegateCodexOutput {
-  taskId: string;
-  goalId?: string;
-  worker: 'codex';
-  status: 'queued' | 'waiting_for_approval';
-  goal: string;
-  context?: string;
-  targetFiles?: string[];
-  approvalRequired: boolean;
-  message: string;
-}
-
-export async function delegateCodexGoal(input: DelegateCodexInput): Promise<DelegateCodexOutput> {
-  const { goal, context, targetFiles, approvalRequired, conversationId, workspacePath } = input;
-  if (!goal || typeof goal !== 'string') {
-    throw new Error('delegate_codex_goal requires a non-empty "goal" parameter.');
-  }
-
-  const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || undefined;
-  const fullObjective = context ? `${goal.trim()}\n\nRelevant Context:\n${context.trim()}` : goal.trim();
-  const title = goal.length > 64 ? `${goal.slice(0, 61)}…` : goal;
-
-  let activeProjectId: string | null = null;
-  try {
-    const { projectsStore } = await import('../../services/projectsStore.js');
-    activeProjectId = projectsStore.getActiveProjectId();
-  } catch {}
-
-  const isApprovalReq = Boolean(approvalRequired);
-
-  const { task, error } = backgroundTaskManager.createTask({
-    title,
-    objective: fullObjective,
-    originalRequest: goal,
-    route: 'codex',
-    selectedAgent: 'CodeX',
-    worker: 'codex',
-    conversationId: conversationId || null,
-    resumable: true,
-    workspaceRoot: effectiveWorkspace,
-    projectId: activeProjectId || undefined,
-    metadata: {
-      delegatedBy: 'jarvis-supervisor',
-      targetFiles: targetFiles || [],
-      approvalRequired: isApprovalReq,
-      context: context || null
-    }
+export async function delegateCodexGoal(input: DelegateCodexInput): Promise<DelegateHermesOutput> {
+  logger.warn('[supervisorTools] delegate_codex_goal called but Codex invocation is permanently disabled (CODEX_INVOCATION_DISABLED=true). Routing directly to delegate_hermes_task.');
+  return delegateHermesTask({
+    objective: input.goal || (input as any).objective || '',
+    context: input.context,
+    envelope: input.envelope,
+    conversationId: input.conversationId,
+    workspacePath: input.workspacePath,
   });
-
-  if (!task || error) {
-    throw new Error(error || 'Failed to create CodeX background task.');
-  }
-
-  return {
-    taskId: task.taskId,
-    goalId: task.taskId,
-    worker: 'codex',
-    status: isApprovalReq ? 'waiting_for_approval' : 'queued',
-    goal,
-    context,
-    targetFiles: targetFiles || [],
-    approvalRequired: isApprovalReq,
-    message: isApprovalReq
-      ? `CodeX goal ${task.taskId.slice(0, 8)} is created and waiting for user approval.`
-      : `CodeX goal ${task.taskId.slice(0, 8)} has been queued.`
-  };
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -452,36 +462,13 @@ export const SUPERVISOR_TOOL_SCHEMAS = [
         context: {
           type: 'string',
           description: 'Contextual details or background information from previous turns.'
+        },
+        envelope: {
+          type: 'object',
+          description: 'Structured delegation envelope: { pendingActionId, target: {id,type,domain,displayName}, acceptanceCriteria: string[], constraints: {maxRuntime,readOnly,fileScope,allowedTools}, relevantInstruction, relatedTaskIds, relatedResultIds, parentGoal }. ALWAYS include when the objective targets a resolved entity.'
         }
       },
       required: ['objective']
-    }
-  },
-  {
-    name: 'delegate_codex_goal',
-    description: 'Delegate implementation, repository inspection, file editing, bug fixes, or code creation to CodeX. Use whenever engineering tasks or repository changes are requested.',
-    parameters: {
-      type: 'object',
-      properties: {
-        goal: {
-          type: 'string',
-          description: 'Fully resolved, descriptive engineering goal for CodeX. NEVER pass bare "Fix it" or "Do that" — explain the exact problem, target component, and expected behavior.'
-        },
-        context: {
-          type: 'string',
-          description: 'Context from the conversation, error descriptions, or user feedback.'
-        },
-        targetFiles: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of specific file paths to inspect or modify if known.'
-        },
-        approvalRequired: {
-          type: 'boolean',
-          description: 'Whether manual user approval is required before changing code.'
-        }
-      },
-      required: ['goal']
     }
   },
   {
@@ -524,14 +511,21 @@ export async function executeSupervisorTool(
     case 'get_system_health':
       return await getSystemHealth(parameters);
     case 'delegate_hermes_task':
-      return await delegateHermesTask({ objective: parameters.objective || '', context: parameters.context, ...context });
+      return await delegateHermesTask({ objective: parameters.objective || '', context: parameters.context, envelope: parameters.envelope, ...context });
     case 'delegate_codex_goal':
-      return await delegateCodexGoal({ goal: parameters.goal || '', context: parameters.context, targetFiles: parameters.targetFiles, approvalRequired: parameters.approvalRequired, ...context });
+      // Hard redirect legacy invocations to Hermes with warning (CODEX_INVOCATION_DISABLED=true)
+      logger.warn('[SupervisorTool] Legacy delegate_codex_goal redirected exclusively to delegate_hermes_task (CODEX_INVOCATION_DISABLED=true)');
+      return await delegateHermesTask({
+        objective: parameters.goal || parameters.objective || '',
+        context: parameters.context,
+        envelope: parameters.envelope,
+        ...context,
+      });
     case 'recall_memory':
       return await recallMemory({ query: parameters.query || '', ...context });
     case 'get_current_work':
       return await getCurrentWork({ scope: parameters.scope, ...context });
     default:
-      throw new Error(`Unknown supervisor tool: "${toolName}". Available tools: get_system_health, delegate_hermes_task, delegate_codex_goal, recall_memory, get_current_work.`);
+      throw new Error(`Unknown supervisor tool: "${toolName}". Available tools: get_system_health, delegate_hermes_task, recall_memory, get_current_work.`);
   }
 }

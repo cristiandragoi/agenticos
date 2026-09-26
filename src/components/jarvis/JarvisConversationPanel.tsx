@@ -25,9 +25,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Send, Square, Volume2, VolumeX, PhoneOff, Terminal, ChevronDown, ChevronUp, Activity, Zap } from 'lucide-react';
 import { useJarvis } from '../../store/appStore';
 import { useData } from '../../store/dataStore';
-import { useVoiceIO } from '../../hooks/useVoiceIO';
+import { JarvisNextVoiceSession, type JarvisNextVoiceHandle } from './JarvisNextVoiceSession';
 import { JARVIS_ORB_EVENTS } from './jarvisOrbState';
 import { apiFetch, apiUrl } from '../../api/client';
+import { backendLifecycleStore } from '../../diagnostics/backendLifecycleStore';
 
 /* ── Session persistence keys ─────────────────────────────────────────────── */
 const CONV_MODE_KEY = 'agenticos:jarvis:conversationMode';
@@ -143,6 +144,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
   const micEnabledRef = useRef(true);
   const voiceOutEnabledRef = useRef(true);
   const voiceRef = useRef<any>(null);
+  const jarvisNextRef = useRef<JarvisNextVoiceHandle | null>(null);
   // §9 input ownership (Jarvis repair): manual composer edits / typed
   // submissions take ownership of the input. In-flight STT transcripts are
   // stale once the user has typed, so conversation-mode auto-submit must
@@ -375,44 +377,25 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
     executeStreamingTurn(text, 'voice');
   }, [jarvis, executeStreamingTurn]);
 
-  // ── The EXISTING conversation engine — no new VAD/mic/TTS code. ──
-  const voice = useVoiceIO({
-    agentId: 'agent-jarvis',
-    endSpeechSilenceMs: 750, // Voice-reliability closure: 900 → 750ms (spec window 700–1200 ms)
-    onAutoSubmit: handleAutoSubmit,
-    onBargeIn: () => {
-      // User barged in while Jarvis was speaking: abort the in-flight model
-      // stream AND invalidate the current turn so its late `speak()` never
-      // re-enters the voice path (the hook already halted audio + cleared TTS).
-      streamAbortRef.current?.abort();
-      submitSeqRef.current++;
-      processingRef.current = false;
-      voiceRef.current?.killSpeech?.();
-    },
-    onControlCommand: (cmd) => {
-      // Local control command — abort the in-flight model stream and
-      // invalidate the current turn so its late output can never re-enter.
-      streamAbortRef.current?.abort();
-      submitSeqRef.current++;
-      processingRef.current = false;
-      voiceRef.current?.killSpeech?.();
-      if (cmd.kind === 'terminate') {
-        // Clear pending conversational-turn state; return to ready.
-        jarvis.clearTranscript();
-      }
-    },
-    // Manual mode: transcript lands in the EDITABLE input — user presses Send.
-    onTranscript: (text) => {
-      // TEMP DIAGNOSTIC — visible chain trace (remove after confirmation).
-      setConvTrace((t) => ({ ...t, transcript: text.slice(0, 40), autosubmit: 'MANUAL-INPUT branch (NOT submitted)' }));
-      setTextInput(text);
-    },
-    onStateChange: (s) => {
-      jarvis.setStatus(s);
-      // Feed the EXISTING orb pipeline (MissionControlPage listens for this).
-      window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.voiceState, { detail: s }));
-    },
-  });
+  // ── SELFHEAL-001 REPAIR: useVoiceIO REMOVED ──
+  // The legacy useVoiceIO hook was capturing the microphone and binding audio
+  // devices concurrently with JarvisNextVoiceSession's LiveKit audio, causing
+  // a device lock conflict that prevented the Start Conversation button from
+  // working. Voice is now handled exclusively by JarvisNextVoiceSession.
+  // The voiceRef shim below provides compatibility for existing callers.
+  const voice = {
+    speak: (text: string) => { /* TTS now handled by LiveKit agent */ },
+    killSpeech: () => { /* noop */ },
+    startConversation: async () => jarvisNextRef.current?.startSession() ?? false,
+    endConversation: async () => { jarvisNextRef.current?.stopSession(); },
+    toggleListening: () => {},
+    startListening: () => {},
+    stopListening: () => {},
+    setVoiceOverride: () => {},
+    setLanguage: () => {},
+    get isListening() { return jarvisNextRef.current?.isConnected ?? false; },
+    get state() { return jarvisNextRef.current?.isConnected ? 'conversation' : 'idle'; },
+  };
   voiceRef.current = voice;
 
   // TEMP DIAGNOSTIC — visible live-chain trace listener (remove after confirmation).
@@ -466,9 +449,50 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
     if (mountedRef.current) return;
     mountedRef.current = true;
     if (readConversationMode() === 'conversation') {
-      modeRef.current = 'conversation';
-      setMode('conversation');
-      voiceRef.current?.startConversation();
+      const tryResume = async () => {
+        // Wait for backend readiness before starting voice session (Task 10)
+        if (!backendLifecycleStore.isReady()) {
+          const ready = await new Promise<boolean>((resolve) => {
+            let unsub: (() => void) | null = null;
+            let timer: any = null;
+            const cleanup = () => {
+              if (unsub) { unsub(); unsub = null; }
+              if (timer) { clearTimeout(timer); timer = null; }
+            };
+            unsub = backendLifecycleStore.subscribe(() => {
+              if (backendLifecycleStore.isReady()) {
+                cleanup();
+                resolve(true);
+              }
+            });
+            timer = setTimeout(() => {
+              cleanup();
+              resolve(backendLifecycleStore.isReady());
+            }, 12000);
+            if (backendLifecycleStore.isReady()) {
+              cleanup();
+              resolve(true);
+            }
+          });
+          if (!ready) {
+            console.warn('[JFE] Backend not ready within 12s on mount — resetting to manual mode');
+            writeConversationMode('manual');
+            setMode('manual');
+            modeRef.current = 'manual';
+            return;
+          }
+        }
+        modeRef.current = 'conversation';
+        setMode('conversation');
+        const ok = await voiceRef.current?.startConversation();
+        if (!ok) {
+          console.warn('[JFE] Voice session start failed on mount — resetting to manual mode');
+          writeConversationMode('manual');
+          setMode('manual');
+          modeRef.current = 'manual';
+        }
+      };
+      void tryResume();
     }
   }, []);
 
@@ -514,7 +538,8 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
       modeRef.current = 'conversation';
       setMode('conversation');
       writeConversationMode('conversation');
-      const ok = await voiceRef.current?.startConversation();
+      // SELFHEAL-001: Use JarvisNext (LiveKit) as the sole voice engine
+      const ok = await jarvisNextRef.current?.startSession();
       if (!ok) {
         modeRef.current = 'manual';
         setMode('manual');
@@ -528,6 +553,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
       streamAbortRef.current?.abort();
       processingRef.current = false;
       voiceRef.current?.endConversation();
+      jarvisNextRef.current?.stopSession();
       jarvis.setStatus('idle');
       window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.voiceState, { detail: 'idle' }));
     }
@@ -696,6 +722,8 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
           </button>
         </div>
 
+        {/* SELFHEAL-001: JarvisNextVoiceSession is the sole voice engine */}
+        <JarvisNextVoiceSession ref={jarvisNextRef} className="my-1.5" />
         {/* Compact command menu (replaces the permanent Command Matrix grid) */}
         <div style={{ position: 'relative' }}>
           <button

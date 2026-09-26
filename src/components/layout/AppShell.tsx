@@ -175,6 +175,16 @@ const AppShell: React.FC = () => {
           </div>
         )}
         {commandPaletteOpen && <CommandPalette />}
+        {/* ── DIAGNOSTIC BUILD LABEL — remove after runtime path is proven ── */}
+        <div style={{
+          position: 'fixed', bottom: 4, right: 6, zIndex: 99999,
+          fontFamily: 'monospace', fontSize: 9, lineHeight: 1.4,
+          color: '#22d3ee', background: 'rgba(0,0,0,0.85)',
+          border: '1px solid #22d3ee', borderRadius: 3, padding: '2px 5px',
+          pointerEvents: 'none', userSelect: 'none',
+        } as React.CSSProperties}>
+          BUILD d14253df-VuG1s43i
+        </div>
       </div>
     </JarvisRuntimeProvider>
   );

@@ -12,6 +12,52 @@ export async function supervisorLoop(intervalMs: number = 60000) {
 
   while (true) {
     try {
+      // 0. HERMES GATEWAY WATCHDOG (unattended recovery).
+      // A gateway PROCESS being alive is not API health. Live defect this fixes
+      // (Hermes logs/errors.log 2026-09-21 09:36:13): the api_server's asyncio
+      // accept loop died on 127.0.0.1:8642 ("Accept failed on a socket",
+      // WinError 64) and was never re-created, while the gateway process stayed
+      // alive serving Telegram. Nothing detected it: `hermes gateway status`
+      // reported "Gateway process running" and AgenticOS could make no API call.
+      // This tick verifies the API BEHAVIOURALLY and recovers through the
+      // product's own lifecycle. Bounded, and never looped on auth failures.
+      try {
+        const { getHermesGatewayHealth, recoverHermesGateway } = await import('../domains/jarvis/hermesGatewayHealth.js');
+        const health = await getHermesGatewayHealth();
+        if (health.state === 'HERMES_PROCESS_ALIVE_API_DOWN' || health.state === 'HERMES_PROCESS_DOWN') {
+          logger.warn('[Supervisor] Hermes gateway behavioural health failed — starting unattended recovery', {
+            state: health.state, apiUrl: health.apiUrl, processIds: health.processIds,
+          });
+          console.log(`[JRT] HERMES_WATCHDOG_TRIGGER state=${health.state} api=${health.apiUrl}`);
+          const recovery = await recoverHermesGateway({ maxAttempts: 2 });
+          if (recovery.recovered) {
+            logger.info('[Supervisor] Hermes gateway auto-recovered — API verified', { recovery });
+          } else {
+            logger.error('[Supervisor] Hermes gateway recovery FAILED', { recovery });
+            try {
+              const { failureDetector } = await import('../domains/selfHeal/FailureDetector.js');
+              const incidentId = failureDetector.createManualIncident(
+                'hermes_gateway',
+                `Hermes gateway unreachable (${health.state}); unattended recovery failed after ${recovery.attempts} attempt(s): ${recovery.detail}`,
+                'hermes',
+                'high',
+                { source: 'supervisor_watchdog', state: health.state, apiUrl: health.apiUrl, recovery },
+              );
+              logger.warn('[Supervisor] Hermes gateway incident raised', { incidentId });
+            } catch (incErr) {
+              logger.error('[Supervisor] Could not raise the Hermes gateway incident', {
+                error: incErr instanceof Error ? incErr.message : String(incErr),
+              });
+            }
+          }
+        }
+      } catch (watchdogErr) {
+        // The watchdog must never take down the supervision loop.
+        logger.warn('[Supervisor] Hermes gateway watchdog error', {
+          error: watchdogErr instanceof Error ? watchdogErr.message : String(watchdogErr),
+        });
+      }
+
       // 1. Fetch active runs
       const activeRuns = runStore.list().filter(r => r.status === 'running' || r.status === 'queued');
 

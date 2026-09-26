@@ -13,7 +13,7 @@ function isRepositoryOnlyTask(prompt: string, workspacePath?: string): boolean {
 }
 
 const MUTATING_INTENT_RE = /\b(write|modify|edit|update|change|create|delete|remove|patch|replace|append|insert|install|deploy|configure|execute|run)\b/i;
-const READ_ONLY_INTENT_RE = /\b(inspect|analy[sz]e|explain|read|search|list|review|summari[sz]e|describe|look at)\b/i;
+const READ_ONLY_INTENT_RE = /\b(inspect|analy[sz]e|explain|read|search|list|review|summari[sz]e|describe|look at|where in the code|where is .*implemented|where are .*implemented|how is .*implemented|which file|what file|find|locate|trace|show me the code|show code)\b/i;
 
 function stripProtectiveReadOnlyClauses(prompt: string): string {
   return prompt
@@ -25,6 +25,7 @@ export function isReadOnlyCodexTask(prompt: string): boolean {
   const trimmed = prompt.trim();
   if (!trimmed) return false;
   if (/\bread-only\b/i.test(trimmed) || /\bread only\b/i.test(trimmed) || /\bdo not modify files\b/i.test(trimmed) || /\binspection only\b/i.test(trimmed)) return true;
+  if (/^(?:where|which file|what file)\b/i.test(trimmed) && /\b(?:code|implemented|defined|located|found|implementation)\b/i.test(trimmed)) return true;
   const intentText = stripProtectiveReadOnlyClauses(trimmed);
   return READ_ONLY_INTENT_RE.test(trimmed) && !MUTATING_INTENT_RE.test(intentText);
 }

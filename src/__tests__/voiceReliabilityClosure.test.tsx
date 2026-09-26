@@ -61,8 +61,21 @@ async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) 
   rmsLevel = 0; await act(async () => { flushRaf(1); });
   await act(async () => { vi.advanceTimersByTime(20); });
   await act(async () => { flushRaf(1); });
+  // handleConversationTranscript holds an utterance for the bounded continuation window
+  // (continuationWindowMs = 2500) before submitting; controls resolve synchronously.
+  // Without letting that window elapse, non-control assertions race it under fake timers.
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
 }
-const FAST_VAD = { agentId: 'agent-jarvis', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+// LEGACY BROWSER-VAD COVERAGE (non-Jarvis agent mode).
+//
+// These R-tests assert the browser VAD → /voice/transcribe → submit → control path.
+// `agent-jarvis` no longer runs that architecture (LiveKit-first, with transcription and
+// turn handling in the server-side voice agent; useVoiceIO suppresses
+// submitConversationTurn and the local control callback for it), so the suite is
+// configured with a non-Jarvis agent — the mode the legacy path still serves.
+// Jarvis STOP/reliability behaviour is covered at the LiveKit boundary instead
+// (JarvisCanonicalVoicePath: STOP → publishData stop_speaking). Assertions unchanged.
+const FAST_VAD = { agentId: 'agent-hermes', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
 
 // In the real app the VAD loop re-arms after the response's TTS playback ends
 // (afterPlaybackEnd). In the harness onAutoSubmit is a no-op, so we re-arm the
@@ -95,7 +108,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-describe('voice reliability closure — R-tests', () => {
+describe('voice reliability closure — R-tests (legacy browser-VAD hook mode, non-Jarvis agent)', () => {
   it('R1: STOP kills all output — control command halts and suppresses speech', async () => {
     const onAutoSubmit = vi.fn();
     const onControlCommand = vi.fn();

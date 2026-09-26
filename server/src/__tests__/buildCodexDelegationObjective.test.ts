@@ -18,7 +18,7 @@ describe('buildCodexDelegationObjective', () => {
       acceptanceCriteria: 'test must assert locale en-AU',
     });
     expect(out).toContain('Hermes-proposed scope: inspect src/lib/voiceSessionConfig.ts');
-    expect(out).toContain('Acceptance criteria: test must assert locale en-AU');
+    expect(out).toContain('Hermes-proposed acceptance criteria: test must assert locale en-AU');
   });
 
   it('does not drop the implementation verb when the proposal is read-only', () => {

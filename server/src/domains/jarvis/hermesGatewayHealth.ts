@@ -22,8 +22,11 @@
  *   - A 401 is explicitly NOT healthy: it is a distinct auth failure.
  */
 
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { logger } from '../../utils/logger.js';
+
+const execAsync = promisify(exec);
 
 export type HermesGatewayState =
   | 'HERMES_API_HEALTHY'
@@ -48,14 +51,14 @@ export interface HermesGatewayHealth {
   critical: boolean;
 }
 
-/** Find gateway processes by command line — the only reliable identity. */
-export function findGatewayProcessIds(): number[] {
+/** Find gateway processes by command line asynchronously — non-blocking. */
+export async function findGatewayProcessIds(): Promise<number[]> {
   try {
-    const out = execSync(
+    const { stdout } = await execAsync(
       'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \'*hermes_cli.main gateway*\' } | Select-Object -ExpandProperty ProcessId"',
-      { timeout: 20000, windowsHide: true, encoding: 'utf8' },
+      { timeout: 15000, windowsHide: true, encoding: 'utf8' },
     );
-    return out
+    return stdout
       .split(/\r?\n/)
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => Number.isFinite(n) && n > 0);
@@ -114,7 +117,7 @@ export async function getHermesGatewayHealth(): Promise<HermesGatewayHealth> {
   } catch { /* fall back to no explicit key; the service resolves its own */ }
 
   const probe = apiUrl ? await probeApi(apiUrl, apiKey) : { status: null, contractValid: false, error: 'no API url resolved' };
-  const processIds = probe.contractValid ? [3888] : findGatewayProcessIds();
+  const processIds = probe.contractValid ? [3888] : await findGatewayProcessIds();
   const processAlive = probe.contractValid || processIds.length > 0;
 
   let state: HermesGatewayState;
@@ -202,13 +205,13 @@ export async function recoverHermesGateway(opts: { maxAttempts?: number } = {}):
     logger.warn('[HermesGatewayHealth] Recovering stale Hermes gateway', { attempt: attempts, stateBefore: before.state });
     console.log(`[JRT] HERMES_GATEWAY_RESTARTING attempt=${attempts} stateBefore=${before.state}`);
     try {
-      const out = execSync(`"${hermesBin}" gateway restart`, {
-        timeout: 180000,
+      const { stdout } = await execAsync(`"${hermesBin}" gateway restart`, {
+        timeout: 60000,
         windowsHide: true,
         encoding: 'utf8',
         env: { ...process.env, HERMES_HOME: 'C:/Users/cd-pr/AppData/Local/hermes' },
       });
-      lastDetail = String(out).split(/\r?\n/).filter(Boolean).slice(0, 4).join(' | ');
+      lastDetail = String(stdout).split(/\r?\n/).filter(Boolean).slice(0, 4).join(' | ');
     } catch (err: any) {
       lastDetail = `restart command failed: ${err?.message || String(err)}`;
     }

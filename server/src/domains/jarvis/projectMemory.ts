@@ -278,3 +278,32 @@ export function formatContinuation(r: ContinuationResult): string {
   }
   return lines.join('\n');
 }
+
+/**
+ * Return a compact authoritative summary of the active project and stored priorities
+ * from projectsStore, for injection into Jarvis supervisor and fast conversation prompts.
+ */
+export function getAuthoritativeProjectContext(): string {
+  try {
+    const active = projectsStore.getActiveProject();
+    const all = projectsStore.listProjects();
+    const lines: string[] = ['## AUTHORITATIVE PROJECT & PRIORITY STATE (from projectsStore)'];
+    if (active) {
+      lines.push(`- Active Project: ${active.name} (ID: ${active.id}, Priority: ${active.priority}, Status: ${active.status || 'active'})`);
+    } else {
+      lines.push('- Active Project: None currently selected');
+    }
+    const sorted = (all || [])
+      .filter((p: any) => p.status === 'active' || !p.status)
+      .sort((a: any, b: any) => (a.priority ?? 999) - (b.priority ?? 999));
+    if (sorted.length > 0) {
+      lines.push('- Stored Project Priorities:');
+      for (const p of sorted.slice(0, 5)) {
+        lines.push(`  * Priority ${p.priority}: ${p.name} (ID: ${p.id}, Status: ${p.status || 'active'})`);
+      }
+    }
+    return lines.join('\n');
+  } catch {
+    return '';
+  }
+}

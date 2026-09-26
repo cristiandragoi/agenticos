@@ -886,7 +886,7 @@ export async function routeTurn(opts: {
         const entity = r.entityName || (r as any).entityId || focus.activeEntityName || focus.activeEntityId;
         if (entity && entity.toLowerCase() === 'jarvis') {
           finalSpokenText = "I'm on it. I can help configure and add capabilities to Jarvis.";
-        } else if (entity && entity !== 'none') {
+        } else if (entity && entity !== 'none' && !/free\s*cash/i.test(entity)) {
           finalSpokenText = `I don't have further details on ${entity} right now.`;
         } else {
           finalSpokenText = '';

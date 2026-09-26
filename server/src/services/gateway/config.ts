@@ -1,12 +1,49 @@
 import { logger } from '../../utils/logger.js';
 import path from 'path';
 import { GatewayConfig, ProviderDefinition } from './types.js';
+import { secretStore } from './secretStore.js';
 
 export function loadGatewayConfig(): GatewayConfig {
   const weakHardwareDefaults = process.env.WEAK_HARDWARE === 'true';
 
   // Define the legacy env-based providers
   const providers: ProviderDefinition[] = [];
+
+  // Canonical OmniRoute provider (Phase 2)
+  const omnirouteBaseUrl = process.env.OMNIROUTE_BASE_URL || process.env.OMNIROOT_BASE_URL || 'http://127.0.0.1:20128/v1';
+  let omnirouteApiKey = process.env.OMNIROUTE_API_KEY || process.env.OMNIROOT_API_KEY;
+  if (!omnirouteApiKey) {
+    try {
+      omnirouteApiKey = secretStore.getSync('omniroute') || undefined;
+    } catch {}
+  }
+  providers.push({
+    name: 'omniroute',
+    baseUrl: omnirouteBaseUrl,
+    apiKey: omnirouteApiKey,
+    model: process.env.OMNIROUTE_MODEL || 'auto/chat',
+    type: 'openai',
+    capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext', 'supportsReasoning'],
+    tags: ['omniroute', 'cloud', 'proxy'],
+    maxContext: 128000,
+    costPer1kPrompt: 0,
+    costPer1kCompletion: 0
+  });
+
+  // Codex App-Server Bridge provider (Phase 2B - authenticated ChatGPT Plus on-machine)
+  const codexBaseUrl = process.env.CODEX_BASE_URL || 'http://127.0.0.1:20130/v1';
+  providers.push({
+    name: 'codex',
+    baseUrl: codexBaseUrl,
+    apiKey: 'codex-local-auth',
+    model: process.env.CODEX_MODEL || 'gpt-6-astra',
+    type: 'openai',
+    capabilities: ['supportsTools', 'supportsStreaming', 'supportsCoding', 'supportsReasoning'],
+    tags: ['coding', 'cloud', 'fast', 'chatgpt-plus'],
+    maxContext: 128000,
+    costPer1kPrompt: 0,
+    costPer1kCompletion: 0
+  });
 
   if (process.env.OMNIROOT_BASE_URL) {
     providers.push({
@@ -39,15 +76,21 @@ export function loadGatewayConfig(): GatewayConfig {
   }
 
   // OpenRouter is OpenAI-compatible: reuse the existing OpenAI gateway adapter.
-  if (process.env.OPENROUTER_BASE_URL || process.env.OPENROUTER_API_KEY) {
+  let openrouterApiKey = process.env.OPENROUTER_API_KEY;
+  if (!openrouterApiKey) {
+    try {
+      openrouterApiKey = secretStore.getSync('openrouter') || undefined;
+    } catch {}
+  }
+  if (process.env.OPENROUTER_BASE_URL || openrouterApiKey) {
     providers.push({
       name: 'openrouter',
       baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY,
-      model: process.env.OPENROUTER_MODEL || 'auto',
+      apiKey: openrouterApiKey,
+      model: process.env.JARVIS_PRIMARY_MODEL || process.env.OPENROUTER_MODEL || 'xiaomi/mimo-v2.6-flash',
       type: 'openai',
-      capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext'],
-      tags: ['cloud', 'long-context'],
+      capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext', 'supportsReasoning', 'supportsJSON'],
+      tags: ['cloud', 'long-context', 'mimo'],
       maxContext: 128000
     });
   }
@@ -70,11 +113,14 @@ export function loadGatewayConfig(): GatewayConfig {
   providers.push({
     name: 'ollama',
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-    model: process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'qwen2.5:7b',
+    // Keep Jarvis on the installed, latency-safe local model. The old 7B
+    // default disagreed with both the live assignment and the fast lane,
+    // forcing Ollama to swap models before every response.
+    model: process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'qwen3.5:9b-hermes-64k',
     type: 'ollama',
     capabilities: ['supportsStreaming'],
     tags: ['local', 'cheap'],
-    maxContext: 8192,
+    maxContext: 65536,
     costPer1kPrompt: 0,
     costPer1kCompletion: 0
   });
@@ -93,9 +139,9 @@ export function loadGatewayConfig(): GatewayConfig {
     }
   }
 
-  // Load priorities (Local Qwen First policy)
+  // Load priorities (Cloud First policy, Ollama as local emergency fallback)
   const envOrder = process.env.GATEWAY_PROVIDER_ORDER;
-  let providerOrder = ['ollama', 'openrouter', 'omniroot', 'ninerouter', 'DeepSeek'];
+  let providerOrder = ['codex', 'omniroute', 'openrouter', 'omniroot', 'ninerouter', 'DeepSeek', 'ollama'];
   if (envOrder) {
     providerOrder = envOrder.split(',').map(s => s.trim());
   }

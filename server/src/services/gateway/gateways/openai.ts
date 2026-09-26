@@ -1,14 +1,20 @@
 import { ModelGateway, ChatRequest, ChatResponse, ChatStreamChunk, ProviderDefinition } from '../types.js';
 import { ProviderCredentialService } from '../credentials.js';
 
-function parseOpenAiSseDelta(payload: string): string {
-  if (!payload || payload === '[DONE]') return '';
+function parseOpenAiSsePayload(payload: string): { delta: string; model?: string } {
+  if (!payload || payload === '[DONE]') return { delta: '' };
   try {
     const chunk = JSON.parse(payload);
-    return chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || '';
+    const delta = chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || '';
+    const model = chunk.model;
+    return { delta, model };
   } catch {
-    return '';
+    return { delta: '' };
   }
+}
+
+function parseOpenAiSseDelta(payload: string): string {
+  return parseOpenAiSsePayload(payload).delta;
 }
 
 /**
@@ -133,6 +139,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
 
           const promptTokens = data.usage?.prompt_tokens || 0;
           const completionTokens = data.usage?.completion_tokens || 0;
+          const resolvedModel = data.model || model;
 
           return { 
             reply, 
@@ -141,7 +148,11 @@ export class OpenAICompatibleGateway implements ModelGateway {
             offline: false,
             promptTokens,
             completionTokens,
-            totalTokens: promptTokens + completionTokens
+            totalTokens: promptTokens + completionTokens,
+            resolvedProvider: this.name,
+            resolvedModel,
+            requestedModel: model,
+            requestedRoute: `${this.name}:${model}`
           };
         } catch (err: any) {
           if (req.signal?.aborted) throw err;
@@ -220,6 +231,10 @@ export class OpenAICompatibleGateway implements ModelGateway {
     let rawBody = '';
     let sawSseData = false;
 
+    const streamStart = Date.now();
+    let ttftMs: number | undefined;
+    let streamResolvedModel = model;
+
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -232,8 +247,21 @@ export class OpenAICompatibleGateway implements ModelGateway {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
         sawSseData = true;
-        const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
-        if (delta) yield { type: 'token', content: delta, provider: this.name, model: model };
+        const parsed = parseOpenAiSsePayload(trimmed.slice(5).trim());
+        if (parsed.model) streamResolvedModel = parsed.model;
+        if (parsed.delta) {
+          if (ttftMs === undefined) {
+            ttftMs = Date.now() - streamStart;
+          }
+          yield { 
+            type: 'token', 
+            content: parsed.delta, 
+            provider: this.name, 
+            model: model,
+            resolvedModel: streamResolvedModel,
+            resolvedProvider: this.name
+          };
+        }
       }
     }
 
@@ -244,8 +272,21 @@ export class OpenAICompatibleGateway implements ModelGateway {
       const trimmed = line.trim();
       if (!trimmed.startsWith('data:')) continue;
       sawSseData = true;
-      const delta = parseOpenAiSseDelta(trimmed.slice(5).trim());
-      if (delta) yield { type: 'token', content: delta, provider: this.name, model: model };
+      const parsed = parseOpenAiSsePayload(trimmed.slice(5).trim());
+      if (parsed.model) streamResolvedModel = parsed.model;
+      if (parsed.delta) {
+        if (ttftMs === undefined) {
+          ttftMs = Date.now() - streamStart;
+        }
+        yield { 
+          type: 'token', 
+          content: parsed.delta, 
+          provider: this.name, 
+          model: model,
+          resolvedModel: streamResolvedModel,
+          resolvedProvider: this.name
+        };
+      }
     }
 
     // Non-streaming OpenAI-style JSON body (no SSE `data:` lines seen): emit
@@ -255,15 +296,34 @@ export class OpenAICompatibleGateway implements ModelGateway {
       try {
         const parsed = JSON.parse(rawBody);
         const content = parsed?.choices?.[0]?.message?.content;
+        if (parsed?.model) streamResolvedModel = parsed.model;
         if (typeof content === 'string' && content.length > 0) {
-          yield { type: 'token', content, provider: this.name, model: model };
+          if (ttftMs === undefined) {
+            ttftMs = Date.now() - streamStart;
+          }
+          yield { 
+            type: 'token', 
+            content, 
+            provider: this.name, 
+            model: model,
+            resolvedModel: streamResolvedModel,
+            resolvedProvider: this.name
+          };
         }
       } catch {
         // Not JSON either; downstream empty-stream handling applies.
       }
     }
 
-    yield { type: 'done', provider: this.name, model: model };
+    yield { 
+      type: 'done', 
+      provider: this.name, 
+      model: model,
+      resolvedModel: streamResolvedModel,
+      resolvedProvider: this.name,
+      durationMs: Date.now() - streamStart,
+      latencyMs: ttftMs
+    };
   }
 
   // Capabilities

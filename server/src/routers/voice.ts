@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAgentLoop } from '../services/agent/agentLoop.js';
 import { mockAgents } from '../data.js';
-import { transcribeLocally } from '../services/voice/localTranscribe.js';
+import { transcribeLocally, isMeaningfulSpeech } from '../services/voice/localTranscribe.js';
 import {
   synthesizeLocally,
   resolveVoiceForLanguage,
@@ -83,11 +83,11 @@ router.get('/tts/status', async (req, res) => {
 router.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
     const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: 'No audio file provided.' });
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      return res.status(400).json({ error: 'No audio file provided', noSpeech: true });
     }
 
-    const deepgramKey = process.env.DEEPGRAM_API_KEY;
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || (await import('../services/gateway/secretStore.js')).secretStore.getSync('deepgram') || undefined;
     const conversationId = (req.query.conversationId as string) || (req.body?.conversationId as string) || undefined;
     let reqLang = (req.query.language as string) || (req.body?.language as string) || undefined;
 
@@ -98,32 +98,57 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
       reqLang = undefined;
     }
 
-    if (deepgramKey) {
+    const { costPolicy } = await import('../services/gateway/costPolicy.js');
+    const isZeroCost = costPolicy.getMode() === 'ZERO';
+    const isDeepgramAllowed = !isZeroCost && costPolicy.isAllowed('LOW_COST_PAID').allowed;
+    const canUseDeepgram = Boolean(deepgramKey && isDeepgramAllowed);
+
+    if (canUseDeepgram) {
       const dgLang = reqLang === 'de' ? 'de' : reqLang === 'ro' ? 'ro' : (reqLang || 'en-GB');
+      const dgModel = process.env.DEEPGRAM_MODEL || 'nova-3';
+      const startTime = Date.now();
       let response: Response;
       try {
-        response = await fetch(`https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=${dgLang}`, {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        response = await fetch(`https://api.deepgram.com/v1/listen?model=${dgModel}&smart_format=true&punctuate=true&language=${dgLang}`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${deepgramKey}`,
             'Content-Type': file.mimetype || 'audio/webm',
           },
           body: file.buffer as unknown as BodyInit,
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
       } catch (networkErr: any) {
-        // Network failure talking to Deepgram — attempt local Whisper before giving up
+        logger.warn(`[Voice:Transcribe] Deepgram network error, falling back to local Whisper: ${networkErr.message}`);
         try {
           const localResult = await transcribeLocally(file.buffer, file.originalname || '.webm', reqLang);
-          if (!localResult.text || !localResult.text.trim()) {
+          if (!isMeaningfulSpeech(localResult.text, {
+            noSpeechProb: localResult.noSpeechProb,
+            avgLogprob: localResult.avgLogprob,
+            probability: localResult.probability,
+            confidence: localResult.confidence,
+          })) {
             return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
           }
           const detLang = (localResult.language || '').toLowerCase().slice(0, 2);
           if (conversationId && (detLang === 'de' || detLang === 'ro' || detLang === 'en')) {
             if (isSubstantiveLanguageDetection(localResult.text, detLang, localResult.probability)) {
               setConversationLanguage(conversationId, detLang as any);
-              logger.info(`[Voice:Transcribe] Auto-switched conversation ${conversationId} language to ${detLang} (text="${localResult.text.slice(0, 40)}")`);
             }
           }
+          costPolicy.recordInvocation({
+            provider: 'local-whisper',
+            model: localResult.effectiveModel,
+            role: 'STT',
+            costClass: 'LOCAL_FREE',
+            latencyMs: Date.now() - startTime,
+            estimatedCostUsd: 0,
+            fallbackReason: `Deepgram network failure: ${networkErr.message}`,
+            success: true,
+          });
           return res.json({
             text: localResult.text,
             provider: 'local-whisper',
@@ -141,18 +166,71 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
       }
 
       if (!response.ok) {
+        // If nova-3 returned 400 (e.g. unsupported model or language), retry with nova-2 fallback
+        if (response.status === 400 && dgModel === 'nova-3') {
+          try {
+            logger.info('[Voice:Transcribe] Retrying Deepgram with nova-2 fallback...');
+            const retryRes = await fetch(`https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=${dgLang}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Token ${deepgramKey}`,
+                'Content-Type': file.mimetype || 'audio/webm',
+              },
+              body: file.buffer as unknown as BodyInit,
+            });
+            if (retryRes.ok) {
+              const retryData: any = await retryRes.json();
+              const retryText = retryData.results?.channels[0]?.alternatives[0]?.transcript || '';
+              if (!isMeaningfulSpeech(retryText)) {
+                return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
+              }
+              costPolicy.recordInvocation({
+                provider: 'deepgram',
+                model: 'nova-2',
+                role: 'STT',
+                costClass: 'LOW_COST_PAID',
+                latencyMs: Date.now() - startTime,
+                estimatedCostUsd: 0.0002,
+                fallbackReason: 'nova-3 model fallback to nova-2',
+                success: true,
+              });
+              return res.json({
+                text: retryText,
+                provider: 'deepgram',
+                model: 'nova-2',
+                language: dgLang,
+                probability: null,
+              });
+            }
+          } catch {}
+        }
+
         try {
           const localResult = await transcribeLocally(file.buffer, file.originalname || '.webm', reqLang);
-          if (!localResult.text || !localResult.text.trim()) {
+          if (!isMeaningfulSpeech(localResult.text, {
+            noSpeechProb: localResult.noSpeechProb,
+            avgLogprob: localResult.avgLogprob,
+            probability: localResult.probability,
+            confidence: localResult.confidence,
+          })) {
             return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
           }
           const detLang = (localResult.language || '').toLowerCase().slice(0, 2);
           if (conversationId && (detLang === 'de' || detLang === 'ro' || detLang === 'en')) {
             if (isSubstantiveLanguageDetection(localResult.text, detLang, localResult.probability)) {
               setConversationLanguage(conversationId, detLang as any);
-              logger.info(`[Voice:Transcribe] Auto-switched conversation ${conversationId} language to ${detLang} (text="${localResult.text.slice(0, 40)}")`);
             }
           }
+          costPolicy.recordInvocation({
+            provider: 'local-whisper',
+            model: localResult.effectiveModel,
+            role: 'STT',
+            costClass: 'LOCAL_FREE',
+            latencyMs: Date.now() - startTime,
+            estimatedCostUsd: 0,
+            fallbackReason: `Deepgram upstream HTTP error: ${response.status}`,
+            success: true,
+          });
           return res.json({
             text: localResult.text,
             provider: 'local-whisper',
@@ -166,9 +244,17 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
       }
 
       const data: any = await response.json();
-      const text = data.results?.channels[0]?.alternatives[0]?.transcript || '';
+      const alt = data.results?.channels?.[0]?.alternatives?.[0];
+      const text = alt?.transcript || '';
+      const dgConfidence: number | null = typeof alt?.confidence === 'number' ? alt.confidence : null;
+      const dgWordCount: number = Array.isArray(alt?.words) ? alt.words.length : 0;
+      const dgDuration: number | null = typeof data.metadata?.duration === 'number' ? data.metadata.duration : null;
 
-      if (!text.trim()) {
+      if (!isMeaningfulSpeech(text, {
+        deepgramConfidence: dgConfidence,
+        wordCount: dgWordCount,
+        audioDurationSec: dgDuration,
+      })) {
         return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
       }
 
@@ -179,19 +265,38 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
         }
       }
 
+      costPolicy.recordInvocation({
+        provider: 'deepgram',
+        model: dgModel,
+        role: 'STT',
+        costClass: 'LOW_COST_PAID',
+        latencyMs: Date.now() - startTime,
+        estimatedCostUsd: 0.0002,
+        success: true,
+      });
+
       return res.json({
         text,
         provider: 'deepgram',
-        model: 'nova-2',
+        model: dgModel,
         language: dgLang,
         probability: null,
+        confidence: dgConfidence,
+        wordCount: dgWordCount,
+        durationSec: dgDuration,
       });
     }
 
-    // No Deepgram key configured: Attempt local Whisper
+    // Local Whisper Path (when no Deepgram key configured or COST_MODE=ZERO)
+    const localStart = Date.now();
     try {
       const localResult = await transcribeLocally(file.buffer, file.originalname || '.webm', reqLang);
-      if (!localResult.text || !localResult.text.trim()) {
+      if (!isMeaningfulSpeech(localResult.text, {
+        noSpeechProb: localResult.noSpeechProb,
+        avgLogprob: localResult.avgLogprob,
+        probability: localResult.probability,
+        confidence: localResult.confidence,
+      })) {
         return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
       }
       const detLang = (localResult.language || '').toLowerCase().slice(0, 2);
@@ -201,6 +306,18 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
           logger.info(`[Voice:Transcribe] Auto-switched conversation ${conversationId} language to ${detLang} (text="${localResult.text.slice(0, 40)}")`);
         }
       }
+
+      costPolicy.recordInvocation({
+        provider: 'local-whisper',
+        model: localResult.effectiveModel,
+        role: 'STT',
+        costClass: 'LOCAL_FREE',
+        latencyMs: Date.now() - localStart,
+        estimatedCostUsd: 0,
+        fallbackReason: isZeroCost ? 'COST_MODE=ZERO forces local STT' : 'Deepgram API key not configured',
+        success: true,
+      });
+
       return res.json({
         text: localResult.text,
         provider: 'local-whisper',

@@ -11,6 +11,11 @@ import { conversations, teams, teamRuns } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { llmChatStream } from '../services/llmGateway.js';
 import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../services/agent/assignments.js';
+import { detectControlIntent } from '../domains/jarvisNext/controlIntentDetector.js';
+import { isMeaningfulSpeech } from '../services/voice/localTranscribe.js';
+import { recoveryController } from '../domains/jarvis/execution/recoveryController.js';
+import { selfHealBridge } from '../domains/jarvis/execution/selfHealBridge.js';
+import { selfHealSupervisor } from '../domains/selfHeal/SelfHealSupervisor.js';
 
 const router = Router();
 
@@ -30,10 +35,10 @@ function getDirectChatStreamIdleTimeoutMs() {
 }
 
 function getDirectChatConnectTimeoutMs() {
-  // Per-attempt budget for the gateway: covers connect + first response for
-  // ONE provider attempt. Jarvis' local Ollama assignment is a truthful route,
-  // so the default must not abort normal local-model warmup.
-  return Number(process.env.JARVIS_CONNECT_TIMEOUT_MS || 30_000);
+  // One provider must not consume the whole conversational turn. The local
+  // Jarvis model is kept warm; twenty seconds allows a normal first token for local models while
+  // preserving time for an honest fallback/error instead of a long silence.
+  return Number(process.env.JARVIS_CONNECT_TIMEOUT_MS || 20_000);
 }
 
 function getDirectChatOverallTimeoutMs() {
@@ -56,17 +61,24 @@ function normalizeApprovalPolicy(value: any): 'manual' | 'auto' {
  *   module-load constants, which can freeze before dotenv loads.
  */
 async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; selectedModel: string; fallbackModel: string }> {
-  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:7b';
-  let selectedModel = process.env.OPENROUTER_MODEL || 'auto';
-  let selectedProvider = 'OpenRouter';
+  const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || process.env.OLLAMA_MODEL || 'qwen3.5:9b-hermes-64k';
+  const hasCloudKey = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim());
+  let selectedModel = hasCloudKey ? (process.env.OPENROUTER_MODEL || 'auto') : fallbackModel;
+  let selectedProvider = hasCloudKey ? 'OpenRouter' : 'ollama';
   try {
     const assignment = await AgentProviderAssignmentService.getAssignment('agent-jarvis');
     if (assignment?.enabled && assignment.modelId) {
-      selectedModel = assignment.modelId;
-      selectedProvider = mapCatalogToGatewayId(assignment.providerId) || selectedProvider;
-    } else if (!process.env.OPENROUTER_API_KEY && !process.env.OMNIROOT_API_KEY && !process.env.DEEPSEEK_API_KEY) {
+      const resolved = mapCatalogToGatewayId(assignment.providerId);
+      if (resolved === 'OpenRouter' && !hasCloudKey) {
+        selectedProvider = 'ollama';
+        selectedModel = fallbackModel;
+      } else {
+        selectedModel = assignment.modelId;
+        selectedProvider = resolved || selectedProvider;
+      }
+    } else if (!hasCloudKey) {
       selectedProvider = 'ollama';
-      selectedModel = process.env.OLLAMA_MODEL || process.env.OLLAMA_FALLBACK_MODEL || 'qwen2.5:7b';
+      selectedModel = fallbackModel;
     }
   } catch (err) {
     logger.warn('[JarvisStream] assignment lookup for metadata failed; using env model label', err);
@@ -342,6 +354,139 @@ function writeSse(res: any, event: string, data: any) {
   res.flush?.();
 }
 
+/**
+ * D14 §5 — navigation ACK endpoint. The CLIENT reports proven state here; the
+ * transaction decides. Duplicate/stale/mismatched ACKs never flip a decision.
+ */
+router.post('/navigation/ack', async (req, res) => {
+  try {
+    const { navId, success, actualRoute, activeProjectId, visibleEntityId, error } = req.body || {};
+    if (!navId || typeof navId !== 'string') {
+      return res.status(400).json({ accepted: false, error: 'navId is required.' });
+    }
+    const { completeNavigation } = await import('../services/navigation/navigationTransactions.js');
+    const outcome = completeNavigation({
+      navId,
+      success: Boolean(success),
+      actualRoute,
+      activeProjectId,
+      visibleEntityId,
+      error,
+    });
+    logger.info('[JRT] NAV_ACK_HTTP', {
+      navId,
+      accepted: outcome.accepted,
+      verified: outcome.verified,
+      reason: outcome.reason ?? null,
+      actualRoute: actualRoute ?? null,
+      activeProjectId: activeProjectId ?? null,
+    });
+    res.json({
+      accepted: outcome.accepted,
+      verified: outcome.verified,
+      reason: outcome.reason ?? null,
+      result: outcome.result ?? null,
+    });
+  } catch (e: any) {
+    res.status(500).json({ accepted: false, error: e?.message || 'ack_failed' });
+  }
+});
+
+/**
+ * Self-Heal Human-in-the-Loop Endpoints
+ */
+router.get('/self-heal/incident/:id/diff', async (req, res) => {
+  try {
+    const incidentId = req.params.id;
+    if (!incidentId) {
+      return res.status(400).json({ success: false, error: 'incidentId is required' });
+    }
+    const proposal = selfHealBridge.getProposal(incidentId);
+    const attempt = selfHealSupervisor.getCurrentAttempt(incidentId);
+    const fullDiff = proposal?.diff || proposal?.patch || attempt?.fullDiff || '';
+    const filesAffected = proposal?.filesAffected || attempt?.filesChanged || [];
+
+    if (!fullDiff && !proposal) {
+      return res.status(404).json({
+        success: false,
+        error: `No proposal or diff found for incident ${incidentId}`,
+      });
+    }
+
+    const testOk = attempt?.testReport?.overallVerdict === 'PASS' || attempt?.testReport?.overallVerdict === 'PASS_WITH_BASELINE_FAILURES' || false;
+    res.json({
+      success: true,
+      incidentId,
+      diff: fullDiff,
+      filesAffected,
+      proposal: proposal || {
+        incidentId,
+        problem: attempt?.diffSummary || 'Capability failure',
+        diagnosis: attempt?.diffSummary || 'Isolated defect',
+        proposedRepair: attempt?.diffSummary || 'Code patch',
+        filesAffected,
+        testResult: { passed: testOk },
+        patch: fullDiff,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'Failed to get diff' });
+  }
+});
+
+router.post('/self-heal/approve', async (req, res) => {
+  try {
+    const { incidentId, conversationId, turnId, approver } = req.body || {};
+    if (!incidentId || typeof incidentId !== 'string') {
+      return res.status(400).json({ success: false, error: 'incidentId is required.' });
+    }
+
+    logger.info(`[JarvisRouter] Approving repair for incident ${incidentId}`);
+    const result = await recoveryController.approveRepair({
+      incidentId,
+      conversationId,
+      turnId,
+      approver: approver || 'user',
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    logger.error('[JarvisRouter] Error approving repair:', err);
+    res.status(500).json({
+      success: false,
+      status: 'error',
+      message: err?.message || 'Failed to approve repair',
+      incidentId: req.body?.incidentId,
+    });
+  }
+});
+
+router.post('/self-heal/reject', async (req, res) => {
+  try {
+    const { incidentId, conversationId, reason } = req.body || {};
+    if (!incidentId || typeof incidentId !== 'string') {
+      return res.status(400).json({ success: false, error: 'incidentId is required.' });
+    }
+
+    logger.info(`[JarvisRouter] Rejecting repair for incident ${incidentId}`);
+    const result = await recoveryController.rejectRepair({
+      incidentId,
+      conversationId,
+      reason: reason || 'Rejected by user',
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    logger.error('[JarvisRouter] Error rejecting repair:', err);
+    res.status(500).json({
+      success: false,
+      status: 'error',
+      message: err?.message || 'Failed to reject repair',
+      incidentId: req.body?.incidentId,
+    });
+  }
+});
+
 /** Friendly display names for runtime identity (self-knowledge milestone).
  *  The RAW provider/model identifiers are always the truth anchor; these
  *  only make conversational answers natural. Unknown ids fall back to the
@@ -516,8 +661,8 @@ router.post('/conversations/:id/message', async (req, res) => {
   try {
     const { prompt, approvalPolicy, operationId, maintenanceFiles, testGates } = req.body;
     const workspacePath = resolveWorkspacePath(req.body);
-    if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ error: 'prompt is required' });
+    if (!prompt || typeof prompt !== 'string' || !isMeaningfulSpeech(prompt)) {
+      return res.status(400).json({ error: 'No meaningful speech detected.', noSpeech: true });
     }
 
     // Optional typed maintenance context (Phase 4 hardening): explicit owned
@@ -571,13 +716,33 @@ router.post('/actions/:id/status', async (req, res) => {
 
 /* ── POST /api/jarvis/conversations/:id/approve_team ──────── */
 router.post('/conversations/:id/message/stream', async (req, res) => {
-  const { prompt, approvalPolicy, operationId, workspaceContext } = req.body;
+  const { prompt: rawPrompt, approvalPolicy, operationId, workspaceContext } = req.body;
+  const rawAttachments = Array.isArray(req.body.attachments) ? req.body.attachments : [];
+  let prompt = typeof rawPrompt === 'string' ? rawPrompt : '';
+
+  if (rawAttachments.length > 0) {
+    const attachmentSummary = rawAttachments.map((a: any) => {
+      let desc = `[Attached file: ${a.name || 'unnamed'} (${a.type || 'unknown type'}, ${a.size || 0} bytes)]`;
+      if (a.textContent) {
+        desc += `\nFile Content:\n${a.textContent.slice(0, 10000)}`;
+      } else if (a.dataUrl && a.type?.startsWith('image/')) {
+        desc += `\n[Image Data URL provided (${a.name})]`;
+      }
+      return desc;
+    }).join('\n\n');
+
+    prompt = prompt.trim()
+      ? `${prompt.trim()}\n\nUser Attachments:\n${attachmentSummary}`
+      : `Please inspect the attached files:\n\n${attachmentSummary}`;
+  }
+
   const inputChannel = typeof req.body.inputChannel === 'string' ? req.body.inputChannel : undefined;
   const workspacePath = resolveWorkspacePath(req.body);
   const normalizedOperationId = typeof operationId === 'string' ? operationId : undefined;
   logStreamStage(normalizedOperationId, 'stream request accepted', {
     conversationId: req.params.id,
     hasPrompt: typeof prompt === 'string',
+    attachmentsCount: rawAttachments.length,
     bodyKeys: Object.keys(req.body || {})
   });
 
@@ -585,12 +750,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     requestId: normalizedOperationId,
     conversationId: req.params.id,
     route: req.headers.referer,
-    rawUserText: prompt
+    rawUserText: prompt,
+    attachmentsCount: rawAttachments.length
   }, null, 2));
 
-  if (!prompt || typeof prompt !== 'string') {
-    logStreamStage(normalizedOperationId, 'prompt validation failed', { reason: 'prompt is required' });
-    return res.status(400).json({ error: 'prompt is required' });
+  if (!prompt || typeof prompt !== 'string' || (!rawAttachments.length && !isMeaningfulSpeech(prompt))) {
+    logStreamStage(normalizedOperationId, 'prompt validation failed', { reason: 'no meaningful speech' });
+    return res.status(400).json({ error: 'No meaningful speech detected.', noSpeech: true });
   }
   logStreamStage(normalizedOperationId, 'prompt validated', { promptLength: prompt.length });
 
@@ -699,11 +865,28 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
   }, 10_000);
 
+  let unsubscribeHermesProgress: (() => void) | null = null;
+  try {
+    const { hermesProgressBus } = await import('../domains/hermes/progressEvents.js');
+    unsubscribeHermesProgress = hermesProgressBus.onConversation(req.params.id, (progEvt) => {
+      if (!completed && !res.writableEnded && !clientClosed) {
+        writeSse(res, 'hermes_progress', {
+          ...progEvt,
+          operationId: normalizedOperationId,
+        });
+      }
+    });
+  } catch {}
+
   req.on('close', () => {
     clientClosed = true;
     if (heartbeatTimer) {
       clearInterval(heartbeatTimer);
       heartbeatTimer = null;
+    }
+    if (unsubscribeHermesProgress) {
+      unsubscribeHermesProgress();
+      unsubscribeHermesProgress = null;
     }
     logStreamStage(normalizedOperationId, 'client disconnected', { completed });
     if (!completed) {
@@ -772,6 +955,52 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    const ctrl = detectControlIntent(prompt, { isBargeIn: Boolean(req.body?.isBargeIn) });
+    if (ctrl.isControl && ctrl.intent === 'STOP') {
+      if (preExistingCurrent?.cancel?.kind === 'stream') {
+        const { dispatchCancel } = await import('./execution.js');
+        await dispatchCancel(preExistingCurrent.cancel);
+      }
+      completed = true;
+      endStreamExecution('CANCELLED');
+      writeSse(res, 'done', { route: 'voice_stop', status: 'cancelled', operationId: normalizedOperationId });
+      return res.end();
+    }
+
+    // ── Operational Controller Intercept (Evidence-First Grounding) ──
+    const { OperationalController } = await import('../domains/jarvis/operationalEvidence.js');
+    const opIntercept = await OperationalController.handleOperationalRequest(prompt, req.params.id);
+    if (opIntercept) {
+      logStreamStage(normalizedOperationId, 'operational-controller intercept', { hasEvidence: opIntercept.evidence.hasEvidence });
+      writeSse(res, 'intent', { type: 'operational_control', route: 'operational_control', mode: 'direct_conversation', confidence: 1, operationId: normalizedOperationId });
+      streamTextAsChunks(res, opIntercept.reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: opIntercept.reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'operational-controller' }
+      });
+      writeSse(res, 'done', { route: 'operational_control', category: 'operational_control', operationId: normalizedOperationId, provider: 'agentic-os', model: 'operational-controller', firstTokenMs: 0, totalMs: 0 });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', opIntercept.reply);
+      return res.end();
+    }
+
+    const { resolvePreferredNameTurn } = await import('../domains/jarvis/coreMemory.js');
+    const identityReply = resolvePreferredNameTurn(prompt);
+    if (identityReply) {
+      await conversationService.appendMessage({ conversationId: req.params.id, role: 'user', content: prompt });
+      await conversationService.appendMessage({ conversationId: req.params.id, role: 'agent', content: identityReply, routedAgent: 'jarvis' });
+      writeSse(res, 'intent', { route: 'user_profile', type: 'user_profile', operationId: normalizedOperationId });
+      streamTextAsChunks(res, identityReply, normalizedOperationId);
+      writeSse(res, 'done', { route: 'user_profile', provider: 'agentic-os', model: 'core-memory', operationId: normalizedOperationId });
+      completed = true;
+      endStreamExecution('COMPLETED', identityReply);
+      return res.end();
+    }
+
     // ── Language Switch Intercept & Verified State Mutation (HIGHEST PRIORITY) ──
     // Must run BEFORE supervisor_v2, task-control, task-reference, task-status, or intent routing.
     const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('../domains/jarvis/conversationLanguage.js');
@@ -824,6 +1053,248 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
       endStreamExecution('COMPLETED', reply);
       return res.end();
+    }
+
+    // ── Canonical Turn Router (ONE Shared Controller Path) ──
+    try {
+      const { routeTurn } = await import('../domains/jarvisNext/turnRouter.js');
+      // ── D14: typed navigation transport ────────────────────────────────
+      // The typed chat has NO LiveKit room, so navigation must be carried on the
+      // response stream the client is already reading, and the ACK must come back
+      // over HTTP. One transaction model, one canonical packet shape (§2/§3).
+      const { beginNavigation, buildNavigationPacket } = await import('../services/navigation/navigationTransactions.js');
+      const navigationVerifier = async (navReq: {
+        navigationId: string; route: string; entityId: string; entityType: string; entityName: string;
+      }) => {
+        const base = {
+          navId: navReq.navigationId,
+          conversationId: req.params.id,
+          targetRoute: navReq.route,
+          entityId: navReq.entityId,
+          entityName: navReq.entityName,
+          entityType: navReq.entityType,
+          source: 'typed' as const,
+        };
+        const { result } = beginNavigation(base, 2500);
+        writeSse(res, 'navigation_request', buildNavigationPacket(base));
+        return result;
+      };
+
+      const onActionProgress = (progress: any) => {
+        if (!completed && !res.writableEnded && !clientClosed) {
+          writeSse(res, 'action_status', {
+            ...progress,
+            operationId: normalizedOperationId,
+          });
+        }
+      };
+
+      const sharedTurn = await routeTurn({
+        prompt,
+        conversationId: req.params.id,
+        navigationVerifier,
+        onActionProgress,
+      });
+
+      if (sharedTurn.handled && sharedTurn.route !== 'deep_supervisor') {
+        const startedAt = Date.now();
+        let reply = sharedTurn.text;
+        let actionStatusMeta: any = null;
+        
+        if (sharedTurn.route === 'navigate') {
+          // RESPONSE TRUTH GATE (B): success text, a completed status and a
+          // navigation event may only be emitted for a VERIFIED navigation.
+          // Previously this path wrote "X is open." from the entity name alone,
+          // defaulted the destination to /mission-control, and reported
+          // status:'completed' even when nothing had navigated.
+          const navVerified = sharedTurn.verified === true;
+          const destination = sharedTurn.uiRoute;
+          writeSse(res, 'intent', {
+            type: 'navigation',
+            route: 'navigation',
+            mode: 'operational_execution',
+            confidence: 1.0,
+            reason: `Navigation to ${sharedTurn.entityName || sharedTurn.entityId}`,
+            capability: sharedTurn.entityType,
+            verified: navVerified,
+            entityId: sharedTurn.entityId,
+            entityType: sharedTurn.entityType,
+            entityName: sharedTurn.entityName,
+            operationId: normalizedOperationId,
+          });
+          if (navVerified && destination) {
+            reply = `I've opened ${sharedTurn.entityName || 'the requested view'}.`;
+            writeSse(res, 'navigation', {
+              target: destination,
+              capability: sharedTurn.entityType,
+              entityId: sharedTurn.entityId,
+              entityType: sharedTurn.entityType,
+              displayName: sharedTurn.entityName,
+              operationId: normalizedOperationId,
+            });
+            writeSse(res, 'action_status', {
+              actionName: `Open ${sharedTurn.entityName || sharedTurn.entityId}`,
+              targetCapability: sharedTurn.entityType,
+              status: 'completed',
+              destination,
+              operationId: normalizedOperationId,
+            });
+          } else {
+            // No verified navigation: keep the executor's own failure detail,
+            // emit no navigation event, and invent no destination.
+            reply = sharedTurn.text;
+            writeSse(res, 'action_status', {
+              actionName: `Open ${sharedTurn.entityName || sharedTurn.entityId || 'target'}`,
+              targetCapability: sharedTurn.entityType,
+              status: 'failed',
+              error: sharedTurn.fallbackReason || 'navigation_not_verified',
+              destination: destination ?? null,
+              operationId: normalizedOperationId,
+            });
+          }
+        } else if (sharedTurn.route === 'project_operate') {
+          writeSse(res, 'intent', {
+            type: 'project_operate',
+            route: 'project_operate',
+            mode: 'operational_execution',
+            confidence: 1.0,
+            reason: `Project operational execution for ${sharedTurn.entityName || sharedTurn.entityId}`,
+            capability: 'project_orchestrator',
+            entityId: sharedTurn.entityId,
+            entityType: sharedTurn.entityType,
+            entityName: sharedTurn.entityName,
+            verified: sharedTurn.verified,
+            executed: sharedTurn.executed,
+            operationId: normalizedOperationId,
+          });
+          writeSse(res, 'action_status', {
+            actionName: `Operate ${sharedTurn.entityName || sharedTurn.entityId}`,
+            targetCapability: 'project_orchestrator',
+            status: sharedTurn.executed && sharedTurn.verified ? 'completed' : 'failed',
+            operationId: normalizedOperationId,
+          });
+        } else if (sharedTurn.route === 'blocker_detail_read') {
+          writeSse(res, 'intent', {
+            type: 'blocker_detail_read',
+            route: 'blocker_detail_read',
+            mode: 'operational_execution',
+            confidence: 1.0,
+            reason: `Blocker detail resolution for ${sharedTurn.entityName || sharedTurn.entityId}`,
+            capability: 'project_orchestrator',
+            operationId: normalizedOperationId,
+          });
+          writeSse(res, 'action_status', {
+            actionName: `Inspect blocker detail`,
+            targetCapability: 'project_orchestrator',
+            status: sharedTurn.verified ? 'completed' : 'failed',
+            operationId: normalizedOperationId,
+          });
+        } else {
+          writeSse(res, 'intent', {
+            type: sharedTurn.route,
+            route: sharedTurn.route,
+            mode: 'direct_conversation',
+            confidence: 1.0,
+            entityId: sharedTurn.entityId,
+            entityType: sharedTurn.entityType,
+            entityName: sharedTurn.entityName,
+            verified: sharedTurn.verified,
+            executed: sharedTurn.executed,
+            operationId: normalizedOperationId,
+          });
+
+          const routeStr = sharedTurn.route as string;
+          if (routeStr === 'browser' || routeStr === 'desktop' || routeStr === 'terminal' || (sharedTurn as any).plan) {
+            const cap = routeStr === 'browser' ? 'browser' : routeStr === 'desktop' ? 'desktop' : routeStr;
+            const isAwaitingApproval = Boolean((sharedTurn as any).repairProposal || (sharedTurn as any).stage === 'AWAITING_APPROVAL');
+            const isVerified = sharedTurn.verified === true;
+            const status = isAwaitingApproval ? 'waiting' : (isVerified ? 'completed' : 'failed');
+            const planSteps = (sharedTurn as any).plan?.steps || [];
+            const executedGoals: string[] = (sharedTurn as any).executedGoals || [];
+            const stepList = planSteps.length > 0
+              ? planSteps.map((s: any) => ({ step: s.description || s.action, ok: isVerified, detail: s.action }))
+              : executedGoals.map((g: string) => ({ step: g, ok: isVerified, detail: '' }));
+
+            if (!isVerified) {
+              const unverifiedSuccessPattern = /\b(?:i(?:'ve| have)? (?:opened|created|sent|started|launched|completed|finished|deleted)|page is open|target is open|successfully (?:opened|created|sent|started|executed|completed))\b/i;
+              if (unverifiedSuccessPattern.test(reply)) {
+                reply = sharedTurn.fallbackReason || `I attempted the action, but could not verify that it completed successfully.`;
+              }
+            }
+
+            actionStatusMeta = {
+              actionName: sharedTurn.entityName || (sharedTurn as any).goalDescription || prompt,
+              targetCapability: cap,
+              status,
+              request: prompt,
+              understood: (sharedTurn as any).goalDescription || prompt,
+              capability: cap,
+              executor: cap,
+              tool: cap === 'browser' ? 'browserOperator' : cap === 'desktop' ? 'desktopExecutor' : 'terminalExecutor',
+              result: reply,
+              verification: isVerified ? 'Verified operational result' : (sharedTurn.fallbackReason || 'Execution unverified: post-condition not confirmed'),
+              steps: stepList,
+              durationMs: Date.now() - startedAt,
+              operationId: normalizedOperationId,
+              stage: (sharedTurn as any).stage || (isAwaitingApproval ? 'AWAITING_APPROVAL' : undefined),
+              repairProposal: (sharedTurn as any).repairProposal,
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+          }
+        }
+
+        if (!reply || !reply.trim()) {
+          reply = "I found the blocker, but its task record doesn't specify which API credentials are missing.";
+        }
+
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'user',
+          content: prompt,
+          metadata: { ...(requestMetadata || {}) },
+        });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'turn-router',
+            intent: { type: sharedTurn.route, confidence: 1.0 },
+            entityId: sharedTurn.entityId,
+            entityType: sharedTurn.entityType,
+            uiRoute: sharedTurn.uiRoute,
+            ...(actionStatusMeta ? { actionStatus: actionStatusMeta } : {}),
+          },
+        });
+        writeSse(res, 'done', {
+          route: sharedTurn.route,
+          category: sharedTurn.route,
+          entityId: sharedTurn.entityId,
+          entityType: sharedTurn.entityType,
+          entityName: sharedTurn.entityName,
+          verified: sharedTurn.verified,
+          executed: sharedTurn.executed,
+          requestedGoals: (sharedTurn as any).requestedGoals,
+          executedGoals: (sharedTurn as any).executedGoals,
+          satisfiedGoals: (sharedTurn as any).satisfiedGoals,
+          failedGoals: (sharedTurn as any).failedGoals,
+          operationId: normalizedOperationId,
+          provider: 'agentic-os',
+          model: 'turn-router',
+          firstTokenMs: 0,
+          totalMs: Date.now() - startedAt,
+        });
+        completed = true;
+        updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+        endStreamExecution('COMPLETED', reply);
+        return res.end();
+      }
+    } catch (turnErr) {
+      logger.warn('[JarvisStream] routeTurn call error, falling back:', turnErr);
     }
 
     // ── Deterministic Action Runtime & Contextual Entity Resolution (TASK: JARVIS-ACTION-RUNTIME-001) ──
@@ -934,7 +1405,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           writeSse(res, 'action_record', actionRecordMeta);
           reply = `Opening ${act.displayName} in ${act.module || 'workspace'}.`;
         } else if (act.type === 'SHOW_ACTIVITY') {
+
           const prev = getLatestAction();
+
           if (prev) {
             writeSse(res, 'intent', {
               type: 'show_activity',
@@ -1046,12 +1519,85 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    const hasProceedVerb = /\b(proceed|continue|start|run|execute|do|go ahead)\b/i.test(prompt);
+    const hasProceedTarget = /\b(it|implementation|project|task|work|goal)\b/i.test(prompt);
+    // Semantic Turn Repair §4: when Jarvis dialogue state already tracks a task
+    // for THIS conversation, continuation ("continue it", "do that") is resolved
+    // deterministically by resolveSemanticTurn — don't shadow it with the vague
+    // queued/paused resume refusal below.
+    let semanticsHasTrackedTask = false;
+    try {
+      const { getDialogueState } = await import('../domains/jarvis/dialogueState.js');
+      const dState = getDialogueState(req.params.id);
+      semanticsHasTrackedTask = Boolean(dState?.activeTaskId || dState?.delegatedTaskId || dState?.pendingActionId || dState?.activeEntity);
+    } catch { /* best-effort — fall through to legacy behavior */ }
+    const isFollowUpCommand = hasProceedVerb && hasProceedTarget && !/\b(what|status|how|check|show|list)\b/i.test(prompt) && !semanticsHasTrackedTask;
+    if (isFollowUpCommand) {
+      const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+      const allTasks = backgroundTaskManager.listTasks({ limit: 100 });
+      const resumableTask = allTasks.find(t => ['queued', 'paused'].includes(t.status));
+      
+      if (!resumableTask) {
+        const reply = "No active implementation task exists. What should I create and start?";
+        writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'task-manager',
+            intent: { type: 'vague_delegation_refusal', worker: 'codex' }
+          }
+        });
+        writeSse(res, 'done', { route: 'worker_delegation', status: 'completed', operationId: normalizedOperationId });
+        completed = true;
+        endStreamExecution('COMPLETED', reply.slice(0, 500));
+        return res.end();
+      } else {
+        const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
+        
+        backgroundTaskManager.transition(resumableTask.taskId, 'running', { currentStage: 'running', progressMessage: 'execution started via follow-up' });
+        dispatchTask(resumableTask).catch(() => {});
+        
+        const reply = `CodeX has started the implementation (Task ID: ${resumableTask.taskId}, State: running).`;
+        
+        writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            taskId: resumableTask.taskId,
+            provider: 'agentic-os',
+            model: 'task-manager',
+            intent: { type: 'worker_delegation', capability: 'codex', worker: 'codex', readOnly: false, executionMode: 'start_now' }
+          }
+        });
+        writeSse(res, 'done', { route: 'worker_delegation', status: 'completed', operationId: normalizedOperationId });
+        completed = true;
+        endStreamExecution('COMPLETED', reply.slice(0, 500));
+        return res.end();
+      }
+    }
+
     // ── Deterministic Executive Capabilities (Navigation & Capability Start) ──
     // Commands like "Open <capability>" or "Start <capability>" must never
     // fall through to generic LLM chat. They execute deterministically.
     const { classifyExecutiveIntent } = await import('../domains/jarvis/executiveIntent.js');
     const deterministicExec = classifyExecutiveIntent(prompt);
-    if (deterministicExec && (deterministicExec.intent === 'navigation' || deterministicExec.intent === 'capability_start')) {
+    // Supervisor V2 must not preempt deterministic capability commands and
+    // status queries. Those requests have a local, grounded handler and must
+    // never be handed to a generic model response.
+    const deterministicHandled = new Set([
+      'navigation', 'capability_start', 'worker_status', 'worker_feedback',
+      'board_query', 'memory_query', 'automation_request'
+    ]);
+    if (deterministicExec && deterministicHandled.has(deterministicExec.intent)) {
       const execRoute = deterministicExec.intent;
       logStreamStage(normalizedOperationId, 'deterministic executive command', {
         intent: execRoute,
@@ -1072,6 +1618,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       let reply = '';
       let actionStatusMeta: any = null;
       if (execRoute === 'navigation') {
+        // [JARVIS-RUNTIME-TRACE] Navigation branch: deterministic exec routing
         writeSse(res, 'navigation', {
           target: deterministicExec.capability.route,
           capability: deterministicExec.capability.id,
@@ -1090,38 +1637,58 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         });
 
         if (deterministicExec.capability.id === 'revenue_operator') {
+          let _activeProjectId: string | null = null;
           try {
-            const { runBoundedE2EMission } = await import('../services/revenueOperator/revenueMissionRunner.js');
-            const trace = await runBoundedE2EMission();
-            const isSuccess = trace.status === 'success';
-            actionStatusMeta = {
-              actionName: 'Start Revenue Operator',
-              targetCapability: 'revenue_operator',
-              status: isSuccess ? 'completed' : 'failed',
-              executionId: trace.missionId,
-              currentStep: trace.nextAction || 'Mission evaluated',
-              error: isSuccess ? undefined : (trace.steps.find(s => !s.ok)?.detail || 'Mission incomplete'),
-              steps: trace.steps,
-              operationId: normalizedOperationId
-            };
-            writeSse(res, 'action_status', actionStatusMeta);
-            if (isSuccess) {
-              reply = `Revenue Operator started. Bounded mission ${trace.missionId} completed successfully with strategy run and scored experiment.`;
-            } else {
-              const failStep = trace.steps.find(s => !s.ok);
-              reply = `Revenue Operator could not complete mission because ${failStep?.detail || 'a step failed'}.`;
-            }
-          } catch (err: any) {
-            const blockerMsg = err?.message || 'Execution error';
+            const { projectsStore } = await import('../services/projectsStore.js');
+            _activeProjectId = projectsStore.getActiveProjectId();
+          } catch { /* best effort */ }
+
+          const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+          const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
+          const { taskShortId } = await import('../services/backgroundTasks/types.js');
+
+          const { task, error } = backgroundTaskManager.createTask({
+            title: 'Revenue Operator: Free Cash Mission',
+            objective: 'Execute bounded revenue operator mission for Free Cash digital products and SME workflows',
+            originalRequest: prompt,
+            route: 'revenue_operator',
+            selectedAgent: 'Revenue Operator',
+            worker: 'revenue',
+            conversationId: req.params.id,
+            resumable: false,
+            workspaceRoot: workspacePath || undefined,
+            projectId: _activeProjectId || undefined,
+            metadata: {
+              operationId: normalizedOperationId,
+              capabilityId: 'revenue_operator',
+              target: 'Free Cash',
+            },
+          });
+
+          if (!task) {
             actionStatusMeta = {
               actionName: 'Start Revenue Operator',
               targetCapability: 'revenue_operator',
               status: 'failed',
-              error: blockerMsg,
-              operationId: normalizedOperationId
+              error: error || 'Could not create task',
+              operationId: normalizedOperationId,
             };
             writeSse(res, 'action_status', actionStatusMeta);
-            reply = `Revenue Operator could not start because ${blockerMsg}.`;
+            reply = `Revenue Operator could not start: ${error || 'task creation failed'}.`;
+          } else {
+            dispatchTask(task).catch(() => {});
+            const shortId = taskShortId(task.taskId);
+            actionStatusMeta = {
+              actionName: 'Start Revenue Operator',
+              targetCapability: 'revenue_operator',
+              status: 'running',
+              executionId: task.taskId,
+              taskId: task.taskId,
+              currentStep: `Task ${shortId} queued and running in background`,
+              operationId: normalizedOperationId,
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            reply = `Starting the Revenue Operator for Free Cash now. I've queued it as task ${shortId} and I'll track the mission in the background.`;
           }
         } else {
           actionStatusMeta = {
@@ -1133,6 +1700,22 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           writeSse(res, 'action_status', actionStatusMeta);
           reply = `${deterministicExec.capability.displayName} started.`;
         }
+      } else if (execRoute === 'worker_status') {
+        const { buildWorkerStatus } = await import('../domains/jarvis/workerInsights.js');
+        reply = await buildWorkerStatus(deterministicExec.capability, prompt);
+        writeSse(res, 'runtime_trace', { operationId: normalizedOperationId, route: execRoute, capability: deterministicExec.capability.id, handler: 'buildWorkerStatus', source: deterministicExec.capability.id === 'revenue_operator' ? 'revenueOperator/operatorService:listMissions,listExperiments' : 'workerInsights', pid: process.pid, module: import.meta.url, executed: true });
+      } else if (execRoute === 'worker_feedback') {
+        const { buildWorkerFeedback } = await import('../domains/jarvis/workerInsights.js');
+        reply = await buildWorkerFeedback(deterministicExec.capability);
+      } else if (execRoute === 'board_query') {
+        const { buildCapabilityExplanation } = await import('../domains/jarvis/workerInsights.js');
+        reply = buildCapabilityExplanation(deterministicExec.capability) + '\n\nOpen the task board to see live cards.';
+      } else if (execRoute === 'memory_query') {
+        const { handleMemoryRecall } = await import('../domains/jarvis/memoryRecall.js');
+        reply = await handleMemoryRecall(prompt);
+      } else if (execRoute === 'automation_request') {
+        const { buildCapabilityExplanation } = await import('../domains/jarvis/workerInsights.js');
+        reply = buildCapabilityExplanation(deterministicExec.capability) + '\n\nSay "create an automation" and I will register it as a background task.';
       }
 
       streamTextAsChunks(res, reply, normalizedOperationId);
@@ -1166,8 +1749,117 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
 
     // ── SUPERVISOR V2 PATH (Feature Switch: JARVIS_SUPERVISOR_V2) ──
+    const { detectLocalFastReply } = await import('../domains/jarvis/fastLocalReplies.js');
+    const localFast = detectLocalFastReply(prompt);
+    if (localFast) {
+      logStreamStage(normalizedOperationId, 'local fast-path reply', { matched: localFast.matched });
+      writeSse(res, 'intent', { type: 'presence' as string, route: 'presence', mode: 'direct_conversation', confidence: 1, reason: `Local fast reply (${localFast.matched})`, operationId: normalizedOperationId });
+      const startedAt = Date.now();
+      streamTextAsChunks(res, localFast.reply, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: localFast.reply,
+        routedAgent: 'jarvis',
+        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'local-fast-path', intent: { type: 'presence', matched: localFast.matched } }
+      });
+      writeSse(res, 'done', {
+        route: 'presence',
+        category: 'presence',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'local-fast-path',
+        firstTokenMs: 0,
+        totalMs: Date.now() - startedAt
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', localFast.reply.slice(0, 500));
+      return res.end();
+    }
+
+    // ── SEMANTIC TURN RESOLVER (Semantic Turn Repair §6) — Supervisor V2 path
+    // One canonical deterministic pipeline for what the supervisor must not see:
+    // pending-action confirm/reject, delegation proposals ("Give it to Hermes"),
+    // entity resolution, continuation, deterministic intent. When nothing
+    // deterministic matches it builds structured SemanticContext so the
+    // supervisor never re-derives entity/task/action state — it is handed the
+    // authoritative context. `resolveSemanticTurn` persists dialogue state
+    // itself (SQLite) for decisions that change it.
+    // NOTE: gated to the Supervisor V2 path — the legacy pipeline is unchanged.
     const { isSupervisorV2Enabled, handleSupervisorV2Stream } = await import('../domains/jarvis/supervisorLoop.js');
     if (isSupervisorV2Enabled(req)) {
+      const { resolveSemanticTurn } = await import('../domains/jarvis/semanticTurnResolver.js');
+      let recentTurnHistory: { role: string; content: string }[] = [];
+      try {
+        const msgs = await conversationService.getMessages(req.params.id);
+        recentTurnHistory = (msgs || []).slice(-10).map((m: any) => ({ role: m.role, content: m.content }));
+      } catch { /* best-effort history — empty is fine */ }
+      const semanticResult = await resolveSemanticTurn(prompt, req.params.id, {
+        workspacePath,
+        workspaceContext,
+        recentHistory: recentTurnHistory,
+      });
+
+      if (semanticResult.handled && semanticResult.response) {
+        const reply = semanticResult.response.text;
+        const semIntent = semanticResult.response.intent;
+        const semDecision = semanticResult.decision;
+        logStreamStage(normalizedOperationId, 'semantic-turn handled', { decision: semDecision.type, intent: semIntent });
+        writeSse(res, 'intent', {
+          type: semIntent,
+          route: 'semantic_turn',
+          mode: 'direct_conversation',
+          confidence: 1.0,
+          operationId: normalizedOperationId,
+          data: semanticResult.response.data || undefined,
+        });
+        if (semIntent === 'navigation' || (semDecision?.type === 'action' && (semDecision as any).action?.action?.type === 'OPEN_ENTITY')) {
+          const respData = semanticResult.response.data as any;
+          const destination = respData?.destination ||
+            (semDecision?.type === 'action' ? ((semDecision as any).action?.action?.destination || (semDecision as any).action?.action?.route) : null);
+          if (destination) {
+            writeSse(res, 'navigation', {
+              target: destination,
+              capability: respData?.entity?.domain || 'workspace',
+              entityId: respData?.entity?.id,
+              entityType: respData?.entity?.type,
+              displayName: respData?.entity?.displayName,
+              operationId: normalizedOperationId,
+            });
+          }
+        }
+        const semStarted = Date.now();
+        streamTextAsChunks(res, reply, normalizedOperationId);
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'user',
+          content: prompt,
+          routedAgent: 'jarvis',
+          metadata: { ...(requestMetadata || {}), semanticTurn: true, decision: semDecision },
+        });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'semantic-turn', intent: { type: semIntent, decision: semDecision } },
+        });
+        writeSse(res, 'done', {
+          route: 'semantic_turn',
+          category: semIntent,
+          operationId: normalizedOperationId,
+          provider: 'agentic-os',
+          model: 'semantic-turn',
+          firstTokenMs: 0,
+          totalMs: Date.now() - semStarted,
+        });
+        completed = true;
+        updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+        endStreamExecution('COMPLETED', reply.slice(0, 500));
+        return res.end();
+      }
+
       completed = true;
       return await handleSupervisorV2Stream(req, res, {
         conversationId: req.params.id,
@@ -1183,6 +1875,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         fallbackProvider,
         fallbackModel,
         workspaceContext: req.body?.workspaceContext,
+        semanticContext: semanticResult.semanticContext,
       });
     }
 
@@ -1405,34 +2098,6 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // questions ("What is Jarvis?", "What is Agentic OS?") are answered
     // locally with grounded text BEFORE any LLM/tool/memory work. This is the
     // lightest path — a short spoken reply without the model round-trip.
-    const { detectLocalFastReply } = await import('../domains/jarvis/fastLocalReplies.js');
-    const localFast = detectLocalFastReply(prompt);
-    if (localFast) {
-      logStreamStage(normalizedOperationId, 'local fast-path reply', { matched: localFast.matched });
-      writeSse(res, 'intent', { type: 'presence' as string, route: 'presence', mode: 'direct_conversation', confidence: 1, reason: `Local fast reply (${localFast.matched})`, operationId: normalizedOperationId });
-      const startedAt = Date.now();
-      streamTextAsChunks(res, localFast.reply, normalizedOperationId);
-      await conversationService.appendMessage({
-        conversationId: req.params.id,
-        role: 'agent',
-        content: localFast.reply,
-        routedAgent: 'jarvis',
-        metadata: { ...(requestMetadata || {}), provider: 'agentic-os', model: 'local-fast-path', intent: { type: 'presence', matched: localFast.matched } }
-      });
-      writeSse(res, 'done', {
-        route: 'presence',
-        category: 'presence',
-        operationId: normalizedOperationId,
-        provider: 'agentic-os',
-        model: 'local-fast-path',
-        firstTokenMs: 0,
-        totalMs: Date.now() - startedAt
-      });
-      completed = true;
-      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
-      endStreamExecution('COMPLETED', localFast.reply.slice(0, 500));
-      return res.end();
-    }
     // ── Current Work Context (Phase 15, Failure C) ──
     // "What are we currently working on?" and semantic variants resolve from
     // REAL AgenticOS state (execution record, background tasks, active
@@ -1614,38 +2279,54 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         });
 
         if (executive.capability.id === 'revenue_operator') {
+          let _activeProjectId: string | null = null;
           try {
-            const { runBoundedE2EMission } = await import('../services/revenueOperator/revenueMissionRunner.js');
-            const trace = await runBoundedE2EMission();
-            const isSuccess = trace.status === 'success';
-            actionStatusMeta = {
-              actionName: 'Start Revenue Operator',
-              targetCapability: 'revenue_operator',
-              status: isSuccess ? 'completed' : 'failed',
-              executionId: trace.missionId,
-              currentStep: trace.nextAction || 'Mission evaluated',
-              error: isSuccess ? undefined : (trace.steps.find(s => !s.ok)?.detail || 'Mission incomplete'),
-              steps: trace.steps,
-              operationId: normalizedOperationId
-            };
-            writeSse(res, 'action_status', actionStatusMeta);
-            if (isSuccess) {
-              reply = `Revenue Operator started. Bounded mission ${trace.missionId} completed successfully with strategy run and scored experiment.`;
-            } else {
-              const failStep = trace.steps.find(s => !s.ok);
-              reply = `Revenue Operator could not complete mission because ${failStep?.detail || 'a step failed'}.`;
-            }
-          } catch (err: any) {
-            const blockerMsg = err?.message || 'Execution error';
+            const { projectsStore } = await import('../services/projectsStore.js');
+            _activeProjectId = projectsStore.getActiveProjectId();
+          } catch { /* best effort */ }
+
+          const { task, error } = backgroundTaskManager.createTask({
+            title: 'Revenue Operator: Free Cash Mission',
+            objective: 'Execute bounded revenue operator mission for Free Cash digital products and SME workflows',
+            originalRequest: prompt,
+            route: 'revenue_operator',
+            selectedAgent: 'Revenue Operator',
+            worker: 'revenue',
+            conversationId: req.params.id,
+            resumable: false,
+            workspaceRoot: workspacePath || undefined,
+            projectId: _activeProjectId || undefined,
+            metadata: {
+              operationId: normalizedOperationId,
+              capabilityId: 'revenue_operator',
+              target: 'Free Cash',
+            },
+          });
+
+          if (!task) {
             actionStatusMeta = {
               actionName: 'Start Revenue Operator',
               targetCapability: 'revenue_operator',
               status: 'failed',
-              error: blockerMsg,
-              operationId: normalizedOperationId
+              error: error || 'Could not create task',
+              operationId: normalizedOperationId,
             };
             writeSse(res, 'action_status', actionStatusMeta);
-            reply = `Revenue Operator could not start because ${blockerMsg}.`;
+            reply = `Revenue Operator could not start: ${error || 'task creation failed'}.`;
+          } else {
+            dispatchTask(task).catch(() => {});
+            const shortId = taskShortId(task.taskId);
+            actionStatusMeta = {
+              actionName: 'Start Revenue Operator',
+              targetCapability: 'revenue_operator',
+              status: 'running',
+              executionId: task.taskId,
+              taskId: task.taskId,
+              currentStep: `Task ${shortId} queued and running in background`,
+              operationId: normalizedOperationId,
+            };
+            writeSse(res, 'action_status', actionStatusMeta);
+            reply = `Starting the Revenue Operator for Free Cash now. I've queued it as task ${shortId} and I'll track the mission in the background.`;
           }
         } else {
           actionStatusMeta = {
@@ -1705,13 +2386,14 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     // flag, and the fact that the task continues while conversation remains
     // available — immediately, before the worker stream starts.
     if (executive?.intent === 'worker_delegation' && executive.workerKind) {
-      const workerKind = executive.workerKind as 'hermes' | 'codex' | 'research' | 'team' | 'automation';
+      const workerKind = executive.workerKind as 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'antigravity';
       const workerTitle =
         workerKind === 'hermes' ? 'Hermes'
         : workerKind === 'codex' ? 'CodeX'
         : workerKind === 'research' ? 'Research'
         : workerKind === 'team' ? 'Agent Teams'
         : workerKind === 'automation' ? 'Automations'
+        : workerKind === 'antigravity' ? 'Antigravity'
         : executive.capability.displayName;
 
       logStreamStage(normalizedOperationId, 'executive delegation', {
@@ -1773,9 +2455,68 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         endStreamExecution('COMPLETED', notFoundReply.slice(0, 500));
         return res.end();
       }
-      const delegatedObjective = enrichPromptWithResolvedFiles(prompt, fileOutcome);
+
+      const isVagueCodeX = workerKind === 'codex' && 
+        (/^(?:give this to codex|give this project to codex|start this project now|start the project now|prepare this for codex but don't start|queue this for codex|queue it for codex)$/i.test(prompt.trim()));
+      
+      if (isVagueCodeX) {
+        const reply = "Please provide the details or specifications of the project you'd like me to delegate to CodeX.";
+        writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
+        await conversationService.appendMessage({
+          conversationId: req.params.id,
+          role: 'agent',
+          content: reply,
+          routedAgent: 'jarvis',
+          metadata: {
+            ...(requestMetadata || {}),
+            provider: 'agentic-os',
+            model: 'task-manager',
+            intent: { type: 'vague_delegation_refusal', worker: workerKind }
+          }
+        });
+        writeSse(res, 'done', { route: 'worker_delegation', status: 'completed', operationId: normalizedOperationId });
+        completed = true;
+        endStreamExecution('COMPLETED', reply.slice(0, 500));
+        return res.end();
+      }
 
       const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      let delegatedObjective = enrichPromptWithResolvedFiles(prompt, fileOutcome);
+      const executionMode = (executive as any).executionMode || 'immediate';
+
+      if (workerKind === 'codex' && (executionMode || /\bproject\b/i.test(prompt))) {
+        delegatedObjective = [
+          `# SOFTWARE PROJECT SPECIFICATION`,
+          `* **Project Name**: ${title}`,
+          `* **Objective**: ${prompt}`,
+          `* **Execution Mode**: ${executionMode}`,
+          `* **Originating Conversation**: ${req.params.id}`,
+          `* **Timestamp**: ${new Date().toISOString()}`,
+          `* **Status**: ${executionMode === 'specification_only' ? 'paused' : 'queued'}`,
+          ``,
+          `## USER REQUIREMENTS`,
+          `- Implement the requested project details as described in the objective.`,
+          `- Preserve important user requirements and existing architecture constraints.`,
+          `- Ensure high-signal and natural code modifications.`,
+          ``,
+          `## ARCHITECTURAL CONSTRAINTS & INTEGRATION`,
+          `- Do not break existing repairs (Christian identity, deterministic routing, voice stop, single authoritative voice control, server/dist runtime consistency).`,
+          `- Re-use existing AgenticOS task/mission structures and modular design.`,
+          `- Follow standard workspace conventions and local patterns.`,
+          ``,
+          `## FILES & MODULES INVOLVED`,
+          fileOutcome.resolved.length > 0 
+            ? fileOutcome.resolved.map(r => `- ${r.relativePath}`).join('\n')
+            : `- To be determined by CodeX during analysis.`,
+          ``,
+          `## ACCEPTANCE CRITERIA & VERIFICATION`,
+          `- Implement full functionality as specified.`,
+          `- Add targeted test files to verify behavioral correctness.`,
+          `- Run TypeScript type-checking and linter checks to ensure 0 compiler warnings/errors.`,
+          `- Verify successful build/compilation in the repository context.`
+        ].join('\n');
+      }
+
       let _activeProjectId: string | null = null;
       try {
         const { projectsStore } = await import('../services/projectsStore.js');
@@ -1796,6 +2537,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           operationId: normalizedOperationId,
           readOnly: Boolean(executive.readOnly),
           capabilityId: executive.capability.id,
+          executionMode,
           // §8: workspace + resolved files are part of the execution record.
           workspace: workspacePath || null,
           resolvedFiles: fileOutcome.resolved.length > 0
@@ -1817,6 +2559,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         return res.end();
       }
 
+      // Transition to paused for prepared-only tasks
+      if (executionMode === 'specification_only') {
+        backgroundTaskManager.transition(task.taskId, 'paused', { currentStage: 'paused', progressMessage: 'Prepared (specification only)' });
+      }
+
       let delegatedProvider: string | null = null;
       let delegatedModel: string | null = null;
       if (workerKind === 'hermes') {
@@ -1835,31 +2582,38 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         workerKind === 'hermes' ? 'hermes' : workerKind === 'codex' ? 'codex' : 'other';
 
       const concurrency = (task.metadata as any)?.concurrency as { active?: number; limit?: number; position?: number; blocked?: boolean } | undefined;
-      if (concurrency?.blocked) {
-        // PRIORITY 10: worker slot occupied — do NOT dispatch now; the pump
-        // dispatches when a slot frees. Report the truthful QUEUED state.
-        logStreamStage(normalizedOperationId, 'delegation queued behind worker', {
+      const isPreparedOnlyOrExplicitQueue = executionMode === 'queued' || executionMode === 'specification_only';
+
+      if (concurrency?.blocked || isPreparedOnlyOrExplicitQueue) {
+        const stateName = executionMode === 'specification_only' ? 'paused' : 'queued';
+        const displayStatus = 'QUEUED';
+        const currentActionText = executionMode === 'specification_only'
+          ? `Prepared (specification only) ${workerTitle} task ${taskShortId(task.taskId)}`
+          : `Queued ${workerTitle} task ${taskShortId(task.taskId)}`;
+
+        logStreamStage(normalizedOperationId, 'delegation queued or prepared only', {
           worker: workerKind,
-          active: concurrency.active,
-          limit: concurrency.limit,
-          position: concurrency.position
+          executionMode,
+          active: concurrency?.active,
+          limit: concurrency?.limit,
+          position: concurrency?.position
         });
         updateStreamExecution({
           worker: mappedWorker,
-          status: 'QUEUED',
-          currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
+          status: displayStatus,
+          currentAction: currentActionText,
           requestedProvider: delegatedProvider || selectedProvider,
           requestedModel: delegatedModel || selectedModel,
           resolvedProvider: delegatedProvider || selectedProvider,
           resolvedModel: delegatedModel || selectedModel,
-          queuePosition: concurrency.position ?? null,
-          activeCount: concurrency.active ?? null,
-          limit: concurrency.limit ?? null,
+          queuePosition: concurrency?.position ?? null,
+          activeCount: concurrency?.active ?? null,
+          limit: concurrency?.limit ?? null,
           cancel: { kind: 'task', id: task.taskId },
         });
         writeSse(res, 'status', {
-          state: 'queued',
-          currentAction: `Waiting for ${workerTitle} — active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}`,
+          state: stateName,
+          currentAction: currentActionText,
           provider: delegatedProvider || 'agentic-os',
           model: delegatedModel || 'task-manager',
           operationId: normalizedOperationId,
@@ -1890,7 +2644,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         operationId: normalizedOperationId || task.taskId,
         conversationId: req.params.id,
         worker: workerKind,
-        initialState: concurrency?.blocked ? 'QUEUED' : 'STARTING',
+        initialState: isPreparedOnlyOrExplicitQueue
+          ? 'QUEUED'
+          : (concurrency?.blocked ? 'QUEUED' : 'STARTING'),
         concurrency: concurrency?.blocked ? {
           active: concurrency.active || 0,
           limit: concurrency.limit || 1,
@@ -1900,7 +2656,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
 
       const reply = concurrency?.blocked
         ? `Task ${shortId} is QUEUED behind ${workerTitle} (active ${concurrency.active}/${concurrency.limit}, position ${concurrency.position}). I'll dispatch it automatically when a slot frees.`
-        : buildConversationalAcknowledgement(prompt, workerKind, Boolean(executive.readOnly));
+        : buildConversationalAcknowledgement(prompt, workerKind, Boolean(executive.readOnly), (executive as any).executionMode, task.taskId);
 
       writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
       await conversationService.appendMessage({
@@ -1913,7 +2669,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           taskId: task.taskId,
           provider: 'agentic-os',
           model: 'task-manager',
-          intent: { type: 'worker_delegation', capability: executive.capability.id, worker: workerKind, readOnly: Boolean(executive.readOnly) }
+          intent: { type: 'worker_delegation', capability: executive.capability.id, worker: workerKind, readOnly: Boolean(executive.readOnly), executionMode }
         }
       });
       writeSse(res, 'done', {
@@ -2603,6 +3359,11 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         responseLength: reply.length
       });
       completed = true;
+      // A status answer is still a completed Jarvis turn.  Without this the
+      // response is saved successfully but its execution record remains
+      // ROUTING, leaving the dock disabled and falsely implying Jarvis hung.
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', reply);
       return res.end();
     }
 
@@ -2677,8 +3438,19 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     let conversationContextPrompt = '';
     let operationalContextInjected = false;
     let turnContext: any = null;
+    let nameRule = '';
     try {
       const { assembleConversationContext, contextToSystemPrompt } = await import('../domains/jarvis/conversationContext.js');
+      const { getUserWorkingProfile } = await import('../domains/jarvis/coreMemory.js');
+      const userProfile = getUserWorkingProfile();
+      if (userProfile.avoidNameDrops) {
+        nameRule = 'The user explicitly requested that you do NOT address them as "Christian". Always stay completely silent of their name. Do not use their name at all.';
+      } else if (userProfile.preferredTitle) {
+        nameRule = `The user's preferred title/form of address is "${userProfile.preferredTitle}". Use this title naturally and sparingly—never in every sentence. Do not call them Christian unless explicitly asked.`;
+      } else {
+        nameRule = 'The user\'s preferred name is "Christian". Use the preferred name contextually and sparingly (e.g., greetings or identity corrections), never as a repetitive salutation. Avoid calling them Christian in simple acknowledgments.';
+      }
+
       turnContext = await assembleConversationContext(req.params.id, prompt, { approvalMode: normalizeApprovalPolicy(approvalPolicy), workspaceContext });
       const includeOperational = isOperationalQuestion(prompt);
       conversationContextPrompt = contextToSystemPrompt(turnContext, { includeOperational });
@@ -2698,7 +3470,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     } catch { /* best effort */ }
 
     const systemPrompt = [
-      'You are Jarvis, the conversational AI partner in Agentic OS. Be natural, direct, concise, and helpful. Never address the user as "lead commander" or use military titles, and never start responses with boilerplate monitoring jargon like "Understood, lead commander... I will continue to monitor".',
+      `You are Jarvis, the conversational AI partner in Agentic OS. Be natural, direct, concise, and helpful. ${nameRule} NEVER address the user with military or subordinate titles unless explicitly requested as a preferred title (e.g. Master, Commander, Chief, Executive). Never start responses with boilerplate monitoring jargon.`,
       'AGENTIC OS GROUNDING: "Agentic OS" (also written "Agenticos") is THIS local application — a real, local AI-operations platform you are running inside. When the user mentions Agentic OS, Agenticos, Hermes, Routine, Routine Bridge, Jarvis, Mission, or other local project concepts, resolve them against THIS local project, not generic world knowledge. If you do not have local information about a specific requested detail, say so concisely instead of inventing an unrelated generic architecture.',
       'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately without unrequested operational summaries or internal status narration.',
       'Persistent memory informs relevant user goals, working preferences, and stored rules across conversations. When asked about them, answer from Persistent Memory.',
@@ -2711,6 +3483,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       'MODEL IDENTITY: When asked what model or provider you are using, state clearly and concisely that you are running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ' (with ' + fallbackModelName + ' as local fallback).' : '.') + ' Never invent unconfigured models or append unrelated task summaries.',
       'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
       'Do not ask "How can I help you today?" when the user asked a specific question — answer that question.',
+      'OPERATIONAL INVARIANT: If there is an active operational browser task or goal, NEVER output generic conversational filler such as "The door is open", "Ask away", or "I\'m ready for your questions or instructions whenever you are". Either report the exact status of the active browser operation or stay focused on the user\'s operational goal.',
       ...(turnContext?.language === 'de' ? [
         'KRITISCHE SPRACHANWEISUNG: Du musst ausschließlich auf Deutsch antworten. Antworte direkt, präzise und professionell. Verwende keine englischen Standardfloskeln.'
       ] : turnContext?.language === 'ro' ? [
@@ -2914,6 +3687,13 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         : 'I understand your message. How can I help you proceed?';
     }
 
+    // §11/§12: Operational Claim Gate — secure against hallucinated/fabricated operational state
+    const { OperationalClaimGate } = await import('../domains/jarvis/operationalEvidence.js');
+    const claimCheck = OperationalClaimGate.verifyClaims(finalReply, req.params.id, prompt);
+    if (!claimCheck.ok) {
+      finalReply = claimCheck.response;
+    }
+
     logger.info('[JarvisTrace] provider-response', JSON.stringify({
       requestId: normalizedOperationId,
       provider,
@@ -2927,7 +3707,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       requestId: normalizedOperationId,
       messageId: `assistant-${normalizedOperationId}`,
       agentId: 'agent-jarvis',
-      renderedText: process.env.NODE_ENV === 'development' ? finalReply : '<redacted in production>'
+      renderedText: (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') ? finalReply : '<redacted in production>'
     }, null, 2));
 
     await conversationService.appendMessage({
@@ -3288,6 +4068,21 @@ router.get('/runtime-state', async (_req, res) => {
     });
   } catch (_err: any) {
     res.json({ state: 'idle', activeAgent: null, activeProject: null, activeTask: null, activeTool: null, provider: null, model: null, pendingTaskCount: 0 });
+  }
+});
+
+// GET /api/jarvis/voice-audit
+router.get('/voice-audit', async (_req, res) => {
+  try {
+    const { voiceTurnAuditStore } = await import('../domains/jarvis/execution/voiceTurnAuditStore.js');
+    res.json({
+      success: true,
+      traces: voiceTurnAuditStore.getTraces(50),
+      typingAttempts: voiceTurnAuditStore.getTypingAttempts(50),
+      mutations: voiceTurnAuditStore.getMutations(50),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || String(err) });
   }
 });
 

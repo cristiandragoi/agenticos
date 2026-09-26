@@ -36,6 +36,12 @@ function ensureTable(): void {
       last_status TEXT,
       permanent_failure INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS revenue_resource_locks (
+      resource_key TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      acquired_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -122,22 +128,96 @@ export const branchScheduler = {
     return new Date(s.nextEligibleAt).getTime() <= Date.now();
   },
 
+  // ── Conflict Prevention & Resource Locking ──────────────────────────────────
   /**
-   * Deterministic fair selection: least-recently-selected eligible branch
-   * first, tie-broken by stable id. Returns the chosen experimentId or null.
+   * Acquire an exclusive lock on a resource (file path, DB entity, credential, deployment target).
+   * Returns true if lock was acquired, false if already held by another task.
    */
-  selectNext(candidates: string[]): string | null {
+  acquireLock(resourceKey: string, taskId: string): boolean {
+    ensureTable();
+    const existing = rawDb.prepare('SELECT task_id FROM revenue_resource_locks WHERE resource_key = ?').get(resourceKey) as any;
+    if (existing) {
+      return existing.task_id === taskId; // re-entrant for same task
+    }
+    try {
+      rawDb.prepare('INSERT INTO revenue_resource_locks (resource_key, task_id, acquired_at) VALUES (?, ?, ?)')
+        .run(resourceKey, taskId, new Date().toISOString());
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  releaseLock(resourceKey: string, taskId: string): void {
+    ensureTable();
+    rawDb.prepare('DELETE FROM revenue_resource_locks WHERE resource_key = ? AND task_id = ?').run(resourceKey, taskId);
+  },
+
+  releaseAllLocksForTask(taskId: string): void {
+    ensureTable();
+    rawDb.prepare('DELETE FROM revenue_resource_locks WHERE task_id = ?').run(taskId);
+  },
+
+  isResourceLocked(resourceKey: string, currentTaskId?: string): boolean {
+    ensureTable();
+    const existing = rawDb.prepare('SELECT task_id FROM revenue_resource_locks WHERE resource_key = ?').get(resourceKey) as any;
+    if (!existing) return false;
+    return currentTaskId ? existing.task_id !== currentTaskId : true;
+  },
+
+  getActiveLocks(): Array<{ resourceKey: string; taskId: string; acquiredAt: string }> {
+    ensureTable();
+    const rows = rawDb.prepare('SELECT resource_key as resourceKey, task_id as taskId, acquired_at as acquiredAt FROM revenue_resource_locks').all() as any[];
+    return rows;
+  },
+
+  // ── Dependency-Aware Execution ──────────────────────────────────────────────
+  /**
+   * Check if all dependency tasks have completed before launching dependent work.
+   */
+  canExecuteWithDependencies(dependencyTaskIds: string[]): boolean {
+    if (!dependencyTaskIds || dependencyTaskIds.length === 0) return true;
+    ensureTable();
+    try {
+      const placeholders = dependencyTaskIds.map(() => '?').join(',');
+      const rows = rawDb.prepare(`SELECT status FROM background_tasks WHERE task_id IN (${placeholders})`).all(...dependencyTaskIds) as any[];
+      if (rows.length < dependencyTaskIds.length) return false; // missing dependency record
+      return rows.every(r => r.status === 'completed');
+    } catch {
+      return true;
+    }
+  },
+
+  /**
+   * Deterministic priority-aware and fair selection:
+   * 1. Primary sort: project priority (1 = Free Cash, 2 = Shopify, 3 = TikTok Shop, etc.)
+   * 2. Secondary sort: least-recently-selected eligible branch first (LRU within same priority)
+   * 3. Tertiary sort: stable experiment ID string tie-break
+   */
+  selectNext(candidates: string[], priorityMap?: Record<string, number>): string | null {
     ensureTable();
     const eligible = candidates.filter((id) => this.isEligible(id));
     if (eligible.length === 0) return null;
+
     eligible.sort((a, b) => {
+      // 1. Priority sort
+      if (priorityMap) {
+        const prioA = priorityMap[a] ?? 999;
+        const prioB = priorityMap[b] ?? 999;
+        if (prioA !== prioB) return prioA - prioB;
+      }
+
+      // 2. LRU sort
       const sa = this.getState(a);
       const sb = this.getState(b);
       const ta = sa.lastSelectedAt ? new Date(sa.lastSelectedAt).getTime() : 0;
       const tb = sb.lastSelectedAt ? new Date(sb.lastSelectedAt).getTime() : 0;
-      if (ta !== tb) return ta - tb; // least-recently-selected first
-      return a < b ? -1 : a > b ? 1 : 0; // stable id tie-break
+      if (ta !== tb) return ta - tb;
+
+      // 3. Stable ID tie-break
+      return a < b ? -1 : a > b ? 1 : 0;
     });
+
     return eligible[0];
   },
 };

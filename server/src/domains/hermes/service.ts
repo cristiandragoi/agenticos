@@ -91,18 +91,22 @@ interface ActiveRunState {
   runId: string;
 }
 
-export type HermesExecutionMode = 'agent' | 'planning';
+export type HermesExecutionMode = 'agent' | 'planning' | 'engineering';
 
 export function resolveHermesExecutionMode(
   objective: string,
   explicitMode?: HermesExecutionMode
 ): HermesExecutionMode {
-  if (explicitMode === 'agent' || explicitMode === 'planning') {
+  if (explicitMode === 'agent' || explicitMode === 'planning' || explicitMode === 'engineering') {
     return explicitMode;
   }
   const lower = (objective || '').toLowerCase();
+  const hasEngineering = /\b(?:implement|fix|refactor|build|test|debug|repair|develop|code|engineering|deploy|patch|compile|modify)\b/i.test(lower);
+  if (hasEngineering) {
+    return 'engineering';
+  }
   const hasStrategicRevenue = lower.includes('strategic revenue plan') || lower.includes('business plan');
-  const hasOperational = /\b(?:inspect|status|git|terminal|read|write|search|list|test|check|examine|investigate repository)\b/i.test(lower);
+  const hasOperational = /\b(?:inspect|status|git|terminal|read|write|search|list|check|examine|investigate repository)\b/i.test(lower);
   if (hasOperational && !hasStrategicRevenue) {
     return 'agent';
   }
@@ -110,7 +114,7 @@ export function resolveHermesExecutionMode(
   if (hasPlanning) {
     return 'planning';
   }
-  return 'agent';
+  return 'engineering';
 }
 
 export interface HermesModelPhaseInput {
@@ -349,8 +353,62 @@ export class HermesService {
 
       if (signal.aborted) throw new Error('Hermes execution aborted');
 
-      // 3. Determine if this is a Planning task or Research/Operational task
+      // 3. Determine if this is a Planning task, Research/Operational task, or Closed-Loop Engineering
       const executionMode = resolveHermesExecutionMode(objective);
+
+      if (executionMode === 'engineering') {
+        const { hermesEngineeringOrchestrator } = await import('./hermesOrchestrator.js');
+        const report = await hermesEngineeringOrchestrator.executeMission(objective, {
+          workspaceRoot: 'D:\\AgenticOS',
+          conversationId: run.conversationId ?? undefined,
+          projectId: task.projectId ?? undefined,
+          goalId: task.goalId ?? undefined,
+          taskId: (task.metadata as any)?.backgroundTaskId || task.id || undefined,
+          requestId: run.requestId ?? undefined,
+          abortSignal: signal,
+        });
+
+        const endNow = new Date().toISOString();
+        const executionResult = executionRunService.createResult({
+          runId: run.id,
+          taskId: task.id,
+          status: report.success ? 'completed' : 'failed',
+          summary: report.whatChanged,
+          structuredOutput: report as unknown as Record<string, unknown>,
+          metadata: {
+            hermesRunId: run.agentInstanceId,
+            durationMs: Date.now() - startTime,
+            type: 'engineering',
+            evidence: report.evidence,
+          },
+        });
+
+        executionRunService.updateRun(run.id, {
+          status: report.success ? 'completed' : 'failed',
+          endTime: endNow,
+          finalResultId: executionResult.id,
+          failureReason: report.success ? undefined : (report.remainingLimitations || 'Engineering mission not fully satisfied'),
+        });
+
+        projectTaskService.updateTask(task.id, {
+          status: report.success ? 'completed' : 'failed',
+          completedAt: endNow,
+        });
+
+        executionRunService.emitEvent({
+          projectId: task.projectId,
+          goalId: task.goalId,
+          taskId: task.id,
+          runId: run.id,
+          worker: 'hermes',
+          eventType: report.success ? 'HERMES_RUN_COMPLETED' : 'HERMES_RUN_FAILED',
+          payload: { summary: report.whatChanged, filesChanged: report.filesChanged },
+        });
+
+        this.activeRuns.delete(run.id);
+        return;
+      }
+
       const isPlanning = executionMode === 'planning';
 
       // 3b. Project Memory retrieval (closure): Hermes receives bounded,

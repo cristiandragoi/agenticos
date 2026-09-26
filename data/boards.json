@@ -1,5 +1,18 @@
 [
   {
+    "id": "board-free-cash",
+    "name": "Free Cash",
+    "purpose": "New Revenue Operator project store.",
+    "color": "#e9c46a",
+    "icon": "Wallet",
+    "cardTypes": [
+      "run",
+      "agent"
+    ],
+    "filters": {},
+    "layoutMode": "board"
+  },
+  {
     "id": "board-mission-control",
     "name": "Mission Control (Verified Persistence)",
     "purpose": "Global cockpit for active agents, runs, provider health, and system alerts.",

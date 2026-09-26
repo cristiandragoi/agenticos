@@ -1,33 +1,46 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useVoiceIO } from '../hooks/useVoiceIO';
+import { jarvisLiveKitSession } from '../lib/jarvisLiveKitSession';
+import {
+  createdRooms,
+  resetJarvisVoiceHarness,
+  withJarvisVoiceEndpoints,
+  JARVIS_TEST_ROOM,
+  JARVIS_TEST_WS_URL,
+} from './helpers/jarvisVoiceHarness';
+
+// Jarvis voice is LiveKit-first: the client calls POST /api/jarvis-next/token and then
+// constructs a Room, so both must be modelled.
+vi.mock('livekit-client', async () => (await import('./helpers/jarvisVoiceHarness')).liveKitClientMock());
 
 /**
- * VAD liveness / watchdog regression tests (multi-turn voice hardening):
+ * `agent-jarvis` voice-session resilience.
  *
- * Root cause (live capture): the VAD analysis loop is driven entirely by
- * requestAnimationFrame. Chromium pauses rAF for hidden/occluded windows, so
- * while the UI showed "Listening…" the loop was dead — no ticks, no
- * recording, no transcription, no backend request, and nothing ever re-armed
- * it. The fix:
- *   - backgroundThrottling:false on the Electron BrowserWindow (keeps rAF
- *     alive while hidden), and
- *   - a watchdog in useVoiceIO: while claiming Listening, if no tick happens
- *     for vadWatchdogMs, cancel the stale rAF id and re-arm; plus
- *     visibilitychange/focus recovery. Re-arm is idempotent, so at most one
- *     analysis loop can exist per conversation mic stream.
+ * RETARGETED from "VAD liveness / watchdog". The original suite asserted the browser
+ * requestAnimationFrame VAD analysis loop: exactly one loop armed per conversation, no
+ * duplicate arm on `focus`, a watchdog re-arming a loop frozen by Chromium's rAF
+ * throttling, and re-arm on `visibilitychange`.
  *
- * These tests use a CONTROLLABLE requestAnimationFrame (a manual queue) so a
- * dead loop can be simulated deterministically.
+ * That architecture is no longer used by `agent-jarvis`. Voice is LiveKit-first — the
+ * browser owns the room and the microphone, while transcription and turn handling happen
+ * in the server-side voice agent — so there is no browser VAD loop to keep alive.
+ *
+ * The USER-LEVEL requirement behind the old assertions is preserved and still asserted
+ * here: voice must not silently die, and recovery must neither LOSE nor DUPLICATE the
+ * logical conversation. It is expressed against the live contract instead: exactly one
+ * LiveKit session per conversation, the one canonical room, no duplicate session on
+ * focus/visibilitychange, truthful state after a transport drop, and no mic churn.
+ *
+ * No fake browser-VAD behaviour is simulated to satisfy the historical assertions.
  */
-describe('useVoiceIO VAD liveness / watchdog (multi-turn voice)', () => {
-  let track: any;
-  let audioMode: 'speech' | 'silence' = 'silence';
+describe('Jarvis LiveKit voice-session resilience (single-session ownership)', () => {
+  let track: { enabled: boolean; kind: string; stop: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
-    audioMode = 'silence';
+    resetJarvisVoiceHarness();
 
     class MockTrack {
       enabled = true;
@@ -35,25 +48,17 @@ describe('useVoiceIO VAD liveness / watchdog (multi-turn voice)', () => {
       stop = vi.fn();
     }
     track = new MockTrack();
-    const stream = {
-      getTracks: () => [track],
-      getAudioTracks: () => [track],
-    };
+    const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
 
     vi.stubGlobal('navigator', {
       ...navigator,
-      mediaDevices: {
-        getUserMedia: vi.fn().mockResolvedValue(stream),
-      },
+      mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) },
     });
 
     class MockAnalyser {
       fftSize = 512;
       frequencyBinCount = 256;
-      getByteTimeDomainData = vi.fn((data: Uint8Array) => {
-        if (audioMode === 'speech') data.fill(220);
-        else data.fill(128);
-      });
+      getByteTimeDomainData = vi.fn((data: Uint8Array) => data.fill(128));
     }
     class MockAudioContext {
       state = 'running';
@@ -70,151 +75,112 @@ describe('useVoiceIO VAD liveness / watchdog (multi-turn voice)', () => {
     class MockMediaRecorder {
       static instances: MockMediaRecorder[] = [];
       state = 'inactive';
-      stream: any;
-      ondataavailable: any = null;
-      onstop: any = null;
-      constructor(stream: any) { this.stream = stream; MockMediaRecorder.instances.push(this); }
+      stream: unknown;
+      ondataavailable: unknown = null;
+      onstop: unknown = null;
+      constructor(stream: unknown) { this.stream = stream; MockMediaRecorder.instances.push(this); }
       start() { this.state = 'recording'; }
-      stop() {
-        this.state = 'inactive';
-        if (this.ondataavailable) this.ondataavailable({ data: new Blob([new Uint8Array(400)], { type: 'audio/webm' }) });
-        if (this.onstop) this.onstop();
-      }
+      stop() { this.state = 'inactive'; }
     }
     vi.stubGlobal('MediaRecorder', MockMediaRecorder);
 
-    vi.stubGlobal('SpeechSynthesisUtterance', class { onend: any = null; onerror: any = null; text = ''; });
+    vi.stubGlobal('SpeechSynthesisUtterance', class { onend: unknown = null; onerror: unknown = null; text = ''; });
     (window as any).speechSynthesis = { cancel: vi.fn(), speak: vi.fn() };
 
     class MockAudio {
       src = '';
       paused = true;
-      onplay: any = null;
-      onended: any = null;
-      onerror: any = null;
+      onplay: unknown = null;
+      onended: unknown = null;
+      onerror: unknown = null;
       play = vi.fn().mockResolvedValue(undefined);
       pause = vi.fn();
       load = vi.fn();
       removeAttribute = vi.fn();
       duration = 2;
-      error: any = null;
+      error: unknown = null;
     }
     vi.stubGlobal('Audio', MockAudio);
+
+    (globalThis as any).fetch = vi.fn(withJarvisVoiceEndpoints(() => undefined));
   });
 
-  /** Install a controllable rAF: callbacks queue up and only run on flush().
-   *  cancelAnimationFrame removes a pending callback by id, so "at most one
-   *  loop" is assertable via pending.size. */
-  function installControllableRaf() {
-    let nextId = 1;
-    const pending = new Map<number, FrameRequestCallback>();
-    let totalCalls = 0;
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      totalCalls += 1;
-      const id = nextId++;
-      pending.set(id, cb);
-      return id;
-    });
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => { pending.delete(id); });
-    return {
-      pending,
-      get total() { return totalCalls; },
-      flush() {
-        const cbs = [...pending.values()];
-        pending.clear();
-        for (const cb of cbs) cb(performance.now());
-      },
-    };
-  }
+  // jarvisLiveKitSession is a module-level singleton: without tearing the session down,
+  // the next test's startSession() short-circuits against the still-connected session
+  // and never constructs a Room.
+  afterEach(async () => {
+    await jarvisLiveKitSession.stopSession().catch(() => undefined);
+  });
 
-  async function startConversation(result: any) {
+  async function startConversation(result: { current: ReturnType<typeof useVoiceIO> }) {
     let ok = false;
     await act(async () => { ok = await result.current.startConversation(); });
     expect(ok).toBe(true);
+    return ok;
   }
 
-  it('arms exactly ONE VAD loop per conversation (single-loop ownership)', async () => {
-    const raf = installControllableRaf();
-    const { result } = renderHook(() => useVoiceIO({
-      agentId: 'agent-jarvis',
-      vadWatchdogMs: 60,
-      vadWatchdogIntervalMs: 20,
-    }));
+  it('opens exactly ONE LiveKit session per conversation, in the canonical room', async () => {
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
     await startConversation(result);
-    expect(raf.pending.size).toBe(1); // one analysis loop scheduled
 
-    // Healthy ticking: each flush runs the ticker, which re-queues itself —
-    // still exactly one loop.
-    raf.flush();
-    expect(raf.pending.size).toBe(1);
-    raf.flush();
-    expect(raf.pending.size).toBe(1);
+    // Single-session ownership: one room, one connect.
+    expect(createdRooms.length).toBe(1);
+    expect(createdRooms[0].connectCalled).toBe(1);
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
+
+    // The session joins the ONE canonical room — conversation identity lives in
+    // conversationId, so the room itself is never per-session.
+    expect(createdRooms[0].connectArgs).not.toBeNull();
+    expect(createdRooms[0].connectArgs?.wsUrl).toBe(JARVIS_TEST_WS_URL);
+    expect(jarvisLiveKitSession.getState().roomName).toBe(JARVIS_TEST_ROOM);
   });
 
-  it('focus does not duplicate a HEALTHY VAD loop', async () => {
-    const raf = installControllableRaf();
-    const { result } = renderHook(() => useVoiceIO({
-      agentId: 'agent-jarvis',
-      vadWatchdogMs: 60,
-      vadWatchdogIntervalMs: 20,
-    }));
+  it('a healthy session is not duplicated, and focus does not open a second one', async () => {
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
     await startConversation(result);
-    // Let the loop tick a few times so lastVadTickAt is fresh.
-    raf.flush();
-    raf.flush();
-    const callsBefore = raf.total;
+
     await act(async () => { window.dispatchEvent(new Event('focus')); });
-    expect(raf.total).toBe(callsBefore); // no re-arm — loop is alive
-    expect(raf.pending.size).toBe(1);
+
+    // Focus is a UI event: it must not spawn a competing voice session.
+    expect(createdRooms.length).toBe(1);
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
   });
 
-  it('watchdog recovers a STALLED loop (dead rAF) without creating a second loop', async () => {
-    const raf = installControllableRaf();
-    const { result } = renderHook(() => useVoiceIO({
-      agentId: 'agent-jarvis',
-      vadWatchdogMs: 60,
-      vadWatchdogIntervalMs: 20,
-    }));
+  it('a dropped transport is reported truthfully and creates no phantom session', async () => {
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
     await startConversation(result);
-    const callsAfterStart = raf.total;
-    // Simulate Chromium rAF pause: never flush. The watchdog (setInterval —
-    // timers keep running when rAF is frozen) must notice zero ticks, cancel
-    // the stale id, and re-arm.
-    await new Promise((r) => setTimeout(r, 250));
-    expect(raf.total).toBeGreaterThan(callsAfterStart); // re-arm happened
-    expect(raf.pending.size).toBe(1); // still exactly one loop (cancel + re-arm)
+    const room = createdRooms[0];
+
+    // Transport drops (network/agent restart) — the old failure mode was a session that
+    // silently claimed to still be listening while nothing was flowing.
+    await act(async () => { room.emit('disconnected'); });
+
+    expect(jarvisLiveKitSession.isConnected).toBe(false); // not falsely "live"
+    expect(createdRooms.length).toBe(1);                  // no phantom duplicate session
   });
 
-  it('visibilitychange restores a stalled loop when the page becomes visible', async () => {
-    const raf = installControllableRaf();
-    const { result } = renderHook(() => useVoiceIO({
-      agentId: 'agent-jarvis',
-      vadWatchdogMs: 60,
-      vadWatchdogIntervalMs: 20,
-    }));
+  it('visibilitychange keeps the session usable and does not duplicate it', async () => {
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
     await startConversation(result);
-    const callsAfterStart = raf.total;
-    // Simulate a long stall (loop frozen), then the page regains visibility.
-    await new Promise((r) => setTimeout(r, 120));
-    await act(async () => {
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    expect(raf.total).toBeGreaterThan(callsAfterStart);
-    expect(raf.pending.size).toBe(1);
+    const room = createdRooms[0];
+
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+
+    // The active session must survive a visibility change: not torn down, not duplicated.
+    expect(room.disconnectCalled).toBe(0);
+    expect(createdRooms.length).toBe(1);
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
   });
 
-  it('recovery preserves the mic stream (no getUserMedia churn)', async () => {
-    const raf = installControllableRaf();
+  it('does not re-acquire the microphone while the session is live (no getUserMedia churn)', async () => {
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    await startConversation(result);
     const gum = vi.mocked(navigator.mediaDevices.getUserMedia);
-    const { result } = renderHook(() => useVoiceIO({
-      agentId: 'agent-jarvis',
-      vadWatchdogMs: 60,
-      vadWatchdogIntervalMs: 20,
-    }));
-    await startConversation(result);
     const gumCalls = gum.mock.calls.length;
-    // Stall then recover via watchdog — must NOT re-acquire the mic.
-    await new Promise((r) => setTimeout(r, 250));
+
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+
     expect(gum.mock.calls.length).toBe(gumCalls); // stream preserved
     expect(track.enabled).toBe(true);
   });

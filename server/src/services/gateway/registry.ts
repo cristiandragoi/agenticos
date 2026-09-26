@@ -30,7 +30,7 @@ export class ProviderRegistry {
   }
 
   private instantiate(def: ProviderDefinition): ModelGateway {
-    if (def.name === 'omniroot') {
+    if (def.name === 'omniroot' || def.name === 'omniroute') {
       return new OmnirootGateway(def);
     } else if (def.name === 'ninerouter') {
       return new NineRouterGateway(def);
@@ -45,7 +45,12 @@ export class ProviderRegistry {
   }
 
   public getProvider(name: string): ModelGateway | undefined {
-    return this.providers.get(name);
+    if (!name) return undefined;
+    const direct = this.providers.get(name);
+    if (direct) return direct;
+    if (name.toLowerCase() === 'omniroute') return this.providers.get('omniroute') || this.providers.get('omniroot');
+    if (name.toLowerCase() === 'omniroot') return this.providers.get('omniroot') || this.providers.get('omniroute');
+    return undefined;
   }
 
   public getAvailableProviders(): ModelGateway[] {

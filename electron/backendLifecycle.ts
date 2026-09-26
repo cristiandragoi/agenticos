@@ -29,6 +29,48 @@ import { spawn as nodeSpawn, execFileSync, type ChildProcess } from 'node:child_
 import fs from 'node:fs';
 import path from 'node:path';
 
+/**
+ * Restart INTENT — the contract between the backend and its lifecycle owner.
+ *
+ * The backend's HTTP endpoint (POST /api/health/restart) cannot respawn itself:
+ * when it exits, something else must bring it back. It therefore writes an
+ * explicit intent file before exiting, and this owner consumes it.
+ *
+ * Without this, an HTTP restart was indistinguishable from a crash: it was
+ * counted in the crash window, and after crashThreshold (3) crashes inside
+ * crashWindowMs (60s) — or maxRestarts (3) — the manager called
+ * "automatic restart stopped" and never restarted the backend again, leaving
+ * port 4600 dead.
+ */
+function restartIntentPath(config: LifecycleConfig): string {
+  // The backend's cwd is this manager's config.cwd, and it writes
+  // <cwd>/data/.restart-intent.json.
+  return path.join(config.cwd, 'data', '.restart-intent.json');
+}
+
+function restartIntentPresent(config: LifecycleConfig): boolean {
+  try {
+    return fs.existsSync(restartIntentPath(config));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Consume the intent. Called ONLY after the replacement backend has answered a
+ * healthy probe — an acknowledged restart, never an assumed one. If the respawn
+ * never becomes healthy the intent stays on disk as evidence.
+ */
+function acknowledgeRestartIntent(config: LifecycleConfig, log: (message: string) => void): void {
+  try {
+    if (!fs.existsSync(restartIntentPath(config))) return;
+    fs.unlinkSync(restartIntentPath(config));
+    log('restart intent acknowledged: replacement backend is healthy, intent cleared');
+  } catch (err) {
+    log(`could not clear restart intent: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export type BackendMode = 'AUTO_MANAGED' | 'EXTERNAL';
 export type BackendStatus = 'starting' | 'ready' | 'reconnecting' | 'offline' | 'failed';
 
@@ -264,8 +306,12 @@ export function createBackendLifecycleManager(
       return;
     }
 
-    const wasUserRestart = userRestartPending;
+    const intentPresent = restartIntentPresent(config);
+    const wasUserRestart = userRestartPending || intentPresent;
     userRestartPending = false;
+    if (intentPresent) {
+      appendLog('restart intent present — treating this exit as an INTENTIONAL restart (no crash-loop accounting)', 'stdout');
+    }
 
     // The exit handler owns the next step — cancel any pending readiness
     // deadline from the start that just died so it cannot double-fire.
@@ -390,6 +436,10 @@ export function createBackendLifecycleManager(
       if (probe.healthy) {
         done({ status: 'ready', lastHealthSuccessAt: now(), readinessMs: now() - startedAt, lastError: null });
         logLine(`[lifecycle] backend READY in ${now() - startedAt}ms`);
+        // The replacement backend is answering healthy: only NOW is an intentional
+        // restart acknowledged and its intent consumed. A respawn that never
+        // becomes healthy leaves the intent on disk as evidence.
+        acknowledgeRestartIntent(config, logLine);
         return;
       }
       emit({ lastHealthFailureAt: now() });

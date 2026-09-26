@@ -162,6 +162,9 @@ const LeftRail: React.FC = () => {
         <NavLink to="/automations" data-testid="nav-automations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Automations">
           <GitBranch size={16} /> {!collapsed && 'AUTOMATIONS'}
         </NavLink>
+        <NavLink to="/self-heal" data-testid="nav-self-heal" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Self-Heal">
+          <Wrench size={16} /> {!collapsed && 'SELF-HEAL'}
+        </NavLink>
         <NavLink to="/settings" data-testid="nav-settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Settings">
           <Settings size={16} /> {!collapsed && 'SETTINGS'}
         </NavLink>

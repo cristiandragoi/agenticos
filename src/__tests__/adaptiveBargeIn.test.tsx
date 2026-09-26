@@ -21,6 +21,10 @@ let rafQueue: Array<(t: number) => void> = [];
 let rafIdCounter = 0;
 let recorderChunkSize = 600;
 
+/** Monotonic wall-clock base: see JarvisConversation — the engine's duplicate-speech
+ *  window (3s) is module-level, so a frozen Date.now() leaks state between tests. */
+let clockBase = Date.parse('2026-01-01T00:00:00Z');
+
 function flushRaf(frames = 1) {
   for (let i = 0; i < frames; i++) {
     const current = rafQueue; rafQueue = [];
@@ -49,6 +53,17 @@ class MockAudio {
     return Promise.resolve();
   });
   constructor() { lastAudio = this; }
+  // HTMLMediaElement listener surface — see registerActiveAudio().
+  private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+  addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    const l = this.listeners.get(type) ?? [];
+    l.push(cb);
+    this.listeners.set(type, l);
+  };
+  removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+  };
+  currentTime = 0;
 }
 
 const fetchMock = vi.fn(async (input: unknown) => {
@@ -62,6 +77,8 @@ const getUserMediaMock = vi.fn();
 
 beforeEach(() => {
   vi.useFakeTimers();
+  clockBase += 10_000;
+  vi.setSystemTime(clockBase); // isolate this test from the 3s duplicate-speech window
   rafQueue = []; rafIdCounter = 0; rmsLevel = 0; recorderChunkSize = 600;
   autoFireOnPlay = true; autoFireOnEnd = true; lastAudio = null;
   transcribeText = 'hello jarvis';
@@ -90,13 +107,17 @@ beforeEach(() => {
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const FAST_VAD = { agentId: 'agent-jarvis', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+const FAST_VAD = { agentId: 'agent-hermes', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
 
 async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) {
   rmsLevel = 0.1; await act(async () => { flushRaf(1); });
   rmsLevel = 0; await act(async () => { flushRaf(1); });
   await act(async () => { vi.advanceTimersByTime(20); });
   await act(async () => { flushRaf(1); });
+  // handleConversationTranscript holds the utterance for the bounded continuation
+  // window (continuationWindowMs = 2500) before submitting, so a turn is only
+  // observable once that window has elapsed. Controls resolve synchronously.
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
 }
 
 /** Drive a ducked interruption to its classification transcript. */
@@ -215,14 +236,14 @@ describe('adaptive barge-in runtime (duck → classify → resume/kill/takeover)
     // STT transcript lands as a new turn.
     transcribeText = 'Actually tell me what Hermes does';
     rmsLevel = 0.3;
-    // The duck tick resets the accumulator, so sustained time is measured
-    // from the SECOND tick onward: 4 × 700ms = 2800ms > BARGE_TAKEOVER_MS.
+    // Sustained speech is measured from the SECOND tick onward (the first duck tick
+    // resets the accumulator) and the takeover only escalates once it reaches
+    // BARGE_TAKEOVER_MS = 5000ms of continuous speech: 9 × 700ms = 6300ms.
     await act(async () => { vi.advanceTimersByTime(700); flushRaf(1); });
     expect(result.current.voiceState).toBe('ducked');
-    await act(async () => { vi.advanceTimersByTime(700); flushRaf(1); }); // acc start
-    await act(async () => { vi.advanceTimersByTime(700); flushRaf(1); }); // 700ms
-    await act(async () => { vi.advanceTimersByTime(700); flushRaf(1); }); // 1400ms
-    await act(async () => { vi.advanceTimersByTime(700); flushRaf(1); }); // 2100ms → escalate
+    for (let i = 0; i < 9; i++) {
+      await act(async () => { vi.advanceTimersByTime(700); flushRaf(1); }); // acc → 6300ms → escalate
+    }
 
     // Escalation fired: old turn killed, playback halted, onBargeIn fired.
     expect(onBargeIn).toHaveBeenCalled();

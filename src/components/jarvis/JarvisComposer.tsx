@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Mic, MicOff, Loader2, Square, AlertCircle } from 'lucide-react';
+import { Send, Mic, MicOff, Loader2, Square, AlertCircle, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 import styles from '../../pages/JarvisStudio.module.css';
 import { JARVIS_ORB_EVENTS } from './jarvisOrbState';
 import { apiFetch, apiUrl } from '../../api/client';
@@ -7,8 +7,23 @@ import { apiFetch, apiUrl } from '../../api/client';
 // Microphone state visible to the user
 export type MicState = 'idle' | 'requesting-permission' | 'listening' | 'transcribing' | 'error';
 
+export interface JarvisAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  dataUrl?: string;
+  textContent?: string;
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 interface JarvisComposerProps {
-  onSendMessage: (msg: string, inputChannel?: 'typed' | 'voice') => void;
+  onSendMessage: (msg: string, inputChannel?: 'typed' | 'voice', attachments?: JarvisAttachment[]) => void;
   isProcessing: boolean;
   workspaceReady?: boolean;
   workspaceBlockReason?: string;
@@ -85,7 +100,70 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
     }
   }, [composerText, onComposerTextChange]);
 
-  const canSend = !!text.trim() && !isProcessing && !disabledReason;
+  const [attachments, setAttachments] = useState<JarvisAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const canSend = (!!text.trim() || attachments.length > 0) && !isProcessing && !disabledReason;
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const list: JarvisAttachment[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const id = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      let dataUrl: string | undefined;
+      let textContent: string | undefined;
+
+      if (file.type.startsWith('image/')) {
+        try {
+          dataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+          });
+        } catch { /* ignore */ }
+      } else if (
+        file.type.startsWith('text/') ||
+        /\.(json|txt|md|csv|py|js|ts|tsx|jsx|html|css|yaml|yml|log|sh|sql)$/i.test(file.name)
+      ) {
+        try {
+          textContent = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(((reader.result as string) || '').slice(0, 50000));
+            reader.onerror = () => resolve('');
+            reader.readAsText(file);
+          });
+        } catch { /* ignore */ }
+      } else {
+        try {
+          dataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+          });
+        } catch { /* ignore */ }
+      }
+
+      list.push({
+        id,
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        dataUrl,
+        textContent,
+      });
+    }
+
+    if (list.length > 0) {
+      setAttachments(prev => [...prev, ...list]);
+    }
+  }, []);
 
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
@@ -117,8 +195,13 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
       if (canSend) {
         const channel = lastInputChannelRef.current;
         lastInputChannelRef.current = 'typed';
-        onSendMessage(text, channel);
+        if (attachments && attachments.length > 0) {
+          onSendMessage(text, channel, [...attachments]);
+        } else {
+          onSendMessage(text, channel);
+        }
         setText('');
+        setAttachments([]);
       }
     }
   };
@@ -127,8 +210,13 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
     if (canSend) {
       const channel = lastInputChannelRef.current;
       lastInputChannelRef.current = 'typed';
-      onSendMessage(text, channel);
+      if (attachments && attachments.length > 0) {
+        onSendMessage(text, channel, [...attachments]);
+      } else {
+        onSendMessage(text, channel);
+      }
       setText('');
+      setAttachments([]);
     }
   };
 
@@ -233,7 +321,7 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length);
-        const isSilent = rms < 0.015;
+        const isSilent = rms < 0.02;
 
         // Broadcast REAL microphone amplitude (normalised 0..1) so the orb can
         // react to live input. This is measured audio, never synthesised.
@@ -355,6 +443,20 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
     };
   }, [cleanupMic]);
 
+  // Auto-stop recording when processing starts (echo protection: prevents
+  // the microphone from capturing TTS playback during assistant response).
+  useEffect(() => {
+    if (isProcessing && micState === 'listening') {
+      console.log('[JarvisComposer] Auto-stopping mic — processing started (echo protection)');
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      } else {
+        cleanupMic();
+        setMicState('idle');
+      }
+    }
+  }, [isProcessing, micState, cleanupMic]);
+
   // ─── Mic button appearance ─────────────────────────────────────────────────
   const micLabel = (() => {
     switch (micState) {
@@ -372,7 +474,26 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
 
   return (
     <div className={styles.composerContainer} data-testid="jarvis-composer">
-      <div className={styles.composerBox}>
+      <div
+        className={styles.composerBox}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setIsDragging(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleFiles(e.dataTransfer.files);
+          }
+        }}
+        style={isDragging ? { borderColor: 'var(--color-jarvis, #00d4ff)', background: 'rgba(0, 212, 255, 0.04)' } : undefined}
+      >
 
         {/* Microphone button + label hidden in canonical voice mode — the
             page engine is the single mic owner. */}
@@ -426,6 +547,36 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
         </>
         )}
 
+        {/* ── File attachment button + hidden input ── */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: 'none' }}
+          accept="image/*,.pdf,.doc,.docx,.txt,.md,.json,.csv,.zip,.tar,.gz,.log,.py,.ts,.js,.html,.css"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length > 0) {
+              handleFiles(e.target.files);
+              e.target.value = '';
+            }
+          }}
+          data-testid="jarvis-file-input"
+        />
+        <button
+          type="button"
+          className={styles.actionBtn}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isProcessing || !!disabledReason}
+          title="Attach files, documents, or photos"
+          aria-label="Attach files"
+          data-testid="jarvis-attach-button"
+          style={{
+            color: attachments.length > 0 ? 'var(--color-jarvis, #00d4ff)' : undefined,
+          }}
+        >
+          <Paperclip size={18} aria-hidden />
+        </button>
+
         {/* ── Inline error banner ── */}
         {micState === 'error' && micError && (
           <span
@@ -468,21 +619,105 @@ export const JarvisComposer: React.FC<JarvisComposerProps> = ({
           </span>
         )}
 
-        <textarea
-          ref={textareaRef}
-          className={styles.composerInput}
-          placeholder={disabledReason ? 'Backend offline — Jarvis cannot process requests' : 'Ask Jarvis anything...'}
-          value={text}
-          onChange={(e) => {
-            // Any manual keystroke resets the channel to 'typed'
-            lastInputChannelRef.current = 'typed';
-            setText(e.target.value);
-          }}
-          onKeyDown={handleKeyDown}
-          disabled={isProcessing || !!disabledReason}
-          rows={1}
-          aria-label="Message Input"
-        />
+        {/* ── Center input area with attachment chips and textarea ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, gap: 4 }}>
+          {attachments.length > 0 && (
+            <div
+              data-testid="jarvis-attachment-list"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                padding: '4px 2px 6px',
+                width: '100%',
+              }}
+            >
+              {attachments.map((att) => (
+                <div
+                  key={att.id}
+                  data-testid="jarvis-attachment-chip"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: 8,
+                    padding: '3px 8px 3px 6px',
+                    fontSize: 12,
+                    color: 'var(--text-primary, #fff)',
+                    maxWidth: 220,
+                  }}
+                >
+                  {att.type.startsWith('image/') && att.dataUrl ? (
+                    <img
+                      src={att.dataUrl}
+                      alt={att.name}
+                      style={{ width: 24, height: 24, objectFit: 'cover', borderRadius: 4 }}
+                    />
+                  ) : att.type.startsWith('image/') ? (
+                    <ImageIcon size={15} style={{ color: 'var(--color-jarvis, #00d4ff)', flexShrink: 0 }} />
+                  ) : (
+                    <FileText size={15} style={{ color: 'var(--color-jarvis, #00d4ff)', flexShrink: 0 }} />
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: 11 }}>
+                      {att.name}
+                    </span>
+                    <span style={{ fontSize: 9, color: 'var(--text-tertiary, #94a3b8)' }}>
+                      {formatFileSize(att.size)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(att.id)}
+                    aria-label={`Remove ${att.name}`}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary, #94a3b8)',
+                      cursor: 'pointer',
+                      padding: 2,
+                      marginLeft: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      borderRadius: 4,
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <textarea
+            ref={textareaRef}
+            className={styles.composerInput}
+            placeholder={
+              disabledReason
+                ? 'Backend offline — Jarvis cannot process requests'
+                : attachments.length > 0
+                  ? 'Add a message or press Send to submit attachments...'
+                  : 'Ask Jarvis anything or attach files...'
+            }
+            value={text}
+            onChange={(e) => {
+              // Any manual keystroke resets the channel to 'typed'
+              lastInputChannelRef.current = 'typed';
+              setText(e.target.value);
+            }}
+            onKeyDown={handleKeyDown}
+            onPaste={(e) => {
+              if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
+                handleFiles(e.clipboardData.files);
+              }
+            }}
+            disabled={isProcessing || !!disabledReason}
+            rows={1}
+            aria-label="Message Input"
+          />
+        </div>
 
         {/* ── Backend lifecycle gate banner (offline/failed backend) ── */}
         {disabledReason && (

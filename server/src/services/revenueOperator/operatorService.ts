@@ -487,7 +487,18 @@ export function updateComplianceRecord(id: string, patch: Partial<{
 // ── Human gates ─────────────────────────────────────────────────────────────
 
 export function createHumanGate(input: {
-  experimentId?: string; gateType: string; description?: string; branchPaused?: boolean;
+  experimentId?: string;
+  projectId?: string;
+  taskId?: string;
+  gateType: string;
+  description?: string;
+  platform?: string;
+  userAction?: string;
+  gateUrl?: string;
+  expiresAt?: string;
+  branchPaused?: boolean;
+  metadata?: any;
+  evidence?: any;
 }) {
   if (!HUMAN_GATE_TYPES.includes(input.gateType as any)) {
     throw Object.assign(new Error(`Invalid gate type: ${input.gateType}`), { status: 400 });
@@ -497,13 +508,23 @@ export function createHumanGate(input: {
   db.insert(revenueHumanGates).values({
     id,
     experimentId: input.experimentId || null,
+    projectId: input.projectId || null,
+    taskId: input.taskId || null,
     gateType: input.gateType,
     status: 'open',
     description: input.description || null,
-    branchPaused: !!input.branchPaused,
-    resolvedBy: null, resolvedAt: null,
-    metadata: null,
-    createdAt: t, updatedAt: t,
+    platform: input.platform || null,
+    userAction: input.userAction || null,
+    gateUrl: input.gateUrl || null,
+    branchPaused: input.branchPaused !== undefined ? !!input.branchPaused : true,
+    resolvedBy: null,
+    resolvedAt: null,
+    expiresAt: input.expiresAt || null,
+    notifiedConversation: null,
+    evidence: input.evidence ? JSON.stringify(input.evidence) : null,
+    metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+    createdAt: t,
+    updatedAt: t,
   }).run();
   return db.select().from(revenueHumanGates).where(eq(revenueHumanGates.id, id)).get();
 }
@@ -512,6 +533,21 @@ export function listHumanGates(status?: string) {
   const q = db.select().from(revenueHumanGates);
   if (status) return q.where(eq(revenueHumanGates.status, status)).orderBy(desc(revenueHumanGates.createdAt)).all();
   return q.orderBy(desc(revenueHumanGates.createdAt)).all();
+}
+
+export function getOpenHumanGates(projectId?: string) {
+  const all = listHumanGates('open');
+  if (projectId) return all.filter(g => g.projectId === projectId);
+  return all;
+}
+
+export function markGateNotified(id: string, conversationId: string) {
+  const t = now();
+  db.update(revenueHumanGates)
+    .set({ notifiedConversation: conversationId, updatedAt: t })
+    .where(eq(revenueHumanGates.id, id))
+    .run();
+  return db.select().from(revenueHumanGates).where(eq(revenueHumanGates.id, id)).get();
 }
 
 export async function resolveHumanGate(id: string, resolvedBy: string) {

@@ -160,9 +160,19 @@ export function unownedFiles(changeset: MaintenanceChangeSet, actualFiles: strin
   return actualFiles.filter((f) => !isOwnedBy(changeset, f)).map(normalizePath);
 }
 
-/** Map typed changed-file evidence back to a plain path list. */
-export function changedFilePaths(files: ChangedFile[] | undefined): string[] {
-  return (files ?? []).map((f) => normalizePath(f.path));
+/** Map typed changed-file evidence back to a plain path list.
+ *
+ *  Accepts the typed `ChangedFile[]` contract AND the legacy `string[]` shape
+ *  (same dual-form tolerance as `parseChangedFiles` in maintenanceStore), so a
+ *  repair adapter that reports bare paths can never crash the ownership check
+ *  with "Cannot read properties of undefined (reading 'replace')". Entries
+ *  without a usable path are dropped instead of poisoning the path list.
+ */
+export function changedFilePaths(files: ChangedFile[] | Array<ChangedFile | string> | undefined): string[] {
+  return (files ?? [])
+    .map((f) => (typeof f === 'string' ? f : f?.path))
+    .filter((p): p is string => typeof p === 'string' && p.length > 0)
+    .map(normalizePath);
 }
 
 /**

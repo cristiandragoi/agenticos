@@ -8,10 +8,14 @@
     "dev": "node scripts/ensure-venv.cjs && tsc && node dist/index.js",
     "build": "node scripts/ensure-venv.cjs && tsc && node ../scripts/build-identity.cjs",
     "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "eval:models": "node dist/evalCli.js",
     "doctor": "tsx src/scripts/agenticos-doctor.ts"
   },
   "dependencies": {
+    "@livekit/av": "^10.0.0",
+    "@livekit/rtc-node": "^0.13.35",
     "@supabase/supabase-js": "^2.108.2",
     "@types/jsonwebtoken": "^9.0.10",
     "better-sqlite3": "^12.11.1",
@@ -24,6 +28,7 @@
     "google-it": "^1.6.4",
     "jsonwebtoken": "^9.0.3",
     "keytar": "^7.9.0",
+    "livekit-server-sdk": "^2.19.0",
     "minimatch": "^10.2.5",
     "multer": "^2.2.0",
     "node-cron": "^4.6.0",

@@ -35,19 +35,20 @@ const REPOSITORY_CLAIM_SIGNALS = [
 ];
 
 const ACTION_REQUEST_PATTERNS = [
-  /\b(?:install|setup|set up|deploy|download|configure|enable|disable|delete|remove|create|edit|modify|patch|build|run|execute|delegate|ask hermes|tell hermes)\b/i,
+  /\b(?:install|setup|set up|deploy|download|configure|enable|disable|delete|remove|create|edit|modify|patch|build|run|execute|delegate|ask hermes|tell hermes|write|save|make|touch|open|launch|start|send)\b/i,
   /\b(?:speak german|speak romanian|sprich deutsch|vorbește română)\b/i,
-  /\b(?:erstelle|erstellen|anlegen|installiere|konfiguriere|arbeitsbereich|neuen arbeitsbereich)\b/i,
-  /\b(?:configurează|creează|instalează|proiectul|noul proiect)\b/i,
+  /\b(?:erstelle|erstellen|anlegen|installiere|konfiguriere|arbeitsbereich|neuen arbeitsbereich|schreibe|speichere|lösche)\b/i,
+  /\b(?:configurează|creează|instalează|proiectul|noul proiect|scrie|salvează|șterge)\b/i,
 ];
 
 const COMPLETION_CLAIM_PATTERNS = [
-  /\b(?:has been|have been|is now|was|successfully)\s+(?:installed|configured|enabled|disabled|changed|fixed|created|switched|updated|completed|set up)\b/i,
-  /\b(?:I have|I've)\s+(?:installed|configured|enabled|disabled|changed|fixed|created|switched|updated|completed|set up)\b/i,
-  /\b(?:done|installed|configured|completed)!?\b/i,
-  /\b(?:habe|haben|wurde|wurden|ist)\s+.*?\b(?:erstellt|konfiguriert|installiert|angelegt|eingerichtet|abgeschlossen)\b/i,
+  /\b(?:has been|have been|is now|was|successfully)\s+(?:installed|configured|enabled|disabled|changed|fixed|created|switched|updated|completed|set up|written|saved|opened|started|sent|deleted|launched)\b/i,
+  /\b(?:I have|I've)\s+(?:installed|configured|enabled|disabled|changed|fixed|created|switched|updated|completed|set up|written|saved|opened|started|sent|deleted|launched)\b/i,
+  /\bI\s+(?:created|opened|sent|started|launched|deleted|wrote|saved|completed)\b/i,
+  /\b(?:done|installed|configured|completed|created|written|saved|sent)!?\b/i,
+  /\b(?:habe|haben|wurde|wurden|ist)\s+.*?\b(?:erstellt|konfiguriert|installiert|angelegt|eingerichtet|abgeschlossen|gespeichert|geschrieben|gelöscht)\b/i,
   /\b(?:ich habe schon|wir haben schon|ich habe bereits|habe ich erstellt|wurde erstellt)\b/i,
-  /\b(?:am|au fost|a fost)\s+.*?\b(?:creat|configurat|instalat|finalizat)\b/i,
+  /\b(?:am|au fost|a fost)\s+.*?\b(?:creat|configurat|instalat|finalizat|scris|salvat|șters)\b/i,
 ];
 
 
@@ -73,6 +74,8 @@ const CANNED_SUFFIX_PATTERNS = [
  * Replaceable with a concise operational fallback.
  */
 const BARE_FILLER_PATTERNS = [
+  /^(?:understood|got it|okay|ok)(?:,?\s+(?:operator|christian))?[.!]*$/i,
+  /^i(?: am|'m) ready(?: and (?:standing by|listening))?[.!]*$/i,
   /^i'?m here and ready\.?\s*(?:how can i (?:assist|help) you\s*(?:today|further)?\??)?$/i,
   /^hey[!.]?\s*i'?m here\.?\s*(?:what can i do for you\??)?$/i,
   /^how can i (?:assist|help) you today\??$/i,
@@ -153,6 +156,23 @@ export function sanitizeDirectResponse(
   if (!reply) return reply;
 
   let sanitized = reply;
+  
+  // A. Aggressively strip conversational acknowledgment and title prefixes
+  // (e.g. "Understood, Master. I will..." -> "I will...")
+  const prefixRegex = /^(?:understood|acknowledged|got it|okay|ok|certainly|yes|sure)[\s,.]*(?:master|commander|chief|executive|christian|operator)?[\s,.-]*/i;
+  let prevSanitized = '';
+  while (sanitized !== prevSanitized) {
+    prevSanitized = sanitized;
+    sanitized = sanitized.replace(prefixRegex, '');
+    sanitized = sanitized.replace(/^(?:master|commander|chief|executive|christian|operator)[\s,.-]+/i, '');
+  }
+  
+  // Ensure we didn't strip everything; if we did, return a minimal valid response.
+  if (!sanitized.trim()) sanitized = reply;
+  
+  // Capitalize the first letter if it was stripped
+  sanitized = sanitized.charAt(0).toUpperCase() + sanitized.slice(1);
+
   const prompt = options.prompt || '';
   const isModel = options.isModelQuery || isModelIdentityQuery(prompt);
   const isCorr = options.isCorrection || isConversationalCorrection(prompt);
@@ -165,6 +185,7 @@ export function sanitizeDirectResponse(
   // "I'm here and ready. How can I assist you today?" in response to garbled
   // or unclear transcripts.
   if (containsBareFiller(sanitized)) {
+    if (isAction || /\b(?:check|status)\b/i.test(prompt)) return options.groundedResult || 'No capability result was produced; this request has not been executed.';
     return "I didn't catch that — what would you like to do?";
   }
 
@@ -187,7 +208,7 @@ export function sanitizeDirectResponse(
   // 3. Action Request False Completion or Unsupported Execution Promise Guard:
   // If the user requested an action (e.g. "erstelle einen neuen Arbeitsbereich" or "install compiler") but NO execution occurred
   // (no taskId, no tool run, no system mutation), Jarvis MUST NOT say "done", "installed", or "I will do that / let me coordinate".
-  if (isAction && !hasExecEvidence && (containsCompletionClaims(sanitized) || containsFuturePromises(sanitized))) {
+  if ((isAction || containsCompletionClaims(sanitized)) && !hasExecEvidence && (containsCompletionClaims(sanitized) || containsFuturePromises(sanitized))) {
     const isGerman = /\b(erstelle|neuen arbeitsbereich|arbeitsbereich|bitte|guten morgen|installiere)\b/i.test(prompt) || /\b(guten morgen|arbeitsbereich)\b/i.test(sanitized);
     const isRomanian = /\b(configurează|proiect|te rog|bună dimineața|instalează)\b/i.test(prompt) || /\b(bună dimineața|proiectul)\b/i.test(sanitized);
 
@@ -197,7 +218,7 @@ export function sanitizeDirectResponse(
     if (isRomanian) {
       return 'Am înțeles solicitarea dumneavoastră. Cu toate acestea, niciun executant automat nu a fost alocat pentru această acțiune, astfel încât sarcina nu a fost încă executată. Doriți să creez o sarcină pentru aceasta?';
     }
-    const match = prompt.match(/\b(?:install|set up|setup|configure|enable|deploy|create)\s+([a-zA-Z0-9_\- ]+)/i);
+    const match = prompt.match(/\b(?:install|set up|setup|configure|enable|deploy|create|write|save|make|touch|delete|remove|open|launch|start|send)\s+([a-zA-Z0-9_\-\. ]+)/i);
     const actionTarget = match ? match[1].trim() : 'the requested action';
     return `I understood the request regarding ${actionTarget}, but no automated executor was dispatched to perform this action, so it has not been completed. Would you like me to create a task for this?`;
   }

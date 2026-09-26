@@ -27,7 +27,7 @@ const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
   {
     // Presence check — "are you there", "you there", "still there", "can you
     // hear me", etc. (un-anchored so "Jarvis, you there?" matches).
-    re: /\b(are you there|are you here|you there|you here|you around|are you listening|are you awake|can you hear me|do you hear me|are you still there|still there|still here|still with me|still awake|still around|still listening|anyone there|anyone home)\b/i,
+    re: /\b(are you there|are you here|you there|you here|you around|are you listening|are you awake|can you hear me|do you hear me|are you still there|still there|still here|still with me|still awake|still around|still listening|anyone there|anyone home|how are you|how are you doing|how's it going|how's life|how is it going)\b/i,
     reply: "Yeah, I'm here. What's up?",
   },
   {
@@ -43,7 +43,7 @@ const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
   },
   {
     // Bare acknowledgement — "Okay", "Fine", "Got it", "Thanks" (no task verbs).
-    re: /^(?:okay|ok|k|fine|alright|all right|sure|got it|gotcha|cool|perfect|great|nice|thanks|thank you|sounds good)[,.!?]*$/i,
+    re: /^(?:okay|ok|k|fine|alright|all right|sure|got it|gotcha|cool|perfect|great|nice|thanks|thank you|sounds good)[,.!?\s]*(?:(?:there|jarvis)[,.!?]*)?$/i,
     reply: "Got it. Just let me know what you'd like to do.",
   },
   {
@@ -54,6 +54,16 @@ const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
 ];
 
 const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string }> = [
+  {
+    // New project handoff (with immediate execution instruction)
+    re: /\bi'll give you a (new\s+)?project\b.*\b(?:start now|has to start now|start)\b/i,
+    reply: "Send it over. I'll turn it into an implementation task and delegate the code work to Codex.",
+  },
+  {
+    // New project handoff (generic)
+    re: /\bi'll give you a (new\s+)?project\b/i,
+    reply: "Send it over.",
+  },
   {
     // "What is Jarvis?" / "Who is Jarvis?" — grounded identity, no invented OS.
     re: /\bwhat\s+is\s+jarvis\b|\bwho\s+is\s+jarvis\b/i,
@@ -76,6 +86,11 @@ const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string }> = [
     reply:
       "I coordinate your AI operations: I answer questions, delegate research to Hermes, delegate engineering " +
       "to CodeX, run schedules and background tasks, and keep track of your projects and memory.",
+  },
+  {
+    // "What does Hermes do?" / "What does CodeX do?"
+    re: /\bwhat\s+does\s+(hermes|codex)\s+do\b/i,
+    reply: "Hermes is our planning and research agent, while CodeX implements and modifies code in your repository. I coordinate both of them to help execute your goals.",
   },
 ];
 

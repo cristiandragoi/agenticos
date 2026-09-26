@@ -237,7 +237,7 @@ export const backgroundTaskRepo = {
       params.push(...opts.status);
     }
     if (opts?.activeOnly) {
-      clauses.push(`status IN ('queued','planning','running','waiting_approval','review','paused')`);
+      clauses.push(`status IN ('queued','planning','running','waiting_approval','waiting_for_auth','review','paused')`);
     }
     if (opts?.projectId) {
       clauses.push(`project_id = ?`);

@@ -18,6 +18,7 @@ import {
   TERMINAL_STATUSES,
   TASK_LIMITS,
   isActiveStatus,
+  isExecutingStatus,
   taskShortId,
   type BackgroundTaskEvent,
   type BackgroundTaskRecord,
@@ -96,6 +97,8 @@ const STATUS_TO_LANE: Record<TaskStatus, string> = {
   running: 'l-hermes-inprogress-hermes',
   verifying: 'l-hermes-review',
   waiting_approval: 'l-hermes-blocked',
+  // Held at an external prerequisite: registered, NOT executing.
+  waiting_for_auth: 'l-hermes-blocked',
   paused: 'l-hermes-blocked',
   review: 'l-hermes-review',
   completed: 'l-hermes-done',
@@ -211,18 +214,27 @@ export class BackgroundTaskManager extends EventEmitter {
                   });
                 } else if (!probe.isAlive) {
                   this.transition(task.taskId, 'blocked', {
-                    blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+                    resumable: true,
+                    blocker: 'Worker state was interrupted by backend restart. Resume or retry the task to continue.',
+                    lastError: 'Worker state was interrupted by backend restart.',
+                    metadata: { ...(task.metadata || {}), recoveryAction: 'retry' },
                   });
                 }
               } catch {
                 this.transition(task.taskId, 'blocked', {
-                  blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+                  resumable: true,
+                  blocker: 'Worker state was interrupted by backend restart. Resume or retry the task to continue.',
+                  lastError: 'Worker state was interrupted by backend restart.',
+                  metadata: { ...(task.metadata || {}), recoveryAction: 'retry' },
                 });
               }
             }).catch(() => {});
           } else {
             this.transition(task.taskId, 'blocked', {
-              blocker: 'Backend restarted while this task was in progress. The worker’s live state was lost — resume or retry the task to continue.',
+              resumable: true,
+              blocker: 'Worker state was interrupted by backend restart. Resume or retry the task to continue.',
+              lastError: 'Worker state was interrupted by backend restart.',
+              metadata: { ...(task.metadata || {}), recoveryAction: 'retry' },
             });
           }
           continue;
@@ -249,16 +261,34 @@ export class BackgroundTaskManager extends EventEmitter {
   /** Create + persist a task. Enforces concurrency limits (requirement 15). */
   createTask(input: CreateTaskInput): { task?: BackgroundTaskRecord; error?: string } {
     const active = backgroundTaskRepo.listTasks({ activeOnly: true });
-    const activeCount = active.filter(t => isActiveStatus(t.status) && t.status !== 'queued').length;
+    const executingTasks = active.filter(t => isExecutingStatus(t.status));
+    const activeCount = executingTasks.length;
     const queuedCount = active.filter(t => t.status === 'queued').length;
 
+    // Deduplication check: if an identical active request already exists for this worker, reuse it!
+    const reqNormalized = (input.originalRequest || input.objective || input.title || '').trim().toLowerCase();
+    const duplicate = active.find(t => {
+      const existingReq = (t.originalRequest || t.objective || t.title || '').trim().toLowerCase();
+      return (
+        t.worker === input.worker &&
+        existingReq.length > 5 &&
+        existingReq === reqNormalized &&
+        (!input.conversationId || t.conversationId === input.conversationId)
+      );
+    });
+    if (duplicate) {
+      logger.info(`[BackgroundTaskManager] Reusing active duplicate task ${duplicate.taskId} for request: "${input.title}"`);
+      return { task: duplicate };
+    }
+
     if (activeCount >= TASK_LIMITS.maxActiveGlobal) {
-      return { error: `Concurrency limit reached (${TASK_LIMITS.maxActiveGlobal} active tasks). Stop or finish a task first.` };
+      const occupiedBy = executingTasks.map(t => `${t.worker || 'worker'}:${t.taskId} ("${t.title}")`).join(', ');
+      return { error: `Concurrency limit reached (${TASK_LIMITS.maxActiveGlobal} active execution tasks). Occupied by: ${occupiedBy}. Stop or finish an active task first.` };
     }
     if (queuedCount >= TASK_LIMITS.maxQueued) {
       return { error: `Queue is full (${TASK_LIMITS.maxQueued} queued tasks).` };
     }
-    const perWorkerActive = active.filter(t => t.worker === input.worker && isActiveStatus(t.status) && t.status !== 'queued').length;
+    const perWorkerActive = active.filter(t => t.worker === input.worker && isExecutingStatus(t.status)).length;
     const workerLimit =
       input.worker === 'hermes' ? TASK_LIMITS.maxActiveHermes
       : input.worker === 'codex' ? TASK_LIMITS.maxActiveCodex
@@ -279,9 +309,9 @@ export class BackgroundTaskManager extends EventEmitter {
       taskId: `bgtask-${randomUUID().replace(/-/g, '').slice(0, 9)}`,
       title: input.title,
       objective: input.objective,
-      originalRequest: input.originalRequest,
-      route: input.route,
-      selectedAgent: input.selectedAgent,
+      originalRequest: input.originalRequest || input.objective || input.title || '',
+      route: input.route || input.worker || 'hermes',
+      selectedAgent: input.selectedAgent || input.worker || 'hermes',
       status: 'queued',
       priority: input.priority || 'medium',
       projectId: input.projectId || null,
@@ -353,7 +383,7 @@ export class BackgroundTaskManager extends EventEmitter {
         .filter(t => t.worker === worker && t.status === 'queued');
       if (!queued.length) return;
       const active = this.listTasks({ activeOnly: true })
-        .filter(t => t.worker === worker && isActiveStatus(t.status) && t.status !== 'queued').length;
+        .filter(t => t.worker === worker && isExecutingStatus(t.status)).length;
       const workerLimit =
         worker === 'hermes' ? TASK_LIMITS.maxActiveHermes
         : worker === 'codex' ? TASK_LIMITS.maxActiveCodex

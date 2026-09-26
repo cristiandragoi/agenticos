@@ -48,6 +48,19 @@ export default defineConfig({
     // own node-environment config in server/). Without this, the bare 'src/'
     // positional filter substring-matches server/src/__tests__ too, so
     // `npm test -- <anything>` sweeps server tests into the jsdom runner.
-    exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', 'server/**']
+    //
+    // Also exclude the vendored LiveKit Agents reference checkout. It is a
+    // 42MB third-party copy whose own suite is co-located in `agents/src/**`,
+    // so the substring filter 'src/' collected it: 235 phantom test files whose
+    // imports (@livekit/rtc-node, @livekit/agents, pino-pretty) are not
+    // installed here, producing ~156 Vite transform errors and 221 of the 245
+    // "failing" files. Those files are not this project's tests.
+    exclude: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      'server/**',
+      'external/**'
+    ]
   }
 })

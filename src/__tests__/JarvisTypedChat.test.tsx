@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JarvisChat } from '../components/jarvis/JarvisChat';
 import { CodexProvider, useCodexStore } from '../store/codexStore';
+import { CODEX_REPOSITORY } from '../config/codexRuntime';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -182,8 +183,8 @@ describe('Jarvis typed streaming chat', () => {
     expect(lastMessageBody).toMatchObject({
       prompt: 'What can you do?',
       operationId: expect.any(String),
-      workspacePath: 'B:\\AgenticOS',
-      repositoryPath: 'B:\\AgenticOS'
+      workspacePath: CODEX_REPOSITORY,
+      repositoryPath: CODEX_REPOSITORY
     });
   });
 

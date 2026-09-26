@@ -2,23 +2,31 @@
  * MissionControlConversation.test.tsx — conversation mode wired into the MAIN
  * Mission Control cockpit (the user-facing surface).
  *
- * Uses the REAL useVoiceIO engine inside the real JarvisConversationPanel
- * (the component mounted in MissionControlPage), with the same scriptable
- * VAD harness as JarvisConversation.test.tsx:
- *  - manual requestAnimationFrame queue
- *  - fake timers driving measured-silence durations
- *  - test-controlled microphone RMS amplitude
- *  - configurable MediaRecorder payload + fetch routing
+ * RETARGETED to the CURRENT Jarvis voice architecture.
  *
- * Proves (cycle contract):
- *  1. the main cockpit exposes Manual and Conversation modes
- *  2. Conversation mode auto-submits after end-of-speech (no Send click)
- *  3. Manual mode requires Send
- *  4. transcript submits exactly once
- *  5. no duplicate TTS (one synthesis per assistant turn)
- *  6. playback end resumes listening
- *  7. switching back to Manual stops continuous capture
- *  8. existing input and Send button remain available
+ * The original suite drove the browser VAD turn engine inside the cockpit: a manual
+ * requestAnimationFrame queue, test-controlled microphone RMS, a MediaRecorder payload
+ * and `/voice/transcribe` → browser-side auto-submit. `agent-jarvis` no longer runs that
+ * architecture — SELFHEAL-001 removed `useVoiceIO` from the cockpit entirely ("Voice is
+ * now handled exclusively by JarvisNextVoiceSession"), because two engines fighting over
+ * the microphone blocked Start Conversation. Voice is LiveKit-first:
+ *
+ *   browser mic → LiveKit canonical room → server-side voice agent
+ *   → transcription / turn handling → Jarvis execution → response
+ *
+ * So for Jarvis there is no browser end-of-speech to detect, no browser auto-submit and
+ * no client-side TTS: the server-side voice agent owns the turn AND the spoken reply.
+ *
+ * The USER-LEVEL requirements the old suite protected are preserved and re-expressed
+ * against the live contract:
+ *   - conversation mode opens exactly ONE LiveKit session in the canonical room
+ *   - the browser runs NO VAD / recorder / transcribe loop for Jarvis
+ *   - no client-side TTS (the reply is spoken by the server-side voice agent)
+ *   - a browser lifecycle interruption neither duplicates nor loses the session
+ *   - switching back to Manual tears the session down
+ *   - typed input + Send keep working
+ *
+ * No fake browser-VAD behaviour is simulated to satisfy the historical assertions.
  */
 
 import React from 'react';
@@ -29,6 +37,18 @@ import JarvisConversationPanel from '../components/jarvis/JarvisConversationPane
 import { AppProvider } from '../store/appStore';
 import { ProjectProvider } from '../store/projectStore';
 import { MemoryRouter } from 'react-router-dom';
+import { jarvisLiveKitSession } from '../lib/jarvisLiveKitSession';
+import {
+  createdRooms,
+  resetJarvisVoiceHarness,
+  withJarvisVoiceEndpoints,
+  JARVIS_TEST_ROOM,
+  JARVIS_TEST_WS_URL,
+} from './helpers/jarvisVoiceHarness';
+
+// Jarvis voice is LiveKit-first: the client fetches a token and constructs a Room, so
+// both livekit-client and the token endpoint must be modelled.
+vi.mock('livekit-client', async () => (await import('./helpers/jarvisVoiceHarness')).liveKitClientMock());
 
 /* ─── dataStore mock for the full-page render ─── */
 vi.mock('../store/dataStore', () => ({
@@ -44,24 +64,7 @@ vi.mock('../store/dataStore', () => ({
   }),
 }));
 
-/* ─── Manual rAF queue ─── */
-let rafQueue: Array<(t: number) => void> = [];
-let rafIdCounter = 0;
-
-function flushRaf(frames = 1) {
-  for (let i = 0; i < frames; i++) {
-    const current = rafQueue;
-    rafQueue = [];
-    current.forEach((cb) => cb(performance.now()));
-  }
-}
-
-/* ─── Scriptable mic amplitude ─── */
-let rmsLevel = 0;
-
-/* ─── Configurable recorder payload ─── */
-let recorderChunkSize = 600;
-
+/* ─── Browser voice-capture machinery: counted so we can prove it is NEVER used ─── */
 class MockMediaRecorder {
   static instances: MockMediaRecorder[] = [];
   state: 'inactive' | 'recording' = 'inactive';
@@ -76,8 +79,7 @@ class MockMediaRecorder {
 
   start() {
     this.state = 'recording';
-    const chunk = new Blob([new Uint8Array(recorderChunkSize).fill(1)], { type: 'audio/webm' });
-    this.ondataavailable?.({ data: chunk });
+    this.ondataavailable?.({ data: new Blob([new Uint8Array(600).fill(1)], { type: 'audio/webm' }) });
   }
 
   stop() {
@@ -87,33 +89,42 @@ class MockMediaRecorder {
   }
 }
 
-/* ─── Audio element mock ─── */
-let lastAudio: MockAudio | null = null;
-
 class MockAudio {
   src = '';
+  paused = true;
   onplay: (() => void) | null = null;
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
   pause = vi.fn();
   load = vi.fn();
   removeAttribute = vi.fn();
-  play = vi.fn(() => {
-    const self = this;
-    if (self.src) Promise.resolve().then(() => self.onplay?.());
-    return Promise.resolve();
-  });
-  constructor() {
-    lastAudio = this;
-  }
+  play = vi.fn(() => Promise.resolve());
+  private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+  addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    const l = this.listeners.get(type) ?? [];
+    l.push(cb);
+    this.listeners.set(type, l);
+  };
+  removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+  };
+  currentTime = 0;
+  volume = 1;
 }
 
-/* ─── Fetch routing: gateway health / conversation create / SSE stream / tts ─── */
-let transcribeText = 'reply with exactly jarvis live';
-let streamRoute = 'direct';
+/* ─── Fetch routing ─── */
+const streamRoute = 'direct';
+/** Every /voice/tts request — must stay 0 for Jarvis: the voice agent speaks. */
+let ttsCalls = 0;
+/** Every /voice/transcribe request — must stay 0: STT runs in the voice agent. */
+let transcribeCalls = 0;
+/** Every Jarvis streaming turn request, with the channel it was submitted on. */
+let streamPrompts: Array<{ prompt: string; inputChannel: string }> = [];
 
-/** Build a ReadableStream that emits the given SSE events then closes. */
-function makeSseResponse(events: Array<{ event: string; data: any }>) {
+/** Build a ReadableStream that emits the given SSE events then closes. The `json`
+ *  member satisfies the harness's JarvisResponse shape (`tsc -b` type-checks
+ *  src/__tests__); the SSE bodies themselves are read from `body`. */
+function makeSseResponse(events: Array<{ event: string; data: unknown }>) {
   const encoder = new TextEncoder();
   let sseText = '';
   for (const e of events) {
@@ -125,57 +136,50 @@ function makeSseResponse(events: Array<{ event: string; data: any }>) {
       controller.close();
     },
   });
-  return { ok: true, body: stream };
+  return { ok: true, body: stream, json: async () => ({}) };
 }
 
-const fetchMock = vi.fn(async (input: unknown, _init?: unknown) => {
-  const url = String(input);
-  if (url.includes('/voice/transcribe')) {
-    return { ok: true, json: async () => ({ text: transcribeText }) };
-  }
-  if (url.includes('/api/health/gateway')) {
-    return { ok: true, json: async () => ({ status: 'online' }) };
-  }
-  if (url.includes('/voice/tts')) {
-    return { ok: true, json: async () => ({ audioData: 'QkFTRTY0QVVESU8=' }) };
-  }
-  // Conversation creation.
-  if (url.endsWith('/api/jarvis/conversations')) {
-    return { ok: true, json: async () => ({ id: 'conv-1' }) };
-  }
-  // Streaming request path — the REAL Jarvis route. Emits status + chunk + done.
-  if (url.includes('/message/stream')) {
-    return makeSseResponse([
-      { event: 'status', data: { state: 'thinking', provider: 'OpenRouter', model: 'poolside/laguna-s-2.1:free', operationId: 'op-1' } },
-      { event: 'chunk', data: { delta: 'JARVIS', operationId: 'op-1' } },
-      { event: 'chunk', data: { delta: '_LIVE', operationId: 'op-1' } },
-      { event: 'done', data: { route: streamRoute, operationId: 'op-1', provider: 'OpenRouter', model: 'poolside/laguna-s-2.1:free' } },
-    ]);
-  }
-  return { ok: true, json: async () => ({}) };
-});
+const fetchMock = vi.fn(
+  withJarvisVoiceEndpoints((url, init) => {
+    // The deprecated browser path — counted, never expected to be used by Jarvis.
+    if (url.includes('/voice/transcribe')) {
+      transcribeCalls++;
+      return { ok: true, status: 200, json: async () => ({ text: 'should never happen' }) };
+    }
+    if (url.includes('/voice/tts')) {
+      ttsCalls++;
+      return { ok: true, status: 200, json: async () => ({ audioData: 'QkFTRTY0QVVESU8=' }) };
+    }
+    if (url.includes('/api/health/gateway')) {
+      return { ok: true, status: 200, json: async () => ({ status: 'online' }) };
+    }
+    if (url.endsWith('/api/jarvis/conversations')) {
+      return { ok: true, status: 200, json: async () => ({ id: 'conv-1' }) };
+    }
+    if (url.includes('/api/jarvis/runtime-state')) {
+      return { ok: true, status: 200, json: async () => ({ state: 'idle' }) };
+    }
+    if (url.includes('/api/jarvis/live-events')) {
+      return { ok: true, status: 200, json: async () => [] };
+    }
+    // Streaming request path — the REAL Jarvis route. Emits status + chunk + done.
+    if (url.includes('/message/stream')) {
+      let body: { prompt?: string; inputChannel?: string } = {};
+      try { body = init?.body ? JSON.parse(String(init.body)) : {}; } catch { /* keep defaults */ }
+      streamPrompts.push({ prompt: String(body.prompt ?? ''), inputChannel: String(body.inputChannel ?? '') });
+      return makeSseResponse([
+        { event: 'status', data: { state: 'thinking', provider: 'OpenRouter', model: 'poolside/laguna-s-2.1:free', operationId: 'op-1' } },
+        { event: 'chunk', data: { delta: 'JARVIS', operationId: 'op-1' } },
+        { event: 'chunk', data: { delta: '_LIVE', operationId: 'op-1' } },
+        { event: 'done', data: { route: streamRoute, operationId: 'op-1', provider: 'OpenRouter', model: 'poolside/laguna-s-2.1:free' } },
+      ]);
+    }
+    return undefined;
+  }),
+);
 
 const trackStopMock = vi.fn();
 const getUserMediaMock = vi.fn();
-
-function setupNavigator() {
-  Object.defineProperty(navigator, 'mediaDevices', {
-    writable: true,
-    configurable: true,
-    value: { getUserMedia: getUserMediaMock },
-  });
-}
-
-async function speakOneTurn() {
-  rmsLevel = 0.1; // speech begins
-  await act(async () => { flushRaf(1); });                    // mark speechStartedAt
-  await act(async () => { vi.advanceTimersByTime(150); });    // sustain >= minSpeechMs (120)
-  await act(async () => { flushRaf(1); });                    // turn recording starts
-  rmsLevel = 0; // measured silence begins
-  await act(async () => { flushRaf(1); });                    // mark silenceSince
-  await act(async () => { vi.advanceTimersByTime(950); });    // exceed the 900ms silence window
-  await act(async () => { flushRaf(1); });                    // end-of-speech → stop → transcribe → auto-submit
-}
 
 function renderPanel() {
   return render(
@@ -185,77 +189,72 @@ function renderPanel() {
   );
 }
 
-beforeEach(() => {
-  vi.useFakeTimers();
-  rafQueue = [];
-  rafIdCounter = 0;
-  rmsLevel = 0;
-  recorderChunkSize = 600;
-  lastAudio = null;
-  transcribeText = 'reply with exactly jarvis live';
-
-  vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void) => {
-    rafQueue.push(cb);
-    return ++rafIdCounter;
-  });
-  vi.stubGlobal('cancelAnimationFrame', () => {});
-
-  MockMediaRecorder.instances = [];
-  (globalThis as any).MediaRecorder = MockMediaRecorder;
-  (globalThis as any).Audio = MockAudio;
-  (globalThis as any).fetch = fetchMock;
-  fetchMock.mockClear();
-  trackStopMock.mockClear();
-  getUserMediaMock.mockReset();
-  getUserMediaMock.mockResolvedValue({ getTracks: () => [{ stop: trackStopMock }] });
-  setupNavigator();
-
-  (globalThis as any).AudioContext = class {
-    state = 'running';
-    createMediaStreamSource() { return { connect: vi.fn() }; }
-    createAnalyser() {
-      return {
-        fftSize: 0,
-        frequencyBinCount: 128,
-        getByteTimeDomainData(d: Uint8Array) {
-          const v = Math.min(255, Math.max(0, Math.round(128 + rmsLevel * 128)));
-          d.fill(v);
-        },
-        connect: vi.fn(),
-      };
-    }
-    close() { return Promise.resolve(); }
-  };
-
-  (window as any).speechSynthesis = { cancel: vi.fn(), speak: vi.fn() };
-  (window as any).matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-  (window as any).HTMLElement.prototype.scrollIntoView = vi.fn();
-  sessionStorage.clear();
-  localStorage.clear();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-  vi.unstubAllGlobals();
-});
-
-/** Flush enough microtask ticks for the SSE reader loop + speak() chain. */
+/** Flush the async startSession()/stopSession()/SSE promise chains. */
 async function flushAsync() {
   await act(async () => {
-    for (let i = 0; i < 12; i++) await Promise.resolve();
+    for (let i = 0; i < 16; i++) await Promise.resolve();
   });
 }
 
-/** Fast-VAD conversation start through the real cockpit UI. */
+/** Let real timers fire (the cockpit polls runtime-state every 3s). */
+async function settle(ms = 40) {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+}
+
+/** Enter conversation mode through the real cockpit control. */
 async function activateConversationMode() {
   await act(async () => {
     fireEvent.click(screen.getByTestId('mission-mode-conversation'));
   });
-  // Flush the async startConversation() promise chain.
-  await act(async () => { await Promise.resolve(); });
+  await flushAsync();
 }
 
-describe('Mission Control cockpit — conversation integration', () => {
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+  resetJarvisVoiceHarness();
+  ttsCalls = 0;
+  transcribeCalls = 0;
+  streamPrompts = [];
+  MockMediaRecorder.instances = [];
+
+  vi.stubGlobal('MediaRecorder', MockMediaRecorder);
+  vi.stubGlobal('Audio', MockAudio);
+  vi.stubGlobal('fetch', fetchMock);
+  fetchMock.mockClear();
+  trackStopMock.mockClear();
+  getUserMediaMock.mockReset();
+  getUserMediaMock.mockResolvedValue({ getTracks: () => [{ stop: trackStopMock }], getAudioTracks: () => [{ enabled: true }] });
+  Object.defineProperty(navigator, 'mediaDevices', {
+    writable: true,
+    configurable: true,
+    value: { getUserMedia: getUserMediaMock },
+  });
+  vi.stubGlobal('AudioContext', class {
+    state = 'running';
+    createMediaStreamSource() { return { connect: vi.fn() }; }
+    createMediaElementSource() { return { connect: vi.fn() }; }
+    createAnalyser() { return { fftSize: 0, frequencyBinCount: 128, getByteTimeDomainData: vi.fn(), connect: vi.fn() }; }
+    destination = {};
+    close() { return Promise.resolve(); }
+  });
+  vi.stubGlobal('speechSynthesis', { cancel: vi.fn(), speak: vi.fn() });
+  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  sessionStorage.clear();
+  localStorage.clear();
+});
+
+afterEach(async () => {
+  // jarvisLiveKitSession is a module-level singleton: a surviving session makes the next
+  // test's startSession() short-circuit against it and never construct a Room.
+  await jarvisLiveKitSession.stopSession().catch(() => undefined);
+  vi.unstubAllGlobals();
+});
+
+describe('Mission Control cockpit — conversation integration (LiveKit)', () => {
   it('1. the main cockpit page exposes Manual and Conversation modes', () => {
     render(
       <AppProvider>
@@ -274,118 +273,90 @@ describe('Mission Control cockpit — conversation integration', () => {
     expect(screen.getByTestId('mission-conv-state').textContent?.toLowerCase()).toContain('manual');
   });
 
-  it('2. Conversation mode auto-submits after end-of-speech — no Send click', async () => {
+  it('2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled', async () => {
     renderPanel();
     await activateConversationMode();
 
-    await speakOneTurn();
+    // One room, one connect — in the ONE canonical room, never a per-session random name.
+    expect(createdRooms.length).toBe(1);
+    expect(createdRooms[0].connectCalled).toBe(1);
+    expect(createdRooms[0].connectArgs?.wsUrl).toBe(JARVIS_TEST_WS_URL);
+    expect(jarvisLiveKitSession.getState().roomName).toBe(JARVIS_TEST_ROOM);
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
 
-    // The existing Jarvis STREAMING request path was invoked automatically,
-    // once, with the transcribed text — the user never pressed Send.
-    const streamCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/message/stream'));
-    expect(streamCalls).toHaveLength(1);
-    const body = JSON.parse((streamCalls[0][1] as any).body);
-    expect(body.prompt).toBe('reply with exactly jarvis live');
-    expect(body.inputChannel).toBe('voice');
-    // The live streaming reply is visible in the transcript.
-    await flushAsync();
-    expect(screen.getAllByTestId('mission-jarvis-transcript-entry').some(
-      (el) => el.textContent?.includes('JARVIS_LIVE'),
-    )).toBe(true);
+    // The browser joined the room and published its microphone: this is the transport the
+    // server-side voice agent receives user audio on.
+    expect(createdRooms[0].localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+
+    // Mode persisted for the session.
+    expect(sessionStorage.getItem('agenticos:jarvis:conversationMode')).toBe('conversation');
+
+    // The browser does NOT submit the turn — the voice agent owns turn handling.
+    expect(streamPrompts).toHaveLength(0);
   });
 
-  it('3. Manual mode requires Send — transcript lands in the editable input', async () => {
-    renderPanel();
-
-    // Manual record via the cockpit mic button.
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('mission-jarvis-mic'));
-    });
-    await flushAsync(); // getUserMedia resolves
-
-    // Sustained silence stops the manual segment (existing behaviour).
-    rmsLevel = 0;
-    await act(async () => { flushRaf(1); });
-    await act(async () => { vi.advanceTimersByTime(1600); });
-    await act(async () => { flushRaf(1); });
-
-    // Transcript filled the EDITABLE input; nothing was submitted.
-    const input = screen.getByTestId('mission-jarvis-input') as HTMLInputElement;
-    expect(input.value).toBe('reply with exactly jarvis live');
-    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('/message/stream'))).toHaveLength(0);
-
-    // Explicit Send submits it through the streaming path.
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('mission-jarvis-send'));
-    });
-    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('/message/stream'))).toHaveLength(1);
-  });
-
-  it('4. identical transcript submits exactly once (no duplicate turns)', async () => {
+  it('3. the browser runs NO VAD / recorder / transcribe loop for Jarvis voice', async () => {
     renderPanel();
     await activateConversationMode();
+    await settle(); // plenty of time for any capture loop to arm itself
 
-    await speakOneTurn(); // turn 1
-    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('/message/stream'))).toHaveLength(1);
+    // The deprecated browser VAD architecture: no recorder is ever constructed and no audio
+    // blob is ever sent to /voice/transcribe. A browser-side VAD loop produced both. This is
+    // the direct replacement for the old "VAD loop armed / rAF queue filled" assertions.
+    expect(MockMediaRecorder.instances.length).toBe(0);
+    expect(transcribeCalls).toBe(0);
 
-    // Finish playback so the loop re-arms, then repeat the SAME utterance.
-    await act(async () => { lastAudio?.onended?.(); });
-    await speakOneTurn(); // turn 2 — identical transcript
-
-    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('/message/stream'))).toHaveLength(1);
+    // LiveKit is the single owner of the microphone. (0 or 1 — never two engines racing for
+    // one device, which is the defect SELFHEAL-001 removed the second engine for.)
+    expect(getUserMediaMock.mock.calls.length).toBeLessThanOrEqual(1);
   });
 
-  it('5. no duplicate TTS — exactly one synthesis per assistant turn', async () => {
+  it('4. no client-side TTS — the server-side voice agent speaks', async () => {
     renderPanel();
     await activateConversationMode();
+    await settle();
 
-    await speakOneTurn();
-    await flushAsync(); // let speak() run to playback
-
-    const ttsCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/voice/tts'));
-    expect(ttsCalls).toHaveLength(1); // exactly one — no duplicate speech
-    const ttsBody = JSON.parse((ttsCalls[0][1] as any).body);
-    expect(ttsBody.text).toBe('JARVIS_LIVE'); // the streamed assistant reply, not the user turn
+    // The cockpit never requests synthesis: Jarvis audio arrives over LiveKit.
+    expect(ttsCalls).toBe(0);
   });
 
-  it('6. playback end resumes listening automatically', async () => {
+  it('5. a lifecycle interruption neither duplicates nor loses the session', async () => {
     renderPanel();
     await activateConversationMode();
+    const room = createdRooms[0];
 
-    await speakOneTurn();
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
     await flushAsync();
 
-    // Speaking only after real playback confirmation.
-    expect(screen.getByTestId('mission-conv-state').textContent?.toLowerCase()).toContain('speaking');
-
-    // Real playback end → conversation listening resumes.
-    await act(async () => { lastAudio?.onended?.(); });
-    expect(screen.getByTestId('mission-conv-state').textContent?.toLowerCase()).toContain('listening');
+    // The active session survives a browser lifecycle event: not torn down, not duplicated.
+    expect(room.disconnectCalled).toBe(0);
+    expect(createdRooms.length).toBe(1);
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
+    expect(getUserMediaMock.mock.calls.length).toBeLessThanOrEqual(1);
   });
 
-  it('7. switching back to Manual stops continuous capture', async () => {
+  it('6. switching back to Manual tears the LiveKit session down', async () => {
     renderPanel();
     await activateConversationMode();
-    expect(getUserMediaMock).toHaveBeenCalledTimes(1); // mic opened once
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('mission-mode-manual'));
     });
+    await flushAsync();
 
-    // Mic tracks released, mode back to manual.
-    expect(trackStopMock).toHaveBeenCalled();
+    // Session released, mode back to manual and persisted as such. No new session appeared,
+    // and the browser still never started a capture loop.
+    expect(jarvisLiveKitSession.isConnected).toBe(false);
+    expect(createdRooms.length).toBe(1);
     expect(screen.getByTestId('mission-conv-state').textContent?.toLowerCase()).toContain('manual');
-
-    // No new capture starts afterwards, even with loud input.
-    const instancesBefore = MockMediaRecorder.instances.length;
-    rmsLevel = 0.3;
-    await act(async () => { flushRaf(3); });
-    await act(async () => { vi.advanceTimersByTime(50); });
-    await act(async () => { flushRaf(3); });
-    expect(MockMediaRecorder.instances.length).toBe(instancesBefore);
+    expect(sessionStorage.getItem('agenticos:jarvis:conversationMode')).toBe('manual');
+    expect(MockMediaRecorder.instances.length).toBe(0);
+    expect(transcribeCalls).toBe(0);
   });
 
-  it('8. text input and Send button remain available and functional', async () => {
+  it('7. text input and Send remain available and functional', async () => {
     renderPanel();
 
     const input = screen.getByTestId('mission-jarvis-input') as HTMLInputElement;
@@ -401,29 +372,55 @@ describe('Mission Control cockpit — conversation integration', () => {
     await act(async () => {
       fireEvent.click(send);
     });
-
-    const streamCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('/message/stream'));
-    expect(streamCalls).toHaveLength(1);
-    const body = JSON.parse((streamCalls[0][1] as any).body);
-    expect(body.prompt).toBe('typed question');
-    expect(body.inputChannel).toBe('typed');
-    // Visible assistant response from the streaming path.
     await flushAsync();
+
+    expect(streamPrompts).toHaveLength(1);
+    expect(streamPrompts[0].prompt).toBe('typed question');
+    expect(streamPrompts[0].inputChannel).toBe('typed');
+    // Visible assistant response from the streaming path.
     expect(screen.getAllByTestId('mission-jarvis-transcript-entry').some(
       (el) => el.textContent?.includes('JARVIS_LIVE'),
     )).toBe(true);
+
+    // A typed turn is not a voice turn: still no browser capture, still no client TTS.
+    expect(MockMediaRecorder.instances.length).toBe(0);
+    expect(ttsCalls).toBe(0);
   });
 
-  it('conversation mode persists for the session (re-mount resumes it)', async () => {
+  it('8. an identical typed turn is not submitted twice (no duplicate turns)', async () => {
+    renderPanel();
+    const input = screen.getByTestId('mission-jarvis-input') as HTMLInputElement;
+
+    for (const attempt of [1, 2]) {
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'repeat me' } });
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('mission-jarvis-send'));
+      });
+      await flushAsync();
+      expect(streamPrompts, `attempt ${attempt}`).toHaveLength(1);
+    }
+  });
+
+  it('9. conversation mode persists for the session (re-mount rejoins the canonical room)', async () => {
     const first = renderPanel();
     await activateConversationMode();
     expect(sessionStorage.getItem('agenticos:jarvis:conversationMode')).toBe('conversation');
-    first.unmount();
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
 
-    // Re-mount (navigation within the session) resumes conversation mode.
+    first.unmount();
+    await flushAsync();
+    // Unmounting a live conversation releases the session — no orphaned room.
+    expect(jarvisLiveKitSession.isConnected).toBe(false);
+
+    // Re-mount (navigation within the session) resumes conversation mode by rejoining the
+    // SAME canonical room — one live session again, never two.
     renderPanel();
     await flushAsync();
     expect(screen.getByTestId('mission-conv-state').textContent?.toLowerCase()).not.toContain('manual');
-    expect(getUserMediaMock).toHaveBeenCalledTimes(2); // re-opened on resume
+    expect(jarvisLiveKitSession.isConnected).toBe(true);
+    expect(jarvisLiveKitSession.getState().roomName).toBe(JARVIS_TEST_ROOM);
+    expect(MockMediaRecorder.instances.length).toBe(0);
   });
 });

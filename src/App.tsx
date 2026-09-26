@@ -46,6 +46,8 @@ import TeamDetailView from './pages/TeamDetailView';
 import SystemDoctorPage from './pages/SystemDoctorPage';
 import ProjectsPage from './pages/ProjectsPage';
 import RevenueOperatorPage from './pages/RevenueOperatorPage';
+import JarvisNextTestPage from './pages/JarvisNextTestPage';
+import SelfHealPage from './pages/SelfHealPage';
 import { uiDiagnostics } from './diagnostics/uiSnapshot';
 import { useEffect } from 'react';
 
@@ -109,6 +111,8 @@ function App() {
                         <Route path="projects" element={<ProjectsPage />} />
                         <Route path="revenue" element={<RevenueOperatorPage />} />
                         <Route path="revenue-operator" element={<RevenueOperatorPage />} />
+                        <Route path="jarvis-next-test" element={<JarvisNextTestPage />} />
+                        <Route path="self-heal" element={<SelfHealPage />} />
                       </Route>
                     </Routes>
                   </HashRouter>

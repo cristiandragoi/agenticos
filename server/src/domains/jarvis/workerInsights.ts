@@ -92,6 +92,44 @@ export async function buildWorkerFeedback(cap: Capability): Promise<string> {
 
 /** Compact worker status answer (e.g. "What is CodeX doing?", "What did CodeX do?", "How is Hermes doing?"). */
 export async function buildWorkerStatus(cap: Capability, promptText = ''): Promise<string> {
+  if (cap.id === 'revenue_operator') {
+    const { listMissions, listExperiments } = await import('../../services/revenueOperator/operatorService.js');
+    const { projectsStore } = await import('../../services/projectsStore.js');
+    const [missions, experiments, projects] = await Promise.all([
+      listMissions(),
+      listExperiments(),
+      Promise.resolve(projectsStore.ensureRevenueProjects ? projectsStore.ensureRevenueProjects() : projectsStore.listProjects()),
+    ]);
+    const counts = experiments.reduce<Record<string, number>>((out, e) => { out[e.status] = (out[e.status] || 0) + 1; return out; }, {});
+    const projectLines = projects.slice(0, 5).map(p => `• ${p.name} (Priority ${p.priority ?? 999}${p.revenueVertical ? `, Vertical: ${p.revenueVertical}` : ''}) — ${p.status}`);
+    return [
+      'Revenue Operator: persisted local state.',
+      `Prioritized projects (${projects.length}):`,
+      ...projectLines,
+      `Missions: ${missions.length}. Experiments: ${experiments.length}.`,
+      ...missions.slice(0, 3).map(m => `Mission ${m.id}: ${m.title} — ${m.status}.`),
+      `Experiment states: ${Object.entries(counts).map(([state, n]) => `${state}: ${n}`).join(', ') || 'none'}.`,
+    ].join('\n');
+  }
+
+  if (cap.id === 'antigravity') {
+    const { discoverAntigravityDesktopSession } = await import('../../services/backgroundTasks/antigravityAdapter.js');
+    const { backgroundTaskManager } = await import('../../services/backgroundTasks/manager.js');
+    const session = discoverAntigravityDesktopSession();
+    const agTasks = backgroundTaskManager.listTasks({ limit: 10 }).filter(t => t.worker === 'antigravity');
+    const activeTasks = agTasks.filter(t => t.status === 'running' || t.status === 'queued');
+    const completedTasks = agTasks.filter(t => t.status === 'completed');
+
+    return [
+      'Antigravity Desktop Builder — live status',
+      session.ok
+        ? `Desktop builder session: active (Conversation: ${session.activeConversationId})`
+        : `Desktop builder session: unavailable (${session.error || 'not running'})`,
+      `Active handoff tasks (${activeTasks.length}): ${activeTasks.map(t => `${t.taskId.slice(-8)} [${t.status}] ${t.title}`).join('; ') || 'none'}`,
+      `Completed handoff tasks (${completedTasks.length}): ${completedTasks.map(t => `${t.taskId.slice(-8)} ${t.title}`).join('; ') || 'none'}`,
+      'Status source: Antigravity Desktop Builder session via agentapi.',
+    ].join('\n');
+  }
   const p = (promptText || '').toLowerCase();
   const modelOnly = /what (model|provider)/.test(p);
   const isDoingQuery = /\b(what is|what's|is.*doing|currently|doing|working on)\b/.test(p);
@@ -108,6 +146,47 @@ export async function buildWorkerStatus(cap: Capability, promptText = ''): Promi
   const { goalStore } = await import('../../services/goalStore.js');
   const { getCurrent } = await import('../../services/executionState.js');
   const workerKind = cap.taskWorkerKind || (cap.id as any);
+
+  if (cap.id === 'codex') {
+    const allTasks = backgroundTaskManager.listTasks({ limit: 100 }).filter((t) => t.worker === 'codex');
+    
+    // "What did you give Codex?"
+    if (/\b(?:what did you give|what did i give|what goals?|what tasks?)\b/i.test(p)) {
+      if (allTasks.length === 0) return "I haven't given any tasks to CodeX yet.";
+      return `I have given CodeX the following tasks:\n${allTasks.map(t => `- "${t.title}" (ID: ${t.taskId.slice(-8)}) - Status: ${t.status}`).join('\n')}`;
+    }
+    // "What projects are waiting for Codex?" / "What is waiting for Codex?"
+    if (/\b(?:waiting|queued)\b/i.test(p)) {
+      const waiting = allTasks.filter(t => t.status === 'queued');
+      if (waiting.length === 0) return "There are no projects or tasks waiting for CodeX right now.";
+      return `The following tasks are waiting in CodeX's queue:\n${waiting.map(t => `- "${t.title}" (ID: ${t.taskId.slice(-8)})`).join('\n')}`;
+    }
+    // "What did Codex finish?"
+    if (/\b(?:finish|completed|done)\b/i.test(p)) {
+      const completed = allTasks.filter(t => t.status === 'completed');
+      if (completed.length === 0) return "CodeX has not completed any tasks yet.";
+      return `CodeX has completed the following tasks:\n${completed.map(t => `- "${t.title}" (ID: ${t.taskId.slice(-8)})`).join('\n')}`;
+    }
+    // "What failed?"
+    if (/\b(?:failed|fail|errors?)\b/i.test(p)) {
+      const failed = allTasks.filter(t => t.status === 'failed');
+      if (failed.length === 0) return "No CodeX tasks have failed.";
+      return `The following CodeX tasks have failed:\n${failed.map(t => `- "${t.title}" (ID: ${t.taskId.slice(-8)}) - Error: ${t.lastError || 'Unknown error'}`).join('\n')}`;
+    }
+    // "What is blocking the project?" or "What is blocking"
+    if (/\b(?:blocking|blocker|blocked)\b/i.test(p)) {
+      const blocked = allTasks.filter(t => t.status === 'blocked');
+      if (blocked.length === 0) return "No CodeX projects are currently blocked.";
+      return `The following CodeX tasks are currently blocked:\n${blocked.map(t => `- "${t.title}" (ID: ${t.taskId.slice(-8)}) - Blocker: ${t.blocker || 'Unknown blocker'}`).join('\n')}`;
+    }
+    // "Is Codex working on it?" or "What is Codex doing?"
+    if (/\b(?:working|doing|active|running)\b/i.test(p)) {
+      const active = allTasks.filter(t => ['planning', 'running', 'verifying', 'waiting_approval'].includes(t.status));
+      if (active.length === 0) return "CodeX is not currently working on any task.";
+      const t = active[0];
+      return `CodeX is currently working on: "${t.title}" (ID: ${t.taskId.slice(-8)}). Current step: ${t.progressMessage || 'execution started'}.`;
+    }
+  }
 
   // 1. Check live active tasks
   const activeBgTasks = backgroundTaskManager.listTasks({ activeOnly: true }).filter((t) => t.worker === workerKind);

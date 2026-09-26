@@ -125,162 +125,22 @@ export class CodexRuntimeAdapter {
    * Resolves with structured results; throws on spawn failure.
    */
   runCodex(opts: CodexRunOptions): { promise: Promise<CodexRunResult>; cancel: () => void } {
-    const start = Date.now();
-    const emitter = new EventEmitter();
-    const controller = new AbortController();
-    const runKey = `codex-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-
-    const args: string[] = ['exec', '--json', '--ephemeral', '--skip-git-repo-check'];
-    if (opts.sandboxMode) args.push('-s', opts.sandboxMode);
-    if (opts.model) args.push('-m', opts.model);
-    // NOTE: Codex 0.145.0 has NO --model-provider flag (only --local-provider);
-    // the provider is selected by the CODEX_HOME config.toml `model_provider`
-    // key, which buildCodexOptions writes for DeepSeek.
-    for (const [k, v] of Object.entries(opts.configOverrides || {})) {
-      args.push('-c', `${k}=${JSON.stringify(v)}`);
-    }
-    args.push('-C', opts.workdir);
-    args.push(opts.prompt);
-
-    // Sanitized env: keep OS essentials; drop secret-ish vars; inject scoped provider env.
-    const env: Record<string, string | undefined> = {
-      PATH: process.env.PATH || '',
-      SYSTEMROOT: process.env.SYSTEMROOT || 'C:\\Windows',
-      WINDIR: process.env.WINDIR || 'C:\\Windows',
-      TEMP: process.env.TEMP || '',
-      TMP: process.env.TMP || '',
-      HOME: process.env.HOME || process.env.USERPROFILE || '',
-      USERPROFILE: process.env.USERPROFILE || '',
-      CODEX_HOME: opts.codexHome || process.env.CODEX_HOME || '',
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_ASKPASS: 'echo',
+    // HARD INVARIANT: CODEX_INVOCATION_DISABLED=true
+    // No execution path is permitted to spawn codex, codex exec, or OpenAI-backed tools.
+    logger.warn('[CodexRuntimeAdapter] Blocked codex exec spawn attempt: CODEX_INVOCATION_DISABLED=true.');
+    return {
+      promise: Promise.resolve({
+        status: 'failed',
+        exitCode: 1,
+        durationMs: 0,
+        events: [],
+        eventTail: [],
+        commands: [],
+        agentMessages: [],
+        error: 'CODEX_INVOCATION_DISABLED=true: Codex execution is permanently disabled. Route through Hermes.',
+      }),
+      cancel: () => {},
     };
-    for (const [k, v] of Object.entries(opts.providerConfig || {})) {
-      if (k && v) env[k] = v;
-    }
-
-    logger.info(`[CodexRuntimeAdapter] spawn codex exec in ${opts.workdir} sandbox=${opts.sandboxMode || 'workspace-write'} timeout=${opts.timeoutMs || 300000}`);
-
-    const spawnArgs = [...CODEX_CMD.argsPrefix, ...args];
-    const child = spawn(CODEX_CMD.command, spawnArgs, { cwd: opts.workdir, env, windowsHide: true, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
-    this.active.set(runKey, { child, emitter });
-
-    const promise = new Promise<CodexRunResult>((resolve) => {
-      let stdout = '';
-      let stderr = '';
-      let settled = false;
-      const secrets = Object.values(opts.providerConfig || {}).filter(Boolean);
-      const events: Record<string, unknown>[] = [];
-      const eventTail: CodexEventTailItem[] = [];
-      const commands: CodexCommandEvent[] = [];
-      const agentMessages: string[] = [];
-
-      const timeout = opts.timeoutMs
-        ? setTimeout(() => {
-            if (!settled) {
-              child.kill('SIGTERM');
-              resolve({ exitCode: 124, status: 'timeout', events, eventTail, commands, agentMessages, error: `Codex timed out after ${opts.timeoutMs}ms`, durationMs: Date.now() - start });
-              settled = true;
-            }
-          }, opts.timeoutMs)
-        : null;
-
-      const parseLine = (line: string) => {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('{')) return;
-        try {
-          const ev = JSON.parse(trimmed);
-          events.push(ev);
-          // Bounded, redacted event tail for diagnostics (tool blocks, etc.).
-          if (ev.type === 'item.completed') {
-            const item = ev.item || {};
-            const redact = (v: unknown) => redactOutput(String(v ?? ''), secrets).slice(0, 300);
-            eventTail.push({
-              itemType: item.type || '',
-              toolName: item.name || item.tool_name || '',
-              status: item.status || '',
-              exitCode: item.exit_code ?? null,
-              summary: redact(item.text || item.error || item.aggregated_output || ''),
-              at: new Date().toISOString(),
-            });
-            if (eventTail.length > 30) eventTail.shift();
-          }
-          if (ev.type === 'thread.started') emitter.emit('thread.started', ev);
-          if (ev.type === 'item.completed') {
-            const item = ev.item || {};
-            if (item.type === 'command_execution') {
-              commands.push({
-                command: item.command || '',
-                aggregatedOutput: redactOutput(String(item.aggregated_output || ''), secrets).slice(0, 2000),
-                exitCode: item.exit_code ?? null,
-                status: item.status || '',
-              });
-            }
-            if (item.type === 'agent_message') {
-              agentMessages.push(redactOutput(String(item.text || ''), secrets));
-            }
-          }
-          if (ev.type === 'turn.completed') {
-            emitter.emit('turn.completed', ev);
-          }
-        } catch { /* non-JSON noise */ }
-      };
-
-      child.stdout?.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf8');
-        const lines = stdout.split(/\r?\n/);
-        stdout = lines.pop() || '';
-        for (const l of lines) parseLine(l);
-      });
-      child.stderr?.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString('utf8');
-      });
-
-      controller.signal.addEventListener('abort', () => {
-        if (!settled) {
-          child.kill('SIGTERM');
-          resolve({ exitCode: 130, status: 'cancelled', events, eventTail, commands, agentMessages, error: 'Cancelled', durationMs: Date.now() - start });
-          settled = true;
-        }
-      });
-
-      child.on('error', (err) => {
-        if (!settled) {
-          resolve({ exitCode: 1, status: 'error', events, eventTail, commands, agentMessages, error: `Spawn error: ${err.message}`, durationMs: Date.now() - start });
-          settled = true;
-        }
-      });
-
-      child.on('close', (code) => {
-        if (timeout) clearTimeout(timeout);
-        if (settled) return;
-        // Flush remaining buffered lines.
-        if (stdout.trim()) {
-          for (const l of stdout.split(/\r?\n/)) parseLine(l);
-        }
-        const lastUsage = events.filter((e) => (e as any).type === 'turn.completed').pop() as any;
-        const usage: CodexTurnUsage | undefined = lastUsage?.usage ? {
-          inputTokens: lastUsage.usage.input_tokens,
-          cachedInputTokens: lastUsage.usage.cached_input_tokens,
-          outputTokens: lastUsage.usage.output_tokens,
-          reasoningOutputTokens: lastUsage.usage.reasoning_output_tokens,
-        } : undefined;
-        resolve({
-          exitCode: code ?? 1,
-          status: code === 0 ? 'completed' : 'failed',
-          events,
-          eventTail,
-          commands,
-          agentMessages,
-          usage,
-          error: code !== 0 ? (redactOutput(stderr, secrets).slice(0, 1000) || `exit code ${code}`) : undefined,
-          durationMs: Date.now() - start,
-        });
-        settled = true;
-      });
-    });
-
-    return { promise, cancel: () => controller.abort() };
   }
 }
 

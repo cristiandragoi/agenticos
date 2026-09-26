@@ -35,6 +35,7 @@ import { runTypecheckGate, runFocusedTestsGate, type TestGateOutcome } from './t
 import { getGitState, stageFile, commitStaged, type StageAuthorization } from './gitState.js';
 import {
   makeHermesPlanAdapter,
+  makeHermesRepairAdapter,
   makeCodexRepairAdapter,
   makeTestGatesAdapter,
   makeVerifierAdapter,
@@ -93,7 +94,7 @@ export function buildRealAdapters(opts: {
 }): { plan: PlanAdapter; repair: RepairAdapter; reproduce: TestAdapter; test: TestAdapter; verify: VerifyAdapter } {
   return {
     plan: makeHermesPlanAdapter({ projectId: opts.projectId, conversationId: opts.conversationId }),
-    repair: makeCodexRepairAdapter({ repoPath: opts.repoPath, conversationId: opts.conversationId }),
+    repair: makeHermesRepairAdapter({ repoPath: opts.repoPath, conversationId: opts.conversationId }),
     reproduce: makeTestGatesAdapter({ repoPath: opts.repoPath, testGates: opts.testGates, suites: opts.suites }),
     test: makeTestGatesAdapter({ repoPath: opts.repoPath, testGates: opts.testGates, suites: opts.suites }),
     verify: makeVerifierAdapter({ repoPath: opts.repoPath }),

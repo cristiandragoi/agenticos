@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import healthRouter, { setHealthFetchForTesting } from '../routers/health.js';
+import { hermesApiService } from '../services/hermesApiService.js';
 
 /**
  * GET /api/health/gateway evaluates the ACTIVE provider stack:
@@ -46,14 +47,16 @@ describe('GET /api/health/gateway', () => {
   const savedEnv: Record<string, string | undefined> = {};
 
   beforeEach(() => {
-    for (const key of ['OPENROUTER_BASE_URL', 'OPENROUTER_API_KEY', 'OMNIROUTE_BASE_URL', 'OLLAMA_BASE_URL', 'OLLAMA_FALLBACK_MODEL']) {
+    for (const key of ['OPENROUTER_BASE_URL', 'OPENROUTER_API_KEY', 'OMNIROUTE_BASE_URL', 'OLLAMA_BASE_URL', 'OLLAMA_FALLBACK_MODEL', 'DEFAULT_LLM_PROVIDER', 'GATEWAY_PROVIDER_ORDER']) {
       savedEnv[key] = process.env[key];
     }
     process.env.OPENROUTER_BASE_URL = OPENROUTER;
+    process.env.OPENROUTER_API_KEY = 'sk-or-saved-test-key';
     process.env.OMNIROUTE_BASE_URL = OMNIROOT;
     process.env.OLLAMA_BASE_URL = OLLAMA;
-    delete process.env.OPENROUTER_API_KEY;
     delete process.env.OLLAMA_FALLBACK_MODEL;
+    delete process.env.DEFAULT_LLM_PROVIDER;
+    delete process.env.GATEWAY_PROVIDER_ORDER;
   });
 
   afterEach(() => {
@@ -157,19 +160,40 @@ describe('GET /api/health/gateway', () => {
   it('no OpenRouter configured → error status with honest error field', async () => {
     delete process.env.OPENROUTER_BASE_URL;
     delete process.env.OPENROUTER_API_KEY;
-    let probed = false;
-    setHealthFetchForTesting(fetchMock(() => {
-      probed = true;
+    process.env.DEFAULT_LLM_PROVIDER = 'openrouter';
+    let probedOpenRouter = false;
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url.includes('openrouter')) probedOpenRouter = true;
+      if (url.includes('api/tags')) return jsonResponse({ models: [{ name: 'qwen3.5:9b-hermes-64k' }] });
       return jsonResponse({});
     }));
 
     const res = await request(makeApp()).get('/api/health/gateway');
     expect(res.status).toBe(200);
+    expect(res.body.gateway).toBe('OpenRouter');
     expect(res.body.status).toBe('error');
     expect(res.body.reachable).toBe(false);
     expect(res.body.configured).toBe(false);
-    expect(res.body.error).toContain('no primary gateway configured');
-    expect(probed).toBe(false); // nothing to probe when nothing is configured
+    expect(res.body.error).toContain('OpenRouter selected but no API key configured');
+    expect(probedOpenRouter).toBe(false); // OpenRouter must never be probed without a configured key
+  });
+
+  it('no cloud keys and default configuration → honest local Ollama primary online', async () => {
+    delete process.env.OPENROUTER_BASE_URL;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.DEFAULT_LLM_PROVIDER;
+    delete process.env.GATEWAY_PROVIDER_ORDER;
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url.includes('api/tags')) return jsonResponse({ models: [{ name: 'qwen3.5:9b-hermes-64k' }] });
+      return jsonResponse({});
+    }));
+
+    const res = await request(makeApp()).get('/api/health/gateway');
+    expect(res.status).toBe(200);
+    expect(res.body.gateway).toBe('ollama');
+    expect(res.body.status).toBe('online');
+    expect(res.body.reachable).toBe(true);
+    expect(res.body.configured).toBe(true);
   });
 
   it('OmniRoot unreachable but OpenRouter online → still online (legacy never determines health)', async () => {
@@ -291,5 +315,97 @@ describe('GET /api/health/gateway', () => {
     } finally {
       delete process.env.DEFAULT_LLM_PROVIDER;
     }
+  });
+
+  it('OpenRouter has base URL but NO API key → configured: false, never labeled online', async () => {
+    process.env.OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+    delete process.env.OPENROUTER_API_KEY;
+    process.env.DEFAULT_LLM_PROVIDER = 'openrouter';
+
+    setHealthFetchForTesting(fetchMock((url) => {
+      // Even if public /models returns 200, OpenRouter must NOT be labeled online without a key
+      if (url.includes('openrouter.ai')) return jsonResponse({ data: [{ id: 'mock-model' }] });
+      if (url.includes('api/tags')) return jsonResponse({ models: [{ name: 'qwen3.5:9b-hermes-64k' }] });
+      return jsonResponse({});
+    }));
+
+    const res = await request(makeApp()).get('/api/health/gateway');
+    expect(res.status).toBe(200);
+    expect(res.body.openrouter.configured).toBe(false);
+    expect(res.body.openrouter.reachable).toBe(false);
+    expect(res.body.openrouter.status).toBe('not_configured');
+    expect(res.body.configured).toBe(false);
+  });
+
+  it('detects local Ollama directly and returns real connectivity, selected model, and model list', async () => {
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url === `${OLLAMA}/api/tags`) {
+        return jsonResponse({
+          models: [
+            { name: 'qwen3.5:9b-hermes-64k' },
+            { name: 'qwen3:14b' },
+          ],
+        });
+      }
+      return jsonResponse({});
+    }));
+
+    const res = await request(makeApp()).get('/api/health/gateway');
+    expect(res.status).toBe(200);
+    expect(res.body.ollama).toBeDefined();
+    expect(res.body.ollama.configured).toBe(true);
+    expect(res.body.ollama.reachable).toBe(true);
+    expect(res.body.ollama.selectedModel).toBe('qwen3.5:9b-hermes-64k');
+    expect(res.body.ollama.models).toEqual(['qwen3.5:9b-hermes-64k', 'qwen3:14b']);
+  });
+
+  it('probes Hermes service directly and reports offline when not running with useful next action', async () => {
+    vi.spyOn(hermesApiService, 'getStatus').mockResolvedValueOnce({
+      reachable: false,
+      detail: 'Hermes service offline / not started (http://127.0.0.1:8642 is not responding)',
+      provider: 'custom',
+      model: 'qwen3.5:9b-hermes-64k',
+      baseUrl: 'http://127.0.0.1:8642',
+      context: 65536,
+      nextAction: 'Start the Hermes gateway service via "hermes gateway start" or start the local Hermes daemon.',
+    });
+
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url.includes('api/tags')) return jsonResponse({ models: [{ name: 'qwen3.5:9b-hermes-64k' }] });
+      return jsonResponse({});
+    }));
+
+    const res = await request(makeApp()).get('/api/health/gateway');
+    expect(res.status).toBe(200);
+    expect(res.body.hermes).toBeDefined();
+    expect(res.body.hermes.configured).toBe(true);
+    expect(res.body.hermes.reachable).toBe(false);
+    expect(res.body.hermes.status).toBe('offline');
+    expect(res.body.hermes.detail).toContain('offline / not started');
+    expect(res.body.hermes.nextAction).toContain('hermes gateway start');
+  });
+
+  it('probes Hermes service directly and reports online when running', async () => {
+    vi.spyOn(hermesApiService, 'getStatus').mockResolvedValueOnce({
+      reachable: true,
+      detail: 'Hermes HTTP API online (http://127.0.0.1:8642)',
+      provider: 'custom',
+      model: 'hermes-agent',
+      baseUrl: 'http://127.0.0.1:8642',
+      context: 65536,
+    });
+
+    setHealthFetchForTesting(fetchMock((url) => {
+      if (url.includes('api/tags')) return jsonResponse({ models: [{ name: 'qwen3.5:9b-hermes-64k' }] });
+      return jsonResponse({});
+    }));
+
+    const res = await request(makeApp()).get('/api/health/gateway');
+    expect(res.status).toBe(200);
+    expect(res.body.hermes).toBeDefined();
+    expect(res.body.hermes.configured).toBe(true);
+    expect(res.body.hermes.reachable).toBe(true);
+    expect(res.body.hermes.status).toBe('online');
+    expect(res.body.hermes.detail).toContain('online');
   });
 });

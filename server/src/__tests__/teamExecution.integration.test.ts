@@ -84,8 +84,7 @@ describe('Jarvis → Agent Team → file → exact verification → repair', () 
     schema = await import('../db/schema.js');
 
     const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
-    const migrationsFolder = path.join(originalCwd, 'server', 'drizzle');
-    migrate(db, { migrationsFolder });
+    migrate(db, { migrationsFolder: path.resolve(__dirname, '../../drizzle') });
 
     conversationService = (await import('../domains/conversations/service.js')).conversationService;
     jarvisOrchestrator = (await import('../domains/jarvis/orchestrator.js')).jarvisOrchestrator;

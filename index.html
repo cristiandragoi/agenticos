@@ -5,10 +5,122 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AgenticOS</title>
+    <!-- Connection warming for the webfont chain: src/index.css @imports
+         fonts.googleapis.com, so without these hints the browser only discovers
+         the font CSS after the 140KB app stylesheet is parsed, paying 2 extra
+         round trips before the first text paint. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:* http://127.0.0.1:* https://127.0.0.1:* ws://127.0.0.1:* wss://127.0.0.1:*; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: data:" />
+    <!-- Critical boot styles: inline so the first frame does not wait on the
+         140KB bundled stylesheet, the Google Fonts @import chain or the 2.7MB
+         app bundle. System font stack only -> zero extra requests. -->
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; padding: 0; background: #000; }
+      body {
+        min-height: 100vh; overflow: hidden; color: #e5e7eb;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      #boot-shell {
+        position: fixed; inset: 0; display: flex; background: #000;
+        z-index: 2147483647; contain: strict;
+      }
+      #boot-shell .boot-rail {
+        width: 72px; flex: 0 0 72px; background: #0a0a0d;
+        border-right: 1px solid rgba(255,255,255,0.08);
+        display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 14px;
+      }
+      #boot-shell .boot-mark {
+        width: 34px; height: 34px; border-radius: 9px;
+        background: linear-gradient(135deg, #6366f1, #38bdf8);
+        box-shadow: 0 0 18px rgba(99,102,241,0.45);
+      }
+      #boot-shell .boot-pip { width: 22px; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.10); }
+      #boot-shell .boot-main { flex: 1; display: flex; flex-direction: column; padding: 34px 40px; gap: 10px; }
+      #boot-shell .boot-title {
+        font-size: 40px; font-weight: 600; letter-spacing: -0.02em; color: #fff; margin: 0;
+      }
+      #boot-shell .boot-sub { font-size: 13px; color: #a1a1aa; margin: 0 0 16px; }
+      #boot-shell .boot-dot {
+        display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+        background: #38bdf8; margin-right: 8px; animation: boot-pulse 1.4s ease-in-out infinite;
+      }
+      /* Main skeleton region: the app's first screen is a full-bleed content
+         panel, so the shell draws one too instead of leaving the viewport empty. */
+      #boot-shell .boot-panel {
+        flex: 1; min-height: 420px; border-radius: 14px; padding: 22px;
+        display: flex; flex-direction: column; gap: 14px;
+        border: 1px solid rgba(255,255,255,0.08);
+        background-image: linear-gradient(160deg, rgba(99,102,241,0.16) 0%, rgba(17,17,22,0.92) 45%, rgba(56,189,248,0.10) 100%);
+      }
+      #boot-shell .boot-card {
+        height: 68px; border-radius: 10px; background: #111116;
+        border: 1px solid rgba(255,255,255,0.08);
+        animation: boot-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-shell .boot-card, #boot-shell .boot-dot { animation: none; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Static first-paint shell. React's createRoot().render() clears the
+         container's children on first commit, so this markup is replaced by the
+         real UI; the observer below is the safety net for that hand-off. -->
+    <div id="root">
+      <div id="boot-shell" role="status" aria-live="polite" aria-label="AgenticOS is starting">
+        <div class="boot-rail" aria-hidden="true">
+          <div class="boot-mark"></div>
+          <div class="boot-pip"></div>
+          <div class="boot-pip"></div>
+          <div class="boot-pip"></div>
+        </div>
+        <div class="boot-main">
+          <h1 class="boot-title">AgenticOS</h1>
+          <p class="boot-sub"><span class="boot-dot"></span>Starting AgenticOS&hellip;</p>
+          <div class="boot-panel" aria-hidden="true">
+            <div class="boot-card"></div>
+            <div class="boot-card"></div>
+            <div class="boot-card"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var root = document.getElementById('root');
+        var shell = document.getElementById('boot-shell');
+        if (!root || !shell) return;
+        if (window.performance && performance.mark) performance.mark('boot-shell-painted');
+        var done = false;
+        function handOff() {
+          if (done) return;
+          done = true;
+          if (window.performance && performance.mark) performance.mark('boot-shell-removed');
+          shell.remove();
+        }
+        // React 18 clears #root on first render, but never rely on a single
+        // mechanism: remove the shell as soon as a non-shell node shows up.
+        var mo = new MutationObserver(function () {
+          for (var i = 0; i < root.children.length; i++) {
+            if (root.children[i] !== shell) { mo.disconnect(); handOff(); return; }
+          }
+        });
+        mo.observe(root, { childList: true });
+        // If React reuses the shell node instead of clearing it, drop it after
+        // the app's first paint so the real UI is never covered.
+        window.addEventListener('load', function () {
+          requestAnimationFrame(function () { requestAnimationFrame(function () {
+            if (root.querySelector('.app-shell, #app-shell, [data-app-shell]')) handOff();
+          }); });
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -76,7 +76,7 @@ describe('TeamSheet generation reliability (production path)', () => {
     db = (await import('../db/index.js')).db;
     schema = await import('../db/schema.js');
     const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
-    migrate(db, { migrationsFolder: path.join(originalCwd, 'server', 'drizzle') });
+    migrate(db, { migrationsFolder: path.resolve(__dirname, '../../drizzle') });
 
     coordinatorService = (await import('../domains/teams/coordinatorService.js')).coordinatorService;
     conversationService = (await import('../domains/conversations/service.js')).conversationService;

@@ -20,8 +20,16 @@ class MockMediaRecorder { static instances: any[] = []; state='inactive'; ondata
 class MockAudio { src='';paused=true;volume=1;onplay:any=null;onended:any=null;onerror:any=null;duration=1;
   pause=vi.fn(function(this:any){this.paused=true});removeAttribute=vi.fn((a:string)=>{if(a==='src')this.src='';});load=vi.fn();
   play=vi.fn(function(this:any){const s=this;s.paused=false;if(s.src)Promise.resolve().then(()=>s.onplay?.());if(autoFireOnEnd&&s.src)Promise.resolve().then(()=>Promise.resolve().then(()=>s.onended?.()));return Promise.resolve();});
+  currentTime=0;
+  // HTMLMediaElement listener surface — see registerActiveAudio().
+  private listeners=new Map<string, Array<(...a:unknown[])=>void>>();
+  addEventListener=(type:string,cb:(...a:unknown[])=>void)=>{const l=this.listeners.get(type)??[];l.push(cb);this.listeners.set(type,l);};
+  removeEventListener=(type:string,cb:(...a:unknown[])=>void)=>{this.listeners.set(type,(this.listeners.get(type)??[]).filter((f)=>f!==cb));};
   constructor(){lastAudio=this;} }
 let ttsBodies: any[] = [];
+
+/** Monotonic per-test wall clock — see JarvisConversation (module-level dedupe window). */
+let clockBase = Date.parse('2026-01-01T00:00:00Z');
 const fetchMock = vi.fn(async (input: unknown, init?: any) => {
   const url = String(input);
   if (url.includes('/voice/transcribe')) return { ok: true, json: async () => ({ text: transcribeText }) };
@@ -35,6 +43,8 @@ const trackStopMock = vi.fn(); const getUserMediaMock = vi.fn();
 
 beforeEach(() => {
   vi.useFakeTimers();
+  clockBase += 10_000;
+  vi.setSystemTime(clockBase); // isolate this test from the 3s duplicate-speech window
   rafQueue = []; rafIdCounter = 0; rmsLevel = 0; autoFireOnEnd = true; lastAudio = null;
   transcribeText = 'hello jarvis'; ttsBodies = [];
   (globalThis as any).requestAnimationFrame = (cb: (t: number) => void) => { rafQueue.push(cb); return ++rafIdCounter; };
@@ -59,13 +69,28 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const FAST_VAD = { agentId: 'agent-jarvis', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+const FAST_VAD = { agentId: 'agent-hermes', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+
+/**
+ * The D-block drives the LEGACY browser-VAD hook path, which now only runs for a
+ * non-Jarvis agent (`agent-hermes` here — `agent-jarvis` is LiveKit-first and
+ * suppresses the legacy turn engine entirely), and every agent pins its OWN voice.
+ * The user-level requirement is voice IDENTITY PINNING — one authoritative config
+ * across turns, rerenders, retries, interruptions and STOP, with no silent
+ * browser-speechSynthesis fallback — not a particular voice id. So the exact
+ * expectation is the voice THIS agent pins, asserted literally below so it can
+ * never drift unnoticed.
+ */
+const PINNED_VOICE = resolveVoiceSessionConfig('agent-hermes', null).model;
 
 async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) {
   rmsLevel = 0.1; await act(async () => { flushRaf(1); });
   rmsLevel = 0; await act(async () => { flushRaf(1); });
   await act(async () => { vi.advanceTimersByTime(20); });
   await act(async () => { flushRaf(1); });
+  // The bounded continuation window (continuationWindowMs = 2500) defers
+  // submission until it elapses — the turn is only observable after it.
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
   await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
 }
 
@@ -102,7 +127,9 @@ describe('resolveVoiceSessionConfig (pure)', () => {
 });
 
 describe('D: voice identity persistence across 10 turns', () => {
-  it('every synthesis uses en-GB-RyanNeural; fallback only when explicitly recorded', async () => {
+  it('every synthesis uses the pinned voice; fallback only when explicitly recorded', async () => {
+    // The pinned voice for the agent under test is exact, not a wildcard.
+    expect(PINNED_VOICE).toBe('en-GB-ThomasNeural');
     const onAutoSubmit = vi.fn();
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit }));
     await act(async () => { await result.current.startConversation(); });
@@ -118,11 +145,11 @@ describe('D: voice identity persistence across 10 turns', () => {
 
     expect(ttsBodies.length).toBeGreaterThanOrEqual(10);
     const voicesUsed = new Set(ttsBodies.map((b) => b.voice));
-    expect([...voicesUsed]).toEqual(['en-GB-RyanNeural']);
+    expect([...voicesUsed]).toEqual([PINNED_VOICE]);
 
     // Distinct voices in the synthesis diagnostics log is exactly the pinned one.
     const distinct = distinctVoicesInLog(50);
-    expect(distinct).toEqual(['en-GB-RyanNeural']);
+    expect(distinct).toEqual([PINNED_VOICE]);
   });
 
   it('rerender/retry/interruption/STOP do not change the voice', async () => {
@@ -151,9 +178,9 @@ describe('D: voice identity persistence across 10 turns', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
     const voicesUsed = new Set(ttsBodies.map((b) => b.voice));
-    expect([...voicesUsed]).toEqual(['en-GB-RyanNeural']);
+    expect([...voicesUsed]).toEqual([PINNED_VOICE]);
     // No silent browser fallback: every /voice/tts request carried the voice.
-    expect(ttsBodies.every((b) => b.voice === 'en-GB-RyanNeural')).toBe(true);
+    expect(ttsBodies.every((b) => b.voice === PINNED_VOICE)).toBe(true);
   });
 
   it('an explicit fallback is recorded truthfully (fallbackReason + provider browser)', () => {

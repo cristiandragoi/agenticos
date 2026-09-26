@@ -129,6 +129,24 @@ router.get('/identity', (req: Request, res: Response) => {
       ...(isDevDebug ? { cwd: process.cwd() } : {}),
     },
     database: dbStatus,
+    modelRouting: {
+      jarvis: {
+        provider: process.env.JARVIS_MODEL_PROVIDER || 'openrouter',
+        primaryModel: process.env.JARVIS_PRIMARY_MODEL || 'xiaomi/mimo-v2.6-flash',
+        reasoningModel: process.env.JARVIS_REASONING_MODEL || 'xiaomi/mimo-v2.6-pro',
+        fallbackModel: process.env.JARVIS_FALLBACK_MODEL || 'ollama:qwen3.5:9b-hermes-64k',
+      },
+      hermes: {
+        provider: process.env.HERMES_MODEL_PROVIDER || 'omniroute',
+        primaryModel: process.env.HERMES_PRIMARY_MODEL || 'auto/reasoning',
+      },
+      voice: {
+        sttPrimary: 'deepgram',
+        sttFallback: 'whisper_local',
+        ttsProvider: 'deepgram_aura',
+        vadEngine: 'web_audio_rms',
+      },
+    },
     health: {
       ready: true,
       databaseOpen: dbStatus.status === 'ready',

@@ -35,6 +35,21 @@ class MockAudio {
   });
   removeAttribute = vi.fn();
   load = vi.fn();
+  // HTMLMediaElement listener surface. registerActiveAudio() (jarvisEngineAuthority)
+  // subscribes to ended/error/pause on the active element; without these the throw
+  // escapes onplay and aborts the playback-start state machine (voiceState never
+  // reaches 'speaking').
+  private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+  addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    const l = this.listeners.get(type) ?? [];
+    l.push(cb);
+    this.listeners.set(type, l);
+  };
+  removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+  };
+  currentTime = 0;
+  volume = 1;
 }
 
 class MockAnalyser {
@@ -117,7 +132,7 @@ beforeEach(() => {
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const FAST_VAD = { agentId: 'agent-jarvis', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+const FAST_VAD = { agentId: 'agent-hermes', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
 
 /** Drive a full user turn → transcription → submit (assistant "speaks"). */
 async function driveTurn(result: any, text: string) {

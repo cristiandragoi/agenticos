@@ -47,12 +47,15 @@ export interface ExecutiveIntent {
 }
 
 const EXPLAIN_VERBS = /\b(explain|what does|what is|describe|tell me about|how does|what are|who is|what's|do you know about|what\s+\w+\s+does|what\s+\w+\s+do|what\s+can\s+\w+\s+do|what\s+can\s+you\s+do|what\s+capabilities)\b/;
-const STATUS_VERBS = /\b(status|how is|how are|doing|working on|using|what model|what provider|active|busy|health|healthy|alive|up to|did|what did|what has|done|finish|finished|completed|result)\b/;
+// "Check <capability>" is an operator status request, not an LLM chat
+// prompt. Keep it in the deterministic executive lane so a short spoken
+// command such as "check Revenue Operator" cannot fall into Supervisor V2.
+const STATUS_VERBS = /\b(check|status|how is|how are|doing|working on|using|what model|what provider|active|busy|health|healthy|alive|up to|did|what did|what has|done|finish|finished|completed|result)\b/;
 const FEEDBACK_VERBS = /\b(feedback|assessment|evaluate|review|audit|assess|how (good|well)|report on)\b/;
 const NAV_VERBS = /\b(open|go to|take me to|navigate to|show me the page|show me|switch to|show)\b/;
 const START_VERBS = /\b(start|run|execute|trigger|begin|invoke|launch)\b/;
 const DELEGATE_VERBS =
-  /\b(ask|have|tell|get|make|delegate|instruct|send|request|ask the|tell the|use the|create|add|queue|file|raise|log)\b/;
+  /\b(ask|have|tell|get|make|delegate|instruct|send|request|ask the|tell the|use the|create|add|queue|file|raise|log|hand off|handoff)\b/;
 const TASK_WORDS = /\b(inspect|analy[sz]e|review|fix|change|modify|update|implement|create|build|trace|read|investigate|report|find|look at|examine|check|write)\b/;
 
 export function isReadOnlyConstraint(prompt: string): boolean {
@@ -100,7 +103,7 @@ export const PIPELINE_BARE_ACTION_RE =
 /** True when the prompt is a revenue-pipeline REQUEST (action or phrase). */
 export function isRevenueActionRequest(prompt: string): boolean {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (/\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex|research|teams?|automation)\b/.test(p)) return false;
+  if (/\b(ask|tell|have|get|make|delegate|instruct|hand off|handoff)\s+(hermes|codex|research|teams?|automation|antigravity)\b/.test(p)) return false;
   if (STATUS_VERBS.test(p) || EXPLAIN_VERBS.test(p)) return false;
   return PIPELINE_PHRASE_RE.test(p) || PIPELINE_ACTION_RE.test(p) || PIPELINE_BARE_ACTION_RE.test(p);
 }
@@ -112,15 +115,37 @@ export function mentionsInternalCapability(prompt: string): boolean {
 }
 
 export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null {
-  const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  const p = prompt.toLowerCase().replace(/['’]/g, "'");
   if (isConversationalFeedback(prompt)) return null;
+
+  const isExplicitQueue = /\b(queue this for codex|queue it for codex|queue that change request|queue this project for codex)\b/i.test(p);
+  const isExplicitGive = /\b(give this to codex|give this project to codex|give it to codex|give this project)\b/i.test(p);
+  const isExplicitStart = /\b(start this project now|start the project now|start this task now|start executing now)\b/i.test(p);
+  const isExplicitPrepare = /\b(prepare this for codex but don't start|prepare this for codex but do not start|prepare but don't start|prepare only)\b/i.test(p);
+
+  if (isExplicitQueue || isExplicitGive || isExplicitStart || isExplicitPrepare) {
+    const codexCap = getCapability('codex')!;
+    const executionMode = isExplicitQueue ? 'queued'
+      : isExplicitGive ? 'immediate'
+      : isExplicitStart ? 'start_now'
+      : 'specification_only';
+    
+    return {
+      intent: 'worker_delegation',
+      capability: codexCap,
+      confidence: 0.99,
+      reason: `Explicit CodeX delegation request with mode: ${executionMode}`,
+      workerKind: 'codex',
+      executionMode,
+    } as any;
+  }
 
   const cap = resolveCapability(p);
 
   // Revenue Pipeline V1 — runs when the prompt describes a business website
   // audit/rebuild/proposal request and NO real worker capability won (an
   // explicit "Ask Hermes to audit…" still delegates to Hermes).
-  const explicitWorkerDelegationMention = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex|research|teams?|automation)\b/.test(p);
+  const explicitWorkerDelegationMention = /\b(ask|tell|have|get|make|delegate|instruct|hand off|handoff)\s+(hermes|codex|research|teams?|automation|antigravity)\b/.test(p);
   const realWorkerCap = (cap && cap.taskWorkerKind !== null && cap.id !== 'revenue_pipeline') || explicitWorkerDelegationMention;
   const pipelinePhrase = PIPELINE_PHRASE_RE.test(p);
   const pipelineAction = PIPELINE_ACTION_RE.test(p) || PIPELINE_BARE_ACTION_RE.test(p);
@@ -158,8 +183,15 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
 
   // Navigation first among worker-mention intents: "Open CodeX."
   if (NAV_VERBS.test(p)) {
-    // But "open the board" should be a board_query/navigation to /boards,
-    // and "ask ... to open ..." is delegation, not navigation.
+    if (cap.id === 'boards') {
+      return {
+        intent: 'board_query',
+        capability: cap,
+        confidence: 0.9,
+        reason: 'Boards capability mentioned in a query/action context',
+      };
+    }
+    // But "ask ... to open ..." is delegation, not navigation.
     const delegationAhead = DELEGATE_VERBS.test(p) && TASK_WORDS.test(p) && !/^(open|go|take|navigate|launch|switch)/.test(p.trim());
     if (!delegationAhead) {
       return {
@@ -184,6 +216,19 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
     }
   }
 
+  // Spoken command form: "check Revenue Operator" means report the
+  // operator's current state. It is intentionally narrower than a general
+  // "check <system>" investigation, so health checks for Hermes/gateways
+  // still reach the investigation pipeline.
+  if (cap.id === 'revenue_operator' && /^(?:(?:hey\s+)?jarvis[,\s]+)?(?:please\s+)?(?:check\b|what is (?:the )?revenue operator doing\b|tell me about (?:the )?revenue operator|what projects.*(?:inside|in)\b|projects.*(?:inside|in) (?:the )?revenue operator\b)/i.test(p.trim())) {
+    return {
+      intent: 'worker_status',
+      capability: cap,
+      confidence: 0.97,
+      reason: 'Explicit Revenue Operator status request',
+    };
+  }
+
   // A full live-system/health inspection ("perform a read-only AgenticOS
   // health inspection; check Hermes/Ollama/OpenRouter...") must fall through
   // to the INVESTIGATE pipeline — a single-worker status reply cannot cover
@@ -194,8 +239,8 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   // task-creation instruction naming the worker ("create a task for Hermes
   // to inspect X"). Both must win over the live-system investigation
   // fall-through — the user asked for WORK, not a status inspection.
-  const explicitWorkerTargetCue = /\b(ask|tell|have|get|make|delegate|instruct)\s+(hermes|codex)\b/.test(p) ||
-    /\b(create|add|queue|file|raise|log)\s+(a|an|the|one|new)?\s*(task|job|issue|ticket|goal)\s+(for|to|with)\s+(hermes|codex)\b/.test(p);
+  const explicitWorkerTargetCue = /\b(ask|tell|have|get|make|delegate|instruct|hand off|handoff)\s+(?:to\s+)?(hermes|codex|antigravity)\b/.test(p) ||
+    /\b(create|add|queue|file|raise|log)\s+(a|an|the|one|new)?\s*(task|job|issue|ticket|goal)\s+(for|to|with)\s+(hermes|codex|antigravity)\b/.test(p);
   if (isLiveSystemInvestigationRequest(prompt) && !explicitWorkerTargetCue) {
     return null;
   }
@@ -205,8 +250,8 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
   // "Ask Hermes to inspect the Boards integration" delegates to Hermes.
   const isDelegation =
     (DELEGATE_VERBS.test(p) && TASK_WORDS.test(p)) ||
-    /\b(ask|tell|have|get|make|delegate)\s+(hermes|codex)\b/.test(p) ||
-    (cap.taskWorkerKind !== null && TASK_WORDS.test(p) && /^(ask|tell|have|get|make|delegate|instruct)/.test(p.trim()));
+    /\b(ask|tell|have|get|make|delegate|hand off|handoff)\s+(?:to\s+)?(hermes|codex|antigravity)\b/.test(p) ||
+    (cap.taskWorkerKind !== null && TASK_WORDS.test(p) && /^(ask|tell|have|get|make|delegate|instruct|hand off|handoff)/.test(p.trim()));
 
   // "create a daily automation" / "add a board" / "set up a memory" are
   // requests to CREATE the capability itself — NOT worker delegation. The
@@ -268,6 +313,10 @@ export function classifyExecutiveIntent(prompt: string): ExecutiveIntent | null 
 
   // Feedback: "Give me feedback regarding CodeX" — structured assessment.
   if (FEEDBACK_VERBS.test(p)) {
+    // Directing work TO a worker ("give ... to codex", "send ... to hermes") is delegation/handoff, not feedback on the worker.
+    if (/\b(?:give|send|assign|hand\s*off|handoff|delegate)\b.*\bto\s+(?:hermes|codex|antigravity)\b/i.test(p)) {
+      return null;
+    }
     return {
       intent: 'worker_feedback',
       capability: cap,

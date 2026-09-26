@@ -7,6 +7,8 @@ export interface Project {
   name: string;
   description?: string | null;
   status: string;
+  priority?: number;
+  revenueVertical?: string | null;
   tags?: string[];
   workspacePath?: string | null;
   color?: string | null;
@@ -199,6 +201,23 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
 export function useProjects() {
   const ctx = useContext(ProjectContext);
-  if (!ctx) throw new Error('useProjects must be used within ProjectProvider');
+  if (!ctx) {
+    return {
+      projects: [],
+      activeProjectId: null,
+      activeProject: null,
+      isLoading: false,
+      refresh: () => {},
+      setActiveProject: async () => {},
+      createProject: async () => null,
+      updateProject: async () => null,
+      deleteProject: async () => {},
+      getKnowledgeItems: async () => [],
+      createKnowledgeItem: async () => null,
+      updateKnowledgeItem: async () => null,
+      deleteKnowledgeItem: async () => {},
+      getProjectTasks: async () => [],
+    };
+  }
   return ctx;
 }

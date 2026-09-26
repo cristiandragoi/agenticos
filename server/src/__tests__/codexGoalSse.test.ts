@@ -17,7 +17,7 @@ describe('CodeX goal SSE stream', () => {
 
     const { db } = await import('../db/index.js');
     const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
-    migrate(db, { migrationsFolder: path.resolve('server/drizzle') });
+    migrate(db, { migrationsFolder: path.resolve(__dirname, '../../drizzle') });
 
     goalStore = (await import('../services/goalStore.js')).goalStore;
     const router = (await import('../routers/chat.js')).default;

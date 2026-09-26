@@ -33,11 +33,31 @@ export interface ChatRequest {
 
   // Phase 4: Backend authoritative routing
   agentId?: string;
+  taskClass?: string;
   routing?: {
     mode: 'automatic' | 'preferred' | 'forced';
     providerId?: string;
     modelId?: string;
   };
+
+  // Phase 2B: Producer-aware Argus independence routing.
+  // When agentId === 'argus', set this to the RESOLVED model of the artifact
+  // producer (e.g. 'gpt-6-astra' for Codex, 'nemotron-3-ultra-free' for Hermes).
+  // The router will select the first Argus candidate from a DIFFERENT model family.
+  producerModel?: string;
+}
+
+export type AgentRoleId = 'jarvis' | 'hermes' | 'codex' | 'argus';
+export type RoutingState = 'NORMAL' | 'FALLBACK' | 'DEGRADED' | 'OFFLINE';
+
+export interface AgentModelPolicy {
+  agentId: AgentRoleId;
+  taskClass?: string;
+  primary: string;
+  fallbacks: string[];
+  localFallback: string;
+  allowLocalFallback: boolean;
+  latencyBudgetMs?: number;
 }
 
 export interface ChatResponse {
@@ -47,15 +67,43 @@ export interface ChatResponse {
   offline: boolean;
   error?: string;
   
+  // Phase 2: Role-Based Routing & Observability
+  agentId?: AgentRoleId;
+  taskClass?: string;
+  requestedRoute?: string;
+  requestedModel?: string;
+  resolvedProvider?: string;
+  resolvedModel?: string;
+  routingState?: RoutingState;
+  fallbackUsed?: boolean;
+  fallbackReason?: string;
+  ttftMs?: number;
+  totalLatencyMs?: number;
+
   // Phase 2: Token & Cost Accounting
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
   estimatedCost?: number;
+
+  // Phase 2B: Truthful model identity reporting.
+  // resolvedModelIdentityExposed: true  → upstream protocol confirmed the resolved model ID
+  // resolvedModelIdentityExposed: false → upstream did not expose resolvedModel; requestedModel is what was sent
+  // resolvedModelSource: 'protocol' | 'config' | 'self-report' | 'not-exposed'
+  resolvedModelIdentityExposed?: boolean;
+  resolvedModelSource?: 'protocol' | 'config' | 'self-report' | 'not-exposed';
+
+  // Phase 2B: Producer-aware Argus independence (populated when agentId === 'argus')
+  argusIndependence?: {
+    producerFamily: string;
+    verifierFamily: string;
+    independent: boolean;
+    unavailable?: boolean;
+  };
 }
 
 export interface ChatStreamChunk {
-  type: 'token' | 'done' | 'error' | 'gateway.selected' | 'gateway.fallback' | 'gateway.failed' | 'gateway.completed' | 'gateway.rate_limited' | 'streaming_interruption';
+  type: 'token' | 'done' | 'error' | 'gateway.selected' | 'gateway.fallback' | 'gateway.failed' | 'gateway.completed' | 'gateway.rate_limited' | 'streaming_interruption' | 'gateway.argus_independence_rejected';
   content?: string;
   provider: string;
   model?: string;
@@ -77,6 +125,19 @@ export interface ChatStreamChunk {
   stage?: string;
   status?: number;
   retryAfter?: string;
+
+  // Role routing & observability
+  agentId?: AgentRoleId;
+  resolvedModel?: string;
+  resolvedProvider?: string;
+  routingState?: RoutingState;
+  fallbackUsed?: boolean;
+  fallbackReason?: string;
+
+  // Argus runtime independence rejection diagnostics
+  producerModel?: string;
+  producerFamily?: string;
+  verifierActualFamily?: string;
 }
 
 export interface ProviderAttemptError {

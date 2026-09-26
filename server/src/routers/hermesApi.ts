@@ -13,8 +13,43 @@
 import { Router } from 'express';
 import { hermesApiService } from '../services/hermesApiService.js';
 import { hermesResourceManager } from '../services/hermes/resourceManager.js';
+import { hermesProgressBus } from '../domains/hermes/progressEvents.js';
 
 export const hermesApiRouter = Router();
+
+hermesApiRouter.get('/missions/:id/events', (req, res) => {
+  const missionId = req.params.id;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  let seq = 0;
+  const send = (evt: any) => {
+    res.write(`id: ${++seq}\nevent: ${evt.type || 'mission_progress'}\ndata: ${JSON.stringify(evt)}\n\n`);
+  };
+
+  const pastEvents = hermesProgressBus.getRecentEvents(missionId);
+  for (const evt of pastEvents) {
+    send(evt);
+  }
+
+  const unsubscribe = hermesProgressBus.onMission(missionId, (evt) => {
+    send(evt);
+    if (evt.type === 'MISSION_COMPLETED' || evt.type === 'MISSION_FAILED' || evt.type === 'STOPPED') {
+      res.write(': stream closed\n\n');
+      res.end();
+    }
+  });
+
+  const keepalive = setInterval(() => res.write(': keepalive\n\n'), 20000);
+
+  req.on('close', () => {
+    clearInterval(keepalive);
+    unsubscribe();
+  });
+});
 
 hermesApiRouter.get('/status', async (_req, res) => {
   try {

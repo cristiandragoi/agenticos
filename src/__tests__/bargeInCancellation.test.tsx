@@ -28,6 +28,18 @@ class MockAudio {
   removeAttribute = vi.fn((n: string) => { if (n === 'src') this.src = ''; });
   load = vi.fn();
   play = playSpy;
+  // HTMLMediaElement listener surface — see registerActiveAudio().
+  private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+  addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    const l = this.listeners.get(type) ?? [];
+    l.push(cb);
+    this.listeners.set(type, l);
+  };
+  removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+  };
+  currentTime = 0;
+  volume = 1;
   constructor() { lastAudio = this; }
 }
 
@@ -51,7 +63,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('barge-in cancellation contract', () => {
   it('1. normal playback: speak() resolves after onended', async () => {
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     let resolved = false;
     await act(async () => { await result.current.speak('hello').then(() => { resolved = true; }); });
     expect(resolved).toBe(true);
@@ -60,7 +72,7 @@ describe('barge-in cancellation contract', () => {
 
   it('2. cancellation (halt) settles the pending speak() — never hangs', async () => {
     autoEnd = false; // playback never ends naturally
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
 
     let speakSettled = false;
     let speakPromise: Promise<void> = Promise.resolve();
@@ -77,7 +89,7 @@ describe('barge-in cancellation contract', () => {
 
   it('3. barge-in stops audio + clears the queue (pause called)', async () => {
     autoEnd = false;
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     let speakPromise: Promise<void> = Promise.resolve();
     await act(async () => { speakPromise = result.current.speak('long answer').catch(() => {}); });
     await act(async () => { await Promise.resolve(); }); // flush onplay
@@ -90,7 +102,7 @@ describe('barge-in cancellation contract', () => {
 
   it('4. next turn can speak normally after cancellation (no stale audio)', async () => {
     autoEnd = false;
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     let first: Promise<void> = Promise.resolve();
     await act(async () => { first = result.current.speak('turn one').catch(() => {}); });
     await act(async () => { await Promise.resolve(); });
@@ -120,7 +132,7 @@ describe('barge-in cancellation contract', () => {
       start() {} stop() {}
     };
 
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     await act(async () => { await result.current.startConversation(); });
 
     let speakPromise: Promise<void> = Promise.resolve();

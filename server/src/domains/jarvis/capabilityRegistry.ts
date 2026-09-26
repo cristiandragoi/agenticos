@@ -19,9 +19,15 @@ export type CapabilityId =
   | 'memory'
   | 'automations'
   | 'revenue_pipeline'
-  | 'revenue_operator';
+  | 'revenue_operator'
+  | 'antigravity'
+  | 'terminal'
+  | 'desktop'
+  | 'browser'
+  | 'git'
+  | 'filesystem';
 
-export type TaskWorkerKind = 'hermes' | 'codex' | 'magnitude' | 'research' | 'team' | 'automation' | 'revenue' | null;
+export type TaskWorkerKind = 'hermes' | 'codex' | 'magnitude' | 'research' | 'team' | 'automation' | 'revenue' | 'antigravity' | null;
 
 export interface Capability {
   id: CapabilityId;
@@ -45,7 +51,7 @@ export const CAPABILITY_REGISTRY: Capability[] = [
   {
     id: 'jarvis',
     displayName: 'JARVIS',
-    aliases: ['jarvis', 'j.a.r.v.i.s', 'you', 'assistant'],
+    aliases: ['jarvis', 'j.a.r.v.i.s'],
     responsibilities:
       'JARVIS is the primary conversational interface and orchestrator: answers questions, creates background tasks, controls tasks, coordinates internal workers, and reports verified results.',
     supportedActions: [
@@ -101,7 +107,7 @@ export const CAPABILITY_REGISTRY: Capability[] = [
   {
     id: 'magnitude',
     displayName: 'Magnitude',
-    aliases: ['magnitude', 'magnitude agent', 'the magnitude agent', 'browser', 'browser agent', 'browser worker'],
+    aliases: ['magnitude', 'magnitude agent', 'the magnitude agent'],
     responsibilities:
       'Magnitude is the browser automation and web inspection worker. It navigates to URLs, inspects page titles, extracts DOM text and links, and returns structured page results.',
     supportedActions: [
@@ -217,6 +223,89 @@ export const CAPABILITY_REGISTRY: Capability[] = [
     route: '/revenue-operator',
     limitations: 'Live payments and public outreach require human gate approval.',
   },
+  {
+    id: 'antigravity',
+    displayName: 'Antigravity',
+    aliases: ['antigravity', 'anti-gravity', 'antigravity builder', 'antigravity agent', 'desktop builder', 'local builder'],
+    responsibilities:
+      'Antigravity is the local agentic desktop builder session. It executes complex multi-step implementation tasks, autonomous project coding, testing, and git operations with verified tool execution.',
+    supportedActions: [
+      'execute autonomous coding tasks',
+      'implement and verify codebase repairs',
+      'run multi-step automated implementation plans',
+      'inspect and modify project code',
+    ],
+    statusSource: 'Antigravity Desktop Builder session (local language_server via agentapi) + background tasks with worker=antigravity',
+    assignmentAgentId: null,
+    taskWorkerKind: 'antigravity',
+    route: '/jarvis',
+    limitations: 'Requires the local signed-in Antigravity Desktop Builder session to be running.',
+  },
+  {
+    id: 'terminal',
+    displayName: 'Terminal',
+    aliases: ['terminal', 'powershell', 'cmd', 'bash', 'shell', 'command line'],
+    responsibilities:
+      'Terminal executes shell commands, runs builds, scripts, tests, package managers, and system processes with verified exit codes and stdout/stderr capture.',
+    supportedActions: ['run shell commands', 'execute tests', 'run builds', 'manage background processes'],
+    statusSource: 'Host OS shell (PowerShell / cmd / bash)',
+    assignmentAgentId: null,
+    taskWorkerKind: null,
+    route: '/terminal',
+    limitations: 'Destructive system commands require authorization.',
+  },
+  {
+    id: 'desktop',
+    displayName: 'Desktop',
+    aliases: ['desktop', 'applications', 'windows', 'apps'],
+    responsibilities:
+      'Desktop launches host applications (PowerShell, Notepad, VS Code, Explorer), manages windows, and verifies running processes.',
+    supportedActions: ['open applications', 'focus windows', 'verify desktop processes'],
+    statusSource: 'Host OS Window & Process Manager',
+    assignmentAgentId: null,
+    taskWorkerKind: null,
+    route: '/desktop',
+    limitations: 'Limited to installed applications and current user desktop session.',
+  },
+  {
+    id: 'browser',
+    displayName: 'Browser',
+    aliases: ['web browser', 'chromium', 'playwright', 'youtube', 'google', 'linkedin', 'x'],
+    responsibilities:
+      'Browser operates a live Playwright Chromium browser to navigate to websites, execute web workflows, search, and verify live page state.',
+    supportedActions: ['open websites', 'search web platforms', 'extract page content', 'execute browser workflows'],
+    statusSource: 'Playwright Chromium Headed Session',
+    assignmentAgentId: null,
+    taskWorkerKind: null,
+    route: '/browser',
+    limitations: 'Headless or headed Chromium on local machine.',
+  },
+  {
+    id: 'git',
+    displayName: 'Git',
+    aliases: ['git', 'github', 'version control', 'repository git'],
+    responsibilities:
+      'Git inspects repository status, branches, commits, diffs, pulls updates, and clones repositories with verified reality checks.',
+    supportedActions: ['git status', 'git pull', 'git clone', 'git diff', 'git log', 'git checkout'],
+    statusSource: 'Local Git CLI',
+    assignmentAgentId: null,
+    taskWorkerKind: null,
+    route: '/git',
+    limitations: 'Requires git installed on system PATH.',
+  },
+  {
+    id: 'filesystem',
+    displayName: 'Filesystem',
+    aliases: ['filesystem', 'files', 'file system', 'directories'],
+    responsibilities:
+      'Filesystem inspects, reads, writes, searches, and creates files and directories on local disk with verified state verification.',
+    supportedActions: ['read file', 'write file', 'search files', 'create directory', 'copy file'],
+    statusSource: 'Host Node.js fs',
+    assignmentAgentId: null,
+    taskWorkerKind: null,
+    route: '/files',
+    limitations: 'Constrained to allowed workspace paths and user permissions.',
+  },
 ];
 
 export function getCapability(id: CapabilityId): Capability | undefined {
@@ -227,9 +316,9 @@ export function getCapability(id: CapabilityId): Capability | undefined {
 export function resolveCapability(text: string): Capability | undefined {
   const p = text.toLowerCase().replace(/\s+/g, ' ').trim();
 
-  // First check if an explicit worker is targeted with an action verb (use/ask/tell/have/delegate to)
+  // First check if an explicit worker is targeted with an action verb (use/ask/tell/have/delegate to/hand off to)
   const explicitTarget = CAPABILITY_REGISTRY.find(c =>
-    c.aliases.some(alias => new RegExp(`\\b(?:use|ask|tell|have|get|make|delegate to)\\s+${alias}\\b`).test(p))
+    c.aliases.some(alias => new RegExp(`\\b(?:use|ask|tell|have|get|make|delegate to|hand off to|handoff to)\\s+${alias}\\b`).test(p))
   );
   if (explicitTarget) return explicitTarget;
 
@@ -238,7 +327,7 @@ export function resolveCapability(text: string): Capability | undefined {
   let bestPriority = -1;
   for (const cap of CAPABILITY_REGISTRY) {
     // Priority: core workers beat auxiliary capabilities
-    const isCoreWorker = ['codex', 'hermes', 'magnitude', 'research', 'agent_teams'].includes(cap.id);
+    const isCoreWorker = ['codex', 'hermes', 'magnitude', 'research', 'agent_teams', 'antigravity'].includes(cap.id);
     const priority = isCoreWorker ? 3 : cap.id === 'revenue_operator' ? 2 : cap.id === 'revenue_pipeline' ? 1 : cap.id === 'automations' || cap.id === 'boards' || cap.id === 'memory' ? 1 : 0;
     for (const alias of cap.aliases) {
       if (p.includes(alias) && (priority > bestPriority || (priority === bestPriority && alias.length > bestLen))) {

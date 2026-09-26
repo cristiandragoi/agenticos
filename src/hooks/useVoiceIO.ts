@@ -37,6 +37,7 @@ import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import { decideContinuation } from '../utils/utteranceCompleteness';
 import { voiceTracePush } from '../diagnostics/voiceTrace';
 import { voiceTimelineBegin, voiceTimelinePush, installVoiceTimelineProbe } from '../diagnostics/voiceTimeline';
+import { registerActiveAudio, isDuplicateTurnSubmission, getActiveJarvisEngine } from '../lib/jarvisEngineAuthority';
 
 export type VoiceState = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'ducked' | 'error';
 
@@ -86,12 +87,15 @@ interface UseVoiceIOOptions {
   conversationId?: string | null;
   /** Explicit language selection ('de' | 'ro' | 'en' | 'auto') */
   language?: string | null;
+  /** Fired whenever a transcript is rejected (self-echo, duplicate, session invalidated, etc.) */
+  onTranscriptRejected?: (rejection: { text: string; reason: string; category: string }) => void;
 }
 
 
 import { API_BASE as BACKEND, apiFetch } from '../api/client';
-import { detectControlIntent, isStandaloneWake, type ControlCommand } from '../lib/controlIntent';
+import { detectControlIntent, isStandaloneWake, hasWakePrefix, type ControlCommand } from '../lib/controlIntent';
 import { classifyTranscript, recordSpokenSegment, clearSpokenSegments } from '../lib/echoTracker';
+import { jarvisLiveKitSession, JARVIS_CANONICAL_ROOM, type JarvisLiveKitState } from '../lib/jarvisLiveKitSession';
 import { classifyInterruption } from '../lib/adaptiveBargeIn';
 import { resolveVoiceSessionConfig, isVoiceCompatibleWithLanguage, recordVoiceSynthesis, type VoiceSessionConfig } from '../lib/voiceSessionConfig';
 
@@ -135,6 +139,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     vadWatchdogIntervalMs = 1000,
     onBargeIn,
     onControlCommand,
+    onTranscriptRejected,
     voiceOverride: initialVoiceOverride = null,
   } = options;
 
@@ -277,6 +282,30 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   // Dedupe for control commands: a partial stop + final stop must not
   // execute the cancel path twice.
   const lastControlRef = useRef<{ normalized: string; at: number } | null>(null);
+  const onTranscriptRejectedRef = useRef<((rejection: { text: string; reason: string; category: string }) => void) | null>(null);
+  onTranscriptRejectedRef.current = onTranscriptRejected ?? null;
+  const endConversationRef = useRef<() => void>(() => {});
+  const rearmListeningRef = useRef<() => void>(() => {});
+  // Unsubscribe handle for the LiveKit DataChannel transcript bridge (agent-jarvis only)
+  const jarvisDataUnsubRef = useRef<(() => void) | null>(null);
+  const jarvisStateUnsubRef = useRef<(() => void) | null>(null);
+
+  const [lastVoiceRejection, setLastVoiceRejection] = useState<{ text: string; reason: string; category: string; timestamp: number } | null>(null);
+
+  const reportRejection = useCallback((text: string, reason: string, category: string) => {
+    console.warn(`[VoiceRejection:${category}] ${reason}: "${text}"`);
+    voiceTracePush('transcript_rejected', 'warn', `${category}: ${reason} ("${text.slice(0, 60)}")`);
+    setLastVoiceRejection({ text, reason, category, timestamp: Date.now() });
+    onTranscriptRejectedRef.current?.({ text, reason, category });
+  }, []);
+
+  const resetTurnLatch = useCallback((source: string) => {
+    if (turnSubmittedRef.current) {
+      console.log(`[VoiceLatch] Reset turn latch (source: ${source})`);
+    }
+    turnSubmittedRef.current = false;
+    turnActiveRef.current = false;
+  }, []);
 
   // ── Turn validity: conversationSessionId + turnId (never mutable booleans
   //    alone). A recorded blob is submittable ONLY while the session that
@@ -596,6 +625,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
    *  loop; manual mode returns to idle. Never invents state — callers invoke
    *  this only from REAL playback lifecycle events. */
   const afterPlaybackEnd = useCallback(() => {
+    resetTurnLatch('afterPlaybackEnd');
     if (conversationActiveRef.current) {
       if (recoverTimerRef.current) { clearTimeout(recoverTimerRef.current); recoverTimerRef.current = null; }
       setVoiceState('listening');
@@ -603,7 +633,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     } else {
       setVoiceState('idle');
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resetTurnLatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Play base64-encoded audio, strictly confirming playback start.
    *
@@ -693,6 +723,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         setPlaybackError(null);
         ensurePlaybackAnalyser();
         startPlaybackLevelMonitor();
+        registerActiveAudio(audio);
         setVoiceState('speaking');
         window.dispatchEvent(new CustomEvent(JARVIS_ORB_EVENTS.playbackStarted, {
           detail: { agentId },
@@ -831,34 +862,33 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     validity?: { sessionId: string | null; turnId: number },
     opts?: { skipTurnIdCheck?: boolean },
   ): boolean => {
+    if (agentId === 'agent-jarvis') {
+      console.warn('[LegacyVoice] Suppressed submitConversationTurn — Legacy Jarvis voice deactivated for LiveKit replacement');
+      setLastTranscript(text);
+      return false;
+    }
     // Session/turn validity first: a turn recorded by a dead session (user
     // ended Conversation mid-transcription) or superseded by a newer turn
     // never submits — no boolean can drift into accepting a stale turn.
     if (validity) {
       if (!validity.sessionId || validity.sessionId !== conversationSessionIdRef.current) {
-        // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
-        console.log('[ConvTrace] submit REJECTED: session invalidated', { recorded: validity.sessionId, live: conversationSessionIdRef.current });
+        console.warn('[VoiceRejection] submit REJECTED: session invalidated', { recorded: validity.sessionId, live: conversationSessionIdRef.current });
+        reportRejection(text, 'Session was ended or invalidated before submission', 'session_invalidated');
+        resetTurnLatch('session_invalidated');
         return false;
       }
       if (!opts?.skipTurnIdCheck && validity.turnId !== turnSeqRef.current) {
-        // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
-        console.log('[ConvTrace] submit REJECTED: stale turnId', { recorded: validity.turnId, current: turnSeqRef.current });
+        console.warn('[VoiceRejection] submit REJECTED: stale turnId', { recorded: validity.turnId, current: turnSeqRef.current });
+        reportRejection(text, 'Utterance superseded by newer turn', 'stale_turn');
+        resetTurnLatch('stale_turn');
         return false;
       }
     }
-    // TEMP DIAGNOSTIC — live auto-submit trace (remove after confirmation).
     console.log('[ConvTrace] submitConversationTurn entered', {
       text: text.slice(0, 60),
       turnSubmitted: turnSubmittedRef.current,
     });
-    if (turnSubmittedRef.current) return false;
-    turnSubmittedRef.current = true;
     const now = Date.now();
-
-    const turnId = ++currentTurnSeqRef.current;
-    activeTurnIdRef.current = turnId;
-    voiceTracePush('VOICE_TURN_CREATED', 'ok', `Voice turn #${turnId} created for "${text}"`);
-    voiceTracePush('VOICE_TRANSCRIPT_ACCEPTED', 'ok', `Voice turn #${turnId} transcript accepted: "${text}"`);
 
     // ── LOCAL CONTROL-INTENT LAYER (Phase 1 / Part 3) ───────────────────────
     // Runs BEFORE any model routing. "Jarvis, stop" must stop — it must
@@ -869,6 +899,39 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       const ctlDup = !!(lastCtl && lastCtl.normalized === control.matched && now - lastCtl.at < 4000);
       lastControlRef.current = { normalized: control.matched, at: now };
 
+      resetTurnLatch('control_intent');
+
+      // Action 1: End entire voice conversation
+      if (control.action === 'end_conversation' || control.kind === 'terminate') {
+        voiceTracePush('VOICE_TERMINATE_DETECTED', 'ok', `Local voice terminate command: "${control.matched}"`);
+        killSpeechNowRef.current();
+        if (agentId === 'agent-jarvis') {
+          // LiveKit interrupt for agent-jarvis
+          jarvisLiveKitSession.stopSession().catch((err) => {
+            console.error('[JarvisLiveKit] Interrupt failed:', err);
+          });
+        }
+        endConversationRef.current();
+        if (!ctlDup) {
+          voiceTracePush('control_command', 'ok', `Control ${control.kind}: "${control.matched}"`);
+          onControlCommandRef.current?.(control);
+        }
+        return false;
+      }
+
+      // Action 2: Cancel current model request
+      if (control.action === 'cancel_request') {
+        voiceTracePush('VOICE_CANCEL_DETECTED', 'ok', `Local voice cancel command: "${control.matched}"`);
+        killSpeechNowRef.current();
+        if (!ctlDup) {
+          voiceTracePush('control_command', 'ok', `Control ${control.kind}: "${control.matched}"`);
+          onControlCommandRef.current?.(control);
+        }
+        rearmListeningRef.current();
+        return false;
+      }
+
+      // Action 3: Stop current speech/output
       voiceTracePush('VOICE_BARGE_IN_DETECTED', 'ok', `Barge-in command detected: "${control.matched}"`);
       voiceTracePush('VOICE_STOP_DETECTED', 'ok', `Local voice stop command: "${control.matched}"`);
 
@@ -879,34 +942,75 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         voiceTracePush('control_command', 'ok', `Control ${control.kind}: "${control.matched}"`);
         onControlCommandRef.current?.(control);
       }
+      rearmListeningRef.current();
       return false;
     }
+
     // Standalone wake ("Jarvis") is a PRESENCE CHECK, not a substantive query.
-    // Voice-reliability closure: route it through the same local fast path so
-    // the server answers "Yes, I'm here." — never silence, never the LLM.
+    // Saying "Jarvis" alone acknowledges presence without submitting to the model.
     if (isStandaloneWake(text)) {
-      console.log('[ConvTrace] standalone wake → presence fast path');
-      speechRunSuppressedRef.current = false;
-      voiceTimelinePush('routingStartAt', `"${text.slice(0, 40)}" (wake)`);
-      onAutoSubmit?.(text);
-      return true;
+      console.log('[ConvTrace] standalone wake detected — presence acknowledged without model submission');
+      voiceTracePush('standalone_wake', 'ok', 'Wake word recognized without query — listening for command');
+      resetTurnLatch('standalone_wake');
+      rearmListeningRef.current();
+      return false;
     }
+
+    // Gating check: In active conversation mode (conversationActiveRef.current === true),
+    // natural follow-up speech is NEVER rejected for lacking a wake word or being past an 8s window!
+    if (!conversationActiveRef.current) {
+      if (!hasWakePrefix(text)) {
+        voiceTracePush('background_audio_rejected', 'ok', `Rejected unaddressed transcript outside active session: "${text.slice(0, 60)}"`);
+        reportRejection(text, 'Requires wake word "Jarvis" when not in active conversation mode', 'wake_required');
+        resetTurnLatch('wake_required');
+        return false;
+      }
+    }
+
+    if (turnSubmittedRef.current) {
+      console.warn('[VoiceRejection] Turn latch locked (previous turn still submitting):', text);
+      reportRejection(text, 'Previous voice turn is still active', 'turn_busy');
+      return false;
+    }
+
     const last = lastAutoSubmitRef.current;
     const dup = !!(last && last.text === text && now - last.at < 4000);
-    if (dup) {
-      console.log('[ConvTrace] DEDUPE hit — not resubmitting identical text');
+    if (dup || isDuplicateTurnSubmission(conversationIdRef.current, text, 3000)) {
+      console.warn('[VoiceRejection] DEDUPE hit — duplicate speech within window rejected:', text);
+      reportRejection(text, 'Duplicate speech detected within window', 'duplicate_speech');
+      resetTurnLatch('duplicate_speech');
       return false;
     }
+
+    turnSubmittedRef.current = true;
+    const turnId = ++currentTurnSeqRef.current;
+    activeTurnIdRef.current = turnId;
+    voiceTracePush('VOICE_TURN_CREATED', 'ok', `Voice turn #${turnId} created for "${text}"`);
+    voiceTracePush('VOICE_TRANSCRIPT_ACCEPTED', 'ok', `Voice turn #${turnId} transcript accepted: "${text}"`);
+
     lastAutoSubmitRef.current = { text, at: now };
-    console.log('[ConvTrace] onAutoSubmit firing', { hasCallback: typeof onAutoSubmit === 'function', turnId });
-    voiceTracePush('auto_submit', 'ok', `Auto-submitted (turn #${turnId}): "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
+    const engine = getActiveJarvisEngine();
+    const dest = engine === 'v2'
+      ? `/api/jarvis-v2/conversations/${conversationIdRef.current || 'active'}/voice/turn`
+      : `/api/jarvis/conversations/${conversationIdRef.current || 'active'}/message/stream`;
+    console.log('[JARVIS_ENGINE_ROUTE]', {
+      activeAuthority: engine,
+      localEngineState: engine,
+      engineRef: undefined,
+      transcript: text,
+      caller: 'useVoiceIO.submitConversationTurn',
+      destination: dest
+    });
+    console.log(`[JARVIS_ENGINE_ROUTE]\nselectedEngine=${engine}\ntranscript=${text}\ndestination=${dest}\nconversationId=${conversationIdRef.current || 'active'}`);
+    console.log('[ConvTrace] onAutoSubmit firing', { hasCallback: typeof onAutoSubmit === 'function', turnId, engine, destination: dest });
+    voiceTracePush('auto_submit', 'ok', `Auto-submitted (turn #${turnId}, ${engine}): "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
     // A NEW user turn re-arms speech: any barge-in suppression from the
     // PREVIOUS turn must not silence this turn's reply.
     speechRunSuppressedRef.current = false;
     voiceTimelinePush('routingStartAt', `"${text.slice(0, 40)}"`);
     onAutoSubmit?.(text);
     return true;
-  }, [onAutoSubmit, performBargeIn, setVoiceState, killSpeechNowRef]);
+  }, [onAutoSubmit, reportRejection, resetTurnLatch, killSpeechNowRef]);
 
   /** Process the recorded audio blob → transcribe ONLY.
    *  Conversation mode: valid transcript auto-submits once, then the turn
@@ -960,6 +1064,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Not an error — conversation re-arms; manual returns to idle.
       if (!transcribeRes.ok && transcribeData?.noSpeech === true) {
         voiceTracePush('no_speech', 'warn', `No speech detected in ${(audioBlob.size / 1024).toFixed(1)} KB audio — re-arming`);
+        resetTurnLatch('no_speech');
         if (fromConversation || conversationActiveRef.current) {
           setVoiceState('listening');
           startConversationListeningInternal();
@@ -980,6 +1085,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       }
 
       if (!transcriptText || transcriptText.trim() === '') {
+        resetTurnLatch('empty_transcript');
         if (fromConversation || conversationActiveRef.current) {
           setVoiceState('listening');
           startConversationListeningInternal();
@@ -997,6 +1103,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // deterministic rule: MANUAL INPUT OWNS THE COMPOSER.
       if (isStale()) {
         voiceTracePush('input_ownership', 'skipped', 'Stale STT dropped — manual edit or mic-off while transcribing');
+        reportRejection(transcriptText, 'Dropped transcript due to manual composer edit or mic toggle', 'input_ownership');
+        resetTurnLatch('stale_input');
         console.log('[InputOwnership] dropped stale STT transcript', { text: transcriptText.slice(0, 60) });
         if (fromConversation || conversationActiveRef.current) {
           setVoiceState('listening');
@@ -1015,6 +1123,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       if (!isControl && lastSpoken && lastSpoken.text && (Date.now() - lastSpoken.at < 12000)) {
         if (isSelfEcho(transcriptText, lastSpoken.text)) {
           voiceTracePush('SELF_ECHO_SUPPRESSED', 'info', `Suppressed TTS self-echo: "${transcriptText.slice(0, 40)}"`);
+          reportRejection(transcriptText, 'Suppressed speaker self-echo audio', 'self_echo');
+          resetTurnLatch('self_echo');
           console.log('[VoiceDiag] Suppressed TTS self-echo:', transcriptText);
           if (fromConversation || conversationActiveRef.current) {
             setVoiceState('listening');
@@ -1046,8 +1156,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       // Manual mode: surface transcript, wait for explicit user Send.
       onTranscript?.(transcriptText);
       setVoiceState('idle');
-    } catch (err) {
+    } catch (err: any) {
       console.error(`[useVoiceIO:${agentId}] Pipeline error:`, err);
+      reportRejection('Audio capture', err?.message || 'STT transcription failed', 'stt_error');
+      resetTurnLatch('pipeline_error');
       setVoiceState('error');
       if (conversationActiveRef.current) {
         // Error recovery: back to listening, never a duplicate submission.
@@ -1063,7 +1175,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         setTimeout(() => setVoiceState('idle'), 3000);
       }
     }
-  }, [agentId, onTranscript, setVoiceState, submitConversationTurn]);
+  }, [agentId, onTranscript, setVoiceState, submitConversationTurn, reportRejection, resetTurnLatch]);
 
   // ── Conversation-mode turn engine ──
 
@@ -1444,10 +1556,12 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
   /** Re-arm the mic inside the continuation window. */
   const rearmListening = useCallback(() => {
+    resetTurnLatch('rearmListening');
     if (!conversationActiveRef.current) return;
     setVoiceState('listening');
     startConversationListeningInternal();
-  }, [setVoiceState, startConversationListeningInternal]);
+  }, [setVoiceState, startConversationListeningInternal, resetTurnLatch]);
+  rearmListeningRef.current = rearmListening;
 
   /** PHASE 15 — RESPONSE-SETTLE RE-ARM (multi-turn reliability, Failure A).
    *
@@ -1462,6 +1576,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
    * response signals its end, then the engine re-arms listening.
    */
   const notifyResponseSettled = useCallback(() => {
+    resetTurnLatch('notifyResponseSettled');
     if (!conversationActiveRef.current) return;
     // Re-arm from ANY non-speaking state when the response cycle is over:
     // thinking/transcribing (normal), idle (post-cancel/killSpeech), error.
@@ -1471,7 +1586,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     if (playbackActiveRef.current) return;
     voiceTracePush('response_settled', 'ok', `Response cycle ended (state ${voiceStateRef.current}) — re-arming listening`);
     rearmListening();
-  }, [rearmListening]);
+  }, [rearmListening, resetTurnLatch]);
 
   // PHASE 15 — stuck-state watchdog extension: the VAD watchdog only ever
   // recovered 'listening'. If a turn's response never produced playback and
@@ -1621,6 +1736,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       if (echo.kind === 'echo') {
         // Pure speaker echo — do not create a new user turn.
         voiceTracePush('echo_rejected', 'ok', `Echo rejected (${echo.confidence.toFixed(2)})`);
+        reportRejection(submitText, 'Speaker echo detected and suppressed', 'speaker_echo');
+        resetTurnLatch('speaker_echo');
         rearmListening();
         return;
       }
@@ -1633,12 +1750,153 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     const submitted = submitConversationTurn(submitText, firstValidity, { skipTurnIdCheck: isCombined });
     if (submitted) setVoiceState('thinking');
     else rearmListening();
-  }, [continuationWindowMs, rearmListening, setVoiceState, submitConversationTurn, duckedRef, duckEscalatedRef, duckSpeechStartedAtRef, restorePlayback, escalateFromDuck, BARGE_TAKEOVER_MS]);
+  }, [continuationWindowMs, rearmListening, setVoiceState, submitConversationTurn, reportRejection, resetTurnLatch, duckedRef, duckEscalatedRef, duckSpeechStartedAtRef, restorePlayback, escalateFromDuck, BARGE_TAKEOVER_MS]);
 
   handleConversationTranscriptRef.current = handleConversationTranscript;
 
   /** Activate conversation mode. Returns true when the mic opened. */
   const startConversation = useCallback(async (): Promise<boolean> => {
+    console.log('[JFE] USEVOICEIO_START', { agentId });
+    if (agentId === 'agent-jarvis') {
+      console.log('[JarvisLiveKit] Starting LiveKit session...');
+      
+      // ONE canonical room for the single persistent Jarvis voice runtime. This is
+      // deliberately NOT conversationId and NOT a per-session random name: voice
+      // conversation identity lives in conversationId/turnId, so switching
+      // conversations reuses this same room instead of spinning up a second agent.
+      const roomName = JARVIS_CANONICAL_ROOM;
+      try {
+        await jarvisLiveKitSession.startSession(roomName);
+        
+        // Mirror LiveKit canonical state into existing UI-compatibility voiceState
+        const state = jarvisLiveKitSession.getState();
+        let uiVoiceState: VoiceState;
+        if (state.sessionState === 'connected') {
+          uiVoiceState = state.isListening ? 'listening' : 'idle';
+        } else if (state.sessionState === 'error') {
+          uiVoiceState = 'error';
+        } else {
+          uiVoiceState = 'idle'; // connecting/disconnected → idle
+        }
+        setVoiceState(uiVoiceState);
+
+        // Subscribe to LiveKit session state changes for live UI mirroring
+        const updateVoiceStateFromLiveKit = () => {
+          const latestState = jarvisLiveKitSession.getState();
+          let newState: VoiceState;
+          if (latestState.sessionState === 'connected') {
+            newState = latestState.isListening ? 'listening' : 'idle';
+          } else if (latestState.sessionState === 'error') {
+            newState = 'error';
+          } else {
+            newState = 'idle'; // connecting/disconnected → idle
+          }
+          if (newState !== uiVoiceState) {
+            setVoiceState(newState);
+            uiVoiceState = newState;
+          }
+        };
+
+        // Hook into LiveKit session state changes for live UI mirroring (idle / listening / error)
+        const unsubState = jarvisLiveKitSession.subscribe(updateVoiceStateFromLiveKit);
+        jarvisStateUnsubRef.current = unsubState;
+
+        // ── TRANSCRIPT BRIDGE ──────────────────────────────────────────────────────
+        // The server-side JarvisNextAgent transcribes the user's LiveKit mic audio
+        // via Whisper and broadcasts { type: 'transcript', text, isFinal } over the
+        // LiveKit DataChannel. Wire that into the existing conversation-turn pipeline.
+        const unsubData = jarvisLiveKitSession.onData((data: any) => {
+          if (!data) return;
+          console.log(`[JFE-DATA] RECEIVED type=${data.type}`);
+          if (
+            data?.type === 'transcript' &&
+            typeof data.text === 'string' &&
+            data.text.trim().length > 0 &&
+            conversationActiveRef.current
+          ) {
+            const text = String(data.text).trim();
+            console.log(`[JFE-DATA] TRANSCRIPT text_length=${text.length}`);
+            setLastTranscript(text);
+            setVoiceState('thinking');
+            console.log('[JFE-DATA] TRANSCRIPT_HANDLER_CALLED');
+            try {
+              onTranscript?.(text);
+            } catch {}
+            console.log('[JFE-DATA] TURN_SUBMIT_CALLED');
+            const validity = {
+              sessionId: conversationSessionIdRef.current,
+              turnId: turnSeqRef.current,
+            };
+            console.log('[JarvisLiveKit] transcript received from DataChannel:', text.slice(0, 80));
+            handleConversationTranscriptRef.current(text, validity);
+          } else if (
+            data?.type === 'assistant_text' &&
+            typeof data.text === 'string'
+          ) {
+            const replyText = String(data.text).trim();
+            console.log(`[JFE-DATA] ASSISTANT_RESPONSE text_length=${replyText.length}`);
+            setLastResponse(replyText);
+          } else if (data?.type === 'status') {
+            console.log(`[JFE-DATA] STATUS_UPDATE state=${data.state}`);
+            if (data.state === 'speaking') {
+              setVoiceState('speaking');
+            } else if (data.state === 'listening') {
+              setVoiceState('listening');
+            } else if (data.state === 'thinking') {
+              setVoiceState('thinking');
+            }
+          }
+        });
+        jarvisDataUnsubRef.current = unsubData;
+
+        // Legacy cleanup code — drops manual-recording artifacts that lack Jarvis echo/noise suppressors
+        conversationActiveRef.current = true;
+        setConversationActive(true);
+        
+        const sessionId = `conv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        conversationSessionIdRef.current = sessionId;
+        turnSeqRef.current += 1;
+        setConversationSessionId(sessionId);
+
+        // Cleanup manual media pipeline refs (pre-Jarvis artifacts)
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.onstop = null;
+          if (mediaRecorderRef.current.state === 'recording') {
+            try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+          }
+          mediaRecorderRef.current = null;
+        }
+        cleanupStream();
+
+        // Reset suppression flag so Jarvis speaks
+        speechRunSuppressedRef.current = false;
+        
+        console.log('[JarvisLiveKit] Session connected, VAD ready');
+        return true;
+      } catch (err) {
+        try { 
+          await jarvisLiveKitSession.stopSession();
+        } catch { /* ignore stop failures */ }
+        console.error('[JarvisLiveKit] Session start failed:', err);
+        
+        cleanupStream();
+        speechRunSuppressedRef.current = false;
+        turnSeqRef.current += 1;
+        conversationActiveRef.current = false;
+        setConversationActive(false);
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.onstop = null;
+          if (mediaRecorderRef.current.state === 'recording') {
+            try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+          }
+          mediaRecorderRef.current = null;
+        }
+        
+        setVoiceState('error');
+        return false;
+      }
+    }
+
     conversationActiveRef.current = true;
     setConversationActive(true);
     // New session identity: every turn recorded under this session carries
@@ -1690,6 +1948,21 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   /** End conversation mode: stop mic capture, VAD loop, timers, recorder, and halt all audio immediately. */
   const endConversation = useCallback(() => {
     console.log('[ConvTrace] endConversation called');
+    // LiveKit session for agent-jarvis — unsub DataChannel and state bridges first
+    if (agentId === 'agent-jarvis') {
+      // Unsubscribe transcript and state listeners before stopping the session
+      if (jarvisDataUnsubRef.current) {
+        try { jarvisDataUnsubRef.current(); } catch { /* ignore */ }
+        jarvisDataUnsubRef.current = null;
+      }
+      if (jarvisStateUnsubRef.current) {
+        try { jarvisStateUnsubRef.current(); } catch { /* ignore */ }
+        jarvisStateUnsubRef.current = null;
+      }
+      jarvisLiveKitSession.stopSession().catch((err) => {
+        console.error('[JarvisLiveKit] Failed to stop LiveKit session:', err);
+      });
+    }
     conversationActiveRef.current = false;
     // Invalidate every unfinished turn by identity.
     conversationSessionIdRef.current = null;
@@ -1701,10 +1974,15 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     killSpeechNowRef.current?.();
     setVoiceState('idle');
   }, [closeConversationMic, setVoiceState, stopVadWatchdog]);
+  endConversationRef.current = endConversation;
 
   /** Start listening (manual single-segment capture; in conversation mode it
    *  simply re-arms the continuous loop). */
   const startListening = useCallback(async () => {
+    if (agentId === 'agent-jarvis') {
+      console.warn('[LegacyVoice] Suppressed startListening — Legacy Jarvis voice deactivated for LiveKit replacement');
+      return;
+    }
     if (conversationActiveRef.current) {
       if (!streamRef.current) {
         const stream = await openConversationMic();
@@ -1947,6 +2225,10 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
    *  - PLAYBACK failure (HTMLAudioElement error/decode) → mark error, return to idle
    */
   const speak = useCallback(async (text: string, channel: string = 'CONVERSATION', turnId?: number): Promise<void> => {
+    if (agentId === 'agent-jarvis') {
+      console.warn('[LegacyVoice] Suppressed speak — Legacy Jarvis voice deactivated for LiveKit replacement');
+      return;
+    }
     if (!text || text.trim() === '') return;
 
     // Channel validation: ONLY conversation channels may auto-speak
@@ -2260,6 +2542,19 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Global speech kill listener (engine switch or emergency stop)
+  useEffect(() => {
+    const onKillAllSpeech = () => {
+      try {
+        killSpeechNowRef.current?.();
+      } catch {}
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('jarvis:kill-all-speech', onKillAllSpeech);
+      return () => window.removeEventListener('jarvis:kill-all-speech', onKillAllSpeech);
+    }
+  }, []);
+
   return {
     voiceState,
     lastTranscript,
@@ -2307,5 +2602,9 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         // signals when a voice-channel turn's response cycle is truly over
         // (done/error), even when no audio was played. Deterministic re-arm.
         notifyResponseSettled,
+        // Turn latch reset & diagnostic rejection visibility
+        lastVoiceRejection,
+        clearVoiceRejection: () => setLastVoiceRejection(null),
+        resetTurnLatch,
       };
     }

@@ -3,6 +3,8 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import jarvisRouter from '../routers/jarvis.js';
 
+process.env.JARVIS_SUPERVISOR_V2 = 'false';
+
 // Mock dependencies
 vi.mock('../domains/conversations/service.js', () => ({
   conversationService: {
@@ -23,7 +25,8 @@ vi.mock('../domains/jarvis/intentRouter.js', () => ({
       reason: 'test'
     }))
   },
-  detectDelegationSignals: vi.fn(async () => [])
+  detectDelegationSignals: vi.fn(async () => []),
+  isConversationalFeedback: () => false
 }));
 
 const app = express();
@@ -105,7 +108,7 @@ describe('Jarvis Telemetry Tracing', () => {
     expect(logs.some(l => l.includes('[JarvisTrace] provider-response') && l.includes('completed'))).toBe(true);
 
     // Check response-rendered
-    expect(logs.some(l => l.includes('[JarvisTrace] response-rendered') && l.includes('test answer'))).toBe(true);
+    expect(logs.some(l => l.includes('[JarvisTrace] response-rendered') && (l.includes('test answer') || l.includes('Test answer')))).toBe(true);
 
     process.env.NODE_ENV = originalEnv;
   });

@@ -43,6 +43,11 @@ let rmsLevel = 0; // 0..1 — test-controlled microphone RMS
 /* ─── Configurable recorder payload ─── */
 let recorderChunkSize = 600; // >= 400 = meaningful speech payload
 
+/** Monotonic wall-clock base: each test starts 10s after the previous one so the
+ *  engine's module-level duplicate-speech window (3s) cannot mistake the previous
+ *  test's identical transcript for a live duplicate (fake timers freeze Date.now()). */
+let clockBase = Date.parse('2026-01-01T00:00:00Z');
+
 class MockMediaRecorder {
   static instances: MockMediaRecorder[] = [];
   state: 'inactive' | 'recording' = 'inactive';
@@ -101,6 +106,18 @@ class MockAudio {
     }
     return Promise.resolve();
   });
+  // HTMLMediaElement listener surface — see registerActiveAudio().
+  private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+  addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    const l = this.listeners.get(type) ?? [];
+    l.push(cb);
+    this.listeners.set(type, l);
+  };
+  removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+  };
+  currentTime = 0;
+  volume = 1;
   constructor() {
     lastAudio = this;
   }
@@ -151,10 +168,30 @@ async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) 
   await act(async () => { flushRaf(1); }); // mark silenceSince
   await act(async () => { vi.advanceTimersByTime(20); }); // exceed 5ms silence
   await act(async () => { flushRaf(1); }); // detect end-of-speech → stop → transcribe
+  // handleConversationTranscript holds an utterance for the bounded continuation window
+  // (continuationWindowMs = 2500) before submitting; controls resolve synchronously.
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+}
+
+/** Drive a turn only as far as the STT attempt. Used where the assertion is about
+ *  the transcription OUTCOME itself (error surfacing / recovery), which is decided
+ *  before any continuation window is opened. */
+async function speakOneTurnToStt(result: { current: ReturnType<typeof useVoiceIO> }) {
+  rmsLevel = 0.1;
+  await act(async () => { flushRaf(1); });
+  rmsLevel = 0;
+  await act(async () => { flushRaf(1); });
+  await act(async () => { vi.advanceTimersByTime(20); });
+  await act(async () => { flushRaf(1); });
+  await act(async () => {
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+  });
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
+  clockBase += 10_000;
+  vi.setSystemTime(clockBase); // isolate this test from the 3s duplicate-speech window
   rafQueue = [];
   rafIdCounter = 0;
   rmsLevel = 0;
@@ -208,15 +245,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// LEGACY BROWSER-VAD COVERAGE (non-Jarvis agent mode).
+//
+// This suite drives the browser VAD → /voice/transcribe → submit turn engine and asserts
+// browser-side auto-submit. `agent-jarvis` no longer runs that architecture — it is
+// LiveKit-first, with transcription and turn handling in the server-side voice agent, and
+// useVoiceIO suppresses submitConversationTurn for it ("[LegacyVoice] Suppressed ...
+// deactivated for LiveKit replacement"). So the suite runs under a non-Jarvis agent, the
+// mode the legacy path still serves. Jarvis turn behaviour is covered at the LiveKit
+// boundary (JarvisCanonicalVoicePath).
 const FAST_VAD = {
-  agentId: 'agent-jarvis',
+  agentId: 'agent-hermes',
   endSpeechSilenceMs: 5,
   minSpeechMs: 0,
   bargeInGraceMs: 0,
   maxSegmentMs: 60000,
 };
 
-describe('Jarvis conversation mode — turn engine', () => {
+describe('voice turn engine — legacy browser-VAD hook mode (non-Jarvis agent)', () => {
   it('auto-submits exactly once after valid end-of-speech (no manual Send)', async () => {
     const onAutoSubmit = vi.fn();
     const { result } = renderHook(() => useVoiceIO({ ...FAST_VAD, onAutoSubmit }));
@@ -240,7 +286,7 @@ describe('Jarvis conversation mode — turn engine', () => {
     const onAutoSubmit = vi.fn();
     const onTranscript = vi.fn();
     const { result } = renderHook(() =>
-      useVoiceIO({ agentId: 'agent-jarvis', silenceTimeout: 1500, onAutoSubmit, onTranscript }),
+      useVoiceIO({ agentId: 'agent-hermes', silenceTimeout: 1500, onAutoSubmit, onTranscript }),
     );
 
     await act(async () => { await result.current.startListening(); });
@@ -400,8 +446,11 @@ describe('Jarvis conversation mode — turn engine', () => {
     );
 
     await act(async () => { await result.current.startConversation(); });
-    await speakOneTurn(result);
+    await speakOneTurnToStt(result);
 
+    // The transcription failure surfaced as a real error state (observed through the
+    // state stream, so the assertion does not depend on where the recovery timer sits).
+    expect(states).toContain('error');
     expect(result.current.voiceState).toBe('error');
     expect(onAutoSubmit).not.toHaveBeenCalled();
 

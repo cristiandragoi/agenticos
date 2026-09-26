@@ -7,7 +7,7 @@ import {
 
 describe('utterance completeness (conversation-mode end-of-turn)', () => {
   it('holds incomplete fragments that end on a continuation marker', () => {
-    for (const fragment of ['It is', 'I want', 'Can you', 'The thing is', 'So basically', 'It is not', 'I was']) {
+    for (const fragment of ['It is', 'I want', 'Can you', 'The thing is', 'So basically', 'It is not', 'I was', 'It is.', 'I want to.', 'Can you help with...', 'Ich möchte.', 'Weil ich.']) {
       expect(isUtteranceComplete(fragment), fragment).toBe(false);
     }
   });

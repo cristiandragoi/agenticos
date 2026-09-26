@@ -1565,9 +1565,14 @@ export class JarvisNextAgent {
           logJRT('RESPONSE_READY', `turn=${activeTurnId} text_length=${routed.text?.length || 0}`);
           console.log(`[JRT] RESPONSE_READY turn=${activeTurnId} text_length=${routed.text?.length || 0}`);
 
+          const rawSttText = turnMeta?.whisperFinal || text;
+          const parsedIntent = (routed as any).goalDescription || (routed as any).plan?.goalDescription || (routed as any).plan?.steps?.[0]?.description || routed.route;
           const execTrace = [
             `PHYSICAL_EXECUTION_TRACE:`,
             `TURN_ID=${activeTurnId}`,
+            `RAW_STT_TRANSCRIPT=${rawSttText}`,
+            `NORMALIZED_TRANSCRIPT=${text}`,
+            `PARSED_USER_INTENT=${parsedIntent}`,
             `PARSED_GOAL=${routed.route}`,
             `ROUTE=${routed.route}`,
             `FINAL_RESPONSE=${routed.text}`,

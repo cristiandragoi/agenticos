@@ -385,6 +385,20 @@ function ChatPanel({ showAdvanced }: { showAdvanced?: boolean }) {
         } catch (err) {}
       });
 
+      evtSource.addEventListener('hermes_progress', (e: any) => {
+        try {
+          const data = JSON.parse(e.data);
+          const phase = data.phase || 'PROGRESS';
+          const msgText = `[${phase}] ${data.message || data.summary || 'Hermes working...'}`;
+          setMessages(prev => [...prev, {
+            id: `prog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            role: 'agent',
+            content: msgText,
+            timestamp: new Date().toISOString(),
+          }]);
+        } catch (err) {}
+      });
+
       evtSource.addEventListener('run_status', (e: any) => {
         try {
           const data = JSON.parse(e.data);

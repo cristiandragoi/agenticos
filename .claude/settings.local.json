@@ -16,7 +16,9 @@
       "Bash(findstr \":4600\")",
       "Bash(taskkill /PID 6760 /F)",
       "Bash(kill -9 6760)",
-      "Bash(taskkill //PID 6760 //F)"
+      "Bash(taskkill //PID 6760 //F)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(Get-Process *)"
     ]
   }
 }

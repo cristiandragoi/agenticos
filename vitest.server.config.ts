@@ -5,5 +5,6 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['server/src/__tests__/**/*.test.ts'],
+    onUserConsoleLog: () => false,
   },
 });

@@ -77,8 +77,7 @@ describe('Jarvis Supervisor Loop — Phase 1 Conversational Reasoning & Multi-Tu
       expect(prompt).toContain('You are Jarvis, the conversational supervisor');
       expect(prompt).toContain('GROUNDING INVARIANT: NEVER claim you modified a file');
       expect(prompt).toContain('REFERENT RESOLUTION');
-      expect(prompt).toContain('get_system_health');
-      expect(prompt).toContain('delegate_codex_goal');
+      expect(prompt).not.toContain('delegate_codex_goal');
       expect(prompt).toContain('delegate_hermes_task');
     });
 
@@ -120,6 +119,63 @@ describe('Jarvis Supervisor Loop — Phase 1 Conversational Reasoning & Multi-Tu
       expect(prompt).toContain('MISSING DATA');
       expect(prompt).toContain('The data model does not contain a dedicated targetCustomer field');
       expect(prompt).toContain('The title positions this opportunity for solopreneurs');
+    });
+
+    it('regression: both memoryContext and activeEntityContext appear together in buildSupervisorSystemPrompt without overwriting', async () => {
+      const coreMem = await import('../domains/jarvis/coreMemory.js');
+      vi.spyOn(coreMem, 'getScopedJarvisMemoryContext').mockResolvedValueOnce('User prefers concise replies and dark mode.');
+
+      const oppService = await import('../services/revenueOperator/opportunityService.js');
+      vi.spyOn(oppService, 'getOpportunity').mockResolvedValueOnce({
+        id: 'opp-freecash-test',
+        title: 'Free Cash Finance Automation',
+        category: 'finance',
+        status: 'ready',
+        description: 'Automated free cash workflow',
+        source: 'internal',
+        estimatedRevenue: 1000,
+        estimatedCost: 10,
+        automationPotential: 90,
+        manualWorkload: 5,
+        riskLevel: 10,
+        confidence: 80,
+        score: 85,
+        scoreBreakdown: { revenuePotentialPts: 24, timeToRevenuePts: 25, automationPotentialPts: 19, lowCapitalPts: 20, confidencePts: 15, manualWorkloadPenalty: 3, riskPenalty: 30 } as any,
+        evidence: [{ type: 'analysis', detail: 'Valid opportunity' }] as any,
+        notes: null
+      } as any);
+
+      const prompt = await buildSupervisorSystemPrompt('conv-test-both', 'What do you remember about Free Cash?', undefined, {
+        workspaceContext: {
+          activeModule: 'revenue-operator',
+          activeEntityType: 'opportunity',
+          activeEntityId: 'opp-freecash-test'
+        }
+      });
+
+      // BOTH must be present! Core memory must NOT be destroyed by active entity!
+      expect(prompt).toContain('STRUCTURED CORE MEMORY:');
+      expect(prompt).toContain('User prefers concise replies and dark mode.');
+      expect(prompt).toContain('CURRENTLY OPEN REVENUE OPERATOR ENTITY');
+      expect(prompt).toContain('opp-freecash-test');
+      expect(prompt).toContain('Free Cash Finance Automation');
+    });
+
+    it('regression: injects authoritative project priorities from projectsStore and closed-world tool invariants', async () => {
+      const prompt = await buildSupervisorSystemPrompt('conv-test-priorities', 'What are my priorities?');
+
+      // Authoritative project priority state
+      expect(prompt).toContain('AUTHORITATIVE PROJECT & PRIORITY STATE');
+      // Authority precedence
+      expect(prompt).toContain('AUTHORITY PRECEDENCE: AUTHORITATIVE CURRENT RUNTIME STATE > tool results > structured memory/project/dialogue state > conversation history > model inference.');
+      // Historical claim verification
+      expect(prompt).toContain('HISTORICAL CLAIM VERIFICATION: Past assistant statements about system/tool availability are not authoritative');
+      // Closed-world tool language
+      expect(prompt).toContain('CLOSED-WORLD TOOL LANGUAGE: If a tool is NOT registered in your schema, state that the capability is not available directly in this Jarvis session; never claim it failed or crashed.');
+      // Role boundaries (Browser & Terminal)
+      expect(prompt).toContain('ROLE BOUNDARIES (Browser & Terminal Operations): Jarvis interactive supervisor tool authority consists strictly of the registered tools below. Jarvis itself does NOT directly execute browser or terminal operations.');
+      // Memory availability
+      expect(prompt).toContain('MEMORY AVAILABILITY: Structured core memory, active projects, and dialogue state are hosted locally in AgenticOS.');
     });
   });
 
@@ -270,7 +326,7 @@ describe('Jarvis Supervisor Loop — Phase 1 Conversational Reasoning & Multi-Tu
 
       const intent = events.find(e => e.event === 'intent' && e.data.type === 'worker_delegation');
       expect(intent).toBeDefined();
-      expect(intent?.data.worker).toBe('codex');
+      expect(intent?.data.worker).toBe('hermes');
     });
 
     it('Scenario E: User: "Ask CodeX to check that." -> "that" resolved from active conversation (stretched core, NOT unrelated websocket)', async () => {

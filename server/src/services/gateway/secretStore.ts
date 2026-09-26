@@ -29,7 +29,9 @@ export interface ISecretStore {
 
 // ── Normalize provider/secret keys ──────────────────────────────────────────
 const KEY_ALIASES: Record<string, string[]> = {
-  openrouter: ['openrouter', 'OPENROUTER_API_KEY', 'omniroot', 'OMNIROOT_API_KEY'],
+  omniroute: ['omniroute', 'OMNIROUTE_API_KEY', 'omniroot', 'OMNIROOT_API_KEY'],
+  omniroot: ['omniroot', 'OMNIROOT_API_KEY', 'omniroute', 'OMNIROUTE_API_KEY'],
+  openrouter: ['openrouter', 'OPENROUTER_API_KEY'],
   deepseek: ['deepseek', 'DEEPSEEK_API_KEY', 'DeepSeek'],
   openai: ['openai', 'OPENAI_API_KEY'],
   anthropic: ['anthropic', 'ANTHROPIC_API_KEY', 'ninerouter', 'NINEROUTER_API_KEY'],
@@ -39,7 +41,7 @@ const KEY_ALIASES: Record<string, string[]> = {
   perplexity: ['perplexity', 'PERPLEXITY_API_KEY'],
   together: ['together', 'TOGETHER_API_KEY'],
   xai: ['xai', 'XAI_API_KEY'],
-  qwen: ['qwen', 'QWEN_API_KEY'],
+  qwen: ['qwen', 'QWEN_API_KEY', 'dashscope', 'DASHSCOPE_API_KEY', 'alibaba', 'ALIBABA_API_KEY'],
   kimi: ['kimi', 'KIMI_API_KEY'],
   minimax: ['minimax', 'MINIMAX_API_KEY'],
   fugu: ['fugu', 'FUGU_API_KEY'],
@@ -151,6 +153,26 @@ export class CanonicalSecretStore implements ISecretStore {
     // 3. Fallback to environment variables
     const envVal = getEnvFallback(key);
     if (envVal && envVal.trim().length > 0) return envVal.trim();
+
+    return null;
+  }
+
+  public getSync(key: string): string | null {
+    const norm = normalizeKey(key);
+    // 1. Try environment variables
+    const envVal = getEnvFallback(key);
+    if (envVal && envVal.trim().length > 0) return envVal.trim();
+
+    // 2. Try encrypted SQLite store (synchronous)
+    try {
+      const row = rawDb.prepare(`SELECT encrypted_value FROM system_secrets WHERE key = ?`).get(norm) as any;
+      if (row?.encrypted_value) {
+        const decrypted = decryptSecret(row.encrypted_value);
+        if (decrypted) return decrypted;
+      }
+    } catch (err) {
+      logger.debug?.(`[SecretStore] sqlite sync lookup failed for ${norm}`);
+    }
 
     return null;
   }

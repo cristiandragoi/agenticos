@@ -70,11 +70,40 @@ export async function handleMemoryRecall(prompt: string, projectId?: string | nu
   const decisions = q ? memoryStore.search(q, { type: 'decision', status: 'active', limit: 2 }) : [];
   const recent = !episodic.length ? memoryStore.timeline({ limit: 5 }).filter((m) => m.type === 'episodic') : [];
 
+  // Complementary project & entity context resolution
+  let complementaryContext: string[] = [];
+  try {
+    const { projectsStore } = await import('../../services/projectsStore.js');
+    const activeP = projectsStore.getActiveProject();
+    const effectiveP = projectId ? projectsStore.getProject(projectId) : activeP;
+    if (effectiveP && (/free\s*cash/i.test(prompt) || effectiveP.name.toLowerCase().includes(q.toLowerCase()))) {
+      complementaryContext.push(`Project: ${effectiveP.name} (Priority ${effectiveP.priority}, ID: ${effectiveP.id}) — ${effectiveP.description || 'monetization initiative'}`);
+    }
+    const allProjects = projectsStore.listProjects();
+    const matchedP = allProjects.find((p: any) => /free\s*cash/i.test(prompt) && /free\s*cash/i.test(p.name));
+    if (matchedP && (!effectiveP || matchedP.id !== effectiveP.id)) {
+      complementaryContext.push(`Project: ${matchedP.name} (Priority ${matchedP.priority}, ID: ${matchedP.id})`);
+    }
+  } catch {}
+
+  try {
+    const { rawDb } = await import('../../db/index.js');
+    const opp = rawDb.prepare("SELECT id, title, description, category, status FROM revenue_opportunities WHERE title LIKE '%free%cash%' OR id LIKE '%free%' LIMIT 1").get() as any;
+    if (opp && (/free\s*cash/i.test(prompt) || opp.title.toLowerCase().includes(q.toLowerCase()))) {
+      complementaryContext.push(`Opportunity: ${opp.title} (${opp.id}, status: ${opp.status}) — ${opp.description || ''}`);
+    }
+  } catch {}
+
   const lines: string[] = [];
   if (episodic.length) {
     lines.push('I remember:');
     for (const hit of episodic.slice(0, 3)) {
       lines.push(`• ${hit.memory.title} — ${hit.memory.summary} ${provenanceLine(hit.memory)}`);
+    }
+  } else if (complementaryContext.length) {
+    lines.push('From stored project and entity records:');
+    for (const item of complementaryContext) {
+      lines.push(`• ${item}`);
     }
   } else if (recent.length) {
     lines.push('From what I remember:');

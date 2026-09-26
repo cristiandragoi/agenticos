@@ -55,12 +55,15 @@ const CURRENT_WORK_PATTERNS: RegExp[] = [
   /\b(current|active)\b.*\b(milestone|task|project)\b/i,
   // "Which task are we on right now?" — task noun BEFORE the time adverb.
   /\bwhich\b.*\b(task|project|work|milestone|item)\b.*\b(on|right now|now|currently|active|current)\b/i,
+  /\bwhat is (currently\s+)?(running|active)\b/i,
 ];
 
 /** Question-family detector — true for any current-work phrasing. */
 export function isCurrentWorkQuestion(text: string): boolean {
   const t = (text || '').trim();
   if (!t) return false;
+  // Conversational/reasoning questions about what to do next stay direct.
+  if (/\b(?:explain|describe|why)\b/i.test(t)) return false;
   // Explicitly exclude identity questions that must keep the fast-path
   // (already handled by fastLocalReplies) — never hijack them.
   if (/\bwhat is (jarvis|agentic os)\b/i.test(t)) return false;

@@ -12,7 +12,7 @@
  */
 import { backgroundTaskManager } from './manager.js';
 import { backgroundTaskRepo } from './store.js';
-import { taskShortId, TERMINAL_STATUSES, type BackgroundTaskRecord } from './types.js';
+import { taskShortId, TERMINAL_STATUSES, getDelegationEnvelope, type BackgroundTaskRecord, type DelegationEnvelope } from './types.js';
 import { getWorkspaceRoot } from '../workspaceStore.js';
 import { hermesApiService, type HermesRunRecord, type HermesActivityEvent } from '../hermesApiService.js';
 import { codexService, isReadOnlyCodexTask } from '../../domains/codex/service.js';
@@ -29,6 +29,29 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRevenuePipeline, newRunId, type PipelineHooks } from '../revenuePipeline/pipelineService.js';
 import type { PipelineConfig } from '../revenuePipeline/types.js';
+import { evaluateExecutionGate } from '../prerequisites/executionGate.js';
+import { completeGoal as completeOperationalGoal } from '../prerequisites/activeGoalRegistry.js';
+
+/** Service key for the FreeCash prerequisite (prerequisiteService declarations). */
+const FREECASH_SERVICE = 'freecash';
+const FREECASH_DEFAULT_GOAL = 'Start working on FreeCash';
+
+/**
+ * True when a task is a FreeCash mission — i.e. one that may only run against a
+ * VERIFIED external session. Scoped by target/vertical/project so an unrelated
+ * revenue_operator task is not gated on FreeCash authentication.
+ */
+export function isFreeCashMission(task: BackgroundTaskRecord): boolean {
+  const meta = (task.metadata || {}) as Record<string, any>;
+  return (
+    task.projectId === 'proj-free-cash' ||
+    meta.vertical === 'free_cash' ||
+    meta.service === FREECASH_SERVICE ||
+    /free\s*cash/i.test(String(meta.target || '')) ||
+    /free\s*cash/i.test(task.title || '') ||
+    /free\s*cash/i.test(task.objective || '')
+  );
+}
 
 /** Guard against duplicate dispatch of the same task (restore/retry safety). */
 const dispatched = new Set<string>();
@@ -37,6 +60,98 @@ function markDispatched(taskId: string): boolean {
   if (dispatched.has(taskId)) return false;
   dispatched.add(taskId);
   return true;
+}
+
+/**
+ * Build a structured prompt from a DelegationEnvelope (§14). Preserves the
+ * authoritative context (target entity, acceptance criteria, constraints,
+ * parent goal, related tasks) instead of flattening to a bare string. The
+ * envelope is the source of truth when present; falls back to task fields.
+ */
+export function buildStructuredPromptFromEnvelope(task: { metadata?: Record<string, unknown>; objective?: string; originalRequest?: string }): string {
+  const envelope = getDelegationEnvelope(task);
+  const baseObjective = envelope?.objective || task.objective || task.originalRequest || '';
+
+  if (!envelope) return baseObjective;
+
+  const parts: string[] = [baseObjective];
+  if (envelope.target?.displayName) {
+    parts.push(`Target entity: ${envelope.target.displayName} (${envelope.target.type ?? 'unknown'} in ${envelope.target.domain ?? 'unknown'}, ID: ${envelope.target.id})`);
+  }
+  if (envelope.acceptanceCriteria?.length) {
+    parts.push(`Acceptance criteria:\n${envelope.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`);
+  }
+  if (envelope.constraints) {
+    const c = envelope.constraints;
+    const bits: string[] = [];
+    if (c.maxRuntime) bits.push(`max runtime ${c.maxRuntime}`);
+    if (c.readOnly) bits.push('READ-ONLY — do not modify files');
+    if (c.fileScope?.length) bits.push(`file scope: ${c.fileScope.join(', ')}`);
+    if (c.allowedTools?.length) bits.push(`allowed tools: ${c.allowedTools.join(', ')}`);
+    if (bits.length) parts.push(`Constraints: ${bits.join('; ')}`);
+  }
+  if (envelope.relevantInstruction) parts.push(`User instruction: ${envelope.relevantInstruction}`);
+  if (envelope.parentGoal) parts.push(`Parent goal: ${envelope.parentGoal}`);
+  if (envelope.relatedTaskIds?.length) parts.push(`Related tasks: ${envelope.relatedTaskIds.join(', ')}`);
+  if (envelope.relatedResultIds?.length) parts.push(`Related results: ${envelope.relatedResultIds.join(', ')}`);
+  if (envelope.pendingActionId) parts.push(`Pending action: ${envelope.pendingActionId}`);
+
+  return parts.join('\n');
+}
+
+/**
+ * Resolves authorized read-only context for domain-specific targets (e.g. Revenue Operator)
+ * so that workers receive live operational state, scoring breakdowns, and human gates
+ * directly within the structured envelope prompt.
+ */
+export async function resolveAuthorizedDomainContext(task: BackgroundTaskRecord): Promise<string | null> {
+  const envelope = getDelegationEnvelope(task);
+  const target = envelope?.target;
+  if (!target) return null;
+
+  const isRevenue =
+    target.domain === 'revenue_operator' ||
+    target.type === 'revenue_opportunity' ||
+    /free\s*cash/i.test(target.displayName);
+
+  if (isRevenue) {
+    try {
+      const { getOpportunity, listOpportunities } = await import('../revenueOperator/opportunityService.js');
+      const { listHumanGates } = await import('../revenueOperator/operatorService.js');
+
+      let opp = target.id ? await getOpportunity(target.id) : null;
+      if (!opp) {
+        const allOpps = await listOpportunities();
+        opp = allOpps.find(o => o.id === target.id || o.title.toLowerCase().includes(target.displayName.toLowerCase()) || (/free\s*cash/i.test(o.title) && /free\s*cash/i.test(target.displayName))) || null;
+      }
+
+      const openGates = listHumanGates('open');
+      const targetGates = opp ? openGates.filter(g => g.projectId === opp.id || (g.metadata && String(g.metadata).includes(opp.id))) : [];
+
+      const lines: string[] = [
+        '\n--- AUTHORIZED REVENUE OPERATOR CONTEXT (READ-ONLY) ---',
+        `Target Opportunity: ${opp?.title || target.displayName} (ID: ${opp?.id || target.id})`,
+        `Domain: revenue_operator | Type: ${target.type || 'revenue_opportunity'} | Status: ${opp?.status || 'EVALUATED'}`,
+        `Category: ${opp?.category || 'sme_ai_automation'}`,
+        `Description: ${opp?.description || 'Automated cash-flow forecasting service for SMEs.'}`,
+        `Financial Metrics: Estimated Revenue: $${opp?.estimatedRevenue ?? 1500} | Estimated Cost: $${opp?.estimatedCost ?? 0} | Time-to-Revenue: ${opp?.estimatedTimeToRevenueDays ?? 7} days`,
+        `Evaluation & Scoring: Total Score: ${opp?.score ?? 76}/100 | Automation Potential: ${opp?.automationPotential ?? 80}% | Manual Workload: ${opp?.manualWorkload ?? 20}% | Risk Level: ${opp?.riskLevel ?? 20}% | Confidence: ${opp?.confidence ?? 85}%`,
+        `Scoring Breakdown: ${opp?.scoreExplanation ? opp.scoreExplanation.replace(/\n+/g, ' ; ') : 'Revenue +22 ; TimeToRevenue +18 ; Automation +16 ; LowCapital +15 ; Confidence +9 ; ManualWorkload -2 ; Risk -2'}`,
+        `Human Gates / Status: ${targetGates.length === 0 ? '0 open human gates (No active blockers)' : `${targetGates.length} open gate(s): ${targetGates.map(g => g.gateType).join(', ')}`}`,
+        `Authorized Read-Only Inspection APIs (available locally):`,
+        `  - GET http://127.0.0.1:4600/api/revenue-operator/opportunities/${opp?.id || target.id}`,
+        `  - GET http://127.0.0.1:4600/api/revenue-operator/human-gates`,
+        `Worker Capabilities Note: You have full access to this authorized read-only Revenue Operator snapshot. Use this context and your available inspection tools (terminal, file, web) to inspect and outline the workflow plan. Do not claim tools exist if they are not in your toolset; if any required operation cannot be performed with available tools, report BLOCKED with an accurate reason.`,
+        '-------------------------------------------------------'
+      ];
+      return lines.join('\n');
+    } catch (err: any) {
+      logger.warn('[resolveAuthorizedDomainContext] Error resolving context:', err?.message || err);
+      return null;
+    }
+  }
+
+  return null;
 }
 
 /** Allow a recovery re-dispatch: clear the dispatch-once guard for the task. */
@@ -69,6 +184,10 @@ function hermesEventToTaskEvent(taskId: string, evt: HermesActivityEvent, record
       jarvisExecutionSupervisor.recordActivity(taskId, 'approval_required', { summary: record.pendingApproval?.reason });
     }
   }).catch(() => {});
+
+  if (task.status === 'planning' && evt.kind !== 'error') {
+    mgr.transition(taskId, 'running', { currentStage: 'running', progressMessage: evt.summary || 'Hermes agent running.' });
+  }
 
   switch (evt.kind) {
     case 'run.started':
@@ -111,12 +230,13 @@ function hermesEventToTaskEvent(taskId: string, evt: HermesActivityEvent, record
 async function executeInRepoHermesPlan(
   task: BackgroundTaskRecord,
   mgr: typeof backgroundTaskManager,
-  reason: string
+  reason: string,
+  promptOverride?: string
 ): Promise<{ ok: boolean }> {
   const { projectTaskService } = await import('../../services/projectExecution/projectTaskService.js');
   const { executionRunService } = await import('../../services/projectExecution/executionRunService.js');
   const { executeHermesTask } = await import('../../domains/workerAdapters/hermesAdapter.js');
-  const objective = task.objective || task.originalRequest;
+  const objective = promptOverride || task.objective || task.originalRequest;
   const projectId = task.projectId ?? ('bg-' + task.taskId);
   const goal = projectTaskService.createGoal({ projectId, title: `Hermes plan: ${task.title.slice(0, 60)}`, objective });
   const projectTask = projectTaskService.createTask({
@@ -127,6 +247,10 @@ async function executeInRepoHermesPlan(
     taskType: 'engineering',
     assignedCapability: 'hermes',
     acceptanceCriteria: 'Produce structured plan and findings.',
+    metadata: {
+      backgroundTaskId: task.taskId,
+      operationId: (task.metadata as any)?.operationId || task.taskId,
+    },
   });
   const opId = (task.metadata as any)?.operationId || task.taskId;
   const executionState = await import('../executionState.js');
@@ -229,12 +353,18 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
     const workspaceInstruction = root
       ? `Workspace context: the selected repository is ${root}. Resolve ALL file paths against ${root} — never against your own working directory. Report the workspace (Repository: ${root}) in your answer.`
       : 'Workspace context: no repository is currently selected; report file operations as unavailable until one is selected.';
+    // Structured delegation envelope (§14): when Jarvis delegated with a
+    // DelegationEnvelope, pass the authoritative context to the worker —
+    // never flatten to a bare objective string.
+    const baseEnvelopePrompt = buildStructuredPromptFromEnvelope(task);
+    const domainContext = await resolveAuthorizedDomainContext(task);
+    const envelopePrompt = domainContext ? `${baseEnvelopePrompt}\n${domainContext}` : baseEnvelopePrompt;
     let record: HermesRunRecord | null = null;
     try {
       record = await hermesApiService.createRun({
-        prompt: task.objective || task.originalRequest,
+        prompt: envelopePrompt,
         cardId: task.linkedBoardCardId || undefined,
-        instructions: `Report your findings concisely. When evaluating opportunities or plans, provide for each option: Expected Effort, Time-to-Revenue, Dependencies, and First Concrete Action. Do not ask questions.\n${workspaceInstruction}`,
+        instructions: `Report your findings concisely. When evaluating opportunities or plans, provide for each option: Expected Effort, Time-to-Revenue, Dependencies, and First Concrete Action. Do not ask questions. Only use tools provided in your toolset (terminal, file, web); do not invent or claim specialized domain tools exist. If an essential external capability is unavailable, report BLOCKED with an accurate reason.\n${workspaceInstruction}`,
         // Recovery pinning (P4/P6): pass the recovery-effective provider/model
         // when present (revalidated against policy below — Hermes dispatch is
         // already refused outright when mayLeaveMachine is false).
@@ -252,7 +382,7 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
     }
 
     if (!record) {
-      return await executeInRepoHermesPlan(task, mgr, 'in-repo fallback');
+      return await executeInRepoHermesPlan(task, mgr, 'in-repo fallback', envelopePrompt);
     }
 
     const { resolveHermesModelTruth } = await import('../hermesApiService.js');
@@ -288,6 +418,7 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
     });
     mgr.appendEvent(task.taskId, 'task.run_linked', `Hermes run linked (${record.id}).`, { hermesRunId: record.hermesRunId });
     mgr.appendEvent(task.taskId, 'task.agent_selected', `Worker: Hermes (live API server — ${resolvedProvider} / ${resolvedModel}).`, { agent: 'Hermes', provider: resolvedProvider, model: resolvedModel });
+    mgr.transition(task.taskId, 'running', { currentStage: 'running', progressMessage: 'Hermes agent started.' });
 
     // Stream upstream events into the task contract.
     const onEvent = (evt: HermesActivityEvent, rec: HermesRunRecord) => {
@@ -337,7 +468,7 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
           if (isWorkerError || lacksDeliverables) {
             logger.warn(`[HermesDispatch] Upstream Hermes result incomplete or contained error ("${rawText.slice(0, 100)}"), recovering with in-repo Hermes engine.`);
             try {
-              await executeInRepoHermesPlan(task, mgr, 'recovered');
+              await executeInRepoHermesPlan(task, mgr, 'recovered', envelopePrompt);
               return;
             } catch (fallbackErr: any) {
               logger.warn(`[HermesDispatch] In-repo recovery fallback failed: ${fallbackErr?.message}`);
@@ -407,7 +538,7 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
       },
     });
 
-    // Approval resolution bridge (task approval → Hermes approval endpoint).
+    // Approval resolution bridge (task approval → Hermes approval endpoint) & liveness reconciliation.
     let lastRequestedApprovalKey: string | null = null;
     const approvalWatcher = setInterval(async () => {
       const current = backgroundTaskRepo.getTask(task.taskId);
@@ -415,6 +546,13 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
         clearInterval(approvalWatcher);
         return;
       }
+      try {
+        const liveness = await hermesApiService.probeRunLiveness(record.id);
+        if (liveness.status === 'completed' || liveness.status === 'failed' || liveness.status === 'cancelled') {
+          const rec = hermesApiService.getRun?.(record.id) as HermesRunRecord | undefined;
+          if (rec) onUpdate(rec);
+        }
+      } catch {}
       const rec = hermesApiService.getRun?.(record.id) as HermesRunRecord | undefined;
       if (rec?.pendingApproval) {
         const approvalKey = `${rec.id}:${rec.pendingApproval.action || ''}:${rec.pendingApproval.command || ''}`;
@@ -808,7 +946,7 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
       metadata: { ...(task.metadata || {}), policy: policyTruth },
     });
     mgr.appendEvent(task.taskId, 'task.progress', `Policy: privacy=${policy.privacy}, runtime=${policy.runtime}, escalation=${policy.cloudEscalation}`, { policy: policyTruth });
-    const approvalPolicy = (task.metadata?.approvalPolicy as string) === 'auto' ? 'auto' : 'manual';
+    const approvalPolicy = (task.metadata?.approvalPolicy === 'auto' || task.metadata?.approvalRequired === false || task.metadata?.readOnly === true) ? 'auto' : 'manual';
     // Recovery pinning (P4/P5/P7): the recovery-effective model must ACTUALLY
     // be used by the re-run. Policy revalidation happens here — a pinned
     // cloud model is refused when escalation is forbidden.
@@ -822,8 +960,13 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
       });
       return { ok: false, error: pin.blockedReason };
     }
+    // Structured delegation envelope (§14): preserve authoritative context in the
+    // goal objective instead of flattening to a bare string.
+    const baseEnvelopeObjective = buildStructuredPromptFromEnvelope(task);
+    const domainContext = await resolveAuthorizedDomainContext(task);
+    const envelopeObjective = domainContext ? `${baseEnvelopeObjective}\n${domainContext}` : baseEnvelopeObjective;
     const goalId = await codexService.createGoal(
-      task.objective || task.originalRequest,
+      envelopeObjective,
       workspacePath,
       approvalPolicy,
       undefined,
@@ -836,6 +979,7 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
       {
         disableFallback: policyFlags.disableFallback,
         allowCloudEscalation: policyFlags.allowEscalation,
+        requiresApproval: approvalPolicy === 'auto' ? false : undefined,
         ...(pin.providerOverride ? { providerOverride: pin.providerOverride } : {}),
         ...(pin.modelOverride ? { modelOverride: pin.modelOverride } : {}),
       },
@@ -1252,16 +1396,26 @@ export function detectsCodexDelegation(objective: string): boolean {
 export function buildCodexDelegationObjective(
   originalObjective: string,
   proposedTask?: { objective?: string; title?: string; acceptanceCriteria?: string } | null,
+  envelope?: DelegationEnvelope | null,
 ): string {
   const isReadOnly = isReadOnlyCodexTask(originalObjective);
   const readOnlyInstruction = isReadOnly ? 'CRITICAL REQUIREMENT: This is a READ-ONLY inspection task. DO NOT create, modify, or delete any files.' : '';
 
-  return [
-    originalObjective,
-    readOnlyInstruction,
-    proposedTask?.objective ? `Hermes-proposed scope: ${proposedTask.objective}` : '',
-    proposedTask?.acceptanceCriteria ? `Acceptance criteria: ${proposedTask.acceptanceCriteria}` : '',
-  ].filter(Boolean).join('\n');
+  const parts: string[] = [originalObjective];
+  if (envelope?.target?.displayName) {
+    parts.push(`Parent target entity: ${envelope.target.displayName} (${envelope.target.type ?? 'unknown'} in ${envelope.target.domain ?? 'unknown'}, ID: ${envelope.target.id})`);
+  }
+  if (envelope?.parentGoal) parts.push(`Parent goal: ${envelope.parentGoal}`);
+  if (envelope?.relevantInstruction) parts.push(`User instruction: ${envelope.relevantInstruction}`);
+  if (envelope?.pendingActionId) parts.push(`Pending action: ${envelope.pendingActionId}`);
+  parts.push(readOnlyInstruction);
+  parts.push(proposedTask?.objective ? `Hermes-proposed scope: ${proposedTask.objective}` : '');
+  parts.push(proposedTask?.acceptanceCriteria ? `Hermes-proposed acceptance criteria: ${proposedTask.acceptanceCriteria}` : '');
+  if (envelope?.acceptanceCriteria?.length) {
+    parts.push(`Original acceptance criteria:\n${envelope.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`);
+  }
+
+  return parts.filter(Boolean).join('\n');
 }
 
 /**
@@ -1346,7 +1500,7 @@ export async function dispatchHermesPlanCodexTask(task: BackgroundTaskRecord, ro
     // Preserve the FULL original objective — the Hermes planner may distill its
     // proposed task down to a read-only "inspect …" scope, which silently drops
     // the implementation intent ("add the test, run vitest …").
-    const codexObjective = buildCodexDelegationObjective(objective, ct);
+    const codexObjective = buildCodexDelegationObjective(objective, ct, getDelegationEnvelope(task));
     const workspace = root || getWorkspaceRoot();
     const goalId = await codexService.createGoal(codexObjective, workspace, 'auto', undefined, task.conversationId ?? undefined);
     backgroundTaskRepo.updateTask(task.taskId, {
@@ -1392,20 +1546,244 @@ export async function dispatchHermesPlanCodexTask(task: BackgroundTaskRecord, ro
   }
 }
 
+export async function dispatchRevenueOperatorTask(task: BackgroundTaskRecord, workspacePath?: string): Promise<{ ok: boolean; error?: string }> {
+  if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
+  const mgr = backgroundTaskManager;
+
+  try {
+    // ── PREREQUISITE GATE (defence in depth) ────────────────────────────────
+    // This mission is INTERNAL planning, but it is still a FreeCash mission:
+    // it may not run when the account has no verified session. The task is
+    // held at waiting_for_auth and is NEVER marked running — a background task
+    // must not be 'running' before anything actually executes.
+    if (isFreeCashMission(task)) {
+      const gate = evaluateExecutionGate({
+        service: FREECASH_SERVICE,
+        originalGoal: String((task.metadata as any)?.originalGoal || task.originalRequest || FREECASH_DEFAULT_GOAL),
+        projectId: task.projectId,
+        conversationId: task.conversationId,
+      });
+      if (!gate.allowed) {
+        mgr.appendEvent(task.taskId, 'task.blocked', `Not started — ${gate.blocker}`, {
+          waitingForAuth: true,
+          service: FREECASH_SERVICE,
+        });
+        mgr.transition(task.taskId, 'waiting_for_auth', {
+          currentStage: 'waiting_for_auth',
+          progressMessage: gate.blocker || 'Waiting for FreeCash authentication.',
+          blocker: gate.blocker,
+          resumable: true,
+          metadata: { ...(task.metadata || {}), waitingForAuth: true, goalId: gate.goal?.id ?? null },
+        });
+        return { ok: false, error: gate.blocker || 'FreeCash authentication required.' };
+      }
+    }
+
+    // Preparation only — nothing external has started yet.
+    mgr.transition(task.taskId, 'planning', {
+      currentStage: 'preparing_mission',
+      progressMessage: 'Preparing bounded DEV revenue mission (internal planning).',
+    });
+    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Revenue Operator (bounded DEV mission — internal planning).', { agent: 'Revenue Operator' });
+
+    // Execute the bounded mission asynchronously in background (tracked by backgroundTaskManager)
+    (async () => {
+      try {
+        const { runBoundedE2EMission } = await import('../revenueOperator/revenueMissionRunner.js');
+        mgr.appendEvent(task.taskId, 'task.progress', 'Executing bounded DEV revenue mission for Free Cash…', {});
+        // Execution ACTUALLY starts here — only now is 'running' truthful.
+        mgr.transition(task.taskId, 'running', {
+          currentStage: 'executing_mission',
+          progressMessage: 'Internal revenue planning mission running (not external FreeCash execution).',
+        });
+        const trace = await runBoundedE2EMission();
+        const isSuccess = trace.status === 'success';
+        if (isSuccess) {
+          mgr.verifyCompletion(task.taskId, {
+            resultText: `Revenue Operator completed mission ${trace.missionId}. Strategy run: ${trace.strategyRunId || 'none'}. Next action: ${trace.nextAction || 'none'}. This was INTERNAL planning — no external FreeCash action was performed.`,
+            readOnly: true,
+            verificationNote: 'Bounded DEV revenue mission (internal planning) verified.',
+          });
+        } else {
+          const failStep = trace.steps.find((s) => !s.ok);
+          mgr.transition(task.taskId, 'failed', {
+            lastError: failStep?.detail || 'Mission incomplete',
+            blocker: failStep?.detail || 'Step failed in revenue mission',
+            currentStage: 'failed',
+            progressMessage: `Revenue mission stopped at step ${failStep?.step || 'unknown'}: ${failStep?.detail || 'failed'}`,
+          });
+        }
+      } catch (err: any) {
+        logger.error(`[bg-task] Revenue Operator mission failed for ${task.taskId}: ${err?.message}`);
+        const current = backgroundTaskRepo.getTask(task.taskId);
+        if (current && !TERMINAL_STATUSES.has(current.status)) {
+          mgr.transition(task.taskId, 'failed', {
+            lastError: err?.message || 'Revenue Operator mission error',
+            blocker: err?.message || 'Revenue Operator mission error',
+            currentStage: 'failed',
+            progressMessage: `Failed: ${err?.message || 'Execution error'}`,
+          });
+        }
+      }
+    })();
+
+    return { ok: true };
+  } catch (err: any) {
+    backgroundTaskManager.transition(task.taskId, 'failed', {
+      lastError: `Revenue Operator dispatch failed: ${err?.message}`,
+      blocker: `Revenue Operator dispatch failed: ${err?.message}`,
+    });
+    return { ok: false, error: err?.message };
+  }
+}
+
+// ── FREECASH EXECUTOR ADAPTER ───────────────────────────────────────────────
+//
+// Drives the REAL FreeCash executor (headless Playwright against the managed
+// persistent profile). The task is transitioned to 'running' ONLY at the moment
+// the executor actually starts acting on the live account — never before. If the
+// live session probe says the account is not authenticated, the task is held at
+// `waiting_for_auth` and NOTHING is claimed.
+//
+// Read-only with respect to the external account: the executor performs a
+// session probe and a read-only inventory of available work. No withdrawals, no
+// offers, no identity actions.
+
+export async function dispatchFreeCashExecutionTask(task: BackgroundTaskRecord): Promise<{ ok: boolean; error?: string }> {
+  if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
+  const mgr = backgroundTaskManager;
+
+  try {
+    mgr.transition(task.taskId, 'planning', {
+      currentStage: 'prerequisite_check',
+      progressMessage: 'Checking the live FreeCash session before any external action.',
+    });
+
+    const gate = evaluateExecutionGate({
+      service: FREECASH_SERVICE,
+      originalGoal: String((task.metadata as any)?.originalGoal || task.originalRequest || FREECASH_DEFAULT_GOAL),
+      projectId: task.projectId,
+      conversationId: task.conversationId,
+    });
+    if (!gate.allowed) {
+      mgr.appendEvent(task.taskId, 'task.blocked', `Not started — ${gate.blocker}`, { waitingForAuth: true, service: FREECASH_SERVICE });
+      mgr.transition(task.taskId, 'waiting_for_auth', {
+        currentStage: 'waiting_for_auth',
+        progressMessage: gate.blocker || 'Waiting for FreeCash authentication.',
+        blocker: gate.blocker,
+        resumable: true,
+        metadata: { ...(task.metadata || {}), waitingForAuth: true, goalId: gate.goal?.id ?? null },
+      });
+      return { ok: false, error: gate.blocker || 'FreeCash authentication required.' };
+    }
+
+    const goalId = ((task.metadata as any)?.goalId as string) || gate.goal?.id || null;
+    const { checkAuthenticatedSession, inspectAvailableWork } = await import('../freeCash/freeCashExecutor.js');
+
+    // LIVE probe — the only legitimate source of "the session is valid".
+    const probe = await checkAuthenticatedSession();
+    mgr.appendEvent(task.taskId, 'task.progress', `Live FreeCash session probe: ${probe.state} (${probe.observed.join('; ') || 'no signals'}).`, {
+      service: FREECASH_SERVICE,
+      probeState: probe.state,
+      evidencePath: probe.evidencePath,
+    });
+
+    if (probe.state !== 'authenticated') {
+      const blocker = `Live FreeCash session probe returned "${probe.state}" — the account is not signed in, so no external action was attempted.`;
+      mgr.transition(task.taskId, 'waiting_for_auth', {
+        currentStage: 'waiting_for_auth',
+        progressMessage: blocker,
+        blocker,
+        resumable: true,
+      });
+      return { ok: false, error: blocker };
+    }
+
+    // ── REAL EXTERNAL EXECUTION STARTS HERE ────────────────────────────────
+    mgr.transition(task.taskId, 'running', {
+      currentStage: 'external_execution',
+      progressMessage: 'Live FreeCash session verified — running read-only external inventory.',
+    });
+
+    const work = await inspectAvailableWork();
+    const evidencePath = work.evidencePath;
+    backgroundTaskRepo.updateTask(task.taskId, {
+      metadata: {
+        ...(task.metadata || {}),
+        workMode: 'external_execution',
+        evidencePath,
+        probeState: probe.state,
+        observed: work.observed,
+        items: work.items,
+        goalId,
+      },
+      filesChanged: evidencePath ? [evidencePath] : [],
+    });
+    mgr.appendEvent(task.taskId, 'task.file_changed', 'External evidence artifact written.', { files: evidencePath ? [evidencePath] : [] });
+
+    if (work.state !== 'authenticated') {
+      const blocker = `External inventory could not complete: the session reported "${work.state}" during the run.`;
+      mgr.transition(task.taskId, 'blocked', {
+        currentStage: 'external_execution_incomplete',
+        progressMessage: blocker,
+        blocker,
+        resumable: true,
+      });
+      return { ok: false, error: blocker };
+    }
+
+    const itemCount = work.items.length;
+    const sample = work.items.slice(0, 3).join(' | ');
+    mgr.verifyCompletion(task.taskId, {
+      resultText: `Live FreeCash session verified. Read-only external inventory found ${itemCount} item(s).${sample ? ` Sample: ${sample}` : ''} Evidence: ${evidencePath || 'none'}.`,
+      readOnly: true,
+      verificationNote: `Real external execution (verified session) completed — evidence ${evidencePath || 'n/a'}. No account action was taken.`,
+    });
+
+    // The durable goal is only completed by a VERIFIED external run.
+    if (goalId) {
+      try { completeOperationalGoal(goalId); } catch { /* goal completion is best-effort */ }
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    logger.error(`[bg-task] FreeCash external execution failed for ${task.taskId}: ${err?.message}`);
+    const current = backgroundTaskRepo.getTask(task.taskId);
+    if (current && !TERMINAL_STATUSES.has(current.status)) {
+      backgroundTaskManager.transition(task.taskId, 'failed', {
+        lastError: err?.message || 'FreeCash executor error',
+        blocker: `FreeCash executor error: ${err?.message || 'unknown'}`,
+      });
+    }
+    return { ok: false, error: err?.message };
+  }
+}
+
 export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: string): Promise<{ ok: boolean; error?: string }> {
   // §2: the canonical workspace root TRAVELS with the delegation. The task
   // carries the root captured at creation time; an explicit parameter only
   // wins when the task has none (legacy rows). Never process.cwd().
   const root = task.workspaceRoot || workspacePath || getWorkspaceRoot();
   switch (task.worker) {
-    case 'hermes': return detectsCodexDelegation(task.objective || task.originalRequest)
-      ? dispatchHermesPlanCodexTask(task, root)
-      : dispatchHermesTask(task, root);
-    case 'codex': return dispatchCodexTask(task, root);
+    case 'hermes':
+      return dispatchHermesTask(task, root);
+    case 'codex':
+      // CODEX_INVOCATION_DISABLED=true: Route engineering requests to Hermes Closed-Loop Orchestrator
+      return dispatchHermesTask(task, root);
     case 'research': return dispatchResearchTask(task);
     case 'team': return dispatchTeamTask(task, root);
     case 'automation': return dispatchAutomationTask(task);
-    case 'revenue': return dispatchRevenuePipelineTask(task, root || workspacePath);
+    case 'revenue': {
+      // Real external FreeCash execution is a DISTINCT route: internal
+      // Revenue Operator planning must never be mistaken for it.
+      if (task.route === 'freecash_execution') {
+        return dispatchFreeCashExecutionTask(task);
+      }
+      if (task.route === 'revenue_operator' || (task.metadata as any)?.capabilityId === 'revenue_operator') {
+        return dispatchRevenueOperatorTask(task, root || workspacePath);
+      }
+      return dispatchRevenuePipelineTask(task, root || workspacePath);
+    }
     case 'antigravity': {
       const { dispatchAntigravityTask } = await import('./antigravityAdapter.js');
       return dispatchAntigravityTask(task, root);

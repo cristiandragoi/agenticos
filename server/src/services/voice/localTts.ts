@@ -53,9 +53,20 @@ export function resolvePythonExecutable(): string {
   return 'python';
 }
 
+import { secretStore } from '../gateway/secretStore.js';
+
 export const DEFAULT_NEURAL_VOICE = 'en-GB-RyanNeural'; // Deep, clear, natural British male English voice
 export const GERMAN_NEURAL_VOICE = 'de-DE-KillianNeural'; // Natural German male voice
 export const ROMANIAN_NEURAL_VOICE = 'ro-RO-EmilNeural';  // Natural Romanian male voice
+
+export const AURA_TO_NEURAL_FALLBACK: Record<string, string> = {
+  'aura-helios-en': 'en-GB-RyanNeural',
+  'aura-zeus-en': 'en-US-ChristopherNeural',
+  'aura-orion-en': 'en-US-GuyNeural',
+  'aura-athena-en': 'en-US-AriaNeural',
+  'aura-angus-en': 'en-IE-ConnorNeural',
+  'aura-orpheus-en': 'en-US-EricNeural',
+};
 
 export function isVoiceCompatible(voice?: string, lang?: string): boolean {
   if (!voice) return false;
@@ -85,15 +96,16 @@ export function isVoiceCompatible(voice?: string, lang?: string): boolean {
 
 export function resolveVoiceForLanguage(lang?: string, requestedVoice?: string): string {
   const l = (lang || '').toLowerCase().trim().slice(0, 2);
-  // Only allow valid Neural voice overrides if strictly compatible with the target language
-  if (
-    requestedVoice &&
-    requestedVoice.trim() &&
-    !requestedVoice.startsWith('aura-') &&
-    requestedVoice.endsWith('Neural') &&
-    isVoiceCompatible(requestedVoice, l || 'en')
-  ) {
-    return requestedVoice.trim();
+  if (requestedVoice && requestedVoice.trim()) {
+    const trimmed = requestedVoice.trim();
+    if (trimmed.startsWith('aura-')) {
+      if (l === 'de') return GERMAN_NEURAL_VOICE;
+      if (l === 'ro') return ROMANIAN_NEURAL_VOICE;
+      return AURA_TO_NEURAL_FALLBACK[trimmed] || DEFAULT_NEURAL_VOICE;
+    }
+    if (trimmed.endsWith('Neural') && isVoiceCompatible(trimmed, l || 'en')) {
+      return trimmed;
+    }
   }
   if (l === 'de') return GERMAN_NEURAL_VOICE;
   if (l === 'ro') return ROMANIAN_NEURAL_VOICE;
@@ -133,12 +145,55 @@ export async function verifySpeechSynthesisAvailability(voice: string = DEFAULT_
   }
 }
 
-export async function synthesizeLocally(text: string, voice: string = DEFAULT_NEURAL_VOICE): Promise<Buffer> {
+export interface SynthesisOptions {
+  rate?: string;
+  pitch?: string;
+}
+
+export async function synthesizeLocally(
+  text: string,
+  voice: string = DEFAULT_NEURAL_VOICE,
+  options?: SynthesisOptions,
+): Promise<Buffer> {
+  // If voice is an Aura voice, attempt to synthesize via Deepgram API first
+  if (voice && voice.startsWith('aura-')) {
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
+    if (deepgramKey) {
+      try {
+        const response = await fetch(`https://api.deepgram.com/v1/speak?model=${voice}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${deepgramKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text }),
+        });
+        if (response.ok) {
+          const ab = await response.arrayBuffer();
+          return Buffer.from(ab);
+        }
+        logger.warn('[LocalTTS] Deepgram speak returned non-ok:', response.status);
+      } catch (dgErr: any) {
+        logger.warn('[LocalTTS] Deepgram speak exception, falling back to neural TTS:', dgErr?.message);
+      }
+    }
+    // Fall back to distinct high-quality Neural voice corresponding to this Aura persona
+    voice = AURA_TO_NEURAL_FALLBACK[voice] || DEFAULT_NEURAL_VOICE;
+  }
+
   const tmpFile = path.join(os.tmpdir(), `tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
   const pythonExe = resolvePythonExecutable();
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(pythonExe, [SCRIPT_PATH, '--text', text, '--voice', voice, '--output', tmpFile], {
+    const args = [SCRIPT_PATH, '--text', text, '--voice', voice, '--output', tmpFile];
+    if (options?.rate) {
+      args.push('--rate', options.rate);
+    }
+    if (options?.pitch) {
+      args.push('--pitch', options.pitch);
+    }
+
+    const proc = spawn(pythonExe, args, {
       windowsHide: true,
     });
 

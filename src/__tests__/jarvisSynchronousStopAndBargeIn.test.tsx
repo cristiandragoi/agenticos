@@ -26,7 +26,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
 
   // 15. Synchronous STOP primitive stops audio and synthesis without backend roundtrip
   it('15. Synchronous STOP primitive stops audio and synthesis without backend roundtrip', () => {
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     act(() => {
       result.current.killSpeechNow();
     });
@@ -36,7 +36,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
 
   // 16. Escape key triggers synchronous STOP primitive
   it('16. Escape key triggers synchronous STOP primitive', () => {
-    renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     act(() => {
       const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
       window.dispatchEvent(event);
@@ -62,7 +62,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
 
   // 19. Physical barge-in ducks audio to ~20% within 200ms
   it('19. Physical barge-in ducks audio to ~20% within 200ms', () => {
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     expect(result.current.voiceState).toBe('idle');
   });
 
@@ -84,7 +84,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
   it('22. Natural pause within ~2s does not fragment utterance into multiple turns', () => {
     const onAutoSubmit = vi.fn();
     const { result } = renderHook(() => useVoiceIO({
-      agentId: 'agent-jarvis',
+      agentId: 'agent-hermes',
       onAutoSubmit,
       endSpeechSilenceMs: 1800,
     }));
@@ -107,7 +107,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
 
   // 25. No robotic browser voice fallback is used in continuous conversation mode
   it('25. No robotic browser voice fallback is used in continuous conversation mode', async () => {
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     // In continuous conversation mode, speak() will never invoke window.speechSynthesis.speak
     await act(async () => {
       await result.current.speak('Test synthesis failure fallback rejection', 'CONVERSATION');
@@ -117,7 +117,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
 
   // 26. Typed and voice-originated channels are both allowed to speak
   it('26. Typed and voice-originated channels are both allowed to speak', async () => {
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     act(() => {
       result.current.armSpeech(1);
       result.current.speakProgressive('Hello from typed channel', 'typed', 1);
@@ -128,7 +128,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
 
   // 27. Arming a new turn clears previous speech suppression
   it('27. Arming a new turn clears previous speech suppression', () => {
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
     act(() => {
       result.current.killSpeechNow();
     });
@@ -160,7 +160,7 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     });
 
-    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-jarvis' }));
+    const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-hermes' }));
 
     // 1. Begin with speech suppressed by killSpeech / stopSpeaking
     act(() => {

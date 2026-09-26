@@ -22,19 +22,57 @@ if (process.env.AGENTICOS_DATA_DIR) {
   // Isolate tests into a unique temporary directory
   canonicalDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agenticos-test-db-'));
 } else {
-  canonicalDataDir = path.join(repoServerRoot, 'data');
+  const roamingDataDir = process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'agenticos', 'data')
+    : path.join(os.homedir(), 'AppData', 'Roaming', 'agenticos', 'data');
+  if (repoServerRoot.toLowerCase().includes('local\\programs\\agenticos') || repoServerRoot.toLowerCase().includes('local/programs/agenticos') || fs.existsSync(roamingDataDir)) {
+    canonicalDataDir = roamingDataDir;
+  } else {
+    canonicalDataDir = path.join(repoServerRoot, 'data');
+  }
 }
 
 const canonicalDbPath = process.env.AGENT_TEAMS_DB_PATH
   ? path.resolve(process.env.AGENT_TEAMS_DB_PATH)
   : path.join(canonicalDataDir, 'agentic-os.db');
 
-// Safety Guard: prevent tests from accessing live production data
+// Safety Guard: prevent tests from accessing live production data.
+// Covers BOTH known production paths:
+//   - D:\AgenticOS\server\data\agentic-os.db  (dev/packaged server data)
+//   - C:\Users\...\AppData\Roaming\agenticos\data\agentic-os.db  (canonical user data)
+//   - C:\Users\...\AppData\Local\Programs\AgenticOS  (legacy packaged install)
+const PROTECTED_PROD_PATH_FRAGMENTS = [
+  'appdata\\roaming\\agenticos',
+  'appdata\\local\\programs\\agenticos',
+  'appdata/roaming/agenticos',
+  'appdata/local/programs/agenticos',
+];
+
 if (isTestEnv && !process.env.ALLOW_PROD_DB_IN_TEST) {
-  const norm = canonicalDbPath.toLowerCase();
+  const norm = canonicalDbPath.toLowerCase().replace(/\//g, '\\');
   const prodServerData = path.join(repoServerRoot, 'data', 'agentic-os.db').toLowerCase();
-  if (norm === prodServerData || norm.includes('appdata\\local\\programs\\agenticos')) {
-    throw new Error(`[CRITICAL SECURITY GUARD] Automated test attempted to open production database: ${canonicalDbPath}`);
+  const isServerDataPath = norm === prodServerData.toLowerCase().replace(/\//g, '\\');
+  const isProdFragment = PROTECTED_PROD_PATH_FRAGMENTS.some(f => norm.includes(f));
+
+  if (isServerDataPath || isProdFragment) {
+    throw new Error(
+      `[CRITICAL SECURITY GUARD] Automated test attempted to open production database: ${canonicalDbPath}\n` +
+      `Set AGENTICOS_DATA_DIR to an explicit temp directory, or ensure NODE_ENV=test before module load.`
+    );
+  }
+
+  // Additional check: in test mode without explicit AGENTICOS_DATA_DIR override,
+  // the path must reside inside the OS temp directory.
+  if (!process.env.AGENTICOS_DATA_DIR && !process.env.AGENT_TEAMS_DB_PATH) {
+    const tmpBase = os.tmpdir().toLowerCase().replace(/\//g, '\\');
+    if (!norm.startsWith(tmpBase)) {
+      throw new Error(
+        `[CRITICAL SECURITY GUARD] Test database is not in temp directory.\n` +
+        `Resolved path: ${canonicalDbPath}\n` +
+        `Expected prefix: ${os.tmpdir()}\n` +
+        `This guard prevents tests from writing to development or production databases.`
+      );
+    }
   }
 }
 
@@ -197,3 +235,69 @@ try {
 try {
   rawDb.exec('ALTER TABLE provider_credentials ADD COLUMN api_key TEXT;');
 } catch {}
+
+// revenue_human_gates column convergence: schema.ts declares more columns than
+// migration 0023 created. Converge HERE (every DB open — fresh test temp DBs
+// run migrate() and land on the legacy shape, dev DBs predate the columns) so
+// any insert against the full schema succeeds. Mirrors the projectsStore ALTERs,
+// but at the universal bootstrap so test-only DB paths are covered too.
+try {
+  const gatePragma = rawDb.prepare('PRAGMA table_info(revenue_human_gates)').all() as Array<{ name: string }>;
+  if (gatePragma.length > 0) {
+    const gateCols = new Set(gatePragma.map((c) => c.name));
+    const GATE_MISSING_COLUMNS = [
+      ['project_id', 'TEXT'],
+      ['task_id', 'TEXT'],
+      ['platform', 'TEXT'],
+      ['user_action', 'TEXT'],
+      ['gate_url', 'TEXT'],
+      ['expires_at', 'TEXT'],
+      ['notified_conversation', 'TEXT'],
+      ['evidence', 'TEXT'],
+    ] as const;
+    for (const [col, type] of GATE_MISSING_COLUMNS) {
+      if (!gateCols.has(col)) rawDb.exec(`ALTER TABLE revenue_human_gates ADD COLUMN ${col} ${type}`);
+    }
+  }
+} catch { /* table may not exist yet — best effort */ }
+
+// ── 6. Exported path and isolation assertion for tests ───────────────────────
+/** The exact absolute SQLite path this process has opened. Read by tests to
+ *  prove isolation before any destructive fixture setup. */
+export const resolvedDbPath = canonicalDbPath;
+
+/** Two protected production database absolute paths — tests must never touch either. */
+export const PRODUCTION_DB_PATHS: ReadonlyArray<string> = [
+  path.join(repoServerRoot, 'data', 'agentic-os.db'),
+  path.join(os.homedir(), 'AppData', 'Roaming', 'agenticos', 'data', 'agentic-os.db'),
+];
+
+/**
+ * Hard guard for use in test beforeAll() blocks.
+ * Throws with a clear message if the resolved database path is not inside
+ * the OS temporary directory, or if it matches either production path.
+ * Call this before any DELETE / INSERT fixture setup.
+ */
+export function assertTestDatabaseIsolation(): void {
+  const norm = canonicalDbPath.toLowerCase().replace(/\//g, '\\');
+  const tmpBase = os.tmpdir().toLowerCase().replace(/\//g, '\\');
+
+  for (const prodPath of PRODUCTION_DB_PATHS) {
+    const prodNorm = prodPath.toLowerCase().replace(/\//g, '\\');
+    if (norm === prodNorm) {
+      throw new Error(
+        `[assertTestDatabaseIsolation] BLOCKED: test is running against production database:\n  ${canonicalDbPath}\n` +
+        `Ensure NODE_ENV=test is set before any module import, or set AGENTICOS_DATA_DIR to a temp path.`
+      );
+    }
+  }
+
+  if (!norm.startsWith(tmpBase)) {
+    throw new Error(
+      `[assertTestDatabaseIsolation] BLOCKED: database is not in temp directory.\n` +
+      `  Resolved: ${canonicalDbPath}\n` +
+      `  Expected prefix: ${os.tmpdir()}\n` +
+      `Tests must only write to isolated temporary databases.`
+    );
+  }
+}

@@ -128,70 +128,44 @@ export function makeHermesPlanAdapter(opts: HermesPlanAdapterOptions = {}): Plan
   };
 }
 
-/* ── Real CodeX repair adapter ────────────────────────────────────────── */
+/* ── Real Hermes repair adapter (CODEX_INVOCATION_DISABLED=true) ─────── */
 
-export interface CodexRepairAdapterOptions {
+export interface HermesRepairAdapterOptions {
   repoPath?: string;
   conversationId?: string;
-  /** Poll timeout for the CodeX goal to reach a terminal state. */
   timeoutMs?: number;
 }
 
-export function makeCodexRepairAdapter(opts: CodexRepairAdapterOptions = {}): RepairAdapter {
-  const timeoutMs = opts.timeoutMs ?? 240_000;
+export function makeHermesRepairAdapter(opts: HermesRepairAdapterOptions = {}): RepairAdapter {
   return async (plan, ctx) => {
-    const { codexService } = await import('../../domains/codex/service.js');
-    const { goalStore } = await import('../../services/goalStore.js');
-    const { reconcileGoalToResult } = await import('../../domains/workerAdapters/codexAdapter.js');
-
+    const { hermesEngineeringOrchestrator } = await import('../../domains/hermes/hermesOrchestrator.js');
     const repoPath = opts.repoPath || process.cwd();
-    // Authoritative changed-file evidence: snapshot BEFORE the repair so the
-    // supervisor can compute the repair's true delta afterward.
     const before = await snapshotRepo(repoPath);
 
-    const goalId = await codexService.createGoal(
-      `Implement this repair in the repository at ${repoPath}. Edit the affected files to apply the fix. Do NOT commit, do NOT deploy, do NOT push.\n\nRepair plan:\n${plan}`,
-      repoPath,
-      'auto', // auto-execute the working-tree edit; the COMMIT remains human-approved
-      undefined,
-      opts.conversationId
+    const mission = await hermesEngineeringOrchestrator.executeMission(
+      `Implement software repair: ${plan}`,
+      {
+        workspaceRoot: repoPath,
+        conversationId: opts.conversationId,
+        maxRepairCycles: 3,
+      }
     );
 
-    // Wait for the goal to reach a terminal state.
-    const terminalGoal = await pollUntil(
-      () => {
-        const g = goalStore.get(goalId);
-        return g && ['completed', 'failed', 'stopped', 'cancelled', 'interrupted'].includes(g.status) ? g : null;
-      },
-      timeoutMs
-    );
-
-    if (!terminalGoal) {
-      throw new Error(`CodeX repair goal ${goalId} did not reach a terminal state within ${timeoutMs}ms.`);
-    }
-    if (terminalGoal.status !== 'completed') {
-      throw new Error(`CodeX repair goal ${goalId} ended in status '${terminalGoal.status}'.`);
-    }
-
-    // AFTER snapshot + typed diff (tracked + untracked content hashes).
     const after = await snapshotRepo(repoPath);
     const changedFiles: ChangedFile[] = computeChangedFiles(before, after);
 
-    const rs: any = (terminalGoal as any).runSummary || {};
-    const finalAnswer = typeof rs.finalAnswer === 'string' ? rs.finalAnswer : (rs.summary as string | undefined);
-
-    // Reconcile to the canonical execution result (idempotent), persisting the
-    // typed changed-file evidence alongside the result.
-    let resultId = goalId;
-    try {
-      const rec = await reconcileGoalToResult(goalId, finalAnswer || 'CodeX repair completed', changedFiles);
-      resultId = rec.resultId ?? goalId;
-    } catch {
-      /* non-fatal: fall back to goalId as the provenance handle */
-    }
-
-    return { resultId, filesChanged: changedFiles };
+    return {
+      resultId: mission.missionId,
+      filesChanged: changedFiles,
+    };
   };
+}
+
+export type CodexRepairAdapterOptions = HermesRepairAdapterOptions;
+
+export function makeCodexRepairAdapter(opts: CodexRepairAdapterOptions = {}): RepairAdapter {
+  // CODEX_INVOCATION_DISABLED=true: Route repair adapter directly to Hermes
+  return makeHermesRepairAdapter(opts);
 }
 
 /* ── Real test-gates adapter ──────────────────────────────────────────── */

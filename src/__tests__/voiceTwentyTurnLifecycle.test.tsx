@@ -19,11 +19,20 @@ class MockMediaRecorder { static instances: any[] = []; state='inactive'; ondata
 class MockAudio { src='';paused=true;volume=1;onplay:any=null;onended:any=null;onerror:any=null;duration=1;
   pause=vi.fn(function(this:any){this.paused=true});removeAttribute=vi.fn((a:string)=>{if(a==='src')this.src='';});load=vi.fn();
   play=vi.fn(function(this:any){const s=this;s.paused=false;if(s.src)Promise.resolve().then(()=>s.onplay?.());if(autoFireOnEnd&&s.src)Promise.resolve().then(()=>Promise.resolve().then(()=>s.onended?.()));return Promise.resolve();});
+  currentTime=0;
+  // HTMLMediaElement listener surface — see registerActiveAudio().
+  private listeners=new Map<string, Array<(...a:unknown[])=>void>>();
+  addEventListener=(type:string,cb:(...a:unknown[])=>void)=>{const l=this.listeners.get(type)??[];l.push(cb);this.listeners.set(type,l);};
+  removeEventListener=(type:string,cb:(...a:unknown[])=>void)=>{this.listeners.set(type,(this.listeners.get(type)??[]).filter((f)=>f!==cb));};
   constructor(){lastAudio=this;} }
 const trackStopMock = vi.fn(); const getUserMediaMock = vi.fn();
+/** Monotonic per-test wall clock — see JarvisConversation (module-level dedupe window). */
+let clockBase = Date.parse('2026-01-01T00:00:00Z');
 
 beforeEach(() => {
   vi.useFakeTimers();
+  clockBase += 10_000;
+  vi.setSystemTime(clockBase); // isolate this test from the 3s duplicate-speech window
   rafQueue = []; rafIdCounter = 0; rmsLevel = 0; autoFireOnEnd = true; lastAudio = null;
   transcribeText = 'hello jarvis';
   (globalThis as any).requestAnimationFrame = (cb: (t: number) => void) => { rafQueue.push(cb); return ++rafIdCounter; };
@@ -53,13 +62,16 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-const FAST_VAD = { agentId: 'agent-jarvis', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
+const FAST_VAD = { agentId: 'agent-hermes', speechThreshold: 0.02, minSpeechMs: 0, endSpeechSilenceMs: 5, maxSegmentMs: 4000, bargeInGraceMs: 0 };
 
 async function speakOneTurn(result: { current: ReturnType<typeof useVoiceIO> }) {
   rmsLevel = 0.1; await act(async () => { flushRaf(1); });
   rmsLevel = 0; await act(async () => { flushRaf(1); });
   await act(async () => { vi.advanceTimersByTime(20); });
   await act(async () => { flushRaf(1); });
+  // The bounded continuation window (continuationWindowMs = 2500) defers
+  // submission until it elapses — the turn is only observable after it.
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
   await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
 }
 

@@ -19,6 +19,8 @@
     "diagnose:runtime": "node scripts/diagnose-processes.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
+    "build:app": "vite build",
+    "deploy:installed": "node scripts/deploy-installed.cjs",
     "electron:build": "npm run build && electron-builder",
     "package": "node scripts/package.cjs",
     "deploy:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$src=Join-Path (Get-Location) 'release\\win-unpacked'; $dst=Join-Path $env:LOCALAPPDATA 'Programs\\AgenticOS'; Write-Host 'Copying from' $src 'to' $dst; Copy-Item -Path \\\"$src\\*\\\" -Destination $dst -Recurse -Force; Write-Host 'Deploy complete.'\""
@@ -30,7 +32,9 @@
     "@xyflow/react": "^12.11.1",
     "framer-motion": "^13.0.0",
     "gsap": "^3.15.0",
+    "livekit-client": "^2.22.3",
     "lucide-react": "^1.20.0",
+    "playwright": "^1.61.1",
     "puppeteer-screen-recorder": "^3.0.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
@@ -38,8 +42,7 @@
     "react-router-dom": "^7.18.0",
     "react-virtuoso": "^4.18.11",
     "styled-components": "^6.4.4",
-    "three": "^0.185.1",
-    "playwright": "^1.61.1"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

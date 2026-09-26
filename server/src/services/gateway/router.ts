@@ -1,4 +1,5 @@
-import { ModelGateway, ChatRequest, ChatResponse, GatewayConfig, ChatStreamChunk, ProviderAttemptError } from './types.js';
+import { ModelGateway, ChatRequest, ChatResponse, GatewayConfig, ChatStreamChunk, ProviderAttemptError, RoutingState } from './types.js';
+import { recordInference, normalizeAgentRoleId } from './agentModelPolicy.js';
 import { ProviderRateLimitError } from './gateways/openai.js';
 import { ProviderScorer } from './scorer.js';
 import { GatewayRunLedger } from './ledger.js';
@@ -154,7 +155,40 @@ export class GatewayRouter {
     // re-routed to the assigned provider.
     const hasExplicitOverride = Boolean(overrides?.provider || req.preferredProvider || req.routing?.providerId);
 
-    if (req.agentId && !hasExplicitOverride) {
+    const { resolveCandidateRoutes, resolveCandidateRoutesForArgus, normalizeAgentRoleId } = await import('./agentModelPolicy.js');
+    const role = req.agentId ? normalizeAgentRoleId(req.agentId) : undefined;
+
+    if (role && !hasExplicitOverride) {
+      // For Argus with a known producer model, use producer-aware independence routing.
+      const candidates = (role === 'argus' && req.producerModel)
+        ? resolveCandidateRoutesForArgus(req.producerModel)
+        : resolveCandidateRoutes(role);
+      if (candidates.length > 0) {
+        const primaryCandidate = candidates[0];
+        targetProvider = primaryCandidate.provider;
+        routingMode = 'preferred';
+        if (!req.modelId) {
+          req.modelId = primaryCandidate.model;
+        }
+        if (!req.routing) {
+          req.routing = { mode: 'preferred', providerId: targetProvider, modelId: primaryCandidate.model };
+        }
+
+        const orderedProviders: ModelGateway[] = [];
+        for (const cand of candidates) {
+          const match = available.find(p => p.name.toLowerCase() === cand.provider.toLowerCase());
+          if (match && !orderedProviders.includes(match)) {
+            orderedProviders.push(match);
+          }
+        }
+        for (const p of available) {
+          if (!orderedProviders.includes(p)) {
+            orderedProviders.push(p);
+          }
+        }
+        return orderedProviders;
+      }
+    } else if (req.agentId && !hasExplicitOverride) {
       const assignment = await AgentProviderAssignmentService.getAssignment(req.agentId);
       if (assignment && assignment.enabled) {
         targetProvider = mapCatalogToGatewayId(assignment.providerId);
@@ -283,6 +317,103 @@ export class GatewayRouter {
           completionTokens: response.completionTokens
         });
 
+        const totalDuration = Date.now() - startTime;
+        const isLocalProvider = providerName.toLowerCase() === 'ollama';
+
+        let routingState: RoutingState = 'NORMAL';
+        let fallbackUsed = fallbackCount > 0;
+        let fallbackReason: string | undefined;
+
+        if (isLocalProvider) {
+          routingState = 'DEGRADED';
+          fallbackUsed = true;
+          fallbackReason = reasons.length > 0 ? reasons.join('; ') : 'Degraded to local Ollama fallback';
+        } else if (fallbackCount > 0) {
+          routingState = 'FALLBACK';
+          fallbackReason = reasons.join('; ');
+        }
+
+        const agentRole = req.agentId ? normalizeAgentRoleId(req.agentId) : undefined;
+        const requestedModel = req.routing?.modelId ?? req.modelId ?? provider.definition.model;
+        const requestedRoute = `${providerName}:${requestedModel}`;
+
+        response.agentId = agentRole;
+        response.taskClass = req.taskClass;
+        response.requestedRoute = requestedRoute;
+        response.requestedModel = requestedModel;
+        response.resolvedProvider = response.resolvedProvider || providerName;
+        response.resolvedModel = response.resolvedModel || response.model || provider.definition.model;
+        response.routingState = routingState;
+        response.fallbackUsed = fallbackUsed;
+        response.fallbackReason = fallbackReason;
+        response.totalLatencyMs = totalDuration;
+
+        // Truthful model identity: for the 'codex' provider the upstream WebSocket
+        // protocol does not expose an authoritative resolvedModel field.
+        if (providerName.toLowerCase() === 'codex') {
+          response.resolvedModelIdentityExposed = false;
+          response.resolvedModelSource = 'config'; // model is taken from config.toml, not confirmed by protocol
+        } else {
+          response.resolvedModelIdentityExposed = true;
+          response.resolvedModelSource = 'protocol';
+        }
+
+        // Producer-aware Argus independence metadata + runtime rejection
+        if (agentRole === 'argus' && req.producerModel) {
+          const { validateVerifierIndependenceProducerAware, extractModelFamily } = await import('./agentModelPolicy.js');
+          const actualResolvedModel = response.resolvedModel || '';
+          const producerFamily = extractModelFamily(req.producerModel);
+          const verifierActualFamily = extractModelFamily(actualResolvedModel);
+
+          // RUNTIME REJECTION: if auto/* resolved to same family as producer, reject this result
+          // and fall through to next provider candidate.
+          if (
+            producerFamily !== 'unknown' &&
+            verifierActualFamily !== 'unknown' &&
+            verifierActualFamily !== 'auto' &&
+            producerFamily === verifierActualFamily
+          ) {
+            logger.warn('[GatewayRouter] Argus runtime independence REJECTED (chat): same-family verifier', {
+              providerName,
+              actualResolvedModel,
+              producerModel: req.producerModel,
+              producerFamily,
+              verifierActualFamily
+            });
+            reasons.push(`${providerName}: Argus independence rejected — verifier resolved to ${actualResolvedModel} (family: ${verifierActualFamily}) same as producer ${req.producerModel} (family: ${producerFamily})`);
+            fallbackCount++;
+            continue;
+          }
+
+          const independenceResult = validateVerifierIndependenceProducerAware(req.producerModel, actualResolvedModel);
+          response.argusIndependence = {
+            producerFamily: independenceResult.producerFamily,
+            verifierFamily: 'verifierFamily' in independenceResult ? independenceResult.verifierFamily : '',
+            independent: independenceResult.independent,
+            unavailable: 'unavailable' in independenceResult ? independenceResult.unavailable : undefined
+          };
+        }
+
+        if (agentRole) {
+          recordInference({
+            timestamp: new Date().toISOString(),
+            agentId: agentRole,
+            taskClass: req.taskClass,
+            requestedRoute,
+            requestedModel,
+            resolvedProvider: response.resolvedProvider,
+            resolvedModel: response.resolvedModel,
+            routingState,
+            fallbackUsed,
+            fallbackReason,
+            totalLatencyMs: totalDuration,
+            promptTokens: response.promptTokens,
+            completionTokens: response.completionTokens,
+            totalTokens: response.totalTokens,
+            success: true
+          });
+        }
+
         return response;
       } catch (error: any) {
         const durationMs = Date.now() - attemptStart;
@@ -388,10 +519,18 @@ export class GatewayRouter {
       const attemptStart = Date.now();
       let streamBufferedTokens = 0;
       let streamFailed = false;
+      let lastResolvedModel = provider.definition.model;
+      let lastResolvedProvider = providerName;
+      let ttftMs: number | undefined;
 
       try {
         for await (const chunk of provider.stream(req)) {
+          if (chunk.resolvedModel) lastResolvedModel = chunk.resolvedModel;
+          if (chunk.resolvedProvider) lastResolvedProvider = chunk.resolvedProvider;
           if (chunk.type === 'token' && chunk.content) {
+            if (ttftMs === undefined) {
+              ttftMs = Date.now() - attemptStart;
+            }
             streamBufferedTokens++;
             yield chunk;
           } else {
@@ -400,8 +539,92 @@ export class GatewayRouter {
         }
         
         if (streamBufferedTokens === 0) throw new Error('Provider returned empty stream');
-        
+
+        // Argus runtime independence check:
+        // The 'auto/*' routing aliases have UNKNOWN actual model family until execution.
+        // After streaming completes, check the ACTUAL resolvedModel against the producer family.
+        // If same family → this provider is NOT independent → reject and try next candidate.
+        const agentRoleForCheck = req.agentId ? normalizeAgentRoleId(req.agentId) : undefined;
+        if (agentRoleForCheck === 'argus' && req.producerModel && lastResolvedModel) {
+          const { extractModelFamily } = await import('./agentModelPolicy.js');
+          const producerFamily = extractModelFamily(req.producerModel);
+          const verifierActualFamily = extractModelFamily(lastResolvedModel);
+          // Only reject if neither family is 'unknown' or 'auto' (ambiguous aliases don't block)
+          if (
+            producerFamily !== 'unknown' &&
+            verifierActualFamily !== 'unknown' &&
+            verifierActualFamily !== 'auto' &&
+            producerFamily === verifierActualFamily
+          ) {
+            logger.warn('[GatewayRouter] Argus runtime independence REJECTED: same-family provider', {
+              providerName,
+              requestedModel: req.modelId ?? provider.definition.model,
+              actualResolvedModel: lastResolvedModel,
+              producerModel: req.producerModel,
+              producerFamily,
+              verifierActualFamily
+            });
+            reasons.push(`${providerName}: Argus independence rejected — verifier resolved to ${lastResolvedModel} (family: ${verifierActualFamily}) which is same family as producer ${req.producerModel} (family: ${producerFamily})`);
+            fallbackCount++;
+            // Continue to next provider — do NOT yield the already-streamed tokens as the accepted response.
+            // NOTE: tokens were already yielded to the client above. We emit a diagnostic chunk to
+            // inform the consumer that this result was rejected, then continue the fallback loop.
+            yield {
+              type: 'gateway.argus_independence_rejected',
+              provider: providerName,
+              resolvedModel: lastResolvedModel,
+              producerModel: req.producerModel,
+              producerFamily,
+              verifierActualFamily,
+              requestId: req.requestId
+            };
+            continue;
+          }
+        }
+
         this.consecutiveFailures.set(providerName, 0);
+
+
+        const totalDuration = Date.now() - startTime;
+        const isLocalProvider = providerName.toLowerCase() === 'ollama';
+
+        let routingState: RoutingState = 'NORMAL';
+        let fallbackUsed = fallbackCount > 0;
+        let fallbackReason: string | undefined;
+
+        if (isLocalProvider) {
+          routingState = 'DEGRADED';
+          fallbackUsed = true;
+          fallbackReason = reasons.length > 0 ? reasons.join('; ') : 'Degraded to local Ollama fallback';
+        } else if (fallbackCount > 0) {
+          routingState = 'FALLBACK';
+          fallbackReason = reasons.join('; ');
+        }
+
+        const agentRole = req.agentId ? normalizeAgentRoleId(req.agentId) : undefined;
+        const requestedModel = req.routing?.modelId ?? req.modelId ?? provider.definition.model;
+        const requestedRoute = `${providerName}:${requestedModel}`;
+
+        if (agentRole) {
+          recordInference({
+            timestamp: new Date().toISOString(),
+            agentId: agentRole,
+            taskClass: req.taskClass,
+            requestedRoute,
+            requestedModel,
+            resolvedProvider: lastResolvedProvider,
+            resolvedModel: lastResolvedModel,
+            routingState,
+            fallbackUsed,
+            fallbackReason,
+            totalLatencyMs: totalDuration,
+            ttftMs,
+            completionTokens: streamBufferedTokens,
+            totalTokens: streamBufferedTokens,
+            success: true
+          });
+        }
+
         this.emit({
           type: 'gateway.completed',
           provider: providerName,
@@ -416,7 +639,13 @@ export class GatewayRouter {
           requestId: req.requestId, 
           durationMs: Date.now() - startTime,
           latencyMs: Date.now() - attemptStart,
-          totalTokens: streamBufferedTokens 
+          totalTokens: streamBufferedTokens,
+          agentId: agentRole,
+          resolvedModel: lastResolvedModel,
+          resolvedProvider: lastResolvedProvider,
+          routingState,
+          fallbackUsed,
+          fallbackReason
         };
 
         return;

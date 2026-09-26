@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE } from '../../api/client';
-import { AlertCircle, Cpu, Server, User } from 'lucide-react';
-import { JarvisComposer } from './JarvisComposer';
-import type { MicState } from './JarvisComposer';
+import { AlertCircle, Cpu, Server, User, FileText, Image as ImageIcon } from 'lucide-react';
+import { JarvisComposer, formatFileSize } from './JarvisComposer';
+import type { MicState, JarvisAttachment } from './JarvisComposer';
 import { JarvisTeamPreviewCard } from './JarvisTeamPreviewCard';
 import { JarvisTeamExecutionCard } from './JarvisTeamExecutionCard';
 import { JarvisGoalCard } from './JarvisGoalCard';
@@ -132,7 +132,7 @@ export interface JarvisChatProps {
 /** Imperative API — lets the single canonical voice engine auto-submit a
  *  transcribed turn through the exact same streaming pipeline as Send. */
 export interface JarvisChatHandle {
-  sendMessage: (text: string, inputChannel?: 'typed' | 'voice', turnId?: number) => void;
+  sendMessage: (text: string, inputChannel?: 'typed' | 'voice', turnId?: number, attachments?: JarvisAttachment[]) => void;
   /** Final layout correction (§8): the sticky page-level composer cancels
    *  the in-flight response through the same pipeline as the inline one. */
   cancelResponse: () => void;
@@ -613,7 +613,15 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       const nextMessage = {
         id,
         role: 'system',
-        messageType: eventName === 'action_status' ? 'action_status' : eventName === 'plan' ? 'plan' : eventName === 'approval_required' ? 'approval_request' : 'system_status',
+        messageType: eventName.startsWith('hermes_progress')
+          ? 'hermes_progress'
+          : eventName === 'action_status'
+          ? 'action_status'
+          : eventName === 'plan'
+          ? 'plan'
+          : eventName === 'approval_required'
+          ? 'approval_request'
+          : 'system_status',
         content,
         createdAt: new Date().toISOString(),
         metadata: { operationId, eventName, ...metadata }
@@ -648,17 +656,27 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     setIsProcessing(false);
   };
 
-  const buildMessageRequestBody = (text: string, operationId: string, inputChannel: 'typed' | 'voice' = 'typed') => {
+  const buildMessageRequestBody = (
+    text: string,
+    operationId: string,
+    inputChannel: 'typed' | 'voice' = 'typed',
+    attachments?: JarvisAttachment[]
+  ) => {
     const body: {
       prompt: string;
       operationId: string;
       inputChannel: 'typed' | 'voice';
+      attachments?: JarvisAttachment[];
       workspacePath?: string;
       repositoryPath?: string;
       approvalPolicy?: string;
       overrideProvider?: string;
       overrideModel?: string;
     } = { prompt: text, operationId, inputChannel };
+
+    if (attachments && attachments.length > 0) {
+      body.attachments = attachments;
+    }
 
     // Conversation-level routing override (PRIORITY 3): manual selections
     // apply only to this execution; the backend records them in the ledger.
@@ -682,8 +700,17 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
 
   const currentTurnIdRef = useRef<number | null>(null);
 
-  const handleSendMessage = async (text: string, inputChannel: 'typed' | 'voice' = 'voice', turnId?: number) => {
-    if (!text.trim()) return;
+  const handleSendMessage = async (
+    text: string,
+    inputChannel: 'typed' | 'voice' = 'voice',
+    turnIdOrAttachments?: number | JarvisAttachment[],
+    maybeAttachments?: JarvisAttachment[]
+  ) => {
+    const turnId = typeof turnIdOrAttachments === 'number' ? turnIdOrAttachments : undefined;
+    const attachments = Array.isArray(turnIdOrAttachments) ? turnIdOrAttachments : maybeAttachments;
+    const hasText = !!text.trim();
+    const hasAttachments = !!attachments && attachments.length > 0;
+    if (!hasText && !hasAttachments) return;
     currentTurnIdRef.current = typeof turnId === 'number' ? turnId : null;
     // Offline gate: never route a request into Jarvis logic while the
     // backend is definitively unavailable — answer truthfully instead.
@@ -715,7 +742,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         const createRes = await fetch(`${API_BASE}/jarvis/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: text.slice(0, 40) || 'New Conversation' }),
+          body: JSON.stringify({ title: text.slice(0, 40) || (hasAttachments ? `File: ${attachments![0].name}` : 'New Conversation') }),
         });
         const createData = await createRes.json();
         if (createData?.id) {
@@ -776,9 +803,9 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     setMessages(prev => [...prev, {
       id: operationId,
       role: 'user',
-      content: text,
+      content: text || (hasAttachments ? `[Attached ${attachments!.length} file(s)]` : ''),
       createdAt: new Date().toISOString(),
-      metadata: { operationId, inputChannel }
+      metadata: { operationId, inputChannel, attachments: hasAttachments ? attachments : undefined }
     }]);
 
     let fetchStartAt = Date.now();
@@ -815,7 +842,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
-        body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel))
+        body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel, attachments))
       });
 
       // ── Backend liveness watchdog starts HERE — after headers are received ──
@@ -963,17 +990,15 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   // restore effect — a `[]`-deps handle would capture `conversationId === null`
   // forever and force every typed/voice send to auto-create a NEW conversation
   // (follow-up turns lost context; live acceptance showed T1→conv-A, T2→conv-B).
-  const handleSendRef = useRef<((text: string, channel: 'typed' | 'voice', turnId?: number) => void) | null>(null);
-  handleSendRef.current = (text: string, channel: 'typed' | 'voice', turnId?: number) => { void handleSendMessage(text, channel, turnId); };
+  const handleSendRef = useRef<((text: string, channel: 'typed' | 'voice', turnId?: number, attachments?: JarvisAttachment[]) => void) | null>(null);
+  handleSendRef.current = (text: string, channel: 'typed' | 'voice', turnId?: number, attachments?: JarvisAttachment[]) => {
+    void handleSendMessage(text, channel, turnId, attachments);
+  };
   const cancelResponseRef = useRef<(() => void) | null>(null);
   cancelResponseRef.current = () => cancelResponse();
   React.useImperativeHandle(ref, () => ({
-    sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice', turnId?: number) => {
-      if (typeof turnId === 'number') {
-        handleSendRef.current?.(text, inputChannel, turnId);
-      } else {
-        handleSendRef.current?.(text, inputChannel);
-      }
+    sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice', turnId?: number, attachments?: JarvisAttachment[]) => {
+      handleSendRef.current?.(text, inputChannel, turnId, attachments);
     },
     cancelResponse: () => cancelResponseRef.current?.(),
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1005,6 +1030,12 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       // events that were already buffered when the abort landed.
       if (abortControllerRef.current?.signal.aborted) break;
       const data = event.data ? JSON.parse(event.data) : {};
+      // D14: the typed chat's SSE stream carries the SAME canonical navigation
+      // packet as the voice transport. Hand it to the single navigation receiver.
+      if (event.event === 'navigation_request' && data?.navId) {
+        console.log('[JFE-NAV] navigation_request received over SSE', data);
+        window.dispatchEvent(new CustomEvent('jarvis:navigation-request', { detail: data }));
+      }
       if (event.event === 'intent') {
         emitStatus({ state: data.mode === 'operational_execution' ? 'understanding' : 'thinking' });
         appendOperationalEvent(
@@ -1126,6 +1157,16 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         emitStatus({ state: 'error', error: data.error || 'Execution failed.' });
         uiDiagnostics.setStreamEnded(operationId);
         onResponseSettledRef.current?.();
+      } else if (event.event === 'hermes_progress') {
+        const msg = data.message || data.summary || data.content || 'Hermes working...';
+        const phase = data.phase || data.eventType || 'PROGRESS';
+        emitStatus({ state: 'executing' });
+        appendOperationalEvent(
+          operationId,
+          `hermes_progress_${data.id || data.timestamp || Date.now()}`,
+          msg,
+          { ...data, isHermesProgress: true, phase, message: msg }
+        );
       } else if (event.event === 'progress') {
         appendOperationalEvent(operationId, 'progress', data.content || data.summary || 'Progress update', data);
         // Isolated: background task progress updates never trigger TTS auto-speech
@@ -1215,7 +1256,8 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           data.route === 'system_event' ||
           data.route === 'presence' ||
           data.route === 'decision_statement' ||
-          data.route === 'task_control'
+          data.route === 'task_control' ||
+          data.route === 'semantic_turn'
         );
 
         if (isSpokenRoute && hadStreamedText) {
@@ -1438,7 +1480,64 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
                   }} />
                 )}
 
-                {isSystem && !['routing_event', 'error', 'system_status', 'plan', 'approval_request', 'team_preview', 'team_execution', 'action_status'].includes(msg.messageType || '') && (
+                {isSystem && msg.messageType === 'hermes_progress' && (
+                  <div
+                    data-testid="hermes-live-progress-event"
+                    style={{
+                      background: 'rgba(147, 51, 234, 0.08)',
+                      border: '1px solid rgba(168, 85, 247, 0.25)',
+                      borderLeft: '3px solid #a855f7',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      margin: '6px 0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: 'rgba(168, 85, 247, 0.2)',
+                          color: '#d8b4fe',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontWeight: 700,
+                          fontSize: '10px',
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase',
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c084fc' }} />
+                          Hermes
+                        </span>
+                        <span style={{ color: '#c084fc', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>
+                          {msg.metadata?.phase || 'EXECUTION'}
+                        </span>
+                        {msg.metadata?.worker && msg.metadata.worker !== 'hermes' && (
+                          <span style={{ color: '#94a3b8', fontSize: '11px' }}>
+                            via {msg.metadata.worker}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>
+                        {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString() : ''}
+                      </span>
+                    </div>
+                    <div style={{ color: '#f1f5f9', fontSize: '13px', lineHeight: '1.45', whiteSpace: 'pre-wrap' }}>
+                      {renderMessageContent(msg.metadata?.message || msg.content)}
+                    </div>
+                    {msg.metadata?.evidenceSummary && (
+                      <div style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px' }}>
+                        {msg.metadata.evidenceSummary}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {isSystem && !['routing_event', 'error', 'system_status', 'plan', 'approval_request', 'team_preview', 'team_execution', 'action_status', 'hermes_progress'].includes(msg.messageType || '') && (
                   <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                     {renderMessageContent(msg.content)}
                   </div>
@@ -1446,6 +1545,54 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
 
                 {!isSystem && (
                   <div style={{ color: isError ? 'var(--color-error)' : 'inherit' }}>
+                    {msg.metadata?.attachments && msg.metadata.attachments.length > 0 && (
+                      <div
+                        data-testid="message-attachments"
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {msg.metadata.attachments.map((att: any) => (
+                          <div
+                            key={att.id || att.name}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid rgba(255, 255, 255, 0.15)',
+                              borderRadius: 8,
+                              padding: '6px 10px',
+                              fontSize: 12,
+                              maxWidth: 260,
+                            }}
+                          >
+                            {att.type?.startsWith('image/') && att.dataUrl ? (
+                              <img
+                                src={att.dataUrl}
+                                alt={att.name}
+                                style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }}
+                              />
+                            ) : att.type?.startsWith('image/') ? (
+                              <ImageIcon size={18} style={{ color: 'var(--color-jarvis, #00d4ff)', flexShrink: 0 }} />
+                            ) : (
+                              <FileText size={18} style={{ color: 'var(--color-jarvis, #00d4ff)', flexShrink: 0 }} />
+                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+                              <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {att.name}
+                              </span>
+                              <span style={{ fontSize: 10, color: 'var(--text-tertiary, #94a3b8)' }}>
+                                {formatFileSize(att.size)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {renderMessageContent(msg.content)}
                   </div>
                 )}

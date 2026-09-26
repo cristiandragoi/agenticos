@@ -142,7 +142,7 @@ export class OllamaGateway implements ModelGateway {
       escalationModel: escalationModel || null
     }));
 
-    const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'llama3.1:8b';
+    const fallbackModel = process.env.OLLAMA_FALLBACK_MODEL || 'qwen3.5:9b-hermes-64k';
     const attempts: { model: string; budget: number }[] = [
       { model: baseModel, budget: baseBudget },
     ];

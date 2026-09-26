@@ -244,10 +244,12 @@ export class JarvisExecutionSupervisor extends EventEmitter {
                     }
                   }
                 } else if (t.worker === 'hermes') {
-                  // Upstream Hermes run cannot be recovered: transition to blocked/failed, release slot, pump queue
+                  // Upstream Hermes run interrupted: transition to blocked with resumable: true, recoveryAction: 'retry'
                   backgroundTaskManager.transition(t.taskId, 'blocked', {
-                    blocker: 'Backend restarted and upstream Hermes run could not be recovered.',
-                    lastError: 'Unrecoverable Hermes run on restart',
+                    resumable: true,
+                    blocker: 'Worker state was interrupted by backend restart. Resume or retry the task to continue.',
+                    lastError: 'Worker state was interrupted by backend restart.',
+                    metadata: { ...(t.metadata || {}), recoveryAction: 'retry' },
                   });
                   void backgroundTaskManager.pumpQueuedForWorker('hermes');
                   this.activeTasks.delete(t.taskId);
@@ -282,7 +284,7 @@ export class JarvisExecutionSupervisor extends EventEmitter {
           await conversationService.appendMessage({
             conversationId: task.conversationId,
             role: 'system',
-            messageType: 'system_status',
+            messageType: (metadata.phase ? 'hermes_progress' : 'system_status') as any,
             content,
             routedAgent: 'jarvis',
             metadata: {
@@ -515,6 +517,24 @@ export class JarvisExecutionSupervisor extends EventEmitter {
         this.recordActivity(e.taskId, 'failed', { failureReason: e.message });
       }
     });
+
+    try {
+      import('../hermes/progressEvents.js').then(({ hermesProgressBus }) => {
+        hermesProgressBus.on('progress', (ev) => {
+          const task = ev.taskId ? this.activeTasks.get(ev.taskId) : null;
+          if (task) {
+            void this.postSupervisorMessage(task, ev.message, ev.type, false, {
+              phase: ev.phase,
+              worker: ev.worker || 'hermes',
+              taskId: ev.taskId,
+              missionId: ev.missionId,
+              eventType: ev.type,
+              evidenceSummary: ev.evidenceSummary,
+            });
+          }
+        });
+      }).catch(() => {});
+    } catch {}
   }
 
   /**

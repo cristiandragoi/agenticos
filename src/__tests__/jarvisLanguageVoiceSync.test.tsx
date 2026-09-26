@@ -55,6 +55,18 @@ class MockAudio {
   pause = vi.fn(function (this: any) { this.paused = true; });
   removeAttribute = vi.fn((a: string) => { if (a === 'src') this.src = ''; });
   load = vi.fn();
+  // HTMLMediaElement listener surface — see registerActiveAudio() (jarvisEngineAuthority).
+  // Without it the throw escapes onplay and aborts the playback-start state machine.
+  private listeners = new Map<string, Array<(...a: unknown[]) => void>>();
+  addEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    const l = this.listeners.get(type) ?? [];
+    l.push(cb);
+    this.listeners.set(type, l);
+  };
+  removeEventListener = (type: string, cb: (...a: unknown[]) => void) => {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter((f) => f !== cb));
+  };
+  currentTime = 0;
   play = vi.fn(function (this: any) {
     const s = this;
     s.paused = false;
@@ -157,7 +169,7 @@ afterEach(() => {
 });
 
 const FAST_VAD = {
-  agentId: 'agent-jarvis',
+  agentId: 'agent-hermes',
   speechThreshold: 0.02,
   minSpeechMs: 0,
   endSpeechSilenceMs: 5,
@@ -165,7 +177,25 @@ const FAST_VAD = {
   bargeInGraceMs: 0,
 };
 
-describe('Jarvis Language & Voice Synchronization Regression Suite', () => {
+/**
+ * LEGACY BROWSER-VAD COVERAGE (non-Jarvis agent mode). This suite drives the
+ * client-side speak() → `/api/voice/tts` language/voice path, which is the LEGACY
+ * architecture: for `agent-jarvis` the client speak path is hard-suppressed
+ * ("[LegacyVoice] Suppressed speak — deactivated for LiveKit replacement") and speech
+ * comes from the server-side LiveKit voice agent, so these assertions would be
+ * vacuous under 'agent-jarvis'. The suite therefore runs a non-Jarvis agent.
+ *
+ * The requirement under test is LANGUAGE → VOICE SYNCHRONISATION: a language change
+ * must invalidate the cached voice config and move TTS to that language's voice (with
+ * no stale voice carried over). Each agent pins its OWN English voice, so the English
+ * expectation is derived from the agent under test and asserted literally below.
+ * Jarvis's own voice identities are covered by the resolveVoiceSessionConfig block
+ * further down (agent-jarvis, per language).
+ */
+const LEGACY_AGENT = 'agent-hermes';
+const EN_VOICE = resolveVoiceSessionConfig(LEGACY_AGENT, null).model;
+
+describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (non-Jarvis agent)', () => {
   it('1. English -> German: updates language, invalidates cache, and uses de-DE-KillianNeural for TTS', async () => {
     const { result, rerender } = renderHook(
       ({ lang, voiceOverride }) =>
@@ -184,7 +214,8 @@ describe('Jarvis Language & Voice Synchronization Regression Suite', () => {
     });
     expect(ttsBodies.length).toBe(1);
     expect(ttsBodies[0].language).toBe('en');
-    expect(ttsBodies[0].voice).toBe('en-GB-RyanNeural');
+    expect(EN_VOICE).toBe('en-GB-ThomasNeural'); // exact, not a wildcard
+    expect(ttsBodies[0].voice).toBe(EN_VOICE);
 
     // Switch language to German
     rerender({ lang: 'de', voiceOverride: null });
@@ -197,7 +228,7 @@ describe('Jarvis Language & Voice Synchronization Regression Suite', () => {
     expect(ttsBodies.length).toBe(2);
     expect(ttsBodies[1].language).toBe('de');
     expect(ttsBodies[1].voice).toBe('de-DE-KillianNeural');
-    expect(ttsBodies[1].voice).not.toBe('en-GB-RyanNeural');
+    expect(ttsBodies[1].voice).not.toBe(EN_VOICE); // no stale English voice carried over
   });
 
   it('2. German -> English: returns to en and uses en-GB-RyanNeural', async () => {
@@ -224,7 +255,7 @@ describe('Jarvis Language & Voice Synchronization Regression Suite', () => {
       await result.current.speak('I am back in English.');
     });
     expect(ttsBodies[1].language).toBe('en');
-    expect(ttsBodies[1].voice).toBe('en-GB-RyanNeural');
+    expect(ttsBodies[1].voice).toBe(EN_VOICE);
   });
 
   it('3. English -> Romanian: updates language and uses ro-RO-EmilNeural for TTS', async () => {

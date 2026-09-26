@@ -20,6 +20,8 @@ import DrawerShell from './DrawerShell';
 import ThinkingOrb from '../ui/ThinkingOrb';
 import { useVoiceIO } from '../../hooks/useVoiceIO';
 import { apiFetch, apiUrl } from '../../api/client';
+import { getActiveJarvisEngine } from '../../lib/jarvisEngineAuthority';
+import { jarvisLiveKitSession } from '../../lib/jarvisLiveKitSession';
 
 export interface AgentResponseReadyDetail {
   messageId: string;
@@ -203,6 +205,10 @@ const JarvisDrawer: React.FC = () => {
     agentId: 'agent-jarvis',
     silenceTimeout: 3500,
     onTranscript: async (text) => {
+      if (getActiveJarvisEngine() === 'v2') {
+        console.log('[JarvisDrawer] Suppressed legacy voice execution because Jarvis V2 is active');
+        return;
+      }
       // Show what was heard in the transcript immediately
       jarvis.addTranscript({
         id: nextTranscriptId('v-usr'),
@@ -286,7 +292,10 @@ const JarvisDrawer: React.FC = () => {
       conversationModeRef.current = true;
       setConversationMode(true);
       setShowBoard(false); // conversation happens in the Chat view
-      const ok = await voiceRef.current?.startConversation();
+      const liveKitPromise = jarvisLiveKitSession.startSession().catch(() => false);
+      const legacyPromise = voiceRef.current?.startConversation ? voiceRef.current.startConversation() : Promise.resolve(false);
+      const [liveKitOk, legacyOk] = await Promise.all([liveKitPromise, legacyPromise]);
+      const ok = liveKitOk || legacyOk;
       if (!ok) {
         conversationModeRef.current = false;
         setConversationMode(false);
@@ -300,7 +309,8 @@ const JarvisDrawer: React.FC = () => {
       convSubmitSeqRef.current++; // invalidate any in-flight conversation turn
       convExecAbortRef.current?.abort();
       convProcessingRef.current = false;
-      voiceRef.current?.endConversation();
+      voiceRef.current?.endConversation?.();
+      await jarvisLiveKitSession.stopSession().catch(() => undefined);
       jarvis.setStatus('idle');
     }
   }, [jarvis]);
