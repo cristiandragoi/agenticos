@@ -28,6 +28,14 @@
 import { spawn as nodeSpawn, execFileSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  writeBackendOwnership,
+  clearBackendOwnership,
+  classifyPortOwner,
+  killProcessTree,
+  waitForPortFree,
+  type PortOwnerClassification,
+} from './processOwnership';
 
 /**
  * Restart INTENT — the contract between the backend and its lifecycle owner.
@@ -74,9 +82,21 @@ function acknowledgeRestartIntent(config: LifecycleConfig, log: (message: string
 export type BackendMode = 'AUTO_MANAGED' | 'EXTERNAL';
 export type BackendStatus = 'starting' | 'ready' | 'reconnecting' | 'offline' | 'failed';
 
+export type StartupWatchdogPhase =
+  | 'STARTING'
+  | 'CHECKING_EXISTING_INSTANCE'
+  | 'CHECKING_BACKEND'
+  | 'ADOPTING_BACKEND'
+  | 'STARTING_BACKEND'
+  | 'WAITING_FOR_HEALTH'
+  | 'READY'
+  | 'FAILED';
+
 export interface BackendLifecycleState {
   mode: BackendMode;
   status: BackendStatus;
+  watchdogPhase?: StartupWatchdogPhase;
+  watchdogEvidence?: Record<string, unknown> | null;
   backendUrl: string;
   port: number;
   /** PID of the backend process — only when Electron owns (spawned) it. */
@@ -134,11 +154,20 @@ export interface LifecycleConfig {
   /** Consecutive health failures before an owned-alive process is recycled. */
   unhealthyTolerance: number;
   logFile: string | null;
+  userDataDir?: string;
+  buildIdentity?: {
+    buildId?: string | null;
+    gitSha?: string | null;
+    buildTimestamp?: string | null;
+  };
 }
 
 export interface LifecycleDeps {
   probe: (url: string, timeoutMs: number) => Promise<ProbeResult>;
   spawnBackend: (config: LifecycleConfig) => BackendChild;
+  classifyPortOwner?: (config: LifecycleConfig, probe: ProbeResult) => Promise<PortOwnerClassification>;
+  killProcessTree?: (pid: number) => boolean;
+  waitForPortFree?: (port: number, timeoutMs?: number) => Promise<boolean>;
   now?: () => number;
   log?: (message: string) => void;
   /** Test hook: schedule a timer (defaults to setTimeout). */
@@ -177,6 +206,8 @@ export function initialState(config: LifecycleConfig): BackendLifecycleState {
   return {
     mode: config.mode,
     status: 'starting',
+    watchdogPhase: 'STARTING',
+    watchdogEvidence: null,
     backendUrl: `http://${config.host}:${config.port}`,
     port: config.port,
     pid: null,
@@ -345,10 +376,15 @@ export function createBackendLifecycleManager(
     scheduleSpawn(delay);
   }
 
-  function fail(reason: string) {
+  function fail(reason: string, evidence?: Record<string, unknown>) {
     stopMonitor();
     if (readinessDeadline !== null) { clearTimeoutFn(readinessDeadline); readinessDeadline = null; }
-    emit({ status: 'failed', lastError: reason });
+    emit({
+      status: 'failed',
+      watchdogPhase: 'FAILED',
+      ...(evidence !== undefined ? { watchdogEvidence: evidence } : {}),
+      lastError: reason,
+    });
     logLine(`[lifecycle] FAILED: ${reason}`);
     // Keep a slow health re-probe so a genuinely-recovered backend is adopted
     // truthfully (see failedRecoveryTick). The slow cadence guarantees the
@@ -382,7 +418,7 @@ export function createBackendLifecycleManager(
     }
     spawnInFlight = false;
     child = spawned;
-    emit({ pid: spawned.pid ?? null, owned: true, startedAt: now(), readinessMs: null });
+    emit({ pid: spawned.pid ?? null, owned: true, startedAt: now(), watchdogPhase: 'WAITING_FOR_HEALTH', readinessMs: null });
     if (spawned.stdout) spawned.stdout.on('data', (d: Buffer | string) => appendLog(String(d), 'stdout'));
     if (spawned.stderr) spawned.stderr.on('data', (d: Buffer | string) => appendLog(String(d), 'stderr'));
     spawned.on('exit', (code: unknown, signal: unknown) => {
@@ -427,14 +463,32 @@ export function createBackendLifecycleManager(
       const elapsed = Math.round((now() - startedAt) / 1000);
       discardNextExit = true;
       killChild();
-      done({ status: 'failed', lastError: `Backend did not become healthy within ${elapsed}s (readiness timeout).` });
+      done({ status: 'failed', watchdogPhase: 'FAILED', lastError: `Backend did not become healthy within ${elapsed}s (readiness timeout).` });
     }, config.readyTimeoutMs);
 
     while (!settled && !shuttingDown) {
       const probe = await probeOnce();
       if (settled || gen !== readinessGen || child !== myChild) return;
       if (probe.healthy) {
-        done({ status: 'ready', lastHealthSuccessAt: now(), readinessMs: now() - startedAt, lastError: null });
+        if (config.userDataDir && myChild.pid) {
+          writeBackendOwnership(config.userDataDir, {
+            parentPid: process.pid,
+            parentExecPath: process.execPath,
+            pid: myChild.pid,
+            entry: config.entry,
+            cwd: config.cwd,
+            port: config.port,
+            startedAt,
+            buildIdentity: config.buildIdentity,
+          });
+        }
+        done({
+          status: 'ready',
+          watchdogPhase: 'READY',
+          lastHealthSuccessAt: now(),
+          readinessMs: now() - startedAt,
+          lastError: null,
+        });
         logLine(`[lifecycle] backend READY in ${now() - startedAt}ms`);
         // The replacement backend is answering healthy: only NOW is an intentional
         // restart acknowledged and its intent consumed. A respawn that never
@@ -463,7 +517,7 @@ export function createBackendLifecycleManager(
     if (probe.healthy) {
       consecutiveHealthFailures = 0;
       if (state.status !== 'ready') {
-        emit({ status: 'ready', lastHealthSuccessAt: now(), lastError: null, ...(state.startedAt ? {} : { startedAt: now() }) });
+        emit({ status: 'ready', watchdogPhase: 'READY', lastHealthSuccessAt: now(), lastError: null, ...(state.startedAt ? {} : { startedAt: now() }) });
         logLine('[lifecycle] backend became READY (health recovered)');
       } else {
         emit({ lastHealthSuccessAt: now() });
@@ -498,14 +552,32 @@ export function createBackendLifecycleManager(
       scheduleSpawn(200);
       return;
     }
+
     // No owned process (adopted backend died, or never spawned).
-    const portProbe = probe;
-    if (portProbe.reachable && !portProbe.healthy) {
-      fail(`Port ${config.port} is occupied but the AgenticOS health check failed (${describeProbe(portProbe)}). Another process is bound to the backend port.`);
+    const classifier = deps.classifyPortOwner ?? ((cfg, prb) =>
+      classifyPortOwner({ port: cfg.port, userDataDir: cfg.userDataDir || '', entry: cfg.entry }, prb)
+    );
+    const classification = await classifier(config, probe);
+    if (classification.type === 'HEALTHY_AGENTICOS_BACKEND') {
+      emit({ status: 'ready', watchdogPhase: 'READY', owned: false, pid: classification.pid ?? null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
       return;
     }
+    if (classification.type === 'FOREIGN_PROCESS') {
+      const pInfo = classification.processInfo;
+      fail(`Port ${config.port} is occupied (${describeProbe(probe)}) by foreign process (PID: ${pInfo.pid}, Name: ${pInfo.name || 'unknown'}, Executable: ${pInfo.executablePath || 'unknown'}). AgenticOS will not terminate unrelated processes.`, { foreignPid: pInfo.pid, processInfo: pInfo });
+      return;
+    }
+    if (classification.type === 'STALE_AGENTICOS_BACKEND') {
+      logLine(`[lifecycle] STALE_AGENTICOS_BACKEND detected on health tick (PID: ${classification.pid}). Terminating...`);
+      const killFn = deps.killProcessTree ?? killProcessTree;
+      killFn(classification.pid);
+      if (config.userDataDir) clearBackendOwnership(config.userDataDir);
+      const waitFn = deps.waitForPortFree ?? waitForPortFree;
+      await waitFn(config.port, 5000);
+    }
+
     // Port free → start our own backend (adoption ended or first start).
-    emit({ owned: false, restartCount: state.restartCount });
+    emit({ owned: false, restartCount: state.restartCount, watchdogPhase: 'STARTING_BACKEND' });
     void spawnAndWaitForReadiness();
   }
 
@@ -524,7 +596,7 @@ export function createBackendLifecycleManager(
     const probe = await probeOnce();
     if (shuttingDown) return;
     if (probe.healthy) {
-      emit({ status: 'ready', owned: false, pid: null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
+      emit({ status: 'ready', watchdogPhase: 'READY', owned: false, pid: null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
       logLine('[lifecycle] failed → adopted externally healthy backend (health recovered)');
       stopMonitor();
       startMonitor();
@@ -534,30 +606,85 @@ export function createBackendLifecycleManager(
   }
 
   async function start(): Promise<void> {
-    emit({ mode: config.mode, status: 'starting', lastError: null });
+    emit({ mode: config.mode, status: 'starting', watchdogPhase: 'CHECKING_BACKEND', lastError: null });
     logLine(`[lifecycle] start (mode=${config.mode}, port=${config.port}, entry=${config.entry})`);
     const probe = await probeOnce();
 
-    if (probe.healthy) {
-      // Adopt the already-running backend — never spawn a duplicate.
-      emit({ status: 'ready', owned: false, pid: null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
-      logLine('[lifecycle] adopted existing healthy backend (no duplicate spawned)');
-      startMonitor();
-      return;
-    }
-
-    if (probe.reachable && !probe.healthy) {
-      fail(`Port ${config.port} is occupied but the AgenticOS health check failed (${describeProbe(probe)}). Another process is bound to the backend port — AgenticOS will not spawn a second backend.`);
-      return;
-    }
-
     if (config.mode === 'EXTERNAL') {
-      emit({ status: 'offline', lastError: 'Waiting for external backend — start the backend manually or use dev-clean.ps1.' });
+      if (probe.healthy) {
+        emit({ status: 'ready', watchdogPhase: 'READY', owned: false, pid: null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
+        logLine('[lifecycle] adopted existing healthy backend (EXTERNAL mode)');
+        startMonitor();
+        return;
+      }
+      emit({ status: 'offline', watchdogPhase: 'WAITING_FOR_HEALTH', lastError: 'Waiting for external backend — start the backend manually or use dev-clean.ps1.' });
       startMonitor();
       return;
     }
 
-    await spawnAndWaitForReadiness();
+    // AUTO_MANAGED mode
+    const classifier = deps.classifyPortOwner ?? ((cfg, prb) =>
+      classifyPortOwner({ port: cfg.port, userDataDir: cfg.userDataDir || '', entry: cfg.entry }, prb)
+    );
+    const classification = await classifier(config, probe);
+    logLine(`[lifecycle] port classification on :${config.port} → ${classification.type}`);
+
+    switch (classification.type) {
+      case 'HEALTHY_AGENTICOS_BACKEND': {
+        emit({
+          status: 'ready',
+          watchdogPhase: 'READY',
+          owned: false,
+          pid: classification.pid ?? null,
+          lastHealthSuccessAt: now(),
+          lastError: null,
+          startedAt: now(),
+        });
+        logLine('[lifecycle] adopted existing healthy backend (no duplicate spawned)');
+        startMonitor();
+        return;
+      }
+
+      case 'FREE_PORT': {
+        emit({ watchdogPhase: 'STARTING_BACKEND' });
+        await spawnAndWaitForReadiness();
+        return;
+      }
+
+      case 'STALE_AGENTICOS_BACKEND': {
+        logLine(`[lifecycle] STALE_AGENTICOS_BACKEND detected (PID: ${classification.pid}, reason: ${classification.reason}). Terminating stale backend...`);
+        emit({
+          watchdogPhase: 'CHECKING_BACKEND',
+          watchdogEvidence: { stalePid: classification.pid, reason: classification.reason },
+        });
+
+        const killFn = deps.killProcessTree ?? killProcessTree;
+        killFn(classification.pid);
+
+        if (config.userDataDir) {
+          clearBackendOwnership(config.userDataDir);
+        }
+
+        const waitFn = deps.waitForPortFree ?? waitForPortFree;
+        const freed = await waitFn(config.port, 5000);
+        if (!freed) {
+          logLine(`[lifecycle] Warning: port ${config.port} not released after 5s; proceeding with spawn attempt`);
+        } else {
+          logLine(`[lifecycle] port ${config.port} successfully freed`);
+        }
+
+        emit({ watchdogPhase: 'STARTING_BACKEND' });
+        await spawnAndWaitForReadiness();
+        return;
+      }
+
+      case 'FOREIGN_PROCESS': {
+        const pInfo = classification.processInfo;
+        const msg = `Port ${config.port} is occupied (${describeProbe(probe)}) by foreign process (PID: ${pInfo.pid}, Name: ${pInfo.name || 'unknown'}, Executable: ${pInfo.executablePath || 'unknown'}). AgenticOS will not terminate unrelated processes.`;
+        fail(msg, { foreignPid: pInfo.pid, processInfo: pInfo });
+        return;
+      }
+    }
   }
 
   async function shutdown(): Promise<void> {
@@ -570,6 +697,9 @@ export function createBackendLifecycleManager(
       const target = child;
       child = null;
       logLine(`[lifecycle] shutting down owned backend pid=${target.pid ?? '?'}`);
+      if (config.userDataDir) {
+        clearBackendOwnership(config.userDataDir);
+      }
       if (target.pid && process.platform === 'win32') {
         try {
           execFileSync('taskkill', ['/F', '/T', '/PID', String(target.pid)], { windowsHide: true, stdio: 'ignore' });
@@ -615,22 +745,45 @@ export function createBackendLifecycleManager(
     void (async () => {
       if (recoveryTimer !== null) { clearIntervalFn(recoveryTimer); recoveryTimer = null; }
       if (child) { userRestartPending = true; killChild(); return; }
-      emit({ status: 'starting' });
+      emit({ status: 'starting', watchdogPhase: 'CHECKING_BACKEND' });
       const probe = await probeOnce();
-      if (probe.healthy) {
-        emit({ status: 'ready', owned: false, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
-        startMonitor();
-        return;
-      }
-      if (probe.reachable && !probe.healthy) {
-        fail(`Port ${config.port} is occupied but the AgenticOS health check failed (${describeProbe(probe)}).`);
-        return;
-      }
       if (config.mode === 'EXTERNAL') {
-        emit({ status: 'offline', lastError: 'Waiting for external backend.' });
+        if (probe.healthy) {
+          emit({ status: 'ready', watchdogPhase: 'READY', owned: false, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
+          startMonitor();
+          return;
+        }
+        emit({ status: 'offline', watchdogPhase: 'WAITING_FOR_HEALTH', lastError: 'Waiting for external backend.' });
         startMonitor();
         return;
       }
+
+      const classifier = deps.classifyPortOwner ?? ((cfg, prb) =>
+        classifyPortOwner({ port: cfg.port, userDataDir: cfg.userDataDir || '', entry: cfg.entry }, prb)
+      );
+      const classification = await classifier(config, probe);
+      if (classification.type === 'HEALTHY_AGENTICOS_BACKEND') {
+        emit({ status: 'ready', watchdogPhase: 'READY', owned: false, pid: classification.pid ?? null, lastHealthSuccessAt: now(), lastError: null, startedAt: now() });
+        startMonitor();
+        return;
+      }
+      if (classification.type === 'STALE_AGENTICOS_BACKEND') {
+        logLine(`[lifecycle] retry: STALE_AGENTICOS_BACKEND detected (PID: ${classification.pid}). Terminating...`);
+        const killFn = deps.killProcessTree ?? killProcessTree;
+        killFn(classification.pid);
+        if (config.userDataDir) clearBackendOwnership(config.userDataDir);
+        const waitFn = deps.waitForPortFree ?? waitForPortFree;
+        await waitFn(config.port, 5000);
+        emit({ watchdogPhase: 'STARTING_BACKEND' });
+        await spawnAndWaitForReadiness();
+        return;
+      }
+      if (classification.type === 'FOREIGN_PROCESS') {
+        const pInfo = classification.processInfo;
+        fail(`Port ${config.port} is occupied (${describeProbe(probe)}) by foreign process (PID: ${pInfo.pid}, Name: ${pInfo.name || 'unknown'}, Executable: ${pInfo.executablePath || 'unknown'}). AgenticOS will not terminate unrelated processes.`, { foreignPid: pInfo.pid, processInfo: pInfo });
+        return;
+      }
+      emit({ watchdogPhase: 'STARTING_BACKEND' });
       await spawnAndWaitForReadiness();
     })();
     return { ok: true };

@@ -10,6 +10,7 @@ import {
   type BackendLifecycleManager,
   type BackendMode,
 } from './backendLifecycle';
+import { resolveSingleInstanceConflict } from './processOwnership';
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -103,21 +104,22 @@ function logElectron(message: string, data?: unknown) {
  */
 function initBackendLifecycle(): BackendLifecycleManager {
   const appRoot = process.env.APP_ROOT as string;
-  // Packaged mode: the backend runtime ships under resources/server (via
+  const isInstalledApp = app.isPackaged || !process.defaultApp || path.basename(process.execPath).toLowerCase().startsWith('agenticos');
+  // Packaged / installed mode: the backend runtime ships under resources/server (via
   // electron-builder extraResources), NOT inside resources/app — native
   // node_modules must live outside the app dir. Dev mode: repo root.
-  const backendRoot = app.isPackaged ? process.resourcesPath : appRoot;
+  const backendRoot = isInstalledApp ? process.resourcesPath : appRoot;
   const port = process.env['AGENTICOS_BACKEND_PORT']
     ? parseInt(process.env['AGENTICOS_BACKEND_PORT'], 10)
     : readPortFromServerEnv(backendRoot, 4600);
 
   // Authoritative production data location: app.getPath('userData')
   const userDataDir = app.getPath('userData');
-  const canonicalDataDir = app.isPackaged
+  const canonicalDataDir = isInstalledApp
     ? path.join(userDataDir, 'data')
     : (process.env['AGENTICOS_DATA_DIR'] || path.join(appRoot, 'server', 'data'));
   const canonicalDbPath = path.join(canonicalDataDir, 'agentic-os.db');
-  const legacyDataDir = app.isPackaged
+  const legacyDataDir = isInstalledApp
     ? path.join(process.resourcesPath, 'server', 'data')
     : null;
 
@@ -129,8 +131,23 @@ function initBackendLifecycle(): BackendLifecycleManager {
     AGENT_TEAMS_DB_PATH: canonicalDbPath,
     AGENTICOS_USER_DATA_DIR: userDataDir,
     ...(legacyDataDir ? { AGENTICOS_LEGACY_DATA_DIR: legacyDataDir } : {}),
-    AGENTICOS_IS_PACKAGED: app.isPackaged ? 'true' : 'false',
+    AGENTICOS_IS_PACKAGED: isInstalledApp ? 'true' : 'false',
   };
+
+  let buildIdentity: { buildId?: string | null; gitSha?: string | null; buildTimestamp?: string | null } = {};
+  try {
+    const candidates = [
+      path.join(isInstalledApp ? process.resourcesPath : appRoot, 'server', 'dist', 'build-identity.json'),
+      path.join(appRoot, 'server', 'dist', 'build-identity.json'),
+      path.join(appRoot, 'server', 'src', 'build-identity.json'),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        buildIdentity = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+        break;
+      }
+    }
+  } catch { /* best-effort */ }
 
   const manager = createBackendLifecycleManager({
     mode: BACKEND_MODE,
@@ -154,7 +171,9 @@ function initBackendLifecycle(): BackendLifecycleManager {
     crashThreshold: 3,
     crashWindowMs: 60000,
     unhealthyTolerance: 4,
-    logFile: path.join(app.isPackaged ? userDataDir : appRoot, '.agentos', 'logs', 'backend-managed.log'),
+    logFile: path.join(isInstalledApp ? userDataDir : appRoot, '.agentos', 'logs', 'backend-managed.log'),
+    userDataDir,
+    buildIdentity,
   }, {
     probe: httpHealthProbe,
     spawnBackend: spawnBackendWithElectronNode,
@@ -392,6 +411,17 @@ ipcMain.on('agenticos:renderer-diagnostics', (_event, payload) => {
 
 // ── Backend lifecycle IPC (one state machine feeds every UI surface) ──
 ipcMain.handle('backend-lifecycle:get-state', () => backendLifecycle?.getState() ?? null);
+ipcMain.handle('watchdog:get-state', () => {
+  const lifecycleState = backendLifecycle?.getState();
+  return {
+    watchdogPhase: lifecycleState?.watchdogPhase ?? 'STARTING',
+    watchdogEvidence: lifecycleState?.watchdogEvidence ?? null,
+    backendStatus: lifecycleState?.status ?? 'starting',
+    port: lifecycleState?.port ?? 4600,
+    pid: lifecycleState?.pid ?? null,
+    owned: lifecycleState?.owned ?? false,
+  };
+});
 ipcMain.handle('backend-lifecycle:restart', () => backendLifecycle?.restart() ?? { ok: false, reason: 'Lifecycle manager not initialized.' });
 ipcMain.handle('backend-lifecycle:retry', () => backendLifecycle?.retry() ?? { ok: false, reason: 'Lifecycle manager not initialized.' });
 ipcMain.handle('electron:get-identity', () => {
@@ -476,7 +506,8 @@ app.on('before-quit', (event) => {
   });
 });
 
-if (app.isPackaged) {
+const isInstalledApp = app.isPackaged || !process.defaultApp || path.basename(process.execPath).toLowerCase().startsWith('agenticos');
+if (isInstalledApp) {
   app.setName('AgenticOS');
   app.setPath('userData', path.join(app.getPath('appData'), 'AgenticOS'));
 } else {
@@ -484,13 +515,29 @@ if (app.isPackaged) {
   app.setPath('userData', path.join(app.getPath('appData'), 'AgenticOS-dev'));
 }
 
-logElectron(`userData initialized: ${app.getPath('userData')} (isPackaged=${app.isPackaged})`);
+logElectron(`userData initialized: ${app.getPath('userData')} (isPackaged=${app.isPackaged}, isInstalledApp=${isInstalledApp})`);
 
+logElectron('[watchdog] Phase: CHECKING_EXISTING_INSTANCE');
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
-  logElectron('Another instance is already running. Quitting this instance immediately.');
-  app.exit(0);
+  logElectron('[watchdog] requestSingleInstanceLock returned false — investigating instance ownership...');
+  const resolution = resolveSingleInstanceConflict({
+    execPath: process.execPath,
+    currentPid: process.pid,
+    userDataDir: app.getPath('userData'),
+    log: (msg) => logElectron(msg),
+  });
+
+  if (resolution.action === 'RELAUNCHED_AFTER_STALE_CLEANUP') {
+    logElectron('[watchdog] Stale instance ownership recovered. Scheduling clean relaunch of AgenticOS...', resolution.evidence);
+    app.relaunch();
+    app.exit(0);
+  } else {
+    logElectron('[watchdog] Verified healthy AgenticOS instance is already running. Exiting secondary launcher.', resolution.evidence);
+    app.exit(0);
+  }
 } else {
+  logElectron('[watchdog] Single-instance lock acquired successfully. Primary instance established.');
   app.on('second-instance', () => {
     logElectron('Second instance requested. Focusing or creating window.');
     if (win && !win.isDestroyed()) {
