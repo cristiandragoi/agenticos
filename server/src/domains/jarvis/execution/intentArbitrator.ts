@@ -87,6 +87,11 @@ export interface IntentArbitrationDecision {
     projectName: string;
     projectId?: string;
   };
+  workerPlan?: {
+    action: 'start' | 'status' | 'cancel' | 'resume' | 'result';
+    goal?: string;
+    taskId?: string;
+  };
   conversationalPlan?: {
     type: 'status_query' | 'constraint_stay' | 'reflection' | 'general';
     response?: string;
@@ -188,6 +193,8 @@ export class IntentArbitrator {
       selectedRoute = 'desktop';
     } else if (capId.startsWith('git.') || capId.startsWith('developer.')) {
       selectedRoute = 'engineering';
+    } else if (capId.startsWith('worker.')) {
+      selectedRoute = 'engineering';
     } else if (capId.startsWith('memory.')) {
       selectedRoute = 'memory';
     } else if (capId.startsWith('project.') || capId.startsWith('agenticos.')) {
@@ -221,9 +228,18 @@ export class IntentArbitrator {
           unified.candidates['developer.open_repository']?.score || 0,
           unified.candidates['git.status']?.score || 0,
           unified.candidates['git.diff']?.score || 0,
-          unified.candidates['git.log']?.score || 0
+          unified.candidates['git.log']?.score || 0,
+          unified.candidates['worker.start']?.score || 0,
+          unified.candidates['worker.status']?.score || 0,
+          unified.candidates['worker.cancel']?.score || 0,
+          unified.candidates['worker.result']?.score || 0
         ),
-        reason: unified.candidates['developer.run_tests']?.reason || unified.candidates['git.status']?.reason || 'Engineering/code/git capability',
+        reason: unified.candidates['worker.start']?.reason ||
+                unified.candidates['worker.status']?.reason ||
+                unified.candidates['worker.cancel']?.reason ||
+                unified.candidates['worker.result']?.reason ||
+                unified.candidates['developer.run_tests']?.reason ||
+                unified.candidates['git.status']?.reason || 'Engineering/code/git/worker capability',
       },
       'desktop': {
         score: Math.max(
@@ -294,6 +310,7 @@ export class IntentArbitrator {
       gitPlan: unified.gitPlan,
       developerPlan: unified.developerPlan,
       projectPlan: unified.projectPlan,
+      workerPlan: (unified as any).workerPlan,
       conversationalPlan: unified.conversationalPlan,
     } as any;
   }

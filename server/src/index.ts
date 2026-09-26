@@ -323,6 +323,8 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/routing', routingRouter);
 app.use('/api/execution', executionRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
+import { localWorkerRouter } from './routers/localWorker.js';
+app.use('/api/worker', localWorkerRouter);
 app.use('/api/diagnostics/runtime', runtimeDiagnosticsRouter);
 app.use('/api/project-execution', projectExecutionRouter);
 app.use('/api/mcp-bridge', mcpBridgeRouter);

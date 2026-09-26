@@ -40,6 +40,7 @@ import { gitExecutor } from './executors/gitExecutor.js';
 import { filesystemExecutor } from './executors/filesystemExecutor.js';
 import { internalAgenticOSExecutor } from './executors/internalAgenticOSExecutor.js';
 import { engineeringExecutor } from './executors/engineeringExecutor.js';
+import { localWorkerManager } from '../../localWorker/localWorkerManager.js';
 import { selfHealBridge } from './selfHealBridge.js';
 import {
   detectExplicitSystemCommand,
@@ -1472,6 +1473,184 @@ export class UniversalExecutionController {
         conversationMode: 'COMMAND',
         parsedIntent: `filesystem_${fsAction}`,
         activeTool: 'filesystemExecutor',
+        completionState: isVerified ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 13. LOCAL WORKER OPERATIONS (worker.start, worker.status, worker.cancel, worker.resume, worker.result)
+    // "Delegate to a local worker: Inspect D:\AgenticOS..."
+    // "What happened with the worker?" / "Stop that task."
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId.startsWith('worker.') || actionIntent.capability?.startsWith('worker.')) {
+      await browserOperator.blurActiveElement();
+      const workerAction = (capId.replace('worker.', '') || 'start') as 'start' | 'status' | 'cancel' | 'resume' | 'result';
+      const storedTaskId = sessionWorkingState.get(conversationId).lastWorkerTaskId;
+      let targetTaskId = (actionIntent.metadata?.taskId as string) || (arbitration as any).workerPlan?.taskId || storedTaskId;
+
+      let speech = '';
+      let isVerified = false;
+      let execRes: any = { success: false };
+
+      if (workerAction === 'start') {
+        const rawGoal = (actionIntent.metadata?.goal as string) ||
+                        (arbitration as any).workerPlan?.goal ||
+                        actionIntent.targetName ||
+                        commandText.replace(/^(delegate to a local worker:?|ask a worker to|let a worker|delegate to worker)\s*/i, '').trim();
+
+        input.onProgress?.({
+          type: 'ACTION_STARTED',
+          lifecycle: 'ACTION_STARTED',
+          stage: 'ACTION_STARTED',
+          status: 'in_progress',
+          currentStep: `Starting local worker task: "${rawGoal}"`,
+          text: `Starting worker for: ${rawGoal}`,
+        });
+
+        const task = await localWorkerManager.startTask(rawGoal);
+        sessionWorkingState.update(conversationId, { lastWorkerTaskId: task.id });
+        targetTaskId = task.id;
+
+        // Bounded wait for short tasks (up to 15 seconds) so user gets immediate truthful result if completed/blocked/failed
+        const startTime = Date.now();
+        let currentTask = task;
+        while (Date.now() - startTime < 15000) {
+          const t = localWorkerManager.getTask(task.id);
+          if (!t) break;
+          currentTask = t;
+          if (t.status !== 'running' && t.status !== 'planning') {
+            break;
+          }
+          await new Promise(r => setTimeout(r, 250));
+        }
+
+        if (currentTask.status === 'completed') {
+          isVerified = true;
+          execRes = { success: true, task: currentTask, result: currentTask.result };
+          speech = currentTask.result?.summary || `Worker task completed successfully.`;
+        } else if (currentTask.status === 'awaiting_approval') {
+          isVerified = true;
+          execRes = { success: true, task: currentTask, awaitingApproval: true };
+          const stepDesc = currentTask.plan[currentTask.currentStep]?.description || 'current step';
+          speech = `Worker task ${currentTask.id} is paused awaiting approval to ${stepDesc}.`;
+        } else if (currentTask.status === 'failed') {
+          isVerified = false;
+          execRes = { success: false, task: currentTask, error: currentTask.result?.summary };
+          speech = currentTask.result?.summary || `Worker task ${currentTask.id} failed.`;
+        } else if (currentTask.status === 'cancelled') {
+          isVerified = false;
+          execRes = { success: false, task: currentTask, cancelled: true };
+          speech = `Worker task ${currentTask.id} was cancelled.`;
+        } else {
+          // Still running (long-running task)
+          isVerified = true;
+          execRes = { success: true, task: currentTask, inProgress: true };
+          speech = `Worker task ${currentTask.id} started. It has executed ${currentTask.currentStep} of ${currentTask.plan.length} steps.`;
+        }
+      } else if (workerAction === 'cancel') {
+        if (!targetTaskId) {
+          speech = 'There is no active worker task to cancel.';
+          isVerified = false;
+        } else {
+          const cancelledTask = await localWorkerManager.cancelTask(targetTaskId);
+          if (cancelledTask) {
+            isVerified = true;
+            execRes = { success: true, task: cancelledTask };
+            speech = `Worker task ${targetTaskId} has been cancelled.`;
+          } else {
+            isVerified = false;
+            speech = `Worker task ${targetTaskId} could not be cancelled.`;
+          }
+        }
+      } else if (workerAction === 'status') {
+        if (!targetTaskId) {
+          speech = 'No worker task has been run yet in this session.';
+          isVerified = false;
+        } else {
+          const t = localWorkerManager.getTask(targetTaskId);
+          if (t) {
+            isVerified = true;
+            execRes = { success: true, task: t };
+            if (t.status === 'completed') {
+              speech = `Worker task ${t.id} completed. ${t.result?.summary || ''}`;
+            } else if (t.status === 'failed') {
+              speech = `Worker task ${t.id} failed. ${t.result?.summary || ''}`;
+            } else if (t.status === 'awaiting_approval') {
+              speech = `Worker task ${t.id} is awaiting approval for step: ${t.plan[t.currentStep]?.description}.`;
+            } else if (t.status === 'cancelled') {
+              speech = `Worker task ${t.id} was cancelled.`;
+            } else {
+              speech = `Worker task ${t.id} is ${t.status}, currently on step ${t.currentStep + 1} of ${t.plan.length}.`;
+            }
+          } else {
+            isVerified = false;
+            speech = `Could not find worker task ${targetTaskId}.`;
+          }
+        }
+      } else if (workerAction === 'result') {
+        if (!targetTaskId) {
+          speech = 'No worker task found to retrieve results for.';
+          isVerified = false;
+        } else {
+          const res = localWorkerManager.getTaskResult(targetTaskId);
+          const t = localWorkerManager.getTask(targetTaskId);
+          if (res || t) {
+            isVerified = res?.success === true;
+            execRes = { success: isVerified, result: res, task: t };
+            speech = res?.summary || (t ? `Worker task is ${t.status}.` : 'No result available.');
+          } else {
+            isVerified = false;
+            speech = `No result found for worker task ${targetTaskId}.`;
+          }
+        }
+      } else if (workerAction === 'resume') {
+        if (!targetTaskId) {
+          speech = 'No worker task to resume.';
+          isVerified = false;
+        } else {
+          const resTask = await localWorkerManager.resumeTask(targetTaskId);
+          if (resTask) {
+            isVerified = true;
+            execRes = { success: true, task: resTask };
+            speech = `Resumed worker task ${targetTaskId}.`;
+          } else {
+            isVerified = false;
+            speech = `Could not resume worker task ${targetTaskId}.`;
+          }
+        }
+      }
+
+      input.onProgress?.({
+        type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: isVerified ? 'completed' : 'failed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: `worker_${workerAction}`,
+        goalDescription: `Worker ${workerAction} execution`,
+        route: 'engineering' as any,
+        plan: {
+          goalId: `worker_${workerAction}`,
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: execRes,
+        verification: { verified: isVerified, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: `worker_${workerAction}`,
+        activeTool: 'localWorkerManager',
         completionState: isVerified ? 'COMPLETED' : 'FAILED',
       });
     }

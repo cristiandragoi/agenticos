@@ -100,6 +100,26 @@ const LeftRail: React.FC = () => {
           {!collapsed && <span className="font-medium text-cyan-500/90 tracking-wide">MEMORY</span>}
         </NavLink>
 
+        {/* WORKERS section */}
+        <div className="nav-section-label" style={{ marginTop: 4 }}>
+          {collapsed ? <Cpu size={14} /> : 'WORKERS'}
+        </div>
+        <NavLink
+          to="/workers"
+          data-testid="nav-local-workers"
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          title="Local Workers"
+        >
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-cyan-500/30 bg-cyan-500/10">
+            <Cpu size={12} className="text-cyan-400" />
+          </div>
+          {!collapsed && (
+            <span className="font-medium text-cyan-400/90 tracking-wide" style={{ flex: 1 }}>
+              LOCAL WORKERS
+            </span>
+          )}
+        </NavLink>
+
         {/* PROJECTS section */}
         <div className="nav-section-label" style={{ marginTop: 4 }}>
           {collapsed ? <FolderOpen size={14} /> : 'PROJECTS'}

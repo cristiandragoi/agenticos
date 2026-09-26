@@ -49,6 +49,7 @@ export type ActionVerb =
   | 'publish'
   | 'inspect'
   | 'navigate'
+  | 'cancel'
   | 'unknown';
 
 export type TargetType =
@@ -64,6 +65,7 @@ export type TargetType =
   | 'process'
   | 'repository'
   | 'service'
+  | 'worker_task'
   | 'internal_agenticos'
   | 'unknown';
 
@@ -554,6 +556,58 @@ export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
     confirmationPolicy: 'never',
   },
 
+  // ── Worker Family ───────────────────────────────────────────────────────────
+  'worker.start': {
+    id: 'worker.start',
+    displayName: 'Local Worker Start',
+    acceptedTargetTypes: ['worker_task'],
+    requiredPermissions: ['worker_execution'],
+    executor: 'localWorkerManager',
+    verificationMethod: 'verify_task_started',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'worker.status': {
+    id: 'worker.status',
+    displayName: 'Local Worker Status',
+    acceptedTargetTypes: ['worker_task'],
+    requiredPermissions: ['worker_read'],
+    executor: 'localWorkerManager',
+    verificationMethod: 'verify_task_status',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'worker.cancel': {
+    id: 'worker.cancel',
+    displayName: 'Local Worker Cancel',
+    acceptedTargetTypes: ['worker_task'],
+    requiredPermissions: ['worker_execution'],
+    executor: 'localWorkerManager',
+    verificationMethod: 'verify_task_cancelled',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'worker.resume': {
+    id: 'worker.resume',
+    displayName: 'Local Worker Resume / Approve',
+    acceptedTargetTypes: ['worker_task'],
+    requiredPermissions: ['worker_execution'],
+    executor: 'localWorkerManager',
+    verificationMethod: 'verify_task_resumed',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'worker.result': {
+    id: 'worker.result',
+    displayName: 'Local Worker Result',
+    acceptedTargetTypes: ['worker_task'],
+    requiredPermissions: ['worker_read'],
+    executor: 'localWorkerManager',
+    verificationMethod: 'verify_task_result',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+
   // ── Internal & Conversation ─────────────────────────────────────────────────
   'agenticos.internal': {
     id: 'agenticos.internal',
@@ -658,6 +712,11 @@ export interface UnifiedOrchestrationDecision {
     action: 'delete' | 'open' | 'update';
     projectName: string;
     projectId?: string;
+  };
+  workerPlan?: {
+    action: 'start' | 'status' | 'cancel' | 'resume' | 'result';
+    goal?: string;
+    taskId?: string;
   };
   conversationalPlan?: {
     type: 'status_query' | 'constraint_stay' | 'reflection' | 'general';
@@ -822,13 +881,90 @@ export class UnifiedActionOrchestrator {
     let gitPlan: UnifiedOrchestrationDecision['gitPlan'];
     let developerPlan: UnifiedOrchestrationDecision['developerPlan'];
     let projectPlan: UnifiedOrchestrationDecision['projectPlan'];
+    let workerPlan: UnifiedOrchestrationDecision['workerPlan'];
     let conversationalPlan: UnifiedOrchestrationDecision['conversationalPlan'];
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 0: LOCAL WORKER OPERATIONS
+    // "Delegate to a local worker: Inspect D:\AgenticOS and tell me..."
+    // "Ask a worker to ..." / "Let a worker ..."
+    // "What happened with the worker?" / "Stop that task"
+    // ─────────────────────────────────────────────────────────────────────────
+    if (
+      /\b(?:delegate\s+(?:this\s+)?to\s+(?:a\s+)?local\s+worker|ask\s+a\s+(?:local\s+)?worker\s+to|let\s+a\s+(?:local\s+)?worker|have\s+a\s+(?:local\s+)?worker)\b/i.test(effectiveLower)
+    ) {
+      const goalMatch = effectivePrompt.match(/\b(?:delegate\s+(?:this\s+)?to\s+(?:a\s+)?local\s+worker[:\s]*|ask\s+a\s+(?:local\s+)?worker\s+to\s+|let\s+a\s+(?:local\s+)?worker\s+|have\s+a\s+(?:local\s+)?worker\s+)([\s\S]+)$/i);
+      const goal = goalMatch ? goalMatch[1].trim() : cleanPrompt;
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'worker_task',
+        targetName: goal,
+        capability: 'worker.start',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { goal },
+      };
+
+      candidates['worker.start'] = { score: 0.99, reason: `Direct local worker delegation: "${goal}"` };
+      workerPlan = { action: 'start', goal };
+    }
+    else if (/\b(?:what\s+happened\s+with\s+the\s+worker|worker\s+status|check\s+(?:the\s+)?worker|how\s+is\s+the\s+worker\s+doing)\b/i.test(effectiveLower)) {
+      actionIntent = {
+        mode: 'execute',
+        verb: 'inspect',
+        targetType: 'worker_task',
+        targetName: 'worker status',
+        capability: 'worker.status',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+      };
+
+      candidates['worker.status'] = { score: 0.99, reason: 'Check local worker status' };
+      workerPlan = { action: 'status' };
+    }
+    else if (/\b(?:stop\s+that\s+task|cancel\s+(?:the\s+)?worker|cancel\s+task|stop\s+(?:the\s+)?worker\s+task)\b/i.test(effectiveLower)) {
+      actionIntent = {
+        mode: 'execute',
+        verb: 'cancel',
+        targetType: 'worker_task',
+        targetName: 'worker task',
+        capability: 'worker.cancel',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+      };
+
+      candidates['worker.cancel'] = { score: 0.99, reason: 'Cancel local worker task' };
+      workerPlan = { action: 'cancel' };
+    }
+    else if (/\b(?:what\s+(?:did\s+the\s+worker\s+do|are\s+the\s+worker\s+results)|show\s+worker\s+(?:evidence|results?)|worker\s+results?)\b/i.test(effectiveLower)) {
+      actionIntent = {
+        mode: 'execute',
+        verb: 'inspect',
+        targetType: 'worker_task',
+        targetName: 'worker result',
+        capability: 'worker.result',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+      };
+
+      candidates['worker.result'] = { score: 0.99, reason: 'Retrieve local worker result and evidence' };
+      workerPlan = { action: 'result' };
+    }
     // ─────────────────────────────────────────────────────────────────────────
     // RULE 1: PROJECT DELETION ("Delete the Free Cash project")
     // MUST NEVER enter project.open, browser, or memory!
     // ─────────────────────────────────────────────────────────────────────────
-    if (/\b(?:delete|remove|clear|erase)\s+(?:the\s+)?(.+?)\s+project\b/i.test(effectiveLower) ||
+    else if (/\b(?:delete|remove|clear|erase)\s+(?:the\s+)?(.+?)\s+project\b/i.test(effectiveLower) ||
         /\b(?:delete|remove)\s+project\s+(.+)$/i.test(effectiveLower)) {
       const match = effectiveCleanMatch(effectivePrompt, /\b(?:delete|remove|clear|erase)\s+(?:the\s+)?(.+?)\s+project\b/i) ||
                     effectiveCleanMatch(effectivePrompt, /\b(?:delete|remove)\s+project\s+(.+)$/i);
@@ -1348,6 +1484,7 @@ export class UnifiedActionOrchestrator {
       gitPlan,
       developerPlan,
       projectPlan,
+      workerPlan,
       conversationalPlan,
     };
   }

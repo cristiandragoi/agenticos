@@ -1205,9 +1205,10 @@ export async function routeTurn(opts: {
 
   const isExplicitHermesDelegationEarly =
     /\b(?:ask|tell|have|delegate\s+to)\s+(?:hermes|codex)\b/i.test(lower) ||
-    /\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower);
+    (/\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower) && !/\b(?:local\s+worker|a\s+worker)\b/i.test(lower));
+  const isLocalWorkerEarly = /\b(?:worker|local\s+worker)\b/i.test(lower) && !/\b(?:ask|tell|have)\s+hermes\b/i.test(lower);
   const isRepoLocateEarly = /\b(?:find|locate|search|where\s+is|open|show)\b.*\brepository\b/i.test(lower);
-  if ((CODE_INSPECTION_RE.test(lower) && !isRepoLocateEarly) || isExplicitHermesDelegationEarly) {
+  if (((CODE_INSPECTION_RE.test(lower) && !isRepoLocateEarly && !isLocalWorkerEarly) || isExplicitHermesDelegationEarly) && !isLocalWorkerEarly) {
     const tTool = Date.now();
     try {
       const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');
@@ -1639,9 +1640,10 @@ export async function routeTurn(opts: {
   // ── 5b. Repository / code questions & explicit Hermes delegation ────────────
   const isExplicitHermesDelegation =
     /\b(?:ask|tell|have|delegate\s+to)\s+(?:hermes|codex)\b/i.test(lower) ||
-    /\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower);
+    (/\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower) && !/\b(?:local\s+worker|a\s+worker)\b/i.test(lower));
+  const isLocalWorker = /\b(?:worker|local\s+worker)\b/i.test(lower) && !/\b(?:ask|tell|have)\s+hermes\b/i.test(lower);
   const isRepoLocate = /\b(?:find|locate|search|where\s+is|open|show)\b.*\brepository\b/i.test(lower);
-  if ((CODE_INSPECTION_RE.test(lower) && !isRepoLocate) || isExplicitHermesDelegation) {
+  if (((CODE_INSPECTION_RE.test(lower) && !isRepoLocate && !isLocalWorker) || isExplicitHermesDelegation) && !isLocalWorker) {
     const tTool = Date.now();
     try {
       const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');

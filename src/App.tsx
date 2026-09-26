@@ -48,6 +48,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import RevenueOperatorPage from './pages/RevenueOperatorPage';
 import JarvisNextTestPage from './pages/JarvisNextTestPage';
 import SelfHealPage from './pages/SelfHealPage';
+import LocalWorkersPage from './pages/LocalWorkersPage';
 import { uiDiagnostics } from './diagnostics/uiSnapshot';
 import { useEffect } from 'react';
 
@@ -113,6 +114,8 @@ function App() {
                         <Route path="revenue-operator" element={<RevenueOperatorPage />} />
                         <Route path="jarvis-next-test" element={<JarvisNextTestPage />} />
                         <Route path="self-heal" element={<SelfHealPage />} />
+                        <Route path="workers" element={<LocalWorkersPage />} />
+                        <Route path="local-workers" element={<LocalWorkersPage />} />
                       </Route>
                     </Routes>
                   </HashRouter>

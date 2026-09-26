@@ -353,6 +353,76 @@ export class HermesService {
 
       if (signal.aborted) throw new Error('Hermes execution aborted');
 
+      // 2b. Detect if Local Worker Delegation is Requested
+      const isWorkerDelegation = /\b(?:local worker|delegate to (?:local )?worker|ask (?:a )?local worker|have (?:a )?local worker)\b/i.test(objective);
+
+      if (isWorkerDelegation) {
+        logger.info(`[HermesService] Local Worker delegation requested. Launching Local Worker task...`);
+        const { localWorkerManager } = await import('../localWorker/localWorkerManager.js');
+        const subGoal = objective.replace(/^.*?\b(?:delegate to (?:local )?worker|ask (?:a )?local worker|have (?:a )?local worker):?\s*/i, '').trim() || objective;
+
+        const workerTask = await localWorkerManager.startTask(subGoal);
+
+        // Bounded wait for worker task to complete
+        const workerStart = Date.now();
+        let completedWorkerTask = workerTask;
+        while (Date.now() - workerStart < 60000) {
+          if (signal.aborted) throw new Error('Hermes aborted while waiting for Local Worker task');
+          const t = localWorkerManager.getTask(workerTask.id);
+          if (t && (t.status === 'completed' || t.status === 'failed' || t.status === 'awaiting_approval' || t.status === 'cancelled')) {
+            completedWorkerTask = t;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+
+        const summary = completedWorkerTask.result?.summary || `Local Worker ${completedWorkerTask.id} finished with status ${completedWorkerTask.status}.`;
+
+        const resultRecord = executionRunService.createResult({
+          runId: run.id,
+          taskId: task.id,
+          summary: `Hermes delegated to Local Worker (${completedWorkerTask.id}): ${summary}`,
+          structuredOutput: {
+            type: 'research',
+            summary: `Hermes delegated to Local Worker (${completedWorkerTask.id}): ${summary}`,
+            findings: completedWorkerTask.evidence.map((e, idx) => ({
+              claim: `Step ${idx + 1} (${e.tool || 'action'}): ${e.stepId} verified`,
+              evidence: [e.evidenceSource || 'local_execution', e.outputSnippet || JSON.stringify(e.rawOutput || e.verification?.realityCheck || '')],
+              confidence: e.verification?.verified ? 1.0 : 0.0,
+            })),
+            recommendations: ['Task executed via autonomous Local Worker.'],
+            unknowns: [],
+            nextActions: [],
+            localWorkerTaskId: completedWorkerTask.id,
+            localWorkerResult: completedWorkerTask.result,
+          },
+        });
+
+        executionRunService.updateRun(run.id, {
+          status: completedWorkerTask.status === 'completed' ? 'completed' : 'failed',
+          endTime: new Date().toISOString(),
+          finalResultId: resultRecord.id,
+        });
+
+        projectTaskService.updateTask(task.id, {
+          status: completedWorkerTask.status === 'completed' ? 'completed' : 'failed',
+          completedAt: new Date().toISOString(),
+        });
+
+        executionRunService.emitEvent({
+          projectId: task.projectId,
+          goalId: task.goalId,
+          taskId: task.id,
+          runId: run.id,
+          worker: 'hermes',
+          eventType: 'HERMES_RUN_COMPLETED',
+          payload: { summary, localWorkerTaskId: completedWorkerTask.id },
+        });
+
+        this.activeRuns.delete(run.id);
+        return;
+      }
+
       // 3. Determine if this is a Planning task, Research/Operational task, or Closed-Loop Engineering
       const executionMode = resolveHermesExecutionMode(objective);
 

@@ -22,6 +22,7 @@ export interface SessionLocalState {
   lastAppName?: string;
   lastPort?: number;
   lastProcessId?: number;
+  lastWorkerTaskId?: string;
   timestamp: number;
 }
 
