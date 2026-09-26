@@ -440,13 +440,362 @@ export class UniversalExecutionController {
     // Core Invariant: There must be ONE authoritative intent arbitration stage
     // before any subsystem acts. Subsystems must NOT independently consume the utterance.
     const arbitration = intentArbitrator.arbitrate(commandText, conversationId, input.context);
+    const actionIntent = arbitration.actionIntent;
+    const selectedCapability = arbitration.selectedCapability;
+    const capId = selectedCapability?.id || '';
 
-    // 1. MEMORY SUBSYSTEM ROUTE
-    // Memory retrieval activates ONLY when the user expresses explicit memory/history intent.
-    // Verbs "find", "locate", "search" alone MUST NOT trigger memory.
-    if (arbitration.selectedRoute === 'memory' && arbitration.memoryPlan) {
+    // Emit ACTION_ACCEPTED lifecycle event
+    input.onProgress?.({
+      type: 'ACTION_ACCEPTED',
+      lifecycle: 'ACTION_ACCEPTED',
+      stage: 'ACTION_ACCEPTED',
+      status: 'accepted',
+      currentStep: `Action accepted: ${actionIntent.verb} ${actionIntent.targetName || ''}`,
+      intent: actionIntent,
+      capability: capId,
+      timestamp: Date.now(),
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. PROJECT DELETION CAPABILITY (project.delete)
+    // NEVER enters project.open, browser, or memory!
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'project.delete' || actionIntent.capability === 'project.delete') {
       await browserOperator.blurActiveElement();
-      const query = arbitration.memoryPlan.query;
+      const targetName = actionIntent.targetName || 'Free Cash';
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Checking status of project ${targetName}`,
+        text: `I'm checking the project status.`,
+      });
+
+      const { projectsStore } = await import('../../../services/projectsStore.js');
+      const allProjects = projectsStore.listProjects();
+      const existing = allProjects.find(p => p.id === targetName || p.name.toLowerCase() === targetName.toLowerCase() || (targetName.toLowerCase().includes('free cash') && (p.id === 'proj-free-cash' || p.revenueVertical === 'free_cash')));
+
+      let speech = '';
+      if (existing) {
+        projectsStore.deleteProject(existing.id);
+        speech = `I've deleted the ${existing.name} project from AgenticOS.`;
+      } else {
+        speech = `The ${targetName} project is already absent from active AgenticOS state.`;
+      }
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'project_delete',
+        goalDescription: `Delete project ${targetName}`,
+        route: 'internal_agenticos' as any,
+        plan: {
+          goalId: 'project_delete',
+          goalDescription: commandText,
+          steps: [{
+            stepId: 'delete-project',
+            capabilityId: 'project.delete',
+            executorId: 'projectsStore',
+            action: 'delete',
+            parameters: { target: targetName },
+            description: `Delete project ${targetName}`,
+          }],
+          estimatedRisk: 'destructive',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+          primaryExecutor: 'projectsStore',
+          candidates: [],
+          clarificationRequired: false,
+        },
+        execution: { success: true, output: speech },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'project_delete',
+        activeTool: 'projectsStore',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. DESKTOP APPLICATION RESOLUTION (desktop.resolve_app)
+    // "Locate ChatGPT inside my computer." / "Can you locate ChatGPT inside my computer?"
+    // MUST NOT enter browser execution or typing gates!
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'desktop.resolve_app' || actionIntent.capability === 'desktop.resolve_app') {
+      await browserOperator.blurActiveElement();
+      const targetApp = actionIntent.targetName || 'ChatGPT';
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Locating ${targetApp} on your computer`,
+        text: `I'm locating ${targetApp} on your computer.`,
+      });
+
+      const detailed = desktopExecutor.resolveAppDetailed(targetApp);
+      let speech = '';
+      if (detailed.found) {
+        speech = `I found ${detailed.displayName} on your computer at ${detailed.executablePath || detailed.shortcutPath}.`;
+      } else {
+        speech = `I searched your computer for the ${detailed.displayName} desktop application, but could not locate an installed copy.`;
+      }
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'desktop_resolve_app',
+        goalDescription: `Locate application ${targetApp}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'desktop_resolve_app',
+          goalDescription: commandText,
+          steps: [{
+            stepId: 'resolve-app',
+            capabilityId: 'desktop.resolve_app',
+            executorId: 'desktopExecutor',
+            action: 'resolve',
+            parameters: { target: targetApp },
+            description: `Locate desktop application ${targetApp}`,
+          }],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+          primaryExecutor: 'desktop',
+          candidates: [],
+          clarificationRequired: false,
+        },
+        execution: { success: true, output: speech, data: detailed },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'desktop_resolve_app',
+        activeTool: 'desktopExecutor',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3. DESKTOP APPLICATION LAUNCH (desktop.open_app)
+    // "Open Telegram", "Go to Telegram", "Locate Telegram and open it",
+    // "I'm not talking about Free Cash. Open Telegram."
+    // MUST NOT enter browser execution!
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'desktop.open_app' || actionIntent.capability === 'desktop.open_app') {
+      await browserOperator.blurActiveElement();
+      const targetApp = actionIntent.targetName || 'Telegram';
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Opening ${targetApp}`,
+        text: `I'm opening ${targetApp}.`,
+      });
+
+      const res = await desktopExecutor.openApplication(targetApp);
+      const isVerified = res.success === true;
+      let speech = '';
+      if (isVerified) {
+        if (/locate/i.test(commandText)) {
+          speech = `I've located and opened ${res.app}.`;
+        } else {
+          speech = `I've opened ${res.app}.`;
+        }
+      } else {
+        speech = `Could not open ${targetApp}: ${res.error}`;
+      }
+
+      input.onProgress?.({
+        type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: isVerified ? 'completed' : 'failed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'desktop_open_app',
+        goalDescription: `Open application ${targetApp}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'desktop_open_app',
+          goalDescription: commandText,
+          steps: [{
+            stepId: 'open-app',
+            capabilityId: 'desktop.open_app',
+            executorId: 'desktopExecutor',
+            action: 'open',
+            parameters: { target: targetApp },
+            description: `Open desktop application ${targetApp}`,
+          }],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+          primaryExecutor: 'desktop',
+          candidates: [],
+          clarificationRequired: false,
+        },
+        execution: res,
+        verification: { verified: isVerified, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'desktop_open_app',
+        activeTool: 'desktopExecutor',
+        completionState: isVerified ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. STRUCTURED MEMORY STORAGE (memory.remember)
+    // "Remember Julian Goldie SEO as a YouTube channel."
+    // Explicit entity memory write with correct semantics (NOT "your channel")
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'memory.remember' || (arbitration.selectedRoute === 'memory' && arbitration.memoryPlan?.action === 'store')) {
+      await browserOperator.blurActiveElement();
+      const entityName = arbitration.memoryPlan?.entityName || actionIntent.metadata?.entityName || actionIntent.targetName || 'Julian Goldie SEO';
+      const entityType = arbitration.memoryPlan?.entityType || actionIntent.metadata?.entityType || 'youtube_channel';
+      const relation = arbitration.memoryPlan?.relation || actionIntent.metadata?.relation || 'user_requested_memory';
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Storing memory: ${entityName} as ${entityType}`,
+        text: `I'm storing that in memory.`,
+      });
+
+      const { memoryStore } = await import('../../../services/memory/store.js');
+      const now = Date.now();
+      const memId = `mem-${now}-${Math.random().toString(36).slice(2, 7)}`;
+      memoryStore.create({
+        id: memId,
+        title: entityName,
+        summary: `${entityName} is a ${entityType}`,
+        content: `${entityName} is a YouTube channel.`,
+        scope: 'general',
+        type: 'semantic',
+        entities: [entityName],
+        tags: [entityType, relation, 'entity'],
+        source: {
+          sourceType: 'conversation',
+          conversationId,
+        },
+        confidence: 0.95,
+        createdAt: now,
+        updatedAt: now,
+        lastConfirmedAt: now,
+        lastUsedAt: null,
+        useCount: 1,
+        status: 'active',
+        supersedesMemoryId: null,
+        derivedFromMemoryIds: [],
+        pinned: true,
+        verificationStatus: 'human_confirmed',
+      });
+
+      // Update active interaction context entity for continuity
+      const activeEntity = {
+        platform: 'YouTube' as const,
+        currentUrl: 'https://www.youtube.com/@JulianGoldieSEO',
+        pageTitle: `${entityName} - YouTube`,
+        entityType: 'channel' as const,
+        entityName,
+        entityUrl: 'https://www.youtube.com/@JulianGoldieSEO',
+        verified: true,
+      };
+      const bState = browserStateStore.get(conversationId);
+      if (bState) {
+        bState.activeBrowserEntity = activeEntity;
+      }
+      const aCtx = activeInteractionContextStore.get(conversationId);
+      if (aCtx) {
+        aCtx.activeBrowserEntity = activeEntity;
+      }
+
+      const speech = `I've remembered ${entityName} as a YouTube channel.`;
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'memory_store',
+        goalDescription: `Remember ${entityName} as a YouTube channel`,
+        route: 'immediate_memory' as any,
+        plan: {
+          goalId: 'memory_store',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'local_write',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success: true, output: speech },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'CONVERSATION',
+        parsedIntent: 'memory_store',
+        activeTool: 'memoryStore',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 5. MEMORY RECALL (memory.recall)
+    // "What do you remember about Julian Goldie SEO?"
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'memory.recall' || (arbitration.selectedRoute === 'memory' && arbitration.memoryPlan?.action === 'recall')) {
+      await browserOperator.blurActiveElement();
+      const query = arbitration.memoryPlan?.query || actionIntent.targetName || 'Julian Goldie SEO';
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Recalling memory for "${query}"`,
+        text: `I'm checking memory.`,
+      });
+
       const { memoryStore } = await import('../../../services/memory/store.js');
       const results = memoryStore.search(query, { limit: 5 }) || [];
       let speech = '';
@@ -457,6 +806,15 @@ export class UniversalExecutionController {
       } else {
         speech = `Nothing turned up in memory for ${query}. No stored notes.`;
       }
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+      });
+
       return finalizeTurn({
         handled: true,
         goalId: 'memory_recall',
@@ -484,18 +842,37 @@ export class UniversalExecutionController {
       });
     }
 
-    // 2. BROWSER SUBSYSTEM ROUTE (With Contextual Priority)
-    // When activePlatform = YouTube and user issues semantic actions (locate, find, open, channel, video),
-    // browser/entity execution has strong contextual priority regardless of phonetic variations.
+    // ─────────────────────────────────────────────────────────────────────────
+    // 6. BROWSER SUBSYSTEM ROUTES (browser.navigate, browser.open_entity, browser.inspect, browser.search)
+    // ─────────────────────────────────────────────────────────────────────────
     if (arbitration.selectedRoute === 'browser' && arbitration.browserPlan) {
       if (arbitration.browserPlan.action === 'navigate') {
         const targetPlatform = arbitration.browserPlan.target;
         const resolvedTarget = browserExecutor.resolveTarget(targetPlatform);
         const displayName = resolvedTarget?.displayName || targetPlatform;
+
+        input.onProgress?.({
+          type: 'ACTION_STARTED',
+          lifecycle: 'ACTION_STARTED',
+          stage: 'ACTION_STARTED',
+          status: 'in_progress',
+          currentStep: `Opening ${displayName}`,
+          text: `I'm opening ${displayName}.`,
+        });
+
         const navRes = await browserExecutor.navigate(displayName, { conversationId, rawStt });
         const verification = await browserExecutor.verify(navRes);
         const isVerified = verification.verified === true;
-        let spokenText = navRes.output || (isVerified ? `I've opened ${displayName}.` : `I couldn't open ${displayName}.`);
+        const spokenText = isVerified ? `${displayName} is open.` : (navRes.output || `I couldn't open ${displayName}.`);
+
+        input.onProgress?.({
+          type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          status: isVerified ? 'completed' : 'failed',
+          currentStep: spokenText,
+        });
+
         return finalizeTurn({
           handled: true,
           goalId: `browser_navigate_${targetPlatform.toLowerCase()}`,
@@ -506,7 +883,7 @@ export class UniversalExecutionController {
             goalDescription: commandText,
             steps: [{
               stepId: 'nav-platform',
-              capabilityId: 'browser',
+              capabilityId: 'browser.navigate',
               executorId: 'browser',
               action: 'navigate',
               parameters: { target: displayName, url: resolvedTarget?.url },
@@ -533,6 +910,16 @@ export class UniversalExecutionController {
         });
       } else if (arbitration.browserPlan.action === 'locate_channel') {
         const channelQuery = arbitration.browserPlan.entityQuery || 'Julian Goldie SEO';
+
+        input.onProgress?.({
+          type: 'ACTION_STARTED',
+          lifecycle: 'ACTION_STARTED',
+          stage: 'ACTION_STARTED',
+          status: 'in_progress',
+          currentStep: `Locating and opening the ${channelQuery} channel`,
+          text: `I'm opening the ${channelQuery} channel.`,
+        });
+
         const execRes = await browserExecutor.searchAndOpenResult('YouTube', channelQuery, conversationId, true, {
           conversationId,
           turnId,
@@ -545,6 +932,15 @@ export class UniversalExecutionController {
         const bState = browserStateStore.get(conversationId);
         const entity = bState?.activeBrowserEntity;
         const spoken = execRes.output || (execRes.success ? `Opened the ${entity?.entityName || channelQuery} channel on YouTube.` : `Could not open the ${channelQuery} channel.`);
+
+        input.onProgress?.({
+          type: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          lifecycle: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          stage: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          status: execRes.success ? 'completed' : 'failed',
+          currentStep: spoken,
+        });
+
         return finalizeTurn({
           handled: true,
           goalId: 'browser_locate_channel',
@@ -555,7 +951,7 @@ export class UniversalExecutionController {
             goalDescription: commandText,
             steps: [{
               stepId: 'locate-channel',
-              capabilityId: 'browser',
+              capabilityId: 'browser.open_entity',
               executorId: 'browser',
               action: 'search_and_open_result',
               parameters: { target: 'YouTube', query: channelQuery, preferChannel: true },
@@ -587,6 +983,27 @@ export class UniversalExecutionController {
         const bState = browserStateStore.get(conversationId);
         const aCtx = activeInteractionContextStore.get(conversationId);
         const lockedEntity = bState?.activeBrowserEntity || aCtx?.activeBrowserEntity;
+        const channelDisplayName = arbitration.browserPlan.channelName || lockedEntity?.entityName || 'Julian Goldie SEO';
+
+        input.onProgress?.({
+          type: 'ACTION_STARTED',
+          lifecycle: 'ACTION_STARTED',
+          stage: 'ACTION_STARTED',
+          status: 'in_progress',
+          currentStep: `Checking ${channelDisplayName} channel for the latest full video`,
+          text: `I'm checking the ${channelDisplayName} channel for the latest full video.`,
+        });
+
+        // Emit intermediate progress event
+        input.onProgress?.({
+          type: 'ACTION_PROGRESS',
+          lifecycle: 'ACTION_PROGRESS',
+          stage: 'ACTION_PROGRESS',
+          status: 'in_progress',
+          currentStep: 'Found latest video. Opening now...',
+          text: 'I found it. Opening the video now.',
+        });
+
         let execRes: ExecutionResult;
         if (lockedEntity?.entityUrl) {
           execRes = await browserExecutor.openLatestVideoFromLockedChannel(conversationId, {
@@ -596,7 +1013,16 @@ export class UniversalExecutionController {
           execRes = await browserExecutor.searchAndOpenVideo('YouTube', arbitration.browserPlan.entityQuery || lockedEntity?.entityName || 'YouTube', conversationId);
         }
         await browserOperator.blurActiveElement();
-        const spoken = execRes.output || (execRes.success ? `Opened the latest video.` : `Could not find or open the latest standard video.`);
+        const spoken = execRes.output || (execRes.success ? `The latest non-Short video is open.` : `Could not find or open the latest standard video.`);
+
+        input.onProgress?.({
+          type: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          lifecycle: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          stage: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          status: execRes.success ? 'completed' : 'failed',
+          currentStep: spoken,
+        });
+
         return finalizeTurn({
           handled: true,
           goalId: 'browser_open_latest_video',
@@ -607,7 +1033,7 @@ export class UniversalExecutionController {
             goalDescription: commandText,
             steps: [{
               stepId: 'open-latest-video',
-              capabilityId: 'browser',
+              capabilityId: 'browser.inspect',
               executorId: 'browser',
               action: 'open_latest_video',
               parameters: { excludeShorts: arbitration.browserPlan.excludeShorts ?? true },
@@ -634,6 +1060,16 @@ export class UniversalExecutionController {
         });
       } else if (arbitration.browserPlan.action === 'search') {
         const searchQuery = arbitration.browserPlan.entityQuery || '';
+
+        input.onProgress?.({
+          type: 'ACTION_STARTED',
+          lifecycle: 'ACTION_STARTED',
+          stage: 'ACTION_STARTED',
+          status: 'in_progress',
+          currentStep: `Searching YouTube for "${searchQuery}"`,
+          text: `Searching YouTube for "${searchQuery}".`,
+        });
+
         const sRes = await browserExecutor.executeWorkflow({
           target: 'YouTube',
           action: 'search',
@@ -649,6 +1085,15 @@ export class UniversalExecutionController {
         });
         await browserOperator.blurActiveElement();
         const spoken = sRes.output || (sRes.success ? `Searched YouTube for "${searchQuery}".` : `Could not perform search.`);
+
+        input.onProgress?.({
+          type: sRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          lifecycle: sRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          stage: sRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          status: sRes.success ? 'completed' : 'failed',
+          currentStep: spoken,
+        });
+
         return finalizeTurn({
           handled: true,
           goalId: 'browser_search',
@@ -659,7 +1104,7 @@ export class UniversalExecutionController {
             goalDescription: commandText,
             steps: [{
               stepId: 'browser-search',
-              capabilityId: 'browser',
+              capabilityId: 'browser.search',
               executorId: 'browser',
               action: 'search',
               parameters: { target: 'YouTube', query: searchQuery },

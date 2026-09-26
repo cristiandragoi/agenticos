@@ -180,47 +180,36 @@ export const projectsStore = {
 
   /**
    * Deterministic and persistent project priority ordering across restarts:
-   * 1. Free Cash (priority 1) — identified from Alpha Project proj-a-1787333810947 or existing record
-   * 2. Shopify (priority 2) — e-commerce storefront integration
-   * 3. TikTok Shop (priority 3) — merchant & creator channel
-   * 4. All remaining projects keep existing priority / order by updatedAt
+   * 1. Shopify (priority 1) — e-commerce storefront integration
+   * 2. TikTok Shop (priority 2) — merchant & creator channel
+   * 3. All remaining projects keep existing priority / order by updatedAt
+   *
+   * Note: Free Cash is decommissioned and removed from active Jarvis operational state.
    */
   ensureRevenueProjects() {
     try {
+      // Decommission and remove Free Cash from active state if present
       const all = this.listProjects();
-
-      // 1. Free Cash (Priority 1) — preserve Alpha Project untouched
       const existingFreeCash = all.find(
-        p => p.revenueVertical === 'free_cash' || p.name.toLowerCase() === 'free cash'
+        p => p.revenueVertical === 'free_cash' || p.name.toLowerCase() === 'free cash' || p.id === 'proj-free-cash'
       );
-
       if (existingFreeCash) {
-        this.updateProject(existingFreeCash.id, {
-          priority: 1,
-          revenueVertical: 'free_cash',
-        });
-      } else {
-        this.createProject({
-          id: 'proj-free-cash',
-          name: 'Free Cash',
-          description: 'Primary active initiative — free and low-barrier monetization workflows',
-          status: 'active',
-          priority: 1,
-          revenueVertical: 'free_cash',
-          tags: ['revenue', 'free_cash', 'p1'],
-        });
+        db.delete(projects).where(eq(projects.id, existingFreeCash.id)).run();
+        if (_activeProjectId === existingFreeCash.id) {
+          _activeProjectId = null;
+          writeActiveProjectId(null);
+        }
       }
 
-      // Re-read after Free Cash check
       const currentProjects = this.listProjects();
 
-      // 2. Shopify (Priority 2)
+      // 1. Shopify (Priority 1)
       const existingShopify = currentProjects.find(
         p => p.revenueVertical === 'shopify' || p.name.toLowerCase() === 'shopify'
       );
       if (existingShopify) {
         this.updateProject(existingShopify.id, {
-          priority: 2,
+          priority: 1,
           revenueVertical: 'shopify',
         });
       } else {
@@ -229,22 +218,22 @@ export const projectsStore = {
           name: 'Shopify',
           description: 'Shopify storefront and e-commerce channel operations',
           status: 'active',
-          priority: 2,
+          priority: 1,
           revenueVertical: 'shopify',
-          tags: ['revenue', 'shopify', 'p2'],
+          tags: ['revenue', 'shopify', 'p1'],
         });
       }
 
       // Re-read after Shopify check
       const currentProjects2 = this.listProjects();
 
-      // 3. TikTok Shop (Priority 3)
+      // 2. TikTok Shop (Priority 2)
       const existingTikTok = currentProjects2.find(
         p => p.revenueVertical === 'tiktok_shop' || p.name.toLowerCase() === 'tiktok shop'
       );
       if (existingTikTok) {
         this.updateProject(existingTikTok.id, {
-          priority: 3,
+          priority: 2,
           revenueVertical: 'tiktok_shop',
         });
       } else {
@@ -253,14 +242,11 @@ export const projectsStore = {
           name: 'TikTok Shop',
           description: 'TikTok Shop merchant and creator operations',
           status: 'active',
-          priority: 3,
+          priority: 2,
           revenueVertical: 'tiktok_shop',
-          tags: ['revenue', 'tiktok_shop', 'p3'],
+          tags: ['revenue', 'tiktok_shop', 'p2'],
         });
       }
-      // Do NOT auto-select an active project here. The active project must be
-      // explicitly set by the user or via API. Auto-selection violates the
-      // active-project truth contract (tests expect explicit null to persist).
 
       return this.listProjects();
     } catch (e) {
@@ -269,16 +255,25 @@ export const projectsStore = {
     }
   },
 
-  deleteProject(id: string) {
-    db.delete(projects).where(eq(projects.id, id)).run();
-    // Also clear activeProjectId if it was this project
-    if (_activeProjectId === id) {
-      _activeProjectId = null;
-      writeActiveProjectId(null);
+  deleteProject(idOrName: string): boolean {
+    const all = this.listProjects();
+    const match = all.find(p => p.id === idOrName || p.name.toLowerCase() === idOrName.toLowerCase());
+    if (match) {
+      db.delete(projects).where(eq(projects.id, match.id)).run();
+      if (_activeProjectId === match.id) {
+        _activeProjectId = null;
+        writeActiveProjectId(null);
+      }
+      return true;
     }
+    return false;
   },
 
   getActiveProjectId(): string | null {
+    if (_activeProjectId === 'proj-free-cash') {
+      _activeProjectId = null;
+      writeActiveProjectId(null);
+    }
     return _activeProjectId;
   },
 

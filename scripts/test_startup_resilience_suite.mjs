@@ -188,12 +188,16 @@ async function runSuite() {
   } else {
     log(`Backend healthy in ${t1Res.elapsedMs}ms`, t1Res.data);
     let ownershipValid = false;
-    if (fs.existsSync(OWNERSHIP_FILE)) {
-      try {
-        const record = JSON.parse(fs.readFileSync(OWNERSHIP_FILE, 'utf8'));
-        log('backend-ownership.json record found:', record);
-        ownershipValid = record && record.port === 4600 && isPidAlive(record.pid);
-      } catch {}
+    for (let r = 0; r < 10; r++) {
+      if (fs.existsSync(OWNERSHIP_FILE)) {
+        try {
+          const record = JSON.parse(fs.readFileSync(OWNERSHIP_FILE, 'utf8'));
+          log('backend-ownership.json record found:', record);
+          ownershipValid = Boolean(record && record.port === 4600 && isPidAlive(record.pid));
+          if (ownershipValid) break;
+        } catch {}
+      }
+      await sleep(500);
     }
 
     // Verify runtime-state endpoint as well

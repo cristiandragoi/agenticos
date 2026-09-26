@@ -97,7 +97,7 @@ async function main() {
   console.log('1. Checking backend on port 4600...');
   let healthy = false;
   let buildInfo = {};
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 5; i++) {
     try {
       const res = await fetch(`${BASE_URL}/api/health`);
       if (res.ok) {
@@ -109,6 +109,31 @@ async function main() {
       }
     } catch {}
     await sleep(1000);
+  }
+
+  if (!healthy) {
+    console.log('Backend not running on port 4600, spawning installed app...');
+    const { spawn } = await import('node:child_process');
+    const child = spawn(EXE_PATH, [], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+    });
+    child.unref();
+
+    for (let i = 0; i < 40; i++) {
+      try {
+        const res = await fetch(`${BASE_URL}/api/health`);
+        if (res.ok) {
+          const body = await res.json();
+          buildInfo = body?.build || {};
+          console.log(`Backend healthy! buildId: ${buildInfo.buildId}, gitSha: ${buildInfo.gitShort}`);
+          healthy = true;
+          break;
+        }
+      } catch {}
+      await sleep(1000);
+    }
   }
   if (!healthy) throw new Error('Backend failed to become healthy on port 4600');
 
