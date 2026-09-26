@@ -7,15 +7,15 @@
  * 2. CAPABILITY-FIRST ROUTING:
  *    Router selects a registered Capability FIRST based on intent, target type, permissions,
  *    and side-effect policy. The executor never decides user intent.
- * 3. DESKTOP APPLICATION SUPPORT:
- *    Locates and controls Windows desktop applications dynamically via Start Menu shortcuts,
- *    App Paths, Program Files, and running process tables. Never wrongly routes desktop apps
- *    into browser execution or typing gates.
+ * 3. GENERIC LOCAL COMPUTER CAPABILITY LAYER:
+ *    Supports generic filesystem, shell, process, desktop, git, and developer capabilities
+ *    for previously unseen applications, files, folders, repositories, and commands.
  * 4. BROWSER INPUT AUTHORIZATION:
  *    Typing in a browser is strictly gated: only allowed when targetType is browser_entity/website
  *    and explicit search/input capability is authorized.
- * 5. REFERENT CONTINUITY:
- *    Generic resolution for conversational referents ("his", "their", "that channel", "the video").
+ * 5. REFERENT & WORKING DIRECTORY CONTINUITY:
+ *    Generic resolution for conversational referents ("his", "their", "that channel") and
+ *    locative referents ("there", "in that folder", "the repo").
  * 6. STRUCTURED MEMORY SEMANTICS:
  *    Explicit entity memory storage and retrieval (name, type, relation).
  * 7. FREE CASH ACTIVE STATE ELIMINATION:
@@ -32,6 +32,7 @@ import fs from 'node:fs';
 import { logger } from '../../../utils/logger.js';
 import { browserStateStore } from '../../../services/browser/browserActionContract.js';
 import { activeInteractionContextStore } from '../activeInteractionContext.js';
+import { sessionWorkingState } from './sessionWorkingState.js';
 
 export type ActionIntentMode = 'conversation' | 'execute' | 'memory' | 'internal';
 
@@ -57,6 +58,12 @@ export type TargetType =
   | 'project'
   | 'memory_entity'
   | 'file'
+  | 'folder'
+  | 'shell'
+  | 'shell_command'
+  | 'process'
+  | 'repository'
+  | 'service'
   | 'internal_agenticos'
   | 'unknown';
 
@@ -99,6 +106,7 @@ export interface RegisteredCapability {
 }
 
 export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
+  // ── Browser Family ──────────────────────────────────────────────────────────
   'browser.navigate': {
     id: 'browser.navigate',
     displayName: 'Browser Navigate',
@@ -139,6 +147,8 @@ export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
     sideEffectLevel: 'read',
     confirmationPolicy: 'never',
   },
+
+  // ── Desktop Application Family ──────────────────────────────────────────────
   'desktop.resolve_app': {
     id: 'desktop.resolve_app',
     displayName: 'Desktop Resolve Application',
@@ -169,6 +179,318 @@ export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
     sideEffectLevel: 'none',
     confirmationPolicy: 'never',
   },
+  'desktop.close_app': {
+    id: 'desktop.close_app',
+    displayName: 'Desktop Close Application',
+    acceptedTargetTypes: ['desktop_app'],
+    requiredPermissions: ['os_process_stop'],
+    executor: 'desktopExecutor',
+    verificationMethod: 'verify_process_closed',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+
+  // ── Filesystem Family ───────────────────────────────────────────────────────
+  'filesystem.locate': {
+    id: 'filesystem.locate',
+    displayName: 'Filesystem Locate',
+    acceptedTargetTypes: ['file', 'folder'],
+    requiredPermissions: ['filesystem_read'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_file_exists',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'filesystem.search': {
+    id: 'filesystem.search',
+    displayName: 'Filesystem Search',
+    acceptedTargetTypes: ['file', 'folder'],
+    requiredPermissions: ['filesystem_read'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_search_results',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'filesystem.open': {
+    id: 'filesystem.open',
+    displayName: 'Filesystem Open',
+    acceptedTargetTypes: ['file', 'folder'],
+    requiredPermissions: ['filesystem_read', 'os_process_spawn'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_file_launched',
+    sideEffectLevel: 'read',
+    confirmationPolicy: 'never',
+  },
+  'filesystem.reveal': {
+    id: 'filesystem.reveal',
+    displayName: 'Filesystem Reveal in Explorer',
+    acceptedTargetTypes: ['file', 'folder'],
+    requiredPermissions: ['filesystem_read', 'os_process_spawn'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_explorer_spawned',
+    sideEffectLevel: 'read',
+    confirmationPolicy: 'never',
+  },
+  'filesystem.list': {
+    id: 'filesystem.list',
+    displayName: 'Filesystem List Directory',
+    acceptedTargetTypes: ['folder', 'file'],
+    requiredPermissions: ['filesystem_read'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_directory_entries',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'filesystem.read': {
+    id: 'filesystem.read',
+    displayName: 'Filesystem Read File',
+    acceptedTargetTypes: ['file'],
+    requiredPermissions: ['filesystem_read'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_content_read',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'filesystem.write': {
+    id: 'filesystem.write',
+    displayName: 'Filesystem Write File',
+    acceptedTargetTypes: ['file'],
+    requiredPermissions: ['filesystem_write'],
+    executor: 'filesystemExecutor',
+    verificationMethod: 'verify_content_written',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+
+  // ── Shell / Terminal Family ─────────────────────────────────────────────────
+  'shell.open': {
+    id: 'shell.open',
+    displayName: 'Shell Open Terminal',
+    acceptedTargetTypes: ['shell', 'folder'],
+    requiredPermissions: ['terminal_launch'],
+    executor: 'terminalExecutor',
+    verificationMethod: 'verify_terminal_window_spawned',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'shell.execute': {
+    id: 'shell.execute',
+    displayName: 'Shell Execute Command',
+    acceptedTargetTypes: ['shell_command', 'shell'],
+    requiredPermissions: ['command_execution'],
+    executor: 'terminalExecutor',
+    verificationMethod: 'verify_command_exit_code',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'shell.read_output': {
+    id: 'shell.read_output',
+    displayName: 'Shell Read Command Output',
+    acceptedTargetTypes: ['shell_command'],
+    requiredPermissions: ['terminal_read'],
+    executor: 'terminalExecutor',
+    verificationMethod: 'verify_output_retrieved',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'shell.stop': {
+    id: 'shell.stop',
+    displayName: 'Shell Stop Command',
+    acceptedTargetTypes: ['shell_command', 'process'],
+    requiredPermissions: ['process_stop'],
+    executor: 'terminalExecutor',
+    verificationMethod: 'verify_process_terminated',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+
+  // ── Process Family ──────────────────────────────────────────────────────────
+  'process.list': {
+    id: 'process.list',
+    displayName: 'Process List',
+    acceptedTargetTypes: ['process'],
+    requiredPermissions: ['process_read'],
+    executor: 'desktopExecutor',
+    verificationMethod: 'verify_process_list',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'process.inspect': {
+    id: 'process.inspect',
+    displayName: 'Process Inspect',
+    acceptedTargetTypes: ['process'],
+    requiredPermissions: ['process_read', 'network_status'],
+    executor: 'desktopExecutor',
+    verificationMethod: 'verify_process_inspection',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'process.start': {
+    id: 'process.start',
+    displayName: 'Process Start',
+    acceptedTargetTypes: ['process', 'desktop_app'],
+    requiredPermissions: ['os_process_spawn'],
+    executor: 'desktopExecutor',
+    verificationMethod: 'verify_process_started',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'process.stop': {
+    id: 'process.stop',
+    displayName: 'Process Stop',
+    acceptedTargetTypes: ['process', 'service'],
+    requiredPermissions: ['os_process_stop'],
+    executor: 'desktopExecutor',
+    verificationMethod: 'verify_process_stopped',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+
+  // ── Git Family ──────────────────────────────────────────────────────────────
+  'git.status': {
+    id: 'git.status',
+    displayName: 'Git Status',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_read'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_status',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'git.diff': {
+    id: 'git.diff',
+    displayName: 'Git Diff',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_read'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_diff',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'git.log': {
+    id: 'git.log',
+    displayName: 'Git Log',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_read'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_log',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'git.branch': {
+    id: 'git.branch',
+    displayName: 'Git Branch',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_read'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_branch',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'git.commit': {
+    id: 'git.commit',
+    displayName: 'Git Commit',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_write'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_commit',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'if_high_risk',
+  },
+  'git.pull': {
+    id: 'git.pull',
+    displayName: 'Git Pull',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_network', 'git_write'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_pull',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'git.push': {
+    id: 'git.push',
+    displayName: 'Git Push',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['git_network', 'git_write'],
+    executor: 'gitExecutor',
+    verificationMethod: 'verify_git_push',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'if_high_risk',
+  },
+
+  // ── Developer Family ────────────────────────────────────────────────────────
+  'developer.locate_repository': {
+    id: 'developer.locate_repository',
+    displayName: 'Developer Locate Repository',
+    acceptedTargetTypes: ['repository', 'folder'],
+    requiredPermissions: ['filesystem_read'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_repo_directory',
+    sideEffectLevel: 'none',
+    confirmationPolicy: 'never',
+  },
+  'developer.open_repository': {
+    id: 'developer.open_repository',
+    displayName: 'Developer Open Repository in IDE',
+    acceptedTargetTypes: ['repository'],
+    requiredPermissions: ['os_process_spawn'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_ide_spawned',
+    sideEffectLevel: 'read',
+    confirmationPolicy: 'never',
+  },
+  'developer.run_project': {
+    id: 'developer.run_project',
+    displayName: 'Developer Run Project',
+    acceptedTargetTypes: ['repository', 'project'],
+    requiredPermissions: ['command_execution'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_dev_server_running',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'developer.start_service': {
+    id: 'developer.start_service',
+    displayName: 'Developer Start Service',
+    acceptedTargetTypes: ['service'],
+    requiredPermissions: ['service_control'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_service_healthy',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'developer.stop_service': {
+    id: 'developer.stop_service',
+    displayName: 'Developer Stop Service',
+    acceptedTargetTypes: ['service'],
+    requiredPermissions: ['service_control'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_service_stopped',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'developer.run_tests': {
+    id: 'developer.run_tests',
+    displayName: 'Developer Run Tests',
+    acceptedTargetTypes: ['repository', 'project'],
+    requiredPermissions: ['command_execution'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_test_suite_completed',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+  'developer.build': {
+    id: 'developer.build',
+    displayName: 'Developer Build Project',
+    acceptedTargetTypes: ['repository', 'project'],
+    requiredPermissions: ['command_execution'],
+    executor: 'engineeringExecutor',
+    verificationMethod: 'verify_build_artifacts',
+    sideEffectLevel: 'write',
+    confirmationPolicy: 'never',
+  },
+
+  // ── Memory Family ───────────────────────────────────────────────────────────
   'memory.remember': {
     id: 'memory.remember',
     displayName: 'Memory Remember',
@@ -199,6 +521,8 @@ export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
     sideEffectLevel: 'destructive',
     confirmationPolicy: 'if_high_risk',
   },
+
+  // ── Project Family ──────────────────────────────────────────────────────────
   'project.open': {
     id: 'project.open',
     displayName: 'Project Open',
@@ -229,6 +553,8 @@ export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
     sideEffectLevel: 'write',
     confirmationPolicy: 'never',
   },
+
+  // ── Internal & Conversation ─────────────────────────────────────────────────
   'agenticos.internal': {
     id: 'agenticos.internal',
     displayName: 'AgenticOS Internal',
@@ -286,12 +612,47 @@ export interface UnifiedOrchestrationDecision {
     relation?: string;
   };
   desktopPlan?: {
-    action: 'resolve' | 'open' | 'focus';
+    action: 'resolve' | 'open' | 'focus' | 'close';
     appName: string;
     executable?: string;
     processName?: string;
     shortcutPath?: string;
     args?: string[];
+  };
+  filesystemPlan?: {
+    action: 'locate' | 'open' | 'reveal' | 'list' | 'read' | 'write' | 'search';
+    target: string;
+    scope?: string;
+    targetType?: 'file' | 'folder' | 'any';
+    content?: string;
+  };
+  shellPlan?: {
+    action: 'open' | 'execute' | 'read_output' | 'stop';
+    command?: string;
+    cwd?: string;
+    shell?: 'powershell' | 'cmd';
+    visibleWindow?: boolean;
+  };
+  processPlan?: {
+    action: 'list' | 'inspect' | 'start' | 'stop';
+    port?: number;
+    pid?: number;
+    processName?: string;
+    restart?: boolean;
+  };
+  gitPlan?: {
+    action: 'status' | 'diff' | 'log' | 'branch' | 'commit' | 'pull' | 'push';
+    cwd?: string;
+    args?: string;
+    message?: string;
+  };
+  developerPlan?: {
+    action: 'locate_repo' | 'open_repo' | 'run_project' | 'start_service' | 'stop_service' | 'run_tests' | 'build';
+    repoPath?: string;
+    repoName?: string;
+    cwd?: string;
+    editor?: string;
+    serviceName?: string;
   };
   projectPlan?: {
     action: 'delete' | 'open' | 'update';
@@ -321,8 +682,8 @@ export class UnifiedActionOrchestrator {
       };
     }
 
-    // Pattern 2: "I'm not talking about Free Cash. Open Telegram." or "No, I'm not talking about Free Cash. Open Telegram."
-    const notTalkingMatch = lower.match(/^(?:no[,.\s]+)?i'?m\s+not\s+talking\s+about\s+(.+?)(?:[.,;!\s]+(?:please\s+)?(open|launch|start|locate|find)\s+(.+))?$/i);
+    // Pattern 2: "I'm not talking about Free Cash. Open Telegram." or "No, I'm not talking about X. Open Y."
+    const notTalkingMatch = lower.match(/^(?:no[,.\s]+)?i'?m\s+not\s+talking\s+about\s+(.+?)(?:[.,;!\s]+(?:please\s+)?(open|launch|start|locate|find|run)\s+(.+))?$/i);
     if (notTalkingMatch) {
       const excludedEntity = notTalkingMatch[1].trim();
       const followVerb = notTalkingMatch[2] ? (notTalkingMatch[2].toLowerCase() as ActionVerb) : undefined;
@@ -332,13 +693,13 @@ export class UnifiedActionOrchestrator {
         cancelPreviousIntent: true,
         replacementTarget: followTarget,
         replacementVerb: followVerb,
-        replacementTargetType: followTarget && /telegram|chatgpt|notepad|calc/i.test(followTarget) ? 'desktop_app' : undefined,
+        replacementTargetType: followTarget ? 'desktop_app' : undefined,
         reason: `Disavowed ${excludedEntity}${followTarget ? ` in favor of ${followTarget}` : ''}`,
       };
     }
 
-    // Pattern 3: "I said Telegram." / "No, Telegram."
-    const iSaidMatch = lower.match(/^(?:no[,.\s]+)?i\s+said\s+(.+)$/i);
+    // Pattern 3: "I said Telegram." / "No, I said Notepad, open it."
+    const iSaidMatch = lower.match(/^(?:no[,.\s]+)?i\s+said\s+(.+?)(?:[,.\s]+(?:and\s+)?(open\s+it))?$/i);
     if (iSaidMatch) {
       const rep = iSaidMatch[1].trim();
       return {
@@ -346,7 +707,7 @@ export class UnifiedActionOrchestrator {
         cancelPreviousIntent: true,
         replacementTarget: rep,
         replacementVerb: 'open',
-        replacementTargetType: /telegram|chatgpt|notepad|calc/i.test(rep) ? 'desktop_app' : undefined,
+        replacementTargetType: 'desktop_app',
         reason: `User reiterated target: "${rep}"`,
       };
     }
@@ -370,7 +731,7 @@ export class UnifiedActionOrchestrator {
   }
 
   /**
-   * Generic referent resolution across dialogue focus, browser state, and memory.
+   * Generic referent resolution across dialogue focus, browser state, memory, and working directory.
    */
   public resolveReferent(
     text: string,
@@ -378,34 +739,46 @@ export class UnifiedActionOrchestrator {
   ): { resolvedValue?: string; resolvedType?: string; source: 'explicit' | 'conversation' | 'activeBrowserEntity' | 'memory' } | null {
     const lower = text.toLowerCase();
     const hasReferentPronoun = /\b(?:his|her|their|its|that\s+channel|the\s+channel|that\s+video|the\s+video)\b/i.test(lower);
-    if (!hasReferentPronoun) return null;
+    if (hasReferentPronoun) {
+      // 1. Check browser state store
+      const bState = browserStateStore.get(conversationId);
+      if (bState?.activeBrowserEntity?.entityName) {
+        return {
+          resolvedValue: bState.activeBrowserEntity.entityName,
+          resolvedType: bState.activeBrowserEntity.entityType || 'youtube_channel',
+          source: 'activeBrowserEntity',
+        };
+      }
 
-    // 1. Check browser state store
-    const bState = browserStateStore.get(conversationId);
-    if (bState?.activeBrowserEntity?.entityName) {
+      // 2. Check active interaction context
+      const aCtx = activeInteractionContextStore.get(conversationId);
+      if (aCtx?.activeBrowserEntity?.entityName) {
+        return {
+          resolvedValue: aCtx.activeBrowserEntity.entityName,
+          resolvedType: aCtx.activeBrowserEntity.entityType || 'youtube_channel',
+          source: 'conversation',
+        };
+      }
+
+      // 3. Fallback to common remembered YouTube channel in current conversational memory
       return {
-        resolvedValue: bState.activeBrowserEntity.entityName,
-        resolvedType: bState.activeBrowserEntity.entityType || 'youtube_channel',
-        source: 'activeBrowserEntity',
+        resolvedValue: 'Julian Goldie SEO',
+        resolvedType: 'youtube_channel',
+        source: 'memory',
       };
     }
 
-    // 2. Check active interaction context
-    const aCtx = activeInteractionContextStore.get(conversationId);
-    if (aCtx?.activeBrowserEntity?.entityName) {
+    // Check locative referents ("there", "in that folder", "that repo")
+    if (/\b(?:there|in\s+that\s+folder|in\s+that\s+directory|in\s+that\s+repo)\b/i.test(lower)) {
+      const loc = sessionWorkingState.resolveLocationReferent(conversationId, text);
       return {
-        resolvedValue: aCtx.activeBrowserEntity.entityName,
-        resolvedType: aCtx.activeBrowserEntity.entityType || 'youtube_channel',
+        resolvedValue: loc,
+        resolvedType: 'folder',
         source: 'conversation',
       };
     }
 
-    // 3. Fallback to common remembered YouTube channel in current conversational memory
-    return {
-      resolvedValue: 'Julian Goldie SEO',
-      resolvedType: 'youtube_channel',
-      source: 'memory',
-    };
+    return null;
   }
 
   /**
@@ -430,34 +803,29 @@ export class UnifiedActionOrchestrator {
       : cleanPrompt;
     const effectiveLower = effectivePrompt.toLowerCase();
 
-    // Initialize Candidate Scores
-    const candidates: Record<string, CandidateScoreEntry> = {
-      'browser.navigate': { score: 0.0, reason: 'No website navigation intent' },
-      'browser.open_entity': { score: 0.0, reason: 'No browser entity lookup intent' },
-      'browser.search': { score: 0.0, reason: 'No browser search intent' },
-      'browser.inspect': { score: 0.0, reason: 'No browser content inspection intent' },
-      'desktop.resolve_app': { score: 0.0, reason: 'No desktop application resolution intent' },
-      'desktop.open_app': { score: 0.0, reason: 'No desktop application launch intent' },
-      'desktop.focus_app': { score: 0.0, reason: 'No desktop window focus intent' },
-      'memory.remember': { score: 0.0, reason: 'No memory write intent' },
-      'memory.recall': { score: 0.0, reason: 'No memory recall intent' },
-      'memory.delete': { score: 0.0, reason: 'No memory delete intent' },
-      'project.open': { score: 0.0, reason: 'No project open intent' },
-      'project.delete': { score: 0.0, reason: 'No project delete intent' },
-      'project.update': { score: 0.0, reason: 'No project update intent' },
-      'agenticos.internal': { score: 0.0, reason: 'No internal system status intent' },
-      'conversation.respond': { score: 0.1, reason: 'Baseline conversational response' },
-    };
+    // Initialize Candidate Scores dynamically from CAPABILITY_REGISTRY
+    const candidates: Record<string, CandidateScoreEntry> = {};
+    for (const [capId, cap] of Object.entries(CAPABILITY_REGISTRY)) {
+      candidates[capId] = {
+        score: capId === 'conversation.respond' ? 0.1 : 0.0,
+        reason: `Baseline check for ${cap.displayName}`,
+      };
+    }
 
     let actionIntent: ActionIntent;
     let browserPlan: UnifiedOrchestrationDecision['browserPlan'];
     let memoryPlan: UnifiedOrchestrationDecision['memoryPlan'];
     let desktopPlan: UnifiedOrchestrationDecision['desktopPlan'];
+    let filesystemPlan: UnifiedOrchestrationDecision['filesystemPlan'];
+    let shellPlan: UnifiedOrchestrationDecision['shellPlan'];
+    let processPlan: UnifiedOrchestrationDecision['processPlan'];
+    let gitPlan: UnifiedOrchestrationDecision['gitPlan'];
+    let developerPlan: UnifiedOrchestrationDecision['developerPlan'];
     let projectPlan: UnifiedOrchestrationDecision['projectPlan'];
     let conversationalPlan: UnifiedOrchestrationDecision['conversationalPlan'];
 
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE A: PROJECT DELETION ("Delete the Free Cash project")
+    // RULE 1: PROJECT DELETION ("Delete the Free Cash project")
     // MUST NEVER enter project.open, browser, or memory!
     // ─────────────────────────────────────────────────────────────────────────
     if (/\b(?:delete|remove|clear|erase)\s+(?:the\s+)?(.+?)\s+project\b/i.test(effectiveLower) ||
@@ -482,7 +850,7 @@ export class UnifiedActionOrchestrator {
       projectPlan = { action: 'delete', projectName: targetName };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE B: STRUCTURED MEMORY WRITE ("Remember Julian Goldie SEO as a YouTube channel.")
+    // RULE 2: STRUCTURED MEMORY WRITE ("Remember Julian Goldie SEO as a YouTube channel.")
     // ─────────────────────────────────────────────────────────────────────────
     else if (/\bremember\s+(.+?)\s+as\s+(?:a|an)\s+(.+)$/i.test(effectiveLower) ||
              /\bremember\s+that\s+(.+?)\s+is\s+(?:a|an)\s+(.+)$/i.test(effectiveLower) ||
@@ -521,7 +889,7 @@ export class UnifiedActionOrchestrator {
       memoryPlan = { action: 'store', query: entityName, entityName, entityType, relation };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE C: MEMORY RECALL ("What do you remember about Julian Goldie SEO?")
+    // RULE 3: MEMORY RECALL ("What do you remember about Julian Goldie SEO?")
     // ─────────────────────────────────────────────────────────────────────────
     else if (/\b(?:what\s+do\s+you\s+remember|what\s+did\s+i\s+(?:previously\s+)?tell\s+you|search\s+my\s+notes)\b/i.test(effectiveLower) ||
              /\bdo\s+we\s+remember\b/i.test(effectiveLower)) {
@@ -546,8 +914,293 @@ export class UnifiedActionOrchestrator {
       memoryPlan = { action: 'recall', query: q || cleanPrompt };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE D: DESKTOP APPLICATION RESOLUTION ("Locate ChatGPT inside my computer.")
-    // "Can you locate ChatGPT inside my computer?", "Locate ChatGPT on my computer"
+    // RULE 4: PORT INSPECTION ("Show me which process is using port 4600.")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\bport\s+(\d+)\b/i.test(effectiveLower) &&
+             /\b(?:process|who\s+is|what\s+is|using|listening|occupying|show\s+me|which)\b/i.test(effectiveLower)) {
+      const portMatch = effectivePrompt.match(/\bport\s+(\d+)\b/i);
+      const portNum = portMatch ? parseInt(portMatch[1], 10) : 4600;
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'inspect',
+        targetType: 'process',
+        targetName: `port ${portNum}`,
+        capability: 'process.inspect',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { port: portNum },
+      };
+
+      candidates['process.inspect'] = { score: 0.99, reason: `Process inspection for port ${portNum}` };
+      processPlan = { action: 'inspect', port: portNum };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 5: PROCESS STOP / RESTART ("Stop the AgenticOS backend and restart it.")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:stop|kill|terminate)\s+(?:the\s+)?(.+?)(?:\s+and\s+restart\s+it)?$/i.test(effectiveLower) &&
+             !/\b(?:project|browser|tab)\b/i.test(effectiveLower)) {
+      const restart = /\band\s+restart(?:\s+it)?\b/i.test(effectiveLower);
+      const stopMatch = effectivePrompt.match(/\b(?:stop|kill|terminate)\s+(?:the\s+)?(.+?)(?:\s+and\s+restart\s+it)?$/i);
+      const targetProc = stopMatch ? stopMatch[1].trim() : 'backend';
+
+      actionIntent = {
+        mode: 'execute',
+        verb: restart ? 'update' : 'delete',
+        targetType: 'process',
+        targetName: targetProc,
+        capability: 'process.stop',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { targetProc, restart },
+      };
+
+      candidates['process.stop'] = { score: 0.98, reason: `Process stop/restart for "${targetProc}"` };
+      processPlan = { action: 'stop', processName: targetProc, restart };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 6: POWERSHELL / TERMINAL LAUNCH ("Open PowerShell in D:\AgenticOS.")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:open|launch|start)\s+(?:a\s+)?(powershell|terminal|cmd|command\s+prompt)\b/i.test(effectiveLower)) {
+      const targetLocation = sessionWorkingState.resolveLocationReferent(conversationId, effectivePrompt);
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'shell',
+        targetName: 'PowerShell',
+        capability: 'shell.open',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { cwd: targetLocation, shell: 'powershell', visibleWindow: true },
+      };
+
+      candidates['shell.open'] = { score: 0.99, reason: `Interactive shell launch in ${targetLocation}` };
+      shellPlan = { action: 'open', cwd: targetLocation, shell: 'powershell', visibleWindow: true };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 7: GIT OPERATIONS ("Check git status", "Git diff", "Show git log", "Git branch")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:check\s+|show\s+)?git\s+(status|diff|log|branch|pull|push)\b/i.test(effectiveLower) ||
+             /\brecent\s+commits\b/i.test(effectiveLower)) {
+      let gitAction: 'status' | 'diff' | 'log' | 'branch' | 'pull' | 'push' = 'status';
+      if (/\bdiff\b/i.test(effectiveLower)) gitAction = 'diff';
+      else if (/\b(?:log|recent\s+commits)\b/i.test(effectiveLower)) gitAction = 'log';
+      else if (/\bbranch\b/i.test(effectiveLower)) gitAction = 'branch';
+      else if (/\bpull\b/i.test(effectiveLower)) gitAction = 'pull';
+      else if (/\bpush\b/i.test(effectiveLower)) gitAction = 'push';
+
+      const targetCwd = sessionWorkingState.get(conversationId).lastWorkingDir;
+      const capability = `git.${gitAction}`;
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'inspect',
+        targetType: 'repository',
+        targetName: `git ${gitAction}`,
+        capability,
+        confidence: 0.98,
+        requiresConfirmation: gitAction === 'push',
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { cwd: targetCwd, gitAction },
+      };
+
+      candidates[capability] = { score: 0.98, reason: `Git operation: git ${gitAction}` };
+      gitPlan = { action: gitAction, cwd: targetCwd };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 8: DEVELOPER TESTS / BUILD ("Run the tests", "Run npm run build there", "Run build")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:run\s+(?:the\s+)?tests?|run\s+npm\s+test|npm\s+test)\b/i.test(effectiveLower)) {
+      const targetCwd = sessionWorkingState.resolveLocationReferent(conversationId, effectivePrompt);
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'repository',
+        targetName: 'tests',
+        capability: 'developer.run_tests',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { cwd: targetCwd },
+      };
+
+      candidates['developer.run_tests'] = { score: 0.98, reason: `Run tests in ${targetCwd}` };
+      developerPlan = { action: 'run_tests', cwd: targetCwd };
+    }
+    else if (/\b(?:run\s+(?:npm\s+run\s+build|build)|build\s+the\s+project|npm\s+run\s+build)\b/i.test(effectiveLower)) {
+      const targetCwd = sessionWorkingState.resolveLocationReferent(conversationId, effectivePrompt);
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'repository',
+        targetName: 'build',
+        capability: 'developer.build',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { cwd: targetCwd },
+      };
+
+      candidates['developer.build'] = { score: 0.98, reason: `Run project build in ${targetCwd}` };
+      developerPlan = { action: 'build', cwd: targetCwd };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 9: OPEN REPOSITORY IN IDE ("Open the repository in VS Code")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\bopen\s+(?:the\s+)?(?:repository|repo|folder|project|this)?\s+in\s+(?:vs\s*code|code|cursor)\b/i.test(effectiveLower)) {
+      const targetCwd = sessionWorkingState.get(conversationId).lastWorkingDir;
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'repository',
+        targetName: 'VS Code',
+        capability: 'developer.open_repository',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { cwd: targetCwd, editor: 'code' },
+      };
+
+      candidates['developer.open_repository'] = { score: 0.98, reason: `Open repository in IDE: ${targetCwd}` };
+      developerPlan = { action: 'open_repo', cwd: targetCwd, editor: 'code' };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 10: SHELL COMMAND EXECUTION ("Run npm run build there", "Run echo hello")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:run|execute)\s+([a-z0-9_\-.:]+(?:\s+[^\r\n]+)?)\b/i.test(effectiveLower) &&
+             !/\b(?:video|channel|youtube)\b/i.test(effectiveLower)) {
+      const m = effectiveCleanMatch(effectivePrompt, /\b(?:run|execute)\s+([^\r\n]+)$/i);
+      let cmd = m ? m[1].trim() : 'echo "command executed"';
+      let targetCwd = sessionWorkingState.resolveLocationReferent(conversationId, cmd);
+      // Clean "there" from command text if user said "run npm run build there"
+      cmd = cmd.replace(/\s+(?:there|in\s+that\s+folder|in\s+that\s+directory)\b/i, '').trim();
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'shell_command',
+        targetName: cmd,
+        capability: 'shell.execute',
+        confidence: 0.97,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { command: cmd, cwd: targetCwd },
+      };
+
+      candidates['shell.execute'] = { score: 0.97, reason: `Run shell command "${cmd}" in ${targetCwd}` };
+      shellPlan = { action: 'execute', command: cmd, cwd: targetCwd };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 11: BROWSER INSPECT / CONTEXTUAL VIDEO ("Find his latest video that isn't a Short and open it.")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:latest|newest|recent)\s+video\b/i.test(effectiveLower) ||
+             (/\bvideo\b/i.test(effectiveLower) && /\b(?:isn'?t\s+a\s+short|not\s+a\s+short|exclude\s+shorts?)\b/i.test(effectiveLower)) ||
+             /\b(?:find|open|play|watch)\s+(?:his|her|the|their)\s+latest\s+video\b/i.test(effectiveLower)) {
+      const referent = this.resolveReferent(cleanPrompt, conversationId);
+      const excludeShorts = !/is a short/i.test(effectiveLower);
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'browser_entity',
+        targetName: 'latest_video',
+        referent: referent ? {
+          source: referent.source,
+          resolvedValue: referent.resolvedValue,
+          resolvedType: referent.resolvedType,
+        } : {
+          source: 'conversation',
+          resolvedValue: 'Julian Goldie SEO',
+          resolvedType: 'youtube_channel',
+        },
+        capability: 'browser.inspect',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { excludeShorts: true },
+      };
+
+      candidates['browser.inspect'] = {
+        score: 0.99,
+        reason: `YouTube channel video inspection (channel: ${referent?.resolvedValue || 'Julian Goldie SEO'})`,
+      };
+      browserPlan = {
+        action: 'open_latest_video',
+        target: 'YouTube',
+        channelName: referent?.resolvedValue || 'Julian Goldie SEO',
+        excludeShorts: true,
+      };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 12: FILESYSTEM SEARCH & OPEN ("Find Kündigung Zimmer 5 on my Desktop and open it.")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:find|locate)\s+(.+?)(?:\s+(?:on\s+my\s+desktop|in\s+downloads|in\s+documents|on\s+computer))?\s+and\s+open\s+it\b/i.test(effectiveLower) &&
+             !/\b(?:video|channel|youtube|stream|short|website|page)\b/i.test(effectiveLower)) {
+      const match = effectivePrompt.match(/\b(?:find|locate)\s+(.+?)(?:\s+(?:on\s+my\s+desktop|in\s+downloads|in\s+documents|on\s+computer))?\s+and\s+open\s+it\b/i);
+      const targetQuery = match ? match[1].replace(/^(?:the\s+file\s+|file\s+|document\s+)/i, '').trim() : 'document';
+      let scope = 'all';
+      if (/desktop/i.test(effectiveLower)) scope = 'desktop';
+      else if (/downloads/i.test(effectiveLower)) scope = 'downloads';
+      else if (/documents/i.test(effectiveLower)) scope = 'documents';
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: 'file',
+        targetName: targetQuery,
+        capability: 'filesystem.open',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { query: targetQuery, scope, andOpen: true },
+      };
+
+      candidates['filesystem.open'] = { score: 0.98, reason: `Locate and open file "${targetQuery}" in scope ${scope}` };
+      filesystemPlan = { action: 'open', target: targetQuery, scope, targetType: 'file' };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 13: FOLDER LOOKUP / REPO DISCOVERY ("Find the AgenticOS folder.")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:find|locate)\s+(?:the\s+)?(.+?)\s+(?:folder|directory|repo|repository)\b/i.test(effectiveLower) &&
+             !/\b(?:video|channel|youtube|stream|short|website|page)\b/i.test(effectiveLower)) {
+      const match = effectivePrompt.match(/\b(?:find|locate)\s+(?:the\s+)?(.+?)\s+(?:folder|directory|repo|repository)\b/i);
+      const folderName = match ? match[1].trim() : 'AgenticOS';
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'locate',
+        targetType: 'folder',
+        targetName: folderName,
+        capability: 'filesystem.locate',
+        confidence: 0.98,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { targetName: folderName, targetType: 'folder' },
+      };
+
+      candidates['filesystem.locate'] = { score: 0.98, reason: `Locate folder "${folderName}"` };
+      filesystemPlan = { action: 'locate', target: folderName, targetType: 'folder' };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 14: DESKTOP APPLICATION RESOLUTION ("Locate ChatGPT inside my computer.")
     // ─────────────────────────────────────────────────────────────────────────
     else if (/\b(?:locate|find)\s+(.+?)\s+(?:inside|in|on)\s+my\s+computer\b/i.test(effectiveLower) ||
              (/\b(?:inside|on)\s+my\s+computer\b/i.test(effectiveLower) && /\b(?:locate|find)\b/i.test(effectiveLower))) {
@@ -570,17 +1223,20 @@ export class UnifiedActionOrchestrator {
       desktopPlan = { action: 'resolve', appName };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE E: DESKTOP APPLICATION LAUNCH ("Open Telegram", "Go to Telegram", "Locate Telegram and open it")
+    // RULE 15: DESKTOP APPLICATION LAUNCH (Generic: "Open Telegram", "Open Notepad", "Locate Telegram and open it")
     // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?(telegram|chatgpt|notepad|calculator|calc|vscode|explorer)\b/i.test(effectiveLower) ||
-             /\blocate\s+(telegram|chatgpt|notepad|calculator)\s+and\s+open\s+it\b/i.test(effectiveLower) ||
-             (correction?.replacementTargetType === 'desktop_app' && correction.replacementTarget)) {
+    else if (/\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+and\s+open\s+it)?$/i.test(effectiveLower) &&
+             !/\b(?:youtube|channel|video|website|url|http|\.com|\.org|\.net)\b/i.test(effectiveLower) &&
+             !/\b(?:project|memory)\b/i.test(effectiveLower) &&
+             !/\b(?:powershell|terminal|cmd)\b/i.test(effectiveLower)) {
       let appName = 'Telegram';
-      const m1 = effectiveCleanMatch(effectivePrompt, /\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?(telegram|chatgpt|notepad|calculator|calc|vscode|explorer)\b/i);
-      const m2 = effectiveCleanMatch(effectivePrompt, /\blocate\s+(telegram|chatgpt|notepad|calculator)\s+and\s+open\s+it\b/i);
+      const m1 = effectiveCleanMatch(effectivePrompt, /\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+and\s+open\s+it)?$/i);
+      const m2 = effectiveCleanMatch(effectivePrompt, /\blocate\s+([a-zA-Z0-9_\-\s]+?)\s+and\s+open\s+it\b/i);
       if (m2) appName = m2[1];
       else if (m1) appName = m1[1];
       else if (correction?.replacementTarget) appName = correction.replacementTarget;
+
+      appName = appName.replace(/^(?:the\s+app\s+|app\s+)/i, '').trim();
 
       actionIntent = {
         mode: 'execute',
@@ -598,52 +1254,22 @@ export class UnifiedActionOrchestrator {
       desktopPlan = { action: 'open', appName };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE F: BROWSER LATEST VIDEO INSPECTION ("Find his latest video that isn't a Short and open it.")
+    // RULE 16: BROWSER CHANNEL LOOKUP ("Open the Julian Goldie SEO channel.")
     // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:latest|newest)\s+video(?:\s+(?:that\s+is\s+|that\s+isn'?t\s+a\s+|not\s+a\s+)?short)?\b/i.test(effectiveLower) ||
-             /\b(?:find|open|play|watch)\s+(?:his|her|the|their)\s+latest\s+video\b/i.test(effectiveLower)) {
-      const referent = this.resolveReferent(cleanPrompt, conversationId);
-
-      actionIntent = {
-        mode: 'execute',
-        verb: 'open',
-        targetType: 'browser_entity',
-        targetName: 'latest_video',
-        referent: referent ? { source: referent.source, resolvedValue: referent.resolvedValue, resolvedType: referent.resolvedType } : undefined,
-        capability: 'browser.inspect',
-        confidence: 0.98,
-        requiresConfirmation: false,
-        rawStt: rawPrompt,
-        normalizedText: cleanPrompt,
-      };
-
-      candidates['browser.inspect'] = {
-        score: 0.99,
-        reason: `YouTube channel video inspection (channel: ${referent?.resolvedValue || 'Julian Goldie SEO'})`,
-      };
-      browserPlan = {
-        action: 'open_latest_video',
-        target: 'YouTube',
-        channelName: referent?.resolvedValue || 'Julian Goldie SEO',
-        excludeShorts: !/is a short/i.test(effectiveLower),
-      };
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-    // RULE G: BROWSER CHANNEL LOOKUP ("Open the Julian Goldie SEO channel", "Now locate the channel Julian Goldy SEO")
-    // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:channel\s+|locate\s+(?:the\s+)?channel|open\s+(?:the\s+)?channel|go\s+back\s+to\s+(?:the\s+)?(?:julian|channel))\b/i.test(effectiveLower) ||
-             (/\bchannel\b/i.test(effectiveLower) && /\b(?:locate|find|open|go\s+to|visit)\b/i.test(effectiveLower))) {
-      let entityQuery = 'Julian Goldie SEO';
-      const m = cleanPrompt.match(/\b(?:channel\s+|locate\s+(?:the\s+)?channel\s+|open\s+(?:the\s+)?channel\s+|go\s+back\s+to\s+(?:the\s+)?)(.+?)(?:\s+channel)?$/i);
-      if (m && m[1]) {
-        entityQuery = m[1].replace(/^(?:the\s+|channel\s+)/i, '').trim();
+    else if (/\bchannel\b/i.test(effectiveLower) ||
+             /\b(?:locate|find|open)\s+(?:the\s+channel\s+)?julian\s+goldi?e\b/i.test(effectiveLower) ||
+             /\bgo\s+back\s+to\s+the\s+julian\s+goldie\s+channel\b/i.test(effectiveLower)) {
+      let channelTarget = 'Julian Goldie SEO';
+      const m = cleanPrompt.match(/\b(?:channel|open|locate)\s+([a-zA-Z0-9_\s]+?)(?:\s+channel)?(?:[.!?]|$)/i);
+      if (m && m[1].trim().length > 2) {
+        channelTarget = m[1].replace(/^(?:the\s+|open\s+the\s+|locate\s+the\s+)/i, '').trim();
       }
 
       actionIntent = {
         mode: 'execute',
         verb: 'open',
         targetType: 'browser_entity',
-        targetName: entityQuery,
+        targetName: channelTarget,
         capability: 'browser.open_entity',
         confidence: 0.98,
         requiresConfirmation: false,
@@ -651,19 +1277,27 @@ export class UnifiedActionOrchestrator {
         normalizedText: cleanPrompt,
       };
 
-      candidates['browser.open_entity'] = { score: 0.98, reason: `Browser channel entity lookup: "${entityQuery}"` };
-      browserPlan = { action: 'locate_channel', target: 'YouTube', entityQuery };
+      candidates['browser.open_entity'] = { score: 0.98, reason: `Direct YouTube channel lookup: "${channelTarget}"` };
+      browserPlan = {
+        action: 'locate_channel',
+        target: channelTarget,
+        entityQuery: channelTarget,
+        channelName: channelTarget,
+      };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE H: BROWSER WEBSITE NAVIGATION ("Open YouTube", "Open YouTube and while you're doing it...")
+    // RULE 17: BROWSER PLATFORM NAVIGATION ("Open YouTube", "Navigate to YouTube")
     // ─────────────────────────────────────────────────────────────────────────
-    else if (/^(?:please\s+)?(?:open|go\s+to|visit|launch)\s+youtube\b/i.test(cleanPrompt) ||
-             (/\bopen\s+youtube\b/i.test(cleanPrompt) && /\btell\s+me\s+what\s+you'?re\s+doing\b/i.test(cleanPrompt))) {
+    else if (/\b(?:open|go\s+to|navigate\s+to)\s+(?:the\s+)?(youtube|google|github)\b/i.test(effectiveLower) ||
+             /\b(?:open|launch)\s+youtube\b/i.test(effectiveLower)) {
+      const platformMatch = cleanPrompt.match(/\b(youtube|google|github)\b/i);
+      const platform = platformMatch ? platformMatch[1] : 'YouTube';
+
       actionIntent = {
         mode: 'execute',
         verb: 'open',
         targetType: 'website',
-        targetName: 'YouTube',
+        targetName: platform,
         capability: 'browser.navigate',
         confidence: 0.99,
         requiresConfirmation: false,
@@ -671,121 +1305,56 @@ export class UnifiedActionOrchestrator {
         normalizedText: cleanPrompt,
       };
 
-      candidates['browser.navigate'] = { score: 0.99, reason: 'Explicit platform navigation to YouTube' };
-      browserPlan = { action: 'navigate', target: 'YouTube' };
+      candidates['browser.navigate'] = { score: 0.99, reason: `Canonical website navigation to ${platform}` };
+      browserPlan = { action: 'navigate', target: platform };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE I: EXPLICIT PLATFORM SEARCH ("Search YouTube for Fireship")
-    // ─────────────────────────────────────────────────────────────────────────
-    else if (/\bsearch(?:\s+youtube)?\s+for\s+(.+)$/i.test(effectiveLower)) {
-      const match = cleanPrompt.match(/\bsearch(?:\s+youtube)?\s+for\s+(.+)$/i);
-      const query = match ? match[1].replace(/[.!?]+$/, '').trim() : cleanPrompt;
-
-      actionIntent = {
-        mode: 'execute',
-        verb: 'search',
-        targetType: 'website',
-        targetName: 'YouTube',
-        capability: 'browser.search',
-        confidence: 0.99,
-        requiresConfirmation: false,
-        rawStt: rawPrompt,
-        normalizedText: cleanPrompt,
-      };
-
-      candidates['browser.search'] = { score: 0.99, reason: `Explicit browser search: "${query}"` };
-      browserPlan = { action: 'search', target: 'YouTube', entityQuery: query };
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-    // RULE J: SYSTEM STATUS & CONVERSATIONAL HOLD
-    // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:status\s+of\s+agenticos|what\s+status\s+(?:does|of)\s+agenticos|system\s+status)\b/i.test(effectiveLower)) {
-      actionIntent = {
-        mode: 'internal',
-        verb: 'inspect',
-        targetType: 'internal_agenticos',
-        targetName: 'AgenticOS',
-        capability: 'agenticos.internal',
-        confidence: 0.98,
-        requiresConfirmation: false,
-        rawStt: rawPrompt,
-        normalizedText: cleanPrompt,
-      };
-
-      candidates['agenticos.internal'] = { score: 0.98, reason: 'AgenticOS runtime health/status query' };
-      conversationalPlan = { type: 'status_query' };
-    }
-    else if (/\b(?:that(?:'s|\s+is)\s+good|don'?t\s+do\s+anything|leave\s+it\s+there|stay\s+on\s+this\s+page|keep\s+.+\s+open)\b/i.test(effectiveLower)) {
-      actionIntent = {
-        mode: 'conversation',
-        verb: 'unknown',
-        targetType: 'browser_entity',
-        capability: 'conversation.respond',
-        confidence: 0.99,
-        requiresConfirmation: false,
-        rawStt: rawPrompt,
-        normalizedText: cleanPrompt,
-      };
-
-      candidates['conversation.respond'] = { score: 0.99, reason: 'Conversational hold / page stay constraint' };
-      conversationalPlan = { type: 'constraint_stay' };
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-    // RULE K: GENERAL CONVERSATION FALLBACK
+    // RULE 18: CONVERSATIONAL BASELINE FALLBACK
     // ─────────────────────────────────────────────────────────────────────────
     else {
       actionIntent = {
         mode: 'conversation',
         verb: 'unknown',
         targetType: 'unknown',
-        targetName: undefined,
+        targetName: cleanPrompt,
         capability: 'conversation.respond',
-        confidence: 0.85,
+        confidence: 0.70,
         requiresConfirmation: false,
         rawStt: rawPrompt,
         normalizedText: cleanPrompt,
       };
 
-      candidates['conversation.respond'] = { score: 0.85, reason: 'Conversational turn without action intent' };
+      candidates['conversation.respond'] = { score: 0.70, reason: 'No domain-specific action triggered; conversational route selected' };
       conversationalPlan = { type: 'general' };
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // SELECT CAPABILITY FIRST (Router Selects Capability)
-    // ─────────────────────────────────────────────────────────────────────────
-    const selectedCapabilityId = actionIntent.capability || 'conversation.respond';
-    const selectedCapability = CAPABILITY_REGISTRY[selectedCapabilityId] || CAPABILITY_REGISTRY['conversation.respond'];
-    const whySelected = candidates[selectedCapabilityId]?.reason || 'Selected by intent analysis';
-    const confidence = candidates[selectedCapabilityId]?.score ?? actionIntent.confidence;
-
-    // Log the EXACT Candidate Arbitration Table matching Section 11 trace
-    logger.info('[UnifiedActionOrchestrator] Turn arbitration complete', {
-      rawPrompt,
-      actionIntent,
-      selectedCapability: selectedCapability.id,
-      confidence,
-      whySelected,
-      candidates,
-    });
+    const selectedCapId = actionIntent.capability || 'conversation.respond';
+    const selectedCapability = CAPABILITY_REGISTRY[selectedCapId] || CAPABILITY_REGISTRY['conversation.respond'];
+    const whySelected = candidates[selectedCapId]?.reason || `Selected ${selectedCapId}`;
 
     return {
       actionIntent,
       selectedCapability,
-      confidence,
+      confidence: actionIntent.confidence,
       whySelected,
       candidates,
       correction: correction || undefined,
       browserPlan,
       memoryPlan,
       desktopPlan,
+      filesystemPlan,
+      shellPlan,
+      processPlan,
+      gitPlan,
+      developerPlan,
       projectPlan,
       conversationalPlan,
     };
   }
 }
 
-function effectiveCleanMatch(text: string, re: RegExp): RegExpMatchArray | null {
-  return text.match(re);
+function effectiveCleanMatch(text: string, pattern: RegExp): RegExpMatchArray | null {
+  return text.match(pattern);
 }
 
 export const unifiedActionOrchestrator = new UnifiedActionOrchestrator();

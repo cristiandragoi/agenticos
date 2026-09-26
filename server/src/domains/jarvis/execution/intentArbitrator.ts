@@ -175,13 +175,19 @@ export class IntentArbitrator {
     // Run unified capability-first orchestration
     const unified = unifiedActionOrchestrator.interpretAction(rawPrompt, conversationId, context);
 
-    // Map capability ID to SubsystemRoute for backward compatibility
+    // Map capability ID to SubsystemRoute
     let selectedRoute: SubsystemRoute = 'conversation';
     const capId = unified.selectedCapability.id;
     if (capId.startsWith('browser.')) {
       selectedRoute = 'browser';
-    } else if (capId.startsWith('desktop.')) {
+    } else if (capId.startsWith('desktop.') || capId.startsWith('process.')) {
       selectedRoute = 'desktop';
+    } else if (capId.startsWith('filesystem.')) {
+      selectedRoute = 'desktop';
+    } else if (capId.startsWith('shell.')) {
+      selectedRoute = 'desktop';
+    } else if (capId.startsWith('git.') || capId.startsWith('developer.')) {
+      selectedRoute = 'engineering';
     } else if (capId.startsWith('memory.')) {
       selectedRoute = 'memory';
     } else if (capId.startsWith('project.') || capId.startsWith('agenticos.')) {
@@ -209,12 +215,32 @@ export class IntentArbitrator {
         reason: unified.candidates['project.delete']?.reason || unified.candidates['agenticos.internal']?.reason || 'Internal AgenticOS capability',
       },
       'engineering': {
-        score: 0.0,
-        reason: 'No engineering/code operation requested',
+        score: Math.max(
+          unified.candidates['developer.run_tests']?.score || 0,
+          unified.candidates['developer.build']?.score || 0,
+          unified.candidates['developer.open_repository']?.score || 0,
+          unified.candidates['git.status']?.score || 0,
+          unified.candidates['git.diff']?.score || 0,
+          unified.candidates['git.log']?.score || 0
+        ),
+        reason: unified.candidates['developer.run_tests']?.reason || unified.candidates['git.status']?.reason || 'Engineering/code/git capability',
       },
       'desktop': {
-        score: Math.max(unified.candidates['desktop.open_app']?.score || 0, unified.candidates['desktop.resolve_app']?.score || 0),
-        reason: unified.candidates['desktop.open_app']?.reason || unified.candidates['desktop.resolve_app']?.reason || 'Desktop OS application capability',
+        score: Math.max(
+          unified.candidates['desktop.open_app']?.score || 0,
+          unified.candidates['desktop.resolve_app']?.score || 0,
+          unified.candidates['filesystem.open']?.score || 0,
+          unified.candidates['filesystem.locate']?.score || 0,
+          unified.candidates['shell.open']?.score || 0,
+          unified.candidates['shell.execute']?.score || 0,
+          unified.candidates['process.inspect']?.score || 0,
+          unified.candidates['process.stop']?.score || 0
+        ),
+        reason: unified.candidates['desktop.open_app']?.reason ||
+                unified.candidates['filesystem.open']?.reason ||
+                unified.candidates['shell.open']?.reason ||
+                unified.candidates['process.inspect']?.reason ||
+                unified.candidates['desktop.resolve_app']?.reason || 'Desktop OS local computer capability',
       },
     };
 
@@ -262,9 +288,14 @@ export class IntentArbitrator {
       browserPlan: unified.browserPlan,
       memoryPlan: unified.memoryPlan,
       desktopPlan: unified.desktopPlan,
+      filesystemPlan: unified.filesystemPlan,
+      shellPlan: unified.shellPlan,
+      processPlan: unified.processPlan,
+      gitPlan: unified.gitPlan,
+      developerPlan: unified.developerPlan,
       projectPlan: unified.projectPlan,
       conversationalPlan: unified.conversationalPlan,
-    };
+    } as any;
   }
 }
 

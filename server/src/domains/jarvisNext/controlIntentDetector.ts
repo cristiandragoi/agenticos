@@ -132,12 +132,19 @@ export function detectControlIntent(
     };
   }
 
-  // Project-level stop commands and media control ("pause it", "pause the video", "pause playback", "resume it")
+  // Project-level stop commands, application/process termination ("stop Notepad", "kill node"),
+  // and media control ("pause it", "pause the video", "pause playback", "resume it")
   // are domain operations, NOT out-of-band audio control / barge-in.
+  const SPEECH_CONTROL_FOLLOWERS = new Set(['talking', 'speaking', 'saying', 'reading', 'now', 'please', 'jarvis', 'javi', 'that', 'this', 'everything', 'it']);
+  const isProcessOrAppStop = /^(?:stop|kill|terminate|close)\s+(?:the\s+)?([a-z0-9_.\-]+(?:\.exe)?)$/i.exec(clean);
+  const isTargetedProcessStop = Boolean(isProcessOrAppStop && !SPEECH_CONTROL_FOLLOWERS.has(isProcessOrAppStop[1].toLowerCase()));
+
   const isTargetedDomainAction =
+    isTargetedProcessStop ||
     /\b(?:pause\s+(?:it|the\s+video|playback|the\s+song|the\s+music|this)|resume\s+it)\b/i.test(clean) ||
     /\b(?:stop|pause|halt|cancel)\s+(?:working|operating|all\s+work|the\s+project|execution)\b/i.test(clean) ||
-    /\b(?:stop|pause|cancel)\s+(?:on|in|inside)\s+[a-z0-9]+/i.test(clean);
+    /\b(?:stop|pause|cancel)\s+(?:on|in|inside)\s+[a-z0-9]+/i.test(clean) ||
+    /\b(?:stop|kill|terminate|close)\s+(?:the\s+)?(?:process|app|application|program|service|server|backend|frontend|node|container|port)\b/i.test(clean);
 
   if (isTargetedDomainAction) {
     return {

@@ -469,6 +469,120 @@ export class DesktopExecutor {
     }
   }
 
+  public async inspectPort(port: number): Promise<{
+    found: boolean;
+    port: number;
+    pid?: number;
+    processName?: string;
+    executablePath?: string;
+    workingSetMb?: number;
+    message: string;
+  }> {
+    if (process.platform !== 'win32') {
+      return { found: false, port, message: `Port inspection is supported on Windows.` };
+    }
+
+    try {
+      const psPortCmd = `(Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue).OwningProcess`;
+      const { stdout: portOut } = await execAsync(`powershell -NoProfile -Command "${psPortCmd}"`);
+      const rawPid = portOut ? parseInt(portOut.trim().split(/\r?\n/)[0], 10) : NaN;
+
+      if (!Number.isFinite(rawPid) || rawPid <= 0) {
+        return {
+          found: false,
+          port,
+          message: `No active process is currently listening on port ${port}.`,
+        };
+      }
+
+      const psProcCmd = `Get-Process -Id ${rawPid} -ErrorAction SilentlyContinue | Select-Object -Property Id, ProcessName, Path, @{Name='WorkingSetMB';Expression={[math]::Round($_.WorkingSet64/1MB, 2)}} | ConvertTo-Json`;
+      const { stdout: procOut } = await execAsync(`powershell -NoProfile -Command "${psProcCmd}"`);
+      let procInfo: any = {};
+      try {
+        procInfo = JSON.parse(procOut);
+      } catch {}
+
+      const processName = procInfo.ProcessName || 'unknown';
+      const executablePath = procInfo.Path || '';
+      const workingSetMb = procInfo.WorkingSetMB || 0;
+
+      return {
+        found: true,
+        port,
+        pid: rawPid,
+        processName,
+        executablePath,
+        workingSetMb,
+        message: `Port ${port} is in use by process '${processName}' (PID ${rawPid}${workingSetMb ? `, memory: ${workingSetMb} MB` : ''}).`,
+      };
+    } catch (err: any) {
+      return {
+        found: false,
+        port,
+        message: `Failed to inspect port ${port}: ${err?.message || String(err)}`,
+      };
+    }
+  }
+
+  public async listProcesses(filter?: string): Promise<Array<{ pid: number; name: string; memoryMb: number }>> {
+    if (process.platform !== 'win32') return [];
+    try {
+      const filterClause = filter ? `| Where-Object { $_.ProcessName -like '*${filter}*' }` : '';
+      const psCmd = `Get-Process ${filterClause} | Sort-Object -Descending WorkingSet64 | Select-Object -First 25 Id, ProcessName, @{Name='MB';Expression={[math]::Round($_.WorkingSet64/1MB, 1)}} | ConvertTo-Json`;
+      const { stdout } = await execAsync(`powershell -NoProfile -Command "${psCmd}"`);
+      const parsed = JSON.parse(stdout || '[]');
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      return items.filter(Boolean).map((p: any) => ({
+        pid: p.Id,
+        name: p.ProcessName,
+        memoryMb: p.MB,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  public async stopProcess(target: { pid?: number; processName?: string; port?: number }): Promise<{
+    success: boolean;
+    stopped: string;
+    error?: string;
+  }> {
+    if (process.platform !== 'win32') {
+      return { success: false, stopped: '', error: 'Supported on Windows only' };
+    }
+
+    try {
+      let targetPid = target.pid;
+      let label = '';
+
+      if (target.port) {
+        const portInfo = await this.inspectPort(target.port);
+        if (portInfo.found && portInfo.pid) {
+          targetPid = portInfo.pid;
+          label = `process on port ${target.port} (${portInfo.processName} PID ${targetPid})`;
+        } else {
+          return { success: false, stopped: `port ${target.port}`, error: `No process found on port ${target.port}` };
+        }
+      } else if (target.processName) {
+        const cleanName = target.processName.replace(/[.,!?]+$/, '').replace(/\.exe$/i, '').trim();
+        label = cleanName;
+        await execAsync(`taskkill /F /IM "${cleanName}.exe"`).catch(() => {});
+        await execAsync(`powershell -NoProfile -Command "Stop-Process -Name '${cleanName}' -Force -ErrorAction SilentlyContinue"`).catch(() => {});
+        return { success: true, stopped: cleanName };
+      }
+
+      if (targetPid) {
+        label = label || `PID ${targetPid}`;
+        await execAsync(`taskkill /F /T /PID ${targetPid}`).catch(() => {});
+        return { success: true, stopped: label };
+      }
+
+      return { success: false, stopped: '', error: 'No process target specified' };
+    } catch (err: any) {
+      return { success: false, stopped: '', error: err?.message || String(err) };
+    }
+  }
+
   public async executeStep(step: ActionPlanStep, context: TurnContext): Promise<ExecutionResult> {
     if (step.action === 'close_app' || step.action === 'close_application' || step.action === 'close') {
       const appTarget = (step.parameters.app as string) || (step.parameters.application as string) || '';

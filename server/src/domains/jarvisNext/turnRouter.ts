@@ -1203,11 +1203,11 @@ export async function routeTurn(opts: {
     }
   }
 
-  // ── Early Hermes delegation & recent task status checks ─────────────────
   const isExplicitHermesDelegationEarly =
     /\b(?:ask|tell|have|delegate\s+to)\s+(?:hermes|codex)\b/i.test(lower) ||
     /\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower);
-  if (CODE_INSPECTION_RE.test(lower) || isExplicitHermesDelegationEarly) {
+  const isRepoLocateEarly = /\b(?:find|locate|search|where\s+is|open|show)\b.*\brepository\b/i.test(lower);
+  if ((CODE_INSPECTION_RE.test(lower) && !isRepoLocateEarly) || isExplicitHermesDelegationEarly) {
     const tTool = Date.now();
     try {
       const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');
@@ -1640,7 +1640,8 @@ export async function routeTurn(opts: {
   const isExplicitHermesDelegation =
     /\b(?:ask|tell|have|delegate\s+to)\s+(?:hermes|codex)\b/i.test(lower) ||
     /\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower);
-  if (CODE_INSPECTION_RE.test(lower) || isExplicitHermesDelegation) {
+  const isRepoLocate = /\b(?:find|locate|search|where\s+is|open|show)\b.*\brepository\b/i.test(lower);
+  if ((CODE_INSPECTION_RE.test(lower) && !isRepoLocate) || isExplicitHermesDelegation) {
     const tTool = Date.now();
     try {
       const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');

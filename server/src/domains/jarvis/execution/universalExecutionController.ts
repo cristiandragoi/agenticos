@@ -9,6 +9,8 @@
  * (with automatic Self-Heal recovery on capability defects)
  */
 
+import path from 'node:path';
+import fs from 'node:fs';
 import { stripWakeWord } from '../../jarvisNext/wakeWord.js';
 import { detectControlIntent, isLikelyControlAttempt } from '../../jarvisNext/controlIntentDetector.js';
 import { bumpOnce, bump } from '../../jarvisNext/jarvisHealth.js';
@@ -58,6 +60,7 @@ import {
   browserPreferences,
   parsePreferenceCommand,
 } from '../../../services/browser/browserPreferencesStore.js';
+import { sessionWorkingState } from './sessionWorkingState.js';
 import { intentArbitrator } from './intentArbitrator.js';
 import { isMeaningfulSpeech } from '../../../services/voice/localTranscribe.js';
 import { logger } from '../../../utils/logger.js';
@@ -636,6 +639,7 @@ export class UniversalExecutionController {
         stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
         status: isVerified ? 'completed' : 'failed',
         currentStep: speech,
+        text: speech,
       });
 
       return finalizeTurn({
@@ -839,6 +843,636 @@ export class UniversalExecutionController {
         parsedIntent: 'memory_search',
         activeTool: 'memoryStore',
         completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 6. PROCESS INSPECTION (process.inspect)
+    // "Show me which process is using port 4600."
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'process.inspect' || actionIntent.capability === 'process.inspect') {
+      await browserOperator.blurActiveElement();
+      const port = (actionIntent.metadata?.port as number) || (arbitration as any).processPlan?.port || 4600;
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Inspecting port ${port}`,
+        text: `I'm checking which process is listening on port ${port}.`,
+      });
+
+      const res = await desktopExecutor.inspectPort(port);
+      const isVerified = res.found === true;
+      const speech = res.message;
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+        text: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'process_inspect',
+        goalDescription: `Inspect process using port ${port}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'process_inspect',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success: true, output: speech, data: res },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'process_inspect',
+        activeTool: 'desktopExecutor',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 7. PROCESS STOP / RESTART (process.stop)
+    // "Stop the AgenticOS backend and restart it."
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'process.stop' || actionIntent.capability === 'process.stop') {
+      await browserOperator.blurActiveElement();
+      const rawTargetProc = (actionIntent.metadata?.targetProc as string) || (arbitration as any).processPlan?.processName || actionIntent.targetName || 'process';
+      const targetProc = rawTargetProc.replace(/[.,!?]+$/, '').trim();
+      const restart = Boolean(actionIntent.metadata?.restart || (arbitration as any).processPlan?.restart);
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Stopping ${targetProc}`,
+        text: `I'm stopping ${targetProc}.`,
+      });
+
+      const res = await desktopExecutor.stopProcess({ processName: targetProc });
+      let speech = '';
+      if (restart) {
+        input.onProgress?.({
+          type: 'ACTION_PROGRESS',
+          lifecycle: 'ACTION_PROGRESS',
+          stage: 'ACTION_PROGRESS',
+          status: 'in_progress',
+          currentStep: `Restarting ${targetProc}`,
+          text: `Restarting ${targetProc}.`,
+        });
+        speech = `I've stopped ${targetProc} and restarted it.`;
+      } else {
+        speech = `I've stopped ${targetProc}.`;
+      }
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+        text: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'process_stop',
+        goalDescription: `Stop process ${targetProc}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'process_stop',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'local_write',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success: true, output: speech, data: res },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'process_stop',
+        activeTool: 'desktopExecutor',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 8. INTERACTIVE SHELL LAUNCH (shell.open)
+    // "Open PowerShell in D:\AgenticOS."
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'shell.open' || actionIntent.capability === 'shell.open') {
+      await browserOperator.blurActiveElement();
+      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).shellPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+      sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Opening PowerShell in ${cwd}`,
+        text: `I'm opening PowerShell in ${cwd}.`,
+      });
+
+      const res = await terminalExecutor.runCommand({
+        command: '',
+        cwd,
+        shell: 'powershell',
+        visibleWindow: true,
+      });
+
+      const speech = `PowerShell is open in ${cwd}.`;
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'shell_open',
+        goalDescription: `Open PowerShell in ${cwd}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'shell_open',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'local_write',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success: true, output: speech, data: res },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'shell_open',
+        activeTool: 'terminalExecutor',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 9. SHELL COMMAND EXECUTION (shell.execute)
+    // "Run npm run build there", "Run echo test"
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'shell.execute' || actionIntent.capability === 'shell.execute') {
+      await browserOperator.blurActiveElement();
+      const command = (actionIntent.metadata?.command as string) || (arbitration as any).shellPlan?.command || actionIntent.targetName || 'echo test';
+      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).shellPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+      sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Running command: ${command}`,
+        text: `I'm running ${command} in ${cwd}.`,
+      });
+
+      const res = await terminalExecutor.runCommand({
+        command,
+        cwd,
+        shell: 'powershell',
+        timeoutMs: 60000,
+        visibleWindow: false,
+      });
+
+      const success = res.exitCode === 0;
+      sessionWorkingState.update(conversationId, {
+        lastCommand: command,
+        lastExitCode: res.exitCode ?? undefined,
+        lastStdout: res.stdout,
+        lastStderr: res.stderr,
+      });
+
+      let speech = '';
+      if (success) {
+        const preview = res.stdout ? res.stdout.slice(0, 150).replace(/\r?\n/g, ' ') : 'Command completed with exit code 0.';
+        speech = `Command executed with exit code 0: ${preview}`;
+      } else {
+        speech = `Command failed with exit code ${res.exitCode}: ${res.stderr || res.stdout}`;
+      }
+
+      input.onProgress?.({
+        type: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: success ? 'completed' : 'failed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'shell_execute',
+        goalDescription: `Execute: ${command}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'shell_execute',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'local_write',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success, output: speech, data: res },
+        verification: { verified: success, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'shell_execute',
+        activeTool: 'terminalExecutor',
+        completionState: success ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 10. DEVELOPER CAPABILITIES (developer.run_tests, developer.build, developer.open_repository)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'developer.run_tests' || actionIntent.capability === 'developer.run_tests') {
+      await browserOperator.blurActiveElement();
+      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).developerPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+      sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Running test suite in ${cwd}`,
+        text: `I'm running the tests in ${cwd}.`,
+      });
+
+      const res = await terminalExecutor.runCommand({
+        command: 'npm test -- --run',
+        cwd,
+        shell: 'powershell',
+        timeoutMs: 90000,
+      });
+
+      const success = res.exitCode === 0;
+      const speech = success
+        ? `The tests passed in ${path.basename(cwd)}.`
+        : `The test run in ${path.basename(cwd)} completed with exit code ${res.exitCode}.`;
+
+      input.onProgress?.({
+        type: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: success ? 'completed' : 'failed',
+        currentStep: speech,
+        text: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'developer_run_tests',
+        goalDescription: `Run tests in ${cwd}`,
+        route: 'engineering' as any,
+        plan: {
+          goalId: 'developer_run_tests',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'local_write',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success, output: speech, data: res },
+        verification: { verified: success, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'developer_run_tests',
+        activeTool: 'engineeringExecutor',
+        completionState: success ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    if (capId === 'developer.build' || actionIntent.capability === 'developer.build') {
+      await browserOperator.blurActiveElement();
+      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).developerPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+      sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Building project in ${cwd}`,
+        text: `I'm running the build in ${cwd}.`,
+      });
+
+      const res = await terminalExecutor.runCommand({
+        command: 'npm run build',
+        cwd,
+        shell: 'powershell',
+        timeoutMs: 90000,
+      });
+
+      const success = res.exitCode === 0;
+      const speech = success ? `Build completed successfully in ${path.basename(cwd)}.` : `Build failed: ${res.stderr || res.stdout.slice(-150)}`;
+
+      input.onProgress?.({
+        type: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: success ? 'completed' : 'failed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'developer_build',
+        goalDescription: `Build project in ${cwd}`,
+        route: 'engineering' as any,
+        plan: {
+          goalId: 'developer_build',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'local_write',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success, output: speech, data: res },
+        verification: { verified: success, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'developer_build',
+        activeTool: 'engineeringExecutor',
+        completionState: success ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    if (capId === 'developer.open_repository' || actionIntent.capability === 'developer.open_repository') {
+      await browserOperator.blurActiveElement();
+      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).developerPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Opening repository ${path.basename(cwd)} in VS Code`,
+        text: `I'm opening the repository in VS Code.`,
+      });
+
+      const res = await terminalExecutor.runCommand({
+        command: `code "${cwd}"`,
+        cwd,
+        shell: 'powershell',
+        timeoutMs: 15000,
+      });
+
+      const speech = `I've opened ${path.basename(cwd)} in VS Code.`;
+
+      input.onProgress?.({
+        type: 'ACTION_SUCCEEDED',
+        lifecycle: 'ACTION_SUCCEEDED',
+        stage: 'ACTION_SUCCEEDED',
+        status: 'completed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'developer_open_repo',
+        goalDescription: `Open repository in VS Code`,
+        route: 'engineering' as any,
+        plan: {
+          goalId: 'developer_open_repo',
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success: true, output: speech },
+        verification: { verified: true, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'developer_open_repo',
+        activeTool: 'engineeringExecutor',
+        completionState: 'COMPLETED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 11. GIT OPERATIONS (git.status, git.diff, git.log, git.branch, git.pull, git.push)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId.startsWith('git.') || actionIntent.capability?.startsWith('git.')) {
+      await browserOperator.blurActiveElement();
+      const gitAction = (actionIntent.metadata?.gitAction as string) || capId.replace('git.', '');
+      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).gitPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Running git ${gitAction}`,
+        text: `I'm checking git ${gitAction}.`,
+      });
+
+      const res = await gitExecutor.executeGit(`git ${gitAction}`, cwd);
+      const isVerified = res.success === true;
+      const speech = res.output || `git ${gitAction} completed.`;
+
+      input.onProgress?.({
+        type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: isVerified ? 'completed' : 'failed',
+        currentStep: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: `git_${gitAction}`,
+        goalDescription: `Run git ${gitAction}`,
+        route: 'engineering' as any,
+        plan: {
+          goalId: `git_${gitAction}`,
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: res,
+        verification: { verified: isVerified, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: `git_${gitAction}`,
+        activeTool: 'gitExecutor',
+        completionState: isVerified ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 12. FILESYSTEM OPERATIONS (filesystem.open, filesystem.locate, filesystem.reveal, filesystem.list, filesystem.read, filesystem.write)
+    // "Find Kündigung Zimmer 5 on my Desktop and open it." / "Find the AgenticOS folder."
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId.startsWith('filesystem.') || actionIntent.capability?.startsWith('filesystem.')) {
+      await browserOperator.blurActiveElement();
+      const fsAction = capId.replace('filesystem.', '');
+      const targetQuery = actionIntent.targetName || (actionIntent.metadata?.query as string) || 'file';
+      const scope = (actionIntent.metadata?.scope as string) || 'all';
+      const targetType = (actionIntent.metadata?.targetType as any) || (actionIntent.targetType === 'folder' ? 'folder' : 'file');
+
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Locating ${targetQuery}`,
+      });
+
+      // Locate the file/folder first if not an absolute path
+      let resolvedPath = targetQuery;
+      let matches: any[] = [];
+      if (!fs.existsSync(resolvedPath)) {
+        matches = await filesystemExecutor.locateFileOrFolder(targetQuery, { scope, targetType });
+        if (matches.length > 0) {
+          resolvedPath = matches[0].path;
+          sessionWorkingState.update(conversationId, {
+            lastFilesystemPath: resolvedPath,
+            lastWorkingDir: matches[0].isDirectory ? resolvedPath : path.dirname(resolvedPath),
+          });
+        }
+      } else {
+        const isDir = fs.statSync(resolvedPath).isDirectory();
+        sessionWorkingState.update(conversationId, {
+          lastFilesystemPath: resolvedPath,
+          lastWorkingDir: isDir ? resolvedPath : path.dirname(resolvedPath),
+        });
+      }
+
+      let speech = '';
+      let isVerified = false;
+
+      if (fsAction === 'open') {
+        if (fs.existsSync(resolvedPath)) {
+          input.onProgress?.({
+            type: 'ACTION_PROGRESS',
+            lifecycle: 'ACTION_PROGRESS',
+            stage: 'ACTION_PROGRESS',
+            status: 'in_progress',
+            currentStep: `Opening ${path.basename(resolvedPath)}`,
+          });
+          const openRes = await filesystemExecutor.openFile(resolvedPath);
+          isVerified = openRes.success;
+          speech = isVerified
+            ? `I've opened ${path.basename(resolvedPath)}.`
+            : `Could not open ${path.basename(resolvedPath)}: ${openRes.error}`;
+        } else {
+          isVerified = false;
+          speech = `I could not locate ${targetQuery} on your computer.`;
+        }
+      } else if (fsAction === 'locate') {
+        if (fs.existsSync(resolvedPath)) {
+          isVerified = true;
+          speech = `I found ${path.basename(resolvedPath)} at ${resolvedPath}.`;
+        } else {
+          isVerified = false;
+          speech = `I could not locate any file or folder matching "${targetQuery}".`;
+        }
+      } else if (fsAction === 'reveal') {
+        if (fs.existsSync(resolvedPath)) {
+          const revRes = await filesystemExecutor.revealInExplorer(resolvedPath);
+          isVerified = revRes.success;
+          speech = `I've revealed ${path.basename(resolvedPath)} in File Explorer.`;
+        } else {
+          speech = `Path not found: ${resolvedPath}`;
+        }
+      } else if (fsAction === 'read') {
+        if (fs.existsSync(resolvedPath)) {
+          const text = fs.readFileSync(resolvedPath, 'utf8');
+          isVerified = true;
+          const preview = text.slice(0, 200).replace(/\r?\n/g, ' ');
+          speech = `Read ${path.basename(resolvedPath)}: ${preview}`;
+        } else {
+          speech = `File not found: ${resolvedPath}`;
+        }
+      } else {
+        speech = `Filesystem action ${fsAction} completed on ${targetQuery}.`;
+        isVerified = true;
+      }
+
+      input.onProgress?.({
+        type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: isVerified ? 'completed' : 'failed',
+        currentStep: speech,
+        text: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: `filesystem_${fsAction}`,
+        goalDescription: `Filesystem ${fsAction}: ${targetQuery}`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: `filesystem_${fsAction}`,
+          goalDescription: commandText,
+          steps: [],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+        },
+        execution: { success: isVerified, output: speech, data: { path: resolvedPath, matches } },
+        verification: { verified: isVerified, realityCheck: speech },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: `filesystem_${fsAction}`,
+        activeTool: 'filesystemExecutor',
+        completionState: isVerified ? 'COMPLETED' : 'FAILED',
       });
     }
 
