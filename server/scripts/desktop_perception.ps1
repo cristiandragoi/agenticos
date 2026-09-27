@@ -73,6 +73,14 @@ public class DesktopPerceptionHelper {
         public int Bottom;
     }
 
+    public class WindowEntry {
+        public long Hwnd;
+        public uint Pid;
+        public string Process;
+        public string Title;
+        public string ClassName;
+    }
+
     public static void Attach() {
         try {
             IntPtr hWinsta = OpenWindowStation("WinSta0", false, 0x037F);
@@ -80,6 +88,38 @@ public class DesktopPerceptionHelper {
             IntPtr hDesk = OpenDesktop("Default", 0, false, 0x01FF);
             if (hDesk != IntPtr.Zero) SetThreadDesktop(hDesk);
         } catch {}
+    }
+
+    public static List<WindowEntry> GetDesktopWindows() {
+        Attach();
+        List<WindowEntry> list = new List<WindowEntry>();
+        IntPtr hDesk = OpenDesktop("Default", 0, false, 0x01FF);
+        if (hDesk != IntPtr.Zero) {
+            EnumDesktopWindows(hDesk, (hWnd, lParam) => {
+                if (IsWindowVisible(hWnd)) {
+                    StringBuilder sb = new StringBuilder(512);
+                    GetWindowText(hWnd, sb, 512);
+                    string title = sb.ToString();
+                    if (!string.IsNullOrEmpty(title)) {
+                        uint pid = 0;
+                        GetWindowThreadProcessId(hWnd, out pid);
+                        string pName = "";
+                        try { pName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch {}
+                        StringBuilder sbClass = new StringBuilder(256);
+                        GetClassName(hWnd, sbClass, 256);
+                        WindowEntry e = new WindowEntry();
+                        e.Hwnd = hWnd.ToInt64();
+                        e.Pid = pid;
+                        e.Process = pName;
+                        e.Title = title;
+                        e.ClassName = sbClass.ToString();
+                        list.Add(e);
+                    }
+                }
+                return true;
+            }, IntPtr.Zero);
+        }
+        return list;
     }
 
     public static bool CaptureHwnd(IntPtr hWnd, string outPath, out int outW, out int outH) {
@@ -142,40 +182,87 @@ function Get-TargetWindow {
         return [IntPtr]$RequestedHwnd
     }
     
+    $allWindows = [DesktopPerceptionHelper]::GetDesktopWindows()
+
     # Check current foreground
     $fg = [DesktopPerceptionHelper]::GetForegroundWindow()
-    if ($fg -ne [IntPtr]::Zero -and -not $Query) {
-        return $fg
+    $fgTitle = ""
+    if ($fg -ne [IntPtr]::Zero) {
+        $sb = New-Object System.Text.StringBuilder 512
+        [DesktopPerceptionHelper]::GetWindowText($fg, $sb, 512) | Out-Null
+        $fgTitle = $sb.ToString()
     }
-    
-    # Enumerate top-level windows matching Query
-    $qLower = if ($Query) { $Query.ToLower().Trim() } else { "" }
-    $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent (Get-Location).Path }
-    $listScript = Join-Path $scriptDir "list_desktop_windows.ps1"
-    if (-not (Test-Path $listScript)) {
-        $listScript = Join-Path (Get-Location).Path "server/scripts/list_desktop_windows.ps1"
+
+    $qClean = if ($Query) { 
+        $Query.ToLower().Trim() -replace '^(?:read|inspect|what\s+is\s+inside|what''s\s+inside|inside|in|the)\s+', '' -replace '\s+(?:window|page|app|application)$', ''
+    } else { "" }
+
+    # If query is deictic or empty:
+    if (-not $qClean -or $qClean -match '^(?:active|current|this|the)\b' -or $qClean -eq 'active_window') {
+        # If foreground is valid and not AgenticOS, return foreground
+        if ($fg -ne [IntPtr]::Zero -and $fgTitle -notlike "*AgenticOS*") {
+            return $fg
+        }
+        # Otherwise pick first prominent non-explorer non-AgenticOS window
+        $match = $allWindows | Where-Object { 
+            $_.Process -ne "explorer" -and 
+            $_.Title -notlike "*AgenticOS*" -and
+            $_.Title -notlike "*Program Manager*"
+        } | Select-Object -First 1
+        if ($match) { return [IntPtr]$match.Hwnd }
+        if ($fg -ne [IntPtr]::Zero) { return $fg }
     }
-    if (Test-Path $listScript) {
-        $json = & powershell -NoProfile -ExecutionPolicy Bypass -File $listScript
-        if ($json) {
-            $windows = $json | ConvertFrom-Json
-            if ($Query) {
-                $match = $windows | Where-Object { 
-                    $_.title.ToLower().Contains($qLower) -or 
-                    $_.process.ToLower().Contains($qLower) 
-                } | Select-Object -First 1
-                if ($match) { return [IntPtr]$match.hwnd }
-            } else {
-                # Pick first prominent non-explorer window
-                $match = $windows | Where-Object { 
-                    $_.process -ne "explorer" -and 
-                    $_.title -notlike "*AgenticOS*" 
-                } | Select-Object -First 1
-                if ($match) { return [IntPtr]$match.hwnd }
+
+    if ($qClean) {
+        # Tokenize query
+        $tokens = $qClean -split '[\s\-_/]+' | Where-Object { $_ -and $_ -notin @("app", "application", "browser", "window", "the", "a", "an") }
+        
+        # Word-number expansion
+        $expandedTokens = @()
+        foreach ($tok in $tokens) {
+            $expandedTokens += $tok
+            if ($tok -eq "1") { $expandedTokens += "one" }
+            elseif ($tok -eq "one") { $expandedTokens += "1" }
+            elseif ($tok -eq "2") { $expandedTokens += "two" }
+            elseif ($tok -eq "two") { $expandedTokens += "2" }
+        }
+
+        $scored = @()
+        foreach ($w in $allWindows) {
+            $tLower = if ($w.Title) { $w.Title.ToLower() } else { "" }
+            $pLower = if ($w.Process) { $w.Process.ToLower() } else { "" }
+            $score = 0
+
+            # Exact substring match
+            if ($tLower.Contains($qClean) -or $pLower.Contains($qClean)) { $score += 100 }
+
+            # Token matches
+            foreach ($tok in $expandedTokens) {
+                if ($tLower.Contains($tok)) { $score += 40 }
+                if ($pLower.Contains($tok)) { $score += 50 }
+            }
+
+            # Penalize explorer or shell infrastructure unless explicitly asked
+            if ($w.Process -eq "explorer" -and -not $qClean.Contains("explorer")) { $score -= 60 }
+            if ($tLower -eq "program manager") { $score -= 100 }
+
+            if ($score -gt 0) {
+                $scored += [PSCustomObject]@{
+                    Hwnd = $w.Hwnd
+                    Score = $score
+                    Title = $w.Title
+                    Process = $w.Process
+                }
             }
         }
+
+        if ($scored.Count -gt 0) {
+            $best = $scored | Sort-Object Score -Descending | Select-Object -First 1
+            return [IntPtr]$best.Hwnd
+        }
     }
-    
+
+    # Fallback to foreground
     return $fg
 }
 
@@ -198,10 +285,10 @@ $sbClass = New-Object System.Text.StringBuilder 256
 [DesktopPerceptionHelper]::GetClassName($targetHwnd, $sbClass, 256) | Out-Null
 $windowClass = $sbClass.ToString()
 
-$pid = 0
-[DesktopPerceptionHelper]::GetWindowThreadProcessId($targetHwnd, [ref]$pid) | Out-Null
+$winProcId = [uint32]0
+[DesktopPerceptionHelper]::GetWindowThreadProcessId($targetHwnd, [ref]$winProcId) | Out-Null
 $processName = ""
-try { $processName = [System.Diagnostics.Process]::GetProcessById($pid).ProcessName } catch {}
+try { $processName = [System.Diagnostics.Process]::GetProcessById([int]$winProcId).ProcessName } catch {}
 
 # Capture Screenshot if requested
 $screenshotInfo = $null
@@ -290,7 +377,7 @@ $resultObj = [PSCustomObject]@{
     windowTitle = $windowTitle
     windowClass = $windowClass
     process = $processName
-    pid = $pid
+    pid = [int]$winProcId
     method = $method
     text = $fullText
     controlCount = $extractedControls.Count

@@ -304,7 +304,9 @@ export class ControlPlaneTurnHandler {
 
     // ── 7. Success Verification Gate ───────────────────────────────────────
     if (execResult.executed && verification.verified) {
-      const completionText = this.buildCompletionText(target, verb, primaryStrategy.surface, primaryStrategy.parameters);
+      const completionText = (verification.summary && (primaryStrategy.surface === 'camera' || primaryStrategy.surface === 'desktop_observe' || verb === 'perceive' || verb === 'observe'))
+        ? verification.summary
+        : this.buildCompletionText(target, verb, primaryStrategy.surface, primaryStrategy.parameters);
       goalLifecycleManager.recordVerification(goalRun.goalId, verification);
       goalLifecycleManager.transitionState(goalRun.goalId, 'COMPLETED', {
         actor: 'UniversalVerifier',
@@ -481,13 +483,13 @@ export class ControlPlaneTurnHandler {
     }
 
     // 3. General Actionable Commands
-    const actionPattern = /^(?:(?:hey\s+)?jarvis[,\s]+)?(?:can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|please\s+|i\s+want\s+you\s+to\s+|go\s+ahead\s+and\s+)?(open|launch|start|run|execute|browse|visit|go\s+to|navigate\s+to|search\s+for|search|locate|find|show|list|display|get|read|check|inspect|examine|verify|test|diagnose|create|make|build|compile|write|edit|modify|update|delete|remove|clear|kill|stop|halt|close|restart|reload|deploy|send|play|install|switch\s+to)\s+(?:the\s+)?(.+?)[.!?]?$/i;
+    const actionPattern = /^(?:(?:hey\s+)?jarvis[,\s]+)?(?:can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|please\s+|i\s+want\s+you\s+to\s+|go\s+ahead\s+and\s+)?((?:locate|find|search)\s*(?:\/|\s+and\s+)\s*open|open|launch|start|run|execute|browse|visit|go\s+to|navigate\s+to|search\s+for|search|locate|find|show|list|display|get|read|check|inspect|examine|verify|test|diagnose|create|make|build|compile|write|edit|modify|update|delete|remove|clear|kill|stop|halt|close|restart|reload|deploy|send|play|install|switch\s+to)\s+(?:the\s+)?(.+?)[.!?]?$/i;
     const actionMatch = t.match(actionPattern);
     if (actionMatch) {
       let rawVerb = actionMatch[1].trim().toLowerCase().replace(/\s+/g, '_');
       let rawTarget = actionMatch[2].trim();
 
-      if (['launch', 'start', 'browse', 'visit', 'go_to', 'navigate_to'].includes(rawVerb)) {
+      if (rawVerb.includes('open') || ['launch', 'start', 'browse', 'visit', 'go_to', 'navigate_to'].includes(rawVerb)) {
         rawVerb = 'open';
       }
       if (['search_for', 'locate', 'find'].includes(rawVerb)) {
@@ -524,6 +526,9 @@ export class ControlPlaneTurnHandler {
       return `Captured screenshot of ${target}.`;
     }
     if (surface === 'camera' || verb === 'perceive') {
+      if (parameters?.__cameraPerception?.answer) {
+        return parameters.__cameraPerception.answer;
+      }
       return `I can see you through the physical camera. You are present at your workstation.`;
     }
     if (surface === 'browser') {

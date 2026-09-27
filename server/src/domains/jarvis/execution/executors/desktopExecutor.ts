@@ -390,7 +390,34 @@ export class DesktopExecutor {
       ? this.lastActiveApp.displayName
       : appInput;
 
-    const detailed = this.resolveWindowsDesktopApp(effectiveInput);
+    let detailed = this.resolveWindowsDesktopApp(effectiveInput);
+
+    // If static/naive resolution didn't find the app, query WindowsApplicationResolver (Taskbar, StartMenu, UWP, etc.)
+    if (!detailed.found && process.platform === 'win32') {
+      try {
+        const { windowsApplicationResolver } = await import('../../../controlPlane/WindowsApplicationResolver.js');
+        const resolvedWinApp = await windowsApplicationResolver.resolve(effectiveInput);
+        if (resolvedWinApp) {
+          detailed = {
+            found: true,
+            appName: resolvedWinApp.name,
+            displayName: resolvedWinApp.name,
+            executablePath: resolvedWinApp.targetPath || undefined,
+            shortcutPath: resolvedWinApp.shortcutPath || undefined,
+            processName: resolvedWinApp.targetPath
+              ? path.basename(resolvedWinApp.targetPath, path.extname(resolvedWinApp.targetPath))
+              : resolvedWinApp.name,
+            searchedSources: ['WindowsApplicationResolver', ...(detailed.searchedSources || [])],
+          };
+          if (resolvedWinApp.appUserModelId && !detailed.shortcutPath && !detailed.executablePath) {
+            detailed.executablePath = `explorer.exe shell:AppsFolder\\${resolvedWinApp.appUserModelId}`;
+          }
+        }
+      } catch (err) {
+        logger.warn('[DesktopExecutor] WindowsApplicationResolver error:', err);
+      }
+    }
+
     const app = this.resolveApp(effectiveInput);
     const displayName = detailed.displayName || app?.displayName || effectiveInput;
     const processName = detailed.processName || app?.processName || effectiveInput.replace(/\.exe$/i, '');
@@ -424,13 +451,17 @@ export class DesktopExecutor {
           const psCommand = `Start-Process -FilePath "${detailed.shortcutPath}"`;
           await execAsync(`powershell -NoProfile -Command "${psCommand}"`);
         } else if (detailed.executablePath) {
-          const child = spawn(detailed.executablePath, [], {
-            detached: true,
-            stdio: 'ignore',
-            windowsHide: false,
-          });
-          child.unref();
-          childPid = child.pid;
+          if (detailed.executablePath.startsWith('explorer.exe shell:AppsFolder\\')) {
+            await execAsync(`powershell -NoProfile -Command "Start-Process ${detailed.executablePath}"`);
+          } else {
+            const child = spawn(detailed.executablePath, [], {
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: false,
+            });
+            child.unref();
+            childPid = child.pid;
+          }
         } else {
           const exe = app ? app.executable : effectiveInput;
           const isUrlOrUri = exe.startsWith('start ');
