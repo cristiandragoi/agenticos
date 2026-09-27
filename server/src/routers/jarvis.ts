@@ -1238,9 +1238,18 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
               operationId: normalizedOperationId,
               stage: (sharedTurn as any).stage || (isAwaitingApproval ? 'AWAITING_APPROVAL' : undefined),
               repairProposal: (sharedTurn as any).repairProposal,
+              goalId: (sharedTurn as any).goalId,
             };
             writeSse(res, 'action_status', actionStatusMeta);
           }
+        }
+
+        if ((sharedTurn as any).goalId) {
+          writeSse(res, 'goal_run', {
+            goalId: (sharedTurn as any).goalId,
+            status: sharedTurn.verified ? 'completed' : 'failed',
+            operationId: normalizedOperationId,
+          });
         }
 
         if (!reply || !reply.trim()) {
@@ -1267,6 +1276,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
             entityId: sharedTurn.entityId,
             entityType: sharedTurn.entityType,
             uiRoute: sharedTurn.uiRoute,
+            goalId: (sharedTurn as any).goalId,
             ...(actionStatusMeta ? { actionStatus: actionStatusMeta } : {}),
           },
         });
@@ -1278,6 +1288,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
           entityName: sharedTurn.entityName,
           verified: sharedTurn.verified,
           executed: sharedTurn.executed,
+          goalId: (sharedTurn as any).goalId,
           requestedGoals: (sharedTurn as any).requestedGoals,
           executedGoals: (sharedTurn as any).executedGoals,
           satisfiedGoals: (sharedTurn as any).satisfiedGoals,

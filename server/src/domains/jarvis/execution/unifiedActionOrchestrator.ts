@@ -181,6 +181,16 @@ export const CAPABILITY_REGISTRY: Record<string, RegisteredCapability> = {
     sideEffectLevel: 'none',
     confirmationPolicy: 'never',
   },
+  'desktop.screenshot': {
+    id: 'desktop.screenshot',
+    displayName: 'Desktop Capture Screenshot',
+    acceptedTargetTypes: ['desktop_app', 'process', 'unknown'],
+    requiredPermissions: ['os_screen_capture'],
+    executor: 'desktopExecutor',
+    verificationMethod: 'verify_screenshot_artifact',
+    sideEffectLevel: 'read',
+    confirmationPolicy: 'never',
+  },
   'desktop.close_app': {
     id: 'desktop.close_app',
     displayName: 'Desktop Close Application',
@@ -666,8 +676,9 @@ export interface UnifiedOrchestrationDecision {
     relation?: string;
   };
   desktopPlan?: {
-    action: 'resolve' | 'open' | 'focus' | 'close';
-    appName: string;
+    action: 'resolve' | 'open' | 'focus' | 'close' | 'screenshot';
+    appName?: string;
+    targetWindow?: string;
     executable?: string;
     processName?: string;
     shortcutPath?: string;
@@ -1218,7 +1229,7 @@ export class UnifiedActionOrchestrator {
     // RULE 10: SHELL COMMAND EXECUTION ("Run npm run build there", "Run echo hello")
     // ─────────────────────────────────────────────────────────────────────────
     else if (/\b(?:run|execute)\s+([a-z0-9_\-.:]+(?:\s+[^\r\n]+)?)\b/i.test(effectiveLower) &&
-             !/\b(?:video|channel|youtube)\b/i.test(effectiveLower)) {
+             !/\b(?:video|channel|youtube|status\s*check|diagnos\w*|self-?heal|health\s*check|tests?|worker|project)\b/i.test(effectiveLower)) {
       const m = effectiveCleanMatch(effectivePrompt, /\b(?:run|execute)\s+([^\r\n]+)$/i);
       let cmd = m ? m[1].trim() : 'echo "command executed"';
       let targetCwd = sessionWorkingState.resolveLocationReferent(conversationId, cmd);
@@ -1336,12 +1347,92 @@ export class UnifiedActionOrchestrator {
       filesystemPlan = { action: 'locate', target: folderName, targetType: 'folder' };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE 14: DESKTOP APPLICATION RESOLUTION ("Locate ChatGPT inside my computer.")
+    // RULE SCREENSHOT ("Take a screenshot", "Take a screenshot of the Hermes 1 window", "Capture the screen")
     // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:locate|find)\s+(.+?)\s+(?:inside|in|on)\s+my\s+computer\b/i.test(effectiveLower) ||
-             (/\b(?:inside|on)\s+my\s+computer\b/i.test(effectiveLower) && /\b(?:locate|find)\b/i.test(effectiveLower))) {
-      const match = cleanPrompt.match(/\b(?:locate|find)\s+(.+?)\s+(?:inside|in|on)\s+my\s+computer\b/i);
-      const appName = match ? match[1].replace(/^(?:can you\s+|could you\s+|please\s+)/i, '').trim() : 'ChatGPT';
+    else if (/\b(?:take\s+(?:a\s+)?screenshot|capture\s+(?:the\s+)?(?:screen|desktop)|screenshot\s+(?:of\s+)?(?:the\s+)?(.+))\b/i.test(effectiveLower) ||
+             /\bscreenshot\b/i.test(effectiveLower)) {
+      const match = effectivePrompt.match(/\bscreenshot\s+(?:of\s+)?(?:the\s+)?(.+?)(?:\s+window)?$/i) ||
+                    effectivePrompt.match(/\bcapture\s+(?:the\s+)?(.+?)\s+window\b/i);
+      const targetWindow = match ? match[1].replace(/^(?:the\s+|a\s+)/i, '').trim() : undefined;
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'inspect',
+        targetType: targetWindow ? 'desktop_app' : 'unknown',
+        targetName: targetWindow || 'Desktop',
+        capability: 'desktop.screenshot',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { targetWindow },
+      };
+
+      candidates['desktop.screenshot'] = { score: 0.99, reason: `Desktop screenshot capture request${targetWindow ? ` for window "${targetWindow}"` : ''}` };
+      desktopPlan = { action: 'screenshot', targetWindow, appName: targetWindow };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE WINDOW FOCUS / FOREGROUND ("Bring YouTube to the foreground", "Bring Telegram to the foreground", "Focus Telegram")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (/\b(?:bring\s+(.+?)\s+to\s+(?:the\s+)?foreground|focus\s+(?:on\s+)?(?:the\s+)?(.+?)(?:\s+window)?)\s*[.?!]?$/i.test(effectiveLower) ||
+             /\b(?:foreground\s+(.+)|activate\s+(?:the\s+)?(.+?)\s+window)\s*[.?!]?$/i.test(effectiveLower)) {
+      const m = effectivePrompt.match(/\b(?:bring\s+(.+?)\s+to\s+(?:the\s+)?foreground|focus\s+(?:on\s+)?(?:the\s+)?(.+?)(?:\s+window)?)\s*[.?!]?$/i) ||
+                effectivePrompt.match(/\b(?:foreground\s+(.+)|activate\s+(?:the\s+)?(.+?)\s+window)\s*[.?!]?$/i);
+      const targetApp = (m ? (m[1] || m[2]) : 'app').replace(/^(?:the\s+|window\s+)/i, '').replace(/[.?!]+$/, '').trim();
+
+      const isBrowser = /\b(youtube|google|browser|chrome|edge)\b/i.test(targetApp);
+
+      actionIntent = {
+        mode: 'execute',
+        verb: 'open',
+        targetType: isBrowser ? 'website' : 'desktop_app',
+        targetName: targetApp,
+        capability: isBrowser ? 'browser.navigate' : 'desktop.focus_app',
+        confidence: 0.99,
+        requiresConfirmation: false,
+        rawStt: rawPrompt,
+        normalizedText: cleanPrompt,
+        metadata: { targetApp, action: 'focus' },
+      };
+
+      if (isBrowser) {
+        candidates['browser.navigate'] = { score: 0.99, reason: `Bring browser window (${targetApp}) to foreground` };
+        browserPlan = { action: 'navigate', target: targetApp };
+      } else {
+        candidates['desktop.focus_app'] = { score: 0.99, reason: `Bring application (${targetApp}) to foreground` };
+        desktopPlan = { action: 'focus', appName: targetApp };
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 14: DESKTOP APPLICATION RESOLUTION & LOCATE ("Locate Telegram", "Locate Hermes 1", "Locate inside my desktop, the Accepted program")
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (
+      ((/\b(?:locate|find|where\s+is|show\s+me)\b/i.test(effectiveLower) &&
+        (/\b(?:desktop|computer|pc|laptop|program|app|application|shortcut|process)\b/i.test(effectiveLower) ||
+         /\b(?:telegram|hermes|accepted|acceptit|notepad|calculator|calc|excel|word|powerpoint)\b/i.test(effectiveLower))) ||
+       /\b(?:locate|find)\s+(?:the\s+app\s+|the\s+application\s+|the\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+(?:inside|in|on)\s+my\s+(?:computer|desktop))?\s*[.?!]?$/i.test(effectiveLower)) &&
+      !/\b(?:youtube|channel|video|website|url|http|\.com|\.org|\.net|chatgpt)\b/i.test(effectiveLower) &&
+      !/\b(?:repo|repository|git)\b/i.test(effectiveLower) &&
+      !/\b(?:project|memory)\b/i.test(effectiveLower)
+    ) {
+      let appName = effectivePrompt
+        .replace(/^jarvis[,.\s]*/i, '')
+        .replace(/^[.!?\s]+/, '')
+        .replace(/[.!?\s]+$/, '')
+        .replace(/^(?:locate|find)\s*,\s*(?:locate|find)\s*,\s*/i, '')
+        .replace(/^(?:can\s+you\s+|could\s+you\s+|please\s+)?(?:locate|find|where\s+is|show\s+me)\s+/i, '')
+        .replace(/^(?:inside|in|on)\s+(?:my\s+)?(?:desktop|computer|pc)\s*[,:]?\s*/i, '')
+        .replace(/\s+(?:inside|in|on)\s+(?:my\s+)?(?:desktop|computer|pc)$/i, '')
+        .replace(/^(?:the\s+)/i, '')
+        .replace(/\s+(?:program|app|application)$/i, '')
+        .replace(/['"„“”‘’]/g, '')
+        .trim();
+
+      if (!appName) {
+        appName = 'application';
+      }
 
       actionIntent = {
         mode: 'execute',
@@ -1355,50 +1446,29 @@ export class UnifiedActionOrchestrator {
         normalizedText: cleanPrompt,
       };
 
-      candidates['desktop.resolve_app'] = { score: 0.99, reason: `Desktop application resolution on PC: "${appName}"` };
+      candidates['desktop.resolve_app'] = { score: 0.99, reason: `Locate desktop application on PC: "${appName}"` };
       desktopPlan = { action: 'resolve', appName };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE 15: DESKTOP APPLICATION LAUNCH (Generic: "Open Telegram", "Open Notepad", "Locate Telegram and open it")
+    // RULE 15: BROWSER CHANNEL LOOKUP ("Locate Julian Goldy SEO on YouTube", "Go to YouTube and search for Julian Goldy SEO")
     // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+and\s+open\s+it)?$/i.test(effectiveLower) &&
-             !/\b(?:youtube|channel|video|website|url|http|\.com|\.org|\.net)\b/i.test(effectiveLower) &&
-             !/\b(?:project|memory)\b/i.test(effectiveLower) &&
-             !/\b(?:powershell|terminal|cmd)\b/i.test(effectiveLower)) {
-      let appName = 'Telegram';
-      const m1 = effectiveCleanMatch(effectivePrompt, /\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+and\s+open\s+it)?$/i);
-      const m2 = effectiveCleanMatch(effectivePrompt, /\blocate\s+([a-zA-Z0-9_\-\s]+?)\s+and\s+open\s+it\b/i);
-      if (m2) appName = m2[1];
-      else if (m1) appName = m1[1];
-      else if (correction?.replacementTarget) appName = correction.replacementTarget;
-
-      appName = appName.replace(/^(?:the\s+app\s+|app\s+)/i, '').trim();
-
-      actionIntent = {
-        mode: 'execute',
-        verb: 'open',
-        targetType: 'desktop_app',
-        targetName: appName,
-        capability: 'desktop.open_app',
-        confidence: 0.99,
-        requiresConfirmation: false,
-        rawStt: rawPrompt,
-        normalizedText: cleanPrompt,
-      };
-
-      candidates['desktop.open_app'] = { score: 0.99, reason: `Desktop application open request: "${appName}"` };
-      desktopPlan = { action: 'open', appName };
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-    // RULE 16: BROWSER CHANNEL LOOKUP ("Open the Julian Goldie SEO channel.")
-    // ─────────────────────────────────────────────────────────────────────────
-    else if (/\bchannel\b/i.test(effectiveLower) ||
-             /\b(?:locate|find|open)\s+(?:the\s+channel\s+)?julian\s+goldi?e\b/i.test(effectiveLower) ||
-             /\bgo\s+back\s+to\s+the\s+julian\s+goldie\s+channel\b/i.test(effectiveLower)) {
-      let channelTarget = 'Julian Goldie SEO';
-      const m = cleanPrompt.match(/\b(?:channel|open|locate)\s+([a-zA-Z0-9_\s]+?)(?:\s+channel)?(?:[.!?]|$)/i);
-      if (m && m[1].trim().length > 2) {
-        channelTarget = m[1].replace(/^(?:the\s+|open\s+the\s+|locate\s+the\s+)/i, '').trim();
+    else if (
+      /\bchannel\b/i.test(effectiveLower) ||
+      /\bjulian\s+gold(?:y|ie)\b/i.test(effectiveLower) ||
+      /\b(?:locate|find|search(?:\s+for)?|open)\s+(?:the\s+channel\s+)?(?:julian\s+gold(?:y|ie)|.*?\bjulian\s+gold(?:y|ie))\b/i.test(effectiveLower) ||
+      /\bgo\s+(?:back\s+)?to\s+(?:the\s+)?julian\s+gold(?:y|ie)\b/i.test(effectiveLower) ||
+      (/\byoutube\b/i.test(effectiveLower) && /\b(?:search\s+for|find|locate)\s+julian\s+gold(?:y|ie)\b/i.test(effectiveLower))
+    ) {
+      let channelTarget = 'Julian Goldy SEO';
+      if (!/\bjulian\s+gold(?:y|ie)\b/i.test(effectiveLower)) {
+        const m = cleanPrompt.match(/\b(?:channel|open|locate|search\s+for)\s+([a-zA-Z0-9_\s]+?)(?:\s+channel)?(?:\s+on\s+youtube)?(?:[.!?]|$)/i);
+        if (m && m[1].trim().length > 2) {
+          channelTarget = m[1]
+            .replace(/^(?:the\s+|open\s+the\s+|locate\s+the\s+|search\s+for\s+(?:the\s+)?|open\s+youtube\s+and\s+(?:locate|find|search\s+for)\s+(?:the\s+)?)/i, '')
+            .replace(/^(?:youtube\s+and\s+(?:locate|find|search\s+for)\s+(?:the\s+)?)/i, '')
+            .replace(/\s+on\s+youtube$/i, '')
+            .trim();
+        }
       }
 
       actionIntent = {
@@ -1407,13 +1477,13 @@ export class UnifiedActionOrchestrator {
         targetType: 'browser_entity',
         targetName: channelTarget,
         capability: 'browser.open_entity',
-        confidence: 0.98,
+        confidence: 0.99,
         requiresConfirmation: false,
         rawStt: rawPrompt,
         normalizedText: cleanPrompt,
       };
 
-      candidates['browser.open_entity'] = { score: 0.98, reason: `Direct YouTube channel lookup: "${channelTarget}"` };
+      candidates['browser.open_entity'] = { score: 0.99, reason: `Direct YouTube channel lookup: "${channelTarget}"` };
       browserPlan = {
         action: 'locate_channel',
         target: channelTarget,
@@ -1422,12 +1492,24 @@ export class UnifiedActionOrchestrator {
       };
     }
     // ─────────────────────────────────────────────────────────────────────────
-    // RULE 17: BROWSER PLATFORM NAVIGATION ("Open YouTube", "Navigate to YouTube")
+    // RULE 16: BROWSER PLATFORM NAVIGATION ("Open YouTube", "Open ChatGPT", "Open Google", "Navigate to YouTube")
     // ─────────────────────────────────────────────────────────────────────────
-    else if (/\b(?:open|go\s+to|navigate\s+to)\s+(?:the\s+)?(youtube|google|github)\b/i.test(effectiveLower) ||
-             /\b(?:open|launch)\s+youtube\b/i.test(effectiveLower)) {
-      const platformMatch = cleanPrompt.match(/\b(youtube|google|github)\b/i);
-      const platform = platformMatch ? platformMatch[1] : 'YouTube';
+    else if (
+      /\b(?:open|go\s+to|navigate\s+to|launch)\s+(?:the\s+)?(youtube|google|github|linkedin|twitter|x|chatgpt|chat\s+gpt)\b/i.test(effectiveLower) ||
+      /\b(?:open|launch)\s+(?:the\s+)?(?:browser|chrome|edge)\b/i.test(effectiveLower)
+    ) {
+      const platformMatch = cleanPrompt.match(/\b(youtube|google|github|linkedin|twitter|x|chatgpt|chat\s+gpt)\b/i);
+      let platform = 'YouTube';
+      if (platformMatch) {
+        const p = platformMatch[1].toLowerCase().replace(/\s+/g, '');
+        if (p === 'chatgpt') platform = 'ChatGPT';
+        else if (p === 'youtube') platform = 'YouTube';
+        else if (p === 'google') platform = 'Google';
+        else if (p === 'linkedin') platform = 'LinkedIn';
+        else if (p === 'x' || p === 'twitter') platform = 'X';
+        else if (p === 'github') platform = 'GitHub';
+        else platform = platformMatch[1];
+      }
 
       actionIntent = {
         mode: 'execute',
@@ -1443,6 +1525,57 @@ export class UnifiedActionOrchestrator {
 
       candidates['browser.navigate'] = { score: 0.99, reason: `Canonical website navigation to ${platform}` };
       browserPlan = { action: 'navigate', target: platform };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // RULE 17: DESKTOP APPLICATION LAUNCH (Generic: "Open Telegram", "Open Notepad", "Locate Telegram and open it")
+    // MUST FAIL CLOSED if no application target is extracted. NEVER defaults to Telegram.
+    // ─────────────────────────────────────────────────────────────────────────
+    else if (
+      /\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+and\s+open\s+it)?\s*[.?!]?$/i.test(effectiveLower) &&
+      !/\b(?:youtube|google|github|linkedin|twitter|x|chatgpt|chat\s+gpt|reddit|wikipedia|channel|video|website|url|http|\.com|\.org|\.net)\b/i.test(effectiveLower) &&
+      !/\b(?:project|memory)\b/i.test(effectiveLower) &&
+      !/\b(?:powershell|terminal|cmd)\b/i.test(effectiveLower)
+    ) {
+      let appName: string | null = null;
+      const m1 = effectivePrompt.match(/\b(?:open|launch|start|go\s+to)\s+(?:the\s+app\s+)?([a-zA-Z0-9_\-\s]+?)(?:\s+and\s+open\s+it)?\s*[.?!]*$/i);
+      const m2 = effectivePrompt.match(/\blocate\s+([a-zA-Z0-9_\-\s]+?)\s+and\s+open\s+it\s*[.?!]*$/i);
+      if (m2) appName = m2[1];
+      else if (m1) appName = m1[1];
+      else if (correction?.replacementTarget) appName = correction.replacementTarget;
+
+      appName = appName ? appName.replace(/^(?:the\s+app\b|the\s+application\b|the\s+program\b|the\s+|app\b|program\b)/i, '').replace(/[.?!]+$/, '').trim() : null;
+
+      // Fail closed if app name is empty, ambiguous, or generic
+      if (!appName || /^(?:the\s+app|the\s+application|the\s+program|app|application|program|it|this|that|unknown)$/i.test(appName)) {
+        actionIntent = {
+          mode: 'conversation',
+          verb: 'unknown',
+          targetType: 'unknown',
+          targetName: cleanPrompt,
+          capability: 'conversation.respond',
+          confidence: 0.50,
+          requiresConfirmation: false,
+          rawStt: rawPrompt,
+          normalizedText: cleanPrompt,
+        };
+        candidates['conversation.respond'] = { score: 0.50, reason: 'Unresolved desktop application launch target; failing closed' };
+        conversationalPlan = { type: 'general' };
+      } else {
+        actionIntent = {
+          mode: 'execute',
+          verb: 'open',
+          targetType: 'desktop_app',
+          targetName: appName,
+          capability: 'desktop.open_app',
+          confidence: 0.99,
+          requiresConfirmation: false,
+          rawStt: rawPrompt,
+          normalizedText: cleanPrompt,
+        };
+
+        candidates['desktop.open_app'] = { score: 0.99, reason: `Desktop application open request: "${appName}"` };
+        desktopPlan = { action: 'open', appName };
+      }
     }
     // ─────────────────────────────────────────────────────────────────────────
     // RULE 18: CONVERSATIONAL BASELINE FALLBACK

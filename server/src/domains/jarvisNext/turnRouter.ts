@@ -146,6 +146,7 @@ export interface TurnResult {
   uiRoute?: string;
   fallbackReason?: string;
   timings: Record<string, number>;
+  goalId?: string;
   requestedGoals?: string[];
   executedGoals?: string[];
   satisfiedGoals?: string[];
@@ -159,7 +160,7 @@ export interface OfferedChoice {
   args: Record<string, unknown>;
 }
 
-interface TurnFocus {
+export interface TurnFocus {
   activeEntityId?: string;
   activeEntityType?: string;
   activeEntityName?: string;
@@ -391,7 +392,7 @@ const REPEAT_RE = /\b(repeat|say again|what did i (?:just )?say)\b/i;
 const CHOICE_RE = /\b(?:the\s+)?(first|second|third|1st|2nd|3rd|one|two|three)\b/i;
 const UNKNOWN_ENTITY_RE = /\b([A-Z][\w-]*(?:\s+[A-Z][\w-]*)*)\s+([Oo]perator|[Pp]roject|[Aa]gent|[Ee]ngine)\b/;
 /** Leading words that are grammar, not part of an entity name. */
-const NAME_STOPWORD = /^(which|what|where|who|when|the|this|that|is|are|does|do|start|stop|pause|resume|find|open|set|show|locate|tell|give|run|launch|activate|a|an)$/i;
+const NAME_STOPWORD = /^(which|what|where|who|when|the|this|that|is|are|does|do|start|stop|pause|resume|find|open|set|show|locate|tell|give|run|launch|activate|a|an|rename|change|update|modify|delete|remove)$/i;
 
 const WORD_NUMS: Record<string, number> = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -1074,6 +1075,36 @@ export async function routeTurn(opts: {
   if (!focus.userTurns) focus.userTurns = [];
   focus.userTurns.push(effectivePrompt);
 
+  // ── Authoritative Control Plane Lifecycle (Single Production GoalRun Lifecycle) ──
+  try {
+    const { controlPlaneTurnHandler } = await import('../controlPlane/ControlPlaneTurnHandler.js');
+    const cpResult = await controlPlaneTurnHandler.handleTurn({
+      prompt,
+      effectivePrompt,
+      conversationId,
+      turnId: opts.turnId ? Number(opts.turnId) : undefined,
+      sttConfidence: (opts as any).confidence ?? (opts as any).sttConfidence,
+      onActionProgress: opts.onActionProgress,
+      navigationVerifier: opts.navigationVerifier,
+      focus,
+    });
+    if (cpResult && cpResult.handled) {
+      if (focus) {
+        if (cpResult.text) focus.lastAssistantTurn = cpResult.text;
+        if (cpResult.entityName) focus.lastResolvedEntityName = cpResult.entityName;
+        focus.lastExecutionResult = {
+          success: !cpResult.fallbackReason,
+          verified: !!cpResult.verified,
+          route: cpResult.route || 'action',
+          at: Date.now(),
+        };
+      }
+      return finish(cpResult);
+    }
+  } catch (cpErr: any) {
+    logger.warn('[JRT] ControlPlaneTurnHandler error:', cpErr);
+  }
+
   // ── 0c. Navigation correction turn ─────────────────────────────────────
   // A navigation correction turn occurs when a user explicitly says the navigation failed
   // ("it's not open", "it didn't open", "try again") immediately after a failed navigation attempt.
@@ -1283,6 +1314,7 @@ export async function routeTurn(opts: {
     }
   }
 
+
   // ── Universal Execution Controller (Single Front Door) ───────────────
   // Snapshot the focus before the controller touches anything (F8 trace).
   const focusBefore = {
@@ -1394,7 +1426,11 @@ export async function routeTurn(opts: {
       }
     }
   } catch (uErr: any) {
-    logger.warn('[JRT] UniversalExecutionController error, falling back to traditional route:', uErr);
+    logger.warn('[JRT] UniversalExecutionController error, falling back to traditional route:', {
+      error: uErr?.message || String(uErr),
+      stack: uErr?.stack,
+    });
+    console.error('[JRT] UniversalExecutionController error:', uErr);
   }
 
   // ── 1. Immediate memory & conversational turn history ─────────────────
@@ -2088,9 +2124,144 @@ export async function routeTurn(opts: {
     });
   }
 
-  if (operational || readIntent) {
+  // Section 3: Universal Capability Discovery & Recovery
+  const isActionGoal = /\b(locate|find|open|launch|start|run|show|focus|bring|foreground|screenshot|telegram|hermes|notepad|youtube|google|browser|chatgpt|comet|perplexity|calculator|excel)\b/i.test(prompt);
+
+  if (operational || readIntent || isActionGoal) {
+    try {
+      const {
+        capabilityDiscovery,
+        controlPlaneExecutor,
+        universalVerifier,
+        autonomousRecoveryEngine,
+        goalLifecycleManager,
+        repairKnowledgeStore,
+        acknowledgementService,
+      } = await import('../controlPlane/index.js');
+
+      const cleanTarget = prompt
+        .replace(/^(?:can you\s+|could you\s+|please\s+|i want to\s+|would you\s+)?(?:open|launch|start|run|locate|find|show|search\s+for)\s+/i, '')
+        .replace(/\s+(?:app|application|program|tool)$/i, '')
+        .trim();
+
+      if (cleanTarget) {
+        logger.info(`[JRT:ControlPlane] Triggering capability discovery for "${cleanTarget}"`);
+        const goalRun = goalLifecycleManager.startGoal({
+          conversationId,
+          turnId: opts.turnId ? String(opts.turnId) : undefined,
+          userInput: prompt,
+          normalizedGoal: effectivePrompt,
+          target: cleanTarget,
+        });
+
+        goalLifecycleManager.transitionState(goalRun.goalId, 'DISCOVERING', {
+          actor: 'ControlPlane',
+          summary: `Discovering capabilities across execution surfaces for "${cleanTarget}".`,
+        });
+
+        const candidates = await capabilityDiscovery.discover(cleanTarget, 'open');
+
+        if (candidates.length > 0) {
+          const best = candidates[0];
+          logger.info(`[JRT:ControlPlane] Discovered strategy: ${best.surface} (${best.name}) score=${best.score}`);
+
+          goalLifecycleManager.transitionState(goalRun.goalId, 'EXECUTING', {
+            actor: 'ControlPlane',
+            summary: `Executing strategy on surface "${best.surface}": ${best.name}`,
+            detail: best,
+          });
+
+          // Execute
+          const execRes = await controlPlaneExecutor.execute(best);
+
+          goalLifecycleManager.transitionState(goalRun.goalId, 'VERIFYING', {
+            actor: 'UniversalVerifier',
+            summary: `Verifying execution of ${best.name} on ${best.surface}.`,
+          });
+
+          // Verify
+          const verRes = await universalVerifier.verify({
+            surface: best.surface,
+            target: best.target,
+            parameters: best.parameters,
+          });
+
+          if (execRes.executed && verRes.verified) {
+            // Learn resolution
+            const learned = {
+              target: cleanTarget,
+              goalType: 'open',
+              successfulStrategy: `discovered:${best.surface}`,
+              surface: best.surface,
+              executablePath: best.executablePath,
+              url: best.url,
+              parameters: best.parameters,
+              verificationMethod: verRes.method,
+              confidence: best.score,
+              learnedAt: new Date().toISOString(),
+            };
+            repairKnowledgeStore.recordResolution(learned);
+            goalLifecycleManager.recordLearnedResolution(goalRun.goalId, learned);
+            goalLifecycleManager.recordVerification(goalRun.goalId, verRes);
+
+            const completionText = acknowledgementService.generateCompletionMessage(best.name || cleanTarget, best.surface);
+            goalLifecycleManager.transitionState(goalRun.goalId, 'COMPLETED', {
+              actor: 'UniversalVerifier',
+              summary: completionText,
+              detail: verRes,
+            });
+
+            return finish({
+              route: best.surface === 'browser' ? 'browser' : 'action',
+              text: completionText,
+              evidence: true,
+              executed: true,
+              verified: true,
+              entityName: best.name,
+            });
+          } else {
+            // Enter Autonomous Recovery
+            const recoveryOutcome = await autonomousRecoveryEngine.handleFailure({
+              goalId: goalRun.goalId,
+              failedAttempt: {
+                attemptNumber: 1,
+                strategy: `discovered:${best.surface}`,
+                surface: best.surface,
+                target: best.target,
+                parameters: best.parameters,
+                startedAt: new Date().toISOString(),
+                executed: execRes.executed,
+                verified: false,
+                evidence: verRes.evidence || [],
+              },
+              target: cleanTarget,
+              goalType: 'open',
+              executeStrategy: async (s) => controlPlaneExecutor.execute(s),
+            });
+
+            if (recoveryOutcome.success) {
+              return finish({
+                route: 'action',
+                text: recoveryOutcome.finalResponseText,
+                evidence: true,
+                executed: true,
+                verified: true,
+              });
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      logger.warn(`[JRT:ControlPlane] Discovery / execution warning: ${err?.message}`);
+    }
+
+    const isDesktopCmd = /\b(locate|find|open|focus|bring|foreground|screenshot|telegram|hermes|notepad|youtube|google|browser)\b/i.test(prompt);
     return finish({
-      route: 'refusal', text: GROUNDING_REFUSAL, evidence: false,
+      route: isDesktopCmd ? 'action' : 'refusal',
+      text: isDesktopCmd
+        ? `I could not locate or execute the requested desktop target for "${prompt.replace(/[.?]+$/, '')}".`
+        : GROUNDING_REFUSAL,
+      evidence: false,
       fallbackReason: deep.fallbackReason || 'no_evidence',
     });
   }

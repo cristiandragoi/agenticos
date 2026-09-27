@@ -216,8 +216,11 @@ export class SemanticGoalParser {
       return null;
     })();
 
+    const isExplicitDesktopRequest = /\b(?:desktop|computer|pc|laptop|windows|folder|file|program|app|application|shortcut|process|exe)\b/i.test(lower);
+
     const isContextualBrowserSearch = Boolean(
       hasBrowserSearch &&
+      !isExplicitDesktopRequest &&
       hasLiveBrowserState &&
       activeLiveTarget &&
       (!browserTarget || browserTarget.displayName.toLowerCase() === activeLiveTarget.toLowerCase())
@@ -225,6 +228,7 @@ export class SemanticGoalParser {
 
     const ordinalIndex = parseOrdinalIndex(lower);
     const isResultSelection = Boolean(
+      !isExplicitDesktopRequest &&
       (ordinalIndex !== null || /\b(?:result|first|second|third|that|it|video|channel)\b/i.test(lower)) &&
       /\b(?:open|click|klick|select|pick|choose|play|watch|locate)\b/i.test(lower) &&
       !browserTarget &&
@@ -249,7 +253,8 @@ export class SemanticGoalParser {
         hasCanonicalKeyword);
 
     if (
-      hasCanonicalKeyword ||
+      !isExplicitDesktopRequest &&
+      (hasCanonicalKeyword ||
       browserTarget ||
       hasExplicitWebDomain ||
       isWebIntent ||
@@ -258,7 +263,7 @@ export class SemanticGoalParser {
       isContextualBrowserSearch ||
       isResultSelection ||
       isScrollAction ||
-      isHistoryNav
+      isHistoryNav)
     ) {
       let action: string;
       let parameters: Record<string, unknown>;
@@ -628,6 +633,41 @@ export class SemanticGoalParser {
                 action: 'open_app',
                 parameters: { app: appId, displayName: appName },
                 description: `Open ${appName} window`,
+              }],
+              estimatedRisk: 'read',
+              requiresApproval: false,
+              confidence: 0.98,
+            },
+          });
+        } else if (/\b(?:locate|find|where\s+is|show\s+me)\b/i.test(part) || isExplicitDesktopRequest) {
+          let targetApp = part
+            .replace(/^jarvis[,.\s]*/i, '')
+            .replace(/^[.!?\s]+/, '')
+            .replace(/[.!?\s]+$/, '')
+            .replace(/^(?:locate|find)\s*,\s*(?:locate|find)\s*,\s*/i, '')
+            .replace(/^(?:can\s+you\s+|could\s+you\s+|please\s+)?(?:locate|find|where\s+is|show\s+me)\s+/i, '')
+            .replace(/^(?:inside|in|on)\s+(?:my\s+)?(?:desktop|computer|pc)\s*[,:]?\s*/i, '')
+            .replace(/\s+(?:inside|in|on)\s+(?:my\s+)?(?:desktop|computer|pc)$/i, '')
+            .replace(/^(?:the\s+)/i, '')
+            .replace(/\s+(?:program|app|application)$/i, '')
+            .replace(/['"„“”‘’]/g, '')
+            .trim();
+
+          candidates.push({
+            executorId: 'desktop',
+            matched: true,
+            confidence: 0.98,
+            reason: `locate desktop application: ${targetApp || 'desktop item'}`,
+            plan: {
+              goalId,
+              goalDescription: part,
+              steps: [{
+                stepId,
+                capabilityId: 'desktop',
+                executorId: 'desktop',
+                action: 'locate_and_activate',
+                parameters: { app: targetApp, target: targetApp },
+                description: `Locate ${targetApp || 'desktop item'} on computer`,
               }],
               estimatedRisk: 'read',
               requiresApproval: false,

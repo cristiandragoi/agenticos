@@ -108,10 +108,24 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
       const dgModel = process.env.DEEPGRAM_MODEL || 'nova-3';
       const startTime = Date.now();
       let response: Response;
+
+      // Nova-3 KEYTERM prompting without weights: keyterm=Julian%20Goldy&keyterm=SEO&...
+      const NOVA3_KEYTERMS = [
+        'Julian Goldy',
+        'SEO',
+        'YouTube',
+        'ChatGPT',
+        'Telegram',
+        'AgenticOS',
+        'Jarvis',
+      ];
+      const keytermQuery = NOVA3_KEYTERMS.map((k) => `keyterm=${encodeURIComponent(k)}`).join('&');
+      const nova3Endpoint = `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(dgModel)}&smart_format=true&punctuate=true&language=${encodeURIComponent(dgLang)}&${keytermQuery}`;
+
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
-        response = await fetch(`https://api.deepgram.com/v1/listen?model=${dgModel}&smart_format=true&punctuate=true&language=${dgLang}`, {
+        response = await fetch(nova3Endpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${deepgramKey}`,
@@ -169,8 +183,8 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
         // If nova-3 returned 400 (e.g. unsupported model or language), retry with nova-2 fallback
         if (response.status === 400 && dgModel === 'nova-3') {
           try {
-            logger.info('[Voice:Transcribe] Retrying Deepgram with nova-2 fallback...');
-            const retryRes = await fetch(`https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=${dgLang}`, {
+            const retryKeywords = NOVA3_KEYTERMS.map((k) => `keywords=${encodeURIComponent(k)}`).join('&');
+            const retryRes = await fetch(`https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&language=${encodeURIComponent(dgLang)}&${retryKeywords}`, {
               method: 'POST',
               headers: {
                 'Authorization': `Token ${deepgramKey}`,
@@ -180,7 +194,9 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
             });
             if (retryRes.ok) {
               const retryData: any = await retryRes.json();
-              const retryText = retryData.results?.channels[0]?.alternatives[0]?.transcript || '';
+              const retryAlt = retryData.results?.channels[0]?.alternatives[0];
+              const retryText = retryAlt?.transcript || '';
+              const retryConfidence = typeof retryAlt?.confidence === 'number' ? retryAlt.confidence : null;
               if (!isMeaningfulSpeech(retryText)) {
                 return res.status(400).json({ error: 'No speech detected.', noSpeech: true });
               }
@@ -200,6 +216,7 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
                 model: 'nova-2',
                 language: dgLang,
                 probability: null,
+                confidence: retryConfidence,
               });
             }
           } catch {}

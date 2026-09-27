@@ -261,6 +261,56 @@ try {
   }
 } catch { /* table may not exist yet — best effort */ }
 
+// ── Control Plane tables: goal_runs & repair_knowledge ───────────────────────
+try {
+  rawDb.exec(`
+    CREATE TABLE IF NOT EXISTS goal_runs (
+      goal_id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      turn_id TEXT,
+      original_user_input TEXT NOT NULL,
+      normalized_goal TEXT NOT NULL,
+      status TEXT NOT NULL,
+      plan TEXT,
+      attempts TEXT NOT NULL,
+      current_attempt INTEGER NOT NULL DEFAULT 1,
+      capabilities_used TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      failures TEXT NOT NULL,
+      recovery_incident_id TEXT,
+      final_verification TEXT,
+      learned_resolution TEXT,
+      timeline TEXT NOT NULL,
+      acknowledgement_text TEXT,
+      final_response_text TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS repair_knowledge (
+      id TEXT PRIMARY KEY,
+      failure_signature TEXT NOT NULL,
+      goal_type TEXT NOT NULL,
+      target TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      failed_strategy TEXT NOT NULL,
+      successful_strategy TEXT NOT NULL,
+      resolved_target TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      executable_path TEXT,
+      resolved_command TEXT,
+      url TEXT,
+      required_params TEXT,
+      verification_method TEXT NOT NULL,
+      repair_source TEXT NOT NULL,
+      confidence REAL NOT NULL,
+      last_validated_at TEXT NOT NULL
+    );
+  `);
+} catch (tableErr: any) {
+  console.warn('[db] Control plane table init notice:', tableErr?.message);
+}
+
 // ── 6. Exported path and isolation assertion for tests ───────────────────────
 /** The exact absolute SQLite path this process has opened. Read by tests to
  *  prove isolation before any destructive fixture setup. */

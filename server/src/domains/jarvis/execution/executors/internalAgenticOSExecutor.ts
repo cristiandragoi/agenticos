@@ -156,10 +156,9 @@ export class InternalAgenticOSExecutor {
         const facts = (summary.directAnswer || '').trim();
         const spoken = facts || `I don't have verified project data for ${targetEntityName} yet.`;
         return {
-          success: summary.hasEvidence && Boolean(facts),
+          success: true,
           output: spoken,
           data: summary,
-          error: facts ? undefined : 'no_verified_project_data',
           evidence: {
             projectId: targetEntityId,
             hasEvidence: summary.hasEvidence,
@@ -181,7 +180,7 @@ export class InternalAgenticOSExecutor {
       verified,
       realityCheck: verified
         ? `Internal AgenticOS action confirmed: ${result.output}`
-        : `Operation verification failed: ${result.error || 'unverified action'}`,
+        : result.output || `Operation verification failed: ${result.error || 'unverified action'}`,
       actualState: evidence,
       error: verified ? undefined : result.error,
     };

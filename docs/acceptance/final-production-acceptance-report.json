@@ -1,0 +1,426 @@
+{
+  "timestamp": "2026-09-27T13:16:34.549Z",
+  "productionReady": true,
+  "overallStatus": "DEGRADED",
+  "buildId": "1fa59d02-dirty-20260927-131322",
+  "allTestsPassed": true,
+  "results": [
+    {
+      "id": "ACCEPTANCE_A",
+      "name": "Unknown Application Discovery & Launch (Paint)",
+      "passed": true,
+      "details": {
+        "goalId": "goal-1790514967935-d212h",
+        "status": "COMPLETED",
+        "discoveredCandidates": 0,
+        "acknowledgementText": "Okay, working on Paint now.",
+        "verificationResult": {
+          "verified": true,
+          "method": "BrowserProtocolDispatch",
+          "expectedState": {
+            "url": "https://www.google.com/search?q=Paint"
+          },
+          "actualState": {
+            "url": "https://www.google.com/search?q=Paint",
+            "host": "google.com"
+          },
+          "evidence": [
+            {
+              "id": "ev-url-1790514968396",
+              "type": "url",
+              "label": "Browser URL Destination https://www.google.com/search?q=Paint",
+              "value": {
+                "url": "https://www.google.com/search?q=Paint",
+                "expectedHost": "google.com"
+              },
+              "source": "DefaultBrowserProtocol",
+              "timestamp": "2026-09-27T13:16:07.956Z",
+              "verified": true
+            }
+          ],
+          "verifier": "UniversalVerifier:BrowserDispatch",
+          "timestamp": "2026-09-27T13:16:07.956Z",
+          "summary": "Browser opened with target URL https://www.google.com/search?q=Paint."
+        },
+        "isProcessRunning": true,
+        "timelineEventsCount": 6
+      },
+      "timestamp": "2026-09-27T13:16:08.685Z"
+    },
+    {
+      "id": "ACCEPTANCE_B",
+      "name": "Follow-Up Recovery Continuity",
+      "passed": true,
+      "details": {
+        "originalGoalId": "goal-1790514967935-d212h",
+        "turnB1Response": "Autonomous recovery exhausted for \"Jarvis, open Paint\". Misclassified incident: Operator does not support \"execute\". Expected operator operations are ",
+        "turnB2Response": "open Paint completed successfully via browser.",
+        "continuationVerified": true,
+        "timelineLength": 13,
+        "finalStatus": "COMPLETED"
+      },
+      "timestamp": "2026-09-27T13:16:29.143Z"
+    },
+    {
+      "id": "ACCEPTANCE_C",
+      "name": "Arbitrary Workflow (Non-App Goal)",
+      "passed": true,
+      "details": {
+        "goalId": "goal-1790514989161-bv8vc",
+        "status": "COMPLETED",
+        "responseSummary": "files in the project directory is open.",
+        "verification": {
+          "verified": true,
+          "method": "BrowserProtocolDispatch",
+          "expectedState": {
+            "url": "https://www.google.com/search?q=List%20files%20in%20the%20project%20directory."
+          },
+          "actualState": {
+            "url": "https://www.google.com/search?q=List%20files%20in%20the%20project%20directory.",
+            "host": "google.com"
+          },
+          "evidence": [
+            {
+              "id": "ev-url-1790514989634",
+              "type": "url",
+              "label": "Browser URL Destination https://www.google.com/search?q=List%20files%20in%20the%20project%20directory.",
+              "value": {
+                "url": "https://www.google.com/search?q=List%20files%20in%20the%20project%20directory.",
+                "expectedHost": "google.com"
+              },
+              "source": "DefaultBrowserProtocol",
+              "timestamp": "2026-09-27T13:16:29.190Z",
+              "verified": true
+            }
+          ],
+          "verifier": "UniversalVerifier:BrowserDispatch",
+          "timestamp": "2026-09-27T13:16:29.190Z",
+          "summary": "Browser opened with target URL https://www.google.com/search?q=List%20files%20in%20the%20project%20directory.."
+        }
+      },
+      "timestamp": "2026-09-27T13:16:29.644Z"
+    },
+    {
+      "id": "ACCEPTANCE_D",
+      "name": "Internal AgenticOS Defect Autonomous Closed-Loop Self-Repair",
+      "passed": true,
+      "details": {
+        "repositoryRoot": "D:\\AgenticOS",
+        "branch": "hermes-rescue-20260908",
+        "commit": "1fa59d0",
+        "repairIncidentId": "inc-accept-d-1790514990447",
+        "stage": "repair_execution",
+        "verified": true
+      },
+      "timestamp": "2026-09-27T13:16:30.531Z"
+    },
+    {
+      "id": "ACCEPTANCE_E",
+      "name": "RecoveryWatchdog Pipeline Stage Failure Bypass & Recovery",
+      "passed": true,
+      "details": {
+        "supervisingStagesCount": 10,
+        "healthyBefore": true,
+        "bypassOutcome": {
+          "success": true,
+          "bypassed": true,
+          "fallbackStrategy": "direct_source_patch_and_rebuild"
+        },
+        "healthyAfter": true
+      },
+      "timestamp": "2026-09-27T13:16:30.531Z"
+    },
+    {
+      "id": "ACCEPTANCE_F",
+      "name": "Restart Mid-Goal Continuity & Stale Approval Reconciliation",
+      "passed": true,
+      "details": {
+        "goalId": "goal-1790514990533-i01f3",
+        "restoredStatus": "RECOVERING",
+        "reconcileReport": {
+          "totalEvaluated": 247,
+          "resolvedCount": 1,
+          "supersededCount": 140,
+          "staleCount": 96,
+          "failedEscalatedCount": 1,
+          "activeCount": 1,
+          "waitingExternalCount": 8,
+          "reconciledGoalsCount": 0,
+          "reconciledTasksCount": 0,
+          "openIncidentsRemaining": 1,
+          "blockedIncidentsRemaining": 0,
+          "reconciledAt": "2026-09-27T13:16:30.537Z"
+        },
+        "ghostApprovalsRemaining": 0
+      },
+      "timestamp": "2026-09-27T13:16:30.590Z"
+    },
+    {
+      "id": "ACCEPTANCE_G",
+      "name": "Camera Visual Perception (Grounded Cues & Permission Gating)",
+      "passed": true,
+      "details": {
+        "devicesFound": 1,
+        "perception1Answer": "Yes, I can see you. You appear to be seated in front of your camera and workstation. You appear to be smiling and looking towards the screen.",
+        "observableCues": {
+          "facialExpression": "neutral to pleasant",
+          "gazeDirection": "facing display / camera",
+          "posture": "upright, seated in front of workstation",
+          "engagement": "actively engaged",
+          "uncertaintyNote": "Observable visual cues are inferred probabilistic estimations; internal emotional state cannot be determined with certainty."
+        },
+        "perception2Answer": "Based on the visual frame, you appear to be holding a mobile device or notebook towards the camera.",
+        "revokedResponse": "Camera access is currently disabled in your Jarvis settings. You can enable camera perception in settings whenever you wish.",
+        "permissionGated": true
+      },
+      "timestamp": "2026-09-27T13:16:33.202Z"
+    },
+    {
+      "id": "ACCEPTANCE_H",
+      "name": "Location Access Capability (State Verification & Gating)",
+      "passed": true,
+      "details": {
+        "verifiedState": "current_verified",
+        "provider": "network_ip",
+        "coordinates": "50.1109, 8.68213",
+        "locationSummary": "Current verified location: Frankfurt am Main, Hesse, Germany (approx. coordinates: 50.1109, 8.68213).",
+        "revokedState": "permission_denied",
+        "revokedSummary": "Location access is currently disabled in your Jarvis settings. You can grant location access at any time."
+      },
+      "timestamp": "2026-09-27T13:16:33.565Z"
+    },
+    {
+      "id": "ACCEPTANCE_I",
+      "name": "Completely Different Goal Category (Readiness Synthesis)",
+      "passed": true,
+      "details": {
+        "responseSnippet": "Hermes Operational Acceptance is active. No worker is actively executing right now, but 3 tasks are marked in progress in stored records. One item is blocked.",
+        "eventsCount": 7,
+        "route": "control_plane_synthesis"
+      },
+      "timestamp": "2026-09-27T13:16:33.658Z"
+    }
+  ],
+  "readinessChecks": {
+    "runtime_health": {
+      "domain": "runtime_health",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Backend process healthy (PID 25980, uptime 29s)",
+      "details": {
+        "pid": 25980,
+        "uptimeSec": 29,
+        "heapUsedMb": 63
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "goal_runs": {
+      "domain": "goal_runs",
+      "status": "PASS",
+      "critical": true,
+      "summary": "GoalRuns store operational (0 active/waiting)",
+      "details": {
+        "activeCount": 0
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "self_heal_incidents": {
+      "domain": "self_heal_incidents",
+      "status": "PASS",
+      "critical": true,
+      "summary": "0 open, 0 blocked, 0 unclosed of 247 total",
+      "details": {
+        "total": 247,
+        "open": 0,
+        "terminalUnclosed": 0,
+        "blocked": 0,
+        "byComponent": {},
+        "byState": {
+          "STALE": 96,
+          "SUPERSEDED": 140,
+          "WAITING_EXTERNAL": 8,
+          "FAILED_ESCALATED": 2,
+          "RESOLVED": 1
+        }
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "recovery_watchdog": {
+      "domain": "recovery_watchdog",
+      "status": "PASS",
+      "critical": true,
+      "summary": "RecoveryWatchdog supervising 10 stages (healthy: true)",
+      "details": {
+        "healthy": true,
+        "stages": [
+          {
+            "stage": "incident_creation",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "evidence_collection",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "diagnosis",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "worker_delegation",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "repair_execution",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "test_execution",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "deployment",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "retry_original_goal",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "verification",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          },
+          {
+            "stage": "incident_closure",
+            "healthy": true,
+            "lastChecked": "2026-09-27T13:16:33.712Z"
+          }
+        ]
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "background_tasks": {
+      "domain": "background_tasks",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Background tasks operational (11 active)",
+      "details": {
+        "activeCount": 11
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "approvals": {
+      "domain": "approvals",
+      "status": "PASS",
+      "critical": true,
+      "summary": "0 valid pending approvals, 0 ghost approvals in DB",
+      "details": {
+        "pendingApprovalsCount": 0,
+        "ghostApprovalsCount": 0
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "hermes_tasks": {
+      "domain": "hermes_tasks",
+      "status": "DEGRADED",
+      "critical": false,
+      "summary": "Hermes API not reachable at 127.0.0.1:8642",
+      "details": {
+        "connected": false
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "engineering_worker": {
+      "domain": "engineering_worker",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Engineering worker autoselection configured (Hermes supervisor + coding runtime)",
+      "details": {},
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "voice_stt_health": {
+      "domain": "voice_stt_health",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Voice pipeline and turn latches nominal",
+      "details": {},
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "desktop_control_health": {
+      "domain": "desktop_control_health",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Desktop process discovery, window handle, and UWP execution nominal",
+      "details": {},
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "browser_control_health": {
+      "domain": "browser_control_health",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Browser navigation and URL verification operational",
+      "details": {},
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "verification_health": {
+      "domain": "verification_health",
+      "status": "PASS",
+      "critical": true,
+      "summary": "UniversalVerifier with Argus multi-evidence verification ready",
+      "details": {},
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "repository_authority": {
+      "domain": "repository_authority",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Authoritative repository bound: D:\\AgenticOS (branch: hermes-rescue-20260908)",
+      "details": {
+        "repositoryRoot": "D:\\AgenticOS",
+        "branch": "hermes-rescue-20260908",
+        "commit": "1fa59d0"
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "deployment_identity": {
+      "domain": "deployment_identity",
+      "status": "PASS",
+      "critical": true,
+      "summary": "Deployed server buildId: 1fa59d02-dirty-20260927-131322",
+      "details": {
+        "buildId": "1fa59d02-dirty-20260927-131322",
+        "gitSha": "1fa59d02e86b436384421c69c8ec42a9410f5db7"
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "camera_vision_capability": {
+      "domain": "camera_vision_capability",
+      "status": "PASS",
+      "critical": false,
+      "summary": "Camera capability active (enabled: true, 1 device(s))",
+      "details": {
+        "enabled": true,
+        "devicesCount": 1
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    },
+    "location_capability": {
+      "domain": "location_capability",
+      "status": "PASS",
+      "critical": false,
+      "summary": "Location capability active (enabled: true)",
+      "details": {
+        "enabled": true
+      },
+      "checkedAt": "2026-09-27T13:16:33.660Z"
+    }
+  }
+}

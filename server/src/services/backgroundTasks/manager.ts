@@ -41,6 +41,8 @@ import {
 import { getWorkspaceRoot } from '../workspaceStore.js';
 import * as executionState from '../executionState.js';
 import { normalizeApprovalAction, isWorkspaceSafeReadOnlyOperation } from './approvalNormalization.js';
+import { hermesApiService } from '../hermesApiService.js';
+import { goalStore } from '../goalStore.js';
 
 /** Extract "Top prospect: X" (or the first numbered result) from a worker result. */
 function extractTopResult(result: string | null | undefined): string | null {
@@ -145,6 +147,35 @@ export class BackgroundTaskManager extends EventEmitter {
           continue;
         }
         if (task.status === 'waiting_approval' || task.approvalState === 'pending') {
+          // Section 12: Startup reconciliation — if upstream run no longer exists,
+          // the approval is STALE and must disappear from the active queue.
+          if (task.linkedRunId) {
+            let upstreamDead = false;
+            if (task.worker === 'hermes' && task.route !== 'revenue_pipeline') {
+              try {
+                if (!hermesApiService.getRun(task.linkedRunId)) {
+                  upstreamDead = true;
+                }
+              } catch {
+                upstreamDead = true;
+              }
+            } else if (task.worker === 'codex' || task.worker === 'team') {
+              try {
+                if (!goalStore.get(task.linkedRunId)) {
+                  upstreamDead = true;
+                }
+              } catch {
+                upstreamDead = true;
+              }
+            }
+
+            if (upstreamDead) {
+              logger.info(`[bg-task] Startup reconciliation: purging stale approval for task ${task.taskId} (linked run ${task.linkedRunId} missing)`);
+              void this.reconcileStaleApproval(task.taskId, 'deny', 'Upstream worker run no longer exists after restart.');
+              continue;
+            }
+          }
+
           // Reconstitute pending approval in memory so UI and API stay consistent
           const events = backgroundTaskRepo.getEvents(task.taskId);
           const reqEvt = [...events].reverse().find(e => e.kind === 'task.approval_requested');
@@ -928,11 +959,19 @@ export class BackgroundTaskManager extends EventEmitter {
         try {
           await resolver(choice);
         } catch (resolverErr: any) {
-          // If the user DENIED, or force resolution is requested, but upstream resolver errored
-          // (e.g. upstream run already closed or expired), we still safely apply the denial locally
-          // so the task transitions and the UI unblocks.
-          if (choice === 'deny' || options?.force) {
-            logger.warn(`[bg-task] upstream resolver error ignored on ${choice} for ${taskId}: ${resolverErr?.message}`);
+          // If the user DENIED, or force resolution is requested, or the upstream run is missing/dead,
+          // we safely reconcile locally so the task transitions and the UI is never bricked.
+          const isRunNotFound = Boolean(resolverErr?.message?.includes('run not found') || resolverErr?.message?.includes('not found'));
+          if (choice === 'deny' || options?.force || isRunNotFound) {
+            logger.warn(`[bg-task] upstream resolver error handled for ${taskId} (${choice}): ${resolverErr?.message}`);
+            if (isRunNotFound) {
+              this.approvalRequests.delete(taskId);
+              this.transition(taskId, 'blocked', {
+                approvalState: 'denied',
+                blocker: 'Upstream run not found — stale approval reconciled.',
+              });
+              return { ok: true, alreadyResolved: true };
+            }
           } else {
             throw resolverErr;
           }

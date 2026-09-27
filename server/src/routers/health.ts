@@ -680,13 +680,24 @@ router.get('/incidents', (_req, res) => {
 /* ── POST /api/health/incidents/reconcile ─────────────────
    Close what is provably finished, mark exhausted repairs unresolved, link
    duplicates to their canonical incident. `?dryRun=1` reports without writing. */
-router.post('/incidents/reconcile', (req, res) => {
+router.post('/incidents/reconcile', async (req, res) => {
   try {
-    const dryRun = req.query.dryRun === '1' || req.body?.dryRun === true;
-    const maxRepairCycles = Number(req.query.maxCycles ?? req.body?.maxRepairCycles ?? 3);
-    res.json({ success: true, result: reconcileIncidentLifecycle({ dryRun, maxRepairCycles }) });
+    const { incidentReconciler } = await import('../domains/selfHeal/IncidentReconciler.js');
+    const report = incidentReconciler.reconcileAll();
+    res.json({ success: true, report });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'incident reconciliation failed' });
+  }
+});
+
+/* ── GET /api/health/production-readiness ─────────────────
+   Authoritative ProductionReadinessState across all 16 domains. */
+router.get('/production-readiness', async (_req, res) => {
+  try {
+    const { productionReadinessManager } = await import('../domains/controlPlane/ProductionReadinessManager.js');
+    res.json(await productionReadinessManager.evaluateReadiness());
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'production readiness evaluation failed' });
   }
 });
 

@@ -245,6 +245,8 @@ export class IntentArbitrator {
         score: Math.max(
           unified.candidates['desktop.open_app']?.score || 0,
           unified.candidates['desktop.resolve_app']?.score || 0,
+          unified.candidates['desktop.focus_app']?.score || 0,
+          unified.candidates['desktop.screenshot']?.score || 0,
           unified.candidates['filesystem.open']?.score || 0,
           unified.candidates['filesystem.locate']?.score || 0,
           unified.candidates['shell.open']?.score || 0,
@@ -252,11 +254,13 @@ export class IntentArbitrator {
           unified.candidates['process.inspect']?.score || 0,
           unified.candidates['process.stop']?.score || 0
         ),
-        reason: unified.candidates['desktop.open_app']?.reason ||
+        reason: unified.candidates['desktop.screenshot']?.reason ||
+                unified.candidates['desktop.focus_app']?.reason ||
+                unified.candidates['desktop.open_app']?.reason ||
+                unified.candidates['desktop.resolve_app']?.reason ||
                 unified.candidates['filesystem.open']?.reason ||
                 unified.candidates['shell.open']?.reason ||
-                unified.candidates['process.inspect']?.reason ||
-                unified.candidates['desktop.resolve_app']?.reason || 'Desktop OS local computer capability',
+                unified.candidates['process.inspect']?.reason || 'Desktop OS local computer capability',
       },
     };
 

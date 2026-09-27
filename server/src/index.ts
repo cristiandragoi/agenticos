@@ -344,6 +344,9 @@ app.use('/api/antigravity', antigravityRouter);
 import workspaceRouter from './routers/workspace.js';
 app.use('/api/workspace', workspaceRouter);
 
+import { controlPlaneRouter } from './routers/controlPlaneRouter.js';
+app.use('/api/control-plane', controlPlaneRouter);
+
 import revenueRouter from './routers/revenue.js';
 app.use('/api/revenue', revenueRouter);
 import revenuePipelineRouter from './routers/revenuePipeline.js';
@@ -394,6 +397,19 @@ ensureJarvisCoreMemorySeeded();
 import { backgroundTaskManager } from './services/backgroundTasks/manager.js';
 import './domains/jarvis/executionSupervisor.js';
 backgroundTaskManager.restoreAfterRestart();
+
+import { goalLifecycleManager } from './domains/controlPlane/GoalLifecycle.js';
+goalLifecycleManager.restoreAfterRestart();
+
+import { incidentReconciler } from './domains/selfHeal/IncidentReconciler.js';
+incidentReconciler.reconcileAll();
+setInterval(() => {
+  try {
+    incidentReconciler.reconcileAll();
+  } catch (e: any) {
+    logger.warn(`[IncidentReconciler] Periodic run error: ${e?.message}`);
+  }
+}, 5 * 60 * 1000);
 
 // FreeCash is no longer our objective. Do not resume its tasks on startup; preserve existing records.
 // import { reconcileGoalsOnStartup } from './services/freeCash/freeCashExecutor.js';
@@ -457,8 +473,12 @@ if (!process.env.VERCEL) {
       try {
         const { hermesWatchdog } = await import('./services/hermesWatchdog.js');
         const { projectsStore } = await import('./services/projectsStore.js');
+        const { repositoryAuthority } = await import('./domains/controlPlane/RepositoryAuthority.js');
 
-        logger.info('[Supervisor] Verifying critical runtime dependencies...');
+        logger.info('[Supervisor] Verifying critical runtime dependencies & repository authority...');
+        const repoStatus = repositoryAuthority.reconcileAndValidate();
+        logger.info('[Supervisor] Authoritative repository verified:', { root: repoStatus.repositoryRoot, healthy: repoStatus.health.healthy });
+
         const hermesHealth = await hermesWatchdog.checkHealth();
         if (!hermesHealth.reachable) {
           logger.warn('[Supervisor] DEPENDENCY_FAILURE: Hermes is offline. Initiating automated recovery...', {

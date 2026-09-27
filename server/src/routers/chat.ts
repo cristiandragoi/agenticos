@@ -9,6 +9,7 @@ import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
 import { conversationService } from '../domains/conversations/service.js';
 import { logger } from '../utils/logger.js';
 import { goalStore, goalControllers } from '../services/goalStore.js';
+import { goalLifecycleManager } from '../domains/controlPlane/GoalLifecycle.js';
 import { codexService } from '../domains/codex/service.js';
 import { getWorkspaceRoot } from '../services/workspaceStore.js';
 import type { GoalRecord, GoalEvent } from '../types.js';
@@ -293,7 +294,8 @@ router.post('/agents/goal/:id/revise', async (req, res) => {
 const handleGoalStream = async (req: any, res: any) => {
   const goalId = req.params.id;
   const goal = goalStore.get(goalId);
-  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  const run = !goal ? goalLifecycleManager.getGoalRun(goalId) : null;
+  if (!goal && !run) return res.status(404).json({ error: 'Goal not found' });
   let endedIntentionally = false;
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -301,6 +303,62 @@ const handleGoalStream = async (req: any, res: any) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
+
+  if (!goal && run) {
+    let seq = 1;
+    for (const evt of run.timeline) {
+      const payload = {
+        sequence: seq++,
+        eventType: evt.state.toLowerCase(),
+        state: evt.state.toLowerCase(),
+        message: `[${evt.actor}] ${evt.summary}`,
+        timestamp: evt.timestamp,
+        tool: evt.actor?.toLowerCase() || 'jarvis',
+        payload: { finalAnswer: evt.summary },
+      };
+      res.write(`id: ${payload.sequence}\nevent: goal_event\ndata: ${JSON.stringify(payload)}\n\n`);
+    }
+
+    if (run.status === 'COMPLETED' || run.status === 'FAILED_EXHAUSTED' || run.status === 'CANCELLED') {
+      const finalPayload = {
+        sequence: seq++,
+        eventType: run.status === 'COMPLETED' ? 'agent_completed' : 'agent_failed',
+        state: run.status === 'COMPLETED' ? 'completed' : 'failed',
+        message: run.timeline[run.timeline.length - 1]?.summary || 'Goal finished',
+        timestamp: new Date().toISOString(),
+        tool: 'finish',
+        payload: { finalAnswer: run.finalResponseText || run.finalVerification?.summary || run.timeline[run.timeline.length - 1]?.summary },
+      };
+      res.write(`id: ${finalPayload.sequence}\nevent: goal_event\ndata: ${JSON.stringify(finalPayload)}\n\n`);
+      return res.end();
+    }
+
+    const onState = (update: any) => {
+      if (update.goalId === goalId) {
+        const payload = {
+          sequence: seq++,
+          eventType: update.status.toLowerCase(),
+          state: update.status.toLowerCase(),
+          message: update.summary,
+          timestamp: new Date().toISOString(),
+          payload: { finalAnswer: update.summary },
+        };
+        try {
+          res.write(`id: ${payload.sequence}\nevent: goal_event\ndata: ${JSON.stringify(payload)}\n\n`);
+        } catch {}
+        if (update.status === 'COMPLETED' || update.status === 'FAILED_EXHAUSTED') {
+          try { res.end(); } catch {}
+        }
+      }
+    };
+
+    goalLifecycleManager.on('goal:state', onState);
+    req.on('close', () => {
+      goalLifecycleManager.off('goal:state', onState);
+      res.end();
+    });
+    return;
+  }
 
   const queryLastEventId = req.query.lastEventId;
   const requestedLastEventId = req.headers['last-event-id']
@@ -507,14 +565,32 @@ router.get('/test', async (_req, res) => {
 /* ── GET /api/chat/agents/goals (and /api/chat/goals) ──── */
 const handleListGoals = (req: any, res: any) => {
   const statusQuery = req.query.status as string | undefined;
+  let codexGoals: any[] = [];
   if (statusQuery === 'unfinished') {
-    return res.json(goalStore.getUnfinishedGoals());
-  }
-  if (statusQuery) {
+    codexGoals = goalStore.getUnfinishedGoals();
+  } else if (statusQuery) {
     const statuses = statusQuery.split(',').map((s: string) => s.trim()).filter(Boolean);
-    return res.json(goalStore.getGoalsByStatus(statuses));
+    codexGoals = goalStore.getGoalsByStatus(statuses);
+  } else {
+    codexGoals = goalStore.getAllGoals();
   }
-  res.json(goalStore.getAllGoals());
+
+  const cpRuns = goalLifecycleManager.listGoalRuns(20).map(run => {
+    const lastSummary = run.timeline[run.timeline.length - 1]?.summary || run.acknowledgementText;
+    return {
+      id: run.goalId,
+      originalGoal: run.originalUserInput,
+      status: run.status.toLowerCase(),
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+      runSummary: {
+        finalAnswer: run.finalResponseText || run.finalVerification?.summary || lastSummary,
+        message: lastSummary,
+      },
+    };
+  });
+
+  res.json([...cpRuns, ...codexGoals]);
 };
 router.get('/agents/goals', handleListGoals);
 router.get('/goals', handleListGoals);
@@ -523,8 +599,35 @@ router.get('/goals', handleListGoals);
 const handleGetGoal = (req: any, res: any) => {
   const goalId = req.params.id;
   const goal = goalStore.get(goalId);
-  if (!goal) return res.status(404).json({ error: 'Goal not found' });
-  res.json(goal);
+  if (goal) return res.json(goal);
+
+  const run = goalLifecycleManager.getGoalRun(goalId);
+  if (run) {
+    const lastSummary = run.timeline[run.timeline.length - 1]?.summary || run.acknowledgementText;
+    const isCompleted = run.status === 'COMPLETED';
+    const finalAnswer = run.finalResponseText || run.finalVerification?.summary || lastSummary;
+    return res.json({
+      id: run.goalId,
+      originalGoal: run.originalUserInput,
+      status: isCompleted ? 'completed' : run.status.toLowerCase(),
+      finalAnswer,
+      runSummary: {
+        finalAnswer,
+        message: lastSummary,
+      },
+      history: run.timeline.map((evt: any, idx: number) => ({
+        sequence: idx + 1,
+        eventType: evt.state.toLowerCase(),
+        state: evt.state.toLowerCase(),
+        message: `[${evt.actor}] ${evt.summary}`,
+        timestamp: evt.timestamp,
+        tool: evt.actor?.toLowerCase() || 'jarvis',
+        payload: { finalAnswer: evt.summary },
+      })),
+    });
+  }
+
+  res.status(404).json({ error: 'Goal not found' });
 };
 router.get('/agents/goal/:id', handleGetGoal);
 router.get('/agents/goals/:id', handleGetGoal);

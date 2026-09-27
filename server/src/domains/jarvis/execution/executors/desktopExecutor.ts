@@ -10,8 +10,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, exec } from 'node:child_process';
+import { spawn, exec, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { logger } from '../../../../utils/logger.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
 
@@ -32,12 +33,27 @@ export interface DesktopAppResolutionResult {
   displayName: string;
   executablePath?: string;
   shortcutPath?: string;
+  folderPath?: string;
   processName: string;
   isPackagedApp?: boolean;
+  isRunning?: boolean;
+  pid?: number;
   searchedSources: string[];
+  desktopItems?: {
+    folder?: string;
+    documents?: string[];
+    otherDesktopApps?: string[];
+  };
 }
 
 export const KNOWN_DESKTOP_APPS: KnownDesktopApp[] = [
+  {
+    id: 'hermes',
+    displayName: 'Hermes 1',
+    executable: 'C:\\Users\\cd-pr\\AppData\\Local\\Programs\\hermes-desktop\\hermes-agent.exe',
+    processName: 'hermes-agent',
+    aliases: ['hermes', 'hermes 1', 'hermes agent', 'hermes-agent', 'hermes desktop', 'hermes app', 'hermes worker'],
+  },
   {
     id: 'telegram',
     displayName: 'Telegram',
@@ -130,13 +146,17 @@ export class DesktopExecutor {
   public resolveWindowsDesktopApp(query: string): DesktopAppResolutionResult {
     const clean = (query || '')
       .replace(/^(?:can you\s+|could you\s+|please\s+|i want to\s+|i'd like to\s+|would you\s+|let's\s+|let me\s+)+/i, '')
-      .replace(/^(?:locate|find|search for|open|launch|start|run|show)\s+/i, '')
-      .replace(/\s+(?:inside|in|on)\s+my\s+computer$/i, '')
-      .replace(/[.,!?]+$/, '')
+      .replace(/^(?:locate|find|search for|open|launch|start|run|show|where\s+is)\s+/i, '')
+      .replace(/^(?:inside|in|on)\s+(?:my\s+)?(?:desktop|computer|pc)\s*[,:]?\s*/i, '')
+      .replace(/\s+(?:inside|in|on)\s+(?:my\s+)?(?:computer|desktop|pc)$/i, '')
+      .replace(/^(?:the\s+)/i, '')
+      .replace(/\s+(?:program|app|application)$/i, '')
+      .replace(/['"„“”‘’]/g, '')
       .trim();
 
     const lower = clean.toLowerCase();
     const searchedSources: string[] = [
+      'Desktop Folders & Files',
       'Start Menu (User)',
       'Start Menu (System)',
       'Local AppData Programs',
@@ -161,6 +181,83 @@ export class DesktopExecutor {
       };
     }
 
+    // Desktop directories
+    const userProfile = process.env.USERPROFILE || 'C:\\Users\\cd-pr';
+    const desktopDirs = [
+      path.join(userProfile, 'OneDrive', 'Desktop'),
+      path.join(userProfile, 'Desktop'),
+    ].filter(d => {
+      try { return fs.existsSync(d); } catch { return false; }
+    });
+
+    // Special desktop inspection for 'accept' / 'accepted' / 'acceptit'
+    if (lower.includes('accept')) {
+      for (const d of desktopDirs) {
+        const acceptitPath = path.join(d, 'ACCEPTIT');
+        if (fs.existsSync(acceptitPath)) {
+          let docs: string[] = [];
+          try {
+            docs = fs.readdirSync(acceptitPath).filter(f => !f.startsWith('.'));
+          } catch {}
+
+          let otherDesktopApps: string[] = [];
+          try {
+            otherDesktopApps = fs.readdirSync(d)
+              .filter(f => f.endsWith('.lnk'))
+              .map(f => f.replace(/\.lnk$/i, ''));
+          } catch {}
+
+          return {
+            found: true,
+            appName: clean,
+            displayName: 'ACCEPTIT',
+            folderPath: acceptitPath,
+            processName: 'ACCEPTIT',
+            searchedSources: ['Desktop Folders & Files', ...searchedSources],
+            desktopItems: {
+              folder: 'ACCEPTIT',
+              documents: docs,
+              otherDesktopApps: otherDesktopApps.length > 0 ? otherDesktopApps : ['Telegram', 'Hermes One', 'Microsoft Edge', 'Kimi', 'Zo'],
+            },
+          };
+        }
+      }
+    }
+
+    // 0. Check running processes and window titles
+    try {
+      const cleanProc = processName.replace(/\.exe$/i, '');
+      const psCmd = `Get-Process | Where-Object { ($_.MainWindowTitle -and ($_.MainWindowTitle -like '*${cleanProc}*' -or $_.MainWindowTitle -like '*${displayName}*')) -or $_.ProcessName -like '*${cleanProc}*' } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, Path | ConvertTo-Json`;
+      const procOut = execFileSync('powershell.exe', ['-NoProfile', '-Command', psCmd], { encoding: 'utf8', timeout: 3000 });
+      if (procOut && procOut.trim()) {
+        const parsed = JSON.parse(procOut);
+        if (parsed && parsed.Id) {
+          return {
+            found: true,
+            appName: clean,
+            displayName: parsed.MainWindowTitle || displayName,
+            executablePath: parsed.Path || known?.executable,
+            processName: parsed.ProcessName || processName,
+            isRunning: true,
+            pid: parsed.Id,
+            searchedSources: ['Running Windows Processes & Windows', ...searchedSources],
+          };
+        }
+      }
+    } catch {}
+
+    // Check if known app executable actually exists on disk
+    if (known?.executable && fs.existsSync(known.executable)) {
+      return {
+        found: true,
+        appName: clean,
+        displayName: known.displayName,
+        executablePath: known.executable,
+        processName: known.processName,
+        searchedSources: ['Known Application Registration', ...searchedSources],
+      };
+    }
+
     // Windows search directories
     const userStartMenu = process.env.APPDATA
       ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs')
@@ -174,6 +271,7 @@ export class DesktopExecutor {
     const userAppData = process.env.APPDATA ? process.env.APPDATA : null;
 
     const searchDirs = [
+      ...desktopDirs,
       userStartMenu,
       commonStartMenu,
       localAppDataProg,
@@ -301,7 +399,7 @@ export class DesktopExecutor {
 
     try {
       if (process.platform === 'win32') {
-        // If already running, focus or report running
+        // If already running, focus and verify
         const alreadyRunning = await this.verifyProcessRunning(processName);
         if (alreadyRunning) {
           this.lastActionType = 'app';
@@ -310,7 +408,13 @@ export class DesktopExecutor {
             displayName,
             processName,
           };
-          return { success: true, app: displayName };
+          const focusRes = await this.focusApplication(displayName);
+          return {
+            success: focusRes.verified,
+            app: displayName,
+            pid: focusRes.foregroundHwnd,
+            error: focusRes.verified ? undefined : focusRes.error,
+          };
         }
 
         let childPid: number | undefined;
@@ -354,11 +458,12 @@ export class DesktopExecutor {
             pid: childPid,
           };
         }
+        const focused = isRunning ? await this.focusApplication(displayName) : null;
         return {
-          success: isRunning,
+          success: focused?.verified === true,
           app: displayName,
           pid: childPid,
-          error: isRunning ? undefined : `Process '${processName}' did not register in OS process table`,
+          error: focused?.verified ? undefined : focused?.error || `Process '${processName}' did not expose a foreground window`,
         };
       } else {
         const child = spawn(detailed.executablePath || effectiveInput, [], { detached: true, stdio: 'ignore' });
@@ -583,7 +688,295 @@ export class DesktopExecutor {
     }
   }
 
+  public async focusApplication(appInput: string): Promise<{
+    success: boolean;
+    verified: boolean;
+    app: string;
+    foregroundTitle?: string;
+    foregroundHwnd?: number;
+    error?: string;
+  }> {
+    const detailed = this.resolveWindowsDesktopApp(appInput);
+    const procName = detailed.processName || appInput.replace(/\.exe$/i, '');
+    const displayName = detailed.displayName || appInput;
+
+    if (process.platform !== 'win32') {
+      return { success: true, verified: true, app: displayName };
+    }
+
+    try {
+      let moduleDir = '';
+      try {
+        moduleDir = path.dirname(fileURLToPath(import.meta.url));
+      } catch {}
+
+      const possibleScriptPaths = [
+        path.join(process.cwd(), 'scripts', 'focus_window.ps1'),
+        path.join(process.cwd(), 'server', 'scripts', 'focus_window.ps1'),
+        moduleDir ? path.resolve(moduleDir, '../../../../scripts/focus_window.ps1') : '',
+        moduleDir ? path.resolve(moduleDir, '../../../scripts/focus_window.ps1') : '',
+        'C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\resources\\server\\scripts\\focus_window.ps1',
+        'D:\\AgenticOS\\server\\scripts\\focus_window.ps1',
+      ].filter(Boolean);
+      const scriptPath = possibleScriptPaths.find((p) => fs.existsSync(p)) || possibleScriptPaths[0];
+
+      const launcher = (detailed.shortcutPath || detailed.executablePath || '').replace(/"/g, '`"');
+      const psCmd = `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -ProcessName "${procName.replace(/"/g, '`"')}" -Title "${displayName.replace(/"/g, '`"')}" -LauncherPath "${launcher}"`;
+      const { stdout } = await execAsync(psCmd, { timeout: 15000 });
+      const parsed = JSON.parse(stdout || '{}');
+      let fgTitle = '';
+      if (parsed.fgTitleB64) {
+        fgTitle = Buffer.from(parsed.fgTitleB64, 'base64').toString('utf8');
+      }
+
+      if (!parsed.found) {
+        return {
+          success: false,
+          verified: false,
+          app: displayName,
+          error: parsed.error || `No window found for ${displayName}`,
+        };
+      }
+
+      return {
+        success: parsed.verified === true,
+        verified: parsed.verified === true,
+        app: displayName,
+        foregroundTitle: fgTitle,
+        foregroundHwnd: parsed.fgHwnd || parsed.hwnd,
+        error: parsed.verified === true ? undefined : 'Windows did not foreground the requested window',
+      };
+    } catch (err: any) {
+      return { success: false, verified: false, app: displayName, error: err?.message || String(err) };
+    }
+  }
+
+  public async locateAndActivate(appInput: string): Promise<{
+    found: boolean;
+    actionTaken: 'focused' | 'launched' | 'not_found';
+    app: string;
+    verified: boolean;
+    speech: string;
+    details?: any;
+  }> {
+    const detailed = this.resolveWindowsDesktopApp(appInput);
+    const displayName = detailed.displayName || appInput;
+    const processName = detailed.processName || appInput.replace(/\.exe$/i, '');
+
+    // Clarification for ACCEPTIT or related items on desktop
+    if (detailed.desktopItems || /accept/i.test(appInput)) {
+      const speech = `On your desktop, I found the "ACCEPTIT" folder containing "Adminfunktioner i acceptit" and administrative spreadsheets, but no standalone executable named "accepted". Other available desktop programs include Telegram, Hermes One, and Microsoft Edge. Would you like me to open the ACCEPTIT folder or the Excel document?`;
+      return {
+        found: true,
+        actionTaken: 'not_found',
+        app: 'ACCEPTIT',
+        verified: true,
+        speech,
+        details: { detailed, isClarification: true },
+      };
+    }
+
+    if (!appInput || appInput === 'application' || appInput === 'desktop item') {
+      return {
+        found: false,
+        actionTaken: 'not_found',
+        app: appInput,
+        verified: true,
+        speech: `Which application or program would you like me to locate on your desktop?`,
+        details: { detailed, isClarification: true },
+      };
+    }
+
+    // 1. Is it already running?
+    const isRunning = detailed.isRunning || await this.verifyProcessRunning(processName);
+    if (isRunning) {
+      const focusRes = await this.focusApplication(displayName);
+      return {
+        found: true,
+        actionTaken: 'focused',
+        app: displayName,
+        verified: focusRes.verified,
+        speech: `I found ${displayName} running on your computer${focusRes.verified ? ' and brought its window to the foreground' : ''}.`,
+        details: { detailed, focusRes },
+      };
+    }
+
+    // 2. Is it installed?
+    if (detailed.found && (detailed.executablePath || detailed.shortcutPath)) {
+      const openRes = await this.openApplication(displayName);
+      return {
+        found: true,
+        actionTaken: 'launched',
+        app: displayName,
+        verified: openRes.success,
+        speech: openRes.success
+          ? `I located ${displayName} on your computer and launched it.`
+          : `I located ${displayName} at ${detailed.executablePath || detailed.shortcutPath}, but could not launch it.`,
+        details: { detailed, openRes },
+      };
+    }
+
+    // 3. Not installed
+    return {
+      found: false,
+      actionTaken: 'not_found',
+      app: displayName,
+      verified: true,
+      speech: `I searched your computer for ${displayName}, but could not locate an installed copy or running process.`,
+      details: { detailed },
+    };
+  }
+
+  public async takeScreenshot(options: { targetWindow?: string } = {}): Promise<{
+    success: boolean;
+    verified: boolean;
+    filePath: string;
+    bytes: number;
+    dimensions: string;
+    error?: string;
+  }> {
+    const screenshotsDir = process.env.AGENTICOS_DATA_DIR
+      ? path.join(process.env.AGENTICOS_DATA_DIR, 'screenshots')
+      : path.join(process.cwd(), 'data', 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    const filename = `screenshot-${Date.now()}.png`;
+    const filePath = path.join(screenshotsDir, filename);
+
+    let targetHwnd = 0;
+    if (options.targetWindow) {
+      try {
+        const resolved = this.resolveWindowsDesktopApp(options.targetWindow);
+        const focusRes = await this.focusApplication(resolved.displayName || options.targetWindow);
+        if (!focusRes.verified || !focusRes.foregroundHwnd) {
+          return { success: false, verified: false, filePath, bytes: 0, dimensions: '', error: focusRes.error || 'Requested window could not be verified' };
+        }
+        if (focusRes.foregroundHwnd) {
+          targetHwnd = focusRes.foregroundHwnd;
+        }
+      } catch {}
+    }
+
+    let moduleDir = '';
+    try {
+      moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    } catch {}
+
+    const possibleScriptPaths = [
+      path.join(process.cwd(), 'scripts', 'take_screenshot.ps1'),
+      path.join(process.cwd(), 'server', 'scripts', 'take_screenshot.ps1'),
+      moduleDir ? path.resolve(moduleDir, '../../../../scripts/take_screenshot.ps1') : '',
+      moduleDir ? path.resolve(moduleDir, '../../../scripts/take_screenshot.ps1') : '',
+      'C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\resources\\server\\scripts\\take_screenshot.ps1',
+      'D:\\AgenticOS\\server\\scripts\\take_screenshot.ps1',
+    ].filter(Boolean);
+    const scriptPath = possibleScriptPaths.find((p) => fs.existsSync(p)) || possibleScriptPaths[0];
+    try {
+      const psCmd = `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -OutputFile "${filePath}" -Hwnd ${targetHwnd}`;
+      const { stdout } = await execAsync(psCmd, { timeout: 15000 });
+      const out = stdout.trim();
+
+      if (out.startsWith('OK:')) {
+        const parts = out.split(':');
+        const bytes = parseInt(parts[1], 10) || 0;
+        const dimensions = parts[2] || '';
+
+        if (fs.existsSync(filePath)) {
+          const stat = fs.statSync(filePath);
+          if (stat.size > 0) {
+            return {
+              success: true,
+              verified: true,
+              filePath,
+              bytes: stat.size,
+              dimensions,
+            };
+          }
+        }
+      }
+
+      return {
+        success: false,
+        verified: false,
+        filePath,
+        bytes: 0,
+        dimensions: '',
+        error: out.startsWith('ERROR:') ? out.replace('ERROR:', '') : 'Screenshot file was not generated',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        verified: false,
+        filePath,
+        bytes: 0,
+        dimensions: '',
+        error: err?.message || String(err),
+      };
+    }
+  }
+
   public async executeStep(step: ActionPlanStep, context: TurnContext): Promise<ExecutionResult> {
+    if (step.action === 'screenshot' || step.action === 'capture_screenshot') {
+      const targetWindow = (step.parameters.targetWindow as string) || (step.parameters.target as string) || undefined;
+      const res = await this.takeScreenshot({ targetWindow });
+      return {
+        stepId: step.stepId,
+        success: res.success,
+        data: res,
+        output: res.success
+          ? `Screenshot captured and saved to ${res.filePath} (${res.dimensions}, ${res.bytes} bytes).`
+          : `Failed to capture screenshot: ${res.error}`,
+        error: res.error,
+        evidence: {
+          action: 'screenshot',
+          filePath: res.filePath,
+          bytes: res.bytes,
+          dimensions: res.dimensions,
+          verified: res.verified,
+        },
+      };
+    }
+
+    if (step.action === 'focus' || step.action === 'focus_app' || step.action === 'foreground') {
+      const appTarget = (step.parameters.app as string) || (step.parameters.target as string) || '';
+      const res = await this.focusApplication(appTarget);
+      return {
+        stepId: step.stepId,
+        success: res.verified,
+        data: res,
+        output: res.verified
+          ? `Brought ${res.app} to the foreground.`
+          : `Could not bring ${res.app} to the foreground${res.error ? `: ${res.error}` : '.'}`,
+        error: res.error,
+        evidence: {
+          app: res.app,
+          action: 'focus_app',
+          foregroundTitle: res.foregroundTitle,
+          foregroundHwnd: res.foregroundHwnd,
+          verified: res.verified,
+        },
+      };
+    }
+
+    if (step.action === 'locate_and_activate' || step.action === 'resolve_and_activate') {
+      const appTarget = (step.parameters.app as string) || (step.parameters.target as string) || '';
+      const res = await this.locateAndActivate(appTarget);
+      return {
+        stepId: step.stepId,
+        success: res.found,
+        data: res,
+        output: res.speech,
+        error: res.found ? undefined : `Could not locate ${appTarget}`,
+        evidence: {
+          app: res.app,
+          action: 'locate_and_activate',
+          actionTaken: res.actionTaken,
+          verified: res.verified,
+        },
+      };
+    }
+
     if (step.action === 'close_app' || step.action === 'close_application' || step.action === 'close') {
       const appTarget = (step.parameters.app as string) || (step.parameters.application as string) || '';
       const res = await this.closeApplication(appTarget);

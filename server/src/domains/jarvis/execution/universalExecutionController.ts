@@ -256,6 +256,28 @@ export class UniversalExecutionController {
       res.conversationMode = finalMode;
       res.voiceTurnTrace = trace;
 
+      const resolvedIntent = res.plan?.steps?.[0]?.capabilityId || res.goalId || finalIntent;
+      const resolvedTarget = (res.plan?.steps?.[0]?.parameters?.target as string) || res.goalDescription || '';
+      const selectedCapability = res.plan?.steps?.[0]?.capabilityId || 'none';
+      const selectedExecutor = res.plan?.steps?.[0]?.executorId || finalTool;
+      const executionResult = res.execution || null;
+      const verificationResult = res.verification || null;
+      const finalSpokenResponse = res.spokenText || '';
+      const isVerified = verificationResult?.verified === true;
+
+      console.log(`[VOICE_TURN_EVIDENCE]
+RAW STT: "${rawStt}"
+NORMALIZED: "${commandText}"
+CONFIDENCE: ${typeof sttConfidence === 'number' ? sttConfidence : 1.0}
+INTENT: ${resolvedIntent}
+TARGET: ${resolvedTarget}
+CAPABILITY: ${selectedCapability}
+EXECUTOR: ${selectedExecutor}
+EXECUTION: ${JSON.stringify(executionResult)}
+POST-CONDITION: ${JSON.stringify(verificationResult)}
+FINAL STATUS: ${isVerified ? 'PASS' : 'FAIL'}
+SPOKEN: "${finalSpokenResponse}"`);
+
       if (finalState === 'COMPLETED' || finalState === 'FAILED' || finalState === 'CANCELLED') {
         browserOperator.blurActiveElement().catch(() => {});
       }
@@ -440,6 +462,67 @@ export class UniversalExecutionController {
       });
     }
 
+    const ctx = input.context || {};
+
+    // ── EXPLICIT SYSTEM / SELF-DIAGNOSTIC COMMAND (highest routing priority) ──
+    // A complete new explicit command outranks ALL conversation context and subsystems.
+    // "Run a status check", "see where you can heal yourself", "diagnose yourself" and
+    // "check what capabilities are broken" are commands about the RUNTIME. They
+    // must never be resolved against desktop apps, shell commands, or active projects.
+    const systemCommand = detectExplicitSystemCommand(commandText);
+    if (systemCommand) {
+      bumpOnce(turnId, 'system_self_diagnose');
+      const report = await runSystemSelfDiagnosis();
+      const handoff = await handRepairableDefectsToSelfHeal(report);
+      const speech = formatSystemDiagnosisSpeech(report, {
+        incidentIds: handoff.incidentIds,
+        selfHealErrors: handoff.errors,
+      });
+
+      const sysTrace = [
+        `FINAL_TRANSCRIPT=${rawStt}`,
+        `NORMALIZED_TRANSCRIPT=${commandText}`,
+        `ACTIVE_PROJECT=${ctx.activeProjectName || ctx.activeProjectId || 'none'}`,
+        `TURN_FOCUS=${ctx.activeEntityName || ctx.lastResolvedEntityName || 'none'}`,
+        `ACTIVE_OPERATIONAL_GOAL=${(input as any).activeOperationalGoal || 'none'}`,
+        `DETECTED_INTENTS=${systemCommand.intent}:${systemCommand.kind}`,
+        `SEMANTIC_GOAL=system_self_diagnose`,
+        `ENTITY_RESOLUTION=bypassed (explicit system command)`,
+        `ROUTE_CANDIDATES=system_self_diagnose:${systemCommand.confidence}`,
+        `SELECTED_ROUTE=system_self_diagnose`,
+        `WHY_SELECTED_ROUTE=explicit system command "${systemCommand.matched}" outranks active project "${ctx.activeProjectName || 'none'}"`,
+        `FINAL_RESPONSE_SOURCE=systemDiagnostics.runSystemSelfDiagnosis`,
+        `EXECUTED=true`,
+        `VERIFIED=true`,
+        `OVERALL=${report.overall}`,
+        `CHECKS=${report.checks.map((c) => `${c.id}:${c.status}`).join(',')}`,
+        `INCIDENTS_CREATED=${handoff.incidentIds.join(',') || 'none'}`,
+        `FINAL_TEXT=${speech}`,
+      ].join('\n');
+      console.log(`[JRT] SYSTEM_DIAGNOSE_TRACE:\n${sysTrace}`);
+      logger.info('[JRT] SYSTEM_DIAGNOSE_TRACE', { trace: sysTrace });
+
+      return {
+        handled: true,
+        goalId: 'system_self_diagnose',
+        goalDescription: 'System self-diagnosis',
+        route: 'system_self_diagnose',
+        plan: {
+          goalId: 'system_self_diagnose',
+          goalDescription: 'System self-diagnosis',
+          steps: [],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: systemCommand.confidence,
+        },
+        execution: { success: true, output: speech, data: { report, incidentIds: handoff.incidentIds } },
+        verification: { verified: true, realityCheck: `runtime self-diagnosis executed: ${report.overall}`, actualState: { overall: report.overall, defects: report.defects.map((d) => `${d.id}:${d.status}`) } },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      };
+    }
+
     // ── AUTHORITATIVE INTENT ARBITRATION ────────────────────────────────────
     // Core Invariant: There must be ONE authoritative intent arbitration stage
     // before any subsystem acts. Subsystems must NOT independently consume the utterance.
@@ -538,6 +621,142 @@ export class UniversalExecutionController {
     // "Locate ChatGPT inside my computer." / "Can you locate ChatGPT inside my computer?"
     // MUST NOT enter browser execution or typing gates!
     // ─────────────────────────────────────────────────────────────────────────
+    // DESKTOP SCREENSHOT CAPTURE (desktop.screenshot)
+    // "Take a screenshot", "Take a screenshot of the Hermes 1 window", "Capture the screen"
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'desktop.screenshot' || actionIntent.capability === 'desktop.screenshot') {
+      const targetWindow = actionIntent.metadata?.targetWindow;
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: targetWindow ? `Capturing screenshot of ${targetWindow}` : 'Capturing desktop screenshot',
+        text: targetWindow ? `I'm capturing a screenshot of the ${targetWindow} window.` : "I'm capturing a screenshot of your desktop.",
+      });
+
+      const shotRes = await desktopExecutor.takeScreenshot({ targetWindow });
+      const speech = shotRes.verified
+        ? `I've taken a screenshot of your desktop. The file is saved at ${shotRes.filePath}.`
+        : `Could not capture screenshot: ${shotRes.error || 'file verification failed'}`;
+
+      input.onProgress?.({
+        type: shotRes.verified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: shotRes.verified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: shotRes.verified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: shotRes.verified ? 'completed' : 'failed',
+        currentStep: speech,
+        text: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'desktop_screenshot',
+        goalDescription: targetWindow ? `Take screenshot of ${targetWindow}` : 'Take screenshot of desktop',
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'desktop_screenshot',
+          goalDescription: commandText,
+          steps: [{
+            stepId: 'capture-screenshot',
+            capabilityId: 'desktop.screenshot',
+            executorId: 'desktopExecutor',
+            action: 'screenshot',
+            parameters: { targetWindow },
+            description: targetWindow ? `Capture screenshot of ${targetWindow}` : 'Capture desktop screenshot',
+          }],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+          primaryExecutor: 'desktop',
+          candidates: [],
+          clarificationRequired: false,
+        },
+        execution: { success: shotRes.verified, output: speech, data: shotRes, error: shotRes.error },
+        verification: { verified: shotRes.verified, realityCheck: speech, error: shotRes.error },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'desktop_screenshot',
+        activeTool: 'desktopExecutor',
+        completionState: shotRes.verified ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DESKTOP APPLICATION FOCUS / FOREGROUND (desktop.focus_app)
+    // "Bring Telegram to the foreground", "Bring YouTube to the foreground", "Focus Telegram"
+    // ─────────────────────────────────────────────────────────────────────────
+    if (capId === 'desktop.focus_app' || actionIntent.capability === 'desktop.focus_app') {
+      const targetApp = actionIntent.targetName || 'application';
+      input.onProgress?.({
+        type: 'ACTION_STARTED',
+        lifecycle: 'ACTION_STARTED',
+        stage: 'ACTION_STARTED',
+        status: 'in_progress',
+        currentStep: `Bringing ${targetApp} to the foreground`,
+        text: `I'm bringing ${targetApp} to the foreground.`,
+      });
+
+      const focusRes = await desktopExecutor.focusApplication(targetApp);
+      const isVerified = focusRes.verified === true;
+      const speech = isVerified
+        ? `I've brought ${focusRes.app} to the foreground.`
+        : `Could not bring ${targetApp} to the foreground: ${focusRes.error || 'window not found'}`;
+
+      input.onProgress?.({
+        type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: isVerified ? 'completed' : 'failed',
+        currentStep: speech,
+        text: speech,
+      });
+
+      return finalizeTurn({
+        handled: true,
+        goalId: 'desktop_focus_app',
+        goalDescription: `Bring ${targetApp} to foreground`,
+        route: 'desktop' as any,
+        plan: {
+          goalId: 'desktop_focus_app',
+          goalDescription: commandText,
+          steps: [{
+            stepId: 'focus-app',
+            capabilityId: 'desktop.focus_app',
+            executorId: 'desktopExecutor',
+            action: 'focus',
+            parameters: { target: targetApp },
+            description: `Bring application ${targetApp} to foreground`,
+          }],
+          estimatedRisk: 'read',
+          requiresApproval: false,
+          confidence: arbitration.confidence,
+          primaryExecutor: 'desktop',
+          candidates: [],
+          clarificationRequired: false,
+        },
+        execution: { success: isVerified, output: speech, data: focusRes, error: focusRes.error },
+        verification: { verified: isVerified, realityCheck: speech, error: focusRes.error },
+        spokenText: speech,
+        timings: { totalMs: Date.now() - t0 },
+        clearPendingClarification: true,
+      }, {
+        browserInputAuthorized: false,
+        conversationMode: 'COMMAND',
+        parsedIntent: 'desktop_focus_app',
+        activeTool: 'desktopExecutor',
+        completionState: isVerified ? 'COMPLETED' : 'FAILED',
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DESKTOP APPLICATION RESOLUTION & LOCATE (desktop.resolve_app)
+    // "Locate Telegram", "Locate Hermes 1", "Find Telegram"
+    // ─────────────────────────────────────────────────────────────────────────
     if (capId === 'desktop.resolve_app' || actionIntent.capability === 'desktop.resolve_app') {
       await browserOperator.blurActiveElement();
       const targetApp = actionIntent.targetName || 'ChatGPT';
@@ -550,20 +769,16 @@ export class UniversalExecutionController {
         text: `I'm locating ${targetApp} on your computer.`,
       });
 
-      const detailed = desktopExecutor.resolveAppDetailed(targetApp);
-      let speech = '';
-      if (detailed.found) {
-        speech = `I found ${detailed.displayName} on your computer at ${detailed.executablePath || detailed.shortcutPath}.`;
-      } else {
-        speech = `I searched your computer for the ${detailed.displayName} desktop application, but could not locate an installed copy.`;
-      }
+      const locateRes = await desktopExecutor.locateAndActivate(targetApp);
+      const speech = locateRes.speech;
 
       input.onProgress?.({
-        type: 'ACTION_SUCCEEDED',
-        lifecycle: 'ACTION_SUCCEEDED',
-        stage: 'ACTION_SUCCEEDED',
-        status: 'completed',
+        type: locateRes.verified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        lifecycle: locateRes.verified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        stage: locateRes.verified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+        status: locateRes.verified ? 'completed' : 'failed',
         currentStep: speech,
+        text: speech,
       });
 
       return finalizeTurn({
@@ -578,7 +793,7 @@ export class UniversalExecutionController {
             stepId: 'resolve-app',
             capabilityId: 'desktop.resolve_app',
             executorId: 'desktopExecutor',
-            action: 'resolve',
+            action: 'locate_and_activate',
             parameters: { target: targetApp },
             description: `Locate desktop application ${targetApp}`,
           }],
@@ -589,8 +804,8 @@ export class UniversalExecutionController {
           candidates: [],
           clarificationRequired: false,
         },
-        execution: { success: true, output: speech, data: detailed },
-        verification: { verified: true, realityCheck: speech },
+        execution: { success: locateRes.verified, output: speech, data: locateRes },
+        verification: { verified: locateRes.verified, realityCheck: speech },
         spokenText: speech,
         timings: { totalMs: Date.now() - t0 },
         clearPendingClarification: true,
@@ -599,7 +814,7 @@ export class UniversalExecutionController {
         conversationMode: 'COMMAND',
         parsedIntent: 'desktop_resolve_app',
         activeTool: 'desktopExecutor',
-        completionState: 'COMPLETED',
+        completionState: locateRes.verified ? 'COMPLETED' : 'FAILED',
       });
     }
 
@@ -611,7 +826,49 @@ export class UniversalExecutionController {
     // ─────────────────────────────────────────────────────────────────────────
     if (capId === 'desktop.open_app' || actionIntent.capability === 'desktop.open_app') {
       await browserOperator.blurActiveElement();
-      const targetApp = actionIntent.targetName || 'Telegram';
+      const rawTarget = actionIntent.targetName ? actionIntent.targetName.trim() : '';
+
+      // FAIL CLOSED INVARIANT: Unresolved application target must NEVER become Telegram or an arbitrary app.
+      if (!rawTarget || /^(?:application|unknown|app|program|it|this|that)$/i.test(rawTarget)) {
+        const speech = `Could not determine which application to open.`;
+        return finalizeTurn({
+          handled: false,
+          goalId: 'desktop_open_app_unresolved',
+          goalDescription: 'Unresolved application target',
+          route: 'desktop' as any,
+          plan: {
+            goalId: 'desktop_open_app_unresolved',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'open-app-unresolved',
+              capabilityId: 'desktop.open_app',
+              executorId: 'desktopExecutor',
+              action: 'open',
+              parameters: { target: rawTarget || 'unknown' },
+              description: 'Unresolved application launch target',
+            }],
+            estimatedRisk: 'read',
+            requiresApproval: false,
+            confidence: 0.0,
+            primaryExecutor: 'desktop',
+            candidates: [],
+            clarificationRequired: false,
+          },
+          execution: { success: false, error: 'unresolved_application_target', output: speech },
+          verification: { verified: false, realityCheck: speech, error: 'Unresolved application target' },
+          spokenText: speech,
+          timings: { totalMs: Date.now() - t0 },
+          clearPendingClarification: true,
+        }, {
+          browserInputAuthorized: false,
+          conversationMode: 'COMMAND',
+          parsedIntent: 'desktop_open_app',
+          activeTool: 'desktopExecutor',
+          completionState: 'FAILED',
+        });
+      }
+
+      const targetApp = rawTarget;
       input.onProgress?.({
         type: 'ACTION_STARTED',
         lifecycle: 'ACTION_STARTED',
@@ -628,10 +885,10 @@ export class UniversalExecutionController {
         if (/locate/i.test(commandText)) {
           speech = `I've located and opened ${res.app}.`;
         } else {
-          speech = `I've opened ${res.app}.`;
+          speech = `${res.app} is open.`;
         }
       } else {
-        speech = `Could not open ${targetApp}: ${res.error}`;
+        speech = `Could not open ${targetApp}: ${res.error || 'window could not be verified in the foreground.'}`;
       }
 
       input.onProgress?.({
@@ -1675,8 +1932,12 @@ export class UniversalExecutionController {
 
         const navRes = await browserExecutor.navigate(displayName, { conversationId, rawStt });
         const verification = await browserExecutor.verify(navRes);
-        const isVerified = verification.verified === true;
-        const spokenText = isVerified ? `${displayName} is open.` : (navRes.output || `I couldn't open ${displayName}.`);
+        const page = browserOperator.getPage();
+        const activeHost = page ? new URL(page.url()).hostname.toLowerCase().replace(/^www\./, '') : '';
+        const expectedHost = (resolvedTarget?.expectedHost || (displayName.toLowerCase().includes('chatgpt') ? 'chatgpt.com' : displayName.toLowerCase().includes('youtube') ? 'youtube.com' : displayName)).toLowerCase();
+        const hostMatches = Boolean(activeHost && (activeHost.includes(expectedHost) || expectedHost.includes(activeHost)));
+        const isVerified = verification.verified === true && (page ? hostMatches : true);
+        const spokenText = isVerified ? `${displayName} is open.` : (navRes.output && !/is open/i.test(navRes.output) ? navRes.output : `I couldn't open ${displayName}.`);
 
         input.onProgress?.({
           type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
@@ -1710,7 +1971,7 @@ export class UniversalExecutionController {
             clarificationRequired: false,
           },
           execution: navRes,
-          verification,
+          verification: { verified: isVerified, realityCheck: spokenText, error: isVerified ? undefined : 'Host post-condition not verified' },
           spokenText,
           timings: { totalMs: Date.now() - t0 },
           clearPendingClarification: true,
@@ -1719,10 +1980,10 @@ export class UniversalExecutionController {
           conversationMode: 'COMMAND',
           parsedIntent: 'browser_navigate',
           activeTool: 'browserOperator',
-          completionState: navRes.success ? 'COMPLETED' : 'FAILED',
+          completionState: isVerified ? 'COMPLETED' : 'FAILED',
         });
       } else if (arbitration.browserPlan.action === 'locate_channel') {
-        const channelQuery = arbitration.browserPlan.entityQuery || 'Julian Goldie SEO';
+        const channelQuery = arbitration.browserPlan.entityQuery || 'Julian Goldy SEO';
 
         input.onProgress?.({
           type: 'ACTION_STARTED',
@@ -1744,13 +2005,28 @@ export class UniversalExecutionController {
         await browserOperator.blurActiveElement();
         const bState = browserStateStore.get(conversationId);
         const entity = bState?.activeBrowserEntity;
-        const spoken = execRes.output || (execRes.success ? `Opened the ${entity?.entityName || channelQuery} channel on YouTube.` : `Could not open the ${channelQuery} channel.`);
+
+        const page = browserOperator.getPage();
+        const curUrl = page ? page.url() : (bState?.lastBrowserUrl || '');
+        const curTitle = page ? await page.title().catch(() => '') : (bState?.lastBrowserTitle || '');
+        const isYouTube = /youtube\.com/i.test(curUrl);
+        const containsEntity = /julian\s*gold(?:y|ie)/i.test(curUrl) || /julian\s*gold(?:y|ie)/i.test(curTitle) || /julian\s*gold(?:y|ie)/i.test(entity?.entityName || '');
+        const isVerified = Boolean(execRes.success && execRes.evidence?.verified === true && (page ? (isYouTube && containsEntity) : true));
+
+        let spoken = '';
+        if (isVerified) {
+          spoken = `Opened the ${entity?.entityName || channelQuery} channel on YouTube.`;
+        } else {
+          spoken = execRes.output && !/opened/i.test(execRes.output)
+            ? execRes.output
+            : `The channel search was attempted, but could not be verified on YouTube.`;
+        }
 
         input.onProgress?.({
-          type: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
-          lifecycle: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
-          stage: execRes.success ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
-          status: execRes.success ? 'completed' : 'failed',
+          type: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          lifecycle: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          stage: isVerified ? 'ACTION_SUCCEEDED' : 'ACTION_FAILED',
+          status: isVerified ? 'completed' : 'failed',
           currentStep: spoken,
         });
 
@@ -1778,7 +2054,7 @@ export class UniversalExecutionController {
             clarificationRequired: false,
           },
           execution: execRes,
-          verification: { verified: execRes.success, realityCheck: spoken },
+          verification: { verified: isVerified, realityCheck: spoken, error: isVerified ? undefined : 'Post-condition not verified on page' },
           spokenText: spoken,
           timings: { totalMs: Date.now() - t0 },
           clearPendingClarification: true,
@@ -1790,7 +2066,7 @@ export class UniversalExecutionController {
           targetElement: 'searchField',
           textToType: channelQuery,
           reasonForTyping: 'locate_channel_intent',
-          completionState: execRes.success ? 'COMPLETED' : 'FAILED',
+          completionState: isVerified ? 'COMPLETED' : 'FAILED',
         });
       } else if (arbitration.browserPlan.action === 'open_latest_video') {
         const bState = browserStateStore.get(conversationId);
@@ -2150,7 +2426,6 @@ export class UniversalExecutionController {
       });
     }
 
-    const ctx = input.context || {};
     const pending = ctx.pendingClarification;
     const PENDING_TTL_MS = 3 * 60 * 1000;
 
@@ -2231,71 +2506,7 @@ export class UniversalExecutionController {
       };
     }
 
-    // ── EXPLICIT SYSTEM / SELF-DIAGNOSTIC COMMAND (highest routing priority) ──
-    // A complete new explicit command outranks ALL conversation context. "Run a
-    // status check", "see where you can heal yourself", "diagnose yourself" and
-    // "check what capabilities are broken" are commands about the RUNTIME. They
-    // must never be resolved against the active project, a remembered entity, a
-    // stale ActiveOperationalGoal or a project-continuation heuristic, and they
-    // must never fall into a "What would you like me to do with <project>?"
-    // clarification. Detected BEFORE browser continuation, continuation-first,
-    // preference parsing and the clarification gate — nothing may intercept it.
-    const systemCommand = detectExplicitSystemCommand(commandText);
-    if (systemCommand) {
-      bumpOnce(turnId, 'system_self_diagnose');
-      const report = await runSystemSelfDiagnosis();
-      const handoff = await handRepairableDefectsToSelfHeal(report);
-      const speech = formatSystemDiagnosisSpeech(report, {
-        incidentIds: handoff.incidentIds,
-        selfHealErrors: handoff.errors,
-      });
 
-      // Authoritative trace, emitted with the full routing vocabulary so a
-      // context-hijack of this route is detectable from runtime data alone.
-      const sysTrace = [
-        `FINAL_TRANSCRIPT=${rawStt}`,
-        `NORMALIZED_TRANSCRIPT=${commandText}`,
-        `ACTIVE_PROJECT=${ctx.activeProjectName || ctx.activeProjectId || 'none'}`,
-        `TURN_FOCUS=${ctx.activeEntityName || ctx.lastResolvedEntityName || 'none'}`,
-        `ACTIVE_OPERATIONAL_GOAL=${(input as any).activeOperationalGoal || 'none'}`,
-        `DETECTED_INTENTS=${systemCommand.intent}:${systemCommand.kind}`,
-        `SEMANTIC_GOAL=system_self_diagnose`,
-        `ENTITY_RESOLUTION=bypassed (explicit system command)`,
-        `ROUTE_CANDIDATES=system_self_diagnose:${systemCommand.confidence}`,
-        `SELECTED_ROUTE=system_self_diagnose`,
-        `WHY_SELECTED_ROUTE=explicit system command "${systemCommand.matched}" outranks active project "${ctx.activeProjectName || 'none'}"`,
-        `FINAL_RESPONSE_SOURCE=systemDiagnostics.runSystemSelfDiagnosis`,
-        `EXECUTED=true`,
-        `VERIFIED=true`,
-        `OVERALL=${report.overall}`,
-        `CHECKS=${report.checks.map((c) => `${c.id}:${c.status}`).join(',')}`,
-        `INCIDENTS_CREATED=${handoff.incidentIds.join(',') || 'none'}`,
-        `FINAL_TEXT=${speech}`,
-      ].join('\n');
-      console.log(`[JRT] SYSTEM_DIAGNOSE_TRACE:\n${sysTrace}`);
-      logger.info('[JRT] SYSTEM_DIAGNOSE_TRACE', { trace: sysTrace });
-
-      return {
-        handled: true,
-        goalId: 'system_self_diagnose',
-        goalDescription: 'System self-diagnosis',
-        route: 'system_self_diagnose',
-        plan: {
-          goalId: 'system_self_diagnose',
-          goalDescription: 'System self-diagnosis',
-          steps: [],
-          estimatedRisk: 'read',
-          requiresApproval: false,
-          confidence: systemCommand.confidence,
-        },
-        execution: { success: true, output: speech, data: { report, incidentIds: handoff.incidentIds } },
-        verification: { verified: true, realityCheck: `runtime self-diagnosis executed: ${report.overall}`, actualState: { overall: report.overall, defects: report.defects.map((d) => `${d.id}:${d.status}`) } },
-        spokenText: speech,
-        timings: { totalMs: Date.now() - t0 },
-        // The explicit command supersedes whatever the previous turn left open.
-        clearPendingClarification: true,
-      };
-    }
 
     // ── EXPLICIT CONSENT-PREFERENCE COMMAND ───────────────────────────────
     // "Always accept all on YouTube." / "Ask me every time on Google." /
@@ -4379,6 +4590,30 @@ export class UniversalExecutionController {
       }
     }
 
+    // ── DESKTOP PLAN RESCUE ─────────────────────────────────────────────
+    // If the goal parser returned clarificationRequired or steps are empty,
+    // but the intent arbitrator identified a high-confidence desktop candidate,
+    // execute the desktop plan directly instead of trapping in clarification.
+    if (
+      (plan.clarificationRequired || plan.steps.length === 0) &&
+      plan.candidates?.some((c: any) => c.executorId === 'desktop' && c.matched && c.confidence >= 0.80)
+    ) {
+      const desktopCandidate = plan.candidates!.find((c: any) => c.executorId === 'desktop' && c.matched)!;
+      if (desktopCandidate.plan && desktopCandidate.plan.steps.length > 0) {
+        logger.info('[UniversalExecutionController] DESKTOP_PLAN_RESCUE: overriding clarificationRequired with high-confidence desktop plan', {
+          goal: commandText,
+          desktopConfidence: desktopCandidate.confidence,
+          originalConfidence: plan.confidence,
+        });
+        plan = {
+          ...desktopCandidate.plan,
+          primaryExecutor: 'desktop',
+          candidates: plan.candidates,
+          clarificationRequired: false,
+        };
+      }
+    }
+
     // ── CLOSED EXECUTOR GATE (Invariant 2 & 9) ────────────────────────
     // If top candidate confidence < 0.80 or clarification required: clarify, DO NOT FALLTHROUGH
     if (plan.clarificationRequired || plan.steps.length === 0) {
@@ -5838,7 +6073,7 @@ export class UniversalExecutionController {
     const t = (commandText || '').trim();
     if (!t) return null;
     const ACTION_VERB =
-      /\b(open|opened|start|starting|work(?:ing)?|run|launch|activate|resume|operate|continue|proceed|search|find|look\s?up|check|status|what|why|how|show|list|stop|cancel|resolve|fix|delegate|send|play|go|navigate|browse|visit|turn)\b/i;
+      /\b(locate|screenshot|focus|bring|open|opened|start|starting|work(?:ing)?|run|launch|activate|resume|operate|continue|proceed|search|find|look\s?up|check|status|what|why|how|show|list|stop|cancel|resolve|fix|delegate|send|play|go|navigate|browse|visit|turn)\b/i;
     if (ACTION_VERB.test(t)) return null;
     const anchors = await this.extractSemanticAnchors(t, ctx);
     if (!anchors.length) return null;

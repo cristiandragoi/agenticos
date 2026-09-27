@@ -1495,6 +1495,12 @@ export class JarvisNextAgent {
           confidence,
           isBargeIn,
           isStale: () => this.currentUserTurnId !== activeTurnId,
+          onActionProgress: (progress) => {
+            this.broadcastData({
+              type: 'action_status',
+              ...progress,
+            });
+          },
         });
 
         const tRouterEnd = Date.now();
