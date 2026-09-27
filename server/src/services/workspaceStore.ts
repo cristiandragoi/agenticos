@@ -132,6 +132,14 @@ export function getWorkspaceRoot(): string {
     return cachedRoot;
   }
 
+  // 4. Authoritative repository fallback: D:\AgenticOS
+  const authoritativeDefault = 'D:\\AgenticOS';
+  if (fs.existsSync(authoritativeDefault) && fs.existsSync(path.join(authoritativeDefault, '.git'))) {
+    cachedRoot = authoritativeDefault;
+    writePersistedSelection({ workspaceRoot: authoritativeDefault, selectedAt: new Date().toISOString(), source: 'detected' });
+    return cachedRoot;
+  }
+
   cachedRoot = '';
   return cachedRoot;
 }

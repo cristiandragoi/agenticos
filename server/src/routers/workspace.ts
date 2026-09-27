@@ -13,19 +13,30 @@ router.post('/detect', (req, res) => {
   try {
     let { basePath } = req.body;
     
-    // Default to the server's working directory if not provided
-    if (!basePath) {
-      basePath = process.cwd();
+    // Default to the canonical workspace root or D:\AgenticOS if not provided
+    if (!basePath || typeof basePath !== 'string' || !basePath.trim()) {
+      basePath = getWorkspaceRoot() || 'D:\\AgenticOS';
     }
     
-    const { isValid, targetPath, gitRoot, errorMessage } = detectGitRepository(basePath);
+    let result = detectGitRepository(basePath);
+
+    // If requested path is not valid or doesn't exist, check D:\AgenticOS authoritative repository
+    if (!result.isValid) {
+      const authoritativeRoot = 'D:\\AgenticOS';
+      if (fs.existsSync(authoritativeRoot) && path.normalize(path.resolve(basePath)) !== path.normalize(path.resolve(authoritativeRoot))) {
+        const authResult = detectGitRepository(authoritativeRoot);
+        if (authResult.isValid) {
+          result = authResult;
+        }
+      }
+    }
 
     return res.json({
-      isValid,
+      isValid: result.isValid,
       cwd: process.cwd(),
-      targetPath,
-      gitRoots: gitRoot ? [gitRoot] : [],
-      errorMessage
+      targetPath: result.targetPath,
+      gitRoots: result.gitRoot ? [result.gitRoot] : [],
+      errorMessage: result.errorMessage
     });
     
   } catch (err: any) {

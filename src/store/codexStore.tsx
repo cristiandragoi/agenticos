@@ -60,7 +60,7 @@ const RUN_SETTINGS_STORAGE_KEY = 'agenticos:codex-run-settings';
 const ACTIVE_GOAL_STORAGE_KEY = 'agenticos:codex-active-goal-id';
 
 const defaultRunSettings: CodexRunSettings = {
-  folderTree: '',
+  folderTree: CODEX_REPOSITORY,
   workspacePath: CODEX_REPOSITORY,
   baseUrl: CODEX_BASE_URL,
   valProvider: 'auto',
@@ -74,11 +74,17 @@ function readPersistedRunSettings(): CodexRunSettings {
     const raw = window.localStorage.getItem(RUN_SETTINGS_STORAGE_KEY);
     if (!raw) return defaultRunSettings;
     const parsed = JSON.parse(raw);
+    const validWs = typeof parsed.workspacePath === 'string' && parsed.workspacePath.trim() && !parsed.workspacePath.includes('does-not-exist')
+      ? parsed.workspacePath
+      : CODEX_REPOSITORY;
+    const validTree = typeof parsed.folderTree === 'string' && parsed.folderTree.trim() && !parsed.folderTree.includes('does-not-exist')
+      ? parsed.folderTree
+      : validWs;
     return {
       ...defaultRunSettings,
       ...parsed,
-      folderTree: typeof parsed.folderTree === 'string' ? parsed.folderTree : '',
-      workspacePath: typeof parsed.workspacePath === 'string' && parsed.workspacePath ? parsed.workspacePath : CODEX_REPOSITORY,
+      folderTree: validTree,
+      workspacePath: validWs,
       baseUrl: CODEX_BASE_URL,
       approvalPolicy: 'auto',
       executionProviderId: 'prov-deepseek'

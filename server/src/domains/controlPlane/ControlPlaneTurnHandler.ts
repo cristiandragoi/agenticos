@@ -3,7 +3,8 @@
  *
  * Implements the single authoritative end-to-end execution lifecycle:
  * USER → VOICE/TEXT INPUT → UNDERSTAND GOAL → ACKNOWLEDGE → CREATE DURABLE GOALRUN
- * → PLAN → DISCOVER CAPABILITIES → EXECUTE → OBSERVE REAL-WORLD STATE → VERIFY
+ * → ARGUS PREFLIGHT INSPECTOR → PLAN → DISCOVER CAPABILITIES → EXECUTE
+ * → OBSERVE REAL-WORLD STATE → ARGUS INDEPENDENT VERIFICATION → ACTION CLAIM GUARD
  *
  * If unsuccessful:
  * → RECOVER → DIAGNOSE → DISCOVER ALTERNATIVE STRATEGY → TRY ALTERNATIVE → VERIFY AGAIN
@@ -24,9 +25,13 @@ import { alternativeStrategyPlanner } from './AlternativeStrategyPlanner.js';
 import { repairKnowledgeStore } from './RepairKnowledgeStore.js';
 import { autonomousRecoveryEngine } from './AutonomousRecoveryEngine.js';
 import { acknowledgementService } from './AcknowledgementService.js';
+import { argusService } from './ArgusService.js';
+import { actionClaimGuard } from './ActionClaimGuard.js';
+import { engineeringAcceptance } from './EngineeringAcceptance.js';
+import { capabilityCertificationRegistry } from './CapabilityCertificationRegistry.js';
 import { projectsStore } from '../../services/projectsStore.js';
 import type { TurnResult, TurnFocus } from '../jarvisNext/turnRouter.js';
-import type { GoalRun, GoalAttempt, DiscoveredCapability } from './types.js';
+import type { GoalRun, GoalAttempt, DiscoveredCapability, GoalVerification } from './types.js';
 
 export interface ControlPlaneTurnOpts {
   prompt: string;
@@ -39,8 +44,25 @@ export interface ControlPlaneTurnOpts {
   focus: TurnFocus;
 }
 
+export interface ConversationReferent {
+  conversationId: string;
+  activeGoalId?: string;
+  activeIntent?: string;
+  activeTarget?: string;
+  activeApplication?: string;
+  activeWindow?: string;
+  activeBrowserTab?: string;
+  activePerceptionSource?: string;
+  negativeTargets?: string[];
+  lastEvidence?: any[];
+  lastFailure?: any;
+  lastVerifierResult?: any;
+  lastUpdated: string;
+}
+
 export class ControlPlaneTurnHandler {
   private static instance: ControlPlaneTurnHandler;
+  private referents = new Map<string, ConversationReferent>();
 
   private constructor() {}
 
@@ -49,6 +71,22 @@ export class ControlPlaneTurnHandler {
       ControlPlaneTurnHandler.instance = new ControlPlaneTurnHandler();
     }
     return ControlPlaneTurnHandler.instance;
+  }
+
+  public getReferent(conversationId: string): ConversationReferent | undefined {
+    return this.referents.get(conversationId);
+  }
+
+  public updateReferent(conversationId: string, partial: Partial<ConversationReferent>): void {
+    const existing = this.referents.get(conversationId) || {
+      conversationId,
+      lastUpdated: new Date().toISOString(),
+    };
+    this.referents.set(conversationId, {
+      ...existing,
+      ...partial,
+      lastUpdated: new Date().toISOString(),
+    });
   }
 
   /**
@@ -60,10 +98,143 @@ export class ControlPlaneTurnHandler {
     const { prompt, effectivePrompt, conversationId, turnId, onActionProgress, focus } = opts;
     const lower = effectivePrompt.toLowerCase().trim();
 
+    // ── 0. User Correction Handling: "No, that's the wrong app/window/target" ───────
+    const isUserCorrection = /\b(?:wrong\s+(?:app|application|window|target|one)|not\s+that\s+(?:app|application|window|one)|that(?:'s|\s+is)\s+the\s+wrong)\b/i.test(lower);
+    if (isUserCorrection) {
+      const activeGoal = goalLifecycleManager.getActiveGoalForConversation(conversationId)
+        || goalLifecycleManager.listGoalRuns(10).find(g => g.conversationId === conversationId);
+      if (activeGoal) {
+        logger.warn(`[ControlPlaneTurnHandler] User correction detected on goal ${activeGoal.goalId}: previous target was "${activeGoal.target || activeGoal.normalizedGoal}"`);
+        const ref = this.getReferent(conversationId);
+        const badTarget = activeGoal.target || activeGoal.normalizedGoal;
+        const negativeTargets = [...(ref?.negativeTargets || []), badTarget].filter(Boolean) as string[];
+        this.updateReferent(conversationId, { negativeTargets });
+
+        // Invalidate previous verification
+        goalLifecycleManager.transitionState(activeGoal.goalId, 'RECOVERING', {
+          actor: 'UserCorrection',
+          summary: `User corrected: "${badTarget}" was the wrong target. Invalidating previous verification and searching for alternatives.`,
+        });
+
+        onActionProgress?.({
+          actionName: `Correct ${activeGoal.normalizedGoal}`,
+          targetCapability: 'recovery',
+          status: 'running',
+          stage: 'RECOVERING',
+          currentStep: `Invalidated "${badTarget}". Searching for correct alternative...`,
+          goalId: activeGoal.goalId,
+        });
+
+        const recoveryOutcome = await autonomousRecoveryEngine.handleFailure({
+          goalId: activeGoal.goalId,
+          failedAttempt: {
+            attemptNumber: activeGoal.attempts.length + 1,
+            strategy: 'user_correction',
+            surface: activeGoal.plan?.selectedSurface || 'desktop',
+            target: badTarget,
+            startedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            executed: false,
+            verified: false,
+            evidence: [],
+            error: `User stated "${badTarget}" is the wrong target.`,
+          },
+          target: activeGoal.normalizedGoal,
+          goalType: 'action',
+          executeStrategy: (strat) => controlPlaneExecutor.execute(strat),
+          onActionProgress,
+        });
+
+        return {
+          handled: true,
+          route: 'action',
+          text: recoveryOutcome.finalResponseText,
+          evidence: true,
+          executed: recoveryOutcome.success,
+          verified: recoveryOutcome.success,
+          goalId: activeGoal.goalId,
+          fallbackReason: recoveryOutcome.success ? undefined : 'recovery_exhausted',
+          timings: { totalMs: 0 },
+        } as TurnResult;
+      }
+    }
+
     // ── 1. Conversation Continuity: Continuation / Recovery commands ───────
-    // User phrases like "Try again", "Fix it", "Use another way", "Why didn't it work?"
     const isContinuation = this.checkContinuationIntent(lower);
     if (isContinuation) {
+      if (isContinuation === 'self_heal') {
+        const activeFailedGoal = goalLifecycleManager.listGoalRuns(10).find(g => (g.conversationId === conversationId || !conversationId) && (g.status === 'FAILED_EXHAUSTED' || g.status === 'RECOVERING' || g.state === 'FAILED_EXHAUSTED' || g.state === 'RECOVERING'));
+        if (activeFailedGoal) {
+          logger.info(`[ControlPlaneTurnHandler] Self-heal: resuming recovery on active failed GoalRun ${activeFailedGoal.goalId}`);
+          onActionProgress?.({
+            actionName: `Self-Heal ${activeFailedGoal.normalizedGoal}`,
+            targetCapability: 'selfheal',
+            status: 'running',
+            stage: 'RECOVERING',
+            currentStep: `Healing active failed goal ${activeFailedGoal.goalId}...`,
+            goalId: activeFailedGoal.goalId,
+          });
+
+          const lastAttempt = activeFailedGoal.attempts[activeFailedGoal.attempts.length - 1] || {
+            attemptNumber: 1,
+            strategy: 'self_heal',
+            surface: activeFailedGoal.plan?.selectedSurface || 'unknown',
+            target: activeFailedGoal.normalizedGoal,
+            startedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            executed: false,
+            verified: false,
+            evidence: [],
+          };
+
+          const recoveryOutcome = await autonomousRecoveryEngine.handleFailure({
+            goalId: activeFailedGoal.goalId,
+            failedAttempt: lastAttempt,
+            target: activeFailedGoal.normalizedGoal,
+            goalType: 'action',
+            executeStrategy: (strat) => controlPlaneExecutor.execute(strat),
+            onActionProgress,
+          });
+
+          return {
+            handled: true,
+            route: 'action',
+            text: recoveryOutcome.finalResponseText,
+            evidence: true,
+            executed: recoveryOutcome.success,
+            verified: recoveryOutcome.success,
+            goalId: activeFailedGoal.goalId,
+            fallbackReason: recoveryOutcome.success ? undefined : 'self_heal_exhausted',
+            timings: { totalMs: 0 },
+          } as TurnResult;
+        } else {
+          // No active failed goal: run safe EngineeringAcceptance test
+          logger.info(`[ControlPlaneTurnHandler] Self-heal: no active failed goal. Executing safe EngineeringAcceptance test...`);
+          onActionProgress?.({
+            actionName: 'Autonomous Self-Repair Acceptance Test',
+            targetCapability: 'engineering',
+            status: 'running',
+            stage: 'ENGINEERING_REPAIR',
+            currentStep: 'Running 11-stage autonomous engineering self-repair verification...',
+          });
+
+          const acceptance = await engineeringAcceptance.runAcceptanceTest();
+          const summary = acceptance.success
+            ? `Autonomous engineering self-repair verified end-to-end (all 11 stages). Hermes, Codex, and Argus successfully reproduced, repaired, tested, and verified an isolated defect with zero manual intervention.`
+            : `Autonomous engineering self-repair test failed at stage ${acceptance.stagesCompleted}/${acceptance.totalStages}.`;
+
+          return {
+            handled: true,
+            route: 'action',
+            text: summary,
+            evidence: true,
+            executed: acceptance.success,
+            verified: acceptance.success,
+            timings: { totalMs: 0 },
+          } as TurnResult;
+        }
+      }
+
       const activeGoal = goalLifecycleManager.getActiveGoalForConversation(conversationId)
         || goalLifecycleManager.listGoalRuns(10).find(g => g.conversationId === conversationId);
 
@@ -135,8 +306,8 @@ export class ControlPlaneTurnHandler {
       }
     }
 
-    // ── 2. Action Intent & Target Extraction ────────────────────────────────
-    const goalIntent = this.extractActionIntent(effectivePrompt, focus);
+    // ── 2. Action Intent & Target Extraction with Referent Resolution ──────
+    const goalIntent = this.extractActionIntent(effectivePrompt, focus, conversationId);
     if (!goalIntent) {
       // Not an actionable goal -> hand over to conversational / fast-read paths
       return null;
@@ -166,7 +337,7 @@ export class ControlPlaneTurnHandler {
       goalId: goalRun.goalId,
     });
 
-    // ── 4. Planning & Capability Discovery Across 11 Surfaces ──────────────
+    // ── 4. Planning & Capability Discovery ─────────────────────────────────
     goalLifecycleManager.transitionState(goalRun.goalId, 'DISCOVERING', {
       actor: 'ControlPlane',
       summary: `Discovering capabilities across 11 surfaces for target "${target}".`,
@@ -218,7 +389,7 @@ export class ControlPlaneTurnHandler {
           name: `Project: ${verb}`,
         };
       } else {
-        // Default to shell / browser search
+        // Default to web search
         primaryStrategy = {
           surface: 'browser',
           target: `https://www.google.com/search?q=${encodeURIComponent(effectivePrompt)}`,
@@ -243,6 +414,60 @@ export class ControlPlaneTurnHandler {
       }],
     });
 
+    // ── 4b. Mandatory Preflight Inspection (Argus) ─────────────────────────
+    const preflight = await argusService.preflight({
+      goalId: goalRun.goalId,
+      resolvedIntent: verb,
+      target,
+      surface: primaryStrategy.surface,
+      parameters: primaryStrategy.parameters,
+    });
+
+    if (!preflight.approved) {
+      logger.warn(`[ControlPlaneTurnHandler] Preflight rejected goal ${goalRun.goalId}: ${preflight.rejectionReason}`);
+      goalLifecycleManager.transitionState(goalRun.goalId, 'RECOVERING', {
+        actor: 'Argus',
+        summary: `Preflight checks rejected execution: ${preflight.rejectionReason}`,
+      });
+
+      const recoveryOutcome = await autonomousRecoveryEngine.handleFailure({
+        goalId: goalRun.goalId,
+        failedAttempt: {
+          attemptNumber: 1,
+          strategy: primaryStrategy.name,
+          surface: primaryStrategy.surface,
+          target,
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          executed: false,
+          verified: false,
+          evidence: [],
+          error: `Preflight rejection: ${preflight.rejectionReason}`,
+        },
+        target,
+        goalType: verb,
+        entityId: primaryStrategy.parameters?.entityId || parameters?.entityId || (primaryStrategy.surface === 'internal' ? primaryStrategy.target : target),
+        entityType: primaryStrategy.parameters?.entityType || entityType || 'capability',
+        entityName: primaryStrategy.parameters?.entityName || target,
+        verb,
+        executeStrategy: (strat) => controlPlaneExecutor.execute(strat),
+        onActionProgress,
+      });
+
+      return {
+        handled: true,
+        route: 'action',
+        text: recoveryOutcome.finalResponseText,
+        evidence: true,
+        executed: recoveryOutcome.success,
+        verified: recoveryOutcome.success,
+        goalId: goalRun.goalId,
+        fallbackReason: recoveryOutcome.success ? undefined : 'preflight_failed_recovery_exhausted',
+        entityName: target,
+        timings: { totalMs: 0 },
+      };
+    }
+
     // ── 5. Primary Strategy Execution ──────────────────────────────────────
     goalLifecycleManager.transitionState(goalRun.goalId, 'EXECUTING', {
       actor: 'ControlPlane',
@@ -266,10 +491,10 @@ export class ControlPlaneTurnHandler {
       parameters: primaryStrategy.parameters,
     });
 
-    // ── 6. Independent Reality Verification ────────────────────────────────
+    // ── 6. Independent Reality Verification (Argus) ────────────────────────
     goalLifecycleManager.transitionState(goalRun.goalId, 'VERIFYING', {
-      actor: 'UniversalVerifier',
-      summary: `Verifying real-world outcome on surface "${primaryStrategy.surface}".`,
+      actor: 'Argus',
+      summary: `Argus verifying real-world outcome on surface "${primaryStrategy.surface}".`,
     });
 
     onActionProgress?.({
@@ -277,14 +502,16 @@ export class ControlPlaneTurnHandler {
       targetCapability: primaryStrategy.surface,
       status: 'running',
       stage: 'VERIFYING',
-      currentStep: `Verifying real outcome on ${primaryStrategy.surface}...`,
+      currentStep: `Argus independently verifying real outcome on ${primaryStrategy.surface}...`,
       goalId: goalRun.goalId,
     });
 
-    let verification = await universalVerifier.verify({
+    const verification: GoalVerification = await argusService.verifyExecution({
+      goalRun,
       surface: primaryStrategy.surface,
       target: primaryStrategy.target,
       parameters: primaryStrategy.parameters,
+      executionResult: execResult,
     });
 
     const attempt1: GoalAttempt = {
@@ -302,16 +529,37 @@ export class ControlPlaneTurnHandler {
     };
     goalLifecycleManager.recordAttempt(goalRun.goalId, attempt1);
 
-    // ── 7. Success Verification Gate ───────────────────────────────────────
+    // ── 7. Success Verification Gate & Action Claim Guard ───────────────────
     if (execResult.executed && verification.verified) {
-      const completionText = (verification.summary && (primaryStrategy.surface === 'camera' || primaryStrategy.surface === 'desktop_observe' || verb === 'perceive' || verb === 'observe'))
+      let completionText = (verification.summary && (primaryStrategy.surface === 'camera' || primaryStrategy.surface === 'desktop_observe' || verb === 'perceive' || verb === 'observe'))
         ? verification.summary
         : this.buildCompletionText(target, verb, primaryStrategy.surface, primaryStrategy.parameters);
+
+      // Pass through ActionClaimGuard to strictly prevent unverified claims
+      const guardResult = actionClaimGuard.evaluateClaim({
+        proposedText: completionText,
+        goalRun,
+        verification,
+        surface: primaryStrategy.surface,
+        target,
+      });
+      completionText = guardResult.sanitizedText;
+
       goalLifecycleManager.recordVerification(goalRun.goalId, verification);
       goalLifecycleManager.transitionState(goalRun.goalId, 'COMPLETED', {
-        actor: 'UniversalVerifier',
+        actor: 'Argus',
         summary: completionText,
         detail: verification,
+      });
+
+      // Update Referent Memory
+      this.updateReferent(conversationId, {
+        activeGoalId: goalRun.goalId,
+        activeIntent: verb,
+        activeTarget: target,
+        activeApplication: (primaryStrategy.surface === 'desktop' || primaryStrategy.surface === 'executable' || primaryStrategy.surface === 'desktop_observe') ? target : undefined,
+        lastEvidence: verification.evidence,
+        lastVerifierResult: verification,
       });
 
       // Record learned knowledge
@@ -376,10 +624,29 @@ export class ControlPlaneTurnHandler {
       onActionProgress,
     });
 
+    // Guard final response from recovery
+    const guardedRecoveryText = actionClaimGuard.evaluateClaim({
+      proposedText: recoveryOutcome.finalResponseText,
+      goalRun,
+      verification: recoveryOutcome.verification,
+      surface: primaryStrategy.surface,
+      target,
+    }).sanitizedText;
+
+    if (recoveryOutcome.success) {
+      this.updateReferent(conversationId, {
+        activeGoalId: goalRun.goalId,
+        activeIntent: verb,
+        activeTarget: target,
+        lastEvidence: recoveryOutcome.verification?.evidence,
+        lastVerifierResult: recoveryOutcome.verification,
+      });
+    }
+
     return {
       handled: true,
       route: 'action',
-      text: recoveryOutcome.finalResponseText,
+      text: guardedRecoveryText,
       evidence: true,
       executed: recoveryOutcome.success,
       verified: recoveryOutcome.success,
@@ -390,9 +657,12 @@ export class ControlPlaneTurnHandler {
     };
   }
 
-  private checkContinuationIntent(lower: string): 'retry_or_fix' | 'explain_failure' | null {
+  private checkContinuationIntent(lower: string): 'retry_or_fix' | 'explain_failure' | 'self_heal' | null {
     if (/\b(?:why didn'?t (?:that|it) work|why did (?:that|it) fail|what went wrong|what happened with (?:that|it))\b/i.test(lower)) {
       return 'explain_failure';
+    }
+    if (/\b(?:heal\s+yourself|self\s*heal|repair\s+yourself|run\s+self\s*test|engineering\s+acceptance|test\s+self\s*heal)\b/i.test(lower)) {
+      return 'self_heal';
     }
     if (/^(?:try again|do it again|fix it|retry|use another way|try another way|find another way|use another strategy|use another capability|can hermes fix it|ask hermes to fix it)[.!]?$/i.test(lower)) {
       return 'retry_or_fix';
@@ -402,7 +672,8 @@ export class ControlPlaneTurnHandler {
 
   private extractActionIntent(
     prompt: string,
-    focus: TurnFocus
+    focus: TurnFocus,
+    conversationId: string
   ): {
     verb: string;
     target: string;
@@ -411,9 +682,10 @@ export class ControlPlaneTurnHandler {
   } | null {
     const t = prompt.trim();
     const lower = t.toLowerCase();
+    const referent = this.getReferent(conversationId);
 
-    // 0a. Camera Visual Perception Queries (Section 13)
-    if (/\b(?:can you see me|see me|what am i holding|what's in my hand|what is in my hand|what do you see|what is this|look at this)\b/i.test(lower)) {
+    // 0a. Camera Visual Perception Queries (Section 11)
+    if (/\b(?:can you see me|see me|what am i holding|what's in my hand|what is in my hand|what do you see|what is this|look at this|describe me)\b/i.test(lower)) {
       return {
         verb: 'perceive',
         target: 'camera',
@@ -422,7 +694,7 @@ export class ControlPlaneTurnHandler {
       };
     }
 
-    // 0b. Location Queries (Section 14)
+    // 0b. Location Queries
     if (/\b(?:where am i|what is my location|what's my location|where is this|my location)\b/i.test(lower)) {
       return {
         verb: 'read',
@@ -435,7 +707,10 @@ export class ControlPlaneTurnHandler {
     // 0c. Desktop Screenshot (screen.capture)
     if (/\b(?:take|capture)\s+(?:a\s+)?(?:screenshot|snapshot|screen\s+capture)\b/i.test(lower) || /\b(?:screenshot|snapshot)\b/i.test(lower)) {
       const windowMatch = t.match(/\b(?:of|for)\s+(?:the\s+)?(.+?)(?:\s+window|\s+page|$)/i);
-      const targetWindow = windowMatch ? windowMatch[1].trim() : '';
+      let targetWindow = windowMatch ? windowMatch[1].trim() : '';
+      if (/^(?:it|that|this|the app|the window)$/i.test(targetWindow)) {
+        targetWindow = referent?.activeWindow || referent?.activeApplication || referent?.activeTarget || '';
+      }
       return {
         verb: 'capture_screenshot',
         target: targetWindow || 'desktop',
@@ -447,7 +722,10 @@ export class ControlPlaneTurnHandler {
     // 0d. Visible Desktop Application Content Reading (desktop.observe)
     if (/\b(?:read\s+what\s+is\s+inside|what\s+is\s+inside|read\s+what\s+is\s+in|what's\s+inside|what\s+is\s+on\s+my\s+screen|what\s+do\s+you\s+see\s+on\s+(?:the\s+)?screen|read\s+this\s+window|read\s+the\s+window)\b/i.test(lower)) {
       const appMatch = t.match(/\b(?:inside|in|of)\s+([A-Za-z0-9_\-\s]+?)(?:\?|\.|$)/i);
-      const targetApp = appMatch ? appMatch[1].trim() : '';
+      let targetApp = appMatch ? appMatch[1].trim() : '';
+      if (/^(?:it|that|this|the app|the window)$/i.test(targetApp) || !targetApp) {
+        targetApp = referent?.activeWindow || referent?.activeApplication || referent?.activeTarget || '';
+      }
       return {
         verb: 'observe',
         target: targetApp || 'active_window',
@@ -459,7 +737,10 @@ export class ControlPlaneTurnHandler {
     // 1. Project Rename / Mutation: "Rename X to Y"
     const renameMatch = t.match(/\b(?:rename|change(?:\s+the)?\s+name\s+of)\s+(.+?)\s+to\s+(.+)$/i);
     if (renameMatch) {
-      const origTarget = renameMatch[1].trim();
+      let origTarget = renameMatch[1].trim();
+      if (/^(?:it|that|this|the project)$/i.test(origTarget)) {
+        origTarget = referent?.activeTarget || focus.activeProjectName || origTarget;
+      }
       const newName = renameMatch[2].trim().replace(/[.!?]+$/, '');
       const cleanOrig = origTarget.replace(/\s+project$/i, '').trim();
 
@@ -474,9 +755,13 @@ export class ControlPlaneTurnHandler {
     // 2. Priority mutations: "set X to priority 5"
     const priorityMatch = t.match(/\b(?:set|change)\s+(.+?)\s+(?:priority\s+to|to\s+priority)\s+(\d{1,3})\b/i);
     if (priorityMatch) {
+      let origTarget = priorityMatch[1].trim().replace(/\s+project$/i, '');
+      if (/^(?:it|that|this|the project)$/i.test(origTarget)) {
+        origTarget = referent?.activeTarget || focus.activeProjectName || origTarget;
+      }
       return {
         verb: 'set_priority',
-        target: priorityMatch[1].trim().replace(/\s+project$/i, ''),
+        target: origTarget,
         entityType: 'project',
         parameters: { priority: parseInt(priorityMatch[2], 10) },
       };
@@ -496,9 +781,9 @@ export class ControlPlaneTurnHandler {
         rawVerb = 'search';
       }
 
-      // Deictic pronoun resolution
-      if (/^(?:it|that|this|the project|the app|the view)$/i.test(rawTarget)) {
-        const contextual = focus.activeProjectName || focus.activeEntityName;
+      // Deictic pronoun resolution via context & referent memory
+      if (/^(?:it|that|this|the project|the app|the view|the window)$/i.test(rawTarget)) {
+        const contextual = referent?.activeTarget || referent?.activeApplication || focus.activeProjectName || focus.activeEntityName;
         if (contextual) rawTarget = contextual;
       }
 

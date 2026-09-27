@@ -16,6 +16,9 @@ import { repairKnowledgeStore } from '../domains/controlPlane/RepairKnowledgeSto
 import { recoveryWatchdog } from '../domains/controlPlane/RecoveryWatchdog.js';
 import { capabilityPermissionStore } from '../domains/controlPlane/CapabilityPermissionStore.js';
 import { liveAcceptanceManager } from '../domains/controlPlane/LiveAcceptanceManager.js';
+import { engineeringWorkerRegistry } from '../domains/controlPlane/EngineeringWorkerRegistry.js';
+import { capabilityCertificationRegistry } from '../domains/controlPlane/CapabilityCertificationRegistry.js';
+import { engineeringAcceptance } from '../domains/controlPlane/EngineeringAcceptance.js';
 
 export const controlPlaneRouter = Router();
 
@@ -231,6 +234,77 @@ controlPlaneRouter.post('/live-acceptance/feedback', (req: Request, res: Respons
     }
     const result = liveAcceptanceManager.recordHumanFeedback({ testId, verdict, notes });
     res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/engineering-dashboard — Consolidated internal team & capability status (Section 21)
+controlPlaneRouter.get('/engineering-dashboard', async (_req: Request, res: Response) => {
+  try {
+    const workers = engineeringWorkerRegistry.getAllWorkers();
+    const certifications = capabilityCertificationRegistry.getAllCertifications();
+    const repo = repositoryAuthority.getStatus();
+    const watchdog = recoveryWatchdog.verifyPipelineHealth();
+
+    // Query live Ollama telemetry (Section 18)
+    let ollamaTelemetry: any = { status: 'offline' };
+    try {
+      const psRes = await fetch('http://127.0.0.1:11434/api/ps', { signal: AbortSignal.timeout(1500) });
+      if (psRes.ok) {
+        const psData = await psRes.json();
+        const activeModels = Array.isArray(psData.models) ? psData.models : [];
+        const primary = activeModels[0];
+        if (primary) {
+          const vramBytes = primary.size_vram || 0;
+          const totalBytes = primary.size || 1;
+          const gpuOffloadPct = Math.round((vramBytes / totalBytes) * 100);
+          ollamaTelemetry = {
+            status: 'online',
+            activeModel: primary.name || primary.model,
+            quantization: primary.details?.quantization_level || 'Q4_K_M',
+            modelSizeBytes: primary.size,
+            vramAllocationBytes: vramBytes,
+            gpuOffloadPercentage: gpuOffloadPct,
+            contextLength: 65536,
+            loadedAt: primary.expires_at,
+          };
+        } else {
+          ollamaTelemetry = { status: 'idle', activeModel: null };
+        }
+      }
+    } catch {
+      ollamaTelemetry = { status: 'unreachable' };
+    }
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      workers,
+      certifications,
+      repository: repo,
+      watchdog,
+      ollamaTelemetry,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/acceptance-test — Run autonomous 11-stage self-repair test (Section 16)
+controlPlaneRouter.post('/engineering/acceptance-test', async (_req: Request, res: Response) => {
+  try {
+    const result = await engineeringAcceptance.runAcceptanceTest();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// POST /api/control-plane/capabilities/probe — Run active diagnostics across all 26 capabilities (Section 5)
+controlPlaneRouter.post('/capabilities/probe', async (_req: Request, res: Response) => {
+  try {
+    const updated = await capabilityCertificationRegistry.probeAll();
+    res.json({ success: true, certifications: updated });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }

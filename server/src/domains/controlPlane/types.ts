@@ -29,7 +29,7 @@ export type GoalStatus =
 
 export interface GoalEvidence {
   id: string;
-  type: 'process' | 'window' | 'url' | 'dom' | 'db_state' | 'file' | 'stdout' | 'screenshot' | 'audit_log' | 'visual_frame' | 'location_coordinates';
+  type: 'process' | 'window' | 'url' | 'dom' | 'db_state' | 'file' | 'stdout' | 'screenshot' | 'audit_log' | 'visual_frame' | 'location_coordinates' | 'machine_verification';
   label: string;
   value: any;
   source: string;
@@ -89,7 +89,7 @@ export interface LearnedResolution {
 export interface GoalTimelineEvent {
   timestamp: string;
   state: GoalStatus;
-  actor: 'Jarvis' | 'Hermes' | 'ControlPlane' | 'UniversalVerifier' | 'RecoveryWatchdog' | 'Argus' | 'EngineeringWorker' | 'User';
+  actor: 'Jarvis' | 'Hermes' | 'ControlPlane' | 'UniversalVerifier' | 'RecoveryWatchdog' | 'Argus' | 'EngineeringWorker' | 'User' | 'UserCorrection';
   summary: string;
   detail?: any;
 }
@@ -118,7 +118,9 @@ export interface GoalRun {
   turnId?: string;
   originalUserInput: string;
   normalizedGoal: string;
+  target?: string;
   status: GoalStatus;
+  state?: GoalStatus;
   plan?: GoalPlan;
   attempts: GoalAttempt[];
   currentAttempt: number;
@@ -127,6 +129,7 @@ export interface GoalRun {
   failures: GoalFailure[];
   recoveryIncidentId?: string;
   finalVerification?: GoalVerification;
+  verification?: GoalVerification;
   learnedResolution?: LearnedResolution;
   timeline: GoalTimelineEvent[];
   acknowledgementText?: string;

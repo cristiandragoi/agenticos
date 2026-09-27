@@ -30,6 +30,10 @@ export const JarvisWorkspaceBar: React.FC = () => {
       });
       const data = await res.json();
       if (!data.isValid) {
+        if (requestedPath && !requestedPath.toUpperCase().includes('AGENTICOS')) {
+          detect('D:\\AgenticOS');
+          return;
+        }
         setGitRoots([]);
         setRunSettings(prev => ({ ...prev, workspacePath: '' }));
         setWorkspaceError(data.errorMessage || 'No git repository found at this path.');
@@ -63,21 +67,22 @@ export const JarvisWorkspaceBar: React.FC = () => {
 
   // Initial detection on mount (validates any pre-existing selection too).
   useEffect(() => {
-    const initialPath = runSettings.folderTree || runSettings.workspacePath;
-    if (initialPath) {
-      detect(initialPath);
-    } else {
-      // No stored path — fetch the canonical server workspace root first
-      apiFetch('/api/workspace/current').then(r => r.ok ? r.json() : null).then(data => {
-        const serverRoot = data?.workspaceRoot || '';
-        if (serverRoot && data?.exists) {
-          setRunSettings(prev => ({ ...prev, folderTree: serverRoot, workspacePath: serverRoot }));
-          detect(serverRoot);
-        } else {
-          detect(undefined);
-        }
-      }).catch(() => detect(undefined));
-    }
+    apiFetch('/api/workspace/current')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const serverRoot = data?.workspaceRoot || 'D:\\AgenticOS';
+        const initialPath = runSettings.folderTree || runSettings.workspacePath || serverRoot;
+        setRunSettings(prev => ({
+          ...prev,
+          folderTree: initialPath,
+          workspacePath: prev.workspacePath || serverRoot
+        }));
+        detect(initialPath);
+      })
+      .catch(() => {
+        const fallbackPath = runSettings.folderTree || runSettings.workspacePath || 'D:\\AgenticOS';
+        detect(fallbackPath);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

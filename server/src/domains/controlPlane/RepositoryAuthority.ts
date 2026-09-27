@@ -175,6 +175,14 @@ export class RepositoryAuthority {
     };
   }
 
+  public getAuthoritativeStatus(): RepositoryAuthorityStatus & { repoRoot: string } {
+    const s = this.getStatus();
+    return {
+      ...s,
+      repoRoot: s.repositoryRoot,
+    };
+  }
+
   public getRepositoryRoot(): string {
     if (!this.isHealthy || !this.repoRoot) {
       this.reconcileAndValidate();
