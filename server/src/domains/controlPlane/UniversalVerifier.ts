@@ -45,6 +45,7 @@ export class UniversalVerifier {
       case 'internal': {
         return this.verifyInternalEntity(target, parameters, expectedState, now);
       }
+      case 'taskbar':
       case 'process':
       case 'executable':
       case 'start_menu':
@@ -66,6 +67,12 @@ export class UniversalVerifier {
       }
       case 'location': {
         return this.verifyLocation(target, parameters, now);
+      }
+      case 'desktop_observe': {
+        return this.verifyDesktopObserve(target, parameters, now);
+      }
+      case 'screenshot': {
+        return this.verifyScreenshot(target, parameters, now);
       }
       case 'learned': {
         if (parameters?.expectedName) {
@@ -451,7 +458,80 @@ export class UniversalVerifier {
     };
   }
 
-  private verifyGeneric(target: string, parameters: any, now: string): Promise<GoalVerification> {
+  private async verifyDesktopObserve(target: string, parameters: any, now: string): Promise<GoalVerification> {
+    const inspection: any = parameters?.__inspectionResult;
+    const verified = Boolean(inspection && inspection.success && inspection.text?.length > 0);
+
+    const evidence: GoalEvidence = {
+      id: `ev-obs-${Date.now()}`,
+      type: 'window',
+      label: `Visible Desktop Content for ${inspection?.windowTitle || target}`,
+      value: {
+        windowTitle: inspection?.windowTitle,
+        process: inspection?.process,
+        hwnd: inspection?.hwnd,
+        controlCount: inspection?.controlCount,
+        textPreview: inspection?.text?.substring(0, 200),
+      },
+      source: 'DesktopPerceptionService',
+      timestamp: now,
+      verified,
+    };
+
+    return {
+      verified,
+      method: 'UIAutomationWindowInspection',
+      expectedState: { windowInspected: true, textExtracted: true },
+      actualState: { success: inspection?.success, length: inspection?.text?.length || 0 },
+      evidence: [evidence],
+      verifier: 'UniversalVerifier:DesktopPerception',
+      timestamp: now,
+      summary: verified
+        ? `Observed visible content of "${inspection.windowTitle || inspection.process}" (${inspection.controlCount} controls extracted).`
+        : `Could not observe content of "${target}": window not visible or accessible.`,
+    };
+  }
+
+  private async verifyScreenshot(target: string, parameters: any, now: string): Promise<GoalVerification> {
+    const artifact: any = parameters?.__screenshotArtifact;
+    const verified = Boolean(
+      artifact &&
+      artifact.success &&
+      artifact.artifactPath &&
+      fs.existsSync(artifact.artifactPath) &&
+      artifact.byteSize > 1024 &&
+      artifact.sha256
+    );
+
+    const evidence: GoalEvidence = {
+      id: `ev-shot-${Date.now()}`,
+      type: 'screenshot',
+      label: `Real Screenshot Artifact`,
+      value: artifact,
+      source: 'DesktopPerceptionService:GDI',
+      timestamp: now,
+      verified,
+    };
+
+    return {
+      verified,
+      method: 'DiskArtifactAndHashVerification',
+      expectedState: { artifactExists: true, byteSizeMin: 1024 },
+      actualState: {
+        exists: fs.existsSync(artifact?.artifactPath || ''),
+        byteSize: artifact?.byteSize,
+        sha256: artifact?.sha256,
+      },
+      evidence: [evidence],
+      verifier: 'UniversalVerifier:Screenshot',
+      timestamp: now,
+      summary: verified
+        ? `Screenshot artifact verified on disk (${artifact.byteSize} bytes, SHA256: ${artifact.sha256?.substring(0, 10)}...).`
+        : `Screenshot verification failed: artifact missing or corrupt.`,
+    };
+  }
+
+  private async verifyGeneric(target: string, parameters: any, now: string): Promise<GoalVerification> {
     const executed = Boolean(parameters?.executed !== false);
     const evidence: GoalEvidence = {
       id: `ev-gen-${Date.now()}`,

@@ -49,6 +49,7 @@ import RevenueOperatorPage from './pages/RevenueOperatorPage';
 import JarvisNextTestPage from './pages/JarvisNextTestPage';
 import SelfHealPage from './pages/SelfHealPage';
 import LocalWorkersPage from './pages/LocalWorkersPage';
+import LiveAcceptancePage from './pages/LiveAcceptancePage';
 import { uiDiagnostics } from './diagnostics/uiSnapshot';
 import { useEffect } from 'react';
 
@@ -116,6 +117,8 @@ function App() {
                         <Route path="self-heal" element={<SelfHealPage />} />
                         <Route path="workers" element={<LocalWorkersPage />} />
                         <Route path="local-workers" element={<LocalWorkersPage />} />
+                        <Route path="live-acceptance" element={<LiveAcceptancePage />} />
+                        <Route path="acceptance" element={<Navigate to="/live-acceptance" replace />} />
                       </Route>
                     </Routes>
                   </HashRouter>

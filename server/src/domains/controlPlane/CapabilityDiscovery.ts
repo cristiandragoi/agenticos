@@ -20,6 +20,7 @@ import { promisify } from 'node:util';
 import { logger } from '../../utils/logger.js';
 import { repairKnowledgeStore } from './RepairKnowledgeStore.js';
 import { projectsStore } from '../../services/projectsStore.js';
+import { windowsApplicationResolver } from './WindowsApplicationResolver.js';
 import type { DiscoveredCapability } from './types.js';
 
 const execAsync = promisify(exec);
@@ -95,6 +96,59 @@ export class CapabilityDiscovery {
         parameters: { capability: 'location.read' },
       });
     }
+
+    // 0d. Check Desktop Observation Capability (desktop.observe)
+    if (actionType === 'observe' || lower.includes('what is inside') || lower.includes('inside') || lower.includes('on my screen') || lower.includes('read what is inside') || lower.includes('inspect window')) {
+      candidates.push({
+        id: 'cap-desktop-observe',
+        name: 'Desktop Perception',
+        surface: 'desktop_observe',
+        target: cleanTarget,
+        score: 0.99,
+        description: 'Jarvis Desktop Perception: inspects active window and desktop content via UI Automation',
+        parameters: { capability: 'desktop.observe', targetWindow: cleanTarget },
+      });
+    }
+
+    // 0e. Check Screen Capture Capability (screen.capture)
+    if (actionType === 'capture_screenshot' || lower.includes('screenshot') || lower.includes('snapshot') || lower.includes('capture screen')) {
+      candidates.push({
+        id: 'cap-screen-capture',
+        name: 'Screen Capture',
+        surface: 'screenshot',
+        target: cleanTarget,
+        score: 0.99,
+        description: 'Jarvis Screen Capture: produces real verifiable image artifact of window or desktop',
+        parameters: { capability: 'screen.capture', targetWindow: cleanTarget },
+      });
+    }
+
+    // 0f. Authoritative Windows Application Resolution (Taskbar, Start Menu, Desktop, UWP, Executables)
+    try {
+      const appMatch = await windowsApplicationResolver.resolve(cleanTarget, { actionType });
+      if (appMatch) {
+        const surfaceName = appMatch.source === 'taskbar' ? 'taskbar' : (appMatch.source === 'uwp' ? 'app_user_model_id' : (appMatch.source === 'executable' ? 'executable' : (appMatch.source === 'running_window' ? 'process' : 'start_menu')));
+        candidates.push({
+          id: `win-app-${appMatch.source}-${appMatch.name}`,
+          name: appMatch.name,
+          surface: surfaceName,
+          target: appMatch.targetPath || appMatch.shortcutPath || appMatch.appUserModelId || appMatch.processName || appMatch.name,
+          shortcutPath: appMatch.shortcutPath,
+          executablePath: appMatch.targetPath,
+          appUserModelId: appMatch.appUserModelId,
+          processName: appMatch.processName,
+          score: appMatch.score,
+          description: appMatch.description,
+          parameters: {
+            appUserModelId: appMatch.appUserModelId,
+            shortcutPath: appMatch.shortcutPath,
+            executablePath: appMatch.targetPath,
+            pid: appMatch.pid,
+            processName: appMatch.processName,
+          },
+        });
+      }
+    } catch {}
 
     // 1. Check Internal AgenticOS Capabilities (Projects, etc.)
     try {
@@ -262,7 +316,7 @@ export class CapabilityDiscovery {
       };
     }
 
-    if (lower === 'perplexity' || lower === 'comet' || lower.includes('comet')) {
+    if (lower === 'perplexity' || lower === 'perplexity ai') {
       return {
         id: 'web-perplexity',
         name: 'Perplexity',
@@ -270,7 +324,7 @@ export class CapabilityDiscovery {
         target: 'https://perplexity.ai',
         url: 'https://perplexity.ai',
         score: 0.82,
-        description: 'Perplexity / Comet AI Web Search',
+        description: 'Perplexity AI Web Search',
       };
     }
 

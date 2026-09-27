@@ -7,11 +7,15 @@
  */
 
 import { Router, Request, Response } from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
 import { repositoryAuthority } from '../domains/controlPlane/RepositoryAuthority.js';
 import { goalLifecycleManager } from '../domains/controlPlane/GoalLifecycle.js';
 import { capabilityDiscovery } from '../domains/controlPlane/CapabilityDiscovery.js';
 import { repairKnowledgeStore } from '../domains/controlPlane/RepairKnowledgeStore.js';
 import { recoveryWatchdog } from '../domains/controlPlane/RecoveryWatchdog.js';
+import { capabilityPermissionStore } from '../domains/controlPlane/CapabilityPermissionStore.js';
+import { liveAcceptanceManager } from '../domains/controlPlane/LiveAcceptanceManager.js';
 
 export const controlPlaneRouter = Router();
 
@@ -150,3 +154,85 @@ controlPlaneRouter.post('/location/permission', async (req: Request, res: Respon
     res.status(500).json({ error: err?.message });
   }
 });
+
+// Capability Permissions endpoints (Section 1 & 4)
+controlPlaneRouter.get('/permissions', (_req: Request, res: Response) => {
+  try {
+    const permissions = capabilityPermissionStore.getAllPermissions();
+    res.json({ success: true, permissions });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+controlPlaneRouter.post('/permissions', (req: Request, res: Response) => {
+  try {
+    const { capability, allowed } = req.body || {};
+    if (!capability || typeof allowed !== 'boolean') {
+      res.status(400).json({ error: 'capability (string) and allowed (boolean) are required' });
+      return;
+    }
+    const state = allowed ? 'allowed' : 'denied';
+    capabilityPermissionStore.setPermission(capability, state);
+    res.json({ success: true, capability, state });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// Verifiable Screenshot Artifact serving (Section 7)
+controlPlaneRouter.get('/artifacts/screenshots/:fileName', (req: Request, res: Response) => {
+  try {
+    const fileName = path.basename(req.params.fileName);
+    const filePath = path.resolve(process.cwd(), 'data', 'artifacts', 'screenshots', fileName);
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'Screenshot not found' });
+      return;
+    }
+    res.sendFile(filePath);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// Live Acceptance Mode endpoints (Section 23, 24, 25)
+controlPlaneRouter.get('/live-acceptance', (_req: Request, res: Response) => {
+  try {
+    res.json(liveAcceptanceManager.getState());
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+controlPlaneRouter.post('/live-acceptance/select-test', (req: Request, res: Response) => {
+  try {
+    const { testId } = req.body || {};
+    if (!testId) {
+      res.status(400).json({ error: 'testId is required' });
+      return;
+    }
+    const ok = liveAcceptanceManager.setActiveTest(testId);
+    if (!ok) {
+      res.status(404).json({ error: `Test ${testId} not found` });
+      return;
+    }
+    res.json(liveAcceptanceManager.getState());
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+controlPlaneRouter.post('/live-acceptance/feedback', (req: Request, res: Response) => {
+  try {
+    const { testId, verdict, notes } = req.body || {};
+    if (!verdict || (verdict !== 'CORRECT' && verdict !== 'WRONG')) {
+      res.status(400).json({ error: 'verdict must be either "CORRECT" or "WRONG"' });
+      return;
+    }
+    const result = liveAcceptanceManager.recordHumanFeedback({ testId, verdict, notes });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+

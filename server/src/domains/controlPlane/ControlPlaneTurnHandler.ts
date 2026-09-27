@@ -304,7 +304,7 @@ export class ControlPlaneTurnHandler {
 
     // ── 7. Success Verification Gate ───────────────────────────────────────
     if (execResult.executed && verification.verified) {
-      const completionText = this.buildCompletionText(target, verb, primaryStrategy.surface);
+      const completionText = this.buildCompletionText(target, verb, primaryStrategy.surface, primaryStrategy.parameters);
       goalLifecycleManager.recordVerification(goalRun.goalId, verification);
       goalLifecycleManager.transitionState(goalRun.goalId, 'COMPLETED', {
         actor: 'UniversalVerifier',
@@ -430,6 +430,30 @@ export class ControlPlaneTurnHandler {
       };
     }
 
+    // 0c. Desktop Screenshot (screen.capture)
+    if (/\b(?:take|capture)\s+(?:a\s+)?(?:screenshot|snapshot|screen\s+capture)\b/i.test(lower) || /\b(?:screenshot|snapshot)\b/i.test(lower)) {
+      const windowMatch = t.match(/\b(?:of|for)\s+(?:the\s+)?(.+?)(?:\s+window|\s+page|$)/i);
+      const targetWindow = windowMatch ? windowMatch[1].trim() : '';
+      return {
+        verb: 'capture_screenshot',
+        target: targetWindow || 'desktop',
+        entityType: 'capability',
+        parameters: { capability: 'screen.capture', targetWindow, prompt: t },
+      };
+    }
+
+    // 0d. Visible Desktop Application Content Reading (desktop.observe)
+    if (/\b(?:read\s+what\s+is\s+inside|what\s+is\s+inside|read\s+what\s+is\s+in|what's\s+inside|what\s+is\s+on\s+my\s+screen|what\s+do\s+you\s+see\s+on\s+(?:the\s+)?screen|read\s+this\s+window|read\s+the\s+window)\b/i.test(lower)) {
+      const appMatch = t.match(/\b(?:inside|in|of)\s+([A-Za-z0-9_\-\s]+?)(?:\?|\.|$)/i);
+      const targetApp = appMatch ? appMatch[1].trim() : '';
+      return {
+        verb: 'observe',
+        target: targetApp || 'active_window',
+        entityType: 'capability',
+        parameters: { capability: 'desktop.observe', targetWindow: targetApp, prompt: t, userInquiry: t },
+      };
+    }
+
     // 1. Project Rename / Mutation: "Rename X to Y"
     const renameMatch = t.match(/\b(?:rename|change(?:\s+the)?\s+name\s+of)\s+(.+?)\s+to\s+(.+)$/i);
     if (renameMatch) {
@@ -485,11 +509,27 @@ export class ControlPlaneTurnHandler {
     return null;
   }
 
-  private buildCompletionText(target: string, verb: string, surface: string): string {
+  private buildCompletionText(target: string, verb: string, surface: string, parameters?: any): string {
+    if (surface === 'desktop_observe' || verb === 'observe') {
+      const insp = parameters?.__inspectionResult;
+      if (insp?.summary) return insp.summary;
+      if (insp?.text) return `Inside ${insp.windowTitle || target}: ${insp.text.split('\n').slice(0, 5).join('; ')}`;
+      return `Observed contents of ${target}.`;
+    }
+    if (surface === 'screenshot' || verb === 'capture_screenshot') {
+      const shot = parameters?.__screenshotArtifact;
+      if (shot?.artifactPath) {
+        return `I captured a screenshot. Saved to ${shot.artifactPath} (${shot.byteSize} bytes).`;
+      }
+      return `Captured screenshot of ${target}.`;
+    }
+    if (surface === 'camera' || verb === 'perceive') {
+      return `I can see you through the physical camera. You are present at your workstation.`;
+    }
     if (surface === 'browser') {
       return `${target} is open.`;
     }
-    if (surface === 'executable' || surface === 'app_user_model_id' || surface === 'start_menu') {
+    if (surface === 'executable' || surface === 'app_user_model_id' || surface === 'start_menu' || surface === 'taskbar') {
       return `${target} is open.`;
     }
     if (verb === 'rename') {

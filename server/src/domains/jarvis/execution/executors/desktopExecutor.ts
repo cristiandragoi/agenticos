@@ -833,82 +833,41 @@ export class DesktopExecutor {
     filePath: string;
     bytes: number;
     dimensions: string;
+    artifact?: any;
     error?: string;
   }> {
-    const screenshotsDir = process.env.AGENTICOS_DATA_DIR
-      ? path.join(process.env.AGENTICOS_DATA_DIR, 'screenshots')
-      : path.join(process.cwd(), 'data', 'screenshots');
-    if (!fs.existsSync(screenshotsDir)) {
-      fs.mkdirSync(screenshotsDir, { recursive: true });
-    }
-    const filename = `screenshot-${Date.now()}.png`;
-    const filePath = path.join(screenshotsDir, filename);
-
-    let targetHwnd = 0;
-    if (options.targetWindow) {
-      try {
-        const resolved = this.resolveWindowsDesktopApp(options.targetWindow);
-        const focusRes = await this.focusApplication(resolved.displayName || options.targetWindow);
-        if (!focusRes.verified || !focusRes.foregroundHwnd) {
-          return { success: false, verified: false, filePath, bytes: 0, dimensions: '', error: focusRes.error || 'Requested window could not be verified' };
-        }
-        if (focusRes.foregroundHwnd) {
-          targetHwnd = focusRes.foregroundHwnd;
-        }
-      } catch {}
-    }
-
-    let moduleDir = '';
     try {
-      moduleDir = path.dirname(fileURLToPath(import.meta.url));
-    } catch {}
+      const rawTarget = options.targetWindow?.trim() || '';
+      const isDeictic = /^(?:current\s+(?:page|window)|this\s+(?:page|window|screen)|the\s+(?:screen|desktop|page)|desktop|screen)$/i.test(rawTarget);
+      const effectiveTarget = isDeictic ? undefined : rawTarget;
 
-    const possibleScriptPaths = [
-      path.join(process.cwd(), 'scripts', 'take_screenshot.ps1'),
-      path.join(process.cwd(), 'server', 'scripts', 'take_screenshot.ps1'),
-      moduleDir ? path.resolve(moduleDir, '../../../../scripts/take_screenshot.ps1') : '',
-      moduleDir ? path.resolve(moduleDir, '../../../scripts/take_screenshot.ps1') : '',
-      'C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\resources\\server\\scripts\\take_screenshot.ps1',
-      'D:\\AgenticOS\\server\\scripts\\take_screenshot.ps1',
-    ].filter(Boolean);
-    const scriptPath = possibleScriptPaths.find((p) => fs.existsSync(p)) || possibleScriptPaths[0];
-    try {
-      const psCmd = `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -OutputFile "${filePath}" -Hwnd ${targetHwnd}`;
-      const { stdout } = await execAsync(psCmd, { timeout: 15000 });
-      const out = stdout.trim();
+      const { desktopPerceptionService } = await import('../../../../services/perception/DesktopPerceptionService.js');
+      const artifact = await desktopPerceptionService.captureScreen({ targetWindow: effectiveTarget });
 
-      if (out.startsWith('OK:')) {
-        const parts = out.split(':');
-        const bytes = parseInt(parts[1], 10) || 0;
-        const dimensions = parts[2] || '';
-
-        if (fs.existsSync(filePath)) {
-          const stat = fs.statSync(filePath);
-          if (stat.size > 0) {
-            return {
-              success: true,
-              verified: true,
-              filePath,
-              bytes: stat.size,
-              dimensions,
-            };
-          }
-        }
+      if (artifact.success && artifact.byteSize > 1024) {
+        return {
+          success: true,
+          verified: true,
+          filePath: artifact.artifactPath,
+          bytes: artifact.byteSize,
+          dimensions: `${artifact.width}x${artifact.height}`,
+          artifact,
+        };
       }
 
       return {
         success: false,
         verified: false,
-        filePath,
+        filePath: artifact.artifactPath || '',
         bytes: 0,
         dimensions: '',
-        error: out.startsWith('ERROR:') ? out.replace('ERROR:', '') : 'Screenshot file was not generated',
+        error: 'Screenshot artifact could not be captured or verified',
       };
     } catch (err: any) {
       return {
         success: false,
         verified: false,
-        filePath,
+        filePath: '',
         bytes: 0,
         dimensions: '',
         error: err?.message || String(err),

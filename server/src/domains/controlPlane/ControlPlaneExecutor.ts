@@ -47,10 +47,29 @@ export class ControlPlaneExecutor {
           return this.openBrowser(url);
         }
 
+        case 'taskbar':
         case 'start_menu':
         case 'desktop': {
           const lnkPath = parameters?.shortcutPath || target;
           return this.launchShortcut(lnkPath);
+        }
+
+        case 'desktop_observe': {
+          const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
+          const res = await desktopPerceptionService.inspectWindow(parameters?.targetWindow || target);
+          if (parameters) {
+            parameters.__inspectionResult = res;
+          }
+          return { executed: res.success, error: res.error };
+        }
+
+        case 'screenshot': {
+          const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
+          const shot = await desktopPerceptionService.captureScreen({ targetWindow: parameters?.targetWindow });
+          if (parameters) {
+            parameters.__screenshotArtifact = shot;
+          }
+          return { executed: shot.success && shot.byteSize > 1024, error: shot.success ? undefined : 'Screenshot capture failed' };
         }
 
         case 'executable': {

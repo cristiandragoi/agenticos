@@ -185,6 +185,9 @@ const LeftRail: React.FC = () => {
         <NavLink to="/self-heal" data-testid="nav-self-heal" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Self-Heal">
           <Wrench size={16} /> {!collapsed && 'SELF-HEAL'}
         </NavLink>
+        <NavLink to="/live-acceptance" data-testid="nav-live-acceptance" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Live Acceptance Mode">
+          <Activity size={16} color="#22c55e" /> {!collapsed && <span style={{ color: '#22c55e', fontWeight: 600 }}>LIVE ACCEPTANCE</span>}
+        </NavLink>
         <NavLink to="/settings" data-testid="nav-settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} title="Settings">
           <Settings size={16} /> {!collapsed && 'SETTINGS'}
         </NavLink>

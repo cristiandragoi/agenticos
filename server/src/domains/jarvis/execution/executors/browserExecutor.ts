@@ -27,6 +27,7 @@ import {
 import { logger } from '../../../../utils/logger.js';
 import { activeInteractionContextStore } from '../../activeInteractionContext.js';
 import { voiceTurnAuditStore } from '../voiceTurnAuditStore.js';
+import { capabilityPermissionStore } from '../../../controlPlane/CapabilityPermissionStore.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
 
 /** Accessible-name hints for a page's search field, checked in order. */
@@ -173,7 +174,8 @@ export class BrowserExecutor {
       if (!text) {
         return { success: false, error: 'No text supplied to type.' };
       }
-      if (opts.context?.browserInputAuthorized !== true) {
+      const isPermitted = opts.context?.browserInputAuthorized === true || capabilityPermissionStore.isAllowed('browser.input');
+      if (!isPermitted) {
         logger.warn('[BrowserExecutor] Unauthorized type action rejected in executeWorkflow: browserInputAuthorized is false');
         voiceTurnAuditStore.recordTypingAttempt({
           targetElement: name || 'searchField',
@@ -306,7 +308,8 @@ export class BrowserExecutor {
     authorized: boolean = false,
     context?: TurnContext,
   ): Promise<ExecutionResult> {
-    if (!authorized) {
+    const isPermitted = authorized === true || capabilityPermissionStore.isAllowed('browser.input');
+    if (!isPermitted) {
       logger.warn('[BrowserExecutor] Unauthorized searchUsingPageBox rejected: authorized is false');
       voiceTurnAuditStore.recordTypingAttempt({
         targetElement: 'searchBox',

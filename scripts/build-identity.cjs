@@ -45,7 +45,7 @@ function getGitSha(cwd = ROOT) {
  */
 function getIsDirty(cwd = ROOT) {
   try {
-    const raw = execSync('git status --porcelain', { cwd, stdio: ['ignore', 'pipe', 'ignore'] })
+    const raw = execSync('git status --porcelain -uno', { cwd, stdio: ['ignore', 'pipe', 'ignore'] })
       .toString()
       .trim();
     if (!raw) return false;

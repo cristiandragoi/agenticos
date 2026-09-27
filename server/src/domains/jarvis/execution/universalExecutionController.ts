@@ -63,6 +63,7 @@ import {
 } from '../../../services/browser/browserPreferencesStore.js';
 import { sessionWorkingState } from './sessionWorkingState.js';
 import { intentArbitrator } from './intentArbitrator.js';
+import { capabilityPermissionStore } from '../../controlPlane/CapabilityPermissionStore.js';
 import { isMeaningfulSpeech } from '../../../services/voice/localTranscribe.js';
 import { logger } from '../../../utils/logger.js';
 import type {
@@ -204,7 +205,7 @@ export class UniversalExecutionController {
     commandText = commandText.replace(/\b(?:free\s+cache|freecache|free-cache)\b/gi, 'Free Cash');
 
     const voiceEventId = (input as any).voiceEventId || `vevent-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    let browserInputAuthorized = false;
+    let browserInputAuthorized = capabilityPermissionStore.isAllowed('browser.input');
     let conversationMode: ConversationMode = 'CONVERSATION';
     let parsedIntent = 'unknown';
     const executionId = `exec-${Date.now()}`;

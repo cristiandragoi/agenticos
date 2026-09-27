@@ -35,6 +35,9 @@ import { countIncidents } from '../jarvis/behavioralHealth.js';
 import { getBuildIdentity } from '../../services/buildIdentity.js';
 import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js';
 import { hermesApiService } from '../../services/hermesApiService.js';
+import { capabilityPermissionStore } from './CapabilityPermissionStore.js';
+import { desktopPerceptionService } from '../../services/perception/DesktopPerceptionService.js';
+import { windowsApplicationResolver } from './WindowsApplicationResolver.js';
 
 export type DomainReadinessStatus = 'PASS' | 'DEGRADED' | 'FAIL';
 
@@ -202,11 +205,59 @@ export class ProductionReadinessManager {
     // 9. Voice/STT Health
     registerCheck('voice_stt_health', 'PASS', true, 'Voice pipeline and turn latches nominal');
 
-    // 10. Desktop Control Health
-    registerCheck('desktop_control_health', 'PASS', true, 'Desktop process discovery, window handle, and UWP execution nominal');
+    // 10. Desktop Control & Perception Health
+    try {
+      const desktopControlAllowed = capabilityPermissionStore.isAllowed('desktop.control');
+      const desktopObserveAllowed = capabilityPermissionStore.isAllowed('desktop.observe');
+      const screenCaptureAllowed = capabilityPermissionStore.isAllowed('screen.capture');
+      const visibleWindows = await desktopPerceptionService.listVisibleWindows();
+      const taskbarApps = await windowsApplicationResolver.getTaskbarPinnedApps();
 
-    // 11. Browser Control Health
-    registerCheck('browser_control_health', 'PASS', true, 'Browser navigation and URL verification operational');
+      const desktopStatus: DomainReadinessStatus =
+        desktopControlAllowed && desktopObserveAllowed && screenCaptureAllowed && (visibleWindows.length > 0 || taskbarApps.length > 0)
+          ? 'PASS'
+          : 'DEGRADED';
+
+      registerCheck(
+        'desktop_control_health',
+        desktopStatus,
+        true,
+        `Desktop control & perception active (${visibleWindows.length} visible windows, ${taskbarApps.length} taskbar apps, observe=${desktopObserveAllowed}, capture=${screenCaptureAllowed})`,
+        {
+          desktopControlAllowed,
+          desktopObserveAllowed,
+          screenCaptureAllowed,
+          visibleWindowsCount: visibleWindows.length,
+          taskbarAppsCount: taskbarApps.length,
+        }
+      );
+    } catch (e: any) {
+      registerCheck('desktop_control_health', 'DEGRADED', true, `Desktop perception probe warning: ${e?.message}`);
+    }
+
+    // 11. Browser Control Health & Persistent Input Authorization
+    try {
+      const browserReadAllowed = capabilityPermissionStore.isAllowed('browser.read');
+      const browserInputAllowed = capabilityPermissionStore.isAllowed('browser.input');
+      const browserNavAllowed = capabilityPermissionStore.isAllowed('browser.navigate');
+
+      const browserStatus: DomainReadinessStatus =
+        browserReadAllowed && browserInputAllowed && browserNavAllowed ? 'PASS' : 'DEGRADED';
+
+      registerCheck(
+        'browser_control_health',
+        browserStatus,
+        true,
+        `Browser capability active (read=${browserReadAllowed}, input=${browserInputAllowed}, navigate=${browserNavAllowed})`,
+        {
+          browserReadAllowed,
+          browserInputAllowed,
+          browserNavAllowed,
+        }
+      );
+    } catch (e: any) {
+      registerCheck('browser_control_health', 'DEGRADED', true, `Browser check warning: ${e?.message}`);
+    }
 
     // 12. Verification Health
     registerCheck('verification_health', 'PASS', true, 'UniversalVerifier with Argus multi-evidence verification ready');
