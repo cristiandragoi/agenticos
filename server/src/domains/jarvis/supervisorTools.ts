@@ -352,7 +352,7 @@ export async function delegateAntigravityTask(input: DelegateAntigravityInput): 
     return {
       taskId: task.taskId,
       worker: 'antigravity',
-      status: 'executing',
+      status: 'running',
       objective,
       context,
       message: `AntiGravity has accepted task ${task.taskId.slice(0, 8)} (session ${convId}) and started execution in ${effectiveWorkspace}. Initial event: ${firstEvent}.`,

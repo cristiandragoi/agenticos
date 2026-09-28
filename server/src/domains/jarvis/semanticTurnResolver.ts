@@ -566,6 +566,7 @@ export async function resolveSemanticTurn(
   const fallbackRef: EntityRef | null = (requestedWorker && taskPhrase) ? {
     id: `task-${randomUUID().slice(0, 8)}`,
     type: 'task',
+    domain: 'engineering',
     displayName: taskPhrase.replace(/^[.\s,;!?-]+|[.\s,;!?-]+$/g, '').trim(),
   } : null;
   // When a worker is specified (e.g. "Give that to Codex" or "Give the implementation review to Codex"),
@@ -604,7 +605,7 @@ export async function resolveSemanticTurn(
       const execResult = await executePendingAction(pa, state);
       return {
         handled: true,
-        decision: { type: 'execute_pending', pendingActionId: pa.id, taskId: execResult.taskId },
+        decision: { type: 'confirm_pending', pendingActionId: pa.id },
         dialogueState: getDialogueState(conversationId) || state,
         response: {
           text: execResult.message,
