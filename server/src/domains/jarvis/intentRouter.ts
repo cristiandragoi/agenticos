@@ -1,8 +1,8 @@
 export interface IntentResult {
-  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams' | 'investigate' | 'magnitude';
+  route: 'codex' | 'hermes' | 'memory' | 'direct' | 'clarification_required' | 'agent_teams' | 'investigate' | 'magnitude' | 'antigravity';
   semanticIntent: string;
   executionMode: 'direct_conversation' | 'operational_execution';
-  selectedCapability: 'hermes' | 'codex' | 'magnitude' | 'agent_teams' | 'system' | 'none';
+  selectedCapability: 'hermes' | 'codex' | 'magnitude' | 'agent_teams' | 'antigravity' | 'system' | 'none';
   category:
     | 'conversation'
     | 'repository_analysis'
@@ -22,7 +22,7 @@ export interface IntentResult {
   reason: string;
   requiresWorkspace?: boolean;
   requiresApproval?: boolean;
-  selectedAgent?: 'Jarvis' | 'CodeX' | 'Hermes' | 'Agent Teams' | 'System';
+  selectedAgent?: 'Jarvis' | 'CodeX' | 'Hermes' | 'Agent Teams' | 'AntiGravity' | 'System';
   plan?: string[];
   /** Populated only for clarification_required when the transcript looks
    *  like speech-recognition corruption (voice-aware clarification). */
@@ -32,15 +32,15 @@ export interface IntentResult {
 export interface DelegationSignals {
   explicitDelegationRequested: boolean;
   globalNonDelegationRequested: boolean;
-  explicitWorkerRequested?: 'codex' | 'hermes' | 'magnitude' | 'agent_teams';
-  prohibitedWorkers: ('codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'automations')[];
+  explicitWorkerRequested?: 'codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'antigravity';
+  prohibitedWorkers: ('codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'automations' | 'antigravity')[];
   explicitNonDelegationRequested: boolean; // backwards compatibility
 }
 
 export function detectDelegationSignals(prompt: string): DelegationSignals {
   const p = prompt.toLowerCase().replace(/\s+/g, ' ').trim();
 
-  const prohibitedWorkers: ('codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'automations')[] = [];
+  const prohibitedWorkers: ('codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'automations' | 'antigravity')[] = [];
   if (/\b(?:do not use|don't use|without|no)\s+codex\b/.test(p) || /\bno\s+codex\s+goal\b/.test(p)) {
     prohibitedWorkers.push('codex');
   }
@@ -53,12 +53,17 @@ export function detectDelegationSignals(prompt: string): DelegationSignals {
   if (/\b(?:do not use|don't use|without|no)\s+(?:teams?|agent teams?|multi-agent)\b/.test(p)) {
     prohibitedWorkers.push('agent_teams');
   }
+  if (/\b(?:do not use|don't use|without|no)\s+(?:antigravity|anti-gravity)\b/.test(p)) {
+    prohibitedWorkers.push('antigravity');
+  }
   if (/\b(?:do not|don't|no|without|never)\s+(?:create|register|set up|add|schedule)?\s*(?:an?\s+)?automation\b/.test(p)) {
     prohibitedWorkers.push('automations');
   }
 
-  let explicitWorkerRequested: 'codex' | 'hermes' | 'magnitude' | 'agent_teams' | undefined;
-  if ((/\b(?:use|ask|have|tell|delegate to)\s+magnitude\b/.test(p) || /^magnitude[,:]/.test(p)) && !prohibitedWorkers.includes('magnitude')) {
+  let explicitWorkerRequested: 'codex' | 'hermes' | 'magnitude' | 'agent_teams' | 'antigravity' | undefined;
+  if ((/\b(?:use|ask|have|tell|delegate to|give\s+(?:this\s+task\s+to|to)?)\s*(?:antigravity|anti-gravity)\b/.test(p) || /\b(?:antigravity|anti-gravity)\b/.test(p)) && !prohibitedWorkers.includes('antigravity')) {
+    explicitWorkerRequested = 'antigravity';
+  } else if ((/\b(?:use|ask|have|tell|delegate to)\s+magnitude\b/.test(p) || /^magnitude[,:]/.test(p)) && !prohibitedWorkers.includes('magnitude')) {
     explicitWorkerRequested = 'magnitude';
   } else if ((/\b(?:use|ask|have|tell|delegate to)\s+codex\b/.test(p) || /^codex[,:]/.test(p)) && !prohibitedWorkers.includes('codex') && !/\b(?:do not|don't|no|without)\s+use\s+codex\b/.test(p)) {
     explicitWorkerRequested = 'codex';
@@ -798,6 +803,21 @@ export class IntentRouter {
         true,
         true,
         'agent_teams'
+      );
+    }
+
+    // 0F. Explicit AntiGravity delegation ("delegate to antigravity...", "give this task to antigravity...")
+    if (delegationSignals.explicitWorkerRequested === 'antigravity' && !delegationSignals.prohibitedWorkers.includes('antigravity')) {
+      return operational(
+        'antigravity',
+        'repository_analysis',
+        0.99,
+        'Explicit AntiGravity delegation requested',
+        'AntiGravity',
+        ['Discover local AntiGravity session', 'Initiate handoff of repository task', 'Stream execution events to engineering console'],
+        true,
+        false,
+        'antigravity'
       );
     }
 

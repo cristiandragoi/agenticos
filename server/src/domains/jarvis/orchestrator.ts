@@ -35,6 +35,7 @@ const NO_WORKSPACE_ERROR = 'No repository selected. Choose a valid workspace in 
 export interface OrchestratorResult {
   route: string;
   goalId?: string;
+  taskId?: string;
   teamId?: string;
   status?: string;
   error?: string;
@@ -158,6 +159,8 @@ export class JarvisOrchestrator {
         return this.handleMagnitude(conversationId, prompt, operationId);
       case 'agent_teams':
         return this.handleAgentTeams(conversationId, prompt, workspacePath, approvalPolicy, operationId);
+      case 'antigravity':
+        return this.handleAntigravity(conversationId, prompt, workspacePath, operationId);
       case 'hermes':
         return this.handleHermes(conversationId, prompt, operationId);
       case 'memory':
@@ -588,6 +591,59 @@ export class JarvisOrchestrator {
         metadata: requestMetadata
       });
       return { route: 'agent_teams', error: content, operationId };
+    }
+  }
+
+  private async handleAntigravity(
+    conversationId: string,
+    prompt: string,
+    workspacePath: string,
+    operationId?: string
+  ): Promise<OrchestratorResult> {
+    const requestMetadata = operationId ? { operationId } : undefined;
+    const { delegateAntigravityTask } = await import('./supervisorTools.js');
+    try {
+      const result = await delegateAntigravityTask({
+        objective: prompt,
+        conversationId,
+      });
+
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: result.message,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          taskId: result.taskId,
+          worker: 'antigravity',
+          provider: 'agentic-os',
+          model: 'antigravity-builder',
+          intent: { type: 'worker_delegation', worker: 'antigravity' },
+        },
+      });
+
+      return {
+        route: 'antigravity',
+        status: result.status,
+        taskId: result.taskId,
+        operationId,
+      };
+    } catch (err: any) {
+      const errorMsg = `AntiGravity delegation failed: ${err.message}`;
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'system',
+        messageType: 'error',
+        content: errorMsg,
+        metadata: requestMetadata,
+      });
+      return {
+        route: 'antigravity',
+        status: 'failed',
+        error: errorMsg,
+        operationId,
+      };
     }
   }
 
