@@ -127,5 +127,21 @@
         "to": "server/scripts"
       }
     ]
-  }
+  },
+  "description": "My Mission Control AGENT",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cristiandragoi/agenticos.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cristiandragoi/agenticos/issues"
+  },
+  "homepage": "https://github.com/cristiandragoi/agenticos#readme"
 }

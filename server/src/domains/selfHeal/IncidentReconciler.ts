@@ -118,7 +118,18 @@ export class IncidentReconciler {
           continue;
         }
 
-        // C. Blocked after failed repair attempts (test failure, invalid snapshot, unresolved)
+        // C. Check if engineering diagnosis was never attempted for repairable goal
+        // REQUIREMENT 8: IncidentReconciler must NOT convert repairable incidents into STALE/FAILED_ESCALATED
+        // if engineering diagnosis was never attempted.
+        if (['BLOCKED_TEST_FAILURE', 'BLOCKED_SNAPSHOT_INVALID', 'INVALID_MISCLASSIFIED', 'FAILED_ESCALATED', 'STALE', 'unresolved'].includes(currentStatus)) {
+          const requeued = this.checkAndRequeueUnattemptedDiagnosis(inc, nowIso);
+          if (requeued) {
+            activeCount++;
+            continue;
+          }
+        }
+
+        // C2. Blocked after failed repair attempts (test failure, invalid snapshot, unresolved)
         if (['BLOCKED_TEST_FAILURE', 'BLOCKED_SNAPSHOT_INVALID', 'INVALID_MISCLASSIFIED', 'unresolved'].includes(currentStatus)) {
           // Escalate through RecoveryWatchdog so it is closed with forensic audit reason
           const watchdog = recoveryWatchdog.verifyPipelineHealth();
@@ -145,6 +156,11 @@ export class IncidentReconciler {
         }
 
         if (ageMs > this.STALE_THRESHOLD_MS) {
+          const requeued = this.checkAndRequeueUnattemptedDiagnosis(inc, nowIso);
+          if (requeued) {
+            activeCount++;
+            continue;
+          }
           this.updateIncidentStatus(
             inc.id,
             'STALE',
@@ -157,15 +173,16 @@ export class IncidentReconciler {
 
         // E. Truly recent active incident (< 15 minutes old)
         if (ageMs <= this.RECENT_THRESHOLD_MS) {
-          if (currentStatus === 'REPAIRING' || currentStatus === 'TESTING' || currentStatus === 'DEPLOYING') {
-            activeCount++;
-          } else {
-            activeCount++;
-          }
+          activeCount++;
           continue;
         }
 
         // Fallback for remaining aged entries
+        const requeued = this.checkAndRequeueUnattemptedDiagnosis(inc, nowIso);
+        if (requeued) {
+          activeCount++;
+          continue;
+        }
         this.updateIncidentStatus(
           inc.id,
           'STALE',
@@ -277,6 +294,71 @@ export class IncidentReconciler {
     } catch (err: any) {
       logger.warn(`[IncidentReconciler] Failed to update incident ${id}: ${err?.message}`);
     }
+  }
+
+  private checkAndRequeueUnattemptedDiagnosis(inc: any, nowIso: string): boolean {
+    try {
+      let meta: any = {};
+      try {
+        meta = typeof inc.metadata === 'string' ? JSON.parse(inc.metadata) : (inc.metadata || {});
+      } catch {}
+
+      const goalId = inc.goal_id || meta?.goalId;
+      let originatingGoal: any = null;
+      if (goalId) {
+        originatingGoal = rawDb.prepare('SELECT goal_id, original_user_input, status FROM goal_runs WHERE goal_id = ?').get(goalId);
+      } else {
+        originatingGoal = rawDb.prepare('SELECT goal_id, original_user_input, status FROM goal_runs WHERE recovery_incident_id = ?').get(inc.id);
+      }
+
+      if (!originatingGoal) {
+        return false;
+      }
+
+      // Check if engineering diagnosis was ever actually attempted
+      let diagnosisCount = 0;
+      try {
+        const diagRow: any = rawDb.prepare('SELECT count(*) as c FROM repair_diagnoses WHERE incident_id = ?').get(inc.id);
+        diagnosisCount = diagRow?.c || 0;
+      } catch {}
+
+      // If diagnosis was NEVER attempted, requeue into DIAGNOSING!
+      if (diagnosisCount === 0) {
+        logger.info(`[IncidentReconciler] Requeueing incident ${inc.id} into DIAGNOSING because engineering diagnosis was never attempted (goal: ${originatingGoal.goal_id}).`);
+        console.log(`[JRT] INCIDENT_REQUEUED_DIAGNOSING incidentId=${inc.id} goalId=${originatingGoal.goal_id}`);
+
+        const updatedMetadata = {
+          ...meta,
+          goalId: originatingGoal.goal_id,
+          reconciledState: 'DIAGNOSING',
+          reconciledAt: nowIso,
+          reconciliationReason: 'Requeued into DIAGNOSING because engineering diagnosis was never attempted for repairable goal.',
+        };
+
+        rawDb.prepare(`
+          UPDATE repair_incidents
+          SET status = 'DIAGNOSING',
+              resolved_at = NULL,
+              metadata = ?
+          WHERE id = ?
+        `).run(JSON.stringify(updatedMetadata), inc.id);
+
+        // Also restore originating goal to RECOVERABLE if it was FAILED_EXHAUSTED
+        if (originatingGoal.status === 'FAILED_EXHAUSTED' || originatingGoal.status === 'CANCELLED') {
+          rawDb.prepare(`
+            UPDATE goal_runs
+            SET status = 'RECOVERABLE',
+                updated_at = ?
+            WHERE goal_id = ?
+          `).run(nowIso, originatingGoal.goal_id);
+        }
+
+        return true;
+      }
+    } catch (err: any) {
+      logger.warn(`[IncidentReconciler] checkAndRequeueUnattemptedDiagnosis error for ${inc.id}: ${err?.message}`);
+    }
+    return false;
   }
 }
 

@@ -738,9 +738,26 @@ export function isExpectedActionForEntity(
 ): { expected: boolean; reason?: string } {
   const v = (verb || '').toLowerCase().trim();
 
-  // 1. Never self-heal navigation, read, lookup, or inspect intents
-  if (NEVER_SELFHEAL_RE.test(v)) {
-    return { expected: false, reason: 'Verb is navigation, reading, or inspection; not an executable mutation capability.' };
+  // DEFECT 1 ROOT CAUSE FIX:
+  // User verbs (open, read, inspect, navigate, show, capture, see, find, locate, observe)
+  // are valid user goals. They must NOT disqualify an internal execution defect from repair.
+  const VALID_USER_GOAL_VERBS = new Set([
+    'open',
+    'read',
+    'inspect',
+    'navigate',
+    'show',
+    'capture',
+    'see',
+    'find',
+    'locate',
+    'observe',
+    'view',
+    'display',
+    'focus',
+  ]);
+  if (VALID_USER_GOAL_VERBS.has(v)) {
+    return { expected: true };
   }
 
   // 2. Project entities
@@ -2278,6 +2295,7 @@ async function raiseSelfHealIncident(opts: {
   component: string;
   symptom: string;
   conversationId: string;
+  goalId?: string;
   originalAction?: {
     prompt: string;
     conversationId: string;
@@ -2290,19 +2308,49 @@ async function raiseSelfHealIncident(opts: {
   try {
     const { failureDetector } = await import('../selfHeal/FailureDetector.js');
     const { selfHealSupervisor } = await import('../selfHeal/SelfHealSupervisor.js');
+    const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
+
+    const activeGoal = opts.goalId
+      ? goalLifecycleManager.getGoalRun(opts.goalId)
+      : goalLifecycleManager.getActiveGoalForConversation(opts.conversationId);
+    const goalId = activeGoal?.goalId;
+
     const incidentId: string = await failureDetector.createManualIncident(
       opts.component,
       opts.symptom,
       'backend',
       'medium',
-      { source: 'jarvis-next-voice', conversationId: opts.conversationId },
+      { source: 'jarvis-next-voice', conversationId: opts.conversationId, goalId },
     );
-    logger.info('[JRT] SELFHEAL_INCIDENT_CREATED', { incidentId, component: opts.component });
-    console.log(`[JRT] SELFHEAL_INCIDENT_CREATED incidentId=${incidentId}`);
+    logger.info('[JRT] SELFHEAL_INCIDENT_CREATED', { incidentId, component: opts.component, goalId });
+    console.log(`[JRT] SELFHEAL_INCIDENT_CREATED incidentId=${incidentId} goalId=${goalId || 'none'}`);
+
+    if (goalId) {
+      goalLifecycleManager.linkIncident(goalId, incidentId);
+    }
 
     if (opts.originalAction) {
       selfHealSupervisor.executeClosedLoopRepair({
         incidentId,
+        goalId,
+        conversationId: opts.conversationId,
+        originalUserInput: opts.originalAction.prompt,
+        capabilityId: opts.component,
+        target: opts.originalAction.entityName || opts.originalAction.entityId,
+        userAction: {
+          verb: opts.originalAction.verb,
+          target: opts.originalAction.entityName || opts.originalAction.entityId,
+          originalPrompt: opts.originalAction.prompt,
+          entityId: opts.originalAction.entityId,
+          entityType: opts.originalAction.entityType,
+          entityName: opts.originalAction.entityName,
+          conversationId: opts.conversationId,
+        },
+        failureClassification: {
+          domain: 'implementation',
+          repairability: 'engineering',
+          reason: opts.symptom,
+        },
         originalAction: opts.originalAction,
       }).catch((err: any) => {
         logger.warn('[JRT] SELF_HEAL_CLOSED_LOOP_ERROR', { incidentId, error: err?.message || String(err) });

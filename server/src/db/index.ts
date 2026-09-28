@@ -236,6 +236,16 @@ try {
   rawDb.exec('ALTER TABLE provider_credentials ADD COLUMN api_key TEXT;');
 } catch {}
 
+try {
+  const incPragma = rawDb.prepare('PRAGMA table_info(repair_incidents)').all() as Array<{ name: string }>;
+  if (incPragma.length > 0) {
+    const incCols = new Set(incPragma.map((c) => c.name));
+    if (!incCols.has('goal_id')) {
+      rawDb.exec('ALTER TABLE repair_incidents ADD COLUMN goal_id TEXT;');
+    }
+  }
+} catch {}
+
 // revenue_human_gates column convergence: schema.ts declares more columns than
 // migration 0023 created. Converge HERE (every DB open — fresh test temp DBs
 // run migrate() and land on the legacy shape, dev DBs predate the columns) so

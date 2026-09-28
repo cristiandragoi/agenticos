@@ -39,6 +39,7 @@ export interface CameraFrame {
 export interface PerceptionResult {
   hasFrame: boolean;
   answer: string;
+  frameSha256?: string;
   visualSummary?: string;
   frameMetadata?: {
     physicalDeviceId?: string;
@@ -264,6 +265,7 @@ export class CameraPerceptionService {
     return {
       hasFrame: true,
       answer,
+      frameSha256: frame.frameSha256,
       visualSummary: `Live physical camera frame captured at ${nowIso} (1280x720) from ${frame.device}. SHA256: ${frame.frameSha256}`,
       frameMetadata: {
         physicalDeviceId: frame.physicalDeviceId,

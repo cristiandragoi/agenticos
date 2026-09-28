@@ -93,31 +93,36 @@ public class DesktopPerceptionHelper {
     public static List<WindowEntry> GetDesktopWindows() {
         Attach();
         List<WindowEntry> list = new List<WindowEntry>();
+        EnumProc enumCallback = (hWnd, lParam) => {
+            if (IsWindowVisible(hWnd)) {
+                StringBuilder sb = new StringBuilder(512);
+                GetWindowText(hWnd, sb, 512);
+                string title = sb.ToString();
+                if (!string.IsNullOrEmpty(title)) {
+                    uint pid = 0;
+                    GetWindowThreadProcessId(hWnd, out pid);
+                    string pName = "";
+                    try { pName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch {}
+                    StringBuilder sbClass = new StringBuilder(256);
+                    GetClassName(hWnd, sbClass, 256);
+                    WindowEntry e = new WindowEntry();
+                    e.Hwnd = hWnd.ToInt64();
+                    e.Pid = pid;
+                    e.Process = pName;
+                    e.Title = title;
+                    e.ClassName = sbClass.ToString();
+                    list.Add(e);
+                }
+            }
+            return true;
+        };
+
         IntPtr hDesk = OpenDesktop("Default", 0, false, 0x01FF);
         if (hDesk != IntPtr.Zero) {
-            EnumDesktopWindows(hDesk, (hWnd, lParam) => {
-                if (IsWindowVisible(hWnd)) {
-                    StringBuilder sb = new StringBuilder(512);
-                    GetWindowText(hWnd, sb, 512);
-                    string title = sb.ToString();
-                    if (!string.IsNullOrEmpty(title)) {
-                        uint pid = 0;
-                        GetWindowThreadProcessId(hWnd, out pid);
-                        string pName = "";
-                        try { pName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch {}
-                        StringBuilder sbClass = new StringBuilder(256);
-                        GetClassName(hWnd, sbClass, 256);
-                        WindowEntry e = new WindowEntry();
-                        e.Hwnd = hWnd.ToInt64();
-                        e.Pid = pid;
-                        e.Process = pName;
-                        e.Title = title;
-                        e.ClassName = sbClass.ToString();
-                        list.Add(e);
-                    }
-                }
-                return true;
-            }, IntPtr.Zero);
+            EnumDesktopWindows(hDesk, enumCallback, IntPtr.Zero);
+        }
+        if (list.Count == 0) {
+            EnumWindows(enumCallback, IntPtr.Zero);
         }
         return list;
     }
@@ -362,14 +367,14 @@ if ($elementToInspect) {
 $uniqueTexts = @()
 $seen = @{}
 foreach ($t in $extractedTexts) {
-    $clean = $t.Trim()
+    $clean = ($t.Trim() -replace '[\r\n\t\x00-\x1F]', ' ').Trim()
     if ($clean -and -not $seen.ContainsKey($clean)) {
         $seen[$clean] = $true
         $uniqueTexts += $clean
     }
 }
 
-$fullText = $uniqueTexts -join "`n"
+$fullText = ($uniqueTexts -join " `n ") -replace '[\x00-\x09\x0B\x0C\x0E-\x1F]', ' '
 
 $resultObj = [PSCustomObject]@{
     success = $true

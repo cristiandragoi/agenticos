@@ -72,13 +72,13 @@ export class CapabilityDiscovery {
     }
 
     // 0b. Check Camera Perception Capability (Section 13)
-    if (lower.includes('camera') || lower.includes('see me') || lower.includes('holding') || actionType === 'perceive') {
+    if (actionType === 'perceive' || lower.includes('see me') || lower.includes('holding') || lower.includes('look at') || lower.includes('describe me')) {
       candidates.push({
         id: 'cap-camera-perceive',
         name: 'Camera Perception',
         surface: 'camera',
         target: 'camera.perceive',
-        score: 0.98,
+        score: 0.99,
         description: 'Jarvis Camera Visual Perception: inspects active camera frame, grounded visual answers',
         parameters: { capability: 'camera.perceive', prompt: cleanTarget },
       });

@@ -8,31 +8,38 @@
 
 export type TaskStatus =
   | 'queued'
+  | 'dispatched'
+  | 'worker_accepted'
   | 'planning'
   | 'running'
+  | 'executing'
+  | 'worker_done'
+  | 'validating_worker_output'
+  | 'testing'
+  | 'building'
+  | 'deploying'
+  | 'retrying_original_goal'
+  | 'argus_verifying'
   | 'verifying'
   | 'waiting_approval'
-  /**
-   * WAITING_FOR_AUTH (§ prerequisites): the work is REGISTERED but no worker
-   * has started, because an external service prerequisite (e.g. an
-   * authenticated FreeCash browser session) is not satisfied. This is NOT an
-   * executing status — a task in this state must never be reported as running,
-   * because no external action has been performed. It clears only when LIVE
-   * external evidence proves the prerequisite is satisfied.
-   */
   | 'waiting_for_auth'
   | 'paused'
   | 'review'
+  | 'recovering'
+  | 'reassigning_worker'
+  | 'blocked_external'
+  | 'failed_exhausted'
   | 'completed'
   | 'blocked'
   | 'failed'
   | 'cancelled';
 
-/** Terminal states are immutable — late worker events can never revive them. */
+/** Terminal states are immutable — late worker events can never revive them. WORKER_DONE is explicitly NOT terminal. */
 export const TERMINAL_STATUSES: ReadonlySet<TaskStatus> = new Set([
   'completed',
   'failed',
   'cancelled',
+  'failed_exhausted',
 ]);
 
 export type WorkerKind = 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'revenue' | 'magnitude' | 'antigravity' | 'self-heal';
@@ -58,6 +65,23 @@ export type TaskEventKind =
   | 'task.stop_requested'
   | 'task.cancelled'
   | 'task.review_started'
+  | 'task.worker_done'
+  | 'task.validation_started'
+  | 'task.validation_rejected'
+  | 'task.claim_rejected'
+  | 'task.reopened'
+  | 'task.recovery_started'
+  | 'task.plan_continuation'
+  | 'task.worker_accepted'
+  | 'task.command'
+  | 'task.file_read'
+  | 'task.testing'
+  | 'task.test_passed'
+  | 'task.building'
+  | 'task.retrying_original_goal'
+  | 'task.goal_retried'
+  | 'task.argus_verifying'
+  | 'task.argus_verified'
   | 'task.verified'
   | 'task.completed'
   | 'task.blocked'
@@ -214,7 +238,7 @@ export interface DelegationEnvelope {
   /** Parent goal from dialogue state. */
   parentGoal?: string;
   /** Worker requested at delegation time. */
-  worker?: 'hermes' | 'codex' | 'research' | 'magnitude';
+  worker?: 'hermes' | 'codex' | 'research' | 'magnitude' | 'antigravity';
 }
 
 /** Structured result from a worker back to Jarvis — Phase 1 extraction from

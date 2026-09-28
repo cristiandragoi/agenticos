@@ -142,7 +142,7 @@ export class UniversalVerifier {
   }
 
   private async verifyDesktopProcess(target: string, parameters: any, now: string): Promise<GoalVerification> {
-    let cleanTarget = target.replace(/\.exe$/i, '').split(/[\\/]/).pop() || target;
+    let cleanTarget = target.replace(/\.(?:exe|lnk|url)$/i, '').split(/[\\/]/).pop() || target;
 
     // Handle AppUserModelIDs e.g. Microsoft.WindowsCalculator_8wekyb3d8bbwe!App -> Calculator
     if (cleanTarget.includes('!') || cleanTarget.includes('_')) {
@@ -152,18 +152,58 @@ export class UniversalVerifier {
       }
     }
 
-    const processQuery = parameters?.processName || cleanTarget;
-    const aliases = [processQuery.toLowerCase()];
+    const processQuery = parameters?.processName || parameters?.name || cleanTarget;
+    const aliases = [processQuery.toLowerCase(), cleanTarget.toLowerCase()];
+
+    // Add individual tokens as aliases
+    const tokens = cleanTarget.toLowerCase().split(/[\s-_]+/).filter(t => t.length > 2);
+    for (const t of tokens) {
+      if (!aliases.includes(t)) aliases.push(t);
+    }
 
     if (processQuery.toLowerCase().includes('calc')) {
       aliases.push('calculatorapp', 'calc', 'calculator', 'rechner');
     } else if (processQuery.toLowerCase().includes('cam')) {
-      aliases.push('windowscamera', 'camera');
+      aliases.push('windowscamera', 'camera', 'kamera');
     } else if (processQuery.toLowerCase().includes('term') || processQuery.toLowerCase().includes('console')) {
       aliases.push('windowsterminal', 'wt', 'cmd', 'powershell');
     } else if (processQuery.toLowerCase().includes('note')) {
       aliases.push('notepad');
     }
+
+    // Fast check: inspect visible desktop windows first
+    try {
+      const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
+      const winList = await desktopPerceptionService.listVisibleWindows();
+      for (const w of winList) {
+        const titleLower = (w.title || '').toLowerCase();
+        const procLower = (w.process || '').toLowerCase();
+        for (const q of aliases) {
+          if (titleLower.includes(q) || procLower.includes(q)) {
+            const evidence: GoalEvidence = {
+              id: `ev-win-${Date.now()}`,
+              type: 'window',
+              label: `Active Desktop Window "${w.title}" (${w.process}, HWND ${w.hwnd})`,
+              value: w,
+              source: 'DesktopPerceptionService:WindowsList',
+              timestamp: now,
+              verified: true,
+            };
+
+            return {
+              verified: true,
+              method: 'desktopPerceptionService.listVisibleWindows',
+              expectedState: { processName: processQuery, windowVisible: true },
+              actualState: w,
+              evidence: [evidence],
+              verifier: 'UniversalVerifier:DesktopPerception',
+              timestamp: now,
+              summary: `Application "${w.title || w.process}" verified active on desktop (HWND ${w.hwnd}, PID ${w.pid}).`,
+            };
+          }
+        }
+      }
+    } catch {}
 
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {
@@ -179,20 +219,20 @@ export class UniversalVerifier {
             } | Select-Object -First 1 Id, ProcessName, MainWindowTitle
 
             if (-not $found) {
-              # Check ApplicationFrameHost child windows for UWP apps
               $found = Get-Process -Name ApplicationFrameHost -ErrorAction SilentlyContinue | Where-Object {
                 $_.MainWindowTitle -like '*${q}*'
               } | Select-Object -First 1 Id, ProcessName, MainWindowTitle
             }
 
             if ($found) {
-              $found | ConvertTo-Json
+              $found | ConvertTo-Json -Compress
             }
           `;
-          const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps.trim()}"`, { timeout: 3500 });
+          const b64 = Buffer.from(ps, 'utf16le').toString('base64');
+          const { stdout } = await execAsync(`powershell -NoProfile -EncodedCommand ${b64}`, { timeout: 3500 });
 
           if (stdout.trim()) {
-            const item = JSON.parse(stdout);
+            const item = JSON.parse(stdout.trim());
             const evidence: GoalEvidence = {
               id: `ev-proc-${Date.now()}`,
               type: 'process',
@@ -234,7 +274,9 @@ export class UniversalVerifier {
     try {
       const { cameraPerceptionService } = await import('../../services/perception/CameraPerceptionService.js');
       const question = parameters?.prompt || parameters?.question || parameters?.userQuestion || target;
-      const perception = await cameraPerceptionService.perceive(question);
+      const perception = parameters?.__cameraPerception || await cameraPerceptionService.perceive(question);
+      const sha = perception?.frameSha256 || perception?.frameMetadata?.frameSha256;
+      const verified = Boolean(perception && perception.hasFrame && sha);
 
       const evidence: GoalEvidence = {
         id: `ev-cam-${Date.now()}`,
@@ -243,13 +285,13 @@ export class UniversalVerifier {
         value: perception,
         source: 'CameraPerceptionService',
         timestamp: now,
-        verified: perception.hasFrame,
+        verified,
       };
 
       return {
-        verified: true, // truthful answer was produced from actual state
+        verified,
         method: 'cameraPerceptionService.perceive',
-        expectedState: { cameraActive: true },
+        expectedState: { cameraActive: true, frameCaptured: true },
         actualState: perception,
         evidence: [evidence],
         verifier: 'UniversalVerifier:CameraPerception',
@@ -487,8 +529,8 @@ export class UniversalVerifier {
       verifier: 'UniversalVerifier:DesktopPerception',
       timestamp: now,
       summary: verified
-        ? `Observed visible content of "${inspection.windowTitle || inspection.process}" (${inspection.controlCount} controls extracted).`
-        : `Could not observe content of "${target}": window not visible or accessible.`,
+        ? (inspection?.summary || `Observed visible content of "${inspection.windowTitle || inspection.process}" (${inspection.controlCount} controls extracted).`)
+        : (inspection?.error || `Could not observe content of "${target}": window not visible or accessible.`),
     };
   }
 

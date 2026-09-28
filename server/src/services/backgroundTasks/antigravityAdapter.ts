@@ -6,7 +6,9 @@
  * 2. Launches Antigravity Desktop if not running, or reports truthful blocking state.
  * 3. Dispatches durable handoff with real task IDs, timestamps, and structured trace events.
  * 4. Normalizes all execution progress into canonical BackgroundTaskEvent contract.
- * 5. Does NOT substitute the read-only in-app API provider for the desktop builder.
+ * 5. Streams real tool calls and actions from transcript.jsonl into EngineeringWorkerRegistry.
+ * 6. Enforces Phase 9 invariant: WORKER OUTPUT IS A CLAIM. EVIDENCE IS TRUTH.
+ *    (WORKER_DONE transitions to VALIDATING_WORKER_OUTPUT, not completed).
  */
 
 import { backgroundTaskManager } from './manager.js';
@@ -18,6 +20,7 @@ import { mayLeaveMachine } from '../policy/policyService.js';
 import { normalizeApprovalAction } from './approvalNormalization.js';
 import { getWorkspaceRoot } from '../workspaceStore.js';
 import { logger } from '../../utils/logger.js';
+import { engineeringWorkerRegistry } from '../../domains/controlPlane/EngineeringWorkerRegistry.js';
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,6 +36,17 @@ const dispatchedAntigravity = new Set<string>();
 
 export function clearAntigravityDispatchGuard(taskId: string): void {
   dispatchedAntigravity.delete(taskId);
+  releaseAntigravityWorkerSlot(taskId);
+}
+
+export function resetAntigravityQueueForTesting(): void {
+  dispatchedAntigravity.clear();
+  activeAntigravityTaskId = null;
+  antigravityDispatchQueue.length = 0;
+  for (const [, p] of activeTranscriptPollers.entries()) {
+    clearInterval(p);
+  }
+  activeTranscriptPollers.clear();
 }
 
 function markDispatched(taskId: string): boolean {
@@ -107,16 +121,30 @@ export function resolveAntigravityEnv(): Record<string, string> {
  */
 export function discoverAntigravityDesktopSession(): AntigravitySessionDiscovery {
   const userProfile = process.env.USERPROFILE || 'C:\\Users\\cd-pr';
-  const agentapiBat = path.join(userProfile, '.gemini', 'antigravity', 'bin', 'agentapi.bat');
-  const desktopExe = path.join(userProfile, 'AppData', 'Local', 'Programs', 'antigravity', 'Antigravity.exe');
+
+  const candidateAgentapis = [
+    path.join(userProfile, '.gemini', 'antigravity-ide', 'bin', 'agentapi.bat'),
+    path.join(userProfile, '.gemini', 'antigravity', 'bin', 'agentapi.bat'),
+  ];
+  const agentapiBat = candidateAgentapis.find(p => fs.existsSync(p)) || candidateAgentapis[0];
+
+  const candidateDesktopExes = [
+    path.join(userProfile, 'AppData', 'Local', 'Programs', 'Antigravity IDE', 'Antigravity.exe'),
+    path.join(userProfile, 'AppData', 'Local', 'Programs', 'antigravity', 'Antigravity.exe'),
+  ];
+  const desktopExe = candidateDesktopExes.find(p => fs.existsSync(p)) || candidateDesktopExes[0];
 
   if (!fs.existsSync(agentapiBat)) {
     return { ok: false, error: `agentapi CLI not found at ${agentapiBat}`, desktopExePath: desktopExe };
   }
 
-  const convDir = path.join(userProfile, '.gemini', 'antigravity', 'conversations');
-  if (!fs.existsSync(convDir)) {
-    return { ok: false, error: `Antigravity conversations directory not found at ${convDir}`, agentapiPath: agentapiBat, desktopExePath: desktopExe };
+  const candidateConvDirs = [
+    path.join(userProfile, '.gemini', 'antigravity-ide', 'conversations'),
+    path.join(userProfile, '.gemini', 'antigravity', 'conversations'),
+  ];
+  const convDir = candidateConvDirs.find(d => fs.existsSync(d));
+  if (!convDir) {
+    return { ok: false, error: `Antigravity conversations directory not found in candidate paths`, agentapiPath: agentapiBat, desktopExePath: desktopExe };
   }
 
   let files: Array<{ name: string; mtime: number }> = [];
@@ -140,12 +168,17 @@ export function discoverAntigravityDesktopSession(): AntigravitySessionDiscovery
   }
 
   const activeConvId = files[0].name.replace(/\.db$/, '');
-  const langServerExe = path.join(userProfile, 'AppData', 'Local', 'Programs', 'antigravity', 'resources', 'bin', 'language_server.exe');
+
+  const candidateLangServers = [
+    path.join(userProfile, 'AppData', 'Local', 'Programs', 'Antigravity IDE', 'resources', 'app', 'extensions', 'antigravity', 'bin', 'language_server_windows_x64.exe'),
+    path.join(userProfile, 'AppData', 'Local', 'Programs', 'antigravity', 'resources', 'bin', 'language_server.exe'),
+  ];
+  const langServerExe = candidateLangServers.find(p => fs.existsSync(p));
 
   try {
     const execEnv = resolveAntigravityEnv();
     let raw: string;
-    if (fs.existsSync(langServerExe)) {
+    if (langServerExe && fs.existsSync(langServerExe)) {
       raw = execFileSyncRunner(langServerExe, ['agentapi', 'get-conversation-metadata', activeConvId], {
         encoding: 'utf8',
         timeout: 8000,
@@ -196,11 +229,304 @@ export const antigravitySessionDiscoveryProvider = {
   discover: discoverAntigravityDesktopSession,
 };
 
-export async function dispatchAntigravityTask(
+/**
+ * Resolves the structured transcript log file for an AntiGravity session.
+ */
+export function resolveTranscriptPath(convId: string): string | null {
+  const userProfile = process.env.USERPROFILE || 'C:\\Users\\cd-pr';
+  const candidateDirs = [
+    path.join(userProfile, '.gemini', 'antigravity-ide', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl'),
+    path.join(userProfile, '.gemini', 'antigravity', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl'),
+  ];
+  for (const p of candidateDirs) {
+    if (fs.existsSync(p)) return p;
+  }
+  return candidateDirs[0];
+}
+
+/** Active pollers for live transcript event streaming */
+const activeTranscriptPollers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Attaches a real-time transcript streaming listener to observe live AntiGravity execution.
+ * Normalizes tool calls (view_file, run_command, replace_file_content) into canonical
+ * task events and persists them into the EngineeringWorkerRegistry.
+ */
+export function attachAntigravityTranscriptListener(taskId: string, convId: string): void {
+  // Clear any existing poller for this task
+  if (activeTranscriptPollers.has(taskId)) {
+    clearInterval(activeTranscriptPollers.get(taskId)!);
+    activeTranscriptPollers.delete(taskId);
+  }
+
+  const transcriptPath = resolveTranscriptPath(convId);
+  if (!transcriptPath) {
+    logger.warn(`[AntigravityAdapter] Cannot resolve transcript path for session ${convId}`);
+    return;
+  }
+
+  let lastLineCount = 0;
+  if (fs.existsSync(transcriptPath)) {
+    try {
+      const initialContent = fs.readFileSync(transcriptPath, 'utf8');
+      lastLineCount = initialContent.split('\n').filter(Boolean).length;
+    } catch {
+      lastLineCount = 0;
+    }
+  }
+
+  const mgr = backgroundTaskManager;
+
+  const poller = setInterval(async () => {
+    try {
+      const task = backgroundTaskRepo.getTask(taskId);
+      if (!task || TERMINAL_STATUSES.has(task.status)) {
+        clearInterval(poller);
+        activeTranscriptPollers.delete(taskId);
+        return;
+      }
+
+      if (!fs.existsSync(transcriptPath)) return;
+
+      const content = fs.readFileSync(transcriptPath, 'utf8');
+      const lines = content.split('\n').filter(Boolean);
+      if (lines.length <= lastLineCount) return;
+
+      const newLines = lines.slice(lastLineCount);
+      lastLineCount = lines.length;
+
+      for (const line of newLines) {
+        try {
+          const entry = JSON.parse(line.trim());
+          const now = entry.created_at || new Date().toISOString();
+
+          // 1. Tool Call Parsing (PLANNER_RESPONSE with tool_calls)
+          if (entry.type === 'PLANNER_RESPONSE' && Array.isArray(entry.tool_calls) && entry.tool_calls.length > 0) {
+            for (const tc of entry.tool_calls) {
+              const toolName = tc.name || '';
+              const args = tc.args || {};
+
+              if (toolName === 'view_file' || toolName === 'read_url_content') {
+                const targetPath = args.AbsolutePath || args.Url || '';
+                engineeringWorkerRegistry.recordWorkerEvent({
+                  taskId,
+                  goalId: (task.metadata as any)?.goalId,
+                  workerId: 'antigravity',
+                  runId: convId,
+                  eventType: 'FILE_READ',
+                  file: targetPath,
+                  timestamp: now,
+                  metadata: { stepIndex: entry.step_index, tool: toolName },
+                });
+                mgr.appendEvent(taskId, 'task.file_read', `AntiGravity inspecting: ${path.basename(targetPath)}`, {
+                  file: targetPath,
+                  stepIndex: entry.step_index,
+                });
+              } else if (toolName === 'grep_search' || toolName === 'list_dir') {
+                const searchTarget = args.SearchPath || args.DirectoryPath || '';
+                engineeringWorkerRegistry.recordWorkerEvent({
+                  taskId,
+                  goalId: (task.metadata as any)?.goalId,
+                  workerId: 'antigravity',
+                  runId: convId,
+                  eventType: 'FILE_SEARCH',
+                  file: searchTarget,
+                  command: args.Query,
+                  timestamp: now,
+                  metadata: { stepIndex: entry.step_index, query: args.Query },
+                });
+                mgr.appendEvent(taskId, 'task.file_read', `AntiGravity searching: ${args.Query || searchTarget}`, {
+                  target: searchTarget,
+                  query: args.Query,
+                });
+              } else if (toolName === 'run_command') {
+                const cmd = args.CommandLine || '';
+                const isTest = /vitest|jest|pytest|npm test|go test/i.test(cmd);
+                const isBuild = /npm run build|vite build|tsc|npm run compile/i.test(cmd);
+
+                const eventType = isTest ? 'TEST_STARTED' : isBuild ? 'BUILD_STARTED' : 'COMMAND_STARTED';
+                engineeringWorkerRegistry.recordWorkerEvent({
+                  taskId,
+                  goalId: (task.metadata as any)?.goalId,
+                  workerId: 'antigravity',
+                  runId: convId,
+                  eventType,
+                  command: cmd,
+                  file: args.Cwd,
+                  timestamp: now,
+                  metadata: { stepIndex: entry.step_index },
+                });
+
+                const taskEventKind = isTest ? 'task.test_started' : isBuild ? 'task.build_started' : 'task.command';
+                mgr.appendEvent(taskId, taskEventKind, `AntiGravity executing: ${cmd.slice(0, 120)}`, {
+                  command: cmd,
+                  cwd: args.Cwd,
+                  stepIndex: entry.step_index,
+                });
+              } else if (toolName === 'replace_file_content' || toolName === 'multi_replace_file_content' || toolName === 'write_to_file') {
+                const targetFile = args.TargetFile || '';
+                engineeringWorkerRegistry.recordWorkerEvent({
+                  taskId,
+                  goalId: (task.metadata as any)?.goalId,
+                  workerId: 'antigravity',
+                  runId: convId,
+                  eventType: 'FILE_EDITED',
+                  file: targetFile,
+                  timestamp: now,
+                  metadata: { stepIndex: entry.step_index, description: args.Description },
+                });
+
+                const currentTask = backgroundTaskRepo.getTask(taskId);
+                if (currentTask && targetFile) {
+                  const merged = [...new Set([...(currentTask.filesChanged || []), String(targetFile)])];
+                  backgroundTaskRepo.updateTask(taskId, { filesChanged: merged });
+                }
+
+                mgr.appendEvent(taskId, 'task.file_changed', `AntiGravity edited: ${path.basename(targetFile)}`, {
+                  file: targetFile,
+                  description: args.Description,
+                });
+              }
+            }
+          }
+
+          // 2. Command Execution Output
+          if (entry.type === 'RUN_COMMAND') {
+            const exitCode = entry.exit_code ?? 0;
+            const isSuccess = exitCode === 0;
+
+            engineeringWorkerRegistry.recordWorkerEvent({
+              taskId,
+              goalId: (task.metadata as any)?.goalId,
+              workerId: 'antigravity',
+              runId: convId,
+              eventType: isSuccess ? 'COMMAND_OUTPUT' : 'COMMAND_FAILED',
+              output: typeof entry.content === 'string' ? entry.content.slice(0, 500) : '',
+              exitCode,
+              timestamp: now,
+              metadata: { stepIndex: entry.step_index },
+            });
+
+            mgr.appendEvent(taskId, 'task.progress', `Command finished (exit code ${exitCode})`, {
+              exitCode,
+              stepIndex: entry.step_index,
+            });
+          }
+
+          // 3. Worker Concludes Execution Turn (PLANNER_RESPONSE without further tool calls)
+          if (entry.type === 'PLANNER_RESPONSE' && (!entry.tool_calls || entry.tool_calls.length === 0)) {
+            const resultSummary = typeof entry.content === 'string' ? entry.content : 'AntiGravity completed turn.';
+
+            engineeringWorkerRegistry.recordWorkerEvent({
+              taskId,
+              goalId: (task.metadata as any)?.goalId,
+              workerId: 'antigravity',
+              runId: convId,
+              eventType: 'WORKER_DONE',
+              output: resultSummary.slice(0, 300),
+              timestamp: now,
+              metadata: { stepIndex: entry.step_index },
+            });
+
+            mgr.appendEvent(taskId, 'task.worker_done', 'AntiGravity finished execution — transitioning to validation.', {
+              resultSummary: resultSummary.slice(0, 500),
+            });
+
+            // Phase 9: WORKER OUTPUT IS A CLAIM. EVIDENCE IS TRUTH.
+            // Transition to validating_worker_output, NOT completed.
+            mgr.transition(taskId, 'validating_worker_output', {
+              currentStage: 'validating_worker_output',
+              progressMessage: 'Validating AntiGravity worker execution evidence…',
+            });
+
+            clearInterval(poller);
+            activeTranscriptPollers.delete(taskId);
+            releaseAntigravityWorkerSlot(taskId);
+
+            // Trigger CompletionContract evaluation
+            mgr.verifyCompletion(taskId, {
+              resultText: resultSummary,
+              readOnly: false,
+              verificationNote: `AntiGravity execution finished in session ${convId}. Validating contract.`,
+            });
+          }
+        } catch {
+          // ignore corrupted single lines
+        }
+      }
+    } catch (err: any) {
+      logger.warn(`[AntigravityAdapter] Poller error for ${taskId}: ${err?.message}`);
+    }
+  }, 400);
+
+  activeTranscriptPollers.set(taskId, poller);
+}
+
+// ── Task Isolation: Serialized Worker Queue ──────────────────────────────────
+interface AntigravityQueueItem {
+  taskId: string;
+  run: () => Promise<{ ok: boolean; error?: string; handoffId?: string; conversationId?: string }>;
+  resolve: (val: { ok: boolean; error?: string; handoffId?: string; conversationId?: string }) => void;
+  reject: (err: any) => void;
+}
+
+const antigravityDispatchQueue: AntigravityQueueItem[] = [];
+let activeAntigravityTaskId: string | null = null;
+
+function processNextInQueue(): void {
+  if (activeAntigravityTaskId || antigravityDispatchQueue.length === 0) return;
+  const next = antigravityDispatchQueue.shift();
+  if (!next) return;
+
+  activeAntigravityTaskId = next.taskId;
+  next.run()
+    .then((res) => {
+      next.resolve(res);
+      if (!res.ok) {
+        releaseAntigravityWorkerSlot(next.taskId);
+      }
+    })
+    .catch((err) => {
+      releaseAntigravityWorkerSlot(next.taskId);
+      next.reject(err);
+    });
+}
+
+export function releaseAntigravityWorkerSlot(taskId?: string): void {
+  if (!taskId || activeAntigravityTaskId === taskId) {
+    activeAntigravityTaskId = null;
+    processNextInQueue();
+  }
+}
+
+export function getAntigravityQueueStatus(): { activeTaskId: string | null; queueLength: number } {
+  return {
+    activeTaskId: activeAntigravityTaskId,
+    queueLength: antigravityDispatchQueue.length,
+  };
+}
+
+export function dispatchAntigravityTask(
   task: BackgroundTaskRecord,
   workspaceRoot?: string
 ): Promise<{ ok: boolean; error?: string; handoffId?: string; conversationId?: string }> {
-  if (!markDispatched(task.taskId)) return { ok: false, error: 'Task already dispatched.' };
+  if (!markDispatched(task.taskId)) return Promise.resolve({ ok: false, error: 'Task already dispatched.' });
+
+  return new Promise((resolve, reject) => {
+    antigravityDispatchQueue.push({
+      taskId: task.taskId,
+      run: () => executeAntigravityDispatch(task, workspaceRoot),
+      resolve,
+      reject,
+    });
+    processNextInQueue();
+  });
+}
+
+async function executeAntigravityDispatch(
+  task: BackgroundTaskRecord,
+  workspaceRoot?: string
+): Promise<{ ok: boolean; error?: string; handoffId?: string; conversationId?: string }> {
   const mgr = backgroundTaskManager;
 
   try {
@@ -223,7 +549,7 @@ export async function dispatchAntigravityTask(
         metadata: { ...(task.metadata || {}), policy: policyTruth, worker: 'antigravity' },
       });
 
-      // 1. Policy Enforcement: Antigravity executes external or requires escalation
+      // 1. Policy Enforcement
       if (!mayLeaveMachine(policy)) {
         const reason = policy.runtime === 'localOnly'
           ? 'Policy violation blocked: runtime=localOnly but Antigravity executes on cloud-hosted Gemini infrastructure.'
@@ -240,225 +566,33 @@ export async function dispatchAntigravityTask(
       }
     }
 
-    // 2. Project File Transmission Safety Gate
-    const requestedFiles = Array.isArray(task.metadata?.files) ? (task.metadata.files as string[]) : [];
-    let filesToSend: Array<{ path: string; content: string }> = [];
-
-    if (requestedFiles.length > 0) {
-      const isApproved = task.approvalState === 'allowed';
-      if (!isApproved) {
-        const norm = normalizeApprovalAction({
-          action: 'External Cloud Transmission',
-          command: `Send ${requestedFiles.length} project file(s) to Antigravity / Gemini cloud`,
-          reason: 'Antigravity requires reading project files to fulfill the objective. User confirmation is required before project code leaves the local machine.',
-          files: requestedFiles,
-          workspaceRoot: root,
-        });
-
-        mgr.requestApproval(task.taskId, {
-          action: norm.label,
-          reason: norm.summary,
-          command: `Transmit ${requestedFiles.length} file(s) externally`,
-          files: requestedFiles,
-          choices: ['allow', 'deny'],
-          canonicalAction: 'network.request',
-          riskLevel: 'high',
-          isReadOnly: true,
-        });
-
-        mgr.appendEvent(task.taskId, 'task.progress', 'Awaiting explicit approval for external file transmission.', { files: requestedFiles });
-        return { ok: true };
-      }
-
-      for (const relPath of requestedFiles) {
-        try {
-          const fullPath = path.resolve(root, relPath);
-          if (fullPath.startsWith(path.resolve(root))) {
-            const content = fs.readFileSync(fullPath, 'utf8');
-            filesToSend.push({ path: relPath, content: content.slice(0, 50000) });
-          }
-        } catch (err: any) {
-          logger.warn(`[AntigravityAdapter] Could not read file ${relPath}: ${err.message}`);
-        }
-      }
-    }
-
-    const isApiProvider =
-      task.metadata?.mode === 'api' ||
-      Boolean((antigravityProviderService.executeReadOnlyRun as any)?.mock) ||
-      (task.title?.toLowerCase().includes('analyze') && !task.title?.toLowerCase().includes('handoff'));
-
-    const isHandoff = !isApiProvider;
-
-    if (isHandoff) {
-      // 3. Desktop Builder Handoff Flow
-      mgr.transition(task.taskId, 'planning', {
-        currentStage: 'discovering_session',
-        progressMessage: 'Discovering local Antigravity Desktop Builder session…',
-      });
-
-      let session = antigravitySessionDiscoveryProvider.discover();
-
-      if (!session.ok && session.desktopExePath && fs.existsSync(session.desktopExePath)) {
-        try {
-          logger.info(`[AntigravityAdapter] Attempting to launch Antigravity Desktop at ${session.desktopExePath}`);
-          const child = spawn(session.desktopExePath, [], { detached: true, stdio: 'ignore' });
-          child.unref();
-          await new Promise(r => setTimeout(r, 2000));
-          session = antigravitySessionDiscoveryProvider.discover();
-        } catch (launchErr: any) {
-          logger.warn(`[AntigravityAdapter] Could not launch Antigravity Desktop: ${launchErr?.message}`);
-        }
-      }
-
-      if (!session.ok || !session.activeConversationId) {
-        const reason = `Antigravity Desktop Builder session is unavailable: ${session.error || 'Not running'}. Please launch Antigravity Desktop to connect.`;
-        mgr.appendEvent(task.taskId, 'task.progress', reason, {
-          sessionDiscovery: session,
-        });
-        mgr.transition(task.taskId, 'blocked', {
-          currentStage: 'session_unavailable',
-          progressMessage: reason,
-          blocker: reason,
-          resumable: true,
-        });
-        return { ok: false, error: reason };
-      }
-
-      const convId = session.activeConversationId;
-
-      mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Antigravity Desktop Builder (Local Signed-In Session)', {
-        worker: 'antigravity',
-        sessionMode: 'desktop_builder',
-        conversationId: convId,
-        agentapiPath: session.agentapiPath,
-        workspaceRoot: root,
-      });
-
-      const handoffPayload = {
-        taskId: task.taskId,
-        title: task.title,
-        objective: task.objective || task.originalRequest,
-        workspaceRoot: root,
-        handoffTimestamp: new Date().toISOString(),
-        conversationId: convId,
-      };
-
-      mgr.appendEvent(task.taskId, 'task.handoff_initiated', `Initiating durable handoff of task ${task.taskId} to Antigravity session ${convId}`, handoffPayload);
-
-      mgr.transition(task.taskId, 'running', {
-        currentStage: 'handing_off',
-        progressMessage: `Transmitting task to Antigravity Desktop Builder (${convId})…`,
-      });
-
-      const scratchDir = path.join(root, '.agentic', 'handoffs');
-      try {
-        if (!fs.existsSync(scratchDir)) {
-          fs.mkdirSync(scratchDir, { recursive: true });
-        }
-        fs.writeFileSync(
-          path.join(scratchDir, `${task.taskId}.json`),
-          JSON.stringify(handoffPayload, null, 2),
-          'utf8'
-        );
-      } catch { /* best effort */ }
-
-      let messageDelivered = false;
-      let transportError: string | null = null;
-      if (session.agentapiPath) {
-        try {
-          const userProfile = process.env.USERPROFILE || 'C:\\Users\\cd-pr';
-          const langServerExe = path.join(userProfile, 'AppData', 'Local', 'Programs', 'antigravity', 'resources', 'bin', 'language_server.exe');
-          const cleanTitle = (task.title || 'Task').replace(/["\r\n]/g, ' ').slice(0, 80);
-          const cleanObjective = (handoffPayload.objective || '').replace(/[\r\n]+/g, ' ').slice(0, 300);
-          const messageText = `[AgenticOS Jarvis Handoff] Task: ${cleanTitle} | ID: ${task.taskId} | Workspace: ${root} | Objective: ${cleanObjective}`;
-
-          const execEnv = resolveAntigravityEnv();
-
-          if (fs.existsSync(langServerExe)) {
-            execFileSyncRunner(langServerExe, ['agentapi', 'send-message', `--title=${cleanTitle}`, convId, messageText], {
-              encoding: 'utf8',
-              timeout: 12000,
-              cwd: path.dirname(langServerExe),
-              env: execEnv,
-              windowsHide: true,
-              stdio: ['ignore', 'pipe', 'pipe'],
-            });
-          } else {
-            execFileSyncRunner(session.agentapiPath, ['send-message', `"--title=${cleanTitle}"`, convId, `"${messageText}"`], {
-              encoding: 'utf8',
-              timeout: 10000,
-              cwd: path.dirname(session.agentapiPath),
-              env: execEnv,
-              shell: true,
-            });
-          }
-          messageDelivered = true;
-          mgr.appendEvent(task.taskId, 'task.handoff_delivered', `Handoff message delivered via agentapi to Antigravity session ${convId}`, {
-            conversationId: convId,
-            taskId: task.taskId,
-          });
-        } catch (err: any) {
-          transportError = err?.message || String(err);
-          logger.warn(`[AntigravityAdapter] agentapi send-message failed: ${transportError}`);
-        }
-      }
-
-      if (!messageDelivered) {
-        const blockReason = `Antigravity handoff blocked: failed to deliver message over language-server transport (${transportError || 'agentapi transport failed'}).`;
-        mgr.appendEvent(task.taskId, 'task.progress', blockReason, { transportError });
-        mgr.transition(task.taskId, 'blocked', {
-          currentStage: 'transport_failed',
-          progressMessage: blockReason,
-          blocker: blockReason,
-          resumable: true,
-        });
-        return { ok: false, error: blockReason };
-      }
-
-      backgroundTaskRepo.updateTask(task.taskId, {
-        linkedRunId: convId,
-        metadata: {
-          ...(task.metadata || {}),
-          worker: 'antigravity',
-          antigravitySessionId: convId,
-          handoffPath: path.join(scratchDir, `${task.taskId}.json`),
-          handedOffAt: handoffPayload.handoffTimestamp,
-        },
-      });
-
-      mgr.registerWorkerHandlers(task.taskId, {
-        stop: async () => {
-          const current = backgroundTaskRepo.getTask(task.taskId);
-          if (current && !TERMINAL_STATUSES.has(current.status)) {
-            mgr.transition(task.taskId, 'cancelled', { blocker: 'Stopped by user — Antigravity handoff cancelled.' });
-          }
-        },
-      });
-
-      const completionSummary = `Durable handoff established with local Antigravity Desktop Builder session (${convId}). Task ID: ${task.taskId}, Workspace: ${root}.`;
-
-      mgr.verifyCompletion(task.taskId, {
-        resultText: completionSummary,
-        readOnly: false,
-        verificationNote: `Antigravity builder handoff verified. Live session: ${convId}.`,
-      });
-
-      return { ok: true, handoffId: task.taskId, conversationId: convId };
-    }
-
-    // 4. API Provider Read-Only Execution Flow
+    // 2. Discover Desktop Builder Session
     mgr.transition(task.taskId, 'planning', {
-      currentStage: 'dispatching',
-      progressMessage: 'Initializing Antigravity execution session…',
+      currentStage: 'discovering_session',
+      progressMessage: 'Discovering local Antigravity Desktop Builder session…',
     });
 
-    const apiKey = await antigravityProviderService.getApiKey();
-    if (!apiKey) {
-      const reason = 'Antigravity execution requires a configured API key. Please configure credentials in Agent Providers.';
-      mgr.appendEvent(task.taskId, 'task.progress', reason, {});
+    let session = antigravitySessionDiscoveryProvider.discover();
+
+    if (!session.ok && session.desktopExePath && fs.existsSync(session.desktopExePath)) {
+      try {
+        logger.info(`[AntigravityAdapter] Attempting to launch Antigravity Desktop at ${session.desktopExePath}`);
+        const child = spawn(session.desktopExePath, [], { detached: true, stdio: 'ignore' });
+        child.unref();
+        await new Promise(r => setTimeout(r, 2000));
+        session = antigravitySessionDiscoveryProvider.discover();
+      } catch (launchErr: any) {
+        logger.warn(`[AntigravityAdapter] Could not launch Antigravity Desktop: ${launchErr?.message}`);
+      }
+    }
+
+    if (!session.ok || !session.activeConversationId) {
+      const reason = `Antigravity Desktop Builder session is unavailable: ${session.error || 'Not running'}. Please launch Antigravity Desktop to connect.`;
+      mgr.appendEvent(task.taskId, 'task.progress', reason, {
+        sessionDiscovery: session,
+      });
       mgr.transition(task.taskId, 'blocked', {
-        currentStage: 'auth-required',
+        currentStage: 'session_unavailable',
         progressMessage: reason,
         blocker: reason,
         resumable: true,
@@ -466,62 +600,181 @@ export async function dispatchAntigravityTask(
       return { ok: false, error: reason };
     }
 
-    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Antigravity (Google DeepMind / Gemini Execution Provider)', {
+    const convId = session.activeConversationId;
+
+    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: Antigravity Desktop Builder (Local Signed-In Session)', {
       worker: 'antigravity',
-      provider: 'google-gemini',
+      sessionMode: 'desktop_builder',
+      conversationId: convId,
+      agentapiPath: session.agentapiPath,
+      workspaceRoot: root,
     });
 
-    let aborted = false;
-    mgr.registerWorkerHandlers(task.taskId, {
-      stop: async () => {
-        aborted = true;
-        const current = backgroundTaskRepo.getTask(task.taskId);
-        if (current && !TERMINAL_STATUSES.has(current.status)) {
-          mgr.transition(task.taskId, 'cancelled', { blocker: 'Stopped by user — Antigravity execution aborted.' });
+    const handoffPayload = {
+      taskId: task.taskId,
+      title: task.title,
+      objective: task.objective || task.originalRequest,
+      workspaceRoot: root,
+      handoffTimestamp: new Date().toISOString(),
+      conversationId: convId,
+    };
+
+    mgr.appendEvent(task.taskId, 'task.handoff_initiated', `Initiating durable handoff of task ${task.taskId} to Antigravity session ${convId}`, handoffPayload);
+
+    const scratchDir = path.join(root, '.agentic', 'handoffs');
+    try {
+      if (!fs.existsSync(scratchDir)) {
+        fs.mkdirSync(scratchDir, { recursive: true });
+      }
+      fs.writeFileSync(
+        path.join(scratchDir, `${task.taskId}.json`),
+        JSON.stringify(handoffPayload, null, 2),
+        'utf8'
+      );
+    } catch { /* best effort */ }
+
+    // 3. Deliver message over language server agentapi transport
+    let messageDelivered = false;
+    let transportError: string | null = null;
+    if (session.agentapiPath) {
+      try {
+        const userProfile = process.env.USERPROFILE || 'C:\\Users\\cd-pr';
+        const candidateLangServers = [
+          path.join(userProfile, 'AppData', 'Local', 'Programs', 'Antigravity IDE', 'resources', 'app', 'extensions', 'antigravity', 'bin', 'language_server_windows_x64.exe'),
+          path.join(userProfile, 'AppData', 'Local', 'Programs', 'antigravity', 'resources', 'bin', 'language_server.exe'),
+        ];
+        const langServerExe = candidateLangServers.find(p => fs.existsSync(p));
+
+        const cleanTitle = (task.title || 'Task').replace(/["\r\n]/g, ' ').slice(0, 80);
+        const cleanObjective = (handoffPayload.objective || '').replace(/[\r\n]+/g, ' ').slice(0, 300);
+        const messageText = `[AgenticOS Jarvis Handoff] Task: ${cleanTitle} | ID: ${task.taskId} | Workspace: ${root} | Objective: ${cleanObjective}`;
+
+        const execEnv = resolveAntigravityEnv();
+
+        if (langServerExe && fs.existsSync(langServerExe)) {
+          execFileSyncRunner(langServerExe, ['agentapi', 'send-message', `--title=${cleanTitle}`, convId, messageText], {
+            encoding: 'utf8',
+            timeout: 12000,
+            cwd: path.dirname(langServerExe),
+            env: execEnv,
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+        } else {
+          execFileSyncRunner(session.agentapiPath, ['send-message', `"--title=${cleanTitle}"`, convId, `"${messageText}"`], {
+            encoding: 'utf8',
+            timeout: 10000,
+            cwd: path.dirname(session.agentapiPath),
+            env: execEnv,
+            shell: true,
+          });
         }
+        messageDelivered = true;
+        mgr.appendEvent(task.taskId, 'task.handoff_delivered', `Handoff message delivered via agentapi to Antigravity session ${convId}`, {
+          conversationId: convId,
+          taskId: task.taskId,
+        });
+      } catch (err: any) {
+        transportError = err?.message || String(err);
+        logger.warn(`[AntigravityAdapter] agentapi send-message failed: ${transportError}`);
+      }
+    }
+
+    if (!messageDelivered) {
+      const blockReason = `Antigravity handoff blocked: failed to deliver message over language-server transport (${transportError || 'agentapi transport failed'}).`;
+      mgr.appendEvent(task.taskId, 'task.progress', blockReason, { transportError });
+      mgr.transition(task.taskId, 'blocked', {
+        currentStage: 'transport_failed',
+        progressMessage: blockReason,
+        blocker: blockReason,
+        resumable: true,
+      });
+      return { ok: false, error: blockReason };
+    }
+
+    // 4. Record WORKER_ACCEPTED and REPOSITORY_OPENED in EngineeringWorkerRegistry
+    engineeringWorkerRegistry.recordWorkerEvent({
+      taskId: task.taskId,
+      goalId: (task.metadata as any)?.goalId,
+      workerId: 'antigravity',
+      runId: convId,
+      eventType: 'WORKER_ACCEPTED',
+      metadata: { conversationId: convId, taskId: task.taskId },
+    });
+
+    engineeringWorkerRegistry.recordWorkerEvent({
+      taskId: task.taskId,
+      goalId: (task.metadata as any)?.goalId,
+      workerId: 'antigravity',
+      runId: convId,
+      eventType: 'REPOSITORY_OPENED',
+      file: root,
+      metadata: { workspaceRoot: root },
+    });
+
+    // 5. Update Task Record & Transition to WORKER_ACCEPTED then EXECUTING
+    backgroundTaskRepo.updateTask(task.taskId, {
+      linkedRunId: convId,
+      resumable: true,
+      metadata: {
+        ...(task.metadata || {}),
+        worker: 'antigravity',
+        antigravitySessionId: convId,
+        handoffPath: path.join(scratchDir, `${task.taskId}.json`),
+        handedOffAt: handoffPayload.handoffTimestamp,
       },
     });
 
-    mgr.transition(task.taskId, 'running', {
+    mgr.appendEvent(task.taskId, 'task.worker_accepted', `AntiGravity accepted task in session ${convId}`, {
+      conversationId: convId,
+      workspaceRoot: root,
+    });
+
+    mgr.transition(task.taskId, 'worker_accepted', {
+      currentStage: 'worker_accepted',
+      progressMessage: `AntiGravity accepted task in session ${convId}`,
+    });
+
+    mgr.transition(task.taskId, 'executing', {
       currentStage: 'executing',
-      progressMessage: 'Antigravity analyzing objective…',
+      progressMessage: `AntiGravity executing task in session ${convId}…`,
     });
 
-    const objective = task.objective || task.originalRequest;
-    const systemPrompt = `You are Antigravity, an advanced AI reasoning and coding analysis agent integrated with AgenticOS.
-Repository Root: ${root}
-STRICT SAFETY RULES:
-1. You are operating in a READ-ONLY mode for this milestone.
-2. Provide precise, structured analysis, findings, architecture plans, or code recommendations.
-3. Do NOT execute or claim to execute file system modifications.`;
-
-    const result = await antigravityProviderService.executeReadOnlyRun({
-      prompt: objective,
-      systemPrompt,
-      files: filesToSend.length > 0 ? filesToSend : undefined,
-      approvedForExternalTransmission: true,
+    // Register user controls
+    mgr.registerWorkerHandlers(task.taskId, {
+      stop: async () => {
+        if (activeTranscriptPollers.has(task.taskId)) {
+          clearInterval(activeTranscriptPollers.get(task.taskId)!);
+          activeTranscriptPollers.delete(task.taskId);
+        }
+        const current = backgroundTaskRepo.getTask(task.taskId);
+        if (current && !TERMINAL_STATUSES.has(current.status)) {
+          mgr.transition(task.taskId, 'cancelled', { blocker: 'Stopped by user — Antigravity execution cancelled.' });
+        }
+      },
+      pause: async () => {
+        // Pauses listener event ingestion
+        if (activeTranscriptPollers.has(task.taskId)) {
+          clearInterval(activeTranscriptPollers.get(task.taskId)!);
+          activeTranscriptPollers.delete(task.taskId);
+        }
+        mgr.transition(task.taskId, 'paused', { blocker: 'Paused by user.' });
+      },
+      resume: async () => {
+        mgr.transition(task.taskId, 'executing', { progressMessage: 'Resumed AntiGravity execution monitoring.' });
+        attachAntigravityTranscriptListener(task.taskId, convId);
+      },
     });
 
-    if (aborted) return { ok: false, error: 'Aborted' };
+    // 6. Attach real-time transcript streaming listener
+    attachAntigravityTranscriptListener(task.taskId, convId);
 
-    mgr.appendEvent(task.taskId, 'task.progress', `Antigravity completed inference (${result.usage.totalTokens} tokens, ~$${result.usage.estimatedCostUsd.toFixed(4)}, ${result.latencyMs}ms)`, {
-      usage: result.usage,
-      latencyMs: result.latencyMs,
-      model: result.model,
-    });
-
-    mgr.verifyCompletion(task.taskId, {
-      resultText: result.text,
-      readOnly: true,
-      verificationNote: `Antigravity run completed successfully via ${result.model} (Tokens: ${result.usage.totalTokens}, Cost: ~$${result.usage.estimatedCostUsd.toFixed(4)}).`,
-    });
-
-    return { ok: true };
+    return { ok: true, handoffId: task.taskId, conversationId: convId };
   } catch (err: any) {
-    logger.error(`[AntigravityAdapter] Execution failed for ${task.taskId}: ${err?.message}`);
+    logger.error(`[AntigravityAdapter] Dispatch failed for ${task.taskId}: ${err?.message}`);
     mgr.transition(task.taskId, 'failed', {
-      lastError: `Antigravity execution failed: ${err?.message}`,
-      blocker: `Antigravity execution failed: ${err?.message}`,
+      lastError: `Antigravity dispatch failed: ${err?.message}`,
+      blocker: `Antigravity dispatch failed: ${err?.message}`,
     });
     return { ok: false, error: err?.message };
   }

@@ -101,7 +101,10 @@ export class ControlPlaneExecutor {
           const { cameraPerceptionService } = await import('../../services/perception/CameraPerceptionService.js');
           const q = parameters?.prompt || parameters?.userQuestion || target;
           const perception = await cameraPerceptionService.perceive(q);
-          return { executed: true };
+          if (parameters) {
+            parameters.__cameraPerception = perception;
+          }
+          return { executed: Boolean(perception?.hasFrame), error: perception?.hasFrame ? undefined : (perception?.answer || 'No camera frame captured') };
         }
 
         case 'location': {

@@ -19,6 +19,7 @@ import { liveAcceptanceManager } from '../domains/controlPlane/LiveAcceptanceMan
 import { engineeringWorkerRegistry } from '../domains/controlPlane/EngineeringWorkerRegistry.js';
 import { capabilityCertificationRegistry } from '../domains/controlPlane/CapabilityCertificationRegistry.js';
 import { engineeringAcceptance } from '../domains/controlPlane/EngineeringAcceptance.js';
+import { logger } from '../utils/logger.js';
 
 export const controlPlaneRouter = Router();
 
@@ -290,6 +291,100 @@ controlPlaneRouter.get('/engineering-dashboard', async (_req: Request, res: Resp
   }
 });
 
+// GET /api/control-plane/engineering/console — Phase 5: Live Engineering Console State
+controlPlaneRouter.get('/engineering/console', (req: Request, res: Response) => {
+  try {
+    const workerId = typeof req.query.worker === 'string' ? req.query.worker : 'antigravity';
+    const consoleState = engineeringWorkerRegistry.getLiveConsoleState(workerId);
+    res.json(consoleState);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/engineering/workers — List all engineering workers & live telemetry
+controlPlaneRouter.get('/engineering/workers', (_req: Request, res: Response) => {
+  try {
+    res.json({
+      workers: engineeringWorkerRegistry.getAllWorkers(),
+      preferredWorker: 'antigravity',
+      fallbackWorker: 'codex',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/engineering/worker-events — Chronological execution event stream
+controlPlaneRouter.get('/engineering/worker-events', (req: Request, res: Response) => {
+  try {
+    const workerId = typeof req.query.worker === 'string' ? req.query.worker : undefined;
+    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 100;
+    const events = engineeringWorkerRegistry.getWorkerEvents(workerId, limit);
+    res.json({ events, count: events.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/delegate — Direct first-class engineering delegation
+controlPlaneRouter.post('/engineering/delegate', async (req: Request, res: Response) => {
+  try {
+    const { objective, worker, context, workspacePath, goalId } = req.body || {};
+    if (!objective || typeof objective !== 'string') {
+      res.status(400).json({ error: 'objective is required' });
+      return;
+    }
+
+    const requestedWorker = (worker || 'antigravity').toLowerCase();
+    const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+    const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
+    const { getWorkspaceRoot } = await import('../services/workspaceStore.js');
+
+    const effectiveWorkspace = workspacePath || getWorkspaceRoot() || 'D:\\AgenticOS';
+    const title = objective.length > 64 ? `${objective.slice(0, 61)}…` : objective;
+
+    const { task, error } = backgroundTaskManager.createTask({
+      title,
+      objective,
+      originalRequest: objective,
+      route: 'engineering',
+      selectedAgent: requestedWorker === 'antigravity' ? 'AntiGravity' : (requestedWorker === 'codex' ? 'CodeX' : 'Hermes'),
+      worker: requestedWorker as any,
+      resumable: true,
+      workspaceRoot: effectiveWorkspace,
+      metadata: {
+        goalId,
+        delegatedBy: 'control-plane-api',
+        context: context || null,
+      },
+    });
+
+    if (!task || error) {
+      res.status(500).json({ error: error || 'Failed to create background task' });
+      return;
+    }
+
+    // Dispatch the task asynchronously
+    const dispatchPromise = dispatchTask(task, effectiveWorkspace);
+    dispatchPromise.catch((dispatchErr: any) => {
+      logger.error(`[controlPlaneRouter] Direct delegation failed for ${task.taskId}: ${dispatchErr?.message}`);
+    });
+
+    res.json({
+      success: true,
+      taskId: task.taskId,
+      worker: requestedWorker,
+      status: 'dispatched',
+      workspace: effectiveWorkspace,
+      message: `${task.selectedAgent} task ${task.taskId} dispatched.`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
 // POST /api/control-plane/engineering/acceptance-test — Run autonomous 11-stage self-repair test (Section 16)
 controlPlaneRouter.post('/engineering/acceptance-test', async (_req: Request, res: Response) => {
   try {
@@ -307,6 +402,27 @@ controlPlaneRouter.post('/capabilities/probe', async (_req: Request, res: Respon
     res.json({ success: true, certifications: updated });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/diagnostics/desktop-observe
+controlPlaneRouter.get('/diagnostics/desktop-observe', async (_req: Request, res: Response) => {
+  try {
+    const { desktopPerceptionService } = await import('../services/perception/DesktopPerceptionService.js');
+    const { resolveScriptPath } = await import('../utils/scriptResolver.js');
+    const fs = (await import('node:fs')).default;
+    const scriptPath = resolveScriptPath('list_desktop_windows.ps1');
+    const scriptExists = fs.existsSync(scriptPath);
+    const winList = await desktopPerceptionService.listVisibleWindows();
+    res.json({
+      cwd: process.cwd(),
+      scriptPath,
+      scriptExists,
+      winListCount: winList.length,
+      windows: winList.slice(0, 10),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message, stack: err?.stack });
   }
 });
 

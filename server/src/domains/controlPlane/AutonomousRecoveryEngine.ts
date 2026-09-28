@@ -157,23 +157,28 @@ export class AutonomousRecoveryEngine {
         console.log(`[JRT] ALTERNATIVE_SUCCEEDED goalId=${goalId} surface=${alt.surface} target="${alt.target}"`);
         goalLifecycleManager.recordVerification(goalId, verification);
 
-        // Learn and record resolution
-        const learnedResolution = {
-          target,
-          goalType,
-          successfulStrategy: alt.strategyName,
-          surface: alt.surface,
-          executablePath: alt.surface === 'executable' || alt.surface === 'start_menu' ? alt.target : undefined,
-          url: alt.surface === 'browser' ? alt.target : undefined,
-          parameters: alt.parameters,
-          verificationMethod: verification.method,
-          confidence: 0.95,
-          learnedAt: new Date().toISOString(),
-        };
-        repairKnowledgeStore.recordResolution(learnedResolution);
-        goalLifecycleManager.recordLearnedResolution(goalId, learnedResolution);
+        // Learn and record resolution (never learn web search fallbacks as resolutions for non-web targets)
+        const isWebFallback = alt.surface === 'browser' && (alt.target.includes('google.com/search') || alt.target.includes('bing.com') || alt.target.includes('duckduckgo.com'));
+        if (!isWebFallback) {
+          const learnedResolution = {
+            target,
+            goalType,
+            successfulStrategy: alt.strategyName,
+            surface: alt.surface,
+            executablePath: alt.surface === 'executable' || alt.surface === 'start_menu' || alt.surface === 'taskbar' ? alt.target : undefined,
+            url: alt.surface === 'browser' ? alt.target : undefined,
+            parameters: alt.parameters,
+            verificationMethod: verification.method,
+            confidence: 0.95,
+            learnedAt: new Date().toISOString(),
+          };
+          repairKnowledgeStore.recordResolution(learnedResolution);
+          goalLifecycleManager.recordLearnedResolution(goalId, learnedResolution);
+        }
 
-        const completionMsg = `${target} completed successfully via ${alt.surface}.`;
+        const completionMsg = isWebFallback
+          ? `Could not find a local application for "${target}". Opened web search instead.`
+          : `${target} completed successfully via ${alt.surface}.`;
         goalLifecycleManager.transitionState(goalId, 'COMPLETED', {
           actor: 'UniversalVerifier',
           summary: completionMsg,
@@ -265,7 +270,7 @@ export class AutonomousRecoveryEngine {
     console.log(`[JRT] SELFHEAL_INCIDENT_CREATED incidentId=${incidentId} goalId=${goalId}`);
 
     // Execute closed loop repair with RecoveryWatchdog protection
-    let repairResult = { success: false, error: undefined as string | undefined };
+    let repairResult: { success: boolean; outcome?: any; verification?: any; error?: string } = { success: false };
 
     try {
       const watchdogExecution = await recoveryWatchdog.checkStageExecution({
@@ -274,6 +279,29 @@ export class AutonomousRecoveryEngine {
         executeDefault: async () => {
           return selfHealSupervisor.executeClosedLoopRepair({
             incidentId,
+            goalId,
+            conversationId: goal.conversationId,
+            turnId: goal.turnId,
+            attemptId: String(goal.currentAttempt),
+            originalUserInput: goal.originalUserInput,
+            normalizedGoal: goal.normalizedGoal,
+            capabilityId: `jarvis.capability.${verb}.${entityId}`,
+            target,
+            userAction: {
+              verb,
+              target,
+              originalPrompt: goal.originalUserInput,
+              entityId,
+              entityType,
+              entityName,
+              conversationId: goal.conversationId,
+            },
+            failureClassification: {
+              domain: 'implementation',
+              repairability: 'engineering',
+              reason: `Operational recovery alternatives exhausted for "${target}"`,
+            },
+            failureEvidence: goal.failures?.flatMap(f => f.evidence || []) || [],
             originalAction: {
               prompt: goal.originalUserInput,
               conversationId: goal.conversationId,
@@ -319,10 +347,23 @@ export class AutonomousRecoveryEngine {
       }
       if (!expectedName) expectedName = target;
 
-      const verification = await universalVerifier.verify({
-        surface: 'internal',
-        target: entityId,
-        parameters: { entityType, entityId, expectedName },
+      let surfaceToVerify = 'internal';
+      if (target.toLowerCase().includes('camera') || verb.includes('camera') || goal.originalUserInput.toLowerCase().includes('camera')) {
+        surfaceToVerify = 'camera';
+      } else if (target.toLowerCase().includes('hermes') || goal.originalUserInput.toLowerCase().includes('hermes')) {
+        surfaceToVerify = 'desktop_observe';
+      } else if (target.toLowerCase().includes('screenshot') || goal.originalUserInput.toLowerCase().includes('screenshot')) {
+        surfaceToVerify = 'screenshot';
+      } else if (entityType === 'project') {
+        surfaceToVerify = 'internal';
+      } else {
+        surfaceToVerify = 'desktop';
+      }
+
+      const verification = repairResult.verification || await universalVerifier.verify({
+        surface: surfaceToVerify,
+        target: entityId || target,
+        parameters: { entityType, entityId, expectedName, prompt: goal.originalUserInput, target },
       });
 
       console.log(`[JRT] INDEPENDENT_VERIFICATION_COMPLETE verified=${verification.verified} verifier=Argus`);
@@ -333,14 +374,15 @@ export class AutonomousRecoveryEngine {
           target: entityName,
           goalType: 'internal_capability',
           successfulStrategy: `engineering_repair:${verb}:${entityType}`,
-          surface: 'internal',
-          parameters: { entityId, entityType, verb },
+          surface: surfaceToVerify,
+          parameters: { entityId, entityType, verb, target },
           verificationMethod: verification.method,
           confidence: 1.0,
           learnedAt: new Date().toISOString(),
         };
         repairKnowledgeStore.recordResolution(learned);
         goalLifecycleManager.recordLearnedResolution(goalId, learned);
+        goalLifecycleManager.recordVerification(goalId, verification);
 
         const completionMsg = `Repaired and completed ${entityName}.`;
         goalLifecycleManager.transitionState(goalId, 'COMPLETED', {

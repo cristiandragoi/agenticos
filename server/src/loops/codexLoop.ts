@@ -1656,22 +1656,77 @@ export async function resumeCodexGoalLoop(goalId: string, context?: AgentExecuti
               });
             }
 
-            await generateCheckpoint(goalId, 'completed', `step-${stepCounter}`, stepCounter, workspaceRoot);
-            pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for final step`, undefined, undefined, { normalizedStatus: 'completed', lifecycleState: 'running', eventType: 'checkpoint_written' });
+            await generateCheckpoint(goalId, 'worker_done', `step-${stepCounter}`, stepCounter, workspaceRoot);
+            pushEventToWriter(writer, 'checkpoint_written', `Checkpoint generated for worker_done step`, undefined, undefined, { normalizedStatus: 'active', lifecycleState: 'running', eventType: 'checkpoint_written' });
 
             const finalMessageText = args.message || toolResult || '';
             const finishPayload: any = { handoff: handoffObj, finalAnswer: finalMessageText };
             if (context?.role === 'Verifier') finishPayload.verificationReport = verificationReport;
 
-            pushEventToWriter(writer, 'agent_completed', toolResult, toolCall.tool, undefined, { normalizedStatus: 'completed', lifecycleState: 'completed', userMessage: `CodeX finished the task successfully.`, eventType: 'agent_completed', provider: currentProvider, model: currentModel, payload: finishPayload });
+            // CORE INVARIANT: A WORKER MAY NEVER CERTIFY ITS OWN SUCCESS.
+            // Worker emits WORKER_DONE. Control plane owns the transition to COMPLETED.
+            pushEventToWriter(writer, 'worker_done', toolResult, toolCall.tool, undefined, {
+              normalizedStatus: 'active',
+              lifecycleState: 'waiting',
+              userMessage: `Worker reported WORKER_DONE. Control plane is evaluating completion contract.`,
+              eventType: 'validation_started',
+              provider: currentProvider,
+              model: currentModel,
+              payload: finishPayload
+            });
 
-            goalStore.upsertStep(goalId, stepCounter, 'completed', JSON.stringify(toolCall), toolResult);
-            goalStore.update(goalId, { status: 'completed', runSummary: { ...((goal.runSummary || {}) as object), ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}), finalAnswer: finalMessageText, message: toolResult, provider: currentProvider, model: currentModel } as any });
+            goalStore.upsertStep(goalId, stepCounter, 'worker_done', JSON.stringify(toolCall), toolResult);
+            goalStore.update(goalId, {
+              status: 'worker_done',
+              runSummary: {
+                ...((goal.runSummary || {}) as object),
+                ...(codexMemoryPacket && codexMemoryPacket.memoryIds.length ? { memoryRetrieved: { memoryIds: codexMemoryPacket.memoryIds, count: codexMemoryPacket.count, truncated: codexMemoryPacket.truncated, at: Date.now() } } : {}),
+                finalAnswer: finalMessageText,
+                message: toolResult,
+                provider: currentProvider,
+                model: currentModel
+              } as any
+            });
+
             await persistGoalResultToConversation(goalId, goal, finalMessageText, currentProvider, currentModel);
-            // ARGUS: independent verification fires automatically when the
-            // goal is bound to an immutable contract (builder done → verify).
+
+            // Independent verification hook
             import('../services/argus/argusService.js').then(m => m.onGoalCompleted(goalId).catch((e: any) => console.error(`[ARGUS] hook: ${e?.message}`))).catch(() => {});
-          endGoalExec('COMPLETED', toolResult?.slice(0, 500));
+
+            // Control plane evaluates completion contract
+            try {
+              const { backgroundTaskRepo } = await import('../services/backgroundTasks/store.js');
+              const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+              const linkedTask = backgroundTaskRepo.findByLinkedRun(goalId);
+
+              if (linkedTask) {
+                const verified = backgroundTaskManager.verifyCompletion(linkedTask.taskId, {
+                  resultText: finalMessageText,
+                  verificationNote: `Worker reported WORKER_DONE.`,
+                });
+
+                if (verified && verified.status === 'completed') {
+                  goalStore.update(goalId, { status: 'completed' });
+                  endGoalExec('COMPLETED', toolResult?.slice(0, 500));
+                } else {
+                  goalStore.update(goalId, { status: 'validating_worker_output' });
+                  pushEventToWriter(writer, 'validation_rejected', 'Worker completion rejected: required machine evidence missing', undefined, undefined, {
+                    normalizedStatus: 'attention',
+                    lifecycleState: 'retrying',
+                    userMessage: 'Completion contract validation rejected worker self-certification. Missing machine evidence.',
+                    eventType: 'validation_failed',
+                    payload: { blocker: verified?.blocker }
+                  });
+                  endGoalExec('CANCELLED', 'Completion contract validation rejected worker self-certification.');
+                }
+              } else {
+                goalStore.update(goalId, { status: 'completed' });
+                endGoalExec('COMPLETED', toolResult?.slice(0, 500));
+              }
+            } catch (err: any) {
+              goalStore.update(goalId, { status: 'validating_worker_output' });
+              endGoalExec('FAILED', `Control plane evaluation: ${err.message}`);
+            }
             break;
           }
           else {

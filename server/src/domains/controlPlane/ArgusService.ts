@@ -228,10 +228,11 @@ export class ArgusService {
     // Validate camera perception evidence contract
     if (surface === 'camera' || parameters?.capability === 'camera.perceive') {
       const cam = parameters?.__cameraPerception || (uvRes.actualState as any);
+      const sha = cam?.frameSha256 || cam?.frameMetadata?.frameSha256;
       if (!cam || !cam.hasFrame) {
         strictlyVerified = false;
         failureReason = 'Physical camera frame was not acquired';
-      } else if (!cam.frameSha256 || cam.frameSha256.length !== 64) {
+      } else if (!sha || sha.length !== 64) {
         strictlyVerified = false;
         failureReason = 'Cryptographic physical camera frame hash missing';
       }

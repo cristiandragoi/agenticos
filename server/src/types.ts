@@ -156,7 +156,7 @@ export interface RunRecord {
   updatedAt: string;
 }
 
-export type GoalState = "queued" | "planning" | "executing" | "reasoning" | "validating" | "checkpointed" | "paused" | "retrying" | "completed" | "failed" | "stopped" | "interrupted" | "pause_requested" | "waiting_for_approval" | "tool_completed" | "tool_started" | "artifact_created" | "agent_completed" | "checkpoint_written" | "verification_completed" | "handoff_created" | "recovery_conflict" | "recovery_available" | "agent_started" | "agent_switch" | "team_paused" | "team_completed" | "repair_requested" | "team_resumed" | "user_action_required";
+export type GoalState = "queued" | "planning" | "executing" | "reasoning" | "validating" | "checkpointed" | "paused" | "retrying" | "completed" | "failed" | "stopped" | "interrupted" | "pause_requested" | "waiting_for_approval" | "tool_completed" | "tool_started" | "artifact_created" | "agent_completed" | "checkpoint_written" | "verification_completed" | "handoff_created" | "recovery_conflict" | "recovery_available" | "agent_started" | "agent_switch" | "team_paused" | "team_completed" | "repair_requested" | "team_resumed" | "user_action_required" | "worker_done" | "validating_worker_output" | "validation_rejected";
 
 export type NormalizedStatus = 'idle' | 'active' | 'planning' | 'attention' | 'completed' | 'failed';
 

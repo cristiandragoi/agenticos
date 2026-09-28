@@ -22,6 +22,7 @@ import path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { logger } from '../../utils/logger.js';
+import { resolveScriptPath } from '../../utils/scriptResolver.js';
 import { repairKnowledgeStore } from './RepairKnowledgeStore.js';
 
 const execAsync = promisify(exec);
@@ -97,12 +98,16 @@ export class WindowsApplicationResolver {
     for (const app of taskbarApps) {
       const matchScore = this.scoreMatch(lower, app.name, explicitTaskbar ? 0.15 : 0.05);
       if (matchScore > 0.4) {
+        const procName = app.targetPath
+          ? path.basename(app.targetPath, path.extname(app.targetPath)).toLowerCase()
+          : app.name.toLowerCase();
         candidates.push({
           name: app.name,
           source: 'taskbar',
           shortcutPath: app.path,
           targetPath: app.targetPath || app.path,
           arguments: app.arguments,
+          processName: procName,
           score: matchScore + (explicitTaskbar ? 0.1 : 0),
           description: `Taskbar Pinned Shortcut: ${app.name}`,
         });
@@ -195,12 +200,38 @@ export class WindowsApplicationResolver {
     if (!fs.existsSync(taskbarDir)) return [];
 
     try {
+      const ps = [
+        '$sh = New-Object -ComObject WScript.Shell;',
+        `Get-ChildItem -Path '${taskbarDir.replace(/\\\\/g, '\\\\\\\\')}' -Filter *.lnk | ForEach-Object {`,
+        '  $sc = $sh.CreateShortcut($_.FullName);',
+        '  [PSCustomObject]@{',
+        '    name = $_.BaseName;',
+        '    path = $_.FullName;',
+        '    targetPath = $sc.TargetPath;',
+        '    arguments = $sc.Arguments;',
+        '  }',
+        '} | ConvertTo-Json -Compress',
+      ].join(' ');
+      const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, { timeout: 3000 });
+      if (stdout.trim()) {
+        const parsed = JSON.parse(stdout.trim());
+        const list = Array.isArray(parsed) ? parsed : [parsed];
+        return list.map((item: any) => ({
+          name: String(item.name || ''),
+          path: String(item.path || ''),
+          targetPath: item.targetPath ? String(item.targetPath) : undefined,
+          arguments: item.arguments ? String(item.arguments) : undefined,
+        }));
+      }
+    } catch {}
+
+    try {
       const files = fs.readdirSync(taskbarDir);
       const result: Array<{ name: string; path: string }> = [];
       for (const file of files) {
         if (file.toLowerCase().endsWith('.lnk')) {
           result.push({
-            name: file.replace(/\.lnk$/i, ''),
+            name: file.replace(/\\.lnk$/i, ''),
             path: path.join(taskbarDir, file),
           });
         }
@@ -216,11 +247,14 @@ export class WindowsApplicationResolver {
    */
   public async getVisibleWindows(): Promise<Array<{ hwnd: number; pid: number; process: string; title: string }>> {
     try {
-      const scriptPath = path.resolve(process.cwd(), 'server', 'scripts', 'list_desktop_windows.ps1');
+      const scriptPath = resolveScriptPath('list_desktop_windows.ps1');
       if (fs.existsSync(scriptPath)) {
-        const { stdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, { timeout: 3000 });
-        if (stdout.trim().startsWith('[')) {
-          return JSON.parse(stdout.trim());
+        const { stdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, { timeout: 10000 });
+        const trimmed = stdout.trim();
+        const jsonStart = trimmed.indexOf('[');
+        const jsonEnd = trimmed.lastIndexOf(']');
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          return JSON.parse(trimmed.substring(jsonStart, jsonEnd + 1));
         }
       }
     } catch {}

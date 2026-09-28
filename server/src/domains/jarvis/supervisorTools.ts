@@ -10,6 +10,7 @@ import { AgentProviderAssignmentService, mapCatalogToGatewayId } from '../../ser
 import { hermesApiService } from '../../services/hermesApiService.js';
 import { hermesWatchdog } from '../../services/hermesWatchdog.js';
 import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js';
+import { backgroundTaskRepo } from '../../services/backgroundTasks/store.js';
 import type { DelegationEnvelope } from '../../services/backgroundTasks/types.js';
 import { getScopedJarvisMemoryContext } from './coreMemory.js';
 import { memoryStore } from '../../services/memory/store.js';
@@ -161,7 +162,7 @@ export interface DelegateHermesInput {
 
 export interface DelegateHermesOutput {
   taskId: string;
-  worker: 'hermes';
+  worker: 'hermes' | 'codex' | 'antigravity' | string;
   status: 'queued' | 'running' | 'blocked';
   objective: string;
   context?: string;
@@ -277,7 +278,99 @@ export async function delegateHermesTask(input: DelegateHermesInput): Promise<De
 }
 
 /* ────────────────────────────────────────────────────────────
- * Tool 3: delegate_codex_goal (LEGACY REDIRECT - CODEX_INVOCATION_DISABLED=true)
+ * Tool 3: delegate_antigravity_task (First-Class Preferred Engineering Worker)
+ * ──────────────────────────────────────────────────────────── */
+
+export interface DelegateAntigravityInput {
+  objective: string;
+  context?: string;
+  targetFiles?: string[];
+  conversationId?: string;
+  workspacePath?: string;
+  envelope?: Partial<DelegationEnvelope>;
+}
+
+export async function delegateAntigravityTask(input: DelegateAntigravityInput): Promise<DelegateHermesOutput> {
+  const { objective, context, conversationId, workspacePath, envelope } = input;
+  if (!objective || typeof objective !== 'string') {
+    throw new Error('delegate_antigravity_task requires a non-empty "objective" parameter.');
+  }
+
+  const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || 'D:\\AgenticOS';
+  const fullObjective = context ? `${objective.trim()}\n\nRelevant Context:\n${context.trim()}` : objective.trim();
+  const title = objective.length > 64 ? `${objective.slice(0, 61)}…` : objective;
+
+  const delegationEnvelope: DelegationEnvelope = {
+    pendingActionId: envelope?.pendingActionId,
+    target: envelope?.target,
+    objective: envelope?.objective || objective,
+    acceptanceCriteria: envelope?.acceptanceCriteria,
+    constraints: envelope?.constraints,
+    relevantInstruction: envelope?.relevantInstruction || context,
+    relatedTaskIds: envelope?.relatedTaskIds,
+    relatedResultIds: envelope?.relatedResultIds,
+    parentGoal: envelope?.parentGoal,
+    worker: 'antigravity',
+  };
+
+  const { task, error } = backgroundTaskManager.createTask({
+    title,
+    objective: fullObjective,
+    originalRequest: objective,
+    route: 'engineering',
+    selectedAgent: 'AntiGravity',
+    worker: 'antigravity',
+    conversationId: conversationId || null,
+    resumable: true,
+    workspaceRoot: effectiveWorkspace,
+    metadata: {
+      delegatedBy: 'jarvis-supervisor',
+      context: context || null,
+      delegationEnvelope,
+    },
+  });
+
+  if (!task || error) {
+    throw new Error(error || 'Failed to create AntiGravity background task.');
+  }
+
+  const { dispatchTask } = await import('../../services/backgroundTasks/adapters.js');
+  try {
+    await dispatchTask(task, effectiveWorkspace);
+  } catch (err: any) {
+    logger.error(`[supervisorTools] dispatch error for ${task.taskId}: ${err?.message}`);
+  }
+
+  const updatedTask = backgroundTaskRepo.getTask(task.taskId);
+  const { engineeringWorkerRegistry } = await import('../controlPlane/EngineeringWorkerRegistry.js');
+  const events = engineeringWorkerRegistry.getWorkerEvents('antigravity').filter(e => e.taskId === task.taskId);
+  const convId = updatedTask?.linkedRunId;
+  const isAccepted = updatedTask && (updatedTask.status === 'executing' || updatedTask.status === 'worker_accepted' || updatedTask.status === 'completed');
+
+  if (isAccepted && convId && events.length > 0) {
+    const firstEvent = events[0].eventType;
+    return {
+      taskId: task.taskId,
+      worker: 'antigravity',
+      status: 'executing',
+      objective,
+      context,
+      message: `AntiGravity has accepted task ${task.taskId.slice(0, 8)} (session ${convId}) and started execution in ${effectiveWorkspace}. Initial event: ${firstEvent}.`,
+    };
+  }
+
+  return {
+    taskId: task.taskId,
+    worker: 'antigravity',
+    status: updatedTask?.status === 'blocked' ? 'blocked' : 'queued',
+    objective,
+    context,
+    message: `AntiGravity task ${task.taskId.slice(0, 8)} is pending startup: ${updatedTask?.blocker || 'waiting for session verification'}.`,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Tool 4: delegate_codex_goal
  * ──────────────────────────────────────────────────────────── */
 
 export interface DelegateCodexInput {
@@ -292,14 +385,62 @@ export interface DelegateCodexInput {
 }
 
 export async function delegateCodexGoal(input: DelegateCodexInput): Promise<DelegateHermesOutput> {
-  logger.warn('[supervisorTools] delegate_codex_goal called but Codex invocation is permanently disabled (CODEX_INVOCATION_DISABLED=true). Routing directly to delegate_hermes_task.');
-  return delegateHermesTask({
-    objective: input.goal || (input as any).objective || '',
-    context: input.context,
-    envelope: input.envelope,
-    conversationId: input.conversationId,
-    workspacePath: input.workspacePath,
+  const objective = input.goal || (input as any).objective || '';
+  if (!objective || typeof objective !== 'string') {
+    throw new Error('delegate_codex_goal requires a non-empty "goal" parameter.');
+  }
+
+  const effectiveWorkspace = input.workspacePath || (await getWorkspaceRoot()) || 'D:\\AgenticOS';
+  const fullObjective = input.context ? `${objective.trim()}\n\nRelevant Context:\n${input.context.trim()}` : objective.trim();
+  const title = objective.length > 64 ? `${objective.slice(0, 61)}…` : objective;
+
+  const delegationEnvelope: DelegationEnvelope = {
+    pendingActionId: input.envelope?.pendingActionId,
+    target: input.envelope?.target,
+    objective: input.envelope?.objective || objective,
+    acceptanceCriteria: input.envelope?.acceptanceCriteria,
+    constraints: input.envelope?.constraints,
+    relevantInstruction: input.envelope?.relevantInstruction || input.context,
+    relatedTaskIds: input.envelope?.relatedTaskIds,
+    relatedResultIds: input.envelope?.relatedResultIds,
+    parentGoal: input.envelope?.parentGoal,
+    worker: 'codex',
+  };
+
+  const { task, error } = backgroundTaskManager.createTask({
+    title,
+    objective: fullObjective,
+    originalRequest: objective,
+    route: 'engineering',
+    selectedAgent: 'CodeX',
+    worker: 'codex',
+    conversationId: input.conversationId || null,
+    resumable: true,
+    workspaceRoot: effectiveWorkspace,
+    metadata: {
+      delegatedBy: 'jarvis-supervisor',
+      context: input.context || null,
+      delegationEnvelope,
+    },
   });
+
+  if (!task || error) {
+    throw new Error(error || 'Failed to create CodeX background task.');
+  }
+
+  const { dispatchTask } = await import('../../services/backgroundTasks/adapters.js');
+  dispatchTask(task, effectiveWorkspace).catch((err: any) => {
+    logger.error(`[supervisorTools] dispatch error for ${task.taskId}: ${err?.message}`);
+  });
+
+  return {
+    taskId: task.taskId,
+    worker: 'codex',
+    status: 'queued',
+    objective,
+    context: input.context,
+    message: `CodeX task ${task.taskId.slice(0, 8)} has been queued and dispatched.`,
+  };
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -472,6 +613,28 @@ export const SUPERVISOR_TOOL_SCHEMAS = [
     }
   },
   {
+    name: 'delegate_antigravity_task',
+    description: 'Delegate implementation, coding, repository inspection, file editing, or bug fixing to AntiGravity (the preferred engineering worker). Use when the user asks AntiGravity to work on code or diagnose/repair issues.',
+    parameters: {
+      type: 'object',
+      properties: {
+        objective: {
+          type: 'string',
+          description: 'Fully resolved, descriptive objective for AntiGravity.'
+        },
+        context: {
+          type: 'string',
+          description: 'Contextual details or background information from previous turns.'
+        },
+        envelope: {
+          type: 'object',
+          description: 'Structured delegation envelope.'
+        }
+      },
+      required: ['objective']
+    }
+  },
+  {
     name: 'recall_memory',
     description: 'Recall structured user preferences, persistent project decisions, or stored knowledge.',
     parameters: {
@@ -510,13 +673,18 @@ export async function executeSupervisorTool(
   switch (toolName) {
     case 'get_system_health':
       return await getSystemHealth(parameters);
+    case 'delegate_antigravity_task':
+      return await delegateAntigravityTask({
+        objective: parameters.objective || '',
+        context: parameters.context,
+        envelope: parameters.envelope,
+        ...context,
+      });
     case 'delegate_hermes_task':
       return await delegateHermesTask({ objective: parameters.objective || '', context: parameters.context, envelope: parameters.envelope, ...context });
     case 'delegate_codex_goal':
-      // Hard redirect legacy invocations to Hermes with warning (CODEX_INVOCATION_DISABLED=true)
-      logger.warn('[SupervisorTool] Legacy delegate_codex_goal redirected exclusively to delegate_hermes_task (CODEX_INVOCATION_DISABLED=true)');
-      return await delegateHermesTask({
-        objective: parameters.goal || parameters.objective || '',
+      return await delegateCodexGoal({
+        goal: parameters.goal || parameters.objective || '',
         context: parameters.context,
         envelope: parameters.envelope,
         ...context,

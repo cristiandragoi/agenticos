@@ -61,6 +61,7 @@ export class CapabilityCertificationRegistry {
     'microphone.stt',
     'location.read',
     'repository.inspect',
+    'engineering.antigravity',
     'engineering.codex',
     'engineering.hermes',
     'verification.argus',
@@ -279,6 +280,19 @@ export class CapabilityCertificationRegistry {
 
     // 7. Engineering & Verification Workers
     try {
+      const { discoverAntigravityDesktopSession } = await import('../../services/backgroundTasks/antigravityAdapter.js');
+      const agDiscovery = discoverAntigravityDesktopSession();
+      this.recordCertification({
+        capability: 'engineering.antigravity',
+        status: agDiscovery.ok ? 'VERIFIED' : 'DEGRADED',
+        evidence: {
+          worker: 'antigravity',
+          activeConversationId: agDiscovery.activeConversationId,
+          agentapiPath: agDiscovery.agentapiPath,
+          isDesktopRunning: agDiscovery.isDesktopRunning,
+        },
+        failureReason: agDiscovery.ok ? undefined : agDiscovery.error,
+      });
       this.recordCertification({
         capability: 'verification.argus',
         status: 'VERIFIED',

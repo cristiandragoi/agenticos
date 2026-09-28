@@ -671,10 +671,13 @@ export function codexGoalReportedFailure(goal: any): boolean {
 function ensureCodexTerminal(taskId: string, resultText: string): void {
   const after = backgroundTaskRepo.getTask(taskId);
   if (!after || TERMINAL_STATUSES.has(after.status)) return;
-  backgroundTaskManager.transition(taskId, 'failed', {
+  if (['validating_worker_output', 'recovering', 'testing', 'building', 'deploying', 'retrying_original_goal', 'argus_verifying'].includes(after.status)) {
+    return;
+  }
+  backgroundTaskManager.transition(taskId, 'validating_worker_output', {
     resultText,
     verificationState: 'failed',
-    blocker: `CodeX goal completed but the task could not finalize (${after.blocker || 'verification did not pass'}).`,
+    blocker: `Worker finished but completion contract validation did not pass (${after.blocker || 'verification did not pass'}).`,
   });
 }
 
@@ -866,6 +869,44 @@ export function attachCodexGoalListener(taskId: string, goalId: string, resumeFr
             jarvisExecutionSupervisor.recordActivity(taskId, 'tool_started', { toolName });
           }
         }).catch(() => {});
+
+        // Phase 10: Unified Observability Contract across all Engineering Workers
+        import('../../domains/controlPlane/EngineeringWorkerRegistry.js').then(({ engineeringWorkerRegistry }) => {
+          const toolName = ge.tool || '';
+          const payloadPath = ge.filePath || (ge.payload as any)?.path;
+          const payloadCmd = (ge.payload as any)?.command || (ge.payload as any)?.cmd;
+
+          let eventType: any = 'COMMAND_STARTED';
+          if (/read|view/i.test(toolName)) {
+            eventType = 'FILE_READ';
+          } else if (/grep|find|search|glob|list/i.test(toolName)) {
+            eventType = 'FILE_SEARCH';
+          } else if (/edit|write|replace|patch/i.test(toolName)) {
+            eventType = 'FILE_EDITED';
+          } else if (/test|vitest|jest|pytest/i.test(toolName) || /vitest|jest|pytest/i.test(payloadCmd || '')) {
+            const st = String(ge.state || '');
+            eventType = (st === 'error' || st === 'failed') ? 'TEST_FAILED' : (st === 'completed' ? 'TEST_PASSED' : 'TEST_STARTED');
+          } else if (/build|compile/i.test(toolName) || /npm run build|vite build/i.test(payloadCmd || '')) {
+            const st = String(ge.state || '');
+            eventType = (st === 'error' || st === 'failed') ? 'BUILD_FAILED' : (st === 'completed' ? 'BUILD_PASSED' : 'BUILD_STARTED');
+          } else if (String(ge.state) === 'error' || String(ge.state) === 'failed') {
+            eventType = 'COMMAND_FAILED';
+          } else if (String(ge.state) === 'completed') {
+            eventType = 'COMMAND_OUTPUT';
+          }
+
+          engineeringWorkerRegistry.recordWorkerEvent({
+            taskId,
+            goalId,
+            workerId: 'codex',
+            runId: goalId,
+            eventType,
+            file: payloadPath,
+            command: payloadCmd || toolName,
+            output: ge.message,
+            metadata: { step: ge.step, state: ge.state },
+          });
+        }).catch(() => {});
       }
     }
   };
@@ -965,33 +1006,47 @@ export async function dispatchCodexTask(task: BackgroundTaskRecord, workspacePat
     const baseEnvelopeObjective = buildStructuredPromptFromEnvelope(task);
     const domainContext = await resolveAuthorizedDomainContext(task);
     const envelopeObjective = domainContext ? `${baseEnvelopeObjective}\n${domainContext}` : baseEnvelopeObjective;
-    const goalId = await codexService.createGoal(
-      envelopeObjective,
-      workspacePath,
-      approvalPolicy,
-      undefined,
-      task.conversationId || undefined,
-      undefined,
-      // Policy-driven execution options: disableFallback keeps localOnly
-      // content local; allowCloudEscalation gates the planning escalation.
-      // Recovery overrides (providerOverride/modelOverride) pin the
-      // recovery-effective model into the actual goal run.
-      {
-        disableFallback: policyFlags.disableFallback,
-        allowCloudEscalation: policyFlags.allowEscalation,
-        requiresApproval: approvalPolicy === 'auto' ? false : undefined,
-        ...(pin.providerOverride ? { providerOverride: pin.providerOverride } : {}),
-        ...(pin.modelOverride ? { modelOverride: pin.modelOverride } : {}),
-      },
-    );
 
-    backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: goalId, resumable: true });
-    mgr.appendEvent(task.taskId, 'task.run_linked', `CodeX goal linked (${goalId}).`, { goalId });
-    mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: CodeX (checkpointed goal loop).', { agent: 'CodeX' });
+    let goalId: string;
+    const existingGoal = task.linkedRunId ? goalStore.get(task.linkedRunId) : null;
 
-    // Stream goalStore events into the task contract (restart-safe: the bridge
-    // is re-attached by reconcileCodexTasksAfterRestart on backend restart).
-    attachCodexGoalListener(task.taskId, goalId, 0);
+    if (existingGoal) {
+      // INVARIANT: DO NOT CREATE ANOTHER GOALRUN. Reuse existing goal and resume it.
+      goalId = task.linkedRunId!;
+      const rejectionNote = (task.metadata as any)?.workerFeedback || task.blocker || 'Validation rejected: required engineering repair missing.';
+      goalStore.update(goalId, {
+        status: 'queued',
+        originalGoal: `${existingGoal.originalGoal}\n\n[CONTINUATION / RECOVERY DIRECTIVE]\n${rejectionNote}`,
+      });
+      mgr.appendEvent(task.taskId, 'task.run_linked', `Reusing existing CodeX goal (${goalId}) for recovery continuation.`, { goalId });
+      attachCodexGoalListener(task.taskId, goalId, (existingGoal.history || []).length);
+      void resumeCodexGoalLoop(goalId);
+    } else {
+      goalId = await codexService.createGoal(
+        envelopeObjective,
+        workspacePath,
+        approvalPolicy,
+        undefined,
+        task.conversationId || undefined,
+        undefined,
+        // Policy-driven execution options: disableFallback keeps localOnly
+        // content local; allowCloudEscalation gates the planning escalation.
+        // Recovery overrides (providerOverride/modelOverride) pin the
+        // recovery-effective model into the actual goal run.
+        {
+          disableFallback: policyFlags.disableFallback,
+          allowCloudEscalation: policyFlags.allowEscalation,
+          requiresApproval: approvalPolicy === 'auto' ? false : undefined,
+          ...(pin.providerOverride ? { providerOverride: pin.providerOverride } : {}),
+          ...(pin.modelOverride ? { modelOverride: pin.modelOverride } : {}),
+        },
+      );
+
+      backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: goalId, resumable: true });
+      mgr.appendEvent(task.taskId, 'task.run_linked', `CodeX goal linked (${goalId}).`, { goalId });
+      mgr.appendEvent(task.taskId, 'task.agent_selected', 'Worker: CodeX (checkpointed goal loop).', { agent: 'CodeX' });
+      attachCodexGoalListener(task.taskId, goalId, 0);
+    }
 
     mgr.registerWorkerHandlers(task.taskId, {
       stop: async () => {
@@ -1768,8 +1823,7 @@ export async function dispatchTask(task: BackgroundTaskRecord, workspacePath?: s
     case 'hermes':
       return dispatchHermesTask(task, root);
     case 'codex':
-      // CODEX_INVOCATION_DISABLED=true: Route engineering requests to Hermes Closed-Loop Orchestrator
-      return dispatchHermesTask(task, root);
+      return dispatchCodexTask(task, root);
     case 'research': return dispatchResearchTask(task);
     case 'team': return dispatchTeamTask(task, root);
     case 'automation': return dispatchAutomationTask(task);

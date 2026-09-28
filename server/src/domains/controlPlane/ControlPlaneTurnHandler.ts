@@ -553,11 +553,14 @@ export class ControlPlaneTurnHandler {
       });
 
       // Update Referent Memory
+      const isAppSurface = ['desktop', 'executable', 'desktop_observe', 'taskbar', 'start_menu', 'app_user_model_id', 'process'].includes(primaryStrategy.surface);
       this.updateReferent(conversationId, {
         activeGoalId: goalRun.goalId,
         activeIntent: verb,
         activeTarget: target,
-        activeApplication: (primaryStrategy.surface === 'desktop' || primaryStrategy.surface === 'executable' || primaryStrategy.surface === 'desktop_observe') ? target : undefined,
+        activeApplication: isAppSurface ? target : (this.getReferent(conversationId)?.activeApplication || undefined),
+        activeWindow: (parameters?.__inspectionResult?.windowTitle || parameters?.targetWindow || (isAppSurface ? target : undefined)),
+        activePerceptionSource: primaryStrategy.surface === 'camera' ? 'camera' : (primaryStrategy.surface === 'desktop_observe' ? 'screen' : this.getReferent(conversationId)?.activePerceptionSource),
         lastEvidence: verification.evidence,
         lastVerifierResult: verification,
       });
@@ -684,31 +687,29 @@ export class ControlPlaneTurnHandler {
     const lower = t.toLowerCase();
     const referent = this.getReferent(conversationId);
 
-    // 0a. Camera Visual Perception Queries (Section 11)
-    if (/\b(?:can you see me|see me|what am i holding|what's in my hand|what is in my hand|what do you see|what is this|look at this|describe me)\b/i.test(lower)) {
+    // 0a. Visible Desktop / Screen Observation (desktop.observe)
+    // Matches "What do you see on my screen?", "What is on my screen?", "Read what is inside Hermes 1", "Read what is inside it"
+    if (
+      /\b(?:what\s+is\s+on\s+(?:my\s+|the\s+)?screen|what\s+do\s+you\s+see\s+on\s+(?:my\s+|the\s+)?screen|on\s+my\s+screen|on\s+the\s+screen|read\s+what\s+is\s+inside|what\s+is\s+inside|read\s+what\s+is\s+in|what's\s+inside|read\s+this\s+window|read\s+the\s+window|inspect\s+window|inspect\s+desktop)\b/i.test(lower)
+    ) {
+      const appMatch = t.match(/\b(?:inside|in|of)\s+([A-Za-z0-9_\-\s]+?)(?:\?|\.|$)/i);
+      let targetApp = appMatch ? appMatch[1].trim() : '';
+      if (/^(?:it|that|this|the app|the window|the screen|screen|my screen)$/i.test(targetApp) || !targetApp) {
+        targetApp = referent?.activeWindow || referent?.activeApplication || referent?.activeTarget || '';
+      }
       return {
-        verb: 'perceive',
-        target: 'camera',
+        verb: 'observe',
+        target: targetApp || 'screen',
         entityType: 'capability',
-        parameters: { capability: 'camera.perceive', prompt: t, userQuestion: t },
+        parameters: { capability: 'desktop.observe', targetWindow: targetApp, prompt: t, userInquiry: t },
       };
     }
 
-    // 0b. Location Queries
-    if (/\b(?:where am i|what is my location|what's my location|where is this|my location)\b/i.test(lower)) {
-      return {
-        verb: 'read',
-        target: 'location',
-        entityType: 'capability',
-        parameters: { capability: 'location.read', prompt: t },
-      };
-    }
-
-    // 0c. Desktop Screenshot (screen.capture)
+    // 0b. Desktop Screenshot (screen.capture)
     if (/\b(?:take|capture)\s+(?:a\s+)?(?:screenshot|snapshot|screen\s+capture)\b/i.test(lower) || /\b(?:screenshot|snapshot)\b/i.test(lower)) {
       const windowMatch = t.match(/\b(?:of|for)\s+(?:the\s+)?(.+?)(?:\s+window|\s+page|$)/i);
       let targetWindow = windowMatch ? windowMatch[1].trim() : '';
-      if (/^(?:it|that|this|the app|the window)$/i.test(targetWindow)) {
+      if (/^(?:it|that|this|the app|the window|screen|desktop)$/i.test(targetWindow)) {
         targetWindow = referent?.activeWindow || referent?.activeApplication || referent?.activeTarget || '';
       }
       return {
@@ -719,18 +720,27 @@ export class ControlPlaneTurnHandler {
       };
     }
 
-    // 0d. Visible Desktop Application Content Reading (desktop.observe)
-    if (/\b(?:read\s+what\s+is\s+inside|what\s+is\s+inside|read\s+what\s+is\s+in|what's\s+inside|what\s+is\s+on\s+my\s+screen|what\s+do\s+you\s+see\s+on\s+(?:the\s+)?screen|read\s+this\s+window|read\s+the\s+window)\b/i.test(lower)) {
-      const appMatch = t.match(/\b(?:inside|in|of)\s+([A-Za-z0-9_\-\s]+?)(?:\?|\.|$)/i);
-      let targetApp = appMatch ? appMatch[1].trim() : '';
-      if (/^(?:it|that|this|the app|the window)$/i.test(targetApp) || !targetApp) {
-        targetApp = referent?.activeWindow || referent?.activeApplication || referent?.activeTarget || '';
-      }
+    // 0c. Camera Visual Perception Queries (camera.perceive)
+    // Matches queries directed at the camera/user: "can you see me", "describe me", "what am i holding"
+    if (
+      !/\b(?:screen|desktop|display|monitor)\b/i.test(lower) &&
+      /\b(?:can you see me|see me|what am i holding|what's in my hand|what is in my hand|what do you see|what is this|look at this|describe me)\b/i.test(lower)
+    ) {
       return {
-        verb: 'observe',
-        target: targetApp || 'active_window',
+        verb: 'perceive',
+        target: 'camera',
         entityType: 'capability',
-        parameters: { capability: 'desktop.observe', targetWindow: targetApp, prompt: t, userInquiry: t },
+        parameters: { capability: 'camera.perceive', prompt: t, userQuestion: t },
+      };
+    }
+
+    // 0d. Location Queries
+    if (/\b(?:where am i|what is my location|what's my location|where is this|my location)\b/i.test(lower)) {
+      return {
+        verb: 'read',
+        target: 'location',
+        entityType: 'capability',
+        parameters: { capability: 'location.read', prompt: t },
       };
     }
 
@@ -811,10 +821,14 @@ export class ControlPlaneTurnHandler {
       return `Captured screenshot of ${target}.`;
     }
     if (surface === 'camera' || verb === 'perceive') {
-      if (parameters?.__cameraPerception?.answer) {
-        return parameters.__cameraPerception.answer;
+      const cam = parameters?.__cameraPerception;
+      if (cam?.answer) {
+        return cam.answer;
       }
-      return `I can see you through the physical camera. You are present at your workstation.`;
+      if (cam?.hasFrame) {
+        return 'Camera frame captured and verified.';
+      }
+      return 'I cannot currently see you because no active physical camera frame was captured.';
     }
     if (surface === 'browser') {
       return `${target} is open.`;

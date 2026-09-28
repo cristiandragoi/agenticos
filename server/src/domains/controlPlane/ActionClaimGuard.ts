@@ -52,14 +52,13 @@ export class ActionClaimGuard {
     // List of protected claim patterns
     const protectedPatterns = [
       /\b(?:i(?:'ve|\s+have)?\s+(?:opened|launched|started))\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+captured\s+(?:a\s+)?screenshot)\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+taken\s+(?:a\s+)?screenshot)\b/i,
+      /\b(?:completed\s+successfully)\b/i,
+      /\b(?:screenshot\s+(?:is\s+)?completed)\b/i,
+      /\b(?:desktop\s+completed)\b/i,
+      /\b(?:application\s+opened)\b/i,
+      /\b(?:found\s+.+)\b/i,
       /\b(?:i\s+can\s+see\s+(?:you|your))\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+(?:found|located))\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+(?:created|made|written))\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+(?:fixed|repaired|healed))\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+(?:deployed|installed))\b/i,
-      /\b(?:i(?:'ve|\s+have)?\s+(?:verified|confirmed))\b/i,
+      /\b(?:i\s+see\s+you)\b/i,
       /\b(?:is\s+now\s+open)\b/i,
       /\b(?:is\s+open)\b/i,
     ];
@@ -97,6 +96,14 @@ export class ActionClaimGuard {
     const s = (surface || '').toLowerCase();
     const t = (target || '').toLowerCase();
 
+    // Browser cannot fulfill desktop or screenshot goals
+    if (
+      (proposedText.toLowerCase().includes('screenshot') || t.includes('screenshot') || t === 'desktop') &&
+      s === 'browser'
+    ) {
+      violations.push('Browser execution cannot fulfill desktop screenshot goal');
+    }
+
     // Screenshot claims require actual existing image artifact with byteSize >= 1024
     if (proposedText.toLowerCase().includes('screenshot')) {
       const actual = effectiveVerif?.actualState as any;
@@ -107,10 +114,17 @@ export class ActionClaimGuard {
       }
     }
 
-    // Camera claims require verified physical frame hash
-    if (proposedText.toLowerCase().includes('see you') || s === 'camera' || t.includes('camera')) {
+    // Camera vision claims require verified physical frame hash
+    const isVisionPerceptionClaim =
+      proposedText.toLowerCase().includes('see you') ||
+      proposedText.toLowerCase().includes('can see') ||
+      s === 'camera' ||
+      (t.includes('camera') && (s === 'camera' || s === 'camera_perceive'));
+
+    if (isVisionPerceptionClaim) {
       const actual = effectiveVerif?.actualState as any;
-      if (!actual?.hasFrame || !actual?.frameSha256) {
+      const sha = actual?.frameSha256 || actual?.frameMetadata?.frameSha256;
+      if (!actual?.hasFrame || !sha) {
         violations.push('Camera vision claim requires a physical captured frame and cryptographic hash');
       }
     }

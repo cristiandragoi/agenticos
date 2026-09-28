@@ -58,9 +58,13 @@ export class AlternativeStrategyPlanner {
       });
     }
 
-    // Generic fallbacks if no specific discovered capability (only for open/search/read, never for mutations)
+    // Generic fallbacks if no specific discovered capability:
+    // PROHIBIT falling back to browser search or shell start for perception, capture, observe, or sensor capabilities!
+    const isPerceptionOrSensor = /^(?:capture_screenshot|observe|perceive|desktop_observe|screen\.capture|camera\.perceive|location\.read)/i.test(goalType) ||
+      /^(?:screen|screenshot|desktop|camera|location|window|active_window)$/i.test(target);
     const isMutation = /^(?:rename|set_|change_|update|create|delete|modify)/i.test(goalType);
-    if (!isMutation) {
+
+    if (!isMutation && !isPerceptionOrSensor) {
       if (!failedSurfaces.includes('shell') && process.platform === 'win32') {
         proposals.push({
           strategyName: 'strategy-shell-start',

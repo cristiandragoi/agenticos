@@ -16,6 +16,7 @@ import crypto from 'node:crypto';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { logger } from '../../utils/logger.js';
+import { resolveScriptPath } from '../../utils/scriptResolver.js';
 import { capabilityPermissionStore } from '../../domains/controlPlane/CapabilityPermissionStore.js';
 
 const execAsync = promisify(exec);
@@ -85,11 +86,17 @@ export class DesktopPerceptionService {
     const fileName = `screenshot-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.png`;
     const artifactPath = path.join(this.screenshotDir, fileName);
 
-    const scriptPath = path.resolve(process.cwd(), 'server', 'scripts', 'desktop_perception.ps1');
-    const targetQuery = options.targetWindow || '';
+    const scriptPath = resolveScriptPath('desktop_perception.ps1');
+    const targetQuery = (options.targetWindow || '').trim();
     const hwndArg = options.hwnd || 0;
 
-    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "capture" -TargetQuery "${targetQuery.replace(/"/g, '`"')}" -Hwnd ${hwndArg} -OutScreenshotPath "${artifactPath}"`;
+    let targetQueryArg = '';
+    if (targetQuery && targetQuery.toLowerCase() !== 'desktop' && targetQuery.toLowerCase() !== 'screen') {
+      targetQueryArg = ` -TargetQuery "${targetQuery.replace(/"/g, '`"')}"`;
+    }
+    const hwndFlag = hwndArg > 0 ? ` -Hwnd ${hwndArg}` : '';
+
+    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "capture"${targetQueryArg}${hwndFlag} -OutScreenshotPath "${artifactPath}"`;
 
     try {
       const { stdout } = await execAsync(cmd, { timeout: 10000 });
@@ -158,7 +165,7 @@ export class DesktopPerceptionService {
       };
     }
 
-    const scriptPath = path.resolve(process.cwd(), 'server', 'scripts', 'desktop_perception.ps1');
+    const scriptPath = resolveScriptPath('desktop_perception.ps1');
     const fileName = `inspect-${Date.now()}.png`;
     const artifactPath = path.join(this.screenshotDir, fileName);
 
@@ -170,11 +177,34 @@ export class DesktopPerceptionService {
       targetQuery = queryOrHwnd.replace(/^(?:read|what is inside|inspect|examine)\s+(?:the\s+)?/i, '').trim();
     }
 
-    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "inspect" -TargetQuery "${targetQuery.replace(/"/g, '`"')}" -Hwnd ${hwnd} -OutScreenshotPath "${artifactPath}"`;
+    let targetQueryArg = '';
+    if (targetQuery && targetQuery.toLowerCase() !== 'desktop' && targetQuery.toLowerCase() !== 'screen') {
+      targetQueryArg = ` -TargetQuery "${targetQuery.replace(/"/g, '`"')}"`;
+    }
+    const hwndFlag = hwnd > 0 ? ` -Hwnd ${hwnd}` : '';
+
+    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "inspect"${targetQueryArg}${hwndFlag} -OutScreenshotPath "${artifactPath}"`;
 
     try {
       const { stdout } = await execAsync(cmd, { timeout: 12000 });
-      const parsed = JSON.parse(stdout.trim());
+      let parsed: any;
+      try {
+        parsed = JSON.parse(stdout.trim());
+      } catch (err: any) {
+        try {
+          const firstBrace = stdout.indexOf('{');
+          const lastBrace = stdout.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            const rawSlice = stdout.substring(firstBrace, lastBrace + 1);
+            const sanitized = rawSlice.replace(/[\u0000-\u001F]/g, ' ');
+            parsed = JSON.parse(sanitized);
+          } else {
+            throw err;
+          }
+        } catch {
+          throw new Error(`Failed to parse desktop perception output: ${err?.message}`);
+        }
+      }
 
       if (!parsed.success) {
         return {
@@ -280,14 +310,19 @@ export class DesktopPerceptionService {
    */
   public async listVisibleWindows(): Promise<Array<{ hwnd: number; pid: number; process: string; title: string }>> {
     try {
-      const scriptPath = path.resolve(process.cwd(), 'server', 'scripts', 'list_desktop_windows.ps1');
+      const scriptPath = resolveScriptPath('list_desktop_windows.ps1');
       if (fs.existsSync(scriptPath)) {
-        const { stdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, { timeout: 3000 });
-        if (stdout.trim().startsWith('[')) {
-          return JSON.parse(stdout.trim());
+        const { stdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, { timeout: 10000 });
+        const trimmed = stdout.trim();
+        const jsonStart = trimmed.indexOf('[');
+        const jsonEnd = trimmed.lastIndexOf(']');
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          return JSON.parse(trimmed.substring(jsonStart, jsonEnd + 1));
         }
       }
-    } catch {}
+    } catch (e: any) {
+      logger.warn(`[DesktopPerceptionService] listVisibleWindows error: ${e?.message}`);
+    }
     return [];
   }
 }
