@@ -1396,6 +1396,48 @@ export async function routeTurn(opts: {
     } as any);
   }
 
+  // ── 0. System & model introspection (MUST precede ControlPlaneTurnHandler) ──
+  // D-1: runtime diagnostics run ONLY when this turn explicitly refers to
+  // AgenticOS / the system / a service / a model. A turn that carries perception
+  // vocabulary ("what do you see", "show me", "read it", "what am I holding")
+  // must never be answered with runtime state, so it is refused here even when
+  // some introspection classifier matches it.
+  try {
+    const runtimeGated = !perceptionWordedTurn || perceptionDecision.runtimeIntentExplicit;
+    if (runtimeGated) {
+      const { detectSystemIntrospection, handleSystemIntrospection } = await import('../jarvis/systemIntrospection.js');
+      const intro = detectSystemIntrospection(effectivePrompt);
+      if (intro.isIntrospection && intro.subject) {
+        const activeName = focus.activeProjectName || focus.activeEntityName;
+        const introRes = await handleSystemIntrospection(intro.subject, conversationId, {
+          activeEntity: activeName ? {
+            id: focus.activeProjectId || focus.activeEntityId || '',
+            name: activeName,
+            displayName: activeName,
+            type: focus.activeEntityType || 'project',
+            domain: 'projects',
+          } : undefined,
+        } as any);
+        logger.info('[JRT] Early system introspection handled successfully', { subject: intro.subject, text: introRes.text });
+        return finish({
+          route: 'system_introspection' as any,
+          text: introRes.text,
+          evidence: true,
+          executed: true,
+          verified: true,
+        });
+      }
+    } else {
+      logger.info('[JRT] RUNTIME_DIAGNOSTICS_REFUSED', {
+        turnId: opts.turnId,
+        reason: perceptionDecision.runtimeIntentReason,
+        perceptionWorded: true,
+      });
+    }
+  } catch (introErr) {
+    logger.warn('[JRT] Early system introspection failed:', introErr);
+  }
+
   // ── Authoritative Control Plane Lifecycle (Single Production GoalRun Lifecycle) ──
   try {
     const { controlPlaneTurnHandler } = await import('../controlPlane/ControlPlaneTurnHandler.js');
@@ -1469,47 +1511,7 @@ export async function routeTurn(opts: {
     }
   }
 
-  // ── 0. System & model introspection ────────────────────────────────────────
-  // D-1: runtime diagnostics run ONLY when this turn explicitly refers to
-  // AgenticOS / the system / a service / a model. A turn that carries perception
-  // vocabulary ("what do you see", "show me", "read it", "what am I holding")
-  // must never be answered with runtime state, so it is refused here even when
-  // some introspection classifier matches it.
-  try {
-    const runtimeGated = !perceptionWordedTurn || perceptionDecision.runtimeIntentExplicit;
-    if (runtimeGated) {
-      const { detectSystemIntrospection, handleSystemIntrospection } = await import('../jarvis/systemIntrospection.js');
-      const intro = detectSystemIntrospection(effectivePrompt);
-      if (intro.isIntrospection && intro.subject) {
-        const activeName = focus.activeProjectName || focus.activeEntityName;
-        const introRes = await handleSystemIntrospection(intro.subject, conversationId, {
-          activeEntity: activeName ? {
-            id: focus.activeProjectId || focus.activeEntityId || '',
-            name: activeName,
-            displayName: activeName,
-            type: focus.activeEntityType || 'project',
-            domain: 'projects',
-          } : undefined,
-        } as any);
-        logger.info('[JRT] Early system introspection handled successfully', { subject: intro.subject, text: introRes.text });
-        return finish({
-          route: 'system_introspection' as any,
-          text: introRes.text,
-          evidence: true,
-          executed: true,
-          verified: true,
-        });
-      }
-    } else {
-      logger.info('[JRT] RUNTIME_DIAGNOSTICS_REFUSED', {
-        turnId: opts.turnId,
-        reason: perceptionDecision.runtimeIntentReason,
-        perceptionWorded: true,
-      });
-    }
-  } catch (introErr) {
-    logger.warn('[JRT] Early system introspection failed:', introErr);
-  }
+  // (system_introspection check has been moved above ControlPlaneTurnHandler for correct precedence)
 
   // ── 0b. Historical queries ("What was I asking about before the model question?") ──
   const histEarly = parseHistoricalQuery(effectivePrompt, focus.userTurns.slice(0, -1));

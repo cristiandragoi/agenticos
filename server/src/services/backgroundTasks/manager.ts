@@ -1294,7 +1294,16 @@ export class BackgroundTaskManager extends EventEmitter {
 
         let testOutput = 'Tests were not executed.';
         let testsExitedZero = false;
-        if (process.env.VITEST !== 'true') {
+        let testsSkipped = false;
+        if (process.env.VITEST === 'true') {
+          // Inside a vitest worker a child vitest process cannot be spawned (infinite recursion),
+          // so the test gate is SKIPPED here. A skipped test is not a passed test: record it
+          // truthfully and leave the task unverified so nothing downstream can certify it as
+          // tested. Never convert SKIPPED into PASSED.
+          testsSkipped = true;
+          testOutput = 'Test execution skipped: vitest worker environment (subprocess test run not possible).';
+          logger.info('[BackgroundTaskManager] Auto-continue test gate: vitest worker environment — subprocess execution skipped, test gate NOT passed.');
+        } else {
           try {
             const { execFile } = await import('node:child_process');
             const { promisify } = await import('node:util');
@@ -1313,19 +1322,33 @@ export class BackgroundTaskManager extends EventEmitter {
         }
 
         // Phase 1: the test state is what the test process reported — never a constant.
+        // Three distinct outcomes, never collapsed into each other:
+        //   executed + exit 0 -> passed | executed + failure -> failed | not executed -> skipped
+        const testState: 'passed' | 'failed' | 'skipped' =
+          testsExitedZero ? 'passed' : testsSkipped ? 'skipped' : 'failed';
         backgroundTaskRepo.updateTask(taskId, {
-          testState: testsExitedZero ? 'passed' : 'failed',
+          testState,
           metadata: {
             ...(backgroundTaskRepo.getTask(taskId)?.metadata || {}),
             testsPassed: testsExitedZero,
+            testsSkipped,
           },
         });
 
-        this.appendEvent(taskId, testsExitedZero ? 'task.test_passed' : 'task.test_failed',
-          testsExitedZero ? 'Test process exited with code 0.' : 'Tests did not run or did not exit with code 0.', {
-            testState: testsExitedZero ? 'passed' : 'failed',
-            testOutput,
-          });
+        const testEventKind = testsExitedZero
+          ? 'task.test_passed'
+          : testsSkipped
+            ? 'task.test_skipped'
+            : 'task.test_failed';
+        const testEventMessage = testsExitedZero
+          ? 'Test process exited with code 0.'
+          : testsSkipped
+            ? 'Test execution was skipped; a skipped test is not a passed test and cannot certify the task.'
+            : 'Tests did not run or did not exit with code 0.';
+        this.appendEvent(taskId, testEventKind, testEventMessage, {
+          testState,
+          testOutput,
+        });
       }
 
       // 4. Build / Deploy if required

@@ -22,7 +22,7 @@ export interface ExecutionEvidence {
   commandsExecuted: string[];
   testsRun: number;
   testsPassed: boolean;
-  testState: 'idle' | 'running' | 'passed' | 'failed';
+  testState: 'idle' | 'running' | 'passed' | 'failed' | 'skipped';
   buildState: 'idle' | 'running' | 'passed' | 'failed';
   deploymentPassed: boolean;
   originalGoalRetried: boolean;

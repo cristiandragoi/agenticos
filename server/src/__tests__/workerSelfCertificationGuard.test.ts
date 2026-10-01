@@ -245,7 +245,7 @@ describe('Worker Self-Certification Guard (A WORKER MAY NEVER CERTIFY ITS OWN SU
     expect(rejectEvent!.summary).toContain('Reopened task completion invalidated');
   });
 
-  it('T5: Architectural Acceptance: Validation rejection automatically recovers and continues the SAME task to completion', async () => {
+  it('T5: Architectural Acceptance: Validation rejection automatically recovers the SAME task; a skipped test gate never certifies completion', async () => {
     const taskId = `test-autorecover-${Date.now()}`;
     const task: BackgroundTaskRecord = {
       taskId,
@@ -301,13 +301,17 @@ describe('Worker Self-Certification Guard (A WORKER MAY NEVER CERTIFY ITS OWN SU
     expect(rejectionResult).not.toBeNull();
     expect(rejectionResult!.verificationState).toBe('failed');
 
-    // Wait for the automatic recovery pipeline to execute
+    // Wait for the automatic recovery pipeline to reach its test-gate verdict.
+    // NOTE: inside a vitest worker the subprocess test run is suppressed, so the verdict is
+    // `task.test_skipped` — there is no real `task.test_passed` to wait for here.
     let finalTask = backgroundTaskRepo.getTask(taskId);
     const start = Date.now();
-    while (finalTask?.status !== 'completed' && Date.now() - start < 8000) {
+    while (Date.now() - start < 15000) {
+      const kinds = backgroundTaskRepo.getEvents(taskId).map((e) => e.kind);
+      if (kinds.some((k) => k === 'task.test_skipped' || k === 'task.test_passed' || k === 'task.test_failed')) break;
       await new Promise((r) => setTimeout(r, 100));
-      finalTask = backgroundTaskRepo.getTask(taskId);
     }
+    finalTask = backgroundTaskRepo.getTask(taskId);
 
     // Invariant: Same task must automatically transition beyond rejection
     expect(finalTask).not.toBeNull();
@@ -319,18 +323,22 @@ describe('Worker Self-Certification Guard (A WORKER MAY NEVER CERTIFY ITS OWN SU
     expect(eventKinds).toContain('task.validation_rejected');
     expect(eventKinds).toContain('task.recovery_started');
     expect(eventKinds).toContain('task.testing');
-    expect(eventKinds).toContain('task.test_passed');
-    expect(eventKinds).toContain('task.retrying_original_goal');
-    expect(eventKinds).toContain('task.goal_retried');
-    expect(eventKinds).toContain('task.argus_verifying');
-    expect(eventKinds).toContain('task.argus_verified');
-    expect(eventKinds).toContain('task.verified');
+
+    // TRUTHFUL VERIFICATION: the test gate was suppressed because we are inside vitest, so the
+    // truthful event is task.test_skipped. A skipped test is NEVER reported as a pass.
+    expect(eventKinds).toContain('task.test_skipped');
+    expect(eventKinds).not.toContain('task.test_passed');
+    expect(finalTask!.testState).toBe('skipped');
+
+    // CERTIFICATION RULE (must not be weakened): skipped != passed. A task whose tests were
+    // skipped must remain unverified and must not be declared complete, because a real passing
+    // test run is required to certify it and never happened.
+    expect(finalTask!.verificationState).not.toBe('passed');
+    expect(finalTask!.verificationState).toBe('failed');
+    expect(finalTask!.status).not.toBe('completed');
 
     // Invariant: Same taskId was preserved throughout the entire flow
     expect(finalTask!.taskId).toBe(taskId);
-    expect(finalTask!.status).toBe('completed');
-    expect(finalTask!.verificationState).toBe('passed');
-    expect(finalTask!.testState).toBe('passed');
   });
 });
 

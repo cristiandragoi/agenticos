@@ -84,6 +84,7 @@ export type TaskEventKind =
   | 'task.argus_verified'
   | 'task.argus_failed'
   | 'task.test_failed'
+  | 'task.test_skipped'
   | 'task.verified'
   | 'task.completed'
   | 'task.blocked'
@@ -130,7 +131,7 @@ export interface BackgroundTaskRecord {
   progressMessage: string;
   filesChanged: string[];
   buildState: 'idle' | 'running' | 'passed' | 'failed';
-  testState: 'idle' | 'running' | 'passed' | 'failed';
+  testState: 'idle' | 'running' | 'passed' | 'failed' | 'skipped';
   verificationState: 'pending' | 'running' | 'passed' | 'failed' | 'skipped';
   approvalState: 'none' | 'pending' | 'allowed' | 'denied';
   blocker: string | null;
