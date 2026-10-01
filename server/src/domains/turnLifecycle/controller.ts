@@ -18,6 +18,7 @@ import { executeLaunchApp, executeOpenUrl, executeTypeText } from './executors.j
 import { takeSnapshot, verify } from './verifier.js';
 import { runLegacyHandler } from './legacyHandler.js';
 import { decideOutcome, renderResponse } from './respond.js';
+import { recoveryContextForRequest, runWithRecoveryContext } from '../selfHeal/recoveryContext.js';
 import type {
   ExecutionReceipt, PreExecutionSnapshot, TurnGoal, TurnRecord, TurnRequest, TurnSink, TurnSource, VerificationResult,
 } from './types.js';
@@ -100,8 +101,21 @@ class TurnLifecycleController {
     const isStale = () => this.superseded.has(req.requestId);
     logger.info('[TurnLifecycle] RECEIVED', { requestId: req.requestId, source: req.source, conversationId: req.conversationId, buildId: req.buildId });
 
+    // A self-heal retry is RECOVERY WORK: for the whole async extent of this turn (understand ->
+    // execute -> verify -> respond) no failure path may open an incident, start a repair run or hand
+    // off to a worker. Without this a retry that failed the way the original did was
+    // indistinguishable from a new user failure and re-triggered Self-Heal, recursively.
+    const recovery = recoveryContextForRequest(req);
+    if (recovery) {
+      logger.info('[TurnLifecycle] RECOVERY_WORK', { requestId: req.requestId, chainId: recovery.chainId, rootOperationId: recovery.rootOperationId, attempt: recovery.attempt });
+    }
+
     try {
-      await this.run(record, sink, isStale, input.structured);
+      if (recovery) {
+        await runWithRecoveryContext(recovery, () => this.run(record, sink, isStale, input.structured));
+      } else {
+        await this.run(record, sink, isStale, input.structured);
+      }
     } catch (err: any) {
       logger.error('[TurnLifecycle] lifecycle error', { requestId: req.requestId, error: err?.message });
       record.error = err?.message || String(err);

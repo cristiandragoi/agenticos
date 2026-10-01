@@ -1382,6 +1382,9 @@ export class BackgroundTaskManager extends EventEmitter {
             text: originalText,
             incidentId: String(meta.incidentId || taskId),
             goalId: meta.originatingGoalId,
+            // Recovery-chain guard: this retry is bounded by (and recorded on) the chain that spawned the task.
+            chainId: typeof meta.recoveryChainId === 'string' ? meta.recoveryChainId : undefined,
+            taskId,
           });
         }
         const nowIso = new Date().toISOString();

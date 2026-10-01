@@ -26,6 +26,9 @@ import { repairKnowledgeStore } from './RepairKnowledgeStore.js';
 import { repositoryAuthority } from './RepositoryAuthority.js';
 import { recoveryWatchdog } from './RecoveryWatchdog.js';
 import { selfHealSupervisor } from '../selfHeal/SelfHealSupervisor.js';
+import { failureDetector } from '../selfHeal/FailureDetector.js';
+import { closeChain, recordRecoverySignal } from '../selfHeal/recoveryChain.js';
+import { currentRecoveryContext } from '../selfHeal/recoveryContext.js';
 import { engineeringDelegationService } from './EngineeringDelegationService.js';
 import { engineeringWorkerRegistry } from './EngineeringWorkerRegistry.js';
 import { argusService } from './ArgusService.js';
@@ -79,6 +82,20 @@ export class AutonomousRecoveryEngine {
     const entityType = opts.entityType || 'capability';
     const entityName = opts.entityName || target;
 
+    // Recovery-chain guard (1/3): RECOVERY WORK NEVER STARTS ANOTHER RECOVERY.
+    // A self-heal retry that fails the way the original did lands here again. Without this it
+    // minted a new incident and a new engineering handoff on every pass, forever. It now records
+    // the failure on its own chain (so the chain can go terminal) and stops.
+    if (currentRecoveryContext()) {
+      recordRecoverySignal({ component: `jarvis.capability.${verb}.${entityId}`, target, error: failedAttempt.error });
+      logger.warn(`[AutonomousRecoveryEngine] Goal ${goalId} failed again inside recovery work; not starting another recovery.`);
+      return {
+        success: false,
+        status: 'FAILED_EXHAUSTED',
+        finalResponseText: `The action on ${entityName} failed again while recovering an earlier failure (${failedAttempt.error || 'postcondition not observed'}). I did not start another repair.`,
+      };
+    }
+
     // Phase 1: autonomous engineering repair (AntiGravity code edits + its own spoken
     // announcements) is a second, independent owner of the user's turn. It stays
     // disabled until Self-Heal Phase 2 provides a real release/deploy/restart/retry loop.
@@ -88,6 +105,39 @@ export class AutonomousRecoveryEngine {
         success: false,
         status: 'FAILED_EXHAUSTED',
         finalResponseText: `The action on ${entityName} was not verified (${failedAttempt.error || 'postcondition not observed'}). Autonomous engineering repair is disabled until Self-Heal Phase 2.`,
+      };
+    }
+
+    // Recovery-chain guard (2/3): ONE incident per (root operation, failure class, target).
+    // The incident is opened through the registry BEFORE anything is announced or dispatched. It is a
+    // real, unique, persisted incident (the old `SELFHEAL-<last 4 digits of the clock>` id repeated
+    // every 10 seconds and overwrote earlier incidents). An ownership rejection of work with no user
+    // turn behind it, a duplicate of an active failure, or a failure of an operation whose chain
+    // already ended opens nothing.
+    const raised = failureDetector.raiseIncident({
+      component: `jarvis.capability.${verb}.${entityId}`,
+      symptom: `User asked to "${goal.originalUserInput}" (${verb} on ${entityName}) but the action failed: ${failedAttempt.error || 'verification failed or capability broken'}`,
+      failureDomain: 'backend',
+      priority: 'high',
+      metadata: {
+        source: 'autonomous_recovery_engine',
+        goalId,
+        conversationId: goal.conversationId,
+        target,
+        reasonCode: failedAttempt.error,
+        error: failedAttempt.error,
+        originalText: goal.originalUserInput,
+        rootOperationId: goalId,
+      },
+    });
+    if (!raised.admitted) {
+      logger.warn(`[AutonomousRecoveryEngine] Repair NOT started for goal ${goalId}: ${raised.reason}${raised.incidentId ? ` (tracked by ${raised.incidentId})` : ''}`);
+      console.log(`[JRT] RECOVERY_NOT_STARTED goalId=${goalId} reason=${raised.reason} incident=${raised.incidentId || 'none'}`);
+      return {
+        success: false,
+        status: 'BLOCKED_EXTERNAL',
+        finalResponseText: `The action on ${entityName} failed (${failedAttempt.error || 'postcondition not observed'}). ${raised.incidentId ? `That failure is already tracked by ${raised.incidentId}; ` : ''}I did not start another repair (${raised.reason}).`,
+        incidentId: raised.incidentId,
       };
     }
 
@@ -130,6 +180,8 @@ export class AutonomousRecoveryEngine {
       entityType,
       entityName,
       failedAttempt,
+      incidentId: raised.incidentId,
+      chainId: raised.chainId,
       executeStrategy,
       onActionProgress,
     });
@@ -146,6 +198,9 @@ export class AutonomousRecoveryEngine {
     entityType: string;
     entityName: string;
     failedAttempt: GoalAttempt;
+    /** The ONE incident/chain the recovery-chain registry admitted for this failure. */
+    incidentId: string;
+    chainId: string;
     executeStrategy: (strategy: { surface: string; target: string; parameters?: any }) => Promise<{ executed: boolean; error?: string }>;
     onActionProgress?: (update: any) => void;
   }): Promise<RecoveryOutcome> {
@@ -159,7 +214,8 @@ export class AutonomousRecoveryEngine {
       logger.warn('[AutonomousRecoveryEngine] Repository health assertion warning:', repoErr?.message);
     }
 
-    const incidentId = `SELFHEAL-${Date.now().toString().slice(-4)}`;
+    const incidentId = opts.incidentId;
+    const chainId = opts.chainId;
     goalLifecycleManager.linkIncident(goalId, incidentId);
 
     goalLifecycleManager.transitionState(goalId, 'ENGINEERING_REPAIR', {
@@ -216,7 +272,31 @@ export class AutonomousRecoveryEngine {
       goalId,
       conversationId: goal.conversationId,
       delegatedBy: 'AutonomousRecoveryEngine',
+      // Recovery-chain guard (3/3): the handoff is admitted (one per chain / operation / failure
+      // fingerprint, plus a global breaker) before a worker task exists; any retry of this
+      // failure re-runs the USER's request, never this repair objective.
+      recoveryChainId: chainId,
+      incidentId,
+      originalUserInput: goal.originalUserInput,
     });
+
+    if (!delegation.success) {
+      logger.warn(`[AutonomousRecoveryEngine] Engineering handoff refused for incident ${incidentId}: ${delegation.message}`);
+      closeChain(chainId, 'BLOCKED', 'handoff_refused');
+      // The goal was already moved to ENGINEERING_REPAIR above; a refused handoff must not leave it
+      // parked there as if a worker were still on it.
+      goalLifecycleManager.transitionState(goalId, 'BLOCKED_EXTERNAL', {
+        actor: 'ControlPlane',
+        summary: `Engineering handoff refused for incident ${incidentId}; the recovery chain ended BLOCKED.`,
+        detail: { incidentId, chainId, reason: delegation.message },
+      });
+      return {
+        success: false,
+        status: 'BLOCKED_EXTERNAL',
+        finalResponseText: `The action on ${entityName} failed and I did not hand the repair to an engineering worker (${delegation.message}). Incident ${incidentId} is recorded as unresolved for review.`,
+        incidentId,
+      };
+    }
 
     const taskId = delegation.taskId;
     let hasWorkerAccepted = delegation.hasWorkerAccepted;
@@ -489,6 +569,7 @@ export class AutonomousRecoveryEngine {
       goalLifecycleManager.recordLearnedResolution(goalId, learned);
       goalLifecycleManager.recordVerification(goalId, verification);
 
+      closeChain(chainId, 'RECOVERED', 'engine_verified');
       const completionMsg = 'The repair is complete and verified.';
       goalLifecycleManager.transitionState(goalId, 'COMPLETED', {
         actor: 'Argus',
@@ -517,6 +598,7 @@ export class AutonomousRecoveryEngine {
     }
 
     // ── Terminal Failure if still unverified ─────────────────────────────────
+    closeChain(chainId, 'FAILED', 'engine_exhausted');
     const failureMsg = `Autonomous recovery exhausted for "${goal.originalUserInput}". ${verification.summary || 'Argus verification failed.'}`;
     goalLifecycleManager.transitionState(goalId, 'FAILED_EXHAUSTED', {
       actor: 'ControlPlane',

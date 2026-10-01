@@ -303,6 +303,9 @@ export class IncidentReconciler {
         meta = typeof inc.metadata === 'string' ? JSON.parse(inc.metadata) : (inc.metadata || {});
       } catch {}
 
+      // A terminal recovery chain (FAILED/BLOCKED) is a decision, not an omission: never revive it.
+      if (meta?.recoveryChain && ['FAILED', 'BLOCKED'].includes(String(meta.recoveryChain.state))) return false;
+
       const goalId = inc.goal_id || meta?.goalId;
       let originatingGoal: any = null;
       if (goalId) {

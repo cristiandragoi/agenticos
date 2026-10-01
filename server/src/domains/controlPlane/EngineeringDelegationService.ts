@@ -24,6 +24,7 @@ import {
   releaseAntigravityWorkerSlot,
 } from '../../services/backgroundTasks/antigravityAdapter.js';
 import { logger } from '../../utils/logger.js';
+import { currentRecoveryContext } from '../selfHeal/recoveryContext.js';
 
 import { DelegationEnvelope } from '../../services/backgroundTasks/types.js';
 
@@ -36,6 +37,16 @@ export interface DelegateEngineeringTaskInput {
   goalId?: string;
   envelope?: Partial<DelegationEnvelope>;
   delegatedBy?: string;
+  /**
+   * Self-heal handoffs: the recovery chain this worker task belongs to. A delegation made from
+   * inside recovery work is bound to the ambient chain even when this is omitted. Every
+   * chain-bound handoff is admitted by the recovery-chain registry (one per chain / operation /
+   * failure fingerprint, plus a global breaker) before any worker task is created.
+   */
+  recoveryChainId?: string;
+  incidentId?: string;
+  /** The user's original request, so a later retry re-runs THAT text and not this repair objective. */
+  originalUserInput?: string;
 }
 
 export interface DelegateEngineeringTaskOutput {
@@ -83,6 +94,37 @@ export class EngineeringDelegationService {
 
     const requestedWorker = (input.worker || 'antigravity').toLowerCase();
     const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || 'D:\\AgenticOS';
+
+    // ── Recovery-chain guard ────────────────────────────────────────────────
+    // This is the single funnel for engineering handoffs. A handoff that belongs to a recovery
+    // chain (explicitly, or because it is being made from inside recovery work) must be admitted
+    // BEFORE a worker task/window exists. One failure can therefore not fan out into many.
+    const recoveryCtx = currentRecoveryContext();
+    const recoveryChainId = input.recoveryChainId || recoveryCtx?.chainId;
+    let handoffId: number | undefined;
+    if (recoveryChainId) {
+      const { admitHandoff } = await import('../selfHeal/recoveryChain.js');
+      const admission = admitHandoff({ chainId: recoveryChainId, worker: requestedWorker });
+      if (!admission.admit) {
+        logger.warn(`[EngineeringDelegationService] handoff refused by the recovery guard (${admission.reason}) for chain ${recoveryChainId}`);
+        console.log(`[JRT] ENGINEERING_HANDOFF_REFUSED chain=${recoveryChainId} reason=${admission.reason} worker=${requestedWorker}`);
+        return {
+          success: false,
+          taskId: '',
+          goalId,
+          worker: requestedWorker,
+          status: 'blocked',
+          accepted: false,
+          hasWorkerAccepted: false,
+          objective,
+          context,
+          workspace: effectiveWorkspace,
+          conversationId,
+          message: `Engineering handoff refused by the recovery guard (${admission.reason}); no worker task was created.`,
+        };
+      }
+      handoffId = admission.handoffId;
+    }
     const fullObjective = context ? `${objective.trim()}\n\nRelevant Context:\n${context.trim()}` : objective.trim();
     const title = objective.length > 64 ? `${objective.slice(0, 61)}…` : objective;
 
@@ -118,11 +160,18 @@ export class EngineeringDelegationService {
         delegatedBy: delegatedBy || 'EngineeringDelegationService',
         context: context || null,
         delegationEnvelope,
+        recoveryChainId: recoveryChainId || null,
+        incidentId: input.incidentId || recoveryCtx?.incidentId || null,
+        originalUserInput: input.originalUserInput || null,
       },
     });
 
     if (!task || error) {
       throw new Error(error || 'Failed to create background engineering task.');
+    }
+    if (handoffId !== undefined) {
+      const { recordHandoffTask } = await import('../selfHeal/recoveryChain.js');
+      recordHandoffTask(handoffId, task.taskId);
     }
 
     // Authoritative dispatch

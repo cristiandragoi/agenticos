@@ -94,13 +94,34 @@ export class SelfHealBridge {
         turnId: context.turnId,
       };
 
-      const incidentId = failureDetector.createManualIncident(
-        capabilityId,
-        isBrowserBlocked ? 'blocked_by_dialog' : error,
-        isBrowserBlocked ? 'browser' : 'unknown',
-        'high',
-        incidentMetadata
-      );
+      // Recovery-chain guard: the incident is opened through the registry. A capability failure
+      // raised from inside a self-heal retry/recovery, or one that duplicates an active failure,
+      // opens NOTHING — no diagnosis, no repair, no retry of its own.
+      const raised = failureDetector.raiseIncident({
+        component: capabilityId,
+        symptom: isBrowserBlocked ? 'blocked_by_dialog' : error,
+        failureDomain: isBrowserBlocked ? 'browser' : 'unknown',
+        priority: 'high',
+        metadata: {
+          ...incidentMetadata,
+          target: capabilityId,
+          reasonCode: error,
+          error,
+          // The text a later retry is allowed to re-run (it must be the same text the retry uses below).
+          originalText: context.rawStt || plan.goalDescription,
+          conversationId: context.conversationId,
+        },
+      });
+      if (!raised.admitted) {
+        logger.warn('[SelfHealBridge] Self-Heal NOT started for this failure', { capabilityId, reason: raised.reason, existingIncidentId: raised.incidentId });
+        return {
+          recovered: false,
+          incidentId: raised.incidentId,
+          repairAttempted: false,
+          userExplanation: `Execution failed on ${capabilityId}: ${error}. ${raised.incidentId ? `That failure is already tracked by ${raised.incidentId}; ` : ''}I did not start another repair (${raised.reason}).`,
+        };
+      }
+      const incidentId = raised.incidentId;
 
       logger.info(`[SelfHealBridge] Incident created: ${incidentId}`);
 

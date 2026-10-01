@@ -52,6 +52,15 @@ export interface TurnRequest {
     retryOfRequestId?: string;
     goalId?: string;
     incidentId?: string;
+    /**
+     * Recovery identity (self-heal retries). Turns carrying a chain id — and every turn whose
+     * source is `self_heal_retry` — run as RECOVERY WORK: they may record a failure on their
+     * chain but can never open an incident, start a repair run or hand off to a worker.
+     */
+    recoveryChainId?: string;
+    /** The original user operation this retry is trying to fix. */
+    rootOperationId?: string;
+    retryAttempt?: number;
   };
 }
 

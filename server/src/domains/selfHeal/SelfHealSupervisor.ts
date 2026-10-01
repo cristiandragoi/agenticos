@@ -589,6 +589,18 @@ export class SelfHealSupervisor extends EventEmitter {
 
     const isResumingDiagnosing = Boolean(opts.resumeFromDiagnosing || this.incidentStates.get(incidentId) === 'DIAGNOSING');
 
+    // Recovery-chain guard: one closed-loop repair run per chain, and never from recovery work
+    // (a self-heal retry must not start a repair of itself).
+    {
+      const { admitRepairRun } = await import('./recoveryChain.js');
+      const gate = admitRepairRun({ incidentId }, { resume: isResumingDiagnosing });
+      if (!gate.admit) {
+        logger.warn('[JRT] SELFHEAL_REPAIR_RUN_REFUSED', { incidentId, reason: gate.reason, chainId: gate.chainId });
+        console.log(`[JRT] SELFHEAL_REPAIR_RUN_REFUSED incidentId=${incidentId} reason=${gate.reason}`);
+        return { success: false, error: `Closed-loop repair refused by the recovery guard (${gate.reason}); the incident is not repaired or retried automatically.` };
+      }
+    }
+
     try {
       if (!isResumingDiagnosing) {
         // 1. Initial State
@@ -601,6 +613,7 @@ export class SelfHealSupervisor extends EventEmitter {
           const { repairIncidents } = await import('./schema.js');
           const { db } = await import('../../db/index.js');
 
+          const { findChain } = await import('./recoveryChain.js');
           const metadataObj: Record<string, unknown> = {
             source: 'jarvis-next-voice',
             goalId: goalId || null,
@@ -608,6 +621,9 @@ export class SelfHealSupervisor extends EventEmitter {
             turnId: turnId || null,
             attemptId: attemptId || null,
             originalUserInput: prompt,
+            // The text a retry may re-run: recoveryController.approveRepair reads `originalGoal`.
+            originalGoal: prompt,
+            recoveryChainId: findChain({ incidentId })?.chainId ?? null,
             normalizedGoal,
             capabilityId,
             target,
@@ -730,6 +746,11 @@ export class SelfHealSupervisor extends EventEmitter {
    * The original text is re-submitted to TurnLifecycleController as a new
    * request (source self_heal_retry); the incident may be closed only when that
    * request ends VERIFIED.
+   *
+   * Recovery-chain guard: a retry is admitted through the registry (bounded attempts, backoff,
+   * one in flight, and only the root operation's own recorded request text) and runs as RECOVERY
+   * WORK, so if it fails the way the original did it records that on its chain and goes terminal
+   * (FAILED/BLOCKED) instead of opening a new incident, repair run or worker handoff.
    */
   async retryOriginalRequestViaLifecycle(opts: {
     conversationId: string;
@@ -737,17 +758,65 @@ export class SelfHealSupervisor extends EventEmitter {
     incidentId: string;
     goalId?: string;
     retryOfRequestId?: string;
-  }): Promise<{ requestId: string | null; outcome: string; reason: string; responseText?: string }> {
-    const { turnLifecycle } = await import('../turnLifecycle/index.js');
-    const submitted = await turnLifecycle.submit({
-      source: 'self_heal_retry',
-      conversationId: opts.conversationId,
+    /** Chain this retry belongs to; defaults to the chain of `incidentId` / `taskId`. */
+    chainId?: string;
+    /** Background task driving the retry (used to find its chain). */
+    taskId?: string;
+  }): Promise<{ requestId: string | null; outcome: string; reason: string; responseText?: string; chainId?: string; chainState?: string }> {
+    const chains = await import('./recoveryChain.js');
+    const admission = chains.admitRetry({
+      chainId: opts.chainId,
+      incidentId: opts.incidentId,
+      taskId: opts.taskId,
       text: opts.text,
-      attached: { incidentId: opts.incidentId, goalId: opts.goalId, retryOfRequestId: opts.retryOfRequestId },
+      conversationId: opts.conversationId,
+      goalId: opts.goalId,
+      retryOfRequestId: opts.retryOfRequestId,
     });
-    if (submitted.duplicate) return { requestId: submitted.duplicateOf, outcome: 'FAILED', reason: `duplicate: ${submitted.reason}` };
-    const r = submitted.record;
-    return { requestId: r.request.requestId, outcome: r.outcome || 'FAILED', reason: r.outcomeReason || '', responseText: r.responseText || undefined };
+    if (!admission.admit) {
+      logger.warn('[SelfHeal] retry refused by the recovery guard', { incidentId: opts.incidentId, chainId: admission.chainId, reason: admission.reason, state: admission.state });
+      console.log(`[JRT] SELFHEAL_RETRY_REFUSED incidentId=${opts.incidentId} chain=${admission.chainId} reason=${admission.reason} state=${admission.state}`);
+      return {
+        requestId: null,
+        outcome: admission.state === 'BLOCKED' ? 'BLOCKED' : 'FAILED',
+        reason: `recovery_retry_refused:${admission.reason}`,
+        chainId: admission.chainId,
+        chainState: admission.state,
+      };
+    }
+
+    let result: { requestId: string | null; outcome: string; reason: string; responseText?: string };
+    let failureText: string | undefined;
+    try {
+      const { turnLifecycle } = await import('../turnLifecycle/index.js');
+      const submitted = await turnLifecycle.submit({
+        source: 'self_heal_retry',
+        conversationId: opts.conversationId,
+        text: opts.text,
+        attached: {
+          incidentId: opts.incidentId,
+          goalId: opts.goalId,
+          retryOfRequestId: opts.retryOfRequestId,
+          recoveryChainId: admission.chainId,
+          rootOperationId: admission.rootOperationId,
+          retryAttempt: admission.attempt,
+        },
+      });
+      if (submitted.duplicate) {
+        result = { requestId: submitted.duplicateOf, outcome: 'FAILED', reason: `duplicate: ${submitted.reason}` };
+      } else {
+        const r = submitted.record;
+        failureText = r.receipt?.error;
+        result = { requestId: r.request.requestId, outcome: r.outcome || 'FAILED', reason: r.outcomeReason || '', responseText: r.responseText || undefined };
+      }
+    } catch (err: any) {
+      chains.recordRetryResult({ chainId: admission.chainId, outcome: 'FAILED', reason: err?.message || String(err) });
+      throw err;
+    }
+
+    const fin = chains.recordRetryResult({ chainId: admission.chainId, outcome: result.outcome, reason: result.reason, failureText });
+    logger.info('[SelfHeal] retry result recorded on its recovery chain', { chainId: admission.chainId, attempt: admission.attempt, outcome: result.outcome, chainState: fin.state, terminalReason: fin.terminalReason });
+    return { ...result, chainId: admission.chainId, chainState: fin.state };
   }
 
   // ── Status ────────────────────────────────────────────────────────────────

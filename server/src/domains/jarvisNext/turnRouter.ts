@@ -2614,6 +2614,11 @@ export async function routeTurn(opts: {
  * Raise an incident with the EXISTING Self-Heal Engineering Supervisor for a
  * capability that is expected to exist but is missing or broken. Kicks off the
  * closed-loop repair and logs required audit events.
+ *
+ * The implementation lives in selfHeal/raiseSelfHealIncident.ts and opens the
+ * incident through the recovery-chain registry: a failure raised from inside a
+ * self-heal retry/recovery, or a duplicate of an already-active failure, opens
+ * nothing (`raised: false`).
  */
 async function raiseSelfHealIncident(opts: {
   component: string;
@@ -2629,66 +2634,9 @@ async function raiseSelfHealIncident(opts: {
     verb: string;
   };
 }): Promise<{ raised: boolean; incidentId?: string }> {
-  try {
-    const { failureDetector } = await import('../selfHeal/FailureDetector.js');
-    const { selfHealSupervisor } = await import('../selfHeal/SelfHealSupervisor.js');
-    const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-
-    const activeGoal = opts.goalId
-      ? goalLifecycleManager.getGoalRun(opts.goalId)
-      : goalLifecycleManager.getActiveGoalForConversation(opts.conversationId);
-    const goalId = activeGoal?.goalId;
-
-    const incidentId: string = await failureDetector.createManualIncident(
-      opts.component,
-      opts.symptom,
-      'backend',
-      'medium',
-      { source: 'jarvis-next-voice', conversationId: opts.conversationId, goalId },
-    );
-    logger.info('[JRT] SELFHEAL_INCIDENT_CREATED', { incidentId, component: opts.component, goalId });
-    console.log(`[JRT] SELFHEAL_INCIDENT_CREATED incidentId=${incidentId} goalId=${goalId || 'none'}`);
-
-    if (goalId) {
-      goalLifecycleManager.linkIncident(goalId, incidentId);
-    }
-
-    if (opts.originalAction) {
-      selfHealSupervisor.executeClosedLoopRepair({
-        incidentId,
-        goalId,
-        conversationId: opts.conversationId,
-        originalUserInput: opts.originalAction.prompt,
-        capabilityId: opts.component,
-        target: opts.originalAction.entityName || opts.originalAction.entityId,
-        userAction: {
-          verb: opts.originalAction.verb,
-          target: opts.originalAction.entityName || opts.originalAction.entityId,
-          originalPrompt: opts.originalAction.prompt,
-          entityId: opts.originalAction.entityId,
-          entityType: opts.originalAction.entityType,
-          entityName: opts.originalAction.entityName,
-          conversationId: opts.conversationId,
-        },
-        failureClassification: {
-          domain: 'implementation',
-          repairability: 'engineering',
-          reason: opts.symptom,
-        },
-        originalAction: opts.originalAction,
-      }).catch((err: any) => {
-        logger.warn('[JRT] SELF_HEAL_CLOSED_LOOP_ERROR', { incidentId, error: err?.message || String(err) });
-      });
-    } else {
-      selfHealSupervisor.diagnoseIncident(incidentId).catch((err: any) => {
-        logger.warn('[JRT] SELF_HEAL_DIAGNOSE_ERROR', { incidentId, error: err?.message || String(err) });
-      });
-    }
-    return { raised: true, incidentId };
-  } catch (err: any) {
-    logger.warn('[JRT] SELF_HEAL_RAISE_FAILED', { error: err?.message || String(err) });
-    return { raised: false };
-  }
+  const { raiseSelfHealIncident: raise } = await import('../selfHeal/raiseSelfHealIncident.js');
+  const r = await raise(opts);
+  return { raised: r.raised, incidentId: r.incidentId };
 }
 
 async function dispatchChoice(choice: OfferedChoice): Promise<ActionOutcome> {
