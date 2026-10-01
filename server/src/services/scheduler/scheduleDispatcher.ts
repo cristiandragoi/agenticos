@@ -68,9 +68,69 @@ function resolveWorker(worker: string | null | undefined): WorkerKind | null {
 }
 
 /**
- * Dispatch a single schedule occurrence through the canonical worker path.
+ * Dispatch a single schedule occurrence.
+ *
+ * Phase 1: every occurrence is a request owned by TurnLifecycleController
+ * (source 'scheduler' or 'routine'). The existing worker chain below is the
+ * executor; its result is a receipt, and the lifecycle records the one outcome.
  */
 export async function dispatchScheduledExecution(
+  schedule: ScheduleFireRecord,
+  triggerType: 'schedule' | 'manual' | 'recovery' = 'schedule',
+  routine?: RoutineRecord | null,
+): Promise<DispatchResult> {
+  const objective = String(schedule.taskTemplate?.objective || routine?.objective || `Scheduled execution ${schedule.id}`);
+  let dispatchResult: DispatchResult | null = null;
+  const { turnLifecycle } = await import('../../domains/turnLifecycle/index.js');
+  const submitted = await turnLifecycle.submit({
+    source: routine && triggerType === 'manual' ? 'routine' : 'scheduler',
+    conversationId: `conv-scheduler-${schedule.id}`,
+    text: `${routine?.name ? `Routine "${routine.name}"` : `Schedule ${schedule.id}`} (${schedule.worker || routine?.worker || 'worker'}): ${objective}`,
+    structured: {
+      summary: objective,
+      execute: async () => {
+        const startedAt = new Date().toISOString();
+        dispatchResult = await dispatchScheduledExecutionWorker(schedule, triggerType, routine);
+        return {
+          executor: `scheduler.${schedule.worker || routine?.worker || 'worker'}`,
+          attempted: dispatchResult.outcome !== 'dispatch_failed',
+          completedWithoutError: dispatchResult.ok,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          error: dispatchResult.error,
+          handlerText: dispatchResult.ok ? `Scheduled work finished with outcome ${dispatchResult.outcome}.` : `Scheduled work failed: ${dispatchResult.error}`,
+          handlerClaimedSideEffect: dispatchResult.outcome === 'completed',
+          details: { provenance: dispatchResult.provenance, workerOutcome: dispatchResult.outcome },
+        };
+      },
+    },
+  });
+  if (submitted.duplicate) {
+    return {
+      ok: false, outcome: 'dispatch_failed', error: `duplicate occurrence (already handled by ${submitted.duplicateOf})`,
+      provenance: {
+        scheduleId: schedule.id, executionId: submitted.duplicateOf, routineId: routine?.routineId ?? schedule.routineId ?? null,
+        projectId: null, backgroundTaskId: null, projectTaskId: null, runId: null, resultId: null, verificationId: null,
+        triggeredAt: new Date().toISOString(), triggerType,
+      },
+    };
+  }
+  if (!dispatchResult) {
+    const r = submitted.record;
+    return {
+      ok: false, outcome: 'dispatch_failed', error: `${r.outcome}: ${r.outcomeReason}`,
+      provenance: {
+        scheduleId: schedule.id, executionId: r.request.requestId, routineId: routine?.routineId ?? schedule.routineId ?? null,
+        projectId: null, backgroundTaskId: null, projectTaskId: null, runId: null, resultId: null, verificationId: null,
+        triggeredAt: r.request.receivedAt, triggerType,
+      },
+    };
+  }
+  return dispatchResult;
+}
+
+/** The pre-Phase-1 worker chain, now invoked only as the lifecycle's executor. */
+async function dispatchScheduledExecutionWorker(
   schedule: ScheduleFireRecord,
   triggerType: 'schedule' | 'manual' | 'recovery' = 'schedule',
   routine?: RoutineRecord | null,

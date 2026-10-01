@@ -189,7 +189,19 @@ export class SelfHealBridge {
 
       // 5. Retry the ORIGINAL user command!
       logger.info(`[SelfHealBridge] Retrying original user command after verified deployment: "${plan.goalDescription}"`);
-      const retryResult = await retryFn();
+      // Phase 1: a retry is a NEW lifecycle request (source self_heal_retry), never an
+      // in-handler re-execution. Success means the lifecycle verifier observed it.
+      void retryFn;
+      const retry = await selfHealSupervisor.retryOriginalRequestViaLifecycle({
+        conversationId: context.conversationId,
+        text: context.rawStt || plan.goalDescription,
+        incidentId,
+      });
+      const retryResult: ExecutionResult = {
+        success: retry.outcome === 'VERIFIED',
+        error: retry.outcome === 'VERIFIED' ? undefined : `${retry.outcome}: ${retry.reason}`,
+        evidence: { requestId: retry.requestId, outcome: retry.outcome },
+      };
 
       if (retryResult.success) {
         await selfHealSupervisor.closeIncident(incidentId, 'Original user task succeeded on retry');

@@ -18,9 +18,8 @@ import { useJarvis, useChat, useDrawer } from '../../store/appStore';
 import { useData } from '../../store/dataStore';
 import DrawerShell from './DrawerShell';
 import ThinkingOrb from '../ui/ThinkingOrb';
-import { useVoiceIO } from '../../hooks/useVoiceIO';
+import { useJarvisRuntime } from '../../context/JarvisRuntimeContext';
 import { apiFetch, apiUrl } from '../../api/client';
-import { getActiveJarvisEngine } from '../../lib/jarvisEngineAuthority';
 import { jarvisLiveKitSession } from '../../lib/jarvisLiveKitSession';
 
 export interface AgentResponseReadyDetail {
@@ -87,6 +86,8 @@ const JarvisDrawer: React.FC = () => {
   const { sendMessage, isTyping } = useChatManager();
   const { agents, refresh: refreshData } = useData();
   const drawer = useDrawer();
+  const runtime = useJarvisRuntime();
+  const runtimeConversationId = runtime.activeConversationId;
 
   const [textInput, setTextInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -104,7 +105,7 @@ const JarvisDrawer: React.FC = () => {
   const conversationModeRef = useRef(false);
   const micEnabledRef = useRef(true);
   const voiceOutEnabledRef = useRef(true);
-  const voiceRef = useRef<any>(null); // assigned right after useVoiceIO()
+  const voiceRef = useRef<any>(null); // the shared JarvisRuntimeContext voice instance
   const convProcessingRef = useRef(false);   // one in-flight conversation turn
   const convSubmitSeqRef = useRef(0);        // staleness guard for async turns
   const convExecAbortRef = useRef<AbortController | null>(null);
@@ -123,75 +124,24 @@ const JarvisDrawer: React.FC = () => {
     return `${prefix}-${transcriptIdSeqRef.current}-${Date.now()}`;
   }, []);
 
-  /** Execute one Jarvis turn for the conversation pipeline (single
-   *  /api/voice/execute POST — the existing verified route). Exactly one
-   *  response is spoken per turn; barge-in can abort mid-playback via
-   *  stopSpeaking(); visible text is never erased. */
-  const executeJarvisTurn = useCallback(async (text: string, source: 'voice' | 'text') => {
-    if (convProcessingRef.current) return; // duplicate-submission safeguard
-    convProcessingRef.current = true;
-    const turnId = ++convSubmitSeqRef.current;
-    const controller = new AbortController();
-    convExecAbortRef.current = controller;
-    jarvis.setStatus('thinking');
-    try {
-      const res = await apiFetch('/api/voice/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
-        signal: controller.signal,
-      });
-      if (!res.ok) throw new Error(`execute HTTP ${res.status}`);
-      const data = await res.json();
-      const responseText = data.text || 'No response.';
-      if (!conversationModeRef.current || turnId !== convSubmitSeqRef.current) return; // mode ended / stale
-      jarvis.addTranscript({
-        id: `c-jrv-${turnId}-${Date.now()}`,
-        role: 'jarvis',
-        text: responseText,
-        timestamp: new Date().toISOString(),
-      });
-      refreshData();
-      if (voiceOutEnabledRef.current) {
-        // 'speaking' state is confirmed by the hook ONLY after real playback
-        // start; playback-ended re-arms listening inside the hook. Do NOT
-        // force 'idle' here — the hook's real lifecycle events drive the
-        // state (speaking → listening) while audio actually plays.
-        await voiceRef.current?.speak(responseText);
-      } else {
-        voiceRef.current?.startListening(); // conversation re-arm, no audio
-      }
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
-      console.error('[Jarvis] Conversation turn failed:', err);
-      if (conversationModeRef.current) {
-        // Error recovery: one clear error state, then back to listening —
-        // never a duplicate submission.
-        jarvis.setStatus('error');
-        setTimeout(() => {
-          if (conversationModeRef.current && turnId === convSubmitSeqRef.current) {
-            jarvis.setStatus('idle');
-            voiceRef.current?.startListening();
-          }
-        }, 1500);
-      }
-    } finally {
-      if (convExecAbortRef.current === controller) convExecAbortRef.current = null;
-      if (turnId === convSubmitSeqRef.current) convProcessingRef.current = false;
-    }
-  }, [jarvis, refreshData]);
-
-  /** Conversation auto-submit: fires exactly once per valid end-of-speech
-   *  transcript (the hook deduplicates identical text + per-blob flags). */
-  const handleConversationSubmit = useCallback((text: string) => {
-    jarvis.addTranscript({
-      id: `c-usr-${convSubmitSeqRef.current + 1}-${Date.now()}`,
-      role: 'user',
-      text,
-      timestamp: new Date().toISOString(),
+  /** Phase 1: typed turns from the drawer are submitted to the single authoritative
+   *  TurnLifecycleController (POST /api/jarvis/conversations/:id/message). The drawer
+   *  never executes, verifies or decides an outcome itself; it renders what the
+   *  lifecycle returns (outcome + response text). Voice turns are owned by the
+   *  server-side LiveKit agent, which also submits to the lifecycle. */
+  const submitTypedTurnToLifecycle = useCallback(async (text: string): Promise<string> => {
+    const conversationId = runtimeConversationId || 'conv-main';
+    const operationId = `drawer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const res = await apiFetch(`/api/jarvis/conversations/${encodeURIComponent(conversationId)}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: text, operationId }),
     });
-    executeJarvisTurn(text, 'voice');
-  }, [jarvis, executeJarvisTurn]);
+    if (res.status === 409) return 'That request is already being handled.';
+    if (!res.ok) throw new Error(`lifecycle HTTP ${res.status}`);
+    const data = await res.json();
+    return data.message || `Outcome: ${data.outcome || 'unknown'}`;
+  }, [runtimeConversationId]);
 
   const playedMessageIds = useRef(new Set<string>());
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -200,85 +150,13 @@ const JarvisDrawer: React.FC = () => {
   const sttEngine = 'Groq Whisper';
   const isWired = true;
 
-  // ── useVoiceIO: handles mic, silence detection, STT, TTS ──
-  const voice = useVoiceIO({
-    agentId: 'agent-jarvis',
-    silenceTimeout: 3500,
-    onTranscript: async (text) => {
-      if (getActiveJarvisEngine() === 'v2') {
-        console.log('[JarvisDrawer] Suppressed legacy voice execution because Jarvis V2 is active');
-        return;
-      }
-      // Show what was heard in the transcript immediately
-      jarvis.addTranscript({
-        id: nextTranscriptId('v-usr'),
-        role: 'user',
-        text,
-        timestamp: new Date().toISOString(),
-      });
-      // Execute via voice pipeline (single POST, no SSE chain)
-      jarvis.setStatus('thinking');
-      try {
-        const res = await apiFetch('/api/voice/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const responseText = data.text || 'No response.';
-          jarvis.setStatus('speaking');
-          jarvis.addTranscript({
-            id: nextTranscriptId('v-jrv'),
-            role: 'jarvis',
-            text: responseText,
-            timestamp: new Date().toISOString(),
-          });
-          voice.speak(responseText).then(() => {
-            // Confirm playback success in Activity Log (conversations)
-            apiFetch('/api/conversations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${responseText.slice(0, 60)}"`, source: 'jarvis' })
-            }).catch(() => {});
-            jarvis.setStatus('idle');
-          }).catch((err) => {
-            console.error('[Jarvis] Playback failed:', err);
-            jarvis.setStatus('error');
-            apiFetch('/api/conversations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })
-            }).catch(() => {});
-          });
-        } else {
-          jarvis.setStatus('error');
-          setTimeout(() => jarvis.setStatus('idle'), 2000);
-        }
-      } catch (err) {
-        console.error('[Jarvis] Execute error:', err);
-        jarvis.setStatus('error');
-        setTimeout(() => jarvis.setStatus('idle'), 2000);
-      }
-      refreshData();
-    },
-    onResponse: (text) => {
-      jarvis.addTranscript({
-        id: nextTranscriptId('v-jrv'),
-        role: 'jarvis',
-        text,
-        timestamp: new Date().toISOString(),
-      });
-    },
-    onStateChange: (s) => {
-      jarvis.setStatus(s);
-    },
-    // ── Conversation mode: auto-submit exactly once per valid end-of-speech
-    // transcript. The hook dedupes identical text and flags each blob. ──
-    onAutoSubmit: (text) => handleConversationSubmit(text),
-    endSpeechSilenceMs: 900, // measured-silence turn end (spec: 700–1200 ms)
-  });
-  voiceRef.current = voice; // handlers/rAF loops read the latest instance via ref
+  // ── Phase 1: NO second voice pipeline. The drawer previously created its own
+  // useVoiceIO instance (own mic capture, own STT, own /api/voice/execute call)
+  // in parallel with the app-wide JarvisRuntimeContext instance and the
+  // LiveKit agent. It now reuses the single shared instance for playback state
+  // only; utterances are captured exclusively by the LiveKit session. ──
+  const voice = runtime.voice;
+  voiceRef.current = voice;
 
   // ── Conversation-mode controls ──
   const handleModeToggle = useCallback(async (mode: 'manual' | 'conversation') => {
@@ -292,10 +170,8 @@ const JarvisDrawer: React.FC = () => {
       conversationModeRef.current = true;
       setConversationMode(true);
       setShowBoard(false); // conversation happens in the Chat view
-      const liveKitPromise = jarvisLiveKitSession.startSession().catch(() => false);
-      const legacyPromise = voiceRef.current?.startConversation ? voiceRef.current.startConversation() : Promise.resolve(false);
-      const [liveKitOk, legacyOk] = await Promise.all([liveKitPromise, legacyPromise]);
-      const ok = liveKitOk || legacyOk;
+      // Single voice path: the LiveKit session (server agent → TurnLifecycleController).
+      const ok = await jarvisLiveKitSession.startSession().catch(() => false);
       if (!ok) {
         conversationModeRef.current = false;
         setConversationMode(false);
@@ -309,7 +185,6 @@ const JarvisDrawer: React.FC = () => {
       convSubmitSeqRef.current++; // invalidate any in-flight conversation turn
       convExecAbortRef.current?.abort();
       convProcessingRef.current = false;
-      voiceRef.current?.endConversation?.();
       await jarvisLiveKitSession.stopSession().catch(() => undefined);
       jarvis.setStatus('idle');
     }
@@ -420,55 +295,29 @@ const JarvisDrawer: React.FC = () => {
 
     jarvis.setStatus('thinking');
     try {
-      const res = await apiFetch('/api/voice/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, agentId: 'agent-jarvis', voice: 'aura-helios-en' }),
+      const responseText = await submitTypedTurnToLifecycle(text);
+      jarvis.addTranscript({
+        id: nextTranscriptId('t-jrv'),
+        role: 'jarvis',
+        text: responseText,
+        timestamp: new Date().toISOString(),
       });
-      if (res.ok) {
-        const data = await res.json();
-        const responseText = data.text || 'No response.';
-        jarvis.setStatus('speaking');
-        jarvis.addTranscript({
-          id: nextTranscriptId('t-jrv'),
-          role: 'jarvis',
-          text: responseText,
-          timestamp: new Date().toISOString(),
-        });
-        voice.speak(responseText).then(() => {
-          // Confirm playback success in Activity Log (conversations)
-          apiFetch('/api/conversations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'Jarvis Voice Playback', message: `Playback success: "${responseText.slice(0, 60)}"`, source: 'jarvis' })
-          }).catch(() => {});
-          jarvis.setStatus('idle');
-        }).catch((err) => {
-          console.error('[Jarvis] Playback failed:', err);
-          jarvis.setStatus('error');
-          apiFetch('/api/conversations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'Jarvis Voice Playback Failed', message: `Playback failed: ${err.message}`, source: 'jarvis' })
-          }).catch(() => {});
-        });
-      } else {
-        jarvis.setStatus('error');
-        setTimeout(() => jarvis.setStatus('idle'), 2000);
-      }
+      jarvis.setStatus('idle');
+      refreshData();
     } catch (err) {
-      console.error('[Jarvis] Text execute error:', err);
+      console.error('[Jarvis] Typed lifecycle turn error:', err);
       jarvis.setStatus('error');
       setTimeout(() => jarvis.setStatus('idle'), 2000);
     }
     setIsSending(false);
-  }, [textInput, isSending, jarvis, voice]);
+  }, [textInput, isSending, jarvis, submitTypedTurnToLifecycle, nextTranscriptId, refreshData]);
 
   // ── Mic: delegate fully to useVoiceIO ──
   const handleMicClick = () => {
     if (!micEnabledRef.current) return; // microphone disabled via controls
-    micAttemptedRef.current = false;  // Allow retry on manual click
-    voice.toggleListening();
+    micAttemptedRef.current = false;
+    // Single voice path: the mic button toggles the LiveKit conversation session.
+    handleModeToggle(conversationModeRef.current ? 'manual' : 'conversation');
   };
 
   // ── Auto-start mic for continuous conversation ──
@@ -488,17 +337,9 @@ const JarvisDrawer: React.FC = () => {
   useEffect(() => {
     const drawerOpenForJarvis = drawer.isOpen && drawer.entityType === 'jarvis';
 
-    if (drawerOpenForJarvis) {
-      // Manual-mode convenience: auto-arm the mic once when the drawer opens
-      // (existing behaviour — preserved). Honors the microphone toggle.
-      if (micEnabledRef.current && voiceRef.current.voiceState === 'idle' && jarvis.status !== 'speaking' && !micAttemptedRef.current) {
-        micAttemptedRef.current = true;
-        voiceRef.current.startListening();
-      }
-    } else {
-      micAttemptedRef.current = false;
-      voiceRef.current.stopListening();
-    }
+    // Phase 1: the drawer no longer arms a renderer microphone recorder of its own
+    // (that was a second capture path running alongside LiveKit).
+    if (!drawerOpenForJarvis) micAttemptedRef.current = false;
 
     // Real playback-ended event (dispatched by useVoiceIO only after actual
     // playback finished) → re-arm listening for the interactive voice loop.
@@ -507,11 +348,8 @@ const JarvisDrawer: React.FC = () => {
     const handlePlaybackEnded = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       if (detail.agentId !== 'agent-jarvis') return;
-      if (conversationModeRef.current) return; // hook re-arms automatically
-      if (drawerOpenForJarvis) {
-        micAttemptedRef.current = false;
-        voiceRef.current.startListening();
-      }
+      // Phase 1: no renderer re-arm; LiveKit keeps listening on its own.
+      void drawerOpenForJarvis;
     };
 
     const handleResponseReady = (e: Event) => {

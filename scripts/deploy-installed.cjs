@@ -12,6 +12,12 @@
  *   3. replaces destinations completely (no merge — a merge leaves stale files)
  *   4. verifies byte parity of each deployed tree against the repo artifact
  *   5. prints the server buildId so the deployed fingerprint is auditable
+ *   6. (Phase 1) breaks any junction/symlink between the installed runtime and the
+ *      repository first — without following it — and refuses to finish while one exists
+ *   7. (Phase 1) writes resources/server/deployment.json + resources/app/deployment.json:
+ *      git commit, dirty/clean, build id, fingerprint, deployment timestamp
+ *
+ * This is the ONLY supported way to change the installed runtime.
  *
  * It does NOT restart anything: restarting the backend belongs to the Electron
  * lifecycle owner (POST /api/health/restart), not to the deploy step.
@@ -22,10 +28,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
-const REPO = path.resolve(__dirname, '..');
-const INSTALLED = process.env.AGENTICOS_INSTALLED
-  || path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Programs', 'AgenticOS');
-const RESOURCES = path.join(INSTALLED, 'resources');
+const { execSync } = require('node:child_process');
+const boundary = require('./release-boundary.cjs');
+const { computeDistFingerprint } = require('./compute-dist-fingerprint.cjs');
+
+const REPO = boundary.REPO;
+const INSTALLED = boundary.INSTALLED;
+const RESOURCES = boundary.RESOURCES;
+void os;
 
 /**
  * Each entry: repo artifact → installed destination.
@@ -89,6 +99,36 @@ if (!fs.existsSync(RESOURCES)) fail(`installed resources dir not found: ${RESOUR
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const results = [];
 
+// ── Phase 1: break every link between the installed runtime and the repository ──
+// Outer links (e.g. resources/server) are materialized into real copies so the
+// non-deployed content (node_modules, data) keeps working; nothing is deleted
+// through a link.
+const linkReport = { before: boundary.inspectInstalled(), actions: [] };
+if (linkReport.before.length) {
+  console.log('[deploy] RELEASE BOUNDARY: installed runtime shares storage with another tree:');
+  for (const f of linkReport.before) console.log(`[deploy]   ${f.kind} ${f.path} -> ${f.target}${f.intoRepo ? '  (INTO REPO)' : ''}`);
+}
+for (let pass = 0; pass < 6; pass++) {
+  const links = boundary.inspectInstalled().filter((f) => f.kind === 'link');
+  if (!links.length) break;
+  const l = links[0]; // outermost first
+  const isTargetDir = TARGETS.some((t) => path.resolve(t.dst).toLowerCase() === path.resolve(l.path).toLowerCase());
+  if (isTargetDir) {
+    // About to be replaced anyway: back up what it shows, then remove the link entry only.
+    const backup = `${l.path}.backup-${stamp}`;
+    fs.cpSync(l.target, backup, { recursive: true });
+    const target = boundary.removeLinkOnly(l.path);
+    linkReport.actions.push({ action: 'unlinked', path: l.path, target, backup });
+    console.log(`[deploy] unlinked ${l.path} (was -> ${target}); backup ${path.basename(backup)}`);
+  } else {
+    const target = boundary.materializeLink(l.path);
+    linkReport.actions.push({ action: 'materialized', path: l.path, target });
+    console.log(`[deploy] materialized ${l.path} (was -> ${target}) into an independent copy`);
+  }
+}
+const stillShared = boundary.inspectInstalled();
+if (stillShared.length) fail(`installed runtime still shares storage: ${JSON.stringify(stillShared)}`);
+
 for (const t of TARGETS) {
   if (!fs.existsSync(t.src)) {
     if (t.required) fail(`${t.name} not built — run the canonical build first (npm run build)`);
@@ -103,6 +143,7 @@ for (const t of TARGETS) {
     continue;
   }
 
+  if (boundary.isLinkEntry(t.dst) || boundary.resolvesIntoRepo(t.dst)) fail(`${t.dst} is linked to the repo; refusing to delete through it`);
   if (fs.existsSync(t.dst)) {
     const backup = `${t.dst}.backup-${stamp}`;
     fs.cpSync(t.dst, backup, { recursive: true });
@@ -121,16 +162,46 @@ for (const t of TARGETS) {
   results.push({ name: t.name, files });
 }
 
-// Deployed server fingerprint — the value the running backend must report.
-let deployedBuildId = 'unknown';
-try {
-  const identity = JSON.parse(fs.readFileSync(path.join(RESOURCES, 'server', 'dist', 'build-identity.json'), 'utf8'));
-  deployedBuildId = identity.buildId || 'unknown';
-} catch { /* reported as unknown rather than guessed */ }
+// ── Phase 1: deployment record (persisted beside the deployed code) ──────────
+function git(cmd) {
+  try { return execSync(`git ${cmd}`, { cwd: REPO, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; }
+}
+let builtIdentity = {};
+try { builtIdentity = JSON.parse(fs.readFileSync(path.join(RESOURCES, 'server', 'dist', 'build-identity.json'), 'utf8')); } catch { /* unknown */ }
+const headSha = git('rev-parse HEAD');
+const porcelain = git('status --porcelain -uno');
+const deployedFp = computeDistFingerprint(path.join(RESOURCES, 'server', 'dist'));
+const record = {
+  deployedAt: new Date().toISOString(),
+  deployedBy: 'deploy-installed.cjs',
+  sourceRepo: REPO,
+  // Code identity = what was BUILT (stamped at build time), not merely the current HEAD.
+  gitSha: builtIdentity.gitSha || null,
+  isDirty: typeof builtIdentity.isDirty === 'boolean' ? builtIdentity.isDirty : null,
+  buildId: builtIdentity.buildId || null,
+  buildTimestamp: builtIdentity.buildTimestamp || null,
+  fingerprint: deployedFp.fingerprint,
+  fingerprintAlgorithm: deployedFp.algorithm,
+  filesCount: deployedFp.filesCount,
+  repoHeadAtDeploy: headSha,
+  repoDirtyAtDeploy: porcelain === null ? null : porcelain.length > 0,
+  builtFromCurrentHead: builtIdentity.gitSha && headSha ? builtIdentity.gitSha === headSha : null,
+  buildFingerprintMatchesDeployed: builtIdentity.fingerprint ? builtIdentity.fingerprint === deployedFp.fingerprint : null,
+  releaseBoundary: { linksFound: linkReport.before, actions: linkReport.actions, linksAfter: [] },
+  targets: results,
+};
+fs.writeFileSync(path.join(RESOURCES, 'server', 'deployment.json'), JSON.stringify(record, null, 2) + '\n', 'utf8');
+fs.writeFileSync(path.join(RESOURCES, 'app', 'deployment.json'), JSON.stringify(record, null, 2) + '\n', 'utf8');
+if (record.buildFingerprintMatchesDeployed === false) console.warn('[deploy] WARNING: build-identity fingerprint != deployed dist fingerprint');
+if (record.builtFromCurrentHead === false) console.warn(`[deploy] WARNING: dist was built from ${record.gitSha}, repo HEAD is ${headSha}`);
 
 console.log('');
 console.log('[deploy] Summary');
 for (const r of results) console.log(`[deploy]   ${r.name}: ${r.files} file(s)`);
-console.log(`[deploy]   deployed server buildId: ${deployedBuildId}`);
+console.log(`[deploy]   buildId     : ${record.buildId}`);
+console.log(`[deploy]   gitSha      : ${record.gitSha} (dirty=${record.isDirty})`);
+console.log(`[deploy]   fingerprint : ${record.fingerprint}`);
+console.log(`[deploy]   deployedAt  : ${record.deployedAt}`);
+console.log(`[deploy]   links broken: ${linkReport.actions.length}`);
 console.log('[deploy] Next: restart the backend through its lifecycle owner —');
 console.log('[deploy]   POST /api/health/restart  (Electron respawns it; do not hand-start node)');

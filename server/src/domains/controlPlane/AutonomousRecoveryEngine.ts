@@ -79,6 +79,18 @@ export class AutonomousRecoveryEngine {
     const entityType = opts.entityType || 'capability';
     const entityName = opts.entityName || target;
 
+    // Phase 1: autonomous engineering repair (AntiGravity code edits + its own spoken
+    // announcements) is a second, independent owner of the user's turn. It stays
+    // disabled until Self-Heal Phase 2 provides a real release/deploy/restart/retry loop.
+    if (process.env.AGENTICOS_AUTONOMOUS_ENGINEERING_REPAIR !== '1') {
+      logger.warn(`[AutonomousRecoveryEngine] Not verified for goal ${goalId}; autonomous engineering repair disabled (Phase 1).`);
+      return {
+        success: false,
+        status: 'FAILED_EXHAUSTED',
+        finalResponseText: `The action on ${entityName} was not verified (${failedAttempt.error || 'postcondition not observed'}). Autonomous engineering repair is disabled until Self-Heal Phase 2.`,
+      };
+    }
+
     logger.warn(`[AutonomousRecoveryEngine] Action failed for goal ${goalId}: ${failedAttempt.strategy} on ${failedAttempt.surface}. Initiating autonomous AntiGravity repair.`);
     console.log(`[JRT] RECOVERY_STARTED goalId=${goalId} failedSurface=${failedAttempt.surface} target="${target}"`);
 

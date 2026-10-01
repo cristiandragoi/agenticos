@@ -4,7 +4,7 @@
  * Implements the Autonomous Production Capability Certification Specification:
  * 1. Sequentially inventories and tests every supported AgenticOS capability.
  * 2. Uses the EXACT same installed production paths as real Jarvis voice/text requests:
- *    controlPlaneTurnHandler.handleTurn(...) -> GoalLifecycle -> CapabilityDiscovery ->
+ *    TurnLifecycleController.submit({ source: "certification" }) -> PASS only on outcome VERIFIED
  *    ControlPlaneExecutor -> ArgusService independent verification.
  * 3. Strict acceptance contracts:
  *    - Freshness: Evidence must be generated AFTER test start, correlated to the current GoalRun.
@@ -318,30 +318,26 @@ export class AutonomousCapabilityCertificationRunner extends EventEmitter {
       logger.info(`[AutonomousCertificationRunner] [${i + 1}/${items.length}] Testing "${item.name}" (cmd: "${item.command}")...`);
 
       try {
-        // Execute through the REAL installed production turn pipeline
-        const turnResult = await controlPlaneTurnHandler.handleTurn({
-          prompt: item.command,
-          effectivePrompt: item.command,
+        // Phase 1: certification is a lifecycle source like any other. It does not
+        // call a handler directly, and PASS means the lifecycle's independent
+        // verifier observed the postcondition (outcome VERIFIED) — nothing else.
+        const { turnLifecycle } = await import('../turnLifecycle/index.js');
+        const submitted = await turnLifecycle.submit({
+          source: 'certification',
           conversationId: effectiveConvId,
-          turnId: i + 1,
-          focus: {},
+          text: item.command,
+          externalTurnId: `${suiteId}:${i + 1}`,
         });
-
-        // Let execution settle and wait for GoalRun to conclude
-        await new Promise(r => setTimeout(r, 2000));
-
-        // Locate the created GoalRun
-        const activeGoals = goalLifecycleManager.listGoalRuns(20);
-        const relatedGoal = activeGoals.find(g =>
-          g.conversationId === effectiveConvId &&
-          (g.originalUserInput === item.command || (g.timeline && g.timeline.some(t => t.summary?.includes(item.command))))
-        ) || activeGoals[0];
-
-        item.goalId = relatedGoal?.goalId;
-        const nowMs = Date.now();
-
-        // Evaluate strict acceptance criteria
-        const evaluation = await this.evaluateCapabilityOutcome(item, relatedGoal, itemStartMs, turnResult);
+        const record = submitted.duplicate ? null : submitted.record;
+        item.goalId = record?.request.requestId;
+        const evaluation: { status: 'PASS' | 'FAIL' | 'BLOCKED'; postconditionMet: boolean; failureObserved?: string; freshArgusEvidence?: Record<string, any> } =
+          !record
+            ? { status: 'FAIL', postconditionMet: false, failureObserved: 'duplicate submission rejected by lifecycle' }
+            : record.outcome === 'VERIFIED'
+              ? { status: 'PASS', postconditionMet: true, freshArgusEvidence: { requestId: record.request.requestId, verification: record.verification } }
+              : record.outcome === 'BLOCKED'
+                ? { status: 'BLOCKED', postconditionMet: false, failureObserved: record.outcomeReason, freshArgusEvidence: { requestId: record.request.requestId } }
+                : { status: 'FAIL', postconditionMet: false, failureObserved: `${record.outcome}: ${record.outcomeReason}`, freshArgusEvidence: { requestId: record.request.requestId, verification: record.verification } };
 
         item.status = evaluation.status;
         item.finalPostconditionMet = evaluation.postconditionMet;
@@ -433,7 +429,7 @@ export class AutonomousCapabilityCertificationRunner extends EventEmitter {
           freshArgusEvidence: { voiceId: voiceState, turnText: turnResult?.text },
         };
       } catch (e: any) {
-        return { status: 'PASS', postconditionMet: true, freshArgusEvidence: { fallback: true } };
+        return { status: 'FAIL', postconditionMet: false, failureObserved: `voice state unreadable: ${e?.message || e}` };
       }
     }
 

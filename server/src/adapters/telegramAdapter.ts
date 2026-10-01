@@ -7,7 +7,7 @@
  * - Outbound HTTPS long polling (getUpdates) with offset tracking & exponential backoff
  * - Strict authorization check against allowed_user_ids and allowed_chat_ids
  * - Command handling: /start, /help, /health, /status, /tasks, /task, /cancel, /screenshot
- * - Conversational turns wired into canonicalTurnExecutionService (same cognitive pipeline as AgenticOS chat)
+ * - Conversational turns submitted to TurnLifecycleController (Phase 1 authoritative lifecycle)
  * - Native desktop screenshot capture via DesktopPerceptionService delivered via sendPhoto
  * - Proactive milestone notification updates to authorized Telegram chats
  * - Inbound and outbound message correlation via reply_to_message_id
@@ -661,41 +661,30 @@ export class TelegramAdapter {
   }
 
   /**
-   * Canonical Jarvis turn execution wired into CanonicalTurnExecutionService.
+   * Telegram conversational turn — submitted to the authoritative TurnLifecycleController.
    */
   private async handleConversationalTurn(chatId: string, prompt: string, messageId?: number): Promise<void> {
     await this.sendChatAction(chatId, 'typing');
     const conversationId = `conv-telegram-${chatId}`;
 
     try {
-      const { canonicalTurnExecutionService } = await import('../domains/jarvis/canonicalTurnExecutionService.js');
-      const turnResult = await canonicalTurnExecutionService.execute({
-        conversationId,
-        prompt,
-        modality: 'telegram',
-        telegramContext: {
-          chatId,
-          userId: this.lastInboundUserId || '',
-          messageId,
+      // Phase 1: Telegram is a transport. The lifecycle owns understanding through response.
+      const { turnLifecycle } = await import('../domains/turnLifecycle/index.js');
+      const submitted = await turnLifecycle.submit(
+        { source: 'telegram', conversationId, text: prompt, externalTurnId: messageId },
+        {
+          progress: (progress: any) => {
+            if (progress?.goalId) this.goalChatMap.set(progress.goalId, chatId);
+          },
         },
-        onAcknowledgement: async (ackText: string) => {
-          await this.sendMessage(chatId, ackText, 'Markdown', messageId);
-        },
-        onProgress: (progress: any) => {
-          if (progress?.goalId) {
-            this.goalChatMap.set(progress.goalId, chatId);
-          }
-        },
-      });
-
-      this.lastExecutionStatus = turnResult.status || 'completed';
-
-      if (turnResult.goalRunId) {
-        this.goalChatMap.set(turnResult.goalRunId, chatId);
+      );
+      if (submitted.duplicate) {
+        logger.info('[TelegramAdapter] duplicate Telegram message ignored', { chatId, messageId, duplicateOf: submitted.duplicateOf });
+        return;
       }
-
-      const replyText = turnResult.assistantText || "I'm here.";
-      await this.sendMessage(chatId, replyText, 'Markdown', messageId);
+      const record = submitted.record;
+      this.lastExecutionStatus = record.outcome || 'unknown';
+      await this.sendMessage(chatId, record.responseText || '(no response)', 'Markdown', messageId);
     } catch (err: any) {
       this.lastExecutionStatus = 'error';
       logger.error('[TelegramAdapter] Error executing conversational turn:', err);

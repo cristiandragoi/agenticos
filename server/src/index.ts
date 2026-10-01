@@ -252,6 +252,8 @@ setTimeout(() => {
 }, 5000); // Wait 5s for boot
 
 /* ── Middleware ─────────────────────────────────────── */
+import { recordBootIdentity } from './services/deploymentIdentity.js';
+try { recordBootIdentity(); } catch (err) { console.error('[DeploymentIdentity] boot identity failed:', err); }
 app.use(attachRequestId);
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
 
@@ -301,6 +303,16 @@ app.use('/api/tools', toolsRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/loops', loopsRouter);
 app.use('/api/video', videoRouter);
+// ── Phase 1: removed bypass ingress. These endpoints executed and responded outside the
+// authoritative TurnLifecycleController. Implementations are retained but no longer reachable.
+const lifecycleBypassGone = (endpoint: string) => (_req: any, res: any) => res.status(410).json({
+  error: `${endpoint} is retired: every Jarvis request must go through the turn lifecycle.`,
+  use: ['LiveKit voice', 'POST /api/jarvis/conversations/:id/message/stream', 'POST /api/jarvis-next/agent/turn'],
+});
+app.post('/api/jarvis-v2/conversations/:conversationId/message', lifecycleBypassGone('POST /api/jarvis-v2/conversations/:id/message'));
+app.post('/api/jarvis-v2/conversations/:conversationId/voice/turn', lifecycleBypassGone('POST /api/jarvis-v2/conversations/:id/voice/turn'));
+app.post('/api/voice/execute', lifecycleBypassGone('POST /api/voice/execute'));
+app.post('/api/jarvis-next/operate', lifecycleBypassGone('POST /api/jarvis-next/operate'));
 app.use('/api/voice', voiceRouter);
 app.use('/api/hermes-api', hermesApiRouter);
 app.use('/api/research', researchRouter);
@@ -331,6 +343,8 @@ try {
 } catch (e) {
   logger.warn('Failed to ensure revenue projects on startup:', e);
 }
+import turnLifecycleRouter from './routers/turnLifecycle.js';
+app.use('/api/turn-lifecycle', turnLifecycleRouter);
 app.use('/api/jarvis', jarvisRouter);
 import jarvisV2Router from './routers/jarvisV2.js';
 app.use('/api/jarvis-v2', jarvisV2Router);
@@ -526,9 +540,15 @@ if (!process.env.VERCEL) {
           browser: 'ready',
         });
 
-        // Startup Capability Certification Runner:
-        // Automatically initiates autonomous capability certification after startup grace period
-        setTimeout(async () => {
+        // Startup Capability Certification Runner — DISABLED by default (Phase 1).
+        // Certification drives the real desktop; it must never run automatically
+        // inside the installed production process, concurrently with the user.
+        // Opt-in only for a non-packaged runtime with AGENTICOS_ENABLE_STARTUP_CERTIFICATION=1.
+        const startupCertificationAllowed =
+          process.env.AGENTICOS_ENABLE_STARTUP_CERTIFICATION === '1' && process.env.AGENTICOS_IS_PACKAGED !== 'true';
+        if (!startupCertificationAllowed) {
+          logger.info('[Supervisor] Startup capability certification disabled (production process).');
+        } else setTimeout(async () => {
           try {
             const { autonomousCapabilityCertificationRunner } = await import('./domains/controlPlane/AutonomousCapabilityCertificationRunner.js');
             logger.info('[Supervisor] Initiating startup capability certification pass...');

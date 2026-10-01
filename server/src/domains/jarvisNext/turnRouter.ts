@@ -1604,7 +1604,7 @@ export async function routeTurn(opts: {
         text: ok
           ? `I delegated that task to Hermes. Task ${taskId} is queued against the repository.`
           : `I attempted to delegate to Hermes, but the delegation did not succeed: ${res?.error || 'no task id returned'}.`,
-        evidence: true, executed: ok, verified: ok,
+        evidence: true, executed: ok, verified: false, // Phase 1: a queued task id is not a verified result
         fallbackReason: ok ? undefined : 'hermes_delegation_failed',
       });
     } catch (err: any) {
@@ -2046,7 +2046,7 @@ export async function routeTurn(opts: {
         text: ok
           ? `I delegated that task to Hermes. Task ${taskId} is queued against the repository.`
           : `I attempted to delegate to Hermes, but the delegation did not succeed: ${res?.error || 'no task id returned'}.`,
-        evidence: true, executed: ok, verified: ok,
+        evidence: true, executed: ok, verified: false, // Phase 1: a queued task id is not a verified result
         fallbackReason: ok ? undefined : 'hermes_delegation_failed',
       });
     } catch (err: any) {

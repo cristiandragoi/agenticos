@@ -1,3 +1,8 @@
+// Phase 1 release boundary: retired. scripts/deploy-installed.cjs is the ONLY deploy path
+// (it breaks repo<->installed links, verifies parity and writes deployment.json).
+// The original implementation is kept below for reference but is unreachable.
+console.error('[deploy] ' + require('path').basename(__filename) + ' is retired. Use: node scripts/deploy-installed.cjs');
+process.exit(1);
 // deploy-server-artifact.cjs — backend-only artifact deployment (current machine paths).
 // Same mechanism as deploy-server-only.cjs: backup -> complete replacement -> per-file sha256 verify.
 // Differences from the legacy script: current install root (LOCALAPPDATA\Programs\AgenticOS) and

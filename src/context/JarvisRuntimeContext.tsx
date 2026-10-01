@@ -3,9 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useVoiceIO } from '../hooks/useVoiceIO';
 import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '../components/jarvis/JarvisChat';
 import type { MicState } from '../components/jarvis/JarvisComposer';
-import { detectControlIntent } from '../lib/controlIntent';
 import { voiceTracePush } from '../diagnostics/voiceTrace';
-import { getActiveJarvisEngine, setActiveJarvisEngine, stopAllJarvisAudio, registerActiveAudio } from '../lib/jarvisEngineAuthority';
+import { getActiveJarvisEngine, setActiveJarvisEngine, stopAllJarvisAudio } from '../lib/jarvisEngineAuthority';
 import { apiUrl } from '../api/client';
 import { jarvisLiveKitSession } from '../lib/jarvisLiveKitSession';
 import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
@@ -357,96 +356,13 @@ export const JarvisRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({
     voiceOverride: selectedVoice,
     endSpeechSilenceMs: 750,
 
+    // Phase 1: renderer-side voice submission is disabled. Every spoken utterance is
+    // captured by the LiveKit session and submitted by the server agent to the single
+    // TurnLifecycleController. The previous V1 (/message/stream) and V2
+    // (/api/jarvis-v2/.../voice/turn, now 410 Gone) submission branches were removed so a
+    // renderer transcript can never become a second execution of the same utterance.
     onAutoSubmit: async (text) => {
-      console.log('[JARVIS_ENGINE_ROUTE]', {
-        activeAuthority: getActiveJarvisEngine(),
-        localEngineState: activeEngine,
-        engineRef: undefined,
-        transcript: text,
-        caller: 'JarvisRuntimeContext.onAutoSubmit'
-      });
-      const engine = getActiveJarvisEngine();
-      const conversationId = activeConversationId || `conv-v2-${Date.now().toString(36)}`;
-
-      if (engine === 'v2') {
-        const destination = apiUrl(`/api/jarvis-v2/conversations/${conversationId}/voice/turn`);
-        console.log(`[JARVIS_ENGINE_ROUTE]\nselectedEngine=v2\ntranscript=${text}\ndestination=${destination}\nconversationId=${conversationId}`);
-
-        try {
-          const v2Res = await fetch(destination, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: text,
-              transcript: text,
-              channel: 'voice',
-              turnId: ++turnSeqRef.current,
-              voice: selectedVoice,
-              synthesizeTts: true,
-            })
-          });
-          if (v2Res.ok) {
-            const data = await v2Res.json();
-            if (data.audioBase64) {
-              const audio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
-              const unregister = registerActiveAudio(audio);
-              audio.onended = () => { unregister(); };
-              audio.onerror = () => { unregister(); };
-              await audio.play();
-            }
-          }
-        } catch (err) {
-          console.error('[JarvisRuntime] V2 voice turn error:', err);
-        }
-        return;
-      }
-
-      // ELSE: Jarvis V1 Route
-      const targetConversationId = activeConversationId || 'conv-main';
-      const destination = apiUrl(`/api/jarvis/conversations/${targetConversationId}/message/stream`);
-      console.log(`[JARVIS_ENGINE_ROUTE]\nselectedEngine=v1\ntranscript=${text}\ndestination=${destination}\nconversationId=${targetConversationId}`);
-
-      // If actively thinking, only control intents interrupt
-      if (voiceRef.current?.voiceState === 'thinking') {
-        const ctrl = detectControlIntent(text);
-        if (!ctrl) {
-          console.log('[JarvisRuntime] Ignored incidental auto-submit while thinking:', text);
-          return;
-        }
-      }
-
-      // 1. Cancel previous playback and model response first
-      voiceRef.current?.stopSpeaking?.();
-      activeChatRef.current?.cancelResponse?.();
-
-      outputStoppedRef.current = false;
-      receivedDeltaRef.current = false;
-      // 2. Create the new turn ID
-      const turnId = ++turnSeqRef.current;
-
-      // 3. Clear progressive buffer
-      speechBufferRef.current = '';
-
-      if (manualEditSinceVoiceRef.current) {
-        setVoiceInterimTranscript(text);
-        return;
-      }
-
-      // 4. Arm speech for this turn
-      voiceRef.current?.armSpeech?.(turnId);
-
-      // 5. Send message through active chat handle
-      if (activeChatRef.current) {
-        activeChatRef.current.sendMessage(text, 'voice', turnId);
-      } else {
-        console.warn('[JarvisRuntime] No active chat mounted to receive auto-submit text:', text);
-        setIsDockCollapsed(false);
-        setTimeout(() => {
-          if (activeChatRef.current) {
-            activeChatRef.current.sendMessage(text, 'voice', turnId);
-          }
-        }, 50);
-      }
+      console.warn('[JarvisRuntime] renderer auto-submit ignored (LiveKit owns voice turns):', text);
     },
     onBargeIn: () => {
       speechBufferRef.current = '';

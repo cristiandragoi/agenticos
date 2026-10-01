@@ -170,6 +170,10 @@ export class ControlPlaneTurnHandler {
         prompt: effectivePrompt || prompt,
         modality: 'voice',
         onProgress: onActionProgress,
+        // Phase 1: the orchestrator runs at most ONCE per request, as the lifecycle's
+        // final fallback — never here, where its 'direct' result used to be discarded
+        // after it had already executed and persisted a reply.
+        skipOrchestrator: true,
       });
 
       if (
@@ -177,6 +181,7 @@ export class ControlPlaneTurnHandler {
         canonicalRes.route &&
         canonicalRes.route !== 'direct' &&
         canonicalRes.route !== 'llm_fallback' &&
+        canonicalRes.route !== 'unhandled' &&
         canonicalRes.status !== 'failed'
       ) {
         logger.info(`[ControlPlaneTurnHandler] Turn handled by CanonicalTurnExecutionService [route=${canonicalRes.route}]`);
@@ -188,9 +193,9 @@ export class ControlPlaneTurnHandler {
           handled: true,
           route: canonicalRes.route as any,
           text: canonicalRes.assistantText,
-          evidence: canonicalRes.verified ?? true,
+          evidence: canonicalRes.verified === true,
           executed: canonicalRes.status === 'completed' || canonicalRes.status === 'delegated',
-          verified: canonicalRes.verified ?? true,
+          verified: canonicalRes.verified === true,
           goalId: canonicalRes.goalRunId || canonicalRes.taskId,
           timings: { totalMs: 0 },
         };

@@ -39,7 +39,7 @@ import { stripWakeWord } from './wakeWord.js';
 import { voiceHealthMonitor } from './voiceHealthMonitor.js';
 import { speechArbiter, SpeechPriority } from './speechArbiter.js';
 
-const JRT_TRACE_FILE = 'D:\\AgenticOS\\data\\jarvis-runtime-trace.log';
+const JRT_TRACE_FILE = path.join(process.env.AGENTICOS_DATA_DIR || path.join(process.cwd(), 'data'), 'jarvis-runtime-trace.log');
 
 export function logJRT(marker: string, details: string = ''): void {
   const ts = new Date().toISOString();
@@ -186,6 +186,8 @@ export class JarvisNextAgent {
   private pendingCoalesced: Array<{ text: string; originTurnId: number; timestamp: number }> = [];
   /** Instance-level acknowledgment timer to prevent cross-turn leakages. */
   private currentAckTimer: NodeJS.Timeout | null = null;
+  /** True while TurnLifecycleController owns the current voice turn. */
+  private lifecycleRequestInFlight = false;
   /** Per-turn SPEAK_REQUEST instrumentation counter. */
   private speakRequestCount = new Map<number, number>();
   /** Persistent conversation for the voice session, so turns retain continuity. */
@@ -454,6 +456,12 @@ export class JarvisNextAgent {
     this.turnWatchdog = setTimeout(() => {
       if (this.turnLatchAcquiredAt !== armedForLatch) return; // latch already released / reused
       if (!this.isProcessingUserTurn) return;                 // turn finished normally
+      if (this.lifecycleRequestInFlight) {
+        // The lifecycle owns this turn and guarantees exactly one terminal outcome
+        // (its own execution timeout). The watchdog must not speak or retry on its behalf.
+        this.armTurnWatchdog(turnId, conversationId);
+        return;
+      }
       // No terminal outcome arrived for this turn. This is the failure that makes
       // Jarvis permanently deaf, so it is a runtime defect — not a conversation
       // problem — and it goes to Self-Heal with the evidence attached.
@@ -1521,551 +1529,79 @@ export class JarvisNextAgent {
     }
   ): Promise<void> {
     // RC3: allocate a fresh turn id ONLY when the caller did not supply one.
-    // commitUserTurn() has already allocated and passed its accepted turn id, so
-    // the voice path must not advance the counter a second time. Callers that
-    // pass no turn id (HTTP entry point, data channel, tests) still get their own
-    // id, so a newer request can supersede an older one.
     const activeTurnId = turnId ?? ++this.currentUserTurnId;
     this.isProcessingUserTurn = true;
     this.foregroundTurnActive = true;
     this.lastUserText = text;
-    logJRT('STT_FINAL', `turn=${activeTurnId} durationMs=0 text_length=${text.length}`);
-    console.log(`[JRT] STT_FINAL turn=${activeTurnId} durationMs=0`);
-    const buildIdentity = getBuildIdentity();
-    const buildId = buildIdentity.buildId || 'dev';
-    const roomName = this.currentRoomName || this.room?.name || 'unknown';
-
+    // Microphone turns carry turnMeta (WAV + Whisper); everything else is text injection.
+    const source = turnMeta ? 'voice_livekit' : 'voice_text_injection';
+    const buildId = getBuildIdentity().buildId || 'dev';
     logger.info('[JRT] LIVE_TURN_RECEIVED', {
-      BUILD_ID: buildId,
-      PROCESS_PID: process.pid,
-      ROOM_NAME: roomName,
-      TURN_ID: activeTurnId,
-      STT_TEXT: text,
-      CONFIDENCE: confidence,
-      IS_BARGE_IN: isBargeIn,
+      BUILD_ID: buildId, PROCESS_PID: process.pid, ROOM_NAME: this.currentRoomName || this.room?.name || 'unknown',
+      TURN_ID: activeTurnId, STT_TEXT: text, CONFIDENCE: confidence, IS_BARGE_IN: isBargeIn, SOURCE: source,
     });
-    console.log(`[JRT] LIVE_TURN_RECEIVED STT_TEXT="${text}" TURN_ID=${activeTurnId} ROOM=${roomName} BUILD_ID=${buildId} PID=${process.pid} IS_BARGE_IN=${isBargeIn}`);
-    logJRT('HANDLE_USER_TEXT_BEGIN', `turn=${activeTurnId} text_length=${text.length} isBargeIn=${isBargeIn}`);
-    logger.info(`[JarvisNext] Handling conversational turn #${activeTurnId} for text:`, text);
+    logJRT('HANDLE_USER_TEXT_BEGIN', `turn=${activeTurnId} text_length=${text.length} isBargeIn=${isBargeIn} source=${source}`);
 
-    const lower = text.toLowerCase().trim();
-
-    // Invariant 6: HIGH PRIORITY STOP COMMAND INTERRUPTS EVERYTHING
+    // STOP is transport control (halt playout), not a goal. It never reaches the lifecycle as work.
     const controlResult = detectControlIntent(text, { isBargeIn, sttConfidence: confidence });
     if (controlResult.isControl && controlResult.intent === 'STOP') {
-      logger.info(`[JarvisNext] High-priority STOP command detected via controlIntentDetector: "${text}" (reason: ${controlResult.reason}). Cancelling turn and returning to READY.`);
+      logger.info(`[JarvisNext] STOP control detected: "${text}" (reason: ${controlResult.reason}).`);
       this.handleStopCommand('local_control_detector');
       logJRT('TURN_COMPLETE', `turn=${activeTurnId} reason=user_stop_cancelled`);
       return;
     }
 
-    // Invariant 6a: Explicit User Supersession ("Leave it.", "Move on.", "Stop that.", "Forget the camera.", "No, I asked something else.")
-    const supersessionMatch =
-      /^(?:leave\s+it|move\s+on|stop\s+that|forget\s+(?:the\s+camera|the\s+browser|perception|it|that)|never\s*mind|nevermind|cancel\s+that|no[,\s]+i\s+asked\s+something\s+else)\b[\s.!?,]*(.*)$/i.exec(lower) ||
-      /^(?:leave\s+it[\s.,;]+move\s+on|move\s+on[\s.,;]+leave\s+it)\b[\s.!?,]*(.*)$/i.exec(lower);
-
-    if (supersessionMatch) {
-      const remainder = supersessionMatch[1]?.trim();
-      const supersededTurnId = activeTurnId - 1;
-      logger.info(`[JarvisNext] User supersession detected for turn #${activeTurnId}: "${text}" (superseding prior turn #${supersededTurnId})`);
-      logJRT('TURN_SUPERSEDED', `supersededTurn=${supersededTurnId} currentTurn=${activeTurnId} phrase="${supersessionMatch[0]}"`);
-      console.log(`[JRT] TURN_SUPERSEDED supersededTurn=${supersededTurnId} currentTurn=${activeTurnId}`);
-
-      // 1. Invalidate and clear prior pending speech & ack timers
-      if (this.currentAckTimer) {
-        clearTimeout(this.currentAckTimer);
-        this.currentAckTimer = null;
-      }
-
-      this.pendingCoalesced = [];
-      speechArbiter.flush();
-
-      // 2. Interrupt any currently playing assistant TTS
-      this.interruptAssistantPlayout('user_superseded');
-
-      // 3. If there is a follow-up instruction in the same utterance (e.g. "Leave it. Move on. Check GitHub status.")
-      if (remainder && remainder.length > 2) {
-        logger.info(`[JarvisNext] Executing follow-up instruction after supersession: "${remainder}"`);
-        return this.handleUserText(remainder, activeTurnId, confidence, isBargeIn);
-      }
-
-      // 4. Standalone supersession: speak crisp acknowledgment and return to READY/LISTENING
-      const ackReply = "Understood, moving on.";
-      this.broadcastData({ type: 'assistant_text', text: ackReply });
-      await this.speak(ackReply, activeTurnId);
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=supersession_ack`);
-      return;
-    }
-
-    // Turn isolation: clear prior turn's ack timer, pending speech, and flush speech arbiter
+    // Turn isolation for the transport: no stale ack timers or queued speech.
     if (this.currentAckTimer) {
       clearTimeout(this.currentAckTimer);
       this.currentAckTimer = null;
     }
-
     speechArbiter.flush();
     this.pendingCoalesced = [];
 
-    // Deterministic Routing: Explicit AntiGravity Engineering Delegation (HIGHEST PRECEDENCE)
-    // Must execute strictly before TTS queries, language switches, browser, desktop, or normal routing.
-    const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('../controlPlane/ExplicitEngineeringDelegation.js');
-    const explicitEngineering = parseExplicitEngineeringDelegation(text);
-    if (explicitEngineering) {
-      logJRT('EXPLICIT_ENGINEERING_DELEGATION', `action=${explicitEngineering.action} task="${explicitEngineering.task}"`);
-      logger.info('[JarvisNext] Explicit AntiGravity engineering delegation detected — executing canonical lifecycle');
-      const delRes = await executeEngineeringDelegation(explicitEngineering, {
-        conversationId: (await this.ensureVoiceConversation()) || 'voice-session',
-        turnId: activeTurnId,
-        workspace: 'D:\\AgenticOS',
-        speakFn: (spokenText, tId) => this.speak(spokenText, tId ?? activeTurnId),
-        broadcastFn: (data) => this.broadcastData(data),
-      });
-      this.lastAssistantText = delRes.text;
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=engineering_delegation`);
-      return;
-    }
-
-    // Deterministic Routing: Which TTS provider is synthesizing this exact response right now?
-    if (/\b(?:which\s+tts\s+provider|what\s+tts\s+provider|who\s+is\s+synthesizing|which\s+provider\s+is\s+synthesizing|welche\s+stimme|welcher\s+tts|welche\s+sprachausgabe|welches\s+sprachmodell|which\s+voice\s+are\s+you\s+using|what\s+voice\s+are\s+you\s+using)\b/i.test(lower)) {
-      const answer = await voiceRuntimeState.formatProviderAnswer(this.currentVoiceId);
-      this.lastAssistantText = answer;
-      this.broadcastData({ type: 'assistant_text', text: answer });
-      await this.speak(answer, activeTurnId);
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=deterministic_voice_runtime_state`);
-      return;
-    }
-
-    // Deterministic Routing: Language switch (e.g. "Switch to English", "Switch back to English")
-    const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('../jarvis/conversationLanguage.js');
-    const langSwitch = detectLanguageSwitchRequest(text);
-    if (langSwitch.isLanguageSwitch && langSwitch.targetLanguage) {
-      const targetLang = langSwitch.targetLanguage;
-      const convId = await this.ensureVoiceConversation();
-      if (convId) {
-        setConversationLanguage(convId, targetLang, true);
-      }
-      voiceRuntimeState.setLanguage(targetLang, undefined, true);
-      const conf = buildLanguageSwitchConfirmation(targetLang);
-      this.lastAssistantText = conf;
-      this.broadcastData({ type: 'assistant_text', text: conf });
-      await this.speak(conf, activeTurnId);
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=deterministic_language_switch`);
-      return;
-    }
-
-    // Deterministic Routing: What time of day comes after morning?
-    if (/\b(?:what\s+time\s+of\s+day\s+comes\s+after\s+morning|what\s+comes\s+after\s+morning)\b/i.test(lower)) {
-      const answer = 'Afternoon comes after morning.';
-      this.lastAssistantText = answer;
-      this.broadcastData({ type: 'assistant_text', text: answer });
-      await this.speak(answer, activeTurnId);
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=deterministic_conversational`);
-      return;
-    }
-
-    // Deterministic Routing: What is the active voice?
-    if (/\b(?:what\s+is\s+the\s+active\s+voice|which\s+voice\s+is\s+active|current\s+active\s+voice)\b/i.test(lower)) {
-      const currentVoice = this.currentVoiceId || voiceRuntimeState.getActiveVoice();
-      const answer = `The active voice is ${currentVoice}.`;
-      this.lastAssistantText = answer;
-      this.broadcastData({ type: 'assistant_text', text: answer });
-      await this.speak(answer, activeTurnId);
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=deterministic_active_voice`);
-      return;
-    }
-
-    try {
-    // 1. Trivial conversational intents answer locally and instantly. Guarded by
-    //    utterance length so "hello, tell me what's inside Free Cash" is NOT
-    //    short-circuited here — anything substantive must reach grounding.
-    const wordCount = lower.split(/\s+/).filter(Boolean).length;
-    if (wordCount <= 6) {
-      if (/\b(who|what) are you\b/.test(lower)) {
-        const intro = 'I am Jarvis, your autonomous AI desktop operating assistant on LiveKit.';
-        this.broadcastData({ type: 'assistant_text', text: intro });
-        await this.speak(intro, activeTurnId);
-        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
-        return;
-      }
-      if (/^(?:hey|hi|hello|good\s+(?:morning|afternoon|evening))\b/i.test(lower) && !/\b(open|start|run|launch|work|operate|show|go|view|browse|what|which|where)\b/i.test(lower)) {
-        const greeting = 'Hey. What are we working on?';
-        this.broadcastData({ type: 'assistant_text', text: greeting });
-        await this.speak(greeting, activeTurnId);
-        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
-        return;
-      }
-    }
-
-    // 2. Safety gate, computed INDEPENDENTLY of the bridge so that a bridge
-    //    throw, timeout, or missing conversation can never let a question about
-    //    authoritative AgenticOS state fall through to generic chat.
-    const { isProjectStateRequest } = await import('../jarvis/projectStateContext.js');
-    const { GROUNDING_REFUSAL } = await import('./groundedTurnBridge.js');
-    const requiresAuthoritativeState = isProjectStateRequest(text);
-    logJRT('VOICE_STATE_GATE', `turn=${activeTurnId} requiresAuthoritativeState=${requiresAuthoritativeState}`);
-
-    const refuseGrounded = async (reason: string) => {
-      logJRT('VOICE_GROUNDING_REFUSED', `turn=${activeTurnId} reason=${reason}`);
-      this.lastAssistantText = GROUNDING_REFUSAL;
-      this.broadcastData({ type: 'assistant_text', text: GROUNDING_REFUSAL });
-      await this.speak(GROUNDING_REFUSAL, activeTurnId);
-      logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
-    };
-
-    // 3. Single runtime hierarchy: context/focus → entity → classification →
-    //    { fast read | action | unknown | chat | deep supervisor }.
-    const conversationId = await this.ensureVoiceConversation();
-    if (!conversationId) {
-      if (requiresAuthoritativeState) return await refuseGrounded('no_conversation');
-    } else {
-      try {
-        const tRouterStart = Date.now();
-        logJRT('ROUTER_START', `turn=${activeTurnId}`);
-        console.log(`[JRT] ROUTER_START turn=${activeTurnId}`);
-
-        const speechEndTime = this.turnSpeechEndTimes.get(activeTurnId) || (Date.now() - 300);
-        const existingLat = this.turnLatencyMap.get(activeTurnId) || {
-          turnId: activeTurnId,
-          speechEnd: speechEndTime,
-          finalTranscript: Date.now(),
-        };
-        existingLat.toolStart = tRouterStart;
-        this.turnLatencyMap.set(activeTurnId, existingLat);
-
-        const isConversationalAck = /^(?:yes,?\s+(?:that'?s\s+(?:right|correct|what\s+i\s+meant)|exactly)|correct|exactly|thank\s+you|thanks|okay,?\s+good|that'?s\s+what\s+i\s+meant|sounds\s+good|great|perfect|got\s+it|yes|yeah|sure)[.!]?$/i.test(lower);
-
-        const isVisualOperation = !isConversationalAck &&
-          /\b(comet\s+perplexity|inspect\s+browser|read\s+(?:the\s+)?browser|camera|holding|look at|showing|see me|inspect\s+screen|see\s+my\s+screen|desktop|word\s+window)\b/i.test(lower);
-
-        if (this.currentAckTimer) {
-          clearTimeout(this.currentAckTimer);
-          this.currentAckTimer = null;
-        }
-
-        if (!isConversationalAck) {
-          const elapsedSinceSpeechEnd = Date.now() - speechEndTime;
-          // Deliver immediate acknowledgment within ~500-800ms of speech end for visual/perception operations
-          const ackDelayMs = isVisualOperation
-            ? Math.max(50, Math.min(800, 650 - elapsedSinceSpeechEnd))
-            : 2000;
-
-          this.currentAckTimer = setTimeout(() => {
-            this.currentAckTimer = null;
-            if (this.currentUserTurnId !== activeTurnId) return;
-            if (!this.isProcessingUserTurn || this.isSpeaking) return;
-
-            // D-6: an acknowledgement is only truthful once a real capability
-            // operation has been accepted and dispatched for THIS turn. Routing
-            // that has not created an operation must not be papered over with
-            // "I'm checking that now." — the ack carries the same turnId (and the
-            // operationId it belongs to) so it can never outlive its operation.
-            const longRunningCapability =
-              isLikelyControlAttempt(text) || /\b(?:delegate|hermes|codex)\b/i.test(lower);
-            const ackDecision = authorizePreliminaryAck({
-              conversationId,
-              turnId: activeTurnId,
-              longRunningCapability,
-            });
-            if (!ackDecision.allowed) {
-              logJRT(
-                'ACK_SUPPRESSED',
-                `turn=${activeTurnId} reason=${ackDecision.reason} — no accepted operation`,
-              );
-              return;
-            }
-
-            let ack = "I'm checking that now.";
-            if (/\b(camera|holding|look at me|showing|see me)\b/i.test(lower)) {
-              ack = "I'm checking the camera now.";
-            } else if (/\b(comet|perplexity)\b/i.test(lower)) {
-              ack = "I'm reading the Comet page now.";
-            } else if (/\b(?:read|inspect|what\s+is\s+on)\s+(?:the\s+)?(?:browser|page|webpage)\b/i.test(lower)) {
-              ack = "I'm reading the active browser page now.";
-            } else if (/\b(desktop|screen)\b/i.test(lower)) {
-              ack = "I'm inspecting the screen now.";
-            } else if (/\b(word)\b/i.test(lower)) {
-              ack = "I'm inspecting the Word window now.";
-            } else if (/\b(hermes)\b/i.test(lower)) {
-              ack = "I'm checking Hermes now.";
-            } else if (/\b(telegram)\b/i.test(lower)) {
-              ack = "I'm inspecting Telegram now.";
-            }
-            logger.info(`[JarvisNext] Spoken truthful acknowledgment (~650ms after speech-end) for turn #${activeTurnId}: "${ack}"`);
-            const lat = this.turnLatencyMap.get(activeTurnId);
-            if (lat) {
-              lat.firstLlmToken = Date.now();
-              lat.immediateAckSpoken = true;
-            }
-            this.broadcastData({ type: 'assistant_text', text: ack });
-            void this.speak(ack, activeTurnId, { preliminaryAck: true });
-          }, ackDelayMs);
-        }
-
-        const { routeTurn } = await import('./turnRouter.js');
-        const routed = await routeTurn({
-          prompt: text,
-          conversationId,
-          turnId: activeTurnId,
-          rawStt: text,
-          confidence,
-          isBargeIn,
-          isStale: () => this.currentUserTurnId !== activeTurnId,
-          onActionProgress: (progress) => {
-            this.broadcastData({
-              type: 'action_status',
-              ...progress,
-            });
-          },
-        });
-
-        if (this.currentAckTimer) {
-          clearTimeout(this.currentAckTimer);
-          this.currentAckTimer = null;
-        }
-
-        // RC1: if the preliminary acknowledgement is still playing when the router
-        // returns, stop it now. Aborting the playout advances currentAssistantPlayoutId
-        // so the ack's own finally block can neither release the turn latch nor drain
-        // follow-ups, and the real answer below takes the channel immediately instead
-        // of being coalesced behind the acknowledgement.
-        if (this.isSpeaking && this.speechOwnerTurnId === activeTurnId) {
-          this.interruptAssistantPlayout('router_result_ready');
-        }
-
-        const tRouterEnd = Date.now();
-        existingLat.intentReady = tRouterEnd;
-        existingLat.route = routed.route;
-        if (!existingLat.firstLlmToken) {
-          existingLat.firstLlmToken = tRouterEnd;
-        }
-
-        const routerDurationMs = tRouterEnd - tRouterStart;
-        logJRT('ROUTER_END', `turn=${activeTurnId} durationMs=${routerDurationMs}`);
-        console.log(`[JRT] ROUTER_END turn=${activeTurnId} durationMs=${routerDurationMs}`);
-        logJRT('ROUTER_RESULT', `turn=${activeTurnId} durationMs=${routerDurationMs} route=${routed.route}`);
-        console.log(`[JRT] ROUTER_RESULT turn=${activeTurnId} durationMs=${routerDurationMs}`);
-
-        if (this.currentUserTurnId !== activeTurnId) {
-          logger.info('[JarvisNext] Turn cancelled: stale check failed on routed path.');
-          this.releaseTurnLatch('stale_check_routed');
-          return;
-        }
-
-        if (routed.handled) {
-          if (!routed.text || !routed.text.trim()) {
-            const lat = this.turnLatencyMap.get(activeTurnId);
-            if (lat?.immediateAckSpoken) {
-              const fallbackCompletion = "I have checked the system, but no specific action or target window was found.";
-              this.lastAssistantText = fallbackCompletion;
-              this.broadcastData({ type: 'assistant_text', text: fallbackCompletion });
-              await this.speak(fallbackCompletion, activeTurnId);
-              logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=ack_fallback_delivered`);
-              return;
-            }
-            logger.info('[JarvisNext] Turn handled silently (quiet recovery).');
-            this.consecutiveClarifications = 0;
-            this.releaseTurnLatch('quiet_recovery');
-            this.broadcastData({
-              type: 'status',
-              state: 'listening',
-              isSpeaking: false,
-              isListening: true,
-            });
-            logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=quiet_recovery`);
-            return;
-          }
-
-          const isClarification = /couldn't make that out/i.test(routed.text);
-          if (isClarification) {
-            if (isBargeIn || isLikelyControlAttempt(text) || this.consecutiveClarifications >= 1) {
-              logger.info('[JarvisNext] Clarification suppressed for barge-in / control attempt / consecutive — failing quietly into silent listening.');
-              this.consecutiveClarifications = 0;
-              this.releaseTurnLatch('quiet_clarification_suppressed');
-              this.broadcastData({
-                type: 'status',
-                state: 'listening',
-                isSpeaking: false,
-                isListening: true,
-              });
-              logJRT('TURN_COMPLETE', `turn=${activeTurnId} reason=quiet_clarification_suppressed`);
-              return;
-            }
-            this.consecutiveClarifications++;
-          } else {
-            this.consecutiveClarifications = 0;
-          }
-
-          this.lastAssistantText = routed.text;
-          if (routed.route === 'navigate' && routed.uiRoute) {
-            this.broadcastData({
-              type: 'navigation',
-              route: routed.uiRoute,
-              entityId: routed.entityId,
-              entityType: routed.entityType,
-              entityName: routed.entityName,
-            });
-          } else if (routed.route === 'browser') {
-            this.broadcastData({
-              type: 'browser_navigation',
-              target: routed.entityName,
-              text: routed.text,
-            });
-          }
-          this.broadcastData({ type: 'assistant_text', text: routed.text });
-          logJRT('RESPONSE_READY', `turn=${activeTurnId} text_length=${routed.text?.length || 0}`);
-          console.log(`[JRT] RESPONSE_READY turn=${activeTurnId} text_length=${routed.text?.length || 0}`);
-
-          const rawSttText = turnMeta?.whisperFinal || text;
-          const parsedIntent = (routed as any).goalDescription || (routed as any).plan?.goalDescription || (routed as any).plan?.steps?.[0]?.description || routed.route;
-          const execTrace = [
-            `PHYSICAL_EXECUTION_TRACE:`,
-            `TURN_ID=${activeTurnId}`,
-            `RAW_STT_TRANSCRIPT=${rawSttText}`,
-            `NORMALIZED_TRANSCRIPT=${text}`,
-            `PARSED_USER_INTENT=${parsedIntent}`,
-            `PARSED_GOAL=${routed.route}`,
-            `ROUTE=${routed.route}`,
-            `FINAL_RESPONSE=${routed.text}`,
-          ].join('\n');
-          console.log(`[JRT] ${execTrace}`);
-          logger.info('[JRT] PHYSICAL_EXECUTION_TRACE', { trace: execTrace });
-          logJRT('PHYSICAL_EXECUTION_TRACE', `\n${execTrace}`);
-
-          voiceHealthMonitor.recordTurn({
-            turnId: activeTurnId,
-            captureStart: turnMeta?.captureStart || Date.now(),
-            captureStop: turnMeta?.captureStop || Date.now(),
-            rawDurationMs: turnMeta?.rawDurationMs || 0,
-            rawPcmBytes: turnMeta?.rawPcmBytes || 0,
-            vadSpeechStart: turnMeta?.vadStart || Date.now(),
-            vadSpeechEnd: turnMeta?.vadEnd || Date.now(),
-            endpointReason: turnMeta?.boundaryReason || 'vad_silence',
-            wavPath: turnMeta?.wavPath || '',
-            whisperFinalTranscript: turnMeta?.whisperFinal || text,
-            routerTranscript: text,
-            normalizedTranscript: text,
-            route: routed.route,
-            finalResponse: routed.text,
-            isBargeIn: Boolean(isBargeIn),
-            isAbnormalEarlyEndpoint: (turnMeta?.rawDurationMs || 0) < 1200 && isClarification,
-            isClarification,
-            isBareEntityFallback: /what would you like me to do with|do you want me to open it, check its status/i.test(routed.text),
-          });
-
-          // Guard: silent routes (e.g. declarative statement memory seeding) return
-          // empty text intentionally — do not synthesize TTS for empty strings.
-          if (routed.text?.trim()) {
-            await this.speak(routed.text, activeTurnId);
-          } else {
-            logger.debug('[JarvisNext] Silent route — no speech generated.', { route: routed.route, turn: activeTurnId });
-            const lat = this.turnLatencyMap.get(activeTurnId);
-            if (lat) {
-              lat.ttsFirstChunk = Date.now();
-              lat.playbackFirstAudio = Date.now();
-              lat.playbackComplete = Date.now();
-              lat.speechEndToFirstAudioMs = Math.max(1, lat.playbackFirstAudio - (lat.speechEnd || lat.finalTranscript || Date.now()));
-              lat.totalTurnMs = Math.max(1, lat.playbackComplete - (lat.speechEnd || lat.finalTranscript || Date.now()));
-              lat.status = 'ANSWERED';
-              voiceLatencyTracker.record(lat as TurnLatencyRecord);
-            }
-          }
-          logJRT('TURN_COMPLETE', `turn=${activeTurnId} route=${routed.route}`);
-          return;
-        }
-
-        // Not handled: state questions refuse rather than guess.
-        if (requiresAuthoritativeState) {
-          return await refuseGrounded(routed.fallbackReason || 'no_evidence');
-        }
-      } catch (routerErr: any) {
-        logger.warn('[JarvisNext] Turn router error:', routerErr?.message || routerErr);
-        if (requiresAuthoritativeState) {
-          return await refuseGrounded(`router_error: ${routerErr?.message || routerErr}`);
-        }
-      }
-    }
-
-    // 3. Legacy deterministic operator path (kept as a secondary fallback).
-    try {
-      const opResult = await operatorController.handleIntent(text);
-      if (this.currentUserTurnId !== activeTurnId) {
-        logger.info(`[JarvisNext] Turn cancelled: stale check failed on Operator path.`);
-        this.releaseTurnLatch('stale_check_operator');
-        return;
-      }
-
-      if (opResult.handled && opResult.response) {
-        logger.info('[JarvisNext] Operator handled intent:', { intent: opResult.intent, missionId: opResult.missionId });
-        this.lastAssistantText = opResult.response;
-        this.broadcastData({ type: 'assistant_text', text: opResult.response });
-        await this.speak(opResult.response, activeTurnId);
-        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
-        return;
-      }
-    } catch (opErr) {
-      logger.warn('[JarvisNext] Operator handle error:', opErr);
-    }
-
-    if (this.currentUserTurnId !== activeTurnId) {
-      logger.info(`[JarvisNext] Turn cancelled: stale check failed after Operator.`);
-      this.releaseTurnLatch('stale_check_after_operator');
-      return;
-    }
-
-    // Operational requests that reached here have no grounded answer available.
-    // Generic chat below is reachable ONLY by non-operational conversation.
-    if (requiresAuthoritativeState) {
-      return await refuseGrounded('operator_fallthrough');
-    }
-
-    // 2. Primary Route: Route reasoning through configured Codex Integration via llmChat
+    // ── Phase 1: the ONE authoritative lifecycle owns this request from here. ──
+    // This transport only supplies the normalized request and a TTS sink. It does not
+    // route, execute, verify, respond or decide the outcome.
+    this.lifecycleRequestInFlight = true;
     this.broadcastData({ type: 'status', state: 'thinking', isSpeaking: false, isListening: true });
     try {
-      logJRT('LLM_BEGIN', `turn=${activeTurnId}`);
-      const chatResult = await llmChat({
-        agentId: 'agent-jarvis',
-        systemPrompt:
-          'You are Jarvis, an advanced AI desktop operating assistant on AgenticOS. This voice session is in English. Reply in English. You are speaking directly to the user over voice. Respond concisely and clearly in 1 to 2 natural sentences without markdown, asterisks, code blocks, or bullet lists.',
-        prompt: text,
-      });
-
-      if (this.currentUserTurnId !== activeTurnId) {
-        logger.info(`[JarvisNext] Turn cancelled: stale check failed on LLM path.`);
-        this.releaseTurnLatch('stale_check_llm');
-        return;
-      }
-
-      const reply = chatResult.reply?.trim();
-      if (reply) {
-        logJRT('LLM_RESULT', `turn=${activeTurnId} provider=${chatResult.provider} length=${reply.length}`);
-        logger.info(`[JarvisNext] Codex reasoning reply received (turn #${activeTurnId}):`, {
-          provider: chatResult.provider,
-          model: chatResult.model,
-          length: reply.length,
-        });
-        this.lastAssistantText = reply;
-        this.broadcastData({ type: 'assistant_text', text: reply });
-        await this.speak(reply, activeTurnId);
-        logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
-        return;
+      const conversationId = (await this.ensureVoiceConversation()) || `voice-unpersisted-${process.pid}`;
+      const { turnLifecycle } = await import('../turnLifecycle/index.js');
+      const res = await turnLifecycle.submit(
+        {
+          source,
+          conversationId,
+          text,
+          externalTurnId: activeTurnId,
+          sttConfidence: confidence,
+          audioRef: turnMeta?.wavPath,
+        },
+        {
+          speak: async (reply, record) => {
+            this.lastAssistantText = reply;
+            this.broadcastData({
+              type: 'assistant_text', text: reply,
+              requestId: record.request.requestId, outcome: record.outcome ?? null,
+            });
+            if (this.currentUserTurnId !== activeTurnId) {
+              // A newer microphone turn exists; the transport no longer owns the speaker for this one.
+              throw new Error('superseded at transport level by a newer voice turn');
+            }
+            await this.speak(reply, activeTurnId);
+          },
+          progress: (evt) => this.broadcastData({ ...evt, type: String((evt as any).type || 'action_status') }),
+        },
+      );
+      if (res.duplicate) {
+        logJRT('TURN_DUPLICATE_REJECTED', `turn=${activeTurnId} duplicateOf=${res.duplicateOf} reason=${res.reason}`);
       } else {
-        logger.warn(`[JarvisNext] LLM returned empty content on turn #${activeTurnId}.`);
+        logJRT('TURN_COMPLETE', `turn=${activeTurnId} requestId=${res.record.request.requestId} outcome=${res.record.outcome}`);
       }
     } catch (err: any) {
-      logJRT('LLM_ERROR', `${err?.message || err} turn=${activeTurnId}`);
-      logger.warn(`[JarvisNext] llmChat error on turn #${activeTurnId} (${err?.message}), using fallback.`);
-    }
-
-    if (this.currentUserTurnId !== activeTurnId) {
-      this.releaseTurnLatch('stale_check_fallback');
-      return;
-    }
-
-    const fallbackReply = 'I could not get a response from the reasoning service. Please try again.';
-    this.broadcastData({ type: 'assistant_text', text: fallbackReply });
-    await this.speak(fallbackReply, activeTurnId);
-    logJRT('TURN_COMPLETE', `turn=${activeTurnId}`);
+      logJRT('LIFECYCLE_ERROR', `turn=${activeTurnId} ${err?.message || err}`);
+      logger.error('[JarvisNext] lifecycle submission failed', { turnId: activeTurnId, error: err?.message || String(err) });
     } finally {
+      this.lifecycleRequestInFlight = false;
       if (!this.isSpeaking && !this.isSynthesizing) {
         this.releaseTurnLatch('turn_finished_idle');
       }

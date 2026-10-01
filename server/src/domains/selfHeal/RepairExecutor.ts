@@ -36,12 +36,10 @@ export class RepairExecutor {
         success = mission.success;
       } catch (hermesErr: any) {
         logger.warn(`[SelfHeal] Hermes orchestrator error: ${hermesErr.message}, falling back to Hermes llmChat`);
-        await llmChat({
-          prompt: plan.codexPrompt + "\n\nProvide the code updates.",
-          agentId: 'hermes',
-          maxTokens: 2048,
-        });
-        success = true;
+        // Phase 1: an LLM chat reply is not a code change. No fallback success.
+        void llmChat;
+        success = false;
+        errorMsg = `Hermes orchestrator unavailable: ${hermesErr.message}`;
       }
 
       const diff = await this.collectDiff(plan.worktreePath);
@@ -52,7 +50,7 @@ export class RepairExecutor {
         success,
         diff,
         filesChanged,
-        error: undefined
+        error: errorMsg
       };
     } catch (e: any) {
       logger.error(`[SelfHeal] Repair execution failed:`, e);

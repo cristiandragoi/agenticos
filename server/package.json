@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-venv.cjs && tsc && node dist/index.js",
-    "build": "node scripts/ensure-venv.cjs && tsc && node ../scripts/build-identity.cjs",
+    "build": "node scripts/ensure-venv.cjs && node ../scripts/clean-server-dist.cjs && tsc && node ../scripts/build-identity.cjs",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",

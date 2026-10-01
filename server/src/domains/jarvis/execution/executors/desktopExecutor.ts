@@ -807,7 +807,8 @@ export class DesktopExecutor {
     const displayName = detailed.displayName || appInput;
 
     if (process.platform !== 'win32') {
-      return { success: true, verified: true, app: displayName };
+      // Phase 1: nothing was observed on a non-Windows host; never report verified.
+      return { success: false, verified: false, app: displayName, error: 'focus is only observable on Windows' };
     }
 
     try {

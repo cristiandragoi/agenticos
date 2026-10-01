@@ -43,6 +43,8 @@ export interface CanonicalTurnInput {
   };
   onProgress?: (update: any) => void;
   onAcknowledgement?: (text: string) => void;
+  /** Phase 1: when true, unmatched prompts return route 'unhandled' instead of running the orchestrator. */
+  skipOrchestrator?: boolean;
 }
 
 export interface CanonicalTurnResult {
@@ -728,6 +730,9 @@ export class CanonicalTurnExecutionService {
     }
 
     // ── 6. Canonical Jarvis Orchestrator Execution (Full Cognitive Pipeline) ──
+    if (input.skipOrchestrator) {
+      return { assistantText: '', route: 'unhandled', status: 'skipped', verified: false };
+    }
     const orchResult = await jarvisOrchestrator.handleMessage(
       conversationId,
       rawPrompt,

@@ -322,7 +322,8 @@ function stripToolCallMarkup(text: string): string {
 router.get('/conversations', async (req, res) => {
   try {
     const list = await conversationService.listConversations();
-    res.json(list);
+    // Lifecycle context conversations hold legacy-handler scratch history; they are not user conversations.
+    res.json(list.filter((c: any) => c.primaryAgent !== 'jarvis-context'));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -658,6 +659,31 @@ async function nextWithTimeout<T>(
 }
 
 router.post('/conversations/:id/message', async (req, res) => {
+  // Phase 1: lifecycle-owned. The previous direct jarvisOrchestrator call is retained
+  // below as legacyMessageHandler (unmounted).
+  try {
+    const { prompt, operationId } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !isMeaningfulSpeech(prompt)) {
+      return res.status(400).json({ error: 'No meaningful speech detected.', noSpeech: true });
+    }
+    // The lifecycle's delivery stage creates the conversation if it does not exist yet.
+    const { turnLifecycle } = await import('../domains/turnLifecycle/index.js');
+    const submitted = await turnLifecycle.submit({
+      source: 'typed_chat', conversationId: req.params.id, text: prompt,
+      externalTurnId: typeof operationId === 'string' ? operationId : undefined,
+    });
+    if (submitted.duplicate) return res.status(409).json({ duplicate: true, duplicateOf: submitted.duplicateOf, reason: submitted.reason });
+    const r = submitted.record;
+    return res.json({
+      requestId: r.request.requestId, outcome: r.outcome, outcomeReason: r.outcomeReason,
+      message: r.responseText, handler: r.handler ?? null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const legacyMessageHandler = async (req: any, res: any) => {
   try {
     const { prompt, approvalPolicy, operationId, maintenanceFiles, testGates } = req.body;
     const workspacePath = resolveWorkspacePath(req.body);
@@ -696,7 +722,8 @@ router.post('/conversations/:id/message', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+void legacyMessageHandler;
 
 router.get('/actions/latest', async (req, res) => {
   const { getLatestAction } = await import('../domains/jarvis/actionRuntime.js');
@@ -715,7 +742,12 @@ router.post('/actions/:id/status', async (req, res) => {
 });
 
 /* ── POST /api/jarvis/conversations/:id/approve_team ──────── */
-router.post('/conversations/:id/message/stream', async (req, res) => {
+/**
+ * PRE-PHASE-1 typed stream pipeline (≈40 independent routing branches that
+ * executed and responded on their own). RETAINED FOR REFERENCE ONLY — it is no
+ * longer mounted. Typed chat now submits to TurnLifecycleController below.
+ */
+const legacyMessageStreamHandler = async (req: any, res: any) => {
   const { prompt: rawPrompt, approvalPolicy, operationId, workspaceContext } = req.body;
   const rawAttachments = Array.isArray(req.body.attachments) ? req.body.attachments : [];
   let prompt = typeof rawPrompt === 'string' ? rawPrompt : '';
@@ -3935,6 +3967,87 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     }
     if (totalTimer) clearTimeout(totalTimer);
     unregisterStreamAborter(execOpId);
+  }
+};
+void legacyMessageStreamHandler;
+
+/* ── POST /api/jarvis/conversations/:id/message/stream (Phase 1: lifecycle-owned) ── */
+router.post('/conversations/:id/message/stream', async (req, res) => {
+  const { prompt: rawPrompt, operationId } = req.body || {};
+  const rawAttachments = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
+  let prompt = typeof rawPrompt === 'string' ? rawPrompt : '';
+  if (rawAttachments.length > 0) {
+    const attachmentSummary = rawAttachments.map((a: any) => {
+      let desc = `[Attached file: ${a.name || 'unnamed'} (${a.type || 'unknown type'}, ${a.size || 0} bytes)]`;
+      if (a.textContent) desc += `\nFile Content:\n${String(a.textContent).slice(0, 10000)}`;
+      else if (a.dataUrl && a.type?.startsWith('image/')) desc += `\n[Image Data URL provided (${a.name})]`;
+      return desc;
+    }).join('\n\n');
+    prompt = prompt.trim()
+      ? `${prompt.trim()}\n\nUser Attachments:\n${attachmentSummary}`
+      : `Please inspect the attached files:\n\n${attachmentSummary}`;
+  }
+  const normalizedOperationId = typeof operationId === 'string' ? operationId : undefined;
+  if (!prompt || (!rawAttachments.length && !isMeaningfulSpeech(prompt))) {
+    return res.status(400).json({ error: 'No meaningful speech detected.', noSpeech: true });
+  }
+  const conversation = await conversationService.getConversation(req.params.id);
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+  writeSse(res, 'status', { state: 'thinking', provider: 'agentic-os', model: 'turn-lifecycle', operationId: normalizedOperationId });
+  const heartbeat = setInterval(() => writeSse(res, 'heartbeat', { timestamp: Date.now(), operationId: normalizedOperationId, state: 'active' }), 10_000);
+
+  try {
+    const { beginNavigation, buildNavigationPacket } = await import('../services/navigation/navigationTransactions.js');
+    const navigationVerifier = async (navReq: { navigationId: string; route: string; entityId: string; entityType: string; entityName: string }) => {
+      const base = {
+        navId: navReq.navigationId, conversationId: req.params.id, targetRoute: navReq.route,
+        entityId: navReq.entityId, entityName: navReq.entityName, entityType: navReq.entityType, source: 'typed' as const,
+      };
+      const { result } = beginNavigation(base, 2500);
+      writeSse(res, 'navigation_request', buildNavigationPacket(base));
+      return result;
+    };
+    const { turnLifecycle } = await import('../domains/turnLifecycle/index.js');
+    const submitted = await turnLifecycle.submit(
+      { source: 'typed_chat', conversationId: req.params.id, text: prompt, externalTurnId: normalizedOperationId },
+      {
+        navigationVerifier,
+        progress: (evt) => writeSse(res, (evt as any).type === 'action_status' ? 'action_status' : 'lifecycle', { ...evt, operationId: normalizedOperationId }),
+      },
+    );
+    if (submitted.duplicate) {
+      writeSse(res, 'done', {
+        route: 'duplicate_rejected', duplicate: true, duplicateOf: submitted.duplicateOf, reason: submitted.reason,
+        operationId: normalizedOperationId, provider: 'agentic-os', model: 'turn-lifecycle',
+      });
+    } else {
+      const record = submitted.record;
+      streamTextAsChunks(res, record.responseText || '', normalizedOperationId, 'agentic-os', 'turn-lifecycle');
+      writeSse(res, 'done', {
+        route: record.handler || record.goal?.action?.type || record.goal?.kind || 'lifecycle',
+        category: record.goal?.kind,
+        requestId: record.request.requestId,
+        outcome: record.outcome,
+        outcomeReason: record.outcomeReason,
+        verified: record.outcome === 'VERIFIED',
+        executed: Boolean(record.receipt?.attempted),
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'turn-lifecycle',
+        firstTokenMs: 0,
+        totalMs: Date.now() - Date.parse(record.request.receivedAt),
+      });
+    }
+  } catch (err: any) {
+    writeSse(res, 'error', { error: err?.message || String(err), operationId: normalizedOperationId });
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
   }
 });
 

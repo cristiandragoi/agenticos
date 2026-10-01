@@ -1292,7 +1292,8 @@ export class BackgroundTaskManager extends EventEmitter {
           target: 'workerSelfCertificationGuard.test.ts',
         });
 
-        let testOutput = 'All unit and regression tests passed.';
+        let testOutput = 'Tests were not executed.';
+        let testsExitedZero = false;
         if (process.env.VITEST !== 'true') {
           try {
             const { execFile } = await import('node:child_process');
@@ -1305,25 +1306,26 @@ export class BackgroundTaskManager extends EventEmitter {
               timeout: 60000,
             });
             testOutput = (cmdRes.stdout || '').slice(-300);
+            testsExitedZero = true; // execFile resolves only on exit code 0
           } catch (e: any) {
             testOutput = (e?.stdout || e?.stderr || e?.message || '').slice(-300);
           }
         }
 
+        // Phase 1: the test state is what the test process reported — never a constant.
         backgroundTaskRepo.updateTask(taskId, {
-          testState: 'passed',
+          testState: testsExitedZero ? 'passed' : 'failed',
           metadata: {
             ...(backgroundTaskRepo.getTask(taskId)?.metadata || {}),
-            testsRun: 4,
-            testsPassed: true,
+            testsPassed: testsExitedZero,
           },
         });
 
-        this.appendEvent(taskId, 'task.test_passed', 'Tests passed successfully: 4/4 passing.', {
-          testState: 'passed',
-          testsRun: 4,
-          testOutput,
-        });
+        this.appendEvent(taskId, testsExitedZero ? 'task.test_passed' : 'task.test_failed',
+          testsExitedZero ? 'Test process exited with code 0.' : 'Tests did not run or did not exit with code 0.', {
+            testState: testsExitedZero ? 'passed' : 'failed',
+            testOutput,
+          });
       }
 
       // 4. Build / Deploy if required
@@ -1333,8 +1335,9 @@ export class BackgroundTaskManager extends EventEmitter {
           buildState: 'running',
           progressMessage: 'Running project build verification...',
         });
-        backgroundTaskRepo.updateTask(taskId, { buildState: 'passed' });
-        this.appendEvent(taskId, 'task.building', 'Project build verified successfully.', { buildState: 'passed' });
+        // Phase 1: no build is executed here, so the build is not "passed".
+        backgroundTaskRepo.updateTask(taskId, { buildState: 'not_run' as any });
+        this.appendEvent(taskId, 'task.building', 'No build was executed by the continuation pipeline; build state is not_run.', { buildState: 'not_run' });
       }
 
       // 5. Original GoalRun Retry (Physical camera perception)
@@ -1344,34 +1347,31 @@ export class BackgroundTaskManager extends EventEmitter {
           progressMessage: 'Retrying originating camera GoalRun through Jarvis runtime...',
         });
 
-        const originatingGoalId = (task.metadata as any)?.originatingGoalId || 'goal-1790545900080-d92z0';
-        this.appendEvent(taskId, 'task.retrying_original_goal', `Loading and re-executing original camera GoalRun: ${originatingGoalId}`, {
-          originatingGoalId,
-          runtime: 'Jarvis CameraPerceptionService',
-        });
-
-        const { cameraPerceptionService } = await import('../perception/CameraPerceptionService.js');
-        const perception = await cameraPerceptionService.perceive('Open the camera. Can you see me?');
-
+        // Phase 1: a retry is a new request through TurnLifecycleController, using the
+        // ORIGINAL request text — never a hard-coded prompt or goal id.
+        const meta: any = task.metadata || {};
+        const originalText = String(meta.originalUserInput || meta.originalGoal || task.originalRequest || '').trim();
+        let retry: { requestId: string | null; outcome: string; reason: string } = { requestId: null, outcome: 'FAILED', reason: 'no original request text recorded' };
+        if (originalText) {
+          const { selfHealSupervisor } = await import('../../domains/selfHeal/SelfHealSupervisor.js');
+          retry = await selfHealSupervisor.retryOriginalRequestViaLifecycle({
+            conversationId: task.conversationId || `conv-selfheal-${taskId}`,
+            text: originalText,
+            incidentId: String(meta.incidentId || taskId),
+            goalId: meta.originatingGoalId,
+          });
+        }
         const nowIso = new Date().toISOString();
         const currentTask = backgroundTaskRepo.getTask(taskId);
         backgroundTaskRepo.updateTask(taskId, {
           metadata: {
             ...(currentTask?.metadata || {}),
-            originalGoalRetried: true,
+            originalGoalRetried: Boolean(retry.requestId),
             originatingGoalRetriedAt: nowIso,
-            cameraEvidence: perception,
+            originalRequestRetry: retry,
           },
         });
-
-        this.appendEvent(taskId, 'task.goal_retried', 'Original camera GoalRun re-executed: Live physical frame acquired.', {
-          hasFrame: perception.hasFrame,
-          device: perception.frameMetadata?.physicalDeviceId,
-          capturedAt: perception.frameMetadata?.capturedAt,
-          dimensions: `${perception.frameMetadata?.width}x${perception.frameMetadata?.height}`,
-          frameSha256: perception.frameSha256,
-          visionAnswer: perception.answer,
-        });
+        this.appendEvent(taskId, 'task.goal_retried', `Original request re-submitted to the lifecycle: outcome ${retry.outcome}.`, retry);
       }
 
       // 6. Argus Verification
@@ -1388,27 +1388,25 @@ export class BackgroundTaskManager extends EventEmitter {
         const verificationId = `argv-${randomUUID().slice(0, 9)}`;
         const nowIso = new Date().toISOString();
         const currentTask = backgroundTaskRepo.getTask(taskId);
-        const cameraEvidence = (currentTask?.metadata as any)?.cameraEvidence;
+        const retryInfo = (currentTask?.metadata as any)?.originalRequestRetry;
+        // Phase 1: every check is evaluated from recorded evidence; nothing is hard-coded to pass.
+        const checks = [
+          { name: 'task-contract-evaluated', passed: Boolean(contractEval.passed), evidence: contractEval.passed ? 'Satisfied' : `missing: ${(contractEval.missingEvidence || []).join(', ')}`, level: 'L3' },
+          { name: 'test-verification', passed: currentTask?.testState === 'passed', evidence: currentTask?.testState || 'not_run', level: 'L3' },
+          ...(contract.requiresOriginalGoalRetry
+            ? [{ name: 'original-request-retry', passed: retryInfo?.outcome === 'VERIFIED', evidence: retryInfo ? `${retryInfo.requestId}: ${retryInfo.outcome} (${retryInfo.reason})` : 'not retried', level: 'L3' }]
+            : []),
+          { name: 'goalrun-linkage', passed: Boolean(task.linkedRunId), evidence: task.linkedRunId ? `linked to ${task.linkedRunId}` : 'no linked run', level: 'L3' },
+        ];
+        const passedAll = checks.every((c) => c.passed);
         const verdict = {
-          passed: true,
-          summary: cameraEvidence
-            ? `Argus verified live physical camera perception: ${cameraEvidence.visualSummary}`
-            : `Argus verified engineering repair completion contract.`,
-          checks: cameraEvidence ? [
-            { name: 'physical-device-present', passed: true, evidence: cameraEvidence.frameMetadata?.physicalDeviceId || 'Integrated Webcam', level: 'L3' },
-            { name: 'fresh-frame-timestamp', passed: true, evidence: cameraEvidence.frameMetadata?.capturedAt || nowIso, level: 'L3' },
-            { name: 'frame-dimensions', passed: true, evidence: `${cameraEvidence.frameMetadata?.width || 1280}x${cameraEvidence.frameMetadata?.height || 720}`, level: 'L3' },
-            { name: 'frame-sha256-hash', passed: true, evidence: cameraEvidence.frameSha256, level: 'L4' },
-            { name: 'vision-grounding', passed: true, evidence: cameraEvidence.answer, level: 'L4' },
-            { name: 'goalrun-linkage', passed: true, evidence: `linked to ${task.linkedRunId}`, level: 'L5' },
-          ] : [
-            { name: 'task-contract-evaluated', passed: true, evidence: contractEval.passed ? 'Satisfied' : 'Recovered', level: 'L3' },
-            { name: 'test-verification', passed: true, evidence: currentTask?.testState || 'passed', level: 'L4' },
-            { name: 'goalrun-linkage', passed: true, evidence: `linked to ${task.linkedRunId || taskId}`, level: 'L5' },
-          ],
-          blockingIssues: [],
+          passed: passedAll,
+          summary: passedAll
+            ? 'All recorded completion evidence present (in-process check; not an independent physical verification).'
+            : `Verification failed: ${checks.filter((c) => !c.passed).map((c) => c.name).join(', ')}`,
+          checks,
+          blockingIssues: checks.filter((c) => !c.passed).map((c) => `${c.name}: ${c.evidence}`),
           recommendedFixes: [],
-          cameraEvidence,
         };
 
         const rawDb = (await import('../../db/index.js')).rawDb;
@@ -1416,8 +1414,8 @@ export class BackgroundTaskManager extends EventEmitter {
           try {
             rawDb.prepare(`
               INSERT INTO argus_verifications (id, contract_id, goal_id, attempt, status, evidence_level, verdict, provider, model, created_at, completed_at)
-              VALUES (?, ?, ?, ?, 'verified_complete', 'L5', ?, 'argus-independent', 'universal-verifier', ?, ?)
-            `).run(verificationId, taskId, task.linkedRunId || taskId, 1, JSON.stringify(verdict), nowIso, nowIso);
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'in-process-contract-check', 'background-task-manager', ?, ?)
+            `).run(verificationId, taskId, task.linkedRunId || taskId, 1, passedAll ? 'verified_complete' : 'verification_failed', passedAll ? 'L3' : 'none', JSON.stringify(verdict), nowIso, nowIso);
           } catch (dbErr: any) {
             logger.warn(`[ArgusDB] Insertion warning: ${dbErr?.message}`);
           }
@@ -1425,18 +1423,19 @@ export class BackgroundTaskManager extends EventEmitter {
 
         const afterArgusTask = backgroundTaskRepo.getTask(taskId);
         backgroundTaskRepo.updateTask(taskId, {
-          verificationState: 'passed',
+          verificationState: passedAll ? 'passed' : 'failed',
           metadata: {
             ...(afterArgusTask?.metadata || {}),
-            argusVerified: true,
-            argusVerificationRecord: { id: verificationId, status: 'verified_complete', verdict },
+            argusVerified: passedAll,
+            argusVerificationRecord: { id: verificationId, status: passedAll ? 'verified_complete' : 'verification_failed', verdict },
           },
         });
 
-        this.appendEvent(taskId, 'task.argus_verified', 'Argus independent verification PASSED.', {
-          verificationId,
-          verdict,
-        });
+        this.appendEvent(taskId, passedAll ? 'task.argus_verified' : 'task.argus_failed',
+          passedAll ? 'Completion evidence check passed.' : `Completion evidence check FAILED: ${verdict.summary}`, {
+            verificationId,
+            verdict,
+          });
       }
 
       // 7. Transition to validating_worker_output and re-evaluate verifyCompletion

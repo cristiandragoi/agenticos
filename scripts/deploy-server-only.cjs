@@ -1,3 +1,8 @@
+// Phase 1 release boundary: retired. scripts/deploy-installed.cjs is the ONLY deploy path
+// (it breaks repo<->installed links, verifies parity and writes deployment.json).
+// The original implementation is kept below for reference but is unreachable.
+console.error('[deploy] ' + require('path').basename(__filename) + ' is retired. Use: node scripts/deploy-installed.cjs');
+process.exit(1);
 // deploy-server-only.cjs — sync ONLY server/dist (server-only change), backup + hash-verify
 const fs = require('fs');
 const path = require('path');

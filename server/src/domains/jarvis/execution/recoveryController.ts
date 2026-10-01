@@ -9,7 +9,6 @@ import { selfHealSupervisor } from '../../selfHeal/SelfHealSupervisor.js';
 import { deploymentGate, computePatchHash } from '../../selfHeal/DeploymentGate.js';
 import { repairMemory } from '../../selfHeal/RepairMemory.js';
 import { selfHealBridge, type SelfHealProposal } from './selfHealBridge.js';
-import { universalExecutionController } from './universalExecutionController.js';
 import { logger } from '../../../utils/logger.js';
 import { execSync } from 'node:child_process';
 
@@ -157,7 +156,11 @@ export class RecoveryController {
         postApplyOk = await opts.verifyFn();
       } else {
         // Run quick build/lint/typecheck verification on production server
-        execSync('npm run build', { cwd: 'D:\\AgenticOS\\server', stdio: 'pipe' });
+        // Phase 1 release boundary: build the source repo only; the installed runtime is changed
+        // exclusively by scripts/deploy-installed.cjs.
+        const repoServer = process.env.AGENTICOS_REPO_SERVER_DIR;
+        if (!repoServer) throw new Error('AGENTICOS_REPO_SERVER_DIR not set; cannot verify repair build');
+        execSync('npm run build', { cwd: repoServer, stdio: 'pipe' });
       }
     } catch (vErr: any) {
       logger.warn(`[RecoveryController] Post-apply verification failed:`, vErr?.message);
@@ -181,17 +184,35 @@ export class RecoveryController {
 
     onProgress?.({
       status: 'running',
-      stage: 'VERIFIED',
-      currentStep: 'Repair verified in production',
-      recovery: 'Verification passed! Retrying original user request...',
+      stage: 'REPAIR_BUILD_OK',
+      currentStep: 'Repair build/check passed (this is not proof the original request now works)',
+      recovery: 'Repair build passed. Retrying the original request through the turn lifecycle...',
     });
 
     // 7. Retrieve the original failed operational goal
     const incident = await repairMemory.getIncident(incidentId);
     const metadata = (incident?.metadata || {}) as Record<string, any>;
-    const originalGoal = metadata.originalGoal || attempt.diffSummary || 'Open YouTube';
+    // Phase 1: never substitute a made-up goal. Without the original request text there is
+    // nothing to retry, so the incident cannot be considered recovered.
+    const originalGoal: string | undefined = typeof metadata.originalGoal === 'string' && metadata.originalGoal.trim()
+      ? metadata.originalGoal.trim()
+      : undefined;
+    if (!originalGoal) {
+      onProgress?.({
+        status: 'failed',
+        stage: 'RECOVERY_FAILED',
+        currentStep: 'Original request text unavailable',
+        recovery: 'The repair was applied but the original request text is not recorded, so it could not be retried.',
+      });
+      return {
+        success: false,
+        status: 'recovery_failed',
+        message: 'The repair was applied, but I could not retry the original request because it was not recorded.',
+        incidentId,
+      };
+    }
 
-    logger.info(`[RecoveryController] Retrying original user goal: "${originalGoal}"`);
+    logger.info(`[RecoveryController] Retrying original user goal via TurnLifecycleController: "${originalGoal}"`);
 
     onProgress?.({
       status: 'running',
@@ -200,21 +221,21 @@ export class RecoveryController {
       recovery: `Retrying original request: "${originalGoal}"`,
     });
 
-    // 8. Canonical retry through UniversalExecutionController (single bounded attempt)
+    // 8. Retry through the single authoritative turn lifecycle (source=self_heal_retry).
+    //    Success means the lifecycle's independent verifier observed the post-condition.
     let retryResult: any = null;
     try {
-      retryResult = await universalExecutionController.handleUserTurn({
-        prompt: originalGoal,
-        conversationId: conversationId || metadata.conversationId || 'conv-recovery',
-        turnId: `retry-${Date.now()}`,
-        isBargeIn: false,
-        onProgress,
+      retryResult = await selfHealSupervisor.retryOriginalRequestViaLifecycle({
+        conversationId: conversationId || metadata.conversationId || `conv-recovery-${incidentId}`,
+        text: originalGoal,
+        incidentId,
+        retryOfRequestId: typeof metadata.requestId === 'string' ? metadata.requestId : undefined,
       });
     } catch (rErr: any) {
       logger.error(`[RecoveryController] Retry execution failed:`, rErr);
     }
 
-    const retrySuccess = Boolean(retryResult?.execution?.success && retryResult?.verification?.verified);
+    const retrySuccess = retryResult?.outcome === 'VERIFIED';
 
     if (retrySuccess) {
       await selfHealSupervisor.closeIncident(incidentId, 'Original user task succeeded on retry');
@@ -223,10 +244,10 @@ export class RecoveryController {
         stage: 'RECOVERED',
         currentStep: 'Recovered — original request verified',
         recovery: `The repair was applied successfully and verified. Original request succeeded.`,
-        result: retryResult?.spokenText || `Request completed.`,
+        result: retryResult?.responseText || `Request verified.`,
       });
 
-      const naturalResponse = `The repair was applied successfully and verified. I retried your request, and ${retryResult?.entityName || 'the requested view'} is open now.`;
+      const naturalResponse = `The repair was applied and I retried your request; the result was independently verified. ${retryResult?.responseText || ''}`.trim();
 
       return {
         success: true,

@@ -35,6 +35,10 @@ const QUICK_CMDS = [
   'Check memory scopes',
 ];
 
+/** Hermes conversation ID: a dedicated conversation for the Hermes drawer.
+ *  This prevents Hermes turns from polluting the Jarvis main conversation. */
+const HERMES_CONVERSATION_ID = 'conv-hermes';
+
 const HermesDrawer: React.FC = () => {
   const { runs, agents, refresh } = useData();
   const drawer = useDrawer();
@@ -104,6 +108,11 @@ const HermesDrawer: React.FC = () => {
     } catch {}
   };
 
+  /** Phase 1: submit through the single authoritative TurnLifecycleController.
+   *  The previous /api/voice/execute bypass is retired (410 Gone).
+   *  This now mirrors the JarvisDrawer lifecycle submission pattern:
+   *  POST /api/jarvis/conversations/:id/message → lifecycle → turnRouter/orchestrator.
+   *  The lifecycle handles dedup, ownership, verification, and response. */
   const sendToAgent = useCallback(async (text: string) => {
     setIsProcessing(true);
     setLastStatus(null);
@@ -126,11 +135,18 @@ const HermesDrawer: React.FC = () => {
     });
 
     try {
-      const res = await apiFetch('/api/voice/execute', {
+      const operationId = `hermes-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const res = await apiFetch(`/api/jarvis/conversations/${encodeURIComponent(HERMES_CONVERSATION_ID)}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, agentId: 'agent-hermes', model: selectedModel.id }),
+        body: JSON.stringify({ prompt: text, operationId }),
       });
+
+      if (res.status === 409) {
+        updateLastAssistant({ content: 'That request is already being handled.', status: 'done' });
+        setLastStatus({ ok: true, detail: 'duplicate suppressed' });
+        return;
+      }
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -141,17 +157,16 @@ const HermesDrawer: React.FC = () => {
       }
 
       const data = await res.json();
-      const responseText = data.text || 'No response generated.';
+      const responseText = data.message || `Outcome: ${data.outcome || 'unknown'}`;
 
       updateLastAssistant({
         content: responseText,
         status: 'done',
-        provider: data.provider,
-        model: data.model,
-        toolCalls: data.toolCalls,
+        provider: data.handler || undefined,
+        model: data.outcome || undefined,
       });
 
-      setLastStatus({ ok: true, detail: `${data.provider || 'OK'} · ${data.model || ''}` });
+      setLastStatus({ ok: true, detail: `${data.outcome || 'OK'} · ${data.handler || ''}` });
       speakText(responseText);
       refresh();
     } catch (err: any) {
@@ -162,7 +177,7 @@ const HermesDrawer: React.FC = () => {
       setIsProcessing(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [refresh, selectedModel]);
+  }, [refresh]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

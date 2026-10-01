@@ -82,6 +82,8 @@ export type TaskEventKind =
   | 'task.goal_retried'
   | 'task.argus_verifying'
   | 'task.argus_verified'
+  | 'task.argus_failed'
+  | 'task.test_failed'
   | 'task.verified'
   | 'task.completed'
   | 'task.blocked'

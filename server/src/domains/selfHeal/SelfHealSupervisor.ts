@@ -418,6 +418,13 @@ export class SelfHealSupervisor extends EventEmitter {
 
   /** Deploy verified repair patch to production */
   async deployRepair(incidentId: string, approver = 'supervisor_autonomous'): Promise<{ success: boolean; error?: string }> {
+    // Phase 1 release boundary: the running process may not write into the source repo and
+    // rebuild it as "production". The installed runtime changes only via scripts/deploy-installed.cjs.
+    // A governed repair-deploy path is Self-Heal Phase 2 work.
+    if (process.env.AGENTICOS_SELFHEAL_REPO_DEPLOY !== '1') {
+      logger.warn(`[SelfHeal] deployRepair(${incidentId}) refused: in-process repo deploy disabled (Phase 1 release boundary)`);
+      return { success: false, error: 'In-process repair deployment is disabled; deploy only via scripts/deploy-installed.cjs (Self-Heal Phase 2 pending).' };
+    }
     const attempt = this.activeAttempts.get(incidentId);
     if (!attempt) return { success: false, error: `No active repair attempt for ${incidentId}` };
 
@@ -696,305 +703,51 @@ export class SelfHealSupervisor extends EventEmitter {
       logger.info('[JRT] SELFHEAL_ENGINEERING_STARTED', { incidentId, worker: 'hermes' });
       console.log(`[JRT] SELFHEAL_ENGINEERING_STARTED incidentId=${incidentId} worker=hermes`);
 
-      // 5. Root Cause Diagnosed: DIAGNOSING → DIAGNOSIS_COMPLETE
-      this.transitionState(incidentId, 'DIAGNOSING', 'DIAGNOSIS_COMPLETE', 'RepairDiagnostician', `Defect diagnosed: ${failureClassification.domain} for ${verb} on ${entityName}`);
-
-      // 6. SNAPSHOTTING
-      this.transitionState(incidentId, 'DIAGNOSIS_COMPLETE', 'SNAPSHOTTING', 'supervisor', 'Creating dirty-state snapshot');
-
-      // 7. PLANNING
-      this.transitionState(incidentId, 'SNAPSHOTTING', 'PLANNING', 'supervisor', 'Planning repair');
-
-      // Loop protection: maximum repair attempts
-      const attempts = (this.componentAttempts.get(incidentId) || 0) + 1;
-      this.componentAttempts.set(incidentId, attempts);
-      if (attempts > this.MAX_SELFHEAL_REPAIR_ATTEMPTS) {
-        this.transitionState(incidentId, 'PLANNING', 'BLOCKED_MAX_ATTEMPTS_EXCEEDED', 'supervisor', `Maximum repair attempts exceeded (${this.MAX_SELFHEAL_REPAIR_ATTEMPTS})`);
-        logger.warn('[JRT] SELFHEAL_BLOCKED', { incidentId, reason: `Max repair attempts (${this.MAX_SELFHEAL_REPAIR_ATTEMPTS}) exceeded` });
-        console.log(`[JRT] SELFHEAL_BLOCKED incidentId=${incidentId} reason="Max repair attempts exceeded"`);
-        return { success: false, error: `Maximum repair attempts exceeded (${this.MAX_SELFHEAL_REPAIR_ATTEMPTS})` };
-      }
-
-      // 8. REPAIRING
-      this.transitionState(incidentId, 'PLANNING', 'REPAIRING', 'supervisor', 'Executing repair');
-      if (goalId) {
-        try {
-          const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-          goalLifecycleManager.transitionState(goalId, 'ENGINEERING_REPAIR', {
-            actor: 'Hermes',
-            summary: `Engineering repair active for incident ${incidentId} (${verb} ${target}).`,
-          });
-        } catch {}
-      }
-
-      // Targeted Capability Handler Implementation:
-      let dynamicHandler: any;
-      if (verb === 'rename' && entityType === 'project') {
-        dynamicHandler = async (args: any) => {
-          const m = args.prompt.match(/\b(?:rename|change(?:\s+the\s+name\s+of)?)\s+(.+?)\s+to\s+(.+?)(?:[.]|$)/i);
-          const targetName = m ? m[2].trim() : '';
-          if (!targetName) {
-            return { executed: false, verified: false, text: 'Could not determine target project name.' };
-          }
-          const { projectsStore } = await import('../../services/projectsStore.js');
-          projectsStore.updateProject(args.entityId, { name: targetName });
-          const readback: any = projectsStore.getProject(args.entityId);
-          const verified = readback && readback.name === targetName;
-          return {
-            executed: true,
-            verified: !!verified,
-            text: verified ? `Renamed ${args.entityName} to ${targetName}.` : `Failed to verify renaming ${args.entityName}.`,
-          };
-        };
-      } else if (target.toLowerCase().includes('camera') || verb === 'open' && target.toLowerCase().includes('camera')) {
-        dynamicHandler = async (args: any) => {
-          const { cameraPerceptionService } = await import('../../services/perception/CameraPerceptionService.js');
-          const perception = await cameraPerceptionService.perceive(args.prompt || 'Open camera view');
-          const hasFrame = Boolean(perception && perception.hasFrame && (perception.frameSha256 || perception.frameMetadata?.frameSha256));
-          return {
-            executed: true,
-            verified: hasFrame,
-            text: hasFrame ? 'Camera active and visual frame captured.' : 'Camera execution attempted, awaiting frame capture.',
-            __cameraPerception: perception,
-          };
-        };
-      } else if (target.toLowerCase().includes('hermes') || verb === 'observe' && target.toLowerCase().includes('hermes')) {
-        dynamicHandler = async (args: any) => {
-          const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
-          const inspection = await desktopPerceptionService.inspectWindow(args.target || 'Hermes');
-          return {
-            executed: true,
-            verified: inspection.success,
-            text: inspection.success ? `Observed content: ${inspection.summary}` : 'Hermes window inspected.',
-            __inspectionResult: inspection,
-          };
-        };
-      } else if (target.toLowerCase().includes('screenshot') || verb === 'capture' || verb === 'screenshot' || verb === 'capture_screenshot') {
-        dynamicHandler = async (args: any) => {
-          const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
-          const shot = await desktopPerceptionService.captureScreen({ targetWindow: args.target });
-          return {
-            executed: Boolean(shot.success && shot.byteSize >= 1024),
-            verified: Boolean(shot.success && shot.byteSize >= 1024),
-            text: shot.success ? `Screenshot captured (${shot.byteSize} bytes).` : 'Screenshot capture attempted.',
-            __screenshotArtifact: shot,
-          };
-        };
-      } else if (target.toLowerCase().includes('word') || (verb === 'open' && target.toLowerCase().includes('word')) || target.toLowerCase().includes('document') || (prompt && prompt.toLowerCase().includes('blank document'))) {
-        dynamicHandler = async (args: any) => {
-          try {
-            const { execSync } = await import('node:child_process');
-            const ps = `
-              try {
-                $w = [System.Runtime.InteropServices.Marshal]::GetActiveObject('Word.Application')
-                $w.Visible = $true
-                $doc = $w.Documents.Add()
-                "COM_ADDED"
-              } catch {
-                $w = New-Object -ComObject Word.Application
-                $w.Visible = $true
-                $doc = $w.Documents.Add()
-                "COM_CREATED"
-              }
-            `;
-            const b64 = Buffer.from(ps, 'utf16le').toString('base64');
-            execSync(`powershell -NoProfile -EncodedCommand ${b64}`, { timeout: 8000 });
-            return {
-              executed: true,
-              verified: true,
-              text: 'Word is open with a new blank document.',
-            };
-          } catch (wordErr: any) {
-            return {
-              executed: false,
-              verified: false,
-              text: `Failed to automate Word blank document: ${wordErr?.message}`,
-            };
-          }
-        };
-      } else {
-        dynamicHandler = async (args: any) => {
-          return {
-            executed: true,
-            verified: true,
-            text: `Executed ${verb} on ${args.entityName || target}.`,
-          };
-        };
-      }
-
-      logger.info('[JRT] SELFHEAL_PATCH_APPLIED', { incidentId, verb, entityType });
-      console.log(`[JRT] SELFHEAL_PATCH_APPLIED incidentId=${incidentId}`);
-
-      // 9. BUILD
-      logger.info('[JRT] SELFHEAL_BUILD_PASS', { incidentId });
-      console.log(`[JRT] SELFHEAL_BUILD_PASS incidentId=${incidentId}`);
-
-      // 10. TESTING
-      this.transitionState(incidentId, 'REPAIRING', 'TESTING', 'supervisor', 'Running targeted capability unit test');
-      if (goalId) {
-        try {
-          const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-          goalLifecycleManager.transitionState(goalId, 'TESTING_REPAIR', {
-            actor: 'Hermes',
-            summary: `Running targeted capability unit test for incident ${incidentId}.`,
-          });
-        } catch {}
-      }
-      logger.info('[JRT] SELFHEAL_TEST_PASS', { incidentId });
-      console.log(`[JRT] SELFHEAL_TEST_PASS incidentId=${incidentId}`);
-
-      // 11. VERIFYING & APPROVAL
-      this.transitionState(incidentId, 'TESTING', 'VERIFYING', 'supervisor', 'Pre-deployment verification');
-      this.transitionState(incidentId, 'VERIFYING', 'AWAITING_APPROVAL', 'DeploymentGate', 'Human approval check');
-
-      const patchHash = computePatchHash(`dynamic_capability:${verb}:${entityType}:${target}`);
-      const approver = opts.approver || 'autonomous_self_heal';
-      const approvalRecord: ApprovalRecord = {
-        incidentId,
-        repairAttemptId: `attempt-${incidentId}`,
-        approvedAt: new Date().toISOString(),
-        approvalSource: 'human_api',
-        patchHash,
-        approver,
+      // ── Phase 1 truthfulness gate ─────────────────────────────────────────
+      // Everything that used to follow here was fabricated: a templated
+      // "diagnosis", log-only SELFHEAL_PATCH_APPLIED / BUILD_PASS / TEST_PASS
+      // lines, an auto-recorded "human_api" approval, an in-memory hard-coded
+      // capability handler presented as the repair, a "retry" that called that
+      // handler instead of the original request, and an unconditional
+      // COMPLETED. None of it changed code, built, deployed, restarted or
+      // observed anything, so it has been removed. Real code repair, build,
+      // deployment to the installed runtime, restart and a lifecycle retry are
+      // Self-Heal Phase 2. The incident stays honestly in DIAGNOSING.
+      logger.warn('[JRT] SELFHEAL_REPAIR_NOT_IMPLEMENTED', { incidentId, goalId, verb, target });
+      console.log(`[JRT] SELFHEAL_REPAIR_NOT_IMPLEMENTED incidentId=${incidentId} (no patch/build/deploy/retry performed)`);
+      return {
+        success: false,
+        error: 'Closed-loop code repair is not implemented yet (Self-Heal Phase 2). No patch, build, deployment, restart or retry was performed; the incident remains in DIAGNOSING.',
       };
-      deploymentGate.recordApproval(approvalRecord);
-      this.transitionState(incidentId, 'AWAITING_APPROVAL', 'APPROVED', 'human_api', `Approved by ${approver}`);
-
-      // 12. DEPLOYING (Reload Capability)
-      this.transitionState(incidentId, 'APPROVED', 'DEPLOYING', 'supervisor', 'Reloading dynamic capability');
-      const { registerDynamicCapability } = await import('../jarvisNext/turnRouter.js');
-      registerDynamicCapability(`${verb}:${entityType}`, dynamicHandler);
-      registerDynamicCapability(verb, dynamicHandler);
-      registerDynamicCapability(`${verb}:${entityId}`, dynamicHandler);
-      registerDynamicCapability(target, dynamicHandler);
-      logger.info('[JRT] SELFHEAL_CAPABILITY_RELOADED', { incidentId, capability: `${verb}:${entityType}` });
-      console.log(`[JRT] SELFHEAL_CAPABILITY_RELOADED incidentId=${incidentId}`);
-
-      if (goalId) {
-        try {
-          const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-          goalLifecycleManager.transitionState(goalId, 'DEPLOYING_REPAIR', {
-            actor: 'Hermes',
-            summary: `Capability reloaded and registered: ${verb}:${entityType} / ${target}.`,
-          });
-        } catch {}
-      }
-
-      // 13. MONITORING & RETRY ORIGINAL USER ACTION
-      this.transitionState(incidentId, 'DEPLOYING', 'MONITORING', 'supervisor', 'Retrying original user action');
-      logger.info('[JRT] SELFHEAL_ORIGINAL_ACTION_RETRIED', { incidentId, prompt, goalId });
-      console.log(`[JRT] SELFHEAL_ORIGINAL_ACTION_RETRIED incidentId=${incidentId} prompt="${prompt}"`);
-
-      if (goalId) {
-        try {
-          const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-          goalLifecycleManager.transitionState(goalId, 'RETRYING_ORIGINAL_GOAL', {
-            actor: 'ControlPlane',
-            summary: `Retrying original user action from persisted goal: "${prompt}".`,
-          });
-        } catch {}
-      }
-
-      // Execute the ORIGINAL user goal
-      const outcome = await dynamicHandler({
-        entityId,
-        entityName,
-        entityType,
-        target,
-        prompt,
-        lower: prompt.toLowerCase(),
-        conversationId,
-      });
-
-      // 14. INDEPENDENT PHYSICAL OUTCOME VERIFICATION BY ARGUS
-      if (goalId) {
-        try {
-          const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-          goalLifecycleManager.transitionState(goalId, 'INDEPENDENT_VERIFICATION', {
-            actor: 'Argus',
-            summary: `Argus independently verifying original physical outcome for "${prompt}".`,
-          });
-        } catch {}
-      }
-
-      const { universalVerifier } = await import('../controlPlane/UniversalVerifier.js');
-      let surfaceToVerify = 'internal';
-      if (target.toLowerCase().includes('camera') || verb.includes('camera') || prompt.toLowerCase().includes('camera')) {
-        surfaceToVerify = 'camera';
-      } else if (target.toLowerCase().includes('hermes') || prompt.toLowerCase().includes('hermes')) {
-        surfaceToVerify = 'desktop_observe';
-      } else if (target.toLowerCase().includes('screenshot') || prompt.toLowerCase().includes('screenshot')) {
-        surfaceToVerify = 'screenshot';
-      } else if (entityType === 'project') {
-        surfaceToVerify = 'internal';
-      } else {
-        surfaceToVerify = 'desktop';
-      }
-
-      const verRes = await universalVerifier.verify({
-        surface: surfaceToVerify,
-        target: entityId || target,
-        parameters: {
-          entityType,
-          entityId,
-          entityName,
-          prompt,
-          target,
-          ...outcome,
-        },
-      });
-
-      console.log(`[JRT] SELFHEAL_RESULT_VERIFIED incidentId=${incidentId} verified=${verRes.verified}`);
-
-      // 15. COMPLETED
-      this.transitionState(incidentId, 'MONITORING', 'COMPLETED', 'supervisor', 'Closed-loop self-heal completed and verified');
-
-      // Update incident status in SQLite repair_incidents
-      try {
-        const { repairIncidents } = await import('./schema.js');
-        const { db } = await import('../../db/index.js');
-        const { eq } = await import('drizzle-orm');
-        db.update(repairIncidents)
-          .set({ status: 'COMPLETED', resolvedAt: new Date().toISOString() })
-          .where(eq(repairIncidents.id, incidentId))
-          .run();
-      } catch {}
-
-      // Persist to RepairKnowledgeStore and complete GoalRun
-      try {
-        const { repairKnowledgeStore } = await import('../controlPlane/RepairKnowledgeStore.js');
-        const { goalLifecycleManager } = await import('../controlPlane/GoalLifecycle.js');
-        repairKnowledgeStore.recordResolution({
-          target: entityName,
-          goalType: 'internal_capability',
-          successfulStrategy: `engineering_repair:${verb}:${entityType}`,
-          surface: surfaceToVerify,
-          parameters: { verb, entityType, entityId, target },
-          verificationMethod: verRes.method || 'authoritative_readback',
-          confidence: 1.0,
-          learnedAt: new Date().toISOString(),
-        });
-
-        const targetGoalId = goalId || goalLifecycleManager.getActiveGoalForConversation(conversationId)?.goalId;
-        if (targetGoalId) {
-          goalLifecycleManager.recordVerification(targetGoalId, verRes);
-          const needsPhysicalUser = opts.requiresPhysicalUserVerification ?? true;
-          const finalGoalStatus = needsPhysicalUser ? 'AWAITING_PHYSICAL_USER_VERIFICATION' : 'COMPLETED';
-          goalLifecycleManager.transitionState(targetGoalId, finalGoalStatus, {
-            actor: 'Argus',
-            summary: needsPhysicalUser
-              ? `Machine verification succeeded (${verRes.method}). Stopping at AWAITING_PHYSICAL_USER_VERIFICATION for physical user verification.`
-              : `Self-heal incident ${incidentId} resolved and verified physical outcome for "${prompt}".`,
-            detail: verRes,
-          });
-        }
-      } catch {}
-
-      return { success: true, outcome, verification: verRes };
     } catch (err: any) {
       logger.error(`[SelfHeal] executeClosedLoopRepair failed: ${err?.message}`, err);
       return { success: false, error: err?.message };
     }
+  }
+
+  /**
+   * Phase 1: the ONLY sanctioned way for Self-Heal to retry a user's request.
+   * The original text is re-submitted to TurnLifecycleController as a new
+   * request (source self_heal_retry); the incident may be closed only when that
+   * request ends VERIFIED.
+   */
+  async retryOriginalRequestViaLifecycle(opts: {
+    conversationId: string;
+    text: string;
+    incidentId: string;
+    goalId?: string;
+    retryOfRequestId?: string;
+  }): Promise<{ requestId: string | null; outcome: string; reason: string; responseText?: string }> {
+    const { turnLifecycle } = await import('../turnLifecycle/index.js');
+    const submitted = await turnLifecycle.submit({
+      source: 'self_heal_retry',
+      conversationId: opts.conversationId,
+      text: opts.text,
+      attached: { incidentId: opts.incidentId, goalId: opts.goalId, retryOfRequestId: opts.retryOfRequestId },
+    });
+    if (submitted.duplicate) return { requestId: submitted.duplicateOf, outcome: 'FAILED', reason: `duplicate: ${submitted.reason}` };
+    const r = submitted.record;
+    return { requestId: r.request.requestId, outcome: r.outcome || 'FAILED', reason: r.outcomeReason || '', responseText: r.responseText || undefined };
   }
 
   // ── Status ────────────────────────────────────────────────────────────────

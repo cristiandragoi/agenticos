@@ -213,6 +213,22 @@ export class UniversalVerifier {
       aliases.push('winword', 'word', 'microsoft word');
     }
 
+    // Phase 1: presence is not change. Without a pre-action window baseline this
+    // verifier cannot prove the action did anything, so it does not verify.
+    const baseline: number[] | undefined = Array.isArray(parameters?.preActionWindowHwnds) ? parameters.preActionWindowHwnds.map(Number) : undefined;
+    if (!baseline) {
+      return {
+        verified: false,
+        method: 'desktopPerceptionService.listVisibleWindows',
+        expectedState: { processName: processQuery, windowVisible: true, newSinceAction: true },
+        actualState: null,
+        evidence: [],
+        verifier: 'UniversalVerifier:DesktopPerception',
+        timestamp: now,
+        summary: `No pre-action window baseline was supplied; an existing "${processQuery}" window cannot prove the action changed anything.`,
+      };
+    }
+
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {
         await new Promise(r => setTimeout(r, 600));
@@ -223,6 +239,7 @@ export class UniversalVerifier {
         const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
         const winList = await desktopPerceptionService.listVisibleWindows();
         for (const w of winList) {
+          if (baseline.includes(Number(w.hwnd))) continue; // existed before the action
           const titleLower = (w.title || '').toLowerCase();
           const procLower = (w.process || '').toLowerCase();
           for (const q of aliases) {
@@ -252,63 +269,8 @@ export class UniversalVerifier {
         }
       } catch {}
 
-      for (const q of aliases) {
-        try {
-          const ps = `
-            $ProgressPreference = 'SilentlyContinue'
-            $found = Get-Process -ErrorAction SilentlyContinue | Where-Object { 
-              (($_.MainWindowTitle -and $_.MainWindowTitle -like '*${q}*') -or 
-              ($_.ProcessName -like '*${q}*')) -and $_.MainWindowHandle -ne 0
-            } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, MainWindowHandle
-
-            if (-not $found) {
-              $found = Get-Process -Name ApplicationFrameHost -ErrorAction SilentlyContinue | Where-Object {
-                $_.MainWindowTitle -like '*${q}*' -and $_.MainWindowHandle -ne 0
-              } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, MainWindowHandle
-            }
-
-            if (-not $found) {
-              $found = Get-Process -ErrorAction SilentlyContinue | Where-Object { 
-                $_.ProcessName -like '*${q}*' -or ($_.MainWindowTitle -and $_.MainWindowTitle -like '*${q}*')
-              } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, MainWindowHandle
-            }
-
-            if ($found) {
-              try {
-                $wscript = New-Object -ComObject WScript.Shell
-                $null = $wscript.AppActivate($found.Id)
-              } catch {}
-              $found | ConvertTo-Json -Compress
-            }
-          `;
-          const b64 = Buffer.from(ps, 'utf16le').toString('base64');
-          const { stdout } = await execAsync(`powershell -NoProfile -EncodedCommand ${b64}`, { timeout: 3500 });
-
-          const item = parseJsonFromStdout(stdout);
-          if (item) {
-            const evidence: GoalEvidence = {
-              id: `ev-proc-${Date.now()}`,
-              type: 'process',
-              label: `OS Process ${item.ProcessName} (PID ${item.Id})`,
-              value: item,
-              source: 'WindowsProcessTable',
-              timestamp: now,
-              verified: true,
-            };
-
-            return {
-              verified: true,
-              method: 'Get-Process',
-              expectedState: { processName: processQuery, running: true },
-              actualState: item,
-              evidence: [evidence],
-              verifier: 'UniversalVerifier:WindowsProcess',
-              timestamp: now,
-              summary: `Process ${item.ProcessName} verified running with PID ${item.Id} (${item.MainWindowTitle || 'window open'}).`,
-            };
-          }
-        } catch {}
-      }
+      // (Get-Process fallback removed in Phase 1: it matched pre-existing processes and
+      //  called AppActivate, i.e. the verifier itself changed the foreground window.)
     }
 
     return {
@@ -507,26 +469,16 @@ export class UniversalVerifier {
       }
     } catch {}
 
-    // Fallback: verified by URL structure if launched
-    const evidence: GoalEvidence = {
-      id: `ev-url-${Date.now()}`,
-      type: 'url',
-      label: `Browser URL Destination ${url}`,
-      value: { url, expectedHost },
-      source: 'DefaultBrowserProtocol',
-      timestamp: now,
-      verified: true,
-    };
-
+    // Phase 1: dispatching a URL is not observing a loaded page.
     return {
-      verified: true,
-      method: 'BrowserProtocolDispatch',
+      verified: false,
+      method: 'BrowserWindowMatch',
       expectedState: { url },
-      actualState: { url, host: expectedHost },
-      evidence: [evidence],
-      verifier: 'UniversalVerifier:BrowserDispatch',
+      actualState: null,
+      evidence: [],
+      verifier: 'UniversalVerifier:Browser',
       timestamp: now,
-      summary: `Browser opened with target URL ${url}.`,
+      summary: `No browser window showing ${expectedHost} was observed; URL dispatch alone is not verification.`,
     };
   }
 
@@ -580,8 +532,8 @@ export class UniversalVerifier {
   }
 
   private async verifyShellCommand(target: string, parameters: any, now: string): Promise<GoalVerification> {
-    const exitCode = parameters?.exitCode ?? 0;
-    const verified = exitCode === 0;
+    const exitCode = typeof parameters?.exitCode === 'number' ? parameters.exitCode : undefined;
+    const verified = exitCode === 0; // a missing exit code is NOT success (Phase 1)
 
     const evidence: GoalEvidence = {
       id: `ev-shell-${Date.now()}`,
@@ -603,7 +555,7 @@ export class UniversalVerifier {
       timestamp: now,
       summary: verified
         ? `Shell command completed successfully with exit code 0.`
-        : `Shell command failed with exit code ${exitCode}.`,
+        : exitCode === undefined ? 'No exit code was observed; the command is not verified.' : `Shell command failed with exit code ${exitCode}.`,
     };
   }
 
@@ -759,7 +711,7 @@ export class UniversalVerifier {
   }
 
   private async verifyGeneric(target: string, parameters: any, now: string): Promise<GoalVerification> {
-    const executed = Boolean(parameters?.executed !== false);
+    const executed = false; // Phase 1: "it executed" is not an observation of the result
     const evidence: GoalEvidence = {
       id: `ev-gen-${Date.now()}`,
       type: 'audit_log',
@@ -780,7 +732,7 @@ export class UniversalVerifier {
       timestamp: now,
       summary: executed
         ? `Action executed and verified via audit state.`
-        : `Action execution could not be verified.`,
+        : `No observation is available for this action; it is not verified.`,
     });
   }
 }
