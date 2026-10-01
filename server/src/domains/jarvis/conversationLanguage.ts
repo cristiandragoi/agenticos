@@ -69,9 +69,13 @@ try {
     CREATE TABLE IF NOT EXISTS jarvis_conversation_languages (
       conversation_id TEXT PRIMARY KEY,
       language_code TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      is_explicit INTEGER DEFAULT 0
     );
   `);
+  try {
+    rawDb.exec(`ALTER TABLE jarvis_conversation_languages ADD COLUMN is_explicit INTEGER DEFAULT 0;`);
+  } catch (_) {}
 } catch (err) {
   logger.warn(`[ConversationLanguage] SQLite table init warning: ${err}`);
 }
@@ -87,6 +91,11 @@ export function detectLanguageSwitchRequest(prompt: string): {
   targetLanguage?: SupportedLanguage;
   reason?: string;
 } {
+  // Explicit AntiGravity engineering delegation payloads must NEVER trigger language switching
+  if (/\b(?:anti[- ]?gravity)\b/i.test(prompt)) {
+    return { isLanguageSwitch: false };
+  }
+
   const p = prompt.toLowerCase().replace(/[.,!?;:'"„”«»]+/g, ' ').replace(/\s+/g, ' ').trim();
 
   // German patterns
@@ -253,31 +262,64 @@ export function getConversationLanguage(conversationId: string): SupportedLangua
   return 'en';
 }
 
+// In-memory cache for explicit language lock
+const explicitLockMap = new Map<string, boolean>();
+
+export function isExplicitLanguage(conversationId: string): boolean {
+  if (!conversationId) return false;
+  if (explicitLockMap.has(conversationId)) {
+    return explicitLockMap.get(conversationId) === true;
+  }
+  try {
+    const row = rawDb
+      .prepare('SELECT is_explicit FROM jarvis_conversation_languages WHERE conversation_id = ?')
+      .get(conversationId) as any;
+    const isExp = row?.is_explicit === 1;
+    explicitLockMap.set(conversationId, isExp);
+    return isExp;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Set active language for a conversation with verified read-back.
+ * If isExplicit is true, locks the language so implicit Whisper detection cannot mutate it.
  */
 export function setConversationLanguage(
   conversationId: string,
-  lang: SupportedLanguage
+  lang: SupportedLanguage,
+  isExplicit = false,
 ): { success: boolean; activeLanguage: SupportedLanguage; config: LanguageConfig } {
   if (!conversationId) {
     return { success: false, activeLanguage: 'en', config: LANGUAGE_CONFIGS.en };
   }
+
+  // If an explicit lock is active and this is an implicit auto-detection attempt, reject the mutation
+  if (!isExplicit && isExplicitLanguage(conversationId)) {
+    const current = getConversationLanguage(conversationId);
+    logger.info(`[ConversationLanguage] Preserving explicit language lock (${current}); ignoring implicit detection (${lang})`);
+    return { success: true, activeLanguage: current, config: LANGUAGE_CONFIGS[current] };
+  }
+
   const target = lang in LANGUAGE_CONFIGS ? lang : 'en';
   const now = new Date().toISOString();
+  const explicitVal = isExplicit ? 1 : (isExplicitLanguage(conversationId) ? 1 : 0);
 
   try {
     rawDb
       .prepare(
-        `INSERT INTO jarvis_conversation_languages (conversation_id, language_code, updated_at)
-         VALUES (?, ?, ?)
+        `INSERT INTO jarvis_conversation_languages (conversation_id, language_code, updated_at, is_explicit)
+         VALUES (?, ?, ?, ?)
          ON CONFLICT(conversation_id) DO UPDATE SET
            language_code = excluded.language_code,
-           updated_at = excluded.updated_at`
+           updated_at = excluded.updated_at,
+           is_explicit = excluded.is_explicit`
       )
-      .run(conversationId, target, now);
+      .run(conversationId, target, now, explicitVal);
 
     languageCache.set(conversationId, target);
+    explicitLockMap.set(conversationId, explicitVal === 1);
 
     // Verified read-back
     const verified = getConversationLanguage(conversationId);
@@ -286,7 +328,13 @@ export function setConversationLanguage(
       return { success: false, activeLanguage: verified, config: LANGUAGE_CONFIGS[verified] };
     }
 
-    logger.info(`[ConversationLanguage] Set conversation ${conversationId} language to ${target} (verified)`);
+    try {
+      import('../../services/voice/VoiceRuntimeState.js').then(({ voiceRuntimeState }) => {
+        voiceRuntimeState.setLanguage(target, LANGUAGE_CONFIGS[target].sttLocale, isExplicit);
+      }).catch(() => {});
+    } catch {}
+
+    logger.info(`[ConversationLanguage] Set conversation ${conversationId} language to ${target} (explicit=${explicitVal === 1}, verified)`);
     return { success: true, activeLanguage: target, config: LANGUAGE_CONFIGS[target] };
   } catch (err) {
     logger.error(`[ConversationLanguage] Failed to set language for ${conversationId}: ${err}`);

@@ -1,0 +1,25 @@
+# Rule → control → detector → check map (V2 authoring sheet)
+
+Derived by running the 2026-09-30 gate and its four detectors in this session (`DELEGATION-2026-10-01/verifier/`).
+Use this when implementing H1–H8 in `VERIFIER-PLAN-V2.md` §4.1.
+
+Numbering: **operator numbering** — R1 = no automated earning action · R2 = exactly one status check per operator-local day · R3 = notify on earnings/status change · R4 = human approval before any external action. (The 2026-10-01 brief swaps R1/R2 — see §0.1 of the plan.)
+
+| Rule | Code-side control (canonical file) | Detector | Existing checks (per detector run) | Measures the rule by | Known evasions (this pass) | V2 fix |
+|---|---|---|---|---|---|---|
+| **R1** no automated earning action | `readonly_client.py`: `ALLOWED_METHODS = {GET,HEAD}`, loopback `ALLOWED_HOSTS`, path allowlist, body-keyword rejection, single socket site `_transport()`, process audit hook | `detector_r1_earn.py` (static half in `rule_gate.check_rule1_static`) | static: write-verb literals, `.post/.put/.patch/.delete/urlopen`, forbidden path literals, earning-action call names, method allowlist == {GET,HEAD}, host allowlist loopback-only, guard present, no un-pinned network import. runtime: 8 guard refusals + wire recording during one real `metrics_http` run | the wire (a loopback stub records every method/path/body) | `adv1` obfuscated `"PO"+"ST"` / `"/cash"+"out"` (static passes, **runtime catches**); `adv4` condition-gated obfuscated write (`FREECASH_LIVE_READ=1`) — **escapes both**; `adv6` new file importing `http.client` — R1 import check passes, caught only by R4 | H1, H2, H3 |
+| **R2** once per operator-local day | `gate.py`: `os.open(lock, O_CREAT|O_EXCL|O_WRONLY)` at `state/day-locks/<YYYY-MM-DD>.lock`; `run_daily_check._run` acquires before the read, `if not acquired: SKIP_DUPLICATE_DAY` | `detector_r2_daily.py` | static: atomic barrier exists, day key is a calendar date, no rolling 24h window, lock acquired before read, duplicate branch has no read, no handler swallows a lock failure. runtime: run#1 reads, run#2 same day does not read + one lock + one snapshot + one SKIP line, run#3 next day reads (non-vacuity) | the wire count + the lock/snapshot/alert files in the throwaway root | `adv2` lock exists but `FileExistsError` swallowed into `acquired=True` (static passes, **runtime catches**) | H6 |
+| **R3** notify on change | `changedetect.compare` (exact integer-cents equality vs prior snapshot) + `notify.dispatch` (dedupe key persisted before send) + `run_daily_check.notify_changes` | `detector_r3_notify.py` | static: prior loaded before save, exact equality with no float threshold, sha256 dedupe key, key recorded before dispatch. runtime: 4-day sequence — day1 baseline no delivery, day2 earnings +25 → exactly one EARNINGS_CHANGED + one delivery, day3 identical → OK_NO_CHANGE + zero delivery, day4 status change → one STATUS_CHANGED + one delivery | delivery count (offline toast stub log) + alert JSONL + stdout | `adv5` compare() short-circuits to "no changes" (static passes, **runtime catches**) | none required |
+| **R4** human approval, never auto-executed | `approval_queue.py`: `NON_HUMAN_DECIDERS`, `_normalise_decider` requires `--by`, `EXECUTION_STATE_NOT_EXECUTED`, `EXECUTION_ALLOWED_BY_THIS_ROUTINE = False`, `expires_at_utc = NO_EXPIRY`; only `decide()` records, nothing executes | `detector_r4_approval.py` | static: refusal path reachable from `decide()`, only `NOT_EXECUTED` written, execution hard-coded False, every `expires_at_utc` null, **every external-effect call site is pinned** (`PINNED_EFFECTS`). runtime: 20 checks — frozen item, machine identities refused (API + shipped CLI), empty note refused, human decision records name and stays frozen, no file created outside `approvals/`, no delivery, decision trail frozen | the data root (files outside `approvals/`), the delivery count, the item's frozen fields | `adv3` `getattr(os,"sys"+"tem")(...)` on the enqueue path — callee is itself a `Call`, so the effect scanner never sees it; **escapes both layers** | H4, H5 |
+
+## Effect vocabulary the static layer currently recognises (R4 pinning)
+
+`EFFECT_ATTRS` = system, popen, execv, execve, execl, execlp, spawnv, run, call, check_call, check_output, urlopen, rmtree, unlink, remove, rmdir, move, copy, copy2, request, connect
+`EFFECT_NAMES` = HTTPConnection, HTTPSConnection, urlopen, socket
+`PINNED_EFFECTS` (the only allowed sites) = `readonly_client._transport` (`HTTPConnection`, `request`), `notify._toast_send.run`, `changedetect.prune_old_artifacts.unlink`
+
+Anything dispatched by name at runtime (`getattr`, `f()()`, `operator.attrgetter`) or assembled from fragments (`"PO"+"ST"`) is outside this vocabulary — that is exactly the H2/H4 gap.
+
+## Two-layer invariant to preserve
+
+A rule is trusted only when **both** layers pass, and the self-test must show the gate failing on a seeded violation for every rule. Measured this session: the static layer alone passed `adv1`, `adv2`, `adv5` in full — the runtime layer is load-bearing, not a redundant extra.

@@ -1,0 +1,1 @@
+C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe: can't open file 'D:\\d\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py': [Errno 2] No such file or directory

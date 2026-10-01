@@ -1,0 +1,34 @@
+=== date ===
+Do,  1. Okt 2026 09:02:23
+=== git HEAD ===
+8f7463a
+=== git status count ===
+863
+=== sha256 production ledger+alerts ===
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+=== find -type f -newermt (exact form requested) ===
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+=== full state root listing (mtime) ===
+2026-09-20 21:08:00.7001879000 0 data/freecash-monitor/state/day-locks/2026-09-20.lock
+2026-09-20 21:08:00.7189663000 879 data/freecash-monitor/state/operator-state.json
+2026-09-20 21:08:00.7234377000 518 data/freecash-monitor/snapshots/2026-09-20.json
+2026-09-30 21:01:05.5325622000 0 data/freecash-monitor/state/day-locks/2026-09-30.lock
+2026-09-30 21:02:05.6301726000 2172 data/freecash-monitor/state/notified-keys.json
+2026-09-30 21:02:05.6346945000 518 data/freecash-monitor/snapshots/2026-09-30.json
+2026-09-30 21:02:06.5210720000 230 data/freecash-monitor/logs/task-a.log
+2026-09-30 21:02:08.6695385000 136 data/freecash-monitor/logs/task-b-watchdog.log
+2026-10-01 08:53:46.6922555000 0 data/freecash-monitor/state/day-locks/2026-10-01.lock
+2026-10-01 08:53:46.7001916000 518 data/freecash-monitor/snapshots/2026-10-01.json
+2026-10-01 08:53:46.7047175000 8956 data/freecash-monitor/alerts/alerts.jsonl
+2026-10-01 08:53:46.7184158000 341 data/freecash-monitor/state/last-run.json
+=== day-locks ===
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 08:53 2026-10-01.lock

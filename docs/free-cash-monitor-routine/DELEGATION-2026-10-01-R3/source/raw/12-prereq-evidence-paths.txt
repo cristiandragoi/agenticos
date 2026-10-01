@@ -1,0 +1,57 @@
+=== prerequisiteService ===
+server/src/services/prerequisites/activeGoalRegistry.ts (8041 bytes)
+server/src/services/prerequisites/executionGate.ts (4813 bytes)
+server/src/services/prerequisites/prerequisiteService.ts (10178 bytes)
+--- checkPrerequisites / evidence path refs ---
+server/src/services/prerequisites/activeGoalRegistry.ts:140:/** Called when live session evidence proves authentication. Flags the goal
+server/src/services/prerequisites/executionGate.ts:10: * internal task is not evidence of external execution.
+server/src/services/prerequisites/executionGate.ts:13: *   - `prerequisiteService.checkPrerequisites`  → live external evidence only
+server/src/services/prerequisites/executionGate.ts:17: *   allowed === true   → LIVE evidence proves the prerequisite is satisfied.
+server/src/services/prerequisites/executionGate.ts:52:  /** True only when live external evidence satisfied the prerequisite. */
+server/src/services/prerequisites/executionGate.ts:89:    // Live evidence exists. Only arm a resume when the goal was actually
+server/src/services/prerequisites/prerequisiteService.ts:12: *  - The September-11 credential blocker is REVALIDATED against live evidence
+server/src/services/prerequisites/prerequisiteService.ts:33:  /** True only when this check found live external evidence. */
+server/src/services/prerequisites/prerequisiteService.ts:47:  evidencePath?: string;
+server/src/services/prerequisites/prerequisiteService.ts:51:const SESSION_EVIDENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+server/src/services/prerequisites/prerequisiteService.ts:58:  return path.join(dataDir(), service, 'session-evidence.json');
+server/src/services/prerequisites/prerequisiteService.ts:73:/** Persist LIVE verification evidence. Only the executor (which actually saw
+server/src/services/prerequisites/prerequisiteService.ts:139:    const p = path.join(browserProfileDir(accountId), 'storage_state.json');
+server/src/services/prerequisites/prerequisiteService.ts:152:  return Date.now() - at <= SESSION_EVIDENCE_MAX_AGE_MS;
+server/src/services/prerequisites/prerequisiteService.ts:157: * session evidence (the caller may pass an async live probe result); the
+server/src/services/prerequisites/prerequisiteService.ts:170:  const evidence = readSessionEvidence(service);
+server/src/services/prerequisites/prerequisiteService.ts:171:  const sessionValid = isEvidenceFresh(evidence);
+server/src/services/prerequisites/prerequisiteService.ts:176:    Boolean(evidence?.evidencePath);
+server/src/services/prerequisites/prerequisiteService.ts:177:  const externalConnected = sessionValid || Boolean(evidence);
+server/src/services/prerequisites/prerequisiteService.ts:182:      evidence && !evidence.authenticated
+server/src/services/prerequisites/prerequisiteService.ts:183:        ? `${def.label} account is not authenticated (last live check ${evidence.verifiedAt}).`
+server/src/services/prerequisites/prerequisiteService.ts:184:        : evidence && !isEvidenceFresh(evidence)
+server/src/services/prerequisites/prerequisiteService.ts:185:          ? `${def.label} session evidence is stale (last live check ${evidence.verifiedAt}).`
+server/src/services/prerequisites/prerequisiteService.ts:204: * against LIVE evidence. Never blindly trusted, never blindly cleared:
+server/src/services/prerequisites/prerequisiteService.ts:229:            verificationNote: `Prerequisite revalidation against live external session evidence (${service}).`,
+=== freeCashExecutor evidence paths ===
+16: * Auth evidence contract: sessionValid becomes true ONLY after a live probe
+17: * (this file) writes evidence. Internal project state never satisfies a
+49:  return path.join(dataDir(), 'browser_profiles', FREECASH_ACCOUNT_ID);
+58:  /** Absolute path of the evidence artifact (screenshots/DOM snapshot). */
+59:  evidencePath: string | null;
+119:  const dir = path.join(dataDir(), FREECASH_SERVICE, 'evidence');
+121:  const file = path.join(dir, `${kind}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}.json`);
+148: * signals. Writes persistent evidence (or clears stale evidence on failure).
+156:      const evidencePath = writeEvidenceArtifact(`session-${state}`, { observed, url: page.url() });
+162:          evidencePath,
+172:            evidencePath,
+177:      return { state, observed, evidencePath, inspectedAt };
+184:      evidencePath: null,
+196: * On verified login: writes session evidence, marks the stored original goal
+220:            const evidencePath = writeEvidenceArtifact('login-verified', { state, url: session.page.url() });
+225:              evidencePath,
+270:      const evidencePath = writeEvidenceArtifact('inspect-account', { state, observed: all, url: page.url() });
+271:      return { state, observed: all, evidencePath, inspectedAt };
+274:    return { state: 'unknown', observed: [], evidencePath: null, inspectedAt, error: err?.message };
+296:      const evidencePath = writeEvidenceArtifact('inspect-work', { state, items, url: page.url() });
+297:      return { state, observed, evidencePath, inspectedAt, items };
+300:    return { state: 'unknown', observed: [], evidencePath: null, inspectedAt, items: [], error: err?.message };
+334: *   - evidence is re-read per goal, so a goal cannot be resumed without it;
+354:        if (!ev?.authenticated) continue; // evidence vanished mid-flight — stay pending only if still blocked
+390:/** Startup hook: goals blocked before a restart remain; if evidence says the
+413:    logger.info(`[freeCashExecutor] startup reconciliation resumed ${resumed} goal(s) against verified session evidence`);

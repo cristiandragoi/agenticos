@@ -1,0 +1,12 @@
+$ python -c "import changedetect as cd; print(cd.normalize_metrics({...}))"
+cents fields       -> {'account_status': 'OPERATIVA', 'earnings_total_cents': 1340, 'balance_cents': 1340, 'pending_cents': 0, 'currency': 'USD'}
+whole-currency     -> {'account_status': 'OPERATIVA', 'earnings_total_cents': 1340, 'balance_cents': 1340, 'pending_cents': 0, 'currency': 'ARS'}
+cents-but-euros    -> {'account_status': 'OPERATIVA', 'earnings_total_cents': 1340, 'balance_cents': 1340, 'pending_cents': 0, 'currency': 'UNKNOWN'}
+missing field      -> MetricError: metrics payload is missing 'earnings_total_cents'
+bool rejected      -> MetricError: field earnings_total_cents must be an integer number of cents
+exit=0
+
+$ # status casing is an exact-string comparison on the operator_state path (no normalization)
+prior=Operativa current=OPERATIVA -> [{'change_type': 'STATUS_CHANGED', 'field': 'account_status', 'old_value': 'Operativa', 'new_value': 'OPERATIVA', 'prior_day_key': '2026-10-01'}]
+prior=Operativa current=Bloqueada -> [{'change_type': 'STATUS_CHANGED', 'field': 'account_status', 'old_value': 'Operativa', 'new_value': 'Bloqueada', 'prior_day_key': '2026-10-01'}]
+exit=0

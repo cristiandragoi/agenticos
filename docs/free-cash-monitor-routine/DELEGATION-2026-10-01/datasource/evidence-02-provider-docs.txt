@@ -1,0 +1,206 @@
+PROVIDER PUBLIC-DOCUMENTATION EVIDENCE
+Free Cash daily monitor -- read-only data source research
+Pass: 2026-10-01 (Europe/Berlin). Fetched via web_search / web_extract ONLY.
+No provider endpoint was contacted, no credential or token was read or used,
+nothing was authenticated. Everything below is a quotation from a public page.
+
+================================================================================
+FETCH LOG (commands actually run this session)
+================================================================================
+web_search "freecash.com API documentation balance account status read-only"
+web_search "HG.Cash API documentation GET accounts balance status"
+web_search "Cashfree Payouts API getBalance documentation read-only"
+web_extract https://docs.hg.cash/api-reference/accounts/get-user-accounts
+web_extract https://docs.hg.cash/openapi
+web_extract https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance
+web_extract https://www.cashfree.com/docs/api-reference/payouts/v1/authorize
+web_extract https://freecash.com/en/policies/terms            (page 50,072 clean chars)
+web_extract https://freecash.com/academy/en/support/general/platform/what-lite-mode
+web_extract https://docs.hg.cash/api-reference/openapi.yaml  (66,681 clean chars)
+web_extract https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance.md
+web_extract https://www.cashfree.com/docs/api-reference/payouts/overview
+web_extract https://freecash.io                                -> FETCH FAILED (UNVERIFIED)
+web_search  "Cashfree Payouts API key read-only scope permissions ..."
+
+================================================================================
+1. FreeCash (freecash.com / FreeCash.io)  -> DISQUALIFIED (no read-only contract;
+                                              automated access prohibited by ToS)
+================================================================================
+Source: https://freecash.com/en/policies/terms  (Terms of Service, Almedia GmbH,
+"Last Updated: July 17, 2026"; fetched 2026-10-01)
+
+  ## 16. Use of the Website
+  1. These Terms of Services permit you to use the Website for your personal,
+     non-commercial use only. ...
+
+  ## 17. Restrictions and Prohibited Uses
+  1. ... You agree not to use the Website: ...
+  2. Additionally, you agree not to:
+     - Use the Website in any manner that could disable, overburden, damage, or
+       impair the site ...
+     - Use any robot, spider or other automatic device, process or means to
+       access the Website for any purpose, including monitoring or copying any
+       of the material on the Website.
+     - Use any manual process to monitor or copy any of the material on the
+       Website, or for any other purpose not expressly authorized in these
+       Terms of Services, without our prior written consent.
+
+  => R3 (daily status check) is by definition "monitoring". Clause 17.2
+     prohibits it, automated OR manual, without prior written consent.
+
+Source: https://parse.bot/marketplace/.../freecash-io-api (third-party, NOT
+provider-published; fetched via search result snippet 2026-10-01)
+  "not publish a documented public developer API." (the platform itself does not
+  publish a developer API; the marketplace page exposes scraped *public* feed
+  data only -- withdrawals, leaderboard, platform stats -- none of which is the
+  account's own balance or status.)
+
+Source: https://freecash.io
+  web_extract returned: "Keyless Exa extract failed: Error fetching URL(s):
+  https://freecash.io: unknown error." -> UNVERIFIED. This pass could not
+  confirm what (if anything) freecash.io serves today. Prior repo research
+  (PROVIDER-CONTRACT-RESEARCH-V2.md) recorded it as a parked GoDaddy lander;
+  NOT re-verified here.
+
+VERDICT: no documented provider-published read-only endpoint for the account's
+own balance or status. The provider's own terms forbid the daily read R3
+requires. DISQUALIFIED under R1 (any integration would need an earning/account
+action to be useful) and flatly non-compliant for a monitor.
+
+================================================================================
+2. HG.Cash  -> DOCUMENTED READ-ONLY (balance + account status); R1 credential-
+                scope concern; no cumulative-earnings field
+================================================================================
+Source: https://docs.hg.cash/api-reference/accounts/get-user-accounts
+        (and the machine-readable https://docs.hg.cash/api-reference/openapi.yaml)
+
+  paths:
+  /accounts:
+    get:
+      tags: [Accounts]
+      summary: Get User Accounts
+      description: >
+        Returns the authenticated user's accounts, including ledger balance,
+        pending fees, net available balance (balance minus pending fees), and
+        account status.
+      operationId: getUserAccounts
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:          { type: string, format: uuid }
+                        name:        { type: string }
+                        balance:     { type: number, description: Account ledger balance rounded to 2 decimals }
+                        pendingFees: { type: number, description: Fees accrued but not yet collected, rounded to 2 decimals }
+                        netBalance:  { type: number, description: Available balance after pending fees (balance minus pending fees), rounded to 2 decimals }
+                        status:      { type: string, description: Account lifecycle status,
+                                       enum: [Operativa, Bloqueada, Cerrada] }
+                        currency:    { type: string }
+                        number:      { type: string }
+                        alias:       { type: string }
+                        platform:    { type: object }
+
+  /account/{id}/balance:
+    get:
+      summary: Get Account Balance
+      operationId: getAccountBalance
+      description: >
+        Returns the balance, pending fees, net available balance, currency, and
+        account status for the authenticated user's account by ID.
+      responses:
+        '200':
+          description: Account balance
+          schema properties: id, balance, currency, pendingFees, netBalance,
+            status (enum [Operativa, Bloqueada, Cerrada])
+
+  servers:
+    - url: https://hg.cash/api/v1        # Production server
+    - url: http://dev.hg.cash/api/v1     # Development server
+  security: [ bearerAuth ]
+  components.securitySchemes.bearerAuth:
+    type: http, scheme: bearer, bearerFormat: JWT
+    description: User API authentication token with format: cash_<64-char-hex>
+
+Source: https://docs.hg.cash/api-reference/webhooks/... (openapi.yaml)
+  - To create cash-outs (money leaving your accounts), you must call the
+    Cash Out endpoint: Create Transaction Request (Cash Out) (POST /transactions)
+
+VERDICT:
+  (i)  current balance  -> DOCUMENTED.  GET /accounts `balance` / `netBalance`,
+                          or GET /account/{id}/balance `balance`.
+  (ii) account status   -> DOCUMENTED.  `status` enum Operativa/Bloqueada/Cerrada.
+  (iii) write/payout call required?  NO for the read itself -- GET only. BUT the
+       same single bearer token (`cash_<64-hex>`, generated in account settings)
+       authorises POST /transactions (cash out). There is NO documented
+       read-only scope. So a monitor holding this token holds earning capability.
+  (iv) cumulative earnings -> NOT DOCUMENTED. No earnings/cumulative field
+       appears anywhere in the OpenAPI schema. `balance` is a ledger balance.
+       The monitor's fourth compared field (earnings_total_cents) has no source.
+  (v)  monitored entity -> the docs describe ARS accounts (CVU/CBU, Coelsa).
+       Whether the entity behind proj-free-cash holds an HG.Cash account is a
+       repo/operator fact, not a docs fact. BLOCKED.
+
+================================================================================
+3. Cashfree Payouts  -> balance DOCUMENTED READ-ONLY; account status NOT
+                        DOCUMENTED; DISQUALIFIED as a routine integration
+                        (its token mint is a POST)
+================================================================================
+Source: https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance
+        (and .../get-balance.md)
+  GET /payout/v1/getBalance
+  servers: https://payout-api.cashfree.com (Production)
+           https://payout-gamma.cashfree.com (Sandbox)
+  parameters: Authorization (header, Bearer auth token, required),
+              Content-Type (header, application/json, required)
+  200 response schema:
+    status        string  example SUCCESS
+    subCode       string  example "200"
+    message       string  example "Ledger balance for the account"
+    data:
+      balance          string  example '214735.50'
+      availableBalance string  example '173980.50'
+  error codes: 403 "Token is not valid"; 412 "Token missing in the request";
+               403 "APIs not enabled. Please fill out the Support Form ..."
+
+Source: https://www.cashfree.com/docs/api-reference/payouts/v1/authorize
+  POST /payout/v1/authorize
+  "Use this API to authenticate with the Cashfree system and obtain the
+   authorization bearer token. All other API calls must have this token as
+   Authorization header ..."   (headers X-Client-Id + X-Cf-Signature)
+
+Source: https://www.cashfree.com/docs/api-reference/payouts/v1/payouts-api-overview
+  Account APIs: "View Balance - View the ledger and available balance of your
+  account." / "Self Withdrawal" / "Internal Transfer".
+  (No account-status / lifecycle endpoint listed anywhere in the Payouts API.)
+
+Source: https://www.cashfree.com/docs/api-reference/payouts/v1/end-points
+  "Cashfree uses API keys to allow access to the API. Once you have signed up at
+   our merchant site, you will be able to see your AppId and SecretKey."
+  (No read-only key scope is documented.)
+
+VERDICT:
+  (i)  balance -> DOCUMENTED (data.balance, data.availableBalance).
+  (ii) account status -> NOT DOCUMENTED. The only "status" on the balance page is
+       the API call's own status/subCode, not the merchant account lifecycle.
+  (iii) write call required? YES, to obtain the token: POST /payout/v1/authorize.
+       The monitor's transport allowlists GET/HEAD only and rejects request
+       bodies; a POST authorize is a second, distinct R1/R2 concern. And the
+       AppId/SecretKey can themselves move money (Self Withdrawal).
+  (iv) identity: this yields a *merchant payout balance*, not the FreeCash
+       earning balance. No repo artifact maps the monitored balance to Cashfree.
+
+================================================================================
+4. Local metrics substitute (W1/W2) -- context only
+================================================================================
+readonly_client.read_status_source() runs GET /api/v1/status/metrics and
+HEAD /api/v1/status against http://localhost:3001 (DEFAULT_BASE_URL). It reports
+AgenticOS-local health, never a provider figure, and is marked degraded.

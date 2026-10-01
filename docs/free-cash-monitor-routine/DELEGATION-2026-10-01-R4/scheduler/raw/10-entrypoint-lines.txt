@@ -1,0 +1,62 @@
+=== run_daily_check.py: lock acquisition vs source read (line numbers) ===
+6:   lock.  If the day is already consumed, print ``SKIP_DUPLICATE_DAY``, append
+11:3. **R2** -- acquire today's figures through one of two read-only sources:
+28:    5  the status read failed; the day lock stays in place, no automatic re-run
+31:describes a human ``--force-recheck`` that consumes a second, distinct lock
+40:import argparse
+52:DEFAULT_SOURCE = "operator_state"
+64:def read_source(kind, day, base=None, transport=None) -> dict:
+65:    """Return today's figures from the selected read-only source."""
+67:        raw = readonly_client.read_status_source(base=base, transport=transport)
+77:    return operator_state.read_source(day)
+80:def resolve_source(explicit=None) -> str:
+81:    kind = explicit or os.environ.get("FREECASH_READ_SOURCE") or DEFAULT_SOURCE
+83:        raise ValueError("unknown read source %r (expected one of %s)" % (kind, ", ".join(SOURCES)))
+90:def observed_for(snapshot, source, prior) -> dict:
+97:        "source": source.get("kind"),
+126:def dispatch_change(day, change, snapshot, prior, source, sender, sleep_seconds, now=None,
+135:            notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note")),
+147:    message = notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note"))
+173:def notify_changes(day, changes, snapshot, prior, source, sender, sleep_seconds, now=None) -> dict:
+184:                notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note")),
+197:            day, change, snapshot, prior, source, sender, sleep_seconds, now=now, enqueue=enqueue
+209:        summary = notify.message_summary(day, len(changes), source_note=source.get("note"))
+251:def build_parser() -> argparse.ArgumentParser:
+252:    parser = argparse.ArgumentParser(
+256:    parser.add_argument("--source", choices=SOURCES, default=None, help="read source (default: %s)" % DEFAULT_SOURCE)
+257:    parser.add_argument("--base-url", default=None, help="base URL for the metrics read source")
+258:    parser.add_argument("--print-state", action="store_true", help="print the ledger and queue, then stop")
+259:    parser.add_argument("--force-recheck", action="store_true", help="refused by design (see module docstring)")
+260:    parser.add_argument("--reason", default=None, help="reason accompanying --force-recheck (audited)")
+261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+266:    """Entry point.  ``now`` is a test seam: it pins the whole run's clock."""
+268:        paths.set_clock(now)
+272:            paths.clear_clock()
+307:    source_kind = resolve_source(args.source)
+309:    acquired, lock = gate.acquire_day_lock(day)
+310:    if not acquired:
+315:            "Day %s already consumed (lock %s). Duplicate run performed no read and "
+316:            "wrote no snapshot." % (day, lock.name),
+318:            observed={"lock": str(lock)},
+363:            "using the machine's own local zone (offset %s), which is the operator wall clock. "
+372:        raw = read_source(source_kind, day, base=args.base_url or base, transport=transport)
+378:            "old_value": source_kind,
+382:        key = changedetect.dedupe_key(day, "READ_FAILED", "read", source_kind, reason)
+395:    source = {
+401:    metrics = raw.get("payload") if source["data_available"] else {}
+403:    snapshot = changedetect.build_snapshot(day, metrics, source, raw.get("raw_body") or b"", now=now)
+405:    snapshot_file, written = changedetect.save_snapshot(snapshot, now=now)
+406:    observed = observed_for(snapshot, source, prior)
+410:    if not source["data_available"]:
+416:            "and nothing is notified until a reading exists." % (day, source.get("note")),
+422:        notify.emit_initial_baseline(day, observed=observed, source_note=source.get("note"))
+429:            source_note=source.get("note"),
+435:            day, verdict["changes"], snapshot, prior or {}, source, sender, 0, now=now
+448:        "RUN_OK %s outcome=%s source=%s(data_available=%s) snapshot=%s written=%s "
+449:        "changes=%d notifications=%d approvals=%d reminders=%d lock=%s"
+453:            source["kind"],
+454:            source["data_available"],
+461:            lock.name,
+467:def main(argv=None) -> int:
+475:if __name__ == "__main__":
+476:    sys.exit(main())

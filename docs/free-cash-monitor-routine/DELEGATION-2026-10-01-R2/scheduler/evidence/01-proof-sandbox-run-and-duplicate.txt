@@ -1,0 +1,17 @@
+### command: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-r2/A bash docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/freecash-daily-wrapper.sh
+### (fresh sandbox; no operator-state record for today)
+rc=0
+--- stdout ---
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+--- stderr ---
+### SECOND SEQUENTIAL INVOCATION, same sandbox, same local day:
+rc=0
+--- stdout (0 bytes) ---
+--- stderr (0 bytes) ---
+### sandbox tree:
+      1015  alerts/alerts.jsonl
+       526  logs/daily-2026-10-01.log
+       518  snapshots/2026-10-01.json
+         0  state/day-locks/2026-10-01.lock
+       341  state/last-run.json
+       879  state/operator-state.json

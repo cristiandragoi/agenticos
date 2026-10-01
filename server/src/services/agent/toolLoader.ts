@@ -13,6 +13,7 @@ import { getPipelineStatusTool, runPipelineTool, readObsidianFileTool } from './
 import { speakTool } from './tools/speakTool.js';
 import { workspaceSearchTool } from './tools/workspaceSearchTool.js';
 import { delegateHermesTaskTool } from './tools/delegationTool.js';
+import { leadResearchTool } from './tools/leadResearchTool.js';
 
 export function registerAllTools(): void {
   toolRegistry.register(terminalTool);
@@ -28,5 +29,6 @@ export function registerAllTools(): void {
   toolRegistry.register(speakTool);
   toolRegistry.register(workspaceSearchTool);
   toolRegistry.register(delegateHermesTaskTool);
+  toolRegistry.register(leadResearchTool);
   logger.info(`[ToolRegistry] Registered ${toolRegistry.list().length} tools: ${toolRegistry.list().join(', ')}`);
 }

@@ -1,0 +1,22 @@
+== delivery manifest (sha256), utc 2026-10-01T07:34:46Z
+604b4f34c2fe8d51d19c93fd8b250974ecb635bd420e797cb4945e21d97b4f18 *./DESIGN.md
+38e00fe44d87d1fa925766d73ddc290180436ec85c314282bab19bcda995937d *./proposed/approval_queue.py
+f0db577e73455094a3e1f5b3b313e55ce36a7ebcd0f28f47dc10d42ad3f403a5 *./proposed/approval-allowlist.patch
+c712103a7d4f72af321210589a56a81a9b6034ed60b2edc312dc36c84cf2f89f *./proposed/human-deciders.example.json
+d6088d4cec5eec828068cf63700e46497b3182bfbcd654c12b4f43bb931d8c69 *./raw/00-prod-hashes-before.txt
+01246d602763b7681f9e503dbd1f76e6b88117638ee3b3b6111cafe10bf0d920 *./raw/01-identity-test-transcript.txt
+a62e7a3fb769d0fc9c7be79741e237dee4b48314fe1633ee2baeb8238025f1b8 *./raw/02-live-denylist-defect-this-session.txt
+f7597bc24766c5969a1985a792b1e7cb9b7ccc5fc132f0e9ac55e32f9c0ff69e *./raw/03-prod-hashes-after.txt
+6bb089fd548630f3e1306b6a343230e34a95d45b935db34e05847dc48a8dd898 *./raw/05-rule-gate-on-proposal.txt
+e1f49c9e0a8cd3f5b575f4e5dbc8279a6e386623ab1efac8be9cdd12d6c40865 *./raw/06-rule-gate-on-proposal-configured.txt
+61dcdd149b81cd98af5d461472405f7e48a5bf440dde8fdd009f85b5fab725f3 *./raw/07-prod-root-and-live-file-pin.txt
+e6b7d0b6b35f4ed10b0b2679df09aa28b78656bc7d84df823fcda0b61ce62ee2 *./raw/08-allowlist-subcommand.txt
+2bd31a6da67133e6934365b3dfd5203283d799e69ad6bd6617e89584178e358e *./raw/09-delivery-manifest.txt
+a7d63ca1d0b37ed2908a8b4944d6db7efd4a9ccd588d9f2c6e969c9e8c9ef83a *./repro-live-denylist-defect.sh
+fcdfa00f20e7e95d738300336b349ae5ee8141b444fc237742a415f07ec76fff *./run-identity-proof.sh
+0089abfa25351b700da63ffd546d92dd2e80f25302d7da4d888cbb0ec49f425f *./test_identity_allowlist.py
+
+== git status of the delivery directory
+?? docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/
+
+== tracking check (expect nothing tracked)

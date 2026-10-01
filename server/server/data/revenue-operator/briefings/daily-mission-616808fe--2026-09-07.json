@@ -1,0 +1,111 @@
+{
+  "id": "briefing-daily-mission-616808fe-2026-09-07",
+  "missionId": "mission-616808fe-",
+  "missionTitle": "Overnight Revenue Mission — €300 Verified in 30 Days",
+  "type": "daily",
+  "idempotencyKey": "daily-briefing-mission-616808fe--2026-09-07",
+  "periodStart": "2026-09-06T16:40:00.049Z",
+  "periodEnd": "2026-09-07T16:40:00.049Z",
+  "generatedAt": "2026-09-07T16:40:00.049Z",
+  "kpis": {
+    "targetAmount": 300,
+    "realizedRevenue": 0,
+    "verifiedRevenue": 0,
+    "pipelineValue": 1500,
+    "actualSpend": 0,
+    "actualCost": 0,
+    "netRevenue": 0
+  },
+  "digitalProducts": {
+    "total": 28,
+    "readyToPublish": 9,
+    "published": 0,
+    "discovered": 0
+  },
+  "germanSme": {
+    "total": 30,
+    "audited": 0,
+    "qualified": 0,
+    "inOutreach": 0
+  },
+  "humanGates": {
+    "total": 12,
+    "open": 12,
+    "resolved": 0,
+    "gatesList": [
+      {
+        "id": "gate-7823fde0-",
+        "type": "OUTBOUND_APPROVAL",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-d6863fd6-",
+        "type": "OUTBOUND_APPROVAL",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-62a69b77-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-360f2dae-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-f976909e-",
+        "type": "OUTBOUND_APPROVAL",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-0f4ae17d-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-c41d6030-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-6b960945-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-429bd15f-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-821e794a-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-01ecded3-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      },
+      {
+        "id": "gate-384df477-",
+        "type": "SHOPIFY_AUTH_REQUIRED",
+        "status": "open",
+        "paused": true
+      }
+    ]
+  },
+  "narrative": "### Revenue Mission Daily Briefing\n**Mission**: Overnight Revenue Mission — €300 Verified in 30 Days (mission-616808fe-)\n**Target**: €300 | **Pipeline**: €1500 | **Verified Revenue**: €0\n\n#### Engines Breakdown:\n- **Digital Products Engine**: 28 items cataloged (9 ready to publish, 0 live).\n- **German SME Engine**: 30 target leads audited (0 qualified, 0 in outreach).\n- **Human Gates Isolation**: 12 open human gates holding specific branches (0 resolved). Non-gated autonomous actions are running smoothly."
+}

@@ -24,8 +24,8 @@ export class ConversationService {
   // SSE stream clients mapped by conversation ID
   private streamClients = new Map<string, Response[]>();
 
-  async createConversation(title: string, workspaceId?: string, primaryAgent?: string) {
-    const id = `conv-${randomUUID().slice(0, 9)}`;
+  async createConversation(title: string, workspaceId?: string, primaryAgent?: string, customId?: string) {
+    const id = customId || `conv-${randomUUID().slice(0, 9)}`;
     const now = new Date().toISOString();
     
     db.insert(conversations).values({

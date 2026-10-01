@@ -1,0 +1,96 @@
+test_data_less_run_consumes_no_day_lock (__main__.DataLessRunBudgetTest.test_data_less_run_consumes_no_day_lock) ... FAIL
+test_data_less_run_does_not_advance_last_success_day (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_advance_last_success_day) ... FAIL
+test_data_less_run_does_not_reset_consecutive_missed_days (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_reset_consecutive_missed_days) ... FAIL
+test_data_less_run_is_reported_as_watchdog_missed_day (__main__.DataLessRunBudgetTest.test_data_less_run_is_reported_as_watchdog_missed_day) ... FAIL
+test_data_less_run_writes_no_snapshot (__main__.DataLessRunBudgetTest.test_data_less_run_writes_no_snapshot) ... FAIL
+test_the_day_is_still_usable_after_a_data_less_run (__main__.DayStaysUsableTest.test_the_day_is_still_usable_after_a_data_less_run) ... FAIL
+test_reading_present_run_consumes_one_day_and_duplicate_skips (__main__.ReadingPresentBudgetTest.test_reading_present_run_consumes_one_day_and_duplicate_skips) ... ok
+
+======================================================================
+FAIL: test_data_less_run_consumes_no_day_lock (__main__.DataLessRunBudgetTest.test_data_less_run_consumes_no_day_lock)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\daybudget\failing-test-first\test_daybudget_data_less.py", line 122, in test_data_less_run_consumes_no_day_lock
+    self.assertEqual(day_locks(self.root), [], "a data-less run must leave no day lock")
+AssertionError: Lists differ: ['2026-10-01.lock'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'2026-10-01.lock'
+
+- ['2026-10-01.lock']
++ [] : a data-less run must leave no day lock
+
+======================================================================
+FAIL: test_data_less_run_does_not_advance_last_success_day (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_advance_last_success_day)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\daybudget\failing-test-first\test_daybudget_data_less.py", line 126, in test_data_less_run_does_not_advance_last_success_day
+    self.assertEqual(
+AssertionError: '2026-10-01' != '2026-09-30'
+- 2026-10-01
+?      -   -
++ 2026-09-30
+?       + +
+ : a data-less run must not book a success day
+
+======================================================================
+FAIL: test_data_less_run_does_not_reset_consecutive_missed_days (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_reset_consecutive_missed_days)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\daybudget\failing-test-first\test_daybudget_data_less.py", line 133, in test_data_less_run_does_not_reset_consecutive_missed_days
+    self.assertEqual(
+AssertionError: 0 != 9 : a data-less run must not reset the miss counter
+
+======================================================================
+FAIL: test_data_less_run_is_reported_as_watchdog_missed_day (__main__.DataLessRunBudgetTest.test_data_less_run_is_reported_as_watchdog_missed_day)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\daybudget\failing-test-first\test_daybudget_data_less.py", line 148, in test_data_less_run_is_reported_as_watchdog_missed_day
+    self.assertFalse(state["covered"], printed)
+AssertionError: True is not false : WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=MONITOR_DEGRADED
+
+
+======================================================================
+FAIL: test_data_less_run_writes_no_snapshot (__main__.DataLessRunBudgetTest.test_data_less_run_writes_no_snapshot)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\daybudget\failing-test-first\test_daybudget_data_less.py", line 142, in test_data_less_run_writes_no_snapshot
+    self.assertEqual(snapshot_files(self.root), [], "a data-less run must write no snapshot")
+AssertionError: Lists differ: ['2026-10-01.json'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'2026-10-01.json'
+
+- ['2026-10-01.json']
++ [] : a data-less run must write no snapshot
+
+======================================================================
+FAIL: test_the_day_is_still_usable_after_a_data_less_run (__main__.DayStaysUsableTest.test_the_day_is_still_usable_after_a_data_less_run)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\daybudget\failing-test-first\test_daybudget_data_less.py", line 160, in test_the_day_is_still_usable_after_a_data_less_run
+    self.assertEqual(day_locks(self.root), [])
+AssertionError: Lists differ: ['2026-10-01.lock'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'2026-10-01.lock'
+
+- ['2026-10-01.lock']
++ []
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.256s
+
+FAILED (failures=6)
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+SKIP_DUPLICATE_DAY 2026-10-01
+exit=1

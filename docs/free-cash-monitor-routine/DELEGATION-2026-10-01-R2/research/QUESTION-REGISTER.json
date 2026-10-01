@@ -1,0 +1,167 @@
+{
+  "schema": "research-question-register/1",
+  "artifact": "docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/research/QUESTION-REGISTER.json",
+  "companion": "docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/research/RESEARCH-PLAN.md",
+  "delegation": "DELEGATION-2026-10-01-R2 (track: research)",
+  "generated": "2026-10-01T07:20:00Z",
+  "clock_of_record_local": "2026-10-01 09:05-09:20 Europe/Berlin",
+  "rule_scheme": {
+    "U1": "Don't perform earning actions automatically.",
+    "U2": "Check the status once a day.",
+    "U3": "Tell me if earnings or account status changes.",
+    "U4": "Ask me before any external action.",
+    "note": "PARENT-BRIEF scheme. DELEGATION-BRIEF-R2.md uses R1..R4 with R1=once-per-day (inverted vs U-scheme); every claim in the companion doc names its scheme."
+  },
+  "questions": [
+    {
+      "id": "RQ1",
+      "priority": "P0",
+      "question": "What does the internal name 'Free Cash Finance Automation' denote, and is it a vendor product with a provider contract?",
+      "why_it_matters": "The placeholder PROVIDER_ENDPOINT_UNKNOWN cannot be resolved without knowing which platform the monitored balance sits on.",
+      "method": "repo-wide grep for the exact phrase + exact-phrase web search",
+      "status": "ANSWERED",
+      "answer": "It is an internal AgenticOS construct, not a vendor product. 40+ in-repo hits, all documentation/plan artifacts (.hermes/plans/*, docs/*, design_doc.json, artifacts/*); an exact-phrase web search returns only unrelated free-cash-flow / personal-finance content, no vendor, product, ToS or API of that name. The only platform the repository's own executable artifact targets is freecash.com (freeCashExecutor.ts FREECASH_HOME='https://freecash.com/en', browser session; PRIOR PASS, not re-observed).",
+      "evidence_command": "grep -rn -i \"Free Cash Finance Automation\" --include=*.md --include=*.json --include=*.py --include=*.ts . ; web_search '\"Free Cash Finance Automation\"'"
+    },
+    {
+      "id": "RQ2",
+      "priority": "P0",
+      "question": "Does a documented READ-ONLY balance/earnings/status API exist for freecash.com (Almedia GmbH)?",
+      "why_it_matters": "freecash.com is the platform the repo targets; if a documented read API existed, W3/W4 in readonly_client.py could be resolved and U3 could fire on provider truth.",
+      "method": "fetch public docs/portal/sitemap/robots/ToS pages, unauthenticated GET only",
+      "status": "ANSWERED",
+      "answer": "NOT FOUND. No developer portal and no public API exist: /docs -> 404 (final https://freecash.com/de/docs), /developers -> 404, /api/v1 -> 404, /api -> 200 serving the 540263-byte marketing homepage, sitemap.xml indexes only /api/sitemap/1..5/sitemap.xml, robots.txt disallows /user/, /myprofile, /fc-api/. The ToS additionally forbids automated access 'for any purpose, including monitoring' and manual monitoring without prior written consent, and reserves the right to void unredeemed Rewards. Label: NOT FOUND.",
+      "evidence_command": "curl -sS -o /dev/null -w 'code=%{http_code} final=%{url_effective}\\n' -L https://freecash.com/docs ; curl -sS -L https://freecash.com/sitemap.xml | grep -o '<loc>[^<]*</loc>' ; curl -sS -L https://freecash.com/en/policies/terms | grep -o -i 'robot, spider[^<]*'"
+    },
+    {
+      "id": "RQ3",
+      "priority": "P0",
+      "question": "Is freecash.io a platform that hosts an API?",
+      "why_it_matters": "A false 'FreeCash.io API' claim in the Hermes skill automated-status-monitor and in older repo docs keeps re-seeding a bogus target.",
+      "method": "fetch freecash.io root, /llms.txt, /sitemap.xml, /lander",
+      "status": "ANSWERED",
+      "answer": "NO. freecash.io is a parked for-sale domain. Root returns 200/114 bytes with a JS redirect to /lander; /llms.txt (200, 571 B) states verbatim 'freecash.io is a domain name currently listed for sale on GoDaddy's aftermarket'; /sitemap.xml has a single <loc> for /lander; /lander resolves to https://forsale.godaddy.com/forsale/freecash.io -> 403. Label: NOT FOUND.",
+      "evidence_command": "curl -sS -L https://freecash.io/llms.txt"
+    },
+    {
+      "id": "RQ4",
+      "priority": "P0",
+      "question": "Is there a third-party 'Freecash API', and does it expose the monitored account's balance/earnings/status?",
+      "why_it_matters": "A third-party wrapper over public data must never be mistaken for an official account read, and must never enter the routine's allowlist.",
+      "method": "web search + page extraction of the vendor listing",
+      "status": "ANSWERED",
+      "answer": "A third-party vendor (parse.bot) publishes a managed REST wrapper over freecash.io public data (withdrawals feed, leaderboard, stats, featured offers, offer categories, cashout methods) authenticated with X-API-Key. Its own page says 'This isn't an official freecash.io API' and 'Freecash does not publish a documented public developer API.' It returns platform-wide public aggregate data only -- no per-account balance, earnings or status. Label: THIRD-PARTY (not official, not account data). Must not be allowlisted.",
+      "evidence_command": "web_extract https://parse.bot/marketplace/0076fa84-e4a6-48e3-977f-2e7c5164d00b/freecash-io-api"
+    },
+    {
+      "id": "RQ5",
+      "priority": "P1",
+      "question": "Does HG.Cash document a READ-ONLY balance/status endpoint, and can it serve the monitored account?",
+      "why_it_matters": "It is one of only two candidates with a documented read-only balance endpoint; if the monitored balance were an HG.Cash balance, a provider read becomes conceivable.",
+      "method": "fetch docs.hg.cash openapi.yaml and the accounts page",
+      "status": "ANSWERED",
+      "answer": "The ENDPOINT is documented: GET https://hg.cash/api/v1/accounts and GET /api/v1/account/{id}/balance return id, balance, pendingFees, netBalance, status (Operativa|Bloqueada|Cerrada), currency; single bearerAuth scheme, token cash_<64-char-hex>, no scopes. Applicability to the monitored account: UNPROVEN (no repo file links any HG.Cash account). The credential is NOT read-scoped: the docs state cash-outs use POST /transactions, so the same token can move money. Label: DOCUMENTED endpoint / BLOCKED for use. Host must not be allowlisted until ownership is confirmed and a U1/U4 credential decision is made.",
+      "evidence_command": "curl -sS -L https://docs.hg.cash/api-reference/openapi.yaml | grep -n '^  /' ; web_extract https://docs.hg.cash/api-reference/accounts/get-user-accounts.md"
+    },
+    {
+      "id": "RQ6",
+      "priority": "P1",
+      "question": "Does Cashfree Payouts document a READ-ONLY balance endpoint, and is its read token obtainable by a read-only routine?",
+      "why_it_matters": "The second documented balance endpoint; if usable it would tempt an allowlist widening, so the boundary must be stated precisely.",
+      "method": "fetch cashfree docs index and the get-balance page",
+      "status": "ANSWERED",
+      "answer": "Documented: GET https://payout-api.cashfree.com/payout/v1/getBalance (and v1.2) returns data.balance and data.availableBalance; servers are payout-api.cashfree.com (prod) / payout-gamma.cashfree.com (sandbox); the fetched spec shows an empty global security block and a required Authorization header. The read token is minted by POST /payout/v1/authorize -- a verb the routine's transport refuses (ALLOWED_METHODS={GET,HEAD}), so the routine cannot legitimately obtain it. Applicability to the monitored account: UNPROVEN. Label: DOCUMENTED endpoint / BLOCKED for use.",
+      "evidence_command": "curl -sS -L https://www.cashfree.com/docs/llms.txt | grep -n -i 'get.balance' ; web_extract https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance.md"
+    },
+    {
+      "id": "RQ7",
+      "priority": "P0",
+      "question": "Can the operator-entered JSON source ('operator_state') produce a real, non-degraded-shaped reading end-to-end today on a throwaway root?",
+      "why_it_matters": "It is the only source that can satisfy U3 today; if it did not run end-to-end the whole routine would have no path to a real change signal.",
+      "method": "seeded throwaway FREECASH_DATA_ROOT under %LOCALAPPDATA%\\Temp, run the real CLI twice",
+      "status": "ANSWERED",
+      "answer": "YES. Run 1: 'RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' (exit 0); snapshot has real fields (earnings_total_cents 1340) with read_ops [] and degraded true. Run 2 same day: 'SKIP_DUPLICATE_DAY 2026-10-01' (exit 0) with no read and no snapshot. Production root untouched.",
+      "evidence_command": "FREECASH_DATA_ROOT=\"C:/Users/cd-pr/AppData/Local/Temp/fc-research-r2/state\" FREECASH_TOAST_STUB=1 /c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe monitoring/freecash/run_daily_check.py --source operator_state"
+    },
+    {
+      "id": "RQ8",
+      "priority": "P1",
+      "question": "Does a loopback AgenticOS route serve the allowlisted metrics/status paths, so --source metrics_http could carry real figures?",
+      "why_it_matters": "readonly_client allowlists GET /api/v1/status/metrics and HEAD /api/v1/status; if nothing serves them, the local substitute is a 0-value option.",
+      "method": "curl each allowlisted path on localhost:3001 and localhost:4600; grep server/src for the route",
+      "status": "ANSWERED",
+      "answer": "NO. localhost:3001/api/v1/status/metrics -> curl (7) connection refused, code 000; localhost:3001/api/v1/status -> code 000; localhost:4600/api/v1/status/metrics -> code 404; localhost:4600/api/v1/status -> code 404; localhost:4600/api/health -> code 200. grep -rn 'api/v1/status|/status/metrics' server/src returns nothing. metrics_http is therefore a CONDITIONAL health probe only, never an account-status source.",
+      "evidence_command": "for u in http://localhost:3001/api/v1/status/metrics http://localhost:4600/api/v1/status/metrics http://localhost:4600/api/health; do curl -sS -o /dev/null -w \"$u -> code=%{http_code}\\n\" --max-time 6 \"$u\"; done ; grep -rn 'api/v1/status' server/src"
+    },
+    {
+      "id": "RQ9",
+      "priority": "P1",
+      "question": "Is the 'FreeCash.io GET /withdrawals (X-API-Key)' claim in the Hermes skill automated-status-monitor true?",
+      "why_it_matters": "A live skill asserting a non-existent API will re-seed the same false lead into every future planning pass.",
+      "method": "read the skill reference + re-check the domain it names",
+      "status": "ANSWERED",
+      "answer": "FALSE. The skill (references/api-compliance.md lines 12 and 64-67) lists 'FreeCash.io | GET /withdrawals | ... | Public read-only' and 'Uses X-API-Key header instead of Bearer tokens'. freecash.io is a parked for-sale domain (RQ3) and the scheme described belongs to the third-party parse.bot marketplace (RQ4), which is not official and returns no account data. The row must be corrected/refuted, not used.",
+      "evidence_command": "read_file ~/AppData/Local/hermes/skills/optional-skills/serverops/automated-status-monitor/references/api-compliance.md ; curl -sS -L https://freecash.io/llms.txt"
+    },
+    {
+      "id": "RQ10",
+      "priority": "P1",
+      "question": "Is the shipped JS rule verifier a trustworthy gate for U1-U4?",
+      "why_it_matters": "A verifier that reports 4/4 PASSED on a file that does not parse is a live false-compliance source.",
+      "method": "node --check the verifier's hardcoded target, then run the verifier",
+      "status": "ANSWERED",
+      "answer": "NO. node --check server/scripts/freecash-daily-monitor.mjs fails: 'SyntaxError: Unexpected token ':' ' at line 41, exit 1. Yet node server/scripts/verify-freecash-rules.mjs prints 'All 4 operational rules verified (4/4 passed)' and exits 0. Its PASS certifies nothing. The Python static gate (verify_readonly.py) is the usable baseline: forbidden=0 exempt=28 missing_targets=0.",
+      "evidence_command": "node --check server/scripts/freecash-daily-monitor.mjs; echo exit=$?; node server/scripts/verify-freecash-rules.mjs; echo exit=$?"
+    },
+    {
+      "id": "RQ11",
+      "priority": "P1",
+      "question": "Which exact write / claim / cashout endpoints must never be reachable under U1?",
+      "why_it_matters": "U1 is a hard exclusion; enumerating the forbidden paths is the allowlist review checklist.",
+      "method": "read HG.Cash openapi path list and Cashfree token-minting doc",
+      "status": "ANSWERED",
+      "answer": "HG.Cash (from openapi.yaml): POST /transactions (cash-out), POST /checkouts, POST /checkouts/{id}/cancel, POST /claims, POST /claims/{id}, POST /br|cl|bo/transactions/outbound, plus /alias-lookup and /transaction-requests. Cashfree: POST /payout/v1/authorize (token minting) and any payout/transfer/refund path. freecash.com: ALL paths (prohibited by ToS; robots disallows /fc-api/, /user/, /myprofile). None of these may ever appear in ALLOWED_PATHS or ALLOWED_HOSTS.",
+      "evidence_command": "curl -sS -L https://docs.hg.cash/api-reference/openapi.yaml | grep -n '^  /' ; curl -sS -L https://www.cashfree.com/docs/llms.txt | grep -n 'payout/v1/authorize'"
+    },
+    {
+      "id": "RQ12",
+      "priority": "P1",
+      "question": "Is the current production state ledger honest (does a reading-less day count as a success day)?",
+      "why_it_matters": "The U3/U2 interaction defect: a day with no reading is booked as a success, so silence can no longer be distinguished from a missed day.",
+      "method": "read the production ledger, operator state and day-locks",
+      "status": "ANSWERED",
+      "answer": "NOT HONEST. data/freecash-monitor/state/last-run.json shows last_attempt_day=2026-10-01, last_success_day=2026-10-01, last_outcome=MONITOR_DEGRADED, consecutive_missed_days=0, while state/operator-state.json has records: [] and snapshots/2026-10-01.json is degraded:true with all four figures null. Today's day-lock is already spent (2026-10-01.lock present).",
+      "evidence_command": "cat data/freecash-monitor/state/last-run.json ; cat data/freecash-monitor/state/operator-state.json ; ls -1 data/freecash-monitor/state/day-locks/"
+    },
+    {
+      "id": "RQ13",
+      "priority": "P2",
+      "question": "Which platform actually holds the monitored balance, and can a read-only credential be issued for it outside the routine?",
+      "why_it_matters": "It is the single blocking prerequisite for every provider option (O4/O5) and for ever removing PROVIDER_ENDPOINT_UNKNOWN.",
+      "method": "operator statement (not derivable from the repo or any public source)",
+      "status": "BLOCKED",
+      "answer": "BLOCKED - operator-held. No repo artifact, config, credential, env name or DB row maps the monitored balance to any provider, and the internal name maps to no vendor (RQ1).",
+      "evidence_command": "echo \"provider=____ account_owner=____ read_only_credential_possible=y/n\"  # answer recorded as a new artifact; nothing acted on"
+    },
+    {
+      "id": "RQ14",
+      "priority": "P2",
+      "question": "Does an approved provider account actually exist (KYC-complete HG.Cash account, or Cashfree merchant account with Payouts enabled)?",
+      "why_it_matters": "It determines whether O4/O5 time-to-revenue is a build cost or a provider onboarding queue.",
+      "method": "operator inspection of their own dashboards",
+      "status": "BLOCKED",
+      "answer": "BLOCKED - operator-held; onboarding for HG.Cash is documented as contact-form -> KYC -> approval, and Cashfree documents an unentitled state ('APIs not enabled. Please fill out the Support Form').",
+      "evidence_command": "operator opens the provider dashboard and records only 'payouts_enabled=yes/no' and 'account_approved=yes/no'"
+    },
+    {
+      "id": "RQ15",
+      "priority": "P2",
+      "question": "Which notification sink actually reaches the operator on this host?",
+      "why_it_matters": "U3 notifies on change; a change with no delivery path is unobservable.",
+      "method": "read the alert log and verify sink availability without sending a message",
+      "status": "OPEN",
+      "answer": "PARTIAL. The append-only JSONL alert log is proven delivering (alerts/alerts.jsonl, 15 lines). The desktop toast is documented but unproven (proofs used FREECASH_TOAST_STUB=1 and wrote label STUB_OK, never TOAST_OK). Email/webhook sinks are unavailable and loopback-blocked. Settle with one interactive dispatch with the stub unset against a scratch root.",
+      "evidence_command": "FREECASH_TOAST_STUB= FREECASH_DATA_ROOT=\"$LOCALAPPDATA/Temp/fc-toast-proof/state\" /c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe monitoring/freecash/run_daily_check.py"
+    }
+  ]
+}

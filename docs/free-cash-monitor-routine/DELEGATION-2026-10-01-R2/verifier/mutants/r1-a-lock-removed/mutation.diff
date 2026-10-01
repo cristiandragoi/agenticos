@@ -1,0 +1,18 @@
+--- a/gate.py
++++ b/gate.py
+@@ -124,14 +124,7 @@
+     """
+     lock = lock_path(day)
+     lock.parent.mkdir(parents=True, exist_ok=True)
+-    try:
+-        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+-    except FileExistsError:
+-        return False, lock
+-    try:
+-        os.close(fd)
+-    except OSError:
+-        pass
++    # MUTATION r1-a: barrier removed -- every invocation is a winner.
+     return True, lock
+ 
+ 

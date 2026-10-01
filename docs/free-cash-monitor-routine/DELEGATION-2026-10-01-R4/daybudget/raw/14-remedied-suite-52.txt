@@ -1,0 +1,4 @@
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-suite-remedy2/root "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/daybudget/remedy/tree/monitoring/freecash/tests/run_all.py
+### exit=0
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+run_all: tests=52 failures=0 errors=0 skipped=0

@@ -1,0 +1,38 @@
+### PROOF 3a: ledger last_success_day=2026-09-25; real clock day 2026-10-01 (machine was off 09-26..09-30)
+wrapper rc=0
+--- wrapper stdout ---
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+--- MISSED_DAY alerts emitted (count) ---
+5
+--- the days named in those alerts ---
+--- snapshots written ---
+2026-10-01.json
+--- ledger after ---
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "consecutive_missed_days": 5,
+
+### PROOF 3b: ledger last_success_day=2026-09-29; INJECTED wake clock 2026-10-02T08:30 Europe/Berlin
+RUN_OK 2026-10-02 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-02.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-02.lock
+driver: wake=2026-10-02 rc=0
+--- MISSED_DAY alerts emitted (count) ---
+2
+--- the days named in those alerts ---
+--- snapshots written (NO back-fill for 09-30/10-01) ---
+2026-10-02.json
+--- ledger after ---
+  "last_attempt_day": "2026-10-02",
+  "last_success_day": "2026-10-02",
+  "consecutive_missed_days": 2,
+--- (corrected) MISSED_DAY alerts, parsed from alerts.jsonl ---
+[sandbox D]
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/c/Users/cd-pr/AppData/Local/Temp/freecash-sched-r2/D/alerts/alerts.jsonl'
+[sandbox E]
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/c/Users/cd-pr/AppData/Local/Temp/freecash-sched-r2/E/alerts/alerts.jsonl'
+--- snapshot files present in E ---
+[sandbox D] 2026-10-01.json 
+[sandbox E] 2026-10-02.json 

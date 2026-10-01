@@ -2225,8 +2225,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
    *  - PLAYBACK failure (HTMLAudioElement error/decode) → mark error, return to idle
    */
   const speak = useCallback(async (text: string, channel: string = 'CONVERSATION', turnId?: number): Promise<void> => {
-    if (agentId === 'agent-jarvis') {
-      console.warn('[LegacyVoice] Suppressed speak — Legacy Jarvis voice deactivated for LiveKit replacement');
+    if (agentId === 'agent-jarvis' && conversationActiveRef.current && jarvisLiveKitSession.isConnected && channel !== 'typed') {
+      console.warn('[LegacyVoice] Suppressed speak — LiveKit is actively handling speech for live conversation');
       return;
     }
     if (!text || text.trim() === '') return;

@@ -1,0 +1,10 @@
+--- (corrected, native paths) MISSED_DAY alerts parsed from alerts.jsonl ---
+[sandbox D]
+   MISSED_DAY for 2026-09-26 | emitted under day_key 2026-10-01 | severity=alert
+   MISSED_DAY for 2026-09-27 | emitted under day_key 2026-10-01 | severity=alert
+   MISSED_DAY for 2026-09-28 | emitted under day_key 2026-10-01 | severity=alert
+   MISSED_DAY for 2026-09-29 | emitted under day_key 2026-10-01 | severity=alert
+   MISSED_DAY for 2026-09-30 | emitted under day_key 2026-10-01 | severity=alert
+[sandbox E]
+   MISSED_DAY for 2026-09-30 | emitted under day_key 2026-10-02 | severity=alert
+   MISSED_DAY for 2026-10-01 | emitted under day_key 2026-10-02 | severity=alert

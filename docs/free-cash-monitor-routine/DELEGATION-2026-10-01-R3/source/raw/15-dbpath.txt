@@ -1,0 +1,27 @@
+=== canonicalDbPath definition ===
+21:} else if (isTestEnv && !process.env.AGENT_TEAMS_DB_PATH) {
+35:const canonicalDbPath = process.env.AGENT_TEAMS_DB_PATH
+36:  ? path.resolve(process.env.AGENT_TEAMS_DB_PATH)
+52:  const norm = canonicalDbPath.toLowerCase().replace(/\//g, '\\');
+59:      `[CRITICAL SECURITY GUARD] Automated test attempted to open production database: ${canonicalDbPath}\n` +
+66:  if (!process.env.AGENTICOS_DATA_DIR && !process.env.AGENT_TEAMS_DB_PATH) {
+71:        `Resolved path: ${canonicalDbPath}\n` +
+80:const targetDir = path.dirname(canonicalDbPath);
+100:  canonicalPath: canonicalDbPath,
+109:    if (fs.existsSync(legacyPath) && path.resolve(legacyPath) !== path.resolve(canonicalDbPath)) {
+117:    path.resolve(packagedResourcesLegacy) !== path.resolve(canonicalDbPath) &&
+130:  if (fs.existsSync(canonicalDbPath)) {
+132:      const stat = fs.statSync(canonicalDbPath);
+146:  console.log(`[db] Migrating to canonical location: ${canonicalDbPath}`);
+161:    fs.copyFileSync(legacyPath, canonicalDbPath);
+166:      const dst = `${canonicalDbPath}${ext}`;
+171:    const testDb = new Database(canonicalDbPath, { readonly: true });
+183:      canonicalPath: canonicalDbPath,
+194:      canonicalPath: canonicalDbPath,
+206:const sqlite = new Database(canonicalDbPath, { timeout: 15000 });
+=== find *.sqlite under repo and home ===
+/d/AgenticOS/database.sqlite
+/d/AgenticOS/server/data/database.sqlite
+/d/AgenticOS/server/database.sqlite
+=== broad session-evidence search on D: and appdata ===
+C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/session-evidence.json

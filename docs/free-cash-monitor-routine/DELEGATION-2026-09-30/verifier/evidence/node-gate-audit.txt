@@ -1,0 +1,51 @@
+### 1. the shipped gate's own verdict, exit code captured without a pipe
+[FREECASH RULE VERIFIER] Starting checks...
+
+[CHECK] Rule 1: No auto-earning actions...
+   Result: PASSED
+
+[CHECK] Rule 2: Once per day check...
+   Result: PASSED
+
+[CHECK] Rule 3: Notify on earnings/status changes...
+   Result: PASSED
+
+[CHECK] Rule 4: Human approval before external action...
+   Result: PASSED
+
+
+=== Rule Compliance Summary ===
+✓ Rule 1 (No auto earnings)     → PASSED
+✓ Rule 2 (Once daily check)      → PASSED
+✓ Rule 3 (Notify changes)        → PASSED
+✓ Rule 4 (Human approval queue)  → PASSED
+
+[OK] All 4 operational rules verified (4/4 passed)
+
+EXIT=0
+
+### 2. does it ever exit non-zero?
+no process.exit anywhere in the file
+
+### 3. Rule 3 predicate deconstructed: !includes('checkForChanges') || includes('.log(')
+2
+10
+
+### 4. Rule 4 predicate deconstructed: (!A && B) || C
+includes requiresApproval      : 1
+includes prepareActionRequests : 2
+includes approval-request.json : 1
+
+### 5. hardcoded targets (no target argument at all)
+-rw-r--r-- 1 cd-pr 197609 6428 Sep 11 10:59 server/src/adapters/freecashMonitorAdapter.ts
+
+### 6. does the rule-1 target parse?
+D:\AgenticOS\server\scripts\freecash-daily-monitor.mjs:41
+function isDailyCheckAllowed(): boolean {
+                              ^
+
+SyntaxError: Unexpected token ':'
+    at checkSyntax (node:internal/main/check_syntax:72:5)
+
+Node.js v24.20.0
+node --check EXIT=1

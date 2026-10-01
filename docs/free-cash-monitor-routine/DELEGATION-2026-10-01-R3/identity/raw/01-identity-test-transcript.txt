@@ -1,0 +1,280 @@
+== utc: 2026-10-01T07:35:29Z
+== interpreter: C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe (Python 3.11.9)
+== each case forces its own throwaway FREECASH_DATA_ROOT (any inherited value is ignored)
+################################################################################
+# DIRECTION 1 of 2 -- REFUSAL: a machine (or an unconfigured/tampered allowlist)
+# may NOT sign. Every case must exit 4 and leave the item PENDING.
+################################################################################
+
+--------------------------------------------------------------------------------
+CASE REF-1 hermes-agent   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-1\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 07f9ff82-8e1a-432e-83c3-fc3ba714e904 --decision approve --by 'hermes-agent' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: 'hermes-agent' matches a machine-label pattern
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-2 assistant   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-2\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 1bb4d422-fa22-43da-9aae-ee753f223485 --decision approve --by 'assistant' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: 'assistant' matches a machine-label pattern
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-3 the monitor   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-3\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id f3e93a08-8853-42a4-b22d-d0eca48408ee --decision approve --by 'the monitor' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: 'the monitor' matches a machine-label pattern
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-4 unconfigured   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-4\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id b8b051bf-0c26-47cb-ba65-a6d3cf8900d5 --decision approve --by 'Alice Operator' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-4\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-5 corrupt   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-5\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 00ea05cb-a39c-4e64-91f4-bcb5b32743e4 --decision approve --by 'Alice Operator' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: the operator allowlist at C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-5\state\human-deciders.json is not valid JSON (Expecting property name enclosed in double quotes: line 1 column 3 (char 2)); refusing every decider (fail-closed)
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-6 empty list   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-6\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 10204c48-96e0-4f6f-a457-9527d3d81230 --decision approve --by 'Alice Operator' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: the operator allowlist (C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-6\state\human-deciders.json) lists no identities; refusing every decider (fail-closed)
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-7 tampered   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-7\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 3358d8ee-0738-4da9-b383-6335bcbb58e8 --decision approve --by 'hermes-agent' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: the operator allowlist (C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-7\state\human-deciders.json) lists a machine-looking identity 'hermes-agent'; a machine may not be allowlisted; refusing every decider (fail-closed)
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-8 wrong-schema   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-8\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 65930d03-d836-454b-8230-b200a911591e --decision approve --by 'Alice Operator' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: the operator allowlist at C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-8\state\human-deciders.json has schema_version=99 (need 1); refusing every decider (fail-closed)
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-9 env machine   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-9\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 60e127e9-c6b0-432d-95bb-1a7c6d7594c0 --decision approve --by 'hermes-agent' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: the operator allowlist (FREECASH_OPERATOR_IDENTITY environment variable) lists a machine-looking identity 'hermes-agent'; a machine may not be allowlisted; refusing every decider (fail-closed)
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-10 unlisted Claude   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-10\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 5a339ea7-a7d8-48f0-a79f-aa3c9c642792 --decision approve --by 'Claude' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: 'Claude' is not in the operator allowlist at C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-10\state\human-deciders.json (1 identity/ies configured); only a configured human may sign
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE REF-11 unlisted op-1   (expect: REFUSED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/REF-11\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 21af7128-8aa4-4b4f-b17f-bbf0f267210a --decision approve --by 'operator-1' --note '...'
+  exit_code = 4
+  stderr    : REFUSED: refused: 'operator-1' is not in the operator allowlist at C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-20624\REF-11\state\human-deciders.json (1 identity/ies configured); only a configured human may sign
+  item      : status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=0
+  check exit_is_4                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check item_still_PENDING         ok
+  check no_decider_recorded        ok
+  check nothing_in_trail           ok
+  check printed_REFUSED            ok
+  VERDICT   : PASS
+
+################################################################################
+# DIRECTION 2 of 2 -- ACCEPT: the one configured human name IS recorded --
+# and the approved item is still inert (NOT_EXECUTED, no expiry).
+################################################################################
+
+--------------------------------------------------------------------------------
+CASE ACC-1 file allowlist   (expect: ACCEPTED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/ACC-1\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 08997f59-7863-417e-a270-7b7228a00749 --decision approve --by 'Alice Operator' --note '...'
+  exit_code = 0
+  stdout    : recorded APPROVED for 08997f59-7863-417e-a270-7b7228a00749 by Alice Operator at 2026-10-01T07:35:32Z
+  stdout    : execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+  item      : status=APPROVED decided_by='Alice Operator' expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=1
+  check decided_by_is_human        ok
+  check exit_is_0                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check list_still_NOT_EXECUTED    ok
+  check recorded_APPROVED          ok
+  check trail_has_one_line         ok
+  check trail_names_human          ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE ACC-2 case-insensitive   (expect: ACCEPTED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/ACC-2\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 534856de-c461-4745-bebd-c008ac8e227b --decision approve --by 'alice operator' --note '...'
+  exit_code = 0
+  stdout    : recorded APPROVED for 534856de-c461-4745-bebd-c008ac8e227b by alice operator at 2026-10-01T07:35:32Z
+  stdout    : execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+  item      : status=APPROVED decided_by='alice operator' expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=1
+  check decided_by_is_human        ok
+  check exit_is_0                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check list_still_NOT_EXECUTED    ok
+  check recorded_APPROVED          ok
+  check trail_has_one_line         ok
+  check trail_names_human          ok
+  VERDICT   : PASS
+
+--------------------------------------------------------------------------------
+CASE ACC-3 env override   (expect: ACCEPTED)
+  allowlist : C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624/ACC-3\state\human-deciders.json
+  $ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\identity\proposed\approval_queue.py decide --id 4519941b-71ed-47eb-aa68-3ced932cd459 --decision approve --by 'Alice Operator' --note '...'
+  exit_code = 0
+  stdout    : recorded APPROVED for 4519941b-71ed-47eb-aa68-3ced932cd459 by Alice Operator at 2026-10-01T07:35:32Z
+  stdout    : execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+  item      : status=APPROVED decided_by='Alice Operator' expires_at_utc=None execution_state=NOT_EXECUTED execution_allowed=False
+  trail     : approvals/decided.jsonl lines=1
+  check decided_by_is_human        ok
+  check exit_is_0                  ok
+  check frozen_expiry_null         ok
+  check frozen_not_allowed         ok
+  check frozen_not_executed        ok
+  check list_still_NOT_EXECUTED    ok
+  check recorded_APPROVED          ok
+  check trail_has_one_line         ok
+  check trail_names_human          ok
+  VERDICT   : PASS
+
+################################################################################
+# BOTH DIRECTIONS IN ONE RUN
+#   refusal cases : 11 (11 passed)
+#   accept  cases : 3 (3 passed)
+#   throwaway root: C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624
+#   production root D:/AgenticOS/data/freecash-monitor was never referenced.
+# RESUMEN: cases=14 failures=0 -> ALL PASS
+################################################################################
+TEST_EXIT=0

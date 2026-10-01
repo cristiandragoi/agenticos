@@ -1,0 +1,18 @@
+=== mtimes of artifacts read (R4) ===
+-rw-r--r-- 1 cd-pr 197609 14488 2026-10-01 11:42:55.532180600 +0200 docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/PARENT-BRIEF-R4.md
+-rw-r--r-- 1 cd-pr 197609 12161 2026-10-01 11:40:39.660846400 +0200 docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/research/RESEARCH-PLAN-R4.md
+-rw-r--r-- 1 cd-pr 197609 21413 2026-10-01 11:40:40.514253100 +0200 docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/WORKFLOW-PLAN-R4.md
+=== sibling R2/R3 delivery dirs (mtime, not inherited) ===
+ls: cannot access 'docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/delivery/': No such file or directory
+total 236
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 09:15:30.542899700 +0200 .
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 09:03:57.348102200 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 45019 2026-10-01 09:15:30.421970900 +0200 DELIVERY-FINDINGS.md
+-rw-r--r-- 1 cd-pr 197609 13067 2026-10-01 09:09:58.213999000 +0200 drive_r3.py
+-rw-r--r-- 1 cd-pr 197609  4042 2026-10-01 09:14:25.813749800 +0200 drive_r3_counts.py
+-rw-r--r-- 1 cd-pr 197609  9557 2026-10-01 09:08:46.644751200 +0200 drive_r4.py
+-rw-r--r-- 1 cd-pr 197609  5448 2026-10-01 09:08:46.677629500 +0200 drive_trace.py
+-rw-r--r-- 1 cd-pr 197609  9374 2026-10-01 09:10:30.494977400 +0200 evidence-01-r3-mechanics-code.txt
+-rw-r--r-- 1 cd-pr 197609  2521 2026-10-01 09:14:31.732753100 +0200 evidence-02b-r3-dispatch-counts.txt
+=== nothing new under monitoring/ after my pass start 11:44 ===
+find_rc=0

@@ -1,0 +1,96 @@
+=== 4. SCHEDULER ROUTE FACTS (three routes) ===
+RUN AT: Do,  1. Okt 2026 09:16:00
+
+############ ROUTE H: HERMES CRON ############
+--- hermes cron list ---
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+--- hermes cron status ---
+
+✓ Gateway is running — cron jobs will fire automatically
+  PID: 21660
+  Ticker heartbeat: 6s ago
+
+  No active jobs
+
+--- hermes cron doctor ---
+✓ Cron doctor found no issues
+  No active jobs configured.
+--- HERMES_HOME=C:\Users\cd-pr\AppData\Local\hermes
+--- job store: search for jobs.json under the hermes home ---
+(nothing printed above == no jobs.json exists)
+--- the cron store directory ---
+total 70
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:15 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:16 ..
+-rw-r--r-- 1 cd-pr 197609     0 Aug 27 19:48 .jobs.lock
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:15 .tick.lock
+-rw-r--r-- 1 cd-pr 197609 24576 Sep 17 19:44 executions.db
+drwxr-xr-x 1 cd-pr 197609     0 Aug 27 19:48 output
+-rw-r--r-- 1 cd-pr 197609    18 Okt  1 09:15 ticker_heartbeat
+-rw-r--r-- 1 cd-pr 197609    18 Okt  1 09:15 ticker_last_success
+--- executions.db row count (read-only) ---
+tables ['executions']
+executions rows = 0
+--- the --script route requires ~/.hermes/scripts/ ---
+ls: cannot access 'C:/Users/cd-pr/AppData/Local/hermes/scripts': No such file or directory
+--- freecash match in hermes cron store ---
+(nothing above == no Free Cash cron entry)
+
+############ ROUTE W: WINDOWS TASK SCHEDULER ############
+--- task count and Free Cash match ---
+schtasks /Query /FO CSV /NH line count = 278 (rows repeat per trigger)
+distinct task names = 200
+freecash/free-cash/cash-monitor matches:
+grep_exit=1  (1 == no match: no Free Cash task is registered)
+--- a REAL registered task, exported read-only, proving StartWhenAvailable exists on this build ---
+    <Description>cua-driver: serve daemon, auto-start at interactive logon, RunLevel=Highest for UWP/AppContainer support</Description>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+--- does schtasks /Create expose StartWhenAvailable? ---
+0
+0 matches == XML required
+--- is 'schtasks' able to create a per-user task non-elevated? NOT TESTED (registration forbidden by this task's constraints) ---
+
+############ ROUTE C: REPO CRONTAB ############
+--- the file ---
+-rw-r--r-- 1 cd-pr 197609 578 Sep 11 10:12 config/freecash-crontab
+--- contents ---
+# Free Cash Daily Check — Cron Schedule
+# Edit: config/freecash-crontab
+# Location: D:/AgenticOS/config/freecash-crontab
+
+# Run daily at 05:05 UTC (adjust time as needed)
+# Format: minute hour dayOfMonth month dayOfWeek command
+0 5 * * * /usr/bin/env python3 /path/to/AgenticOS/scripts/make_freecash_check.py >> /path/to/AgenticOS/logs/freecashioc_$(date +\%Y-\%m-\%d).log 2>&1
+
+# Notes:
+# - Path to script must be absolute or adjusted to your setup.
+# - Output log directory is configured internally by the script.
+# - To change time, edit line above; no code changes needed.
+--- what it points at: scripts/make_freecash_check.py ---
+-rwxr-xr-x 1 cd-pr 197609 2957 Sep 11 11:00 scripts/make_freecash_check.py
+--- is that script an earning action? (R2 surface) ---
+9:DATA_DIR = BASE / "data" / "freecash"
+10:STATE_FILE = DATA_DIR / "state.json"
+11:LOG_FILE = (DATA_DIR / f"{datetime.now(timezone.utc).strftime('%Y%m%d')}.log").resolve()
+15:    return {"balance": 0, "available_to_withdraw": 0, "pending_surveys": []}
+18:def prepare_actions(status) -> list:
+19:    if status.get("available_to_withdraw"):
+20:        return [{"name": f"Withdraw ${status['available_to_withdraw']:.2f}", "type": "withdraw", "amount": status["available_to_withdraw"]}]
+56:    DATA_DIR.mkdir(parents=True, exist_ok=True)
+77:        actions = prepare_actions(status)
+--- its state root differs from the canonical one ---
+9:DATA_DIR = BASE / "data" / "freecash"
+10:STATE_FILE = DATA_DIR / "state.json"
+11:LOG_FILE = (DATA_DIR / f"{datetime.now(timezone.utc).strftime('%Y%m%d')}.log").resolve()
+56:    DATA_DIR.mkdir(parents=True, exist_ok=True)
+--- is a cron daemon even present? ---
+which: no crontab in (/c/Users/cd-pr/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/cd-pr/bin:/mingw64/bin:/usr/bin:/bin:/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/cd-pr/AppData/Local/Microsoft/WinGet/Links:/c/Python314/Scripts:/c/Python314:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/ProgramData/chocolatey/bin:/c/Users/cd-pr/.qoder-cn/entry:/c/Users/cd-pr/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/cd-pr/AppData/Local/Programs/Python/Python311:/c/Users/cd-pr/AppData/Local/hermes/bin:/c/Users/cd-pr/AppData/Local/Microsoft/WindowsApps:/c/Users/cd-pr/AppData/Roaming/npm:/c/Users/cd-pr/AppData/Local/Programs/Ollama:/c/Users/cd-pr/AppData/Local/Programs/Ollama:/c/Users/cd-pr/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.2.0-x86_64-pc-windows-msvc:/c/Users/cd-pr/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build/bin:/c/Users/cd-pr/AppData/Local/Programs/Cua/cua-driver/bin:/c/Users/cd-pr/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/cd-pr/.qoder-cn/bin/qoderclicn:/usr/bin/vendor_perl:/usr/bin/core_perl)
+which: no cron in (/c/Users/cd-pr/bin:/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin:/usr/bin:/c/Users/cd-pr/bin:/mingw64/bin:/usr/bin:/bin:/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/cd-pr/AppData/Local/Microsoft/WinGet/Links:/c/Python314/Scripts:/c/Python314:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/cmd:/c/Program Files/nodejs:/c/ProgramData/chocolatey/bin:/c/Users/cd-pr/.qoder-cn/entry:/c/Users/cd-pr/AppData/Local/Programs/Python/Python311/Scripts:/c/Users/cd-pr/AppData/Local/Programs/Python/Python311:/c/Users/cd-pr/AppData/Local/hermes/bin:/c/Users/cd-pr/AppData/Local/Microsoft/WindowsApps:/c/Users/cd-pr/AppData/Roaming/npm:/c/Users/cd-pr/AppData/Local/Programs/Ollama:/c/Users/cd-pr/AppData/Local/Programs/Ollama:/c/Users/cd-pr/AppData/Local/Microsoft/WinGet/Packages/BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe/ripgrep-15.2.0-x86_64-pc-windows-msvc:/c/Users/cd-pr/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build/bin:/c/Users/cd-pr/AppData/Local/Programs/Cua/cua-driver/bin:/c/Users/cd-pr/AppData/Local/Programs/Antigravity IDE/bin:/c/Users/cd-pr/.qoder-cn/bin/qoderclicn:/usr/bin/vendor_perl:/usr/bin/core_perl)
+which_exit=2
+--- Windows 'cron' equivalents present? ---
+0
+(Windows has no crond; the scheduled-task service IS the cron equivalent)

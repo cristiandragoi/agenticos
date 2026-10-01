@@ -1,0 +1,110 @@
+### captured at
+2026-10-01 09:08:44 +02:00
+
+### 1. NOTHING REGISTERED (final)
+-- schtasks free|cash:
+grep_exit=1 (1 == none)
+-- schtasks by the intended task names (must be 'cannot find'):
+FEHLER: Das System kann die angegebene Datei nicht finden.
+FEHLER: Das System kann die angegebene Datei nicht finden.
+-- hermes cron list:
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+
+### 2. TRACKED files modified in the freecash/monitoring scope (must be NONE)
+NONE
+
+### 3. Deliverable + artifacts present
+-rw-r--r-- 1 cd-pr 197609  5279 Okt  1 09:04 DECISION-V2-FreeCash-Daily-Monitor.xml
+-rw-r--r-- 1 cd-pr 197609  3875 Okt  1 09:04 DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+-rw-r--r-- 1 cd-pr 197609  4890 Okt  1 08:58 DECISION-V2-HERMES-CRON-SCRIPTS-PROPOSAL.md
+-rwxr-xr-x 1 cd-pr 197609  4678 Okt  1 08:47 freecash-guarded-run.sh
+-rw-r--r-- 1 cd-pr 197609 36313 Okt  1 09:08 SCHEDULER-DECISION-V2.md
+
+evidence/:
+total 73
+drwxr-xr-x 1 cd-pr 197609    0 Okt  1 09:08 .
+drwxr-xr-x 1 cd-pr 197609    0 Okt  1 09:08 ..
+-rw-r--r-- 1 cd-pr 197609 1561 Okt  1 08:46 evidence-01-live-scheduling-facts.txt
+-rw-r--r-- 1 cd-pr 197609 2377 Okt  1 08:48 evidence-02-guard-fire.txt
+-rw-r--r-- 1 cd-pr 197609 2034 Okt  1 08:48 evidence-03-sameday.txt
+-rw-r--r-- 1 cd-pr 197609 2223 Okt  1 08:48 evidence-04-watchdog-missed-day.txt
+-rw-r--r-- 1 cd-pr 197609 4196 Okt  1 08:49 evidence-05-first-day-after-gap.txt
+-rw-r--r-- 1 cd-pr 197609 7042 Okt  1 08:50 evidence-06-hermes-cron-route.txt
+-rw-r--r-- 1 cd-pr 197609 3177 Okt  1 08:52 evidence-07-schtasks-route.txt
+-rw-r--r-- 1 cd-pr 197609 1232 Okt  1 08:53 evidence-08-route-w-command-shape.txt
+-rw-r--r-- 1 cd-pr 197609 4930 Okt  1 08:54 evidence-09-INCIDENT-production-leak-forensics.txt
+-rw-r--r-- 1 cd-pr 197609 3994 Okt  1 08:59 evidence-10-final-verification.txt
+-rw-r--r-- 1 cd-pr 197609 3835 Okt  1 09:04 evidence-11-xml-validation-and-blast-radius.txt
+-rw-r--r-- 1 cd-pr 197609 4144 Okt  1 09:06 evidence-12-route-w-action-verified.txt
+-rw-r--r-- 1 cd-pr 197609  549 Okt  1 09:08 evidence-13-final-verification.txt
+
+### 4. Document structure
+13:## 0. Status: what was registered, what was executed, and one incident you must read first
+49:## 1. Today's live scheduling facts, re-read with the exact commands
+77:### CMD1: MSYS_NO_PATHCONV=1 schtasks /query /fo CSV /nh | grep -iE 'free|cash'
+79:### CMD3: hermes cron list
+81:### CMD4: ls C:/Users/cd-pr/AppData/Local/hermes/scripts/
+84:### CMD5: pinned interpreter check
+87:### CMD7: is TODAY's lock (2026-10-01) present?
+94:## 2. The two incidents, and why state isolation is a code-path property, not a promise
+124:## 3. The two candidate routes
+131:### 3.1 Route W — Windows Task Scheduler
+213:### 3.2 Route H — Hermes cron
+238:### 3.3 The comparison the decision turns on
+260:## 4. Missed-day and same-day semantics (executed against throwaway state roots)
+262:### 4.0 Normative definitions
+280:### 4.1 Commands actually used
+293:### 4.2 (a) Second same-day run → `SKIP_DUPLICATE_DAY`, exit 0
+298:### RUN a-1 (first run today)
+303:### RUN a-2 (SECOND run, same calendar day 2026-10-01)
+308:### state root listing after a-2
+316:### the duplicate's own alert line
+324:### 4.3 (b) Interrupted / absent prior day → watchdog `MISSED_DAY` coverage output
+329:### B1: ABSENT prior day (ledger file does not exist at all)
+333:### B1 again (same day) -- must DEDUPE, add nothing
+336:### B1 alert log after two watchdog runs
+338:### B1 notified-keys deliveries
+341:### B2: INTERRUPTED prior day (ledger: last_attempt_day=2026-09-30, last_outcome=READ_FAILED)
+344:### B2 again (same day)
+347:### B2 alert log after two runs
+360:### 4.4 (c) First day after a gap — reported, never back-filled
+366:### RUN c-1
+371:### day-locks after the run (NOT backfilled -- only today's day may be locked):
+374:### snapshots after the run (no snapshot for any missed day):
+377:### ledger AFTER the run:
+383:### alert log event counts:
+387:### the three in-band MISSED_DAY lines, as recorded:
+392:### stub deliveries recorded (sandbox: real toasts never attempted):
+402:## 5. The state-isolation guard (a deliverable), and its proof
+414:### CMD-G1 (case 1: FREECASH_DATA_ROOT UNSET)
+417:### CMD-G2 (case 2: root == production, forward slashes)
+420:### CMD-G3 (case 3: backslashes + trailing slash)
+423:### CMD-G4 (case 4: uppercase + doubled separators)
+426:### CMD-G5 (control: a throwaway root is ACCEPTED)
+430:### production state after the four refusal probes
+439:## 6. The single human approval step, the string to approve, and the rollback
+495:## 7. VERIFIED vs UNVERIFIED
+523:## 8. Files created by this track (all new; nothing else touched)
+544:## 9. Evidence file index
+
+### 5. Every referenced evidence file exists
+OK   evidence/evidence-01-live-scheduling-facts.txt
+OK   evidence/evidence-02-guard-fire.txt
+OK   evidence/evidence-03-sameday.txt
+OK   evidence/evidence-04-watchdog-missed-day.txt
+OK   evidence/evidence-05-first-day-after-gap.txt
+OK   evidence/evidence-06-hermes-cron-route.txt
+OK   evidence/evidence-07-schtasks-route.txt
+OK   evidence/evidence-08-route-w-command-shape.txt
+OK   evidence/evidence-09-INCIDENT-production-leak-forensics.txt
+OK   evidence/evidence-10-final-verification.txt
+OK   evidence/evidence-11-xml-validation-and-blast-radius.txt
+OK   evidence/evidence-12-route-w-action-verified.txt
+
+### 6. Key quoted lines in the doc match the evidence files
+  "SKIP_DUPLICATE_DAY 2026-10-01" -> found in: evidence/evidence-03-sameday.txt 
+  "WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=2026-09-30 last_outcome=READ_FAILED coverage=NOTIFIED" -> found in: evidence/evidence-04-watchdog-missed-day.txt 
+  "consecutive_missed_days\": 3" -> found in: <<NOT FOUND>>
+  "PRODUCTION_UNCHANGED=true" -> found in: evidence/evidence-02-guard-fire.txt evidence/evidence-12-route-w-action-verified.txt 
+  "XML_OK DECISION-V2-FreeCash-Daily-Monitor.xml" -> found in: evidence/evidence-12-route-w-action-verified.txt 

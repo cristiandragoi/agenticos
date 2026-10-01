@@ -1,0 +1,4 @@
+rule=3
+why=R3: the new snapshot is written before the prior one is loaded, so no change can ever be seen
+edits=1
+  run_daily_check.py: 1 change(s)

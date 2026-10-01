@@ -1,0 +1,4 @@
+rule=2
+why=R2 evasion: the O_CREAT|O_EXCL syscall is still present but a FileExistsError is swallowed into acquired=True
+edits=1
+  gate.py: 1 change(s)

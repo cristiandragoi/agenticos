@@ -1,0 +1,240 @@
+==============================================================================
+freecash rule-gate  ::  AST layer + runtime layer, per operator rule 1-4
+==============================================================================
+gate      : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\gate\rule_gate.py
+gate sha  : 11b605f2336157a3e41f6f73f19c299dfb238532d04d3e25ab01ffaa232e99f2
+package   : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\gate\trees\adv6-r1-new-socket-file
+python    : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe (3.11.9)
+utc now   : 2026-10-01T09:48:38Z
+workdir   : C:\Users\cd-pr\AppData\Local\Temp\fc-r4-gate-matrix\G4_r3gate-adv6-r1-new-socket-file\g4
+data roots: throwaway roots under <workdir>/runtime-roots, one per rule
+prod root : D:/AgenticOS/data/freecash-monitor newest file state\last-run.json at 2026-10-01T06:53:46Z ; PREDATES this run -- production state untouched by this verification
+runtime   : on (detectors are executed)
+
+target sha256 (what this report is about):
+  approval_queue.py      0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506
+  changedetect.py        296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b
+  gate.py                1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7
+  notify.py              9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22
+  operator_state.py      32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7
+  paths.py               a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938
+  readonly_client.py     5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27
+  run_daily_check.py     bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c
+  status_shim.py         da0fc9375213b006a729a3d9748b7efc274322a6705eecfeafc6e79118aaa248
+  verify_readonly.py     2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0
+  watchdog.py            11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd
+
+------------------------------------------------------------------------------
+G0: the target can actually run (parse gate, whole package)
+------------------------------------------------------------------------------
+  PASS  every .py file in the package parses (ast.parse)
+        evidence: 18 files parsed: approval_queue.py, changedetect.py, gate.py, notify.py, operator_state.py, paths.py, readonly_client.py, run_daily_check.py, status_shim.py, tests/_support.py, tests/run_all.py, tests/test_r1_gate.py, tests/test_r2_readonly.py, tests/test_r3_changedetect.py, tests/test_r4_approval.py, tests/test_r5_smoke.py, verify_readonly.py, watchdog.py
+
+------------------------------------------------------------------------------
+RULE 1: no automated earning action, ever   (legacy label R2)
+------------------------------------------------------------------------------
+[static, AST over 11 runtime module(s)]
+  PASS  no HTTP write verb literal reaches any call
+        evidence: write-verb literals in call arguments: none
+  PASS  no .post/.put/.patch/.delete/urlopen call site exists
+        evidence: write-shaped call sites: none
+  PASS  no earning/write endpoint path appears as a string literal
+        evidence: forbidden paths: none (skipped, self-referential pattern table: verify_readonly.py)
+  PASS  no earning-action call site exists
+        evidence: earning-action call sites: none
+  PASS  the method allowlist is exactly {GET, HEAD}
+        evidence: readonly_client.py:39: ALLOWED_METHODS = ['GET', 'HEAD']
+  PASS  the host allowlist is loopback-only
+        evidence: readonly_client.py:41: ALLOWED_HOSTS = ['127.0.0.1', '::1', '[::1]', 'localhost']
+  PASS  the allowlist is actually enforced by a guard (NotIn ALLOWED_METHODS -> raise)
+        evidence: guard sites: ['readonly_client.py:115: if verb not in ALLOWED_METHODS:']
+  PASS  no un-pinned network client is imported
+        evidence: forbidden imports: none | pinned: ['readonly_client.py:34: from http.client import ... -- pinned: the single socket library, used only inside _transport(); guarded by request()']
+  FAIL  no write verb is assembled from fragments and passed to a call
+        evidence: assembled write verbs reaching a call: ["status_shim.py:16: request('POST') -- assembled write verb"]
+  PASS  no earning/write endpoint path is assembled from fragments
+        evidence: assembled forbidden paths reaching a call: none
+  FAIL  no expression anywhere in the package folds to a write verb or an earning path
+        evidence: effect-shaped folded expressions: ["status_shim.py:11: write verb 'POST'", "status_shim.py:16: write verb 'POST'"]
+  FAIL  the pinned transport is the only network-capable import in the package
+        evidence: network imports: ['readonly_client.py:34 from http.client import HTTPConnection', 'status_shim.py:7 from http.client import HTTPConnection'] | pinned: ['readonly_client.py:http.client'] | UNPINNED: ['status_shim.py:7 from http.client import HTTPConnection']
+  FAIL  the transport is imported in exactly one module
+        evidence: network import sites: 2 -- ['readonly_client.py:http.client', 'status_shim.py:http.client']
+  PASS  no dynamic dispatch site (eval/exec/__import__/computed getattr) exists
+        evidence: dynamic dispatch sites: none
+[runtime, detectors/detector_r1_earn.py]
+    PASS  POST is refused by the guard
+          evidence: ForbiddenWriteError: R2: method 'POST' is not read-only (allowed: GET, HEAD)
+    PASS  PUT is refused by the guard
+          evidence: ForbiddenWriteError: R2: method 'PUT' is not read-only (allowed: GET, HEAD)
+    PASS  PATCH is refused by the guard
+          evidence: ForbiddenWriteError: R2: method 'PATCH' is not read-only (allowed: GET, HEAD)
+    PASS  DELETE is refused by the guard
+          evidence: ForbiddenWriteError: R2: method 'DELETE' is not read-only (allowed: GET, HEAD)
+    PASS  an earning path is refused even with GET
+          evidence: ForbiddenWriteError: R2: path not allowlisted: '/api/v1/cashout'
+    PASS  a non-loopback host is refused
+          evidence: ForbiddenWriteError: R2: host not allowlisted: 'example.com'
+    PASS  a request body is refused
+          evidence: ForbiddenWriteError: R2: request bodies are forbidden ('json')
+    PASS  a non-allowlisted path is refused
+          evidence: ForbiddenWriteError: R2: path not allowlisted: '/api/v1/admin/metrics'
+    PASS  the method allowlist is exactly {GET, HEAD}
+          evidence: ALLOWED_METHODS=['GET', 'HEAD']
+    PASS  the host allowlist is loopback-only
+          evidence: ALLOWED_HOSTS=['127.0.0.1', '::1', '[::1]', 'localhost']
+    PASS  the routine ran against the loopback stub
+          evidence: exit=0 stdout='RUN_OK 2026-03-10 outcome=INITIAL_BASELINE source=agenticos_local_metrics(data_available=True) snapshot=2026-03-10.json written=True changes=0 notifications=0 a'
+    PASS  the run issued its status read (the detector is not vacuous)
+          evidence: requests recorded: [{'method': 'GET', 'path': '/api/v1/status/metrics', 'body_len': 0}, {'method': 'HEAD', 'path': '/api/v1/status', 'body_len': 0}]
+    PASS  only GET/HEAD reached the wire
+          evidence: methods recorded: ['GET', 'HEAD']
+    PASS  every request path is an allowlisted read path
+          evidence: off-allowlist paths: <none>
+    PASS  no request carried a body
+          evidence: body lengths recorded: [0]
+    PASS  the routine ran with every unadvertised env flag on
+          evidence: exit=0 stdout='RUN_OK 2026-03-11 outcome=OK_NO_CHANGE source=agenticos_local_metrics(data_available=True) snapshot=2026-03-11.json written=True changes=0 notifications=0 appro'
+    PASS  the flagged run issued its status read (the check is not vacuous)
+          evidence: requests recorded with the flags on: [{'method': 'GET', 'path': '/api/v1/status/metrics', 'body_len': 0}, {'method': 'HEAD', 'path': '/api/v1/status', 'body_len': 0}]
+    PASS  an unadvertised environment flag cannot add a write to the wire
+          evidence: methods recorded with the flags on: ['GET', 'HEAD']
+    PASS  an unadvertised environment flag cannot reach an off-allowlist path
+          evidence: off-allowlist paths with the flags on: <none>
+    PASS  an unadvertised environment flag cannot put a body on the wire
+          evidence: body lengths with the flags on: [0]
+  DETECTOR-RESULT: rule=1 PASS (20 checks)
+  >>> RULE 1 RESULT: FAIL
+
+------------------------------------------------------------------------------
+RULE 2: exactly one status check per operator-local calendar day   (legacy label R1)
+------------------------------------------------------------------------------
+[static, AST over 11 runtime module(s)]
+  PASS  an atomic exclusive-create barrier exists in the package
+        evidence: atomic create sites: ['gate.py:128: fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)']
+  PASS  the day key is a calendar date (not a timestamp or a window)
+        evidence: calendar-day key sites: ['gate.py:102: return now.astimezone(zone(tz)).date().isoformat()']
+  PASS  no rolling 24h window is used as the daily gate
+        evidence: rolling-window comparisons: none
+  PASS  the day lock is acquired before the status read
+        evidence: run_daily_check.py: acquire_day_lock at line 309, the entry point's own read_source call at line 372
+  PASS  the duplicate-day branch performs no status read
+        evidence: run_daily_check.py: the `if not acquired:` branch contains no read_source call
+  PASS  no exception handler turns a lock failure into a run
+        evidence: handlers swallowing acquire_day_lock: none
+[runtime, detectors/detector_r2_daily.py]
+    PASS  the operator-local day key is a calendar date
+          evidence: day_key(2026-03-10T12:00Z) = '2026-03-10' with FREECASH_TZ=Europe/Berlin
+    PASS  run #1 on day D performs the status read
+          evidence: exit=0 wire=2 stdout='RUN_OK 2026-03-10 outcome=INITIAL_BASELINE source=agenticos_local_metrics(data_available=True) snapshot=2026-03-10.json written=True changes=0 notifications=0 a'
+    PASS  run #2 on the same day D does NOT perform a status read
+          evidence: wire before=2 after=2 (delta=0)
+    PASS  run #2 on the same day reports the duplicate instead of running
+          evidence: exit=0 stdout='SKIP_DUPLICATE_DAY 2026-03-10'
+    PASS  exactly one snapshot and one day lock exist for day D
+          evidence: snapshots=['2026-03-10.json'] locks=['2026-03-10.lock']
+    PASS  exactly one SKIP_DUPLICATE_DAY alert line was written
+          evidence: SKIP_DUPLICATE_DAY lines=1 (lock=C:\Users\cd-pr\AppData\Local\Temp\fc-r4-gate-matrix\G4_r3gate-adv6-r1-new-socket-file\g4\runtime-roots\rule2\state\day-locks\2026-03-10.lock)
+    PASS  run #3 on the next day D+1 is allowed to read (not vacuous)
+          evidence: exit=0 wire=4 stdout='RUN_OK 2026-03-11 outcome=OK_NO_CHANGE source=agenticos_local_metrics(data_available=True) snapshot=2026-03-11.json written=True changes=0 notifications=0 appro'
+    PASS  the next day's key is a distinct calendar date
+          evidence: day D+1 key = '2026-03-11'
+  DETECTOR-RESULT: rule=2 PASS (8 checks)
+  >>> RULE 2 RESULT: PASS
+
+------------------------------------------------------------------------------
+RULE 3: notify on earnings / account-status change   (legacy label R3)
+------------------------------------------------------------------------------
+[static, AST over 11 runtime module(s)]
+  PASS  the prior snapshot is loaded before the new one is written
+        evidence: run_daily_check.py: load_prior_snapshot at line 402, save_snapshot at line 405
+  PASS  the comparison is exact equality, with no numeric threshold
+        evidence: changedetect.py: 7 equality comparison sites (lines [242, 256, 117, 133, 264, 260]); float-threshold comparisons: none
+  PASS  the dedupe key is a content hash of the change
+        evidence: changedetect.py: sha256 used inside the dedupe-key function
+  PASS  the dedupe key is persisted before the message is dispatched
+        evidence: notify.py: record_notified_key at line 224, sender(...) at line 231
+[runtime, detectors/detector_r3_notify.py]
+    PASS  the four probe days are four distinct operator-local calendar days
+          evidence: days=['2026-03-10', '2026-03-11', '2026-03-12', '2026-03-13']
+    PASS  day 1 (first reading) is a baseline and notifies nobody
+          evidence: exit=0 deliveries=0 stdout='RUN_OK 2026-03-10 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-03-10.json written=True changes=0 notifications=0 approval'
+    PASS  day 2 (earnings 1025 -> 1050) is detected and notified
+          evidence: exit=0 EARNINGS_CHANGED lines=1 deliveries=1 stdout='RUN_OK 2026-03-11 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-03-11.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-03-11.lock'
+    PASS  day 2 emitted exactly one change line for the earnings move
+          evidence: change lines on day 2 = ['APPROVAL_PENDING', 'EARNINGS_CHANGED'] (APPROVAL_PENDING is the R4 enqueue notice, not a notification)
+    PASS  the earnings change line records the old and the new value
+          evidence: observed={"field": "earnings_total_cents", "new_value": 1050, "old_value": 1025, "prior_day_key": "2026-03-10"}
+    PASS  day 3 (no change) notifies nobody
+          evidence: deliveries before=1 after=1
+    PASS  day 3 (no change) is reported as OK_NO_CHANGE in the alert log
+          evidence: exit=0 event_types on day 3 = ['OK_NO_CHANGE'] stdout='RUN_OK 2026-03-12 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-03-12.json written=True changes=0 notifications=0 approvals=0 '
+    PASS  day 4 (status ACTIVE -> LIMITED) is detected and notified
+          evidence: exit=0 STATUS_CHANGED lines=1 deliveries delta=1 stdout='RUN_OK 2026-03-13 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-03-13.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-03-13.lock'
+  DETECTOR-RESULT: rule=3 PASS (8 checks)
+  >>> RULE 3 RESULT: PASS
+
+------------------------------------------------------------------------------
+RULE 4: human approval before any external action, never auto-executed   (legacy label R4)
+------------------------------------------------------------------------------
+[static, AST over 11 runtime module(s)]
+  PASS  the approval queue defines a human decision path that can refuse
+        evidence: approval_queue.py: status constants=['STATUS_APPROVED', 'STATUS_PENDING', 'STATUS_REJECTED'], decide() params=['approval_id', 'decision', 'by', 'note', 'now'], NON_HUMAN_DECIDERS entries=10, functions that raise NotHumanError=['_normalise_decider'], decide() reaches=['_normalise_decider']
+  PASS  the only execution state the queue writes is NOT_EXECUTED
+        evidence: EXECUTION_STATE constants: [('approval_queue.py', 44, 'NOT_EXECUTED')]
+  PASS  execution is hard-coded as not allowed (constant False and every queue field false)
+        evidence: execution-allowed constants: [('approval_queue.py', 45, False)] | queue fields: [('approval_queue.py', 118, True), ('approval_queue.py', 186, True)]
+  PASS  every expires_at_utc field is null (no item can expire into a go-ahead)
+        evidence: expires_at_utc fields: [('approval_queue.py', 118, True), ('approval_queue.py', 186, True)]
+  FAIL  every external-effect call site in the package is pinned and reviewed
+        evidence: pinned sites matched: ['changedetect.py:prune_old_artifacts:unlink', 'notify.py:_toast_send:run', 'readonly_client.py:_transport:HTTPConnection', 'readonly_client.py:_transport:request', 'status_shim.py:post_nowhere:HTTPConnection', 'status_shim.py:post_nowhere:request'] | UNPINNED: ['status_shim.py:15 post_nowhere.HTTPConnection', 'status_shim.py:16 post_nowhere.request']
+  PASS  no external effect is reachable through dynamic dispatch
+        evidence: dynamic dispatch sites: none
+[runtime, detectors/detector_r4_approval.py]
+    PASS  a detected change produced a pending approval item
+          evidence: pending items=1 (exit=0 stdout='ock\nRUN_OK 2026-03-11 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-03-11.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-03-11.lock')
+    PASS  the item is frozen: NOT_EXECUTED, execution not allowed, no expiry
+          evidence: status='PENDING' execution_state='NOT_EXECUTED' execution_allowed=False expires_at_utc=None
+    PASS  identity 'system' is refused
+          evidence: NotHumanError: refused: 'system' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'routine' is refused
+          evidence: NotHumanError: refused: 'routine' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'automation' is refused
+          evidence: NotHumanError: refused: 'automation' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'agent' is refused
+          evidence: NotHumanError: refused: 'agent' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'cron' is refused
+          evidence: NotHumanError: refused: 'cron' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'scheduler' is refused
+          evidence: NotHumanError: refused: 'scheduler' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'bot' is refused
+          evidence: NotHumanError: refused: 'bot' is not a human identity; this routine may only record a decision made by a person
+    PASS  identity 'machine' is refused
+          evidence: NotHumanError: refused: 'machine' is not a human identity; this routine may only record a decision made by a person
+    PASS  an empty decider is refused
+          evidence: NotHumanError: --by is required: a decision must name the human who made it
+    PASS  a missing decision note is refused
+          evidence: ValueError: --note is required: record why the decision was made
+    PASS  the shipped CLI refuses a non-human --by (exit 4, REFUSED)
+          evidence: exit=4 output="REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person"
+    PASS  no refused decision changed the item
+          evidence: status='PENDING' execution_state='NOT_EXECUTED'
+    PASS  a human decision is recorded with the human's name
+          evidence: status='APPROVED' decided_by='Alice Operator' decided_at_utc='2026-10-01T09:48:38Z'
+    PASS  an approved item is still NOT_EXECUTED and can never expire
+          evidence: execution_state='NOT_EXECUTED' execution_allowed=False expires_at_utc=None
+    PASS  no item in the queue is armed after an approval
+          evidence: armed item ids=<none>
+    PASS  an approval created nothing outside approvals/
+          evidence: new files=['approvals/decided.jsonl'] (outside approvals/= <none>)
+    PASS  an approval delivered no notification and took no action
+          evidence: deliveries before=1 after=1
+    PASS  the decision trail records the human and the frozen state
+          evidence: trail last record={"approval_id": "331657a3-2566-4485-a3ce-d0c01e1f10df", "change_dedupe_key": "db5b769692da3039994bdaead4b82dba20e2fd9e16712291e0ba4a8777581111", "day_key": "2026-03-11", "decided_at_utc": "2026-10-01T09:48:38Z", "decided_by": "Alice Operator", "decision": "APPROVED", "decision_note": "I reviewed the change", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "REQUEST_PAYOUT", "amount_cents": 1050, "destination": "OPERATOR_SPECIFIED - not stored by the routine", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+  DETECTOR-RESULT: rule=4 PASS (20 checks)
+  >>> RULE 4 RESULT: FAIL
+
+==============================================================================
+SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL
+VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R1, R4
+==============================================================================

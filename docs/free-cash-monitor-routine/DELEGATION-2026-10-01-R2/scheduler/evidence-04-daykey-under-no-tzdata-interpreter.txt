@@ -1,0 +1,26 @@
+### 3(a) run the REAL gate under the interpreter WITHOUT tzdata (py -3 = Python 3.14.7)
+COMMAND: py -3 -c "<gate.day_key + resolve_tz>"
+exit code measured WITHOUT a pipe.
+-------------------------------------------------------------------------------
+py3_exit=0
+--- stdout ---
+ZoneInfo raised: ZoneInfoNotFoundError 'No time zone found with key Europe/Berlin'
+resolve_tz(Europe/Berlin) -> (datetime.timezone(datetime.timedelta(seconds=7200), 'Mitteleuropäische Sommerzeit'), 'system-local')
+timezone_report() -> {'configured': 'Europe/Berlin', 'kind': 'system-local', 'available': False, 'offset_now': '+0200'}
+day_key(now) -> 2026-10-01
+system_local_zone() -> Mitteleuropäische Sommerzeit
+--- stderr ---
+(stderr bytes: 0)
+
+### same call under the interpreter WITH tzdata (venv 3.11.9)
+venv_exit=0
+--- stdout ---
+ZoneInfo OK -> Europe/Berlin
+resolve_tz(Europe/Berlin) -> (zoneinfo.ZoneInfo(key='Europe/Berlin'), 'zoneinfo')
+timezone_report() -> {'configured': 'Europe/Berlin', 'kind': 'zoneinfo', 'available': True, 'offset_now': '+0200'}
+day_key(now) -> 2026-10-01
+system_local_zone() -> Mitteleuropäische Sommerzeit
+--- stderr ---
+
+### what the MACHINE thinks its local zone is
+local now = 2026-10-01T09:08:46.368896+02:00 | tz = Mitteleuropäische Sommerzeit

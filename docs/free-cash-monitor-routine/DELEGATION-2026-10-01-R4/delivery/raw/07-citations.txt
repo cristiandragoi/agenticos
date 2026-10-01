@@ -1,0 +1,47 @@
+=== file:line citation greps (notify.py / changedetect.py / run_daily_check.py) ===
+--- notify.py senders & dispatch ---
+36:_ALERT_EVENTS = frozenset({"READ_FAILED", "RUN_FAILED", "MISSED_DAY", "DELIVERY_FAILED", "MONITOR_DEGRADED"})
+42:MAX_ATTEMPTS = 2
+43:DEFAULT_RETRY_SLEEP_SECONDS = 5.0
+63:def alert(event_type, day_key, message, severity=None, dedupe_key=None, observed=None) -> dict:
+78:    paths.append_jsonl(paths.alerts_path(), record)
+151:def _stub_send(message: str) -> None:
+164:_stub_send.delivery_label = DELIVERY_STUB_OK
+167:def _toast_send(message: str) -> None:
+195:def set_sender(sender) -> None:
+201:def get_sender():
+212:        return float(raw) if raw is not None else DEFAULT_RETRY_SLEEP_SECONDS
+214:        return DEFAULT_RETRY_SLEEP_SECONDS
+220:def dispatch(message, dedupe_key, day_key, event_type, sender=None, sleep_seconds=None) -> str:
+224:    record_notified_key(dedupe_key, DELIVERY_QUEUED)
+234:        except Exception as exc:  # noqa: BLE001 - a delivery failure must never escalate
+238:    record_notified_key(dedupe_key, DELIVERY_FAILED)
+240:        "DELIVERY_FAILED",
+253:        "MONITOR_DEGRADED",
+264:def notify_change(day, change, message, dedupe_key, sender=None, sleep_seconds=None) -> str:
+272:    if key_seen(dedupe_key):
+281:        return "DEDUPED"
+--- changedetect.py dedupe key ---
+21:    sha256( day_key | change_type | field | old_value | new_value )
+144:def sha256_hex(blob) -> str:
+147:    return hashlib.sha256(blob or b"").hexdigest()
+174:        "raw_response_sha256": sha256_hex(raw_body),
+214:def dedupe_key(day, change_type, field, old_value, new_value) -> str:
+215:    subject = "%s|%s|%s|%s|%s" % (day, change_type, field, old_value, new_value)
+216:    return hashlib.sha256(subject.encode("utf-8")).hexdigest()
+--- run_daily_check.py caller-level guard ---
+126:def dispatch_change(day, change, snapshot, prior, source, sender, sleep_seconds, now=None,
+131:    if notify.key_seen(key):
+167:    result = notify.notify_change(
+173:def notify_changes(day, changes, snapshot, prior, source, sender, sleep_seconds, now=None) -> dict:
+211:        if not notify.key_seen(key):
+212:            notify.dispatch(summary, key, day, "MONITOR_DEGRADED", sender=sender, sleep_seconds=sleep_seconds)
+236:        notify.dispatch(
+340:        notify.notify_change(
+383:        notify.notify_change(
+--- import surface of notify.py (no smtplib/http) ---
+22:import os
+23:import subprocess
+24:import time
+25:import uuid
+27:import paths

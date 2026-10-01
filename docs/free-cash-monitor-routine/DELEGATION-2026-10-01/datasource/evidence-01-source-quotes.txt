@@ -1,0 +1,120 @@
+==============================================================================
+FILE: D:\AgenticOS\monitoring\freecash\readonly_client.py
+==============================================================================
+readonly_client.py:39: ALLOWED_METHODS = frozenset({"GET", "HEAD"})
+readonly_client.py:41: ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+readonly_client.py:43: ALLOWED_PATHS = (
+    readonly_client.py:43: ALLOWED_PATHS = (
+    readonly_client.py:44:     re.compile(r"^/api/v1/status/metrics$"),
+    readonly_client.py:45:     re.compile(r"^/api/v1/status$"),
+    readonly_client.py:46:     # Provider paths are added here ONLY after research resolves them, one line
+    readonly_client.py:47:     # each, with a justification comment.  Nothing provider-facing is allowlisted
+    readonly_client.py:48:     # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+    readonly_client.py:49: )
+    ---
+readonly_client.py:60: PROVIDER_ENDPOINT_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+readonly_client.py:52: BODY_KEYWORDS = ("data", "json", "files", "body", "content")
+readonly_client.py:54: DEFAULT_BASE_URL = "http://localhost:3001"
+==============================================================================
+FILE: D:\AgenticOS\monitoring\freecash\paths.py
+==============================================================================
+paths.py:31: SCHEMA_VERSION = 1
+paths.py:35: DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+paths.py:87: def operator_state_path() -> Path:
+    paths.py:87: def operator_state_path() -> Path:
+    paths.py:88:     return state_dir() / "operator-state.json"
+    paths.py:89: 
+    paths.py:90: 
+    paths.py:91: def pending_path() -> Path:
+    paths.py:92:     return approvals_dir() / "pending.json"
+    paths.py:93: 
+    ---
+paths.py:45: def data_root() -> Path:
+    paths.py:45: def data_root() -> Path:
+    paths.py:46:     """Return the routine's data root (never creates it)."""
+    paths.py:47:     raw = os.environ.get("FREECASH_DATA_ROOT") or DEFAULT_DATA_ROOT
+    paths.py:48:     return Path(raw)
+    paths.py:49: 
+    paths.py:50: 
+    paths.py:51: def state_dir() -> Path:
+    ---
+==============================================================================
+FILE: D:\AgenticOS\monitoring\freecash\operator_state.py
+==============================================================================
+operator_state.py:45: KIND = "operator_entered"
+operator_state.py:48: TEMPLATE_RECORD = {
+    operator_state.py:48: TEMPLATE_RECORD = {
+    operator_state.py:49:     "day_key": "YYYY-MM-DD",
+    operator_state.py:50:     "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    operator_state.py:51:     "account_status": "ACTIVE",
+    operator_state.py:52:     "earnings_total_cents": 0,
+    operator_state.py:53:     "balance_cents": 0,
+    operator_state.py:54:     "pending_cents": 0,
+    ---
+operator_state.py:58: _RECORD_FIELDS = (
+    operator_state.py:58: _RECORD_FIELDS = (
+    operator_state.py:59:     "day_key",
+    operator_state.py:60:     "entered_at_utc",
+    operator_state.py:61:     "account_status",
+    operator_state.py:62:     "earnings_total_cents",
+    operator_state.py:63:     "balance_cents",
+    operator_state.py:64:     "pending_cents",
+    ---
+==============================================================================
+FILE: D:\AgenticOS\monitoring\freecash\changedetect.py
+==============================================================================
+changedetect.py:34: COMPARED_FIELDS = (
+    changedetect.py:34: COMPARED_FIELDS = (
+    changedetect.py:35:     ("account_status", "STATUS_CHANGED", None),
+    changedetect.py:36:     ("earnings_total_cents", "EARNINGS_CHANGED", None),
+    changedetect.py:37:     ("balance_cents", "BALANCE_CHANGED", None),
+    changedetect.py:38:     ("pending_cents", "EARNINGS_CHANGED", "pending"),
+    changedetect.py:39: )
+    changedetect.py:40: 
+    ---
+changedetect.py:150: def build_snapshot(day, metrics, source, raw_body=b"", now=None) -> dict:
+    changedetect.py:150: def build_snapshot(day, metrics, source, raw_body=b"", now=None) -> dict:
+    changedetect.py:151:     """Build the immutable snapshot for *day* (schema in ROUTINE-DESIGN 4.1)."""
+    changedetect.py:152:     metrics = dict(metrics or {})
+    changedetect.py:153:     source = dict(source or {})
+    changedetect.py:154:     available = bool(source.get("data_available", True))
+    changedetect.py:155:     snapshot = {
+    changedetect.py:156:         "schema_version": paths.SCHEMA_VERSION,
+    ---
+changedetect.py:48: _MONEY_ALIASES = {
+    changedetect.py:48: _MONEY_ALIASES = {
+    changedetect.py:49:     "earnings_total_cents": (
+    changedetect.py:50:         "earnings_total_cents",
+    changedetect.py:51:         "earnings_cents",
+    changedetect.py:52:         "total_earnings_cents",
+    changedetect.py:53:     ),
+    changedetect.py:54:     "balance_cents": ("balance_cents", "available_cents", "net_balance_cents"),
+    ---
+changedetect.py:63: _STATUS_ALIASES = ("account_status", "status")
+changedetect.py:64: _CURRENCY_ALIASES = ("currency", "currency_code")
+==============================================================================
+FILE: D:\AgenticOS\monitoring\freecash\run_daily_check.py
+==============================================================================
+run_daily_check.py:52: DEFAULT_SOURCE = "operator_state"
+run_daily_check.py:53: SOURCES = ("operator_state", "metrics_http")
+==============================================================================
+FILE: D:\AgenticOS\monitoring\freecash\gate.py
+==============================================================================
+gate.py:96: def day_key(now=None, tz=None) -> str:
+    gate.py:96: def day_key(now=None, tz=None) -> str:
+    gate.py:97:     """Operator-local calendar day for *now* (default: the current instant)."""
+    gate.py:98:     if now is None:
+    gate.py:99:         now = datetime.now(timezone.utc)
+    gate.py:100:     elif now.tzinfo is None:
+    gate.py:101:         now = now.replace(tzinfo=timezone.utc)
+    gate.py:102:     return now.astimezone(zone(tz)).date().isoformat()
+    ---
+gate.py:85: def timezone_report(spec=None) -> dict:
+    gate.py:85: def timezone_report(spec=None) -> dict:
+    gate.py:86:     resolved, kind = resolve_tz(spec)
+    gate.py:87:     configured = spec if isinstance(spec, str) else (spec or tz_name())
+    gate.py:88:     return {
+    gate.py:89:         "configured": str(configured),
+    gate.py:90:         "kind": kind,
+    gate.py:91:         "available": kind in ("explicit", "utc", "zoneinfo"),
+    ---

@@ -1,0 +1,139 @@
+=== 1. CODE QUOTES -- machine-generated line numbers (grep -n, no hand typing) ===
+RUN AT: Do,  1. Okt 2026 09:15:55
+REPO HEAD: 8f7463a
+
+### monitoring/freecash/gate.py -- the day key
+96:def day_key(now=None, tz=None) -> str:
+97-    """Operator-local calendar day for *now* (default: the current instant)."""
+98-    if now is None:
+99-        now = datetime.now(timezone.utc)
+100-    elif now.tzinfo is None:
+101-        now = now.replace(tzinfo=timezone.utc)
+102-    return now.astimezone(zone(tz)).date().isoformat()
+103-
+
+### monitoring/freecash/gate.py -- the atomic day lock
+115:def lock_path(day: str):
+116-    return paths.day_locks_dir() / ("%s.lock" % day)
+117-
+119:def acquire_day_lock(day: str):
+120-    """Try to consume *day*.  Returns ``(acquired, lock_path)``.
+121-
+122-    ``acquired is False`` means another invocation already consumed this day --
+123-    the caller must then perform no further work at all.
+124-    """
+125-    lock = lock_path(day)
+126-    lock.parent.mkdir(parents=True, exist_ok=True)
+127-    try:
+128-        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+129-    except FileExistsError:
+130-        return False, lock
+131-    try:
+132-        os.close(fd)
+133-    except OSError:
+134-        pass
+135-    return True, lock
+136-
+
+### monitoring/freecash/gate.py -- SUCCESS_OUTCOMES (line 32-41)
+32:SUCCESS_OUTCOMES = frozenset(
+33-    {
+34-        "OK_NO_CHANGE",
+35-        "INITIAL_BASELINE",
+36-        "EARNINGS_CHANGED",
+37-        "STATUS_CHANGED",
+38-        "BALANCE_CHANGED",
+39-        "MONITOR_DEGRADED",
+40-    }
+41-)
+42-
+--
+191:    ``last_success_*`` is only advanced for outcomes in SUCCESS_OUTCOMES; a
+192-    failed read leaves the previous success day in place so the watchdog and the
+
+### monitoring/freecash/gate.py -- record_outcome advancing last_success_day (198-200)
+198:    if outcome in SUCCESS_OUTCOMES:
+199-        ledger["last_success_day"] = day
+200-        ledger["last_success_at_utc"] = paths.iso_utc(now)
+201-    save_ledger(ledger, now)
+
+### monitoring/freecash/gate.py -- clock_moved_backwards: DEFINED, and is it CALLED?
+232:def clock_moved_backwards(day: str, ledger: dict) -> bool:
+233-    today = _as_date(day)
+234-    last = _as_date((ledger or {}).get("last_success_day"))
+235-    return bool(today and last and last > today)
+call sites inside monitoring/freecash/ = 2  (0 == defined but never used)
+
+### monitoring/freecash/run_daily_check.py -- THE ORDERING (307-309)
+307:    source_kind = resolve_source(args.source)
+308:    day = gate.day_key(now)
+309:    acquired, lock = gate.acquire_day_lock(day)
+### ...the duplicate branch (310-321)
+310:    if not acquired:
+311-        # R1 duplicate: exactly one log line, no read, no snapshot, no ledger write.
+312-        notify.alert(
+313-            "SKIP_DUPLICATE_DAY",
+314-            day,
+315-            "Day %s already consumed (lock %s). Duplicate run performed no read and "
+316-            "wrote no snapshot." % (day, lock.name),
+317-            severity=notify.SEVERITY_INFO,
+318-            observed={"lock": str(lock)},
+319-        )
+320-        print("SKIP_DUPLICATE_DAY %s" % day)
+321-        return 0
+### ...the read actually happens at (371-372)
+370-
+371-    try:
+372:        raw = read_source(source_kind, day, base=args.base_url or base, transport=transport)
+
+### monitoring/freecash/watchdog.py -- the coverage predicate (line 33)
+33:    covered = attempt == today and outcome in gate.SUCCESS_OUTCOMES
+33:    covered = attempt == today and outcome in gate.SUCCESS_OUTCOMES
+
+### PRODUCTION ledger: the data-less run that consumed 2026-10-01 (read-only)
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+
+### PRODUCTION snapshot 2026-10-01: written with null fields
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:53:46Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+=== CORRECTION / ADDENDUM (added Do,  1. Okt 2026 09:16:17) ===
+The line above ('call sites = 2') counted binary __pycache__ hits.  Restricted
+to .py source, the honest number is:
+--- grep -rn --include=*.py clock_moved_backwards monitoring/freecash/ ---
+monitoring/freecash/gate.py:232:def clock_moved_backwards(day: str, ledger: dict) -> bool:
+definition lines : 1
+call lines       : 0
+--- and repo-wide, .py only, outside the delegation/scratch copies: ---
+monitoring/freecash/gate.py:232:def clock_moved_backwards(day: str, ledger: dict) -> bool:
+
+=== schtasks count reconciliation (with /NH) ===
+schtasks /Query /FO CSV /NH lines = 278
+distinct names                     = 200
+freecash matches                   = 0

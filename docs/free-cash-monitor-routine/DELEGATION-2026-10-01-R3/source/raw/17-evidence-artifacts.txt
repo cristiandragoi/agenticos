@@ -1,0 +1,75 @@
+=== count + kinds of evidence files ===
+      1 inspect-work-mua74eee
+      1 inspect-work-mua7tmpp
+      1 inspect-work-mua7xu2o
+      1 inspect-work-muauzm85
+      1 inspect-work-muav0wgf
+      1 inspect-work-muawj1e1
+      1 inspect-work-muawk4l4
+      1 inspect-work-mubm9n1t
+      1 inspect-work-muc9huv3
+      1 inspect-work-mucckteb
+      1 inspect-work-mucdt8ly
+      1 inspect-work-mucdugfp
+      1 inspect-work-mucfnloi
+      1 inspect-work-mucfp1ng
+      1 inspect-work-mucfqp44
+      1 inspect-work-mucfsnm1
+      1 inspect-work-mucfu45i
+      1 inspect-work-mucfygip
+      1 inspect-work-mucnx44v
+      1 inspect-work-mudn4d8y
+      1 inspect-work-mudr053r
+      1 inspect-work-mudujunw
+      1 inspect-work-mudup7u3
+      1 inspect-work-mue51k2w
+      1 inspect-work-mue989di
+      1 inspect-work-mue9i6jw
+      1 session-authenticated-mua74c95
+      1 session-authenticated-mua74d92
+      1 session-authenticated-mua7tlm1
+      1 session-authenticated-mua7xt13
+      1 session-authenticated-muauzl7c
+      1 session-authenticated-muav0vjd
+      1 session-authenticated-muawj0cz
+      1 session-authenticated-muawk3pr
+      1 session-authenticated-mubm9lo0
+      1 session-authenticated-muc9ht8p
+      1 session-authenticated-muccksa5
+      1 session-authenticated-mucdt7fq
+      1 session-authenticated-mucduf4z
+      1 session-authenticated-mucfnkjw
+      1 session-authenticated-mucfp0x7
+      1 session-authenticated-mucfqocw
+      1 session-authenticated-mucfsmv1
+      1 session-authenticated-mucfu3bb
+      1 session-authenticated-mucfyfqq
+      1 session-authenticated-mucnx28v
+      1 session-authenticated-mudn4byi
+      1 session-authenticated-mudr045r
+      1 session-authenticated-mudujtm4
+      1 session-authenticated-mudup6js
+      1 session-authenticated-mue51iu7
+      1 session-authenticated-mue9889f
+      1 session-authenticated-mue9i5qd
+=== newest 3 evidence files (full) ===
+--- C:Userscd-prAppDataRoaming/AgenticOS/data/freecash/evidence/inspect-work-mue9i6jw-b0ec83de.json
+cat: 'C:Userscd-prAppDataRoaming/AgenticOS/data/freecash/evidence/inspect-work-mue9i6jw-b0ec83de.json': No such file or directory
+
+--- C:Userscd-prAppDataRoaming/AgenticOS/data/freecash/evidence/session-authenticated-mue9i5qd-3b0799d2.json
+cat: 'C:Userscd-prAppDataRoaming/AgenticOS/data/freecash/evidence/session-authenticated-mue9i5qd-3b0799d2.json': No such file or directory
+
+--- C:Userscd-prAppDataRoaming/AgenticOS/data/freecash/evidence/inspect-work-mue989di-0df4b930.json
+cat: 'C:Userscd-prAppDataRoaming/AgenticOS/data/freecash/evidence/inspect-work-mue989di-0df4b930.json': No such file or directory
+
+=== any inspect-account evidence ===
+(none)
+=== browser_profiles ===
+total 4
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:15 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 23:24 ..
+drwxr-xr-x 1 cd-pr 197609 0 Sep 23 17:32 freecash-main
+=== storage_state.json present? (count cookies only) ===
+C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/browser_profiles/freecash-main/
+Default
+storage_state.json

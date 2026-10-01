@@ -1,0 +1,26 @@
+G1_shipped_rule_gate_verify      BASE(unmutated)                      exit=0  SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_rule_gate_verify      G1-V1-write-call                     exit=1  SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G1_shipped_rule_gate_verify      G1-V2-no-excl                        exit=1  SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+
+G2_0930_rule_gate                BASE(unmutated)                      exit=0  SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G2_0930_rule_gate                P1-earn-action                       exit=1  SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL
+G2_0930_rule_gate                P2-day-lock-nonbinding               exit=1  SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G2_0930_rule_gate                P3-notify-save-before-load           exit=1  SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS
+G2_0930_rule_gate                P4-approval-no-guard                 exit=1  SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL
+G2_0930_rule_gate                P5-daybudget-degraded-success        exit=0  SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+
+G3_1001_verify_freecash_rules    BASE(unmutated)                      exit=0  [verify_freecash_rules] RESULT PASS target=D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\pkg-clean rules=4/4 assertions=14/14
+G3_1001_verify_freecash_rules    P1-earn-action                       exit=1  [verify_freecash_rules] RESULT FAIL target=D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\mutants\P1-earn-action failed_rules=R1,R2,R3,R4 assertions=7/14
+G3_1001_verify_freecash_rules    P2-day-lock-nonbinding               exit=1  [verify_freecash_rules] RESULT FAIL target=D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\mutants\P2-day-lock-nonbinding failed_rules=R1 assertions=12/14
+G3_1001_verify_freecash_rules    P3-notify-save-before-load           exit=0  [verify_freecash_rules] RESULT PASS target=D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\mutants\P3-notify-save-before-load rules=4/4 assertions=14/14
+G3_1001_verify_freecash_rules    P4-approval-no-guard                 exit=1  [verify_freecash_rules] RESULT FAIL target=D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\mutants\P4-approval-no-guard failed_rules=R4 assertions=13/14
+G3_1001_verify_freecash_rules    P5-daybudget-degraded-success        exit=0  [verify_freecash_rules] RESULT PASS target=D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\mutants\P5-daybudget-degraded-success rules=4/4 assertions=14/14
+
+G4_r3_verifier_rule_gate_r3      BASE(unmutated)                      exit=0  SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G4_r3_verifier_rule_gate_r3      P1-earn-action                       exit=1  SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G4_r3_verifier_rule_gate_r3      P2-day-lock-nonbinding               exit=1  SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G4_r3_verifier_rule_gate_r3      P3-notify-save-before-load           exit=1  SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS
+G4_r3_verifier_rule_gate_r3      P4-approval-no-guard                 exit=1  SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL
+G4_r3_verifier_rule_gate_r3      P5-daybudget-degraded-success        exit=1  SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+
+runner_exit=0

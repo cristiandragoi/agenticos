@@ -1,0 +1,62 @@
+==============================================================================
+canonical-control | control | gateA exit=0 | SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r1_concurrent: workers=5 ok_runs=1 skip_runs=4 snapshots=['2026-10-01.json']
+  r1_twice: run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED s' run2='SKIP_DUPLICATE_DAY 2026-10-01' run2_read=False snapshots=['2026-10-01.json']
+  r2_bypass: helpers=[] {}
+  r2_forbidden: outcomes=[('POST', 'ForbiddenWriteError'), ('POST', 'ForbiddenWriteError'), ('DELETE', 'ForbiddenWriteError'), ('GET', 'ALLOWED')] allowed_writes=[] transport_reached=[{'method': 'GET', 'url': 'http://localhost:3001/api/v1/status/metrics'}]
+  r3_two_days: day1=INITIAL_BASELINE day2=EARNINGS_CHANGED new_alerts=['APPROVAL_PENDING', 'EARNINGS_CHANGED'] pending=[{'execution_state': 'NOT_EXECUTED', 'expires_at_utc': None, 'status': 'PENDING'}]
+  r4_decide: accepted=['AI-Agent', 'Alice Operator', 'J. Schmidt', 'RoutineBot', 'agent-007', 'automation-2', 'bot:alpha', 'cron-runner', 'report-machine', 'scheduler.exe']
+            refused =['  SYSTEM  ', 'agent', 'automation', 'bot', 'cron', 'machine', 'monitor', 'routine', 'scheduler', 'script', 'system']
+            cli={"human": {"by": "Alice Operator", "exit": 0, "stderr": "", "stdout": "recorded APPROVED for 4b4ce69a-7d7f-4af8-9449-186eaa55d1f1 by Alice Operator at 2026-10-01T07:18:47Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"}, "machine": {"by": "system", "exit": 4, "stderr": "REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person", "stdout": ""}}
+            frozen_after={'after_decisions': {'decided_by': 'Alice Operator', 'execution_allowed_by_this_routine': False, 'execution_state': 'NOT_EXECUTED', 'expires_at_utc': None, 'status': 'APPROVED'}}
+==============================================================================
+r1-a-lock-removed | R1 | gateA exit=1 | SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r1_concurrent: workers=5 ok_runs=5 skip_runs=0 snapshots=['2026-10-01.json']
+  r1_twice: run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED s' run2='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED s' run2_read=True snapshots=['2026-10-01.json']
+==============================================================================
+r1-b-lock-nonbinding | R1 | gateA exit=1 | SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r1_concurrent: workers=5 ok_runs=5 skip_runs=0 snapshots=['2026-10-01.json']
+  r1_twice: run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED s' run2='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED s' run2_read=True snapshots=['2026-10-01.json']
+==============================================================================
+r2-a-post-cashout-on-read-path | R2 | gateA exit=1 | SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL
+  readonly-scan exit=1 | [verify_readonly] forbidden=3 exempt=28 missing_targets=0
+  r2_forbidden: outcomes=[('POST', 'ForbiddenWriteError'), ('POST', 'ALLOWED'), ('DELETE', 'ForbiddenWriteError'), ('GET', 'ALLOWED')] allowed_writes=[{'attempt': 'POST http://localhost:3001/api/v1/transactions', 'outcome': 'ALLOWED'}] transport_reached=[{'method': 'POST', 'url': 'http://localhost:3001/api/v1/transactions'}, {'method': 'GET', 'url': 'http://localhost:3001/api/v1/status/metrics'}]
+==============================================================================
+r2-b-urllib-write-path | R2 | gateA exit=1 | SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=PASS
+  readonly-scan exit=1 | [verify_readonly] forbidden=7 exempt=28 missing_targets=0
+  r2_bypass: helpers=['_submit_claim'] {'_submit_claim': {'detail': '<urlopen error [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte>', 'outcome': 'URLError'}}
+  r2_forbidden: outcomes=[('POST', 'ForbiddenWriteError'), ('POST', 'ForbiddenWriteError'), ('DELETE', 'ForbiddenWriteError'), ('GET', 'ALLOWED')] allowed_writes=[] transport_reached=[{'method': 'GET', 'url': 'http://localhost:3001/api/v1/status/metrics'}]
+==============================================================================
+r3-a-baseline-is-current | R3 | gateA exit=1 | SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r3_two_days: day1=OK_NO_CHANGE day2=OK_NO_CHANGE new_alerts=['OK_NO_CHANGE'] pending=[]
+==============================================================================
+r3-b-sub-dollar-threshold | R3 | gateA exit=1 | SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r3_two_days: day1=INITIAL_BASELINE day2=OK_NO_CHANGE new_alerts=['OK_NO_CHANGE'] pending=[]
+==============================================================================
+r4-a-nonhuman-decider-accepted | R4 | gateA exit=1 | SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r4_decide: accepted=['  SYSTEM  ', 'AI-Agent', 'Alice Operator', 'J. Schmidt', 'RoutineBot', 'agent', 'agent-007', 'automation', 'automation-2', 'bot', 'bot:alpha', 'cron', 'cron-runner', 'machine', 'monitor', 'report-machine', 'routine', 'scheduler', 'scheduler.exe', 'script', 'system']
+            refused =[]
+            cli={"human": {"by": "Alice Operator", "exit": 0, "stderr": "", "stdout": "recorded APPROVED for 9aef88be-659b-422e-8f00-1ed28587c6ea by Alice Operator at 2026-10-01T07:18:26Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"}, "machine": {"by": "system", "exit": 0, "stderr": "", "stdout": "recorded APPROVED for 9aef88be-659b-422e-8f00-1ed28587c6ea by system at 2026-10-01T07:18:25Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"}}
+            frozen_after={'after_decisions': {'decided_by': 'Alice Operator', 'execution_allowed_by_this_routine': False, 'execution_state': 'NOT_EXECUTED', 'expires_at_utc': None, 'status': 'APPROVED'}}
+==============================================================================
+r4-b-arms-on-approve | R4 | gateA exit=1 | SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL
+  gateB exit=1 | SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS
+  readonly-scan exit=0 | [verify_readonly] forbidden=0 exempt=28 missing_targets=0
+  r4_decide: accepted=['AI-Agent', 'Alice Operator', 'J. Schmidt', 'RoutineBot', 'agent-007', 'automation-2', 'bot:alpha', 'cron-runner', 'report-machine', 'scheduler.exe']
+            refused =['  SYSTEM  ', 'agent', 'automation', 'bot', 'cron', 'machine', 'monitor', 'routine', 'scheduler', 'script', 'system']
+            cli={"human": {"by": "Alice Operator", "exit": 0, "stderr": "", "stdout": "recorded APPROVED for f5932d1d-0834-465e-8a63-d0461b5b002b by Alice Operator at 2026-10-01T07:18:36Z\nexecution_state=EXECUTION_ARMED (unchanged; this routine executes nothing)"}, "machine": {"by": "system", "exit": 4, "stderr": "REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person", "stdout": ""}}
+            frozen_after={'after_decisions': {'decided_by': 'Alice Operator', 'execution_allowed_by_this_routine': True, 'execution_state': 'EXECUTION_ARMED', 'expires_at_utc': '2026-10-01T07:18:36Z', 'status': 'APPROVED'}}

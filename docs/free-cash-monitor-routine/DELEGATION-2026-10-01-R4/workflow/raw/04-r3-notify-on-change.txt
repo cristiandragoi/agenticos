@@ -1,0 +1,115 @@
+###############################################################################
+# 04 — OPERATOR R3 NOTIFY ON CHANGE: what a change notification looks like,
+#      the dedupe key, the delivery, and the production fact that it NEVER fired.
+# thrownaway root: C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/r3-demo/root
+# during: 2026-10-01T09:51:06Z
+###############################################################################
+
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/r3-demo/root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/r3_change_demo.py C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/r3-demo/root D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy 2026-09-28 2026-09-29
+
+==============================================================================
+STEP 1 -- day 1 (2026-09-28): first reading for the account
+==============================================================================
+RUN_OK 2026-09-28 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-28.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-28.lock
+run_daily_check.run(now=2026-09-28T06:00:00+00:00) -> exit=0
+alerts.jsonl day1 types: ['INITIAL_BASELINE']
+toast-stub lines: 0
+
+==============================================================================
+STEP 2 -- day 2 (2026-09-29): earnings moved 1025 -> 1340 cents
+==============================================================================
+RUN_OK 2026-09-29 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-29.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-29.lock
+run_daily_check.run(now=2026-09-29T06:00:00+00:00) -> exit=0
+ALERT event_type=APPROVAL_PENDING severity=notify dedupe_key=95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39
+ALERT event_type=EARNINGS_CHANGED severity=notify dedupe_key=95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39
+
+--- the change notification, verbatim (alert record 'message' field) ---
+[FreeCash] EARNINGS CHANGE 2026-09-29
+Earnings:  $10.25 -> $13.40  (+$3.15)
+Balance:   $13.40 (changed too)
+Pending:   $0.00
+Status:    ACTIVE (unchanged)
+Source:    DEGRADED (operator-entered record for 2026-09-29)
+Detail:    alerts.jsonl dedupe=95d0876f75c36b4d
+ACTION:    No action taken. Review and approve anything you want done.
+Approval:  537c4722-15f6-4600-96d5-f1ca52c3cc8c (PENDING - yours to decide, nothing executes)
+--- end message ---
+
+toast-stub lines: 0 -> 1 (delta 1)
+
+--- notifications/approvals reported by the run ---
+approval items pending: 1
+approval item: id=537c4722-15f6-4600-96d5-f1ca52c3cc8c status=PENDING execution_state=NOT_EXECUTED expires_at_utc=None execution_allowed_by_this_routine=False
+proposed_action: {"action_type": "REQUEST_PAYOUT", "amount_cents": 1340, "destination": "OPERATOR_SPECIFIED - not stored by the routine", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}
+
+==============================================================================
+STEP 3 -- the dedupe key
+==============================================================================
+changedetect.compare(day1_snapshot, day2_snapshot) = {"baseline": false, "changes": [{"change_type": "EARNINGS_CHANGED", "field": "earnings_total_cents", "new_value": 1340, "old_value": 1025, "prior_day_key": "2026-09-28"}], "degraded": []}
+subject                : 2026-09-29|EARNINGS_CHANGED|earnings_total_cents|1025|1340
+sha256(subject)        : 95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39
+changedetect.dedupe_key: 95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39
+match                  : True
+notified-keys.json entry for that key: {"delivery": "STUB_OK", "first_notified_at_utc": "2026-09-29T06:00:00Z", "updated_at_utc": "2026-09-29T06:00:00Z"}
+
+==============================================================================
+STEP 4 -- the SAME change dispatched a second time: dedupe must suppress it
+==============================================================================
+notify.notify_change(same key) -> 'DEDUPED'
+toast-stub lines: 1 -> 1 (delta 0)
+
+==============================================================================
+VERDICT
+==============================================================================
+PASS conditions: change detected, exactly one delivery, key persisted, repeat deduped
+RESULT: PASS
+DEMO_EXIT=0
+
+--- raw alerts.jsonl of the throwaway root (day 2) ---
+{"day_key": "2026-09-29", "dedupe_key": "95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39", "event_id": "a74359e5-e3bc-497b-b8ec-ce50234c4bc4", "event_type": "APPROVAL_PENDING", "message": "Approval item 537c4722-15f6-4600-96d5-f1ca52c3cc8c enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will act on it without you.", "observed": {"approval_id": "537c4722-15f6-4600-96d5-f1ca52c3cc8c", "change_dedupe_key": "95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39", "execution_state": "NOT_EXECUTED", "status": "PENDING"}, "severity": "notify", "ts_utc": "2026-09-29T06:00:00Z"}
+{"day_key": "2026-09-29", "dedupe_key": "95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39", "event_id": "5b048224-d3be-4d44-b9ab-a29447bc9a7d", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-09-29\nEarnings:  $10.25 -> $13.40  (+$3.15)\nBalance:   $13.40 (changed too)\nPending:   $0.00\nStatus:    ACTIVE (unchanged)\nSource:    DEGRADED (operator-entered record for 2026-09-29)\nDetail:    alerts.jsonl dedupe=95d0876f75c36b4d\nACTION:    No action taken. Review and approve anything you want done.\nApproval:  537c4722-15f6-4600-96d5-f1ca52c3cc8c (PENDING - yours to decide, nothing executes)", "observed": {"field": "earnings_total_cents", "new_value": 1340, "old_value": 1025, "prior_day_key": "2026-09-28"}, "severity": "notify", "ts_utc": "2026-09-29T06:00:00Z"}
+{"day_key": "2026-09-29", "dedupe_key": "95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39", "event_id": "9f0f2951-3376-4031-a20c-40780fdcd794", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-09-29\nEarnings:  $10.25 -> $13.40  (+$3.15)\nBalance:   $13.40 (changed too)\nPending:   $0.00\nStatus:    ACTIVE (unchanged)\nSource:    DEGRADED (operator-entered)\nDetail:    alerts.jsonl dedupe=run-level\nACTION:    No action taken. Review and approve anything you want done.", "observed": {"field": "earnings_total_cents", "new_value": 1340, "old_value": 1025, "prior_day_key": "2026-09-28"}, "severity": "info", "ts_utc": "2026-10-01T09:51:07Z"}
+
+--- raw notifications dedupe index of the throwaway root ---
+{
+  "schema_version": 1,
+  "keys": {
+    "95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39": {
+      "first_notified_at_utc": "2026-09-29T06:00:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-09-29T06:00:00Z"
+    }
+  }
+}
+
+--- raw toast-stub.log of the throwaway root ---
+[STUB TOAST 2026-09-29T06:00:00Z] [FreeCash] EARNINGS CHANGE 2026-09-29 | Earnings:  $10.25 -> $13.40  (+$3.15) | Balance:   $13.40 (changed too) | Pending:   $0.00 | Status:    ACTIVE (unchanged) | Source:    DEGRADED (operator-entered record for 2026-09-29) | Detail:    alerts.jsonl dedupe=95d0876f75c36b4d | ACTION:    No action taken. Review and approve anything you want done. | Approval:  537c4722-15f6-4600-96d5-f1ca52c3cc8c (PENDING - yours to decide, nothing executes)
+
+--- raw approvals/pending.json of the throwaway root ---
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-09-29T06:00:00Z",
+  "items": [
+    {
+      "approval_id": "537c4722-15f6-4600-96d5-f1ca52c3cc8c",
+      "created_at_utc": "2026-09-29T06:00:00Z",
+      "day_key": "2026-09-29",
+      "change_dedupe_key": "95d0876f75c36b4dbabb2f541dcf31f37adc7366279986e9bcf1e6a153616f39",
+      "reason": "earnings_total_cents moved from $10.25 to $13.40. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 1340,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    }
+  ]
+}

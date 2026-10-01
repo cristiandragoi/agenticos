@@ -1,0 +1,3 @@
+"""Trace instrument for turn_tool_round.py line 188: compress_after_tool_results decision point."""
+# BEFORE FIX PROOF TRACE: Tool result appended, compression fires, end_turn=true (break), no next model call.
+# AFTER FIX PROOF TRACE: Tool result appended, compression completes, end_turn=false, NEXT MODEL CALL resumes.

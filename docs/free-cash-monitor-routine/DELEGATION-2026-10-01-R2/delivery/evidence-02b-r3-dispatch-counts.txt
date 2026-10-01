@@ -1,0 +1,31 @@
+EVIDENCE-02b -- R3 DISPATCH COUNTS per scenario (log line vs notification)  (run 2026-10-01T07:14:31Z)
+FREECASH_DATA_ROOT=$LOCALAPPDATA/Temp/fc-r2-scratch/counts   FREECASH_TOAST_STUB=1 (sink = stub log)
+
+### CMD: python delivery/drive_r3_counts.py
+DAY    SCENARIO                         NEW_ALERTS NEW_DISPATCH      CHANGES OUTCOME
+RUN_OK 2026-09-19 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-19.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-19.lock
+2026-09-19 first run (no prior)                      1            0              INITIAL_BASELINE
+RUN_OK 2026-09-20 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-09-20.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-20.lock
+2026-09-20 identical reading                         1            0              OK_NO_CHANGE
+RUN_OK 2026-09-21 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-21.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-21.lock
+2026-09-21 earnings 1000->1500                       2            1              EARNINGS_CHANGED
+RUN_OK 2026-09-22 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-22.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-22.lock
+2026-09-22 status ACTIVE->REVIEW                     2            1              STATUS_CHANGED
+RUN_OK 2026-09-23 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-09-23.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-23.lock
+2026-09-23 identical again                           1            0              OK_NO_CHANGE
+
+RE-RUN 2026-09-22 (R1 gate):
+SKIP_DUPLICATE_DAY 2026-09-22
+  new alerts=1  new dispatches=0  printed=
+  last event_type=SKIP_DUPLICATE_DAY
+
+RE-DISPATCH the SAME change object twice more (dedupe gate, fresh key):
+  attempt 1 -> NOTIFIED  new dispatches=1
+  attempt 2 -> DEDUPED   new dispatches=0
+  attempt 3 -> DEDUPED   new dispatches=0
+  total stub lines for this key: 1
+  notified-keys entry: {"first_notified_at_utc": "2026-10-01T07:14:31Z", "delivery": "STUB_OK", "updated_at_utc": "2026-10-01T07:14:31Z"}
+exit=0
+
+### CMD: sha256sum of production alerts.jsonl after this run (must be unchanged)
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl

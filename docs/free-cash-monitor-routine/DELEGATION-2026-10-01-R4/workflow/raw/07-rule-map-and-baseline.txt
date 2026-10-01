@@ -1,0 +1,138 @@
+###############################################################################
+# 07 — RULE -> CODE CITATION MAP (raw greps against the COPY of the shipped package)
+#      operator numbering is authoritative; the shipped docstrings invert R1/R2
+# during: 2026-10-01T09:53:24Z
+###############################################################################
+
+=== operator R1 NO EARNING ACTION -> shipped readonly_client.py (docstring calls it R2) ===
+27:    PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase
+39:ALLOWED_METHODS = frozenset({"GET", "HEAD"})
+41:ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+43:ALLOWED_PATHS = (
+48:    # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+52:BODY_KEYWORDS = ("data", "json", "files", "body", "content")
+60:PROVIDER_ENDPOINT_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+76:def _transport(method, url, timeout=None, headers=None):
+110:def request(method, url, transport=None, timeout=None, headers=None, **kw):
+115:    if verb not in ALLOWED_METHODS:
+118:            % (method, ", ".join(sorted(ALLOWED_METHODS)))
+121:        if key in BODY_KEYWORDS:
+133:    if host not in ALLOWED_HOSTS:
+136:    if not any(pattern.match(path) for pattern in ALLOWED_PATHS):
+146:def _audit_hook(event, args):
+162:        if host and host not in ALLOWED_HOSTS:
+166:def install_audit_guard():
+
+--- the docstring that mislabels it ---
+1:"""readonly_client.py -- R2: the routine's ONLY network path.
+85:        raise ReadError("R2: no host in url: %s" % url)
+113:        raise ForbiddenWriteError("R2: method must be a string, got %r" % (method,))
+117:            "R2: method %r is not read-only (allowed: %s)"
+122:            raise ForbiddenWriteError("R2: request bodies are forbidden ('%s')" % key)
+125:            "R2: unsupported request keyword(s): %s" % ", ".join(sorted(kw))
+128:        raise ForbiddenWriteError("R2: url must be a non-empty string")
+131:        raise ForbiddenWriteError("R2: scheme not allowed: %r" % (parts.scheme,))
+134:        raise ForbiddenWriteError("R2: host not allowlisted: %r" % host)
+137:        raise ForbiddenWriteError("R2: path not allowlisted: %r" % path)
+
+=== operator R2 ONCE PER DAY -> shipped gate.py (docstring calls it R1) + run_daily_check.py ===
+5:1. **Atomic day lock.**  ``os.open(lock, O_CREAT | O_EXCL | O_WRONLY)`` on
+32:SUCCESS_OUTCOMES = frozenset(
+39:        "MONITOR_DEGRADED",
+66:    reports the condition as ``MONITOR_DEGRADED`` rather than pretending the
+96:def day_key(now=None, tz=None) -> str:
+119:def acquire_day_lock(day: str):
+128:        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+145:        "last_success_day": None,
+191:    ``last_success_*`` is only advanced for outcomes in SUCCESS_OUTCOMES; a
+198:    if outcome in SUCCESS_OUTCOMES:
+199:        ledger["last_success_day"] = day
+208:def missed_days(day: str, ledger: dict) -> list:
+217:    last = _as_date((ledger or {}).get("last_success_day"))
+234:    last = _as_date((ledger or {}).get("last_success_day"))
+
+6:   lock.  If the day is already consumed, print ``SKIP_DUPLICATE_DAY``, append
+7:   exactly one ``SKIP_DUPLICATE_DAY`` line to the alert log, and exit 0 having
+308:    day = gate.day_key(now)
+309:    acquired, lock = gate.acquire_day_lock(day)
+313:            "SKIP_DUPLICATE_DAY",
+320:        print("SKIP_DUPLICATE_DAY %s" % day)
+327:    # be kept, otherwise record_outcome() below persists the pre-attempt copy
+372:        raw = read_source(source_kind, day, base=args.base_url or base, transport=transport)
+391:        gate.record_outcome(day, "READ_FAILED", now, ledger, missed=len(missed))
+410:    if not source["data_available"]:
+446:    gate.record_outcome(day, outcome, now, ledger, missed=len(missed))
+
+--- the docstring that mislabels it ---
+1:"""gate.py -- R1: exactly one status read per operator-local calendar day.
+214:    a second check for that day and would defeat R1.
+
+=== operator R3 NOTIFY ON CHANGE ===
+183:def save_snapshot(snapshot: dict, now=None):
+197:def load_prior_snapshot(day):
+214:def dedupe_key(day, change_type, field, old_value, new_value) -> str:
+219:def _has_data(snapshot) -> bool:
+226:def compare(prior, current) -> dict:
+235:    if not _has_data(prior) or not _has_data(current):
+237:        if prior is not None and not _has_data(current):
+
+12:* ``OK_NO_CHANGE`` is **log-only** -- it never dispatches a notification;
+63:def alert(event_type, day_key, message, severity=None, dedupe_key=None, observed=None) -> dict:
+91:def emit_no_change(day, prior_day=None, observed=None, source_note=None, sender=None) -> dict:
+94:        "OK_NO_CHANGE",
+123:def key_seen(key: str) -> bool:
+132:def record_notified_key(key: str, delivery: str) -> dict:
+220:def dispatch(message, dedupe_key, day_key, event_type, sender=None, sleep_seconds=None) -> str:
+264:def notify_change(day, change, message, dedupe_key, sender=None, sleep_seconds=None) -> str:
+
+=== operator R4 APPROVAL BEFORE EXTERNAL ACTION ===
+44:EXECUTION_STATE_NOT_EXECUTED = "NOT_EXECUTED"
+45:EXECUTION_ALLOWED_BY_THIS_ROUTINE = False
+48:NO_EXPIRY = None
+55:NON_HUMAN_DECIDERS = frozenset(
+108:def build_item(day, change, reason, now=None, proposed_action=None) -> dict:
+131:        "expires_at_utc": NO_EXPIRY,
+132:        "execution_state": EXECUTION_STATE_NOT_EXECUTED,
+133:        "execution_allowed_by_this_routine": EXECUTION_ALLOWED_BY_THIS_ROUTINE,
+137:def enqueue(day, change, reason, now=None, proposed_action=None) -> dict:
+149:def _normalise_decider(name) -> str:
+153:    if who.lower() in NON_HUMAN_DECIDERS:
+161:def decide(approval_id, decision, by, note, now=None) -> dict:
+180:    item["expires_at_utc"] = NO_EXPIRY
+181:    item["execution_state"] = EXECUTION_STATE_NOT_EXECUTED
+182:    item["execution_allowed_by_this_routine"] = EXECUTION_ALLOWED_BY_THIS_ROUTINE
+196:            "expires_at_utc": NO_EXPIRY,
+197:            "execution_state": EXECUTION_STATE_NOT_EXECUTED,
+198:            "execution_allowed_by_this_routine": EXECUTION_ALLOWED_BY_THIS_ROUTINE,
+
+--- every process-spawning / eval site in the whole package (is there an execution path?) ---
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/notify.py:23:import subprocess
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/notify.py:184:    completed = subprocess.run(
+
+--- every non-readonly HTTP verb mentioned anywhere in the package ---
+(none)
+
+--- the only socket site ---
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/operator_state.py:120:    """Read today's operator-entered figures.  Never raises, never opens a socket.
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/readonly_client.py:14:a socket.  One place to audit, one place a network capture could ever see.
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/readonly_client.py:34:from http.client import HTTPConnection  # readonly-exempt: the single socket library, used only inside _transport()
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/readonly_client.py:79:    This is the ONLY function in the routine that opens a socket.  It is never
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/readonly_client.py:90:    conn = HTTPConnection(host, port, timeout=timeout or DEFAULT_TIMEOUT)
+D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/readonly_client.py:148:    if event not in ("socket.connect", "socket.getaddrinfo"):
+
+###############################################################################
+# 08 — BASELINE: the routine parses; the offline suite summary on the FLAT copy
+#      (the flat copy shows failures=2 from a test-harness relocation artifact --
+#      see raw/09-suite-on-a-copy.txt for the cause and for the green run)
+###############################################################################
+
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe -m py_compile D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/{gate,paths,operator_state,readonly_client,changedetect,notify,approval_queue,run_daily_check}.py
+py_compile exit=0
+
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/suite-root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/tests/run_all.py
+SKIP_DUPLICATE_DAY 2026-10-01
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=INITIAL_BASELINE
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+run_all: tests=52 failures=2 errors=0 skipped=0

@@ -1,0 +1,22 @@
+===== HERMETICITY Do,  1. Okt 2026 11:53:27 =====
+-- sha256 (this pass, after all Stream-A work) --
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+
+-- find data/freecash-monitor -type f -newermt '2026-10-01 11:30'  (expect ZERO) --
+(end find)
+
+-- day-locks (expect only 09-20, 09-30, 10-01 @08:53) --
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 2026-10-01 08:53:46.692255500 +0200 .
+drwxr-xr-x 1 cd-pr 197609 0 2026-10-01 08:53:46.722515000 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 0 2026-09-20 21:08:00.700187900 +0200 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 2026-09-30 21:01:05.532562200 +0200 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 2026-10-01 08:53:46.692255500 +0200 2026-10-01.lock
+
+-- monitoring/freecash non-pycache files modified today (expect 0) --
+0
+
+-- git status (my stream dir only) --
+?? docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/apppath/

@@ -1,0 +1,13 @@
+== utc: 2026-10-01T07:34:43Z
+--- (a) no allowlist configured -- must fail closed
+REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-allowlist-cmd\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+operator allowlist : C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-allowlist-cmd\state\human-deciders.json
+override env var   : FREECASH_OPERATOR_IDENTITY (unset)
+exit=4
+
+--- (b) valid allowlist written by the operator
+operator allowlist : C:\Users\cd-pr\AppData\Local\Temp\fc-r3-identity-allowlist-cmd\state\human-deciders.json
+override env var   : FREECASH_OPERATOR_IDENTITY (unset)
+state              : CONFIGURED (1 identity/ies)
+  - Alice Operator
+exit=0

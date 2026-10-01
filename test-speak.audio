@@ -1,0 +1,11 @@
+HTTP/1.1 400 Bad Request
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Content-Type: application/json; charset=utf-8
+Content-Length: 168
+ETag: W/"a8-uZ0CcqiQqEv9sWRHg8YcJt9DrYg"
+Date: Sun, 06 Sep 2026 06:46:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"error":{"code":"INTERNAL_ERROR","message":"Expected property name or '}' in JSON at position 1 (line 1 column 2)","requestId":"5ba0a0aa-e70b-4959-abeb-67231c5a955f"}}

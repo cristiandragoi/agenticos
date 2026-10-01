@@ -1,0 +1,12 @@
+{
+  "requestedAt": 1790609638677,
+  "requestedBy": "POST /api/health/restart",
+  "pid": 19324,
+  "lifecycleOwners": [
+    5788,
+    9036,
+    22016,
+    48824
+  ],
+  "expectedRespawn": true
+}

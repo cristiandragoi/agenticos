@@ -1,0 +1,104 @@
+===== Path-B wiring + route inventory (read-only, Do,  1. Okt 2026 11:53:24) =====
+
+### freeCashExecutor importers in the app (grep -rn)
+server/src/index.ts:436:// import { reconcileGoalsOnStartup } from './services/freeCash/freeCashExecutor.js';
+server/src/routers/projects.ts:399:    const { startInteractiveLogin } = await import('../services/freeCash/freeCashExecutor.js');
+server/src/routers/projects.ts:416:      await import('../services/freeCash/freeCashExecutor.js');
+server/src/routers/projects.ts:445:    const { clearSessionEvidence } = await import('../services/freeCash/freeCashExecutor.js');
+server/src/services/backgroundTasks/adapters.ts:1816:    const { checkAuthenticatedSession, inspectAvailableWork } = await import('../freeCash/freeCashExecutor.js');
+server/src/services/freeCash/freeCashExecutor.ts:2: * freeCashExecutor.ts — REAL FreeCash execution foundation (PHASES E+F).
+server/src/services/freeCash/freeCashExecutor.ts:180:    logger.warn(`[freeCashExecutor] session check failed: ${err?.message}`);
+server/src/services/freeCash/freeCashExecutor.ts:210:    logger.info('[freeCashExecutor] interactive login window opened (managed persistent profile)');
+server/src/services/freeCash/freeCashExecutor.ts:228:            logger.info('[freeCashExecutor] authenticated session detected — original goal will resume');
+server/src/services/freeCash/freeCashExecutor.ts:230:            await resumePendingGoals().catch((e) => logger.warn(`[freeCashExecutor] resume pump failed: ${e?.message}`));
+server/src/services/freeCash/freeCashExecutor.ts:234:        logger.info('[freeCashExecutor] interactive login window closed (watchdog end).');
+server/src/services/freeCash/freeCashExecutor.ts:236:        logger.warn(`[freeCashExecutor] login watcher error: ${err?.message}`);
+server/src/services/freeCash/freeCashExecutor.ts:246:    logger.warn(`[freeCashExecutor] interactive login failed to start: ${err?.message}`);
+server/src/services/freeCash/freeCashExecutor.ts:344:    logger.info('[freeCashExecutor] resume pump already in flight — skipping re-entrant run');
+server/src/services/freeCash/freeCashExecutor.ts:355:        logger.info(`[freeCashExecutor] resuming original goal: "${goal.originalGoal}"`);
+server/src/services/freeCash/freeCashExecutor.ts:380:        logger.warn(`[freeCashExecutor] resume of goal ${goal.id} failed: ${err?.message}`);
+server/src/services/freeCash/freeCashExecutor.ts:399:    logger.info('[freeCashExecutor] startup reconciliation already performed this process — skipped');
+server/src/services/freeCash/freeCashExecutor.ts:408:      logger.info('[freeCashExecutor] startup: no verified FreeCash session — goals remain blocked_waiting_for_auth');
+server/src/services/freeCash/freeCashExecutor.ts:413:    logger.info(`[freeCashExecutor] startup reconciliation resumed ${resumed} goal(s) against verified session evidence`);
+server/src/services/freeCash/freeCashExecutor.ts:415:    logger.warn(`[freeCashExecutor] startup reconcile failed: ${err?.message}`);
+server/src/__tests__/freeCashGoalDurability.test.ts:39:  execMod = await import('../services/freeCash/freeCashExecutor.js');
+server/src/__tests__/freeCashPrerequisiteGate.test.ts:25:vi.mock('../services/freeCash/freeCashExecutor.js', () => ({
+server/src/__tests__/freeCashPrerequisiteGate.test.ts:78:  execMod = await import('../services/freeCash/freeCashExecutor.js');
+
+### reconcileGoalsOnStartup wiring in server/src/index.ts
+436:// import { reconcileGoalsOnStartup } from './services/freeCash/freeCashExecutor.js';
+437:// void reconcileGoalsOnStartup().catch(...);
+
+### freecashMonitorAdapter importers (expected: none / self only)
+server/src/domains/jarvisNext/operator/operatorController.ts:4:import { freeCashMonitorAdapter } from '../../../adapters/freecashMonitorAdapter.js';
+server/src/domains/jarvisNext/operator/operatorController.ts:115:    const connStatus = await freeCashMonitorAdapter.fetchStatus();
+server/src/domains/jarvisV2/turnController.ts:24:import { freeCashMonitorAdapter } from '../../adapters/freecashMonitorAdapter.js';
+server/src/domains/jarvisV2/turnController.ts:414:          const status = await freeCashMonitorAdapter.fetchStatus();
+(end importers)
+
+### FreeCash HTTP routes (projects.ts)
+349:    const state = checkPrerequisites('freecash');
+350:    const goal = getOpenGoalForService('freecash');
+353:      .filter((t) => t.route === 'freecash_execution' || t.route === 'freecash_auth_gate' || t.status === 'waiting_for_auth')
+363:      service: 'freecash',
+364:      label: describeService('freecash'),
+389:// GET  /api/projects/:projectId/freecash/auth  → current safe auth/session state
+390:// POST /api/projects/:projectId/freecash/auth  → same (POST alias for clients)
+391:router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+392:router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+394:// POST /api/projects/:projectId/freecash/auth/login
+397:router.post('/:projectId/freecash/auth/login', async (req, res) => {
+410:// POST /api/projects/:projectId/freecash/auth/verify
+413:router.post('/:projectId/freecash/auth/verify', async (req, res) => {
+420:      markResumePending('freecash');
+439:// POST /api/projects/:projectId/freecash/auth/clear
+443:router.post('/:projectId/freecash/auth/clear', async (req, res) => {
+446:    clearSessionEvidence('freecash');
+
+### projects.ts:344-379 freeCashAuthStatus body (what the auth route returns)
+function freeCashAuthStatus(projectId: string) {
+  return (async () => {
+    const { checkPrerequisites, describeService } = await import('../services/prerequisites/prerequisiteService.js');
+    const { getOpenGoalForService } = await import('../services/prerequisites/activeGoalRegistry.js');
+    const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
+    const state = checkPrerequisites('freecash');
+    const goal = getOpenGoalForService('freecash');
+    const tasks = backgroundTaskManager
+      .listTasks({ projectId, limit: 50 })
+      .filter((t) => t.route === 'freecash_execution' || t.route === 'freecash_auth_gate' || t.status === 'waiting_for_auth')
+      .map((t) => ({
+        taskId: t.taskId,
+        title: t.title,
+        status: t.status,
+        route: t.route,
+        blocker: t.blocker,
+        verified: t.verificationState === 'passed',
+      }));
+    return {
+      service: 'freecash',
+      label: describeService('freecash'),
+      /** 'authenticated' only when LIVE evidence exists and is fresh. */
+      sessionState: state.sessionValid ? 'authenticated' : 'unauthenticated',
+      satisfied: state.satisfied,
+      blocker: state.blocker,
+      checkedAt: state.checkedAt,
+      evidence: {
+        sessionValid: state.sessionValid,
+        credentialAvailable: state.credentialAvailable,
+        externalConnected: state.externalConnected,
+      },
+      goal,
+      tasks,
+    };
+  })();
+}
+
+### any route returning earnings/balance/account figures? (expected: none)
+(end route grep)
+
+### credential-bearing profile (names only, NEVER read): path existence
+total 8
+drwxr-xr-x 1 cd-pr 197609    0 Sep 23 17:32 .
+drwxr-xr-x 1 cd-pr 197609    0 Sep 20 21:15 ..
+drwxr-xr-x 1 cd-pr 197609    0 Sep 25 09:32 Default
+-rw-r--r-- 1 cd-pr 197609 3137 Sep 23 17:32 storage_state.json

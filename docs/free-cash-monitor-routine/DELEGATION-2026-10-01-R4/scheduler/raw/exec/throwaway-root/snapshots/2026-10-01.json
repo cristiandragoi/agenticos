@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T09:56:10Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

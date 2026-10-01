@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor-R4.xml · stream S5 (scheduler) · delegation R4 · 2026-10-01
+
+  STATUS: PROPOSAL ONLY. This file registers NOTHING. No task whose name contains
+  "FreeCash" exists on this host (verified live this pass; raw/02, raw/03). A
+  scheduled task that does not exist cannot fire, so this XML is inert until a
+  human registers it.
+
+  RULE NUMBERING (operator numbering, authoritative in this delegation):
+    R1 NO EARNING ACTION · R2 ONCE PER DAY · R3 NOTIFY ON CHANGE ·
+    R4 APPROVAL BEFORE EXTERNAL ACTION
+  Registering a task is an external, state-changing action, so rule
+  R4 APPROVAL BEFORE EXTERNAL ACTION withholds registration until the operator
+  approves in writing. The approval command is printed in SCHEDULER-DECISION.md
+  section 6 and must be run by the operator, never by an agent.
+
+  Titles are printed next to every rule reference on purpose. The shipped code
+  inverts R1 and R2 in its own docstrings (gate.py:1 calls once-per-day "R1";
+  readonly_client.py:1 calls the read-only network path "R2"), so a reader who
+  takes a bare R-number from either source will mis-map the rule.
+
+  INTERPRETER, PINNED
+    C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+  Re-verified this pass: that interpreter reports 3.11.9 and resolves
+  ZoneInfo("Europe/Berlin"). Both py -3.11 and py -3.14 raise
+  ZoneInfoNotFoundError for the same key. gate.resolve_tz() fails open to the
+  machine zone and reports kind "system-local", so a scheduler pointed at the
+  wrong interpreter would not crash: it would silently move the operator-local
+  day key and quietly break R2 ONCE PER DAY. Never change this path to python3,
+  py or pythonw.
+
+  OBSERVE-ONLY ACTION
+  The task runs exactly one script, D:\AgenticOS\monitoring\freecash\run_daily_check.py,
+  with exactly one flag, the read source pin (source=operator_state). No second
+  command, no chained shell operator, no write verb, no approval execution, no
+  earning path. That property is asserted mechanically by xml_gate.py, which was
+  shown to reject twelve planted mutants (raw/17) and to accept this file (raw/18).
+
+  NO WRAPPER, AND WHAT IT COSTS
+  schtasks cannot set environment variables. The routine's production values are
+  its own code defaults (paths.py:35 DEFAULT_DATA_ROOT, gate.py DEFAULT_TZ,
+  run_daily_check.py:52 DEFAULT_SOURCE), so a service-spawned task's environment
+  is deterministic. A .cmd wrapper that exported FREECASH_DATA_ROOT would point
+  production at a throwaway root, which is the opposite of what production
+  needs, so no wrapper is used. The cost: stdout has to be redirected from the
+  Arguments string, which is why the redirect lives there. No path in this file
+  contains a space, so the unquoted cmd.exe form is used; that exact form was
+  executed end to end this pass through cmd.exe (raw/14).
+
+  START BOUNDARY, AND THE CATCH-UP BURN
+  StartBoundary is 2026-10-05T09:00:00 (a Monday), deliberately in the future.
+  With StartWhenAvailable=true, registering a task whose StartBoundary is
+  already in the past fires ONE catch-up run at registration time. Because
+  run_daily_check.py acquires the day lock at :309 BEFORE it reads the source at
+  :372, that catch-up run consumes the day while reading nothing, and the lock
+  is never cleared, so that day can never carry a reading. raw/14 reproduces
+  exactly that outcome on a throwaway root:
+      RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED
+      source=operator_entered(data_available=False)
+      snapshot=2026-10-01.json written=True changes=0 notifications=0
+  If the operator registers this file after 2026-10-05T09:00 local, MOVE THE
+  START BOUNDARY FORWARD FIRST or that day is burnt. This is a property of the
+  entry point, not of the schedule; the durable fix is the pre-flight wrapper
+  owned by stream S1 (workflow/), which should refuse to invoke the entry point
+  on a day whose source record is absent.
+
+  NO RESTART ON FAILURE, DELIBERATELY
+  run_daily_check.py's exit table gives 5 for "the status read failed; the day
+  lock stays in place, no automatic re-run". A retry inside the same day can
+  only print SKIP_DUPLICATE_DAY, so a RestartOnFailure element would add noise
+  and no coverage. There is none.
+
+  NO SECRETS. The routine holds no credential, token, cookie or password, and
+  this file contains none. Its read-only transport is allowlisted to loopback.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash daily read-only status monitor. R1 NO EARNING ACTION (observe only), R2 ONCE PER DAY (one operator-local status read, Europe/Berlin), R3 NOTIFY ON CHANGE, R4 APPROVAL BEFORE EXTERNAL ACTION (registers nothing by itself; contains no secret). LeastPrivilege, per user, IgnoreNew, StartWhenAvailable, no retry loop.</Description>
+    <URI>\FreeCash-Daily-Monitor</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-05T09:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state 1&gt;&gt; D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2&gt;&amp;1</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --force-recheck</Arguments>
+    </Exec>
+  </Actions>
+</Task>

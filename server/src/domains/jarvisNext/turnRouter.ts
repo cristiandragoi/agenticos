@@ -131,7 +131,10 @@ export type TurnRoute =
   | 'refusal'
   | 'project_operate'
   | 'blocker_detail_read'
-  | 'system_self_diagnose';
+  | 'system_self_diagnose'
+  | 'engineering.antigravity'
+  | 'read_foreground_screen'
+  | 'engineering_delegation';
 
 export interface TurnResult {
   handled: boolean;
@@ -453,7 +456,7 @@ function isDeclarativeStatement(text: string): boolean {
   if (/\b(what projects|what is blocked|what is running|what is it doing|what missions|why can'?t)\b/i.test(lower)) return false;
   if (/\b(open|set|start|run|launch|prioriti[sz]e|go to|switch to|show|focus|see|view|bring up|work|operate|continue|proceed)\b/i.test(lower) && /\b(free cash|freecash|shopify|tiktok|hermes|revenue operator)\b/i.test(lower)) return false;
   if (/\b(i would like to|i'd like to|i want to|can i|could you|let me|please)\b/i.test(lower)) return false;
-  if (/\b(?:start operating|start working|operate inside|work on|continue working|get moving|do the work|resolve the first blocker|resolve blocker)\b/i.test(lower)) return false;
+  if (/\b(need|want|see|look|open|show|board|bot|telegram|screenshot|screen|comet|perplexity|camera|save|memory|desktop|window|front)\b/i.test(lower)) return false;
   return /^(the|a|an|my|our|this|that|these|those|we|i|you|he|she|it|they)\b/i.test(lower);
 }
 
@@ -843,6 +846,18 @@ export function isExpectedActionForEntity(
 
 /* ── the router ─────────────────────────────────────────────────────────── */
 
+/**
+ * First clause of a grounded perception answer, used as the human-readable
+ * description of an observed object. Deliberately structural (sentence split),
+ * with no object-noun vocabulary: the executor's own words are the evidence.
+ */
+function firstClause(text: string): string {
+  const clean = (text || '').trim();
+  if (!clean) return '';
+  const m = clean.match(/^[\s\S]*?[.!?\n]/);
+  return (m ? m[0] : clean).trim().slice(0, 200);
+}
+
 export async function routeTurn(opts: {
   prompt: string;
   conversationId: string;
@@ -864,6 +879,19 @@ export async function routeTurn(opts: {
   const t0 = Date.now();
   const timings: Record<string, number> = {};
   const focus = getFocus(conversationId);
+
+  // ── P0 turn-ownership: register this conversation's active turn ────────────
+  // EVERY turn updates it (not only perception turns), so work started by an
+  // older turn is marked superseded and then refused at its own OS boundary.
+  try {
+    const { noteConversationTurn } = await import('../jarvis/perception/perceptionOperation.js');
+    const superseded = noteConversationTurn(conversationId, opts.turnId ?? 0);
+    if (superseded.length) {
+      logger.info('[JRT] SUPERSEDED_OPERATIONS_CANCELLED', {
+        turnId: opts.turnId, cancelled: superseded.map((o) => o.operationId),
+      });
+    }
+  } catch {}
 
   // Clean deterministic wake word stripping (§Defect 2)
   const { wakeWordDetected, wakePrefixRemoved, commandText, isBareGreeting } = stripWakeWord(prompt);
@@ -907,7 +935,7 @@ export async function routeTurn(opts: {
         } else if (entity && entity !== 'none' && !/free\s*cash/i.test(entity)) {
           finalSpokenText = `I don't have further details on ${entity} right now.`;
         } else {
-          finalSpokenText = '';
+          finalSpokenText = "I'm not sure how to help with that. Could you rephrase?";
         }
       }
     }
@@ -924,6 +952,7 @@ export async function routeTurn(opts: {
       : result.route === 'project_operate' ? 'projectController.operateProject'
       : result.route === 'blocker_detail_read' ? 'projectController.queryBlockerDetail'
       : result.route === 'fast_read' ? 'projectStateContext'
+      : (result.route as string) === 'engineering.antigravity' ? 'delegate_antigravity_task'
       : 'supervisor';
 
     // Required authoritative REAL TURN ROUTING TRACE
@@ -972,6 +1001,24 @@ export async function routeTurn(opts: {
   );
 
   if (isStopCommand) {
+    // ── D-5: Stop cancels active work and invalidates its perception context ──
+    // Applied to BOTH stop flavours (speech stop and work cancel): a cancelled
+    // operation must not afterwards launch an application, speak, alter
+    // TurnFocus, replace the active perception target, emit runtime status, or
+    // write a stale result. The operation registry marks in-flight work
+    // CANCELLED, so its completion path is refused by mayPerformSideEffect().
+    try {
+      const { clearPerception } = await import('../jarvis/perception/perceptionFocus.js');
+      const { cancelConversationOperations } = await import('../jarvis/perception/perceptionOperation.js');
+      const cleared = clearPerception(conversationId, 'stop_command');
+      const cancelled = cancelConversationOperations(conversationId, 'stop_command');
+      logger.info('[JRT] STOP_INVALIDATES_PERCEPTION', {
+        turnId: opts.turnId, clearedFocus: cleared, cancelledOperations: cancelled.length,
+      });
+    } catch (stopErr) {
+      logger.warn('[JRT] STOP perception invalidation failed:', stopErr);
+    }
+
     const isSpeechStop = opts.isBargeIn || /\b(?:stop\s+(?:speaking|talking|speech)|be\s+quiet|shut\s+up|silence|quiet)\b/i.test(lowerPrompt);
     const isWorkCancel = /\b(?:cancel\s+(?:work|tasks?|operation|execution|all)|stop\s+(?:work|working|tasks?|operation|execution)|halt\s+work|kill\s+tasks?)\b/i.test(lowerPrompt);
 
@@ -1069,6 +1116,7 @@ export async function routeTurn(opts: {
   // [JTRACE-02] raw input
   addTrace('02', { effectivePrompt, isBare: Boolean(isBareGreeting) });
   const lower = effectivePrompt.toLowerCase();
+  const isAntiGravityDelegation = /\b(?:antigravity|anti-gravity|anti\s+gravity)\b/i.test(lower);
 
   if (wakePrefixRemoved) {
     logger.info('[JRT] WAKE_PREFIX_REMOVED=true', { rawPrompt: prompt, commandText });
@@ -1091,6 +1139,262 @@ export async function routeTurn(opts: {
   focus.lastUserTurn = effectivePrompt;
   if (!focus.userTurns) focus.userTurns = [];
   focus.userTurns.push(effectivePrompt);
+
+  // ── Deterministic Engineering Delegation: AntiGravity (HIGHEST PRECEDENCE) ──
+  // Mandatory routing precedence: Must be checked before language_preference,
+  // browser intents, desktop/open-app intents, conversation/general chat, Hermes, and LLM fallback.
+  const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('../controlPlane/ExplicitEngineeringDelegation.js');
+  const explicitEngineering = parseExplicitEngineeringDelegation(prompt) || parseExplicitEngineeringDelegation(effectivePrompt);
+  if (explicitEngineering) {
+    const tTool = Date.now();
+    const delRes = await executeEngineeringDelegation(explicitEngineering, {
+      conversationId,
+      turnId: opts.turnId ? Number(opts.turnId) : undefined,
+      workspace: 'D:\\AgenticOS',
+      speakFn: async (textToSpeak) => {
+        try {
+          const { jarvisNextAgent } = await import('./jarvisNextAgent.js');
+          await jarvisNextAgent.speak(textToSpeak, opts.turnId ? Number(opts.turnId) : undefined);
+        } catch {}
+      },
+      broadcastFn: (data) => {
+        try {
+          opts.onActionProgress?.(data);
+        } catch {}
+      },
+    });
+    timings.toolMs = Date.now() - tTool;
+    return finish({
+      route: 'engineering_delegation',
+      text: delRes.text,
+      evidence: delRes.success,
+      executed: delRes.success,
+      verified: delRes.success,
+      goalId: delRes.goalId,
+    });
+  }
+
+  // ── AUTHORITATIVE EARLY PERCEPTION LAYER (P0 D-1/D-2/D-3/D-7) ──────────────
+  //
+  // ONE decision, fixed order: stop → active perception continuation → explicit
+  // camera intent → explicit screen intent. A claimed turn is TERMINAL: no
+  // downstream router (control plane lifecycle, project state, introspection,
+  // supervisor) may reclassify it. Perception continuations are resolved against
+  // perceptionFocus, never against a task lookup, so a follow-up can never be
+  // answered with "No matching task exists."
+  const {
+    decidePerceptionTurn,
+    SCREEN_UNREADABLE_TEXT,
+    CAMERA_UNAVAILABLE_TEXT,
+  } = await import('../jarvis/perception/perceptionIntent.js');
+  const {
+    getActivePerception,
+    recordPerception,
+    recordPerceptionOutcome,
+    clearPerception,
+  } = await import('../jarvis/perception/perceptionFocus.js');
+  const {
+    beginOperation,
+    markRunning,
+    completeOperation,
+    cancelConversationOperations,
+    guardResultPublication,
+  } = await import('../jarvis/perception/perceptionOperation.js');
+
+  const perceptionDecision = decidePerceptionTurn({
+    prompt: effectivePrompt,
+    conversationId,
+    turnId: opts.turnId ?? 0,
+    // Active perception state is the ONLY source of continuation referents.
+    focus: getActivePerception(conversationId),
+  });
+  logger.info('[JRT] PERCEPTION_DECISION', {
+    turnId: opts.turnId,
+    claimed: perceptionDecision.claimed,
+    kind: perceptionDecision.kind,
+    capability: perceptionDecision.capability || null,
+    reason: perceptionDecision.reason,
+    confidence: perceptionDecision.confidence,
+    runtimeIntentExplicit: perceptionDecision.runtimeIntentExplicit,
+  });
+
+  // Any turn that carries perception vocabulary is protected from the
+  // runtime-diagnostics branches below (see the introspection gate).
+  const perceptionWordedTurn =
+    perceptionDecision.camera?.isCameraPerception === true ||
+    perceptionDecision.foreground?.isReadForegroundScreen === true ||
+    perceptionDecision.continuation?.isContinuation === true;
+
+  if (perceptionDecision.kind === 'stop') {
+    // D-5: a cancelled operation must not speak, launch, or mutate context.
+    const hadFocus = clearPerception(conversationId, 'stop_command');
+    const cancelled = cancelConversationOperations(conversationId, 'stop_command');
+    logger.info('[JRT] PERCEPTION_STOP', {
+      turnId: opts.turnId, clearedFocus: hadFocus, cancelledOperations: cancelled.length,
+    });
+    // Silence is the correct outcome: the user asked for no work and no speech.
+    return finish({ route: 'chat_trivial', text: '', evidence: true, executed: false, verified: false });
+  }
+
+  if (perceptionDecision.claimed && perceptionDecision.capability) {
+    const capability = perceptionDecision.capability;
+    const isContinuation = perceptionDecision.kind === 'continuation';
+    const operation = beginOperation({
+      conversationId,
+      turnId: opts.turnId ?? 0,
+      capability,
+      originTurnId: perceptionDecision.originTurnId ?? opts.turnId ?? 0,
+    });
+    markRunning(operation);
+    const tTool = Date.now();
+
+    // ── Camera ────────────────────────────────────────────────────────────
+    if (capability === 'camera_perception') {
+      let cameraText = '';
+      let cameraReason = '';
+      try {
+        const { universalPerceptionService } = await import('../controlPlane/UniversalPerceptionService.js');
+        const res: any = await universalPerceptionService.observeCamera({ userPrompt: prompt });
+        cameraText = String(res?.visionAnswer || res?.summary || '').trim();
+        if (!cameraText) cameraReason = 'empty_camera_result';
+      } catch (err: any) {
+        cameraReason = 'camera_error';
+        logger.warn('[JRT] CAMERA_PERCEPTION failed:', err?.message || err);
+      }
+      timings.toolMs = Date.now() - tTool;
+
+      // Re-validate ownership before publishing: async perception work happened
+      // between dispatch and completion, so a superseded or cancelled turn must
+      // not speak, must not mutate perception focus and must not emit a result.
+      const publishGate = guardResultPublication({
+        conversationId,
+        turnId: opts.turnId ?? 0,
+        capability,
+        operationId: operation.operationId,
+      });
+
+      if (cameraText && publishGate.ok) {
+        recordPerception({
+          conversationId,
+          turnId: opts.turnId ?? 0,
+          capability: 'camera_perception',
+          target: {
+            type: 'visible_object',
+            description: cameraText,
+            parentTarget: isContinuation ? { type: 'camera_frame', description: 'current camera frame' } : undefined,
+          },
+          entities: [{ type: 'observed_object', description: firstClause(cameraText) }],
+          summary: cameraText,
+          continuation: isContinuation,
+        });
+        completeOperation(operation, 'SUCCESS');
+        return finish({
+          route: 'camera_perception' as any,
+          text: cameraText,
+          evidence: true,
+          executed: true,
+          verified: true,
+        });
+      }
+
+      // Terminal failure — never a runtime dump, never "I'm not sure how to help".
+      if (!publishGate.ok) {
+        logger.warn('[JRT] PERCEPTION_PUBLISH_REJECTED', {
+          turnId: opts.turnId, capability, operationId: operation.operationId,
+          reason: publishGate.reason,
+        });
+        completeOperation(operation, 'FAILED', publishGate.reason);
+        return finish({
+          route: capability as any, text: '', evidence: false, executed: false, verified: false,
+          silent: true,
+        } as any);
+      }
+      recordPerceptionOutcome(conversationId, opts.turnId ?? 0, 'unreadable', cameraReason);
+      completeOperation(operation, 'FAILED', cameraReason);
+      return finish({
+        route: 'camera_perception' as any,
+        text: CAMERA_UNAVAILABLE_TEXT,
+        evidence: false,
+        executed: true,
+        verified: false,
+        fallbackReason: cameraReason,
+      } as any);
+    }
+
+    // ── Foreground screen ─────────────────────────────────────────────────
+    const { readForegroundScreen } = await import('../../services/perception/foregroundScreenReader.js');
+    const reading = await readForegroundScreen();
+    timings.toolMs = Date.now() - tTool;
+    logger.info('[JRT] READ_FOREGROUND_SCREEN', {
+      turnId: opts.turnId, continuation: isContinuation,
+      intentReason: perceptionDecision.reason,
+      hwnd: reading.hwnd, process: reading.process, windowTitle: reading.windowTitle,
+      method: reading.method, success: reading.success, reason: reading.reason || null,
+      quality: reading.quality, contentChars: reading.content.length,
+    });
+
+    // Re-validate ownership before publishing the screen result.
+    const screenPublishGate = guardResultPublication({
+      conversationId,
+      turnId: opts.turnId ?? 0,
+      capability,
+      operationId: operation.operationId,
+    });
+    if (!screenPublishGate.ok) {
+      logger.warn('[JRT] PERCEPTION_PUBLISH_REJECTED', {
+        turnId: opts.turnId, capability, operationId: operation.operationId,
+        reason: screenPublishGate.reason,
+      });
+      completeOperation(operation, 'FAILED', screenPublishGate.reason);
+      return finish({
+        route: capability as any, text: '', evidence: false, executed: false, verified: false,
+        silent: true,
+      } as any);
+    }
+
+    if (reading.success) {
+      recordPerception({
+        conversationId,
+        turnId: opts.turnId ?? 0,
+        capability: 'read_foreground_screen',
+        target: {
+          type: reading.content ? 'visible_text' : 'foreground_window',
+          description: reading.windowTitle || reading.process,
+          hwnd: reading.hwnd,
+          process: reading.process,
+          windowTitle: reading.windowTitle,
+          parentTarget: { type: 'foreground_window', description: reading.windowTitle || reading.process },
+        },
+        evidence: {
+          screenshotId: reading.screenshotSha256,
+          capturedAt: Date.now(),
+        },
+        summary: reading.content.slice(0, 2000),
+        continuation: isContinuation,
+      });
+      completeOperation(operation, 'SUCCESS');
+      return finish({
+        route: 'read_foreground_screen',
+        text: reading.spokenText,
+        evidence: true,
+        executed: true,
+        verified: true,
+        goalId: 'read_foreground_screen' as any,
+      } as any);
+    }
+
+    recordPerceptionOutcome(conversationId, opts.turnId ?? 0, 'unreadable', reading.reason);
+    completeOperation(operation, 'FAILED', reading.reason);
+    return finish({
+      route: 'read_foreground_screen',
+      text: reading.spokenText || SCREEN_UNREADABLE_TEXT,
+      evidence: false,
+      executed: true,
+      verified: false,
+      goalId: 'read_foreground_screen_unreadable' as any,
+      fallbackReason: reading.reason,
+    } as any);
+  }
 
   // ── Authoritative Control Plane Lifecycle (Single Production GoalRun Lifecycle) ──
   try {
@@ -1165,28 +1469,42 @@ export async function routeTurn(opts: {
     }
   }
 
-  // ── 0. System & model introspection (Highest precedence over stale context) ──
+  // ── 0. System & model introspection ────────────────────────────────────────
+  // D-1: runtime diagnostics run ONLY when this turn explicitly refers to
+  // AgenticOS / the system / a service / a model. A turn that carries perception
+  // vocabulary ("what do you see", "show me", "read it", "what am I holding")
+  // must never be answered with runtime state, so it is refused here even when
+  // some introspection classifier matches it.
   try {
-    const { detectSystemIntrospection, handleSystemIntrospection } = await import('../jarvis/systemIntrospection.js');
-    const intro = detectSystemIntrospection(effectivePrompt);
-    if (intro.isIntrospection && intro.subject) {
-      const activeName = focus.activeProjectName || focus.activeEntityName;
-      const introRes = await handleSystemIntrospection(intro.subject, conversationId, {
-        activeEntity: activeName ? {
-          id: focus.activeProjectId || focus.activeEntityId || '',
-          name: activeName,
-          displayName: activeName,
-          type: focus.activeEntityType || 'project',
-          domain: 'projects',
-        } : undefined,
-      } as any);
-      logger.info('[JRT] Early system introspection handled successfully', { subject: intro.subject, text: introRes.text });
-      return finish({
-        route: 'system_introspection' as any,
-        text: introRes.text,
-        evidence: true,
-        executed: true,
-        verified: true,
+    const runtimeGated = !perceptionWordedTurn || perceptionDecision.runtimeIntentExplicit;
+    if (runtimeGated) {
+      const { detectSystemIntrospection, handleSystemIntrospection } = await import('../jarvis/systemIntrospection.js');
+      const intro = detectSystemIntrospection(effectivePrompt);
+      if (intro.isIntrospection && intro.subject) {
+        const activeName = focus.activeProjectName || focus.activeEntityName;
+        const introRes = await handleSystemIntrospection(intro.subject, conversationId, {
+          activeEntity: activeName ? {
+            id: focus.activeProjectId || focus.activeEntityId || '',
+            name: activeName,
+            displayName: activeName,
+            type: focus.activeEntityType || 'project',
+            domain: 'projects',
+          } : undefined,
+        } as any);
+        logger.info('[JRT] Early system introspection handled successfully', { subject: intro.subject, text: introRes.text });
+        return finish({
+          route: 'system_introspection' as any,
+          text: introRes.text,
+          evidence: true,
+          executed: true,
+          verified: true,
+        });
+      }
+    } else {
+      logger.info('[JRT] RUNTIME_DIAGNOSTICS_REFUSED', {
+        turnId: opts.turnId,
+        reason: perceptionDecision.runtimeIntentReason,
+        perceptionWorded: true,
       });
     }
   } catch (introErr) {
@@ -1251,55 +1569,14 @@ export async function routeTurn(opts: {
     }
   }
 
-  const isAntiGravityEarly = /\b(?:antigravity|anti-gravity)\b/i.test(lower);
-  if (isAntiGravityEarly) {
-    const tTool = Date.now();
-    try {
-      const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');
-      const { getWorkspaceRoot } = await import('../../services/workspaceStore.js');
-      let workspacePath: string | undefined;
-      try { workspacePath = getWorkspaceRoot(); } catch { /* optional */ }
-      const res: any = await executeSupervisorTool(
-        'delegate_antigravity_task',
-        {
-          objective: prompt,
-          context: 'Requested over the JARVIS conversation channel.',
-          approvalRequired: false,
-          envelope: {
-            constraints: { readOnly: !/\b(?:modify|write|edit|update|create|delete)\b/i.test(lower) },
-            objective: prompt,
-          },
-        },
-        { conversationId, workspacePath },
-      );
-      timings.toolMs = Date.now() - tTool;
-      const taskId = res?.taskId || res?.task?.taskId;
-      const ok = !!taskId && res?.error == null;
-      return finish({
-        route: 'action',
-        text: res?.message || (ok
-          ? `AntiGravity has accepted task ${taskId.slice(0, 8)} and started execution in ${workspacePath || 'D:\\AgenticOS'}.`
-          : `I attempted to delegate to AntiGravity, but the delegation did not succeed: ${res?.error || 'no task id returned'}.`),
-        evidence: true, executed: ok, verified: ok,
-        fallbackReason: ok ? undefined : 'antigravity_delegation_failed',
-      });
-    } catch (err: any) {
-      timings.toolMs = Date.now() - tTool;
-      return finish({
-        route: 'action',
-        text: `I couldn't reach the AntiGravity delegation capability: ${err?.message || err}.`,
-        evidence: false, executed: false, verified: false,
-        fallbackReason: `antigravity_delegation_error: ${err?.message || err}`,
-      });
-    }
-  }
+
 
   const isExplicitHermesDelegationEarly =
     /\b(?:ask|tell|have|delegate\s+to)\s+(?:hermes|codex)\b/i.test(lower) ||
     (/\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower) && !/\b(?:local\s+worker|a\s+worker)\b/i.test(lower));
   const isLocalWorkerEarly = /\b(?:worker|local\s+worker)\b/i.test(lower) && !/\b(?:ask|tell|have)\s+hermes\b/i.test(lower);
   const isRepoLocateEarly = /\b(?:find|locate|search|where\s+is|open|show)\b.*\brepository\b/i.test(lower);
-  if (!isAntiGravityEarly && (((CODE_INSPECTION_RE.test(lower) && !isRepoLocateEarly && !isLocalWorkerEarly) || isExplicitHermesDelegationEarly) && !isLocalWorkerEarly)) {
+  if (!isAntiGravityDelegation && (((CODE_INSPECTION_RE.test(lower) && !isRepoLocateEarly && !isLocalWorkerEarly) || isExplicitHermesDelegationEarly) && !isLocalWorkerEarly)) {
     const tTool = Date.now();
     try {
       const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');
@@ -1529,7 +1806,7 @@ export async function routeTurn(opts: {
   }
 
   if (isDeclarativeStatement(prompt)) {
-    return finish({ route: 'chat_trivial', text: '', evidence: true });
+    return finish({ route: 'chat_trivial', text: 'Understood.', evidence: true });
   }
 
   // ── 2c. Authoritative system & model introspection ────────────────────
@@ -1733,48 +2010,7 @@ export async function routeTurn(opts: {
     }
   }
 
-  const isAntiGravity = /\b(?:antigravity|anti-gravity)\b/i.test(lower);
-  if (isAntiGravity) {
-    const tTool = Date.now();
-    try {
-      const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');
-      const { getWorkspaceRoot } = await import('../../services/workspaceStore.js');
-      let workspacePath: string | undefined;
-      try { workspacePath = getWorkspaceRoot(); } catch { /* optional */ }
-      const res: any = await executeSupervisorTool(
-        'delegate_antigravity_task',
-        {
-          objective: prompt,
-          context: 'Requested over the JARVIS conversation channel.',
-          approvalRequired: false,
-          envelope: {
-            constraints: { readOnly: !/\b(?:modify|write|edit|update|create|delete)\b/i.test(lower) },
-            objective: prompt,
-          },
-        },
-        { conversationId, workspacePath },
-      );
-      timings.toolMs = Date.now() - tTool;
-      const taskId = res?.taskId || res?.task?.taskId;
-      const ok = !!taskId && res?.error == null;
-      return finish({
-        route: 'action',
-        text: res?.message || (ok
-          ? `AntiGravity has accepted task ${taskId.slice(0, 8)} and started execution in ${workspacePath || 'D:\\AgenticOS'}.`
-          : `I attempted to delegate to AntiGravity, but the delegation did not succeed: ${res?.error || 'no task id returned'}.`),
-        evidence: true, executed: ok, verified: ok,
-        fallbackReason: ok ? undefined : 'antigravity_delegation_failed',
-      });
-    } catch (err: any) {
-      timings.toolMs = Date.now() - tTool;
-      return finish({
-        route: 'action',
-        text: `I couldn't reach the AntiGravity delegation capability: ${err?.message || err}.`,
-        evidence: false, executed: false, verified: false,
-        fallbackReason: `antigravity_delegation_error: ${err?.message || err}`,
-      });
-    }
-  }
+
 
   // ── 5b. Repository / code questions & explicit Hermes delegation ────────────
   const isExplicitHermesDelegation =
@@ -1782,7 +2018,7 @@ export async function routeTurn(opts: {
     (/\b(?:hermes|codex)\b.*\b(?:inspect|check|find|run|build|modify|execute|verify|fix|test)\b/i.test(lower) && !/\b(?:local\s+worker|a\s+worker)\b/i.test(lower));
   const isLocalWorker = /\b(?:worker|local\s+worker)\b/i.test(lower) && !/\b(?:ask|tell|have)\s+hermes\b/i.test(lower);
   const isRepoLocate = /\b(?:find|locate|search|where\s+is|open|show)\b.*\brepository\b/i.test(lower);
-  if (!isAntiGravity && (((CODE_INSPECTION_RE.test(lower) && !isRepoLocate && !isLocalWorker) || isExplicitHermesDelegation) && !isLocalWorker)) {
+  if (!isAntiGravityDelegation && (((CODE_INSPECTION_RE.test(lower) && !isRepoLocate && !isLocalWorker) || isExplicitHermesDelegation) && !isLocalWorker)) {
     const tTool = Date.now();
     try {
       const { executeSupervisorTool } = await import('../jarvis/supervisorTools.js');

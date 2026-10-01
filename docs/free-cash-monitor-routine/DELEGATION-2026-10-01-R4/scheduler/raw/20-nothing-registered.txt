@@ -1,0 +1,23 @@
+=== FINAL NON-REGISTRATION VERIFICATION — 2026-10-01T11:53:26+02:00 ===
+
+$ schtasks /query /tn 'FreeCash-Daily-Monitor' /fo LIST
+FEHLER: Das System kann die angegebene Datei nicht finden.
+exit=1   (1 'cannot find the file' = the task does NOT exist)
+
+$ schtasks /query /fo LIST | grep -i freecash
+grep exit=1   (1 = zero matches)
+
+$ schtasks /query /fo LIST | grep -i 'monitor'  (only Microsoft Office / Windows match)
+Aufgabenname:     \Microsoft\Office\Office ClickToRun Service Monitor
+Aufgabenname:     \Microsoft\Office\Office Performance Monitor
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+Aufgabenname:     \Microsoft\Windows\Shell\FamilySafetyMonitor
+Aufgabenname:     \Microsoft\Windows\TextServicesFramework\MsCtfMonitor
+
+$ hermes cron list
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+
+=== Did registration change anything I can see? no new task, no cron job ===

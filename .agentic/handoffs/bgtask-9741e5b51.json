@@ -1,0 +1,8 @@
+{
+  "taskId": "bgtask-9741e5b51",
+  "title": "Transport failure test",
+  "objective": "Should block when send-message fails",
+  "workspaceRoot": "D:\\AgenticOS",
+  "handoffTimestamp": "2026-09-09T22:10:26.210Z",
+  "conversationId": "mock-conv-12345"
+}

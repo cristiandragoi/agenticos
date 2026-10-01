@@ -1,0 +1,12 @@
+$ # seed a ledger whose recorded timezone is Europe/Berlin, then run with FREECASH_TZ=UTC
+$ cat $FREECASH_DATA_ROOT/state/last-run.json
+{"schema_version":1,"last_attempt_day":"2026-09-30","last_success_day":"2026-09-30","last_attempt_at_utc":"2026-09-30T06:00:00Z","last_success_at_utc":"2026-09-30T06:00:00Z","last_outcome":"MONITOR_DEGRADED","consecutive_missed_days":0,"timezone":"Europe/Berlin","updated_at_utc":"2026-09-30T06:00:00Z"}
+
+$ FREECASH_TZ=UTC FREECASH_TOAST_STUB=1 python run_daily_check.py --source operator_state
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit=0
+
+$ cat alerts/alerts.jsonl
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "d7c94be5-ab5f-49a0-8d0e-8e1f27236456", "event_type": "MONITOR_DEGRADED", "message": "Timezone changed since the last run (ledger=Europe/Berlin, now=UTC). Day-key boundaries may show a gap or an extra day.", "observed": {"current_timezone": "UTC", "ledger_timezone": "Europe/Berlin"}, "severity": "alert", "ts_utc": "2026-10-01T07:10:52Z"}
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "e0928b3c-e1e5-455f-8bd3-6cfcbb1f2fc5", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-10-01 (no operator-entered record for 2026-10-01 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T07:10:52Z"}
+exit=0

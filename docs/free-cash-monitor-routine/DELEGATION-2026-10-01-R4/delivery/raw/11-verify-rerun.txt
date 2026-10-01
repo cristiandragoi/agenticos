@@ -1,0 +1,61 @@
+pkg           = D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg
+data_root     = C:\Users\cd-pr\AppData\Local\Temp\fcr4-delivery-20261001-115251\root
+FREECASH_TOAST_STUB = None
+
+========================================================================
+PART 1 -- DEDUPE: one change -> exactly one delivery (R3)
+========================================================================
+dedupe_key = d5e540dfcc082fb948b5e3609638b8825807833a5851cbe81a49d8ea3cb581ef
+subject    = 2026-10-01|EARNINGS_CHANGED|earnings_total_cents|1234|5678
+dispatch #1 -> NOTIFIED | sender.messages = 1
+dispatch #2 (SAME key) -> DEDUPED | sender.messages = 1
+key_delivery(d5e540dfcc08...) = STUB_OK
+alert lines for key, event EARNINGS_CHANGED = 2
+PASS dedupe: True
+
+========================================================================
+PART 2 -- OK_NO_CHANGE is log-only (never dispatches)
+========================================================================
+emit_no_change -> OK_NO_CHANGE | dispatched: 0
+PASS log-only: True
+
+========================================================================
+PART 3 -- UNREACHABLE SINK: bounded failure, event recorded, no drop
+========================================================================
+get_sender() with FREECASH_TOAST_STUB=1 -> _stub_send
+stub dispatch -> STUB_OK | key_delivery = STUB_OK
+get_sender() with stub unset -> _toast_send
+real-sender dispatch -> FAILED_TOAST | EXCEPTION_ESCAPED = False
+key_delivery(real) = FAILED_TOAST
+  alert: DELIVERY_FAILED | delivery= FAILED_TOAST | attempts= 2 | error= [WinError 2] Das System kann die angegebene Datei nicht finden
+  alert: MONITOR_DEGRADED | delivery= None | attempts= 2 | error= None
+PASS bounded+recorded: True
+dispatch #1 -> FAILED_TOAST | sender.calls = 2 (MAX_ATTEMPTS per call)
+EXCEPTION_ESCAPED = False
+key_delivery(fail) = FAILED_TOAST
+DELIVERY_FAILED lines = 1 | MONITOR_DEGRADED lines = 1
+  DELIVERY_FAILED.message = "msg-fail full original message"
+  observed = {"attempts": 2, "delivery": "FAILED_TOAST", "error": "no interactive desktop session / desktop shell absent (reproduced)", "event_type": "EARNINGS_CHANGED"}
+PASS bounded+recorded+no-drop: True
+FINDING dispatch() a 2nd time, SAME key, called directly -> FAILED_TOAST | extra sink calls = 2 | extra DELIVERY_FAILED lines = 1
+FINDING: exactly-once is enforced by notify_change()/dispatch_change(), not by dispatch().
+notify_change #1 -> FAILED | calls = 2
+notify_change #2 (SAME key) -> DEDUPED | calls = 2 (no second attempt)
+PASS no-retry-after-failure: True
+
+========================================================================
+ALERT LOG TAIL (all evidence lines, verbatim)
+========================================================================
+{"day_key": "2026-10-01", "dedupe_key": "d5e540dfcc082fb948b5e3609638b8825807833a5851cbe81a49d8ea3cb581ef", "event_id": "f39a655e-2d6d-450c-b59f-8d8c63f3e9a0", "event_type": "EARNINGS_CHANGED", "message": "msg-A same change", "observed": {"field": "earnings_total_cents", "new_value": 5678, "old_value": 1234, "prior_day_key": "2026-09-30"}, "severity": "notify", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "d5e540dfcc082fb948b5e3609638b8825807833a5851cbe81a49d8ea3cb581ef", "event_id": "8a8c329f-b695-47bb-b19e-336f9fa27ddb", "event_type": "EARNINGS_CHANGED", "message": "msg-A same change", "observed": {"field": "earnings_total_cents", "new_value": 5678, "old_value": 1234, "prior_day_key": "2026-09-30"}, "severity": "info", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "e2a74146-75c8-4cb3-a67b-ab3a253d6648", "event_type": "OK_NO_CHANGE", "message": "No change vs 2026-09-30. No notification sent. Source DEGRADED.", "observed": {}, "severity": "info", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "a1f377145065cab596c67baeb414f388b21c7af4e4e1b6a81a60f0000c1e83e4", "event_id": "2256bff9-b457-4e9f-a578-4059c1846cca", "event_type": "DELIVERY_FAILED", "message": "msg-real toast unreachable", "observed": {"attempts": 2, "delivery": "FAILED_TOAST", "error": "[WinError 2] Das System kann die angegebene Datei nicht finden", "event_type": "STATUS_CHANGED"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "a1f377145065cab596c67baeb414f388b21c7af4e4e1b6a81a60f0000c1e83e4", "event_id": "ad6a2a6e-5684-4091-802c-d3f1b88d037f", "event_type": "MONITOR_DEGRADED", "message": "Notification channel failed twice; this message exists only in alerts.jsonl. Operator must read the log until the channel is fixed.", "observed": {"attempts": 2, "channel": "TOAST_OK"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "1a290ceac36bba0284136291d6633a8fade94d501fe12723b926350a36c0cb44", "event_id": "16b02d4d-279f-4e41-9a9b-ad5d17a437d7", "event_type": "DELIVERY_FAILED", "message": "msg-fail full original message", "observed": {"attempts": 2, "delivery": "FAILED_TOAST", "error": "no interactive desktop session / desktop shell absent (reproduced)", "event_type": "EARNINGS_CHANGED"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "1a290ceac36bba0284136291d6633a8fade94d501fe12723b926350a36c0cb44", "event_id": "7b452759-939b-43b3-ad69-2f5fd40cfcd2", "event_type": "MONITOR_DEGRADED", "message": "Notification channel failed twice; this message exists only in alerts.jsonl. Operator must read the log until the channel is fixed.", "observed": {"attempts": 2, "channel": "TOAST_OK"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "1a290ceac36bba0284136291d6633a8fade94d501fe12723b926350a36c0cb44", "event_id": "f17c42a2-c420-4086-be2b-95da38bb6e5a", "event_type": "DELIVERY_FAILED", "message": "msg-fail full original message", "observed": {"attempts": 2, "delivery": "FAILED_TOAST", "error": "no interactive desktop session / desktop shell absent (reproduced)", "event_type": "EARNINGS_CHANGED"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "1a290ceac36bba0284136291d6633a8fade94d501fe12723b926350a36c0cb44", "event_id": "ab6b5654-f2f9-4ea2-9c91-37e16efef9e5", "event_type": "MONITOR_DEGRADED", "message": "Notification channel failed twice; this message exists only in alerts.jsonl. Operator must read the log until the channel is fixed.", "observed": {"attempts": 2, "channel": "TOAST_OK"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "b60c1f3a91957da8652aed04f69803797295965d0528b94a5325f1b358f57f0c", "event_id": "9e9b32cc-c5be-4769-aa3c-5742b58bd4f9", "event_type": "STATUS_CHANGED", "message": "msg-nc", "observed": {"field": "account_status", "new_value": "ACTIVE", "old_value": "PAUSED", "prior_day_key": "2026-09-30"}, "severity": "notify", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "b60c1f3a91957da8652aed04f69803797295965d0528b94a5325f1b358f57f0c", "event_id": "0518e618-0045-49a2-b1c1-d27041317aa4", "event_type": "DELIVERY_FAILED", "message": "msg-nc", "observed": {"attempts": 2, "delivery": "FAILED_TOAST", "error": "no interactive desktop session (reproduced)", "event_type": "STATUS_CHANGED"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "b60c1f3a91957da8652aed04f69803797295965d0528b94a5325f1b358f57f0c", "event_id": "4ce0487d-a0a3-4d47-9ed3-f6bb4676cce0", "event_type": "MONITOR_DEGRADED", "message": "Notification channel failed twice; this message exists only in alerts.jsonl. Operator must read the log until the channel is fixed.", "observed": {"attempts": 2, "channel": "TOAST_OK"}, "severity": "alert", "ts_utc": "2026-10-01T09:52:51Z"}
+{"day_key": "2026-10-01", "dedupe_key": "b60c1f3a91957da8652aed04f69803797295965d0528b94a5325f1b358f57f0c", "event_id": "0277a95e-872c-46b1-b9ea-df84cd71b0fd", "event_type": "STATUS_CHANGED", "message": "msg-nc", "observed": {"field": "account_status", "new_value": "ACTIVE", "old_value": "PAUSED", "prior_day_key": "2026-09-30"}, "severity": "info", "ts_utc": "2026-10-01T09:52:51Z"}

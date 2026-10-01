@@ -1,0 +1,265 @@
+import { Room, RoomEvent, RemoteTrack } from 'livekit-client';
+import { apiUrl } from '../api/client';
+
+export type JarvisSessionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+export interface JarvisLiveKitState {
+  sessionState: JarvisSessionState;
+  isConnected: boolean;
+  isConnecting: boolean;
+  isSpeaking: boolean;
+  isListening: boolean;
+  errorMsg: string | null;
+  micTrackCount: number;
+}
+
+const TAG = '[JARVIS_LIVEKIT_SESSION]';
+
+export class JarvisLiveKitSession {
+  private room: Room | null = null;
+  private audioElement: HTMLAudioElement | null = null;
+  private sessionState: JarvisSessionState = 'disconnected';
+  private isSpeaking = false;
+  private isListening = false;
+  private errorMsg: string | null = null;
+  private micTrackCount = 0;
+  private connectingPromise: Promise<boolean> | null = null;
+  private listeners: Set<() => void> = new Set();
+  private dataListeners: Set<(data: any) => void> = new Set();
+
+  getState(): JarvisLiveKitState {
+    const now = Date.now();
+    return {
+      sessionState: this.sessionState,
+      isConnected: this.sessionState === 'connected',
+      isConnecting: this.sessionState === 'connecting',
+      isSpeaking: this.isSpeaking,
+      isListening: this.isListening,
+      errorMsg: this.errorMsg,
+      micTrackCount: this.micTrackCount,
+    };
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  onData(listener: (data: any) => void): () => void {
+    this.dataListeners.add(listener);
+    return () => {
+      this.dataListeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch (e) {
+        console.error(`${TAG} listener callback error:`, e);
+      }
+    }
+  }
+
+  private emitData(data: any) {
+    for (const listener of this.dataListeners) {
+      try {
+        listener(data);
+      } catch (e) {
+        console.error(`${TAG} data listener callback error:`, e);
+      }
+    }
+  }
+
+  private ensureAudioElement(): HTMLAudioElement | null {
+    if (this.audioElement) return this.audioElement;
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      let el = document.getElementById('jarvis-livekit-audio') as HTMLAudioElement | null;
+      if (!el) {
+        try {
+          el = document.createElement('audio');
+          el.id = 'jarvis-livekit-audio';
+          el.autoplay = true;
+          el.style.display = 'none';
+          document.body.appendChild(el);
+        } catch {
+          return null;
+        }
+      }
+      this.audioElement = el;
+      return el;
+    }
+    return null;
+  }
+
+  async startSession(roomName: string = 'jarvis-next-main'): Promise<boolean> {
+    console.log(`${TAG} startSession called, currentState=${this.sessionState}`);
+    
+    // Enforce one active connect at a time — reject new starts if already in-flight
+    const now = Date.now();
+    if (now - 5000 < this.lastConnectAttemptTime) {
+      console.warn(`${TAG} Connect attempt too soon — previous still in flight (${now - this.lastConnectAttemptTime}ms ago). Rejecting.`);
+      this.sessionState = 'error';
+      this.errorMsg = 'Start operation already pending. Wait for it to complete (timeout 30s max).';
+      this.notify();
+      return false;
+    }
+    
+    if (this.connectingPromise) {
+      console.log(`${TAG} session connection already in flight — awaiting active promise`);
+      return this.connectingPromise;
+    }
+
+    this.sessionState = 'connecting';
+    this.errorMsg = null;
+    this.lastConnectAttemptTime = now;
+    this.notify();
+
+    // Create persistent audio element upfront (Task 1: ONE audio element for full session)
+    let audioEl = this.ensureAudioElement();
+    
+    if (!audioEl) {
+      console.error(`${TAG} [JARVIS_AUDIO] createFailed — no audio element available`);
+      this.sessionState = 'error';
+      this.notify();
+      return false;
+    }
+
+    const activeAudioEl = audioEl;
+
+    // Attempt immediate playback of audio element during user-gesture call chain.
+    // An empty audio element may reject — do NOT treat this as fatal to START CONVERSATION.
+    // Real playback verification happens when remote LiveKit MediaStream is attached later.
+    try {
+      const playResult = activeAudioEl.play();
+
+      if (playResult && typeof playResult.then === 'function') {
+        await playResult;
+        console.log(`${TAG} [JARVIS_AUDIO] initial unlock resolved`);
+      } else {
+        console.log(`${TAG} [JARVIS_AUDIO] no play promise returned, skipping`);
+      }
+    } catch (err: any) {
+      // eslint-disable-next-line no-console
+      console.warn(`${TAG} [JARVIS_AUDIO] initial unlock could not play empty element:`, err?.message || String(err));
+      this.sessionState = 'error';
+      this.errorMsg = `[JARVIS_AUDIO] Play failed initially (not fatal): ${err?.message || String(err)}`;
+      this.notify();
+      return false;
+    }
+
+    let token: string | null = null;
+    let wsUrl: string | null = null;
+
+    // === START WITH HARDCODED TIMEOUT GUARANTEE (30s total) ===
+    const startTimeoutId = setTimeout(() => {
+      console.error(`${TAG} START OPERATIVE FAILED — timeout after 30 seconds. Aborting.`);
+      this.sessionState = 'error';
+      this.errorMsg = `Start operation timeout: ${this.connectingPromise ? 'still in-flight' : 'operation timeout'}`;
+      this.notify();
+    }, 30 * 1000);
+
+    const tokenController = new AbortController();
+    const abortListenerTokenTimeout = () => clearTimeout(startTimeoutId);
+    const abortListenerLivekit = () => {
+      clearTimeout(startTimeoutId);
+      // If connect errored or completed, just return
+      if (this.sessionState === 'error' || (this.room && this.room.state === 'disconnected')) {
+        return;
+      }
+      console.log(`${TAG} LiveKit abort signal — cancelling pending operations`);
+    };
+
+    let cleanupTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    const tokenFetchSignal = AbortSignal.timeout(29000); // Allow 1s of slack after total timeout for cleanup
+    
+    try {
+      await this.fetchTokenWithCleanup(roomName, tokenController.signal, tokenFetchSignal);
+
+      if (!token || !wsUrl) {
+        console.error(`${TAG} Missing token/wsUrl from fetch response`);
+        throw new Error(`Missing token or wsUrl in auth response: ${JSON.stringify({ token: !!token, wsUrl: !!wsUrl })}`);
+      }
+      console.log(`${TAG} Token received successfully for room ${roomName}`);
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      console.error(`${TAG} Token or connect failed after setup:`, msg, err);
+      this.errorMsg = `Startup failure: ${msg}`;
+      this.sessionState = 'error';
+      this.notify();
+      
+      // Cleanup any LiveKit room if partially initialized
+      try {
+        const room = this.room;
+        this.room = null;
+        await room?.disconnect().catch(() => undefined);
+      } finally {
+        this.connectingPromise = null;
+        clearTimeout(startTimeoutId);
+      }
+      
+      return false;
+    }
+
+    try {
+      let localMic: any = null;
+      await this.enableMicWithCleanup(room, roomName, token, activeAudioEl, localMic);
+
+      if (localMic && activeAudioEl && !activeAudioEl.muted) {
+        activeAudioEl.volume = 0.75;
+        if (!activeAudioEl.playing) {
+          try {
+            await this.playAudioElementIfReady(activeAudioEl);
+            console.log(`${TAG} [JARVIS_AUDIO] Audio playing with remote track now connected`);
+          } catch (errPlay: any) {
+            console.error(`${TAG} [JARVIS_AUDIO] play() error:`, errPlay?.message || errPlay);
+          }
+        }
+      }
+
+    } finally {
+      this.connectingPromise = null;
+      clearTimeout(startTimeoutId);
+      tokenController.signal.removeEventListener('abort', abortListenerTokenTimeout);
+      if (this.sessionState === 'error') {
+        const room = this.room;
+        this.room = null;
+        await room?.disconnect().catch(() => undefined);
+        this.notify();
+      }
+    }
+
+    console.log(`${TAG} startup success for room ${roomName}`);
+    
+    // Cleanup the global cleanup timeout
+    if (cleanupTimeoutId) clearTimeout(cleanupTimeoutId);
+
+    this.setupEventListeners(room);
+
+    try {
+      await room.disconnect().catch(() => undefined);
+      this.room = null;
+    } catch (disconnectErr: any) { 
+      console.error(`${TAG} disconnect error:`, disconnectErr?.message || disconnectErr);
+      
+    } finally {
+      this.sessionState = 'disconnected';
+    }
+
+    return true;
+  }
+
+  private fetchTokenWithCleanup(
+    roomName: string,
+    signal: AbortSignal,
+    requestSignal: AbortSignal
+  ) {
+    const controller = new AbortController();
+    
+    // Clean up token request timeout on abort or completion
+    const cleanupOnDone = () => {
+      clearTimeout(controller.abortTimeoutId);
+    };

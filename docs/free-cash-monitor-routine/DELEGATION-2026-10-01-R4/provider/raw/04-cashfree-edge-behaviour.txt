@@ -1,0 +1,59 @@
+### date
+Do,  1. Okt 2026 11:46:43
+########## Cashfree edge behaviour: does any path differ? ##########
+=== GET https://payout-api.cashfree.com/ ===
+HTTP/1.1 404 Not Found
+Server: awselb/2.0
+Date: Thu, 01 Oct 2026 09:46:44 GMT
+Content-Type: text/plain; charset=utf-8
+Content-Length: 0
+Connection: keep-alive
+
+HTTP=404 SIZE=0
+shell_rc=0
+--- body (first 300 bytes) ---
+
+
+=== GET https://payout-api.cashfree.com/nonsense-fcr4 ===
+HTTP/1.1 404 Not Found
+Server: awselb/2.0
+Date: Thu, 01 Oct 2026 09:46:45 GMT
+Content-Type: text/plain; charset=utf-8
+Content-Length: 0
+Connection: keep-alive
+
+HTTP=404 SIZE=0
+shell_rc=0
+--- body (first 300 bytes) ---
+
+
+=== GET https://payout-api.cashfree.com/payout/v1/authorize ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:46:47 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: keep-alive
+RateLimit-Limit: 50
+RateLimit-Remaining: 47
+RateLimit-Reset: 12.61
+
+HTTP=200 SIZE=68
+shell_rc=0
+--- body (first 300 bytes) ---
+{ "status":"ERROR", "message":"Token is not valid", "subCode":"403"}
+
+=== GET https://payout-api.cashfree.com/payout/v1/getTransferStatus ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:46:49 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: keep-alive
+RateLimit-Limit: 50
+RateLimit-Remaining: 49
+RateLimit-Reset: 10.97
+
+HTTP=200 SIZE=68
+shell_rc=0
+--- body (first 300 bytes) ---
+{ "status":"ERROR", "message":"Token is not valid", "subCode":"403"}
+

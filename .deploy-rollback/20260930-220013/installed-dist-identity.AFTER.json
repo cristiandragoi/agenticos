@@ -1,0 +1,12 @@
+{
+  "gitSha": "8f7463aa6931d57e12ec81b904b98cec04e932cf",
+  "gitShort": "8f7463aa",
+  "isDirty": true,
+  "buildTimestamp": "2026-09-30T20:01:10.934Z",
+  "buildId": "8f7463aa-dirty-20260930-200110",
+  "version": "0.0.0",
+  "component": "agenticos",
+  "fingerprint": "b67c476aa013e202ff0f36e62529425da6ee8b273ec45ed3cff72d61f642a2b8",
+  "algorithm": "content-sha256-v1",
+  "filesCount": 646
+}

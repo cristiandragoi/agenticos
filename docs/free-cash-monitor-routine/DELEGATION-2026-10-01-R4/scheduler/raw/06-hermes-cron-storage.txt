@@ -1,0 +1,52 @@
+=== hermes cron storage dirs ===
+--- /c/Users/cd-pr/AppData/Local/hermes/cron ---
+total 70
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:40 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:41 ..
+-rw-r--r-- 1 cd-pr 197609     0 Aug 27 19:48 .jobs.lock
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 11:40 .tick.lock
+-rw-r--r-- 1 cd-pr 197609 24576 Sep 17 19:44 executions.db
+drwxr-xr-x 1 cd-pr 197609     0 Aug 27 19:48 output
+-rw-r--r-- 1 cd-pr 197609    18 Okt  1 11:40 ticker_heartbeat
+-rw-r--r-- 1 cd-pr 197609    18 Okt  1 11:40 ticker_last_success
+--- /c/Users/cd-pr/AppData/Local/hermes/profiles/default/cron ---
+ls: cannot access '/c/Users/cd-pr/AppData/Local/hermes/profiles/default/cron': No such file or directory
+--- /c/Users/cd-pr/.hermes/cron ---
+ls: cannot access '/c/Users/cd-pr/.hermes/cron': No such file or directory
+
+=== any cron json under hermes appdata ===
+/c/Users/cd-pr/AppData/Local/hermes/cron
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/.pytest-tmp/.hermes/cron
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/agent/monitoring/cron_health.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/cron
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/evals/botmode-dm-delivery/probe-cron-root.spec.ts
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/evals/cron_error_diagnostics.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/evals/cron_timeout_fork_race.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/hermes_cli/cron.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/hermes_cli/subcommands/cron.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/hermes_cli/web_routers/cron.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/hermes_cli/web_server_cron.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/hermes_cli/__pycache__/cron.cpython-311.pyc
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/hermes_cli/__pycache__/web_server_cron.cpython-311.pyc
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/plugins/cron_providers
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/agent/test_cron_inflight_prompt_reappend.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/agent/test_cron_inline_api_call.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/agent/test_platform_hint_cron_delivery.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cronjob_gateway_liveness.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cronjob_schema.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_bot_chat_delivery.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_context_from.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_created_delivery.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_direct_api_call.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_direct_api_call_watchdog.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_emfile_stall.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_empty_payload.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_empty_turn_stays_silent.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_failure_alert_remediation_hint.py
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/tests/cron/test_cron_failure_deliver.py
+
+=== windows scheduled tasks created by hermes (filter) ===
+Aufgabenname:     \Hermes_Gateway
+Aufgabenname:     \Hermes_Gateway_researcher
+grep exit=0

@@ -1,0 +1,97 @@
+$ ls -la data/freecash-monitor/state/day-locks/
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 08:53 2026-10-01.lock
+exit=0
+
+$ cat data/freecash-monitor/state/last-run.json
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+exit=0
+
+$ cat data/freecash-monitor/state/operator-state.json
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "note": "Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.",
+  "how_to": [
+    "Open your own account dashboard in a browser and log in yourself.",
+    "Note four figures: account status, total earnings, current balance, pending amount.",
+    "Append one record to the records list with today's local date as day_key.",
+    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them."
+  ],
+  "records": [],
+  "template_record": {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD"
+  }
+}
+exit=0
+
+$ cat data/freecash-monitor/snapshots/2026-10-01.json
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:53:46Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+exit=0
+
+$ ls -la data/freecash-monitor/snapshots data/freecash-monitor/alerts data/freecash-monitor/approvals
+data/freecash-monitor/alerts:
+total 12
+drwxr-xr-x 1 cd-pr 197609    0 Sep 20 21:08 .
+drwxr-xr-x 1 cd-pr 197609    0 Sep 20 21:08 ..
+-rw-r--r-- 1 cd-pr 197609 8956 Okt  1 08:53 alerts.jsonl
+
+data/freecash-monitor/approvals:
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:08 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:08 ..
+
+data/freecash-monitor/snapshots:
+total 3
+drwxr-xr-x 1 cd-pr 197609   0 Okt  1 08:53 .
+drwxr-xr-x 1 cd-pr 197609   0 Sep 20 21:08 ..
+-rw-r--r-- 1 cd-pr 197609 518 Sep 20 21:08 2026-09-20.json
+-rw-r--r-- 1 cd-pr 197609 518 Sep 30 21:02 2026-09-30.json
+-rw-r--r-- 1 cd-pr 197609 518 Okt  1 08:53 2026-10-01.json
+exit=0
+
+$ wc -c data/freecash-monitor/snapshots/*.json
+ 518 data/freecash-monitor/snapshots/2026-09-20.json
+ 518 data/freecash-monitor/snapshots/2026-09-30.json
+ 518 data/freecash-monitor/snapshots/2026-10-01.json
+1554 total
+exit=0
+
+# NOTE: no routine command is run against the production root in this pass (R2 hermeticity).

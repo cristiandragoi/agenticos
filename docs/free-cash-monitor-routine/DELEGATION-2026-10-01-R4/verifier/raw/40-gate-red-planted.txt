@@ -1,0 +1,10 @@
+RULE VIOLATION [R1 NO EARNING ACTION] raw\mutants\M01\freecash\run_daily_check.py:308
+    write-verb HTTP method present; R1 permits reads only
+    offending line: _MUT = readonly_client.request("POST", "http://localhost:3001/api/v1/cashout", json={"amount_cents": 1})  # MUTANT M01
+RULE VIOLATION [R1 NO EARNING ACTION] raw\mutants\M01\freecash\run_daily_check.py:308
+    earning/withdrawal path present; R1 forbids any earning action
+    offending line: _MUT = readonly_client.request("POST", "http://localhost:3001/api/v1/cashout", json={"amount_cents": 1})  # MUTANT M01
+RULE VIOLATION [R1 NO EARNING ACTION] raw\mutants\M01\freecash\run_daily_check.py:308
+    request carries a body on a read; R1/R2 read path must be bodyless
+    offending line: _MUT = readonly_client.request("POST", "http://localhost:3001/api/v1/cashout", json={"amount_cents": 1})  # MUTANT M01
+RULE GATE: FAIL -- 3 violation(s) on raw\mutants\M01\freecash

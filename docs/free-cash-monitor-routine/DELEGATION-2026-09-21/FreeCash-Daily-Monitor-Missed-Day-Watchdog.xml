@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml : Task B definition
+  (late-day same-evening missed-run alarm)
+
+  STATUS: INERT TEMPLATE. Registers nothing. Human approval required (R4).
+
+  Runs after Task A's window has closed. If Task A never ran (machine asleep,
+  failure, logon never happened), the watchdog emits at most one MISSED_DAY
+  alarm for the day and the same toast channel carries it. StartWhenAvailable
+  matters most here: "the check did not run" is exactly the case where a late
+  catch-up start is wanted, and IgnoreNew stops an overlapping watchdog from
+  producing a second assessment.
+
+  Element order mirrors the exported \cua-driver-serve task on this host.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash missed-day watchdog (R1 second detector). Emits at most one same-day MISSED_DAY alarm; never reads status, never writes the ledger, never locks a day.</Description>
+    <URI>\FreeCash-Daily-Monitor-Missed-Day-Watchdog</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-09-22T21:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-21\freecash-task-b-watchdog.cmd"</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

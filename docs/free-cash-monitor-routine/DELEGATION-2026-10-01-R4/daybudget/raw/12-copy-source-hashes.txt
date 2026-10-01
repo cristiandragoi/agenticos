@@ -1,0 +1,3 @@
+1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7 *monitoring/freecash/gate.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *monitoring/freecash/run_daily_check.py
+780a2fd2d02ddc603e4358d5a7e1d20b1c9aa55b81b437a580f3d70cd109f937 *monitoring/freecash/tests/test_r5_smoke.py

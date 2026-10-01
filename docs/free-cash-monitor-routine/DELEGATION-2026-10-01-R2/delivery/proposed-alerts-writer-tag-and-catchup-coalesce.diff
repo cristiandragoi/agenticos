@@ -1,0 +1,144 @@
+# STAGED HARDENING -- NOT APPLIED.
+#
+# Target: monitoring/freecash/notify.py and monitoring/freecash/run_daily_check.py
+# Status: PROPOSED ONLY.  Nothing in D:/AgenticOS/monitoring was modified; the
+#         originals were opened read-only and copied to %LOCALAPPDATA%/Temp to
+#         produce this diff.  Apply only by a human, deliberately, with the
+#         routine stopped.
+#
+# What it changes:
+#   (a) notify.alert() stamps a `writer` object {pid, entry_point, started_utc}
+#       onto every new alerts.jsonl line, so an unattributed burst is visible.
+#   (b) a multi-day missed-day catch-up becomes ONE dispatch naming N and the
+#       day keys, instead of N dispatches ~6.5 s apart.  Per-day audit lines are
+#       preserved (log-only), so nothing is hidden.
+#
+# Not changed: the comparison, the dedupe-key construction, R1, R2, R4.
+#
+--- a/monitoring/freecash/notify.py
++++ b/monitoring/freecash/notify.py
+@@ -21,6 +21,7 @@
+ 
+ import os
+ import subprocess
++import sys
+ import time
+ import uuid
+ 
+@@ -48,6 +49,15 @@
+ 
+ _sender_override = None
+ 
++#: Provenance stamped onto every line this PROCESS appends.  One field answers
++#: "which process wrote this line?" -- a burst of identical alerts from an
++#: unknown writer is exactly the failure this field makes visible.
++_WRITER = {
++    "pid": os.getpid(),
++    "entry_point": os.path.basename(sys.argv[0] or "") or "unknown",
++    "started_utc": paths.iso_utc(),
++}
++
+ 
+ def default_severity(event_type: str) -> str:
+     if event_type in _ALERT_EVENTS:
+@@ -66,6 +76,7 @@
+     if len(text) > MAX_MESSAGE:
+         text = text[: MAX_MESSAGE - 3] + "..."
+     record = {
++        "writer": dict(_WRITER),
+         "event_id": str(uuid.uuid4()),
+         "ts_utc": paths.iso_utc(),
+         "day_key": day_key,
+@@ -395,6 +406,21 @@
+         ]
+     )
+ 
++
++def message_missed_days(day, missed, last_success) -> str:
++    """ONE payload for a whole missed-day catch-up: names N and every day key."""
++    return "\n".join(
++        [
++            "[FreeCash] %d MISSED DAYS %s" % (len(missed), day),
++            "No successful status check recorded for: %s" % ", ".join(missed),
++            "First missed: %s.  Last missed: %s." % (missed[0], missed[-1]),
++            "Last success: %s." % last_success,
++            "Per-day detail: alerts.jsonl (one MISSED_DAY line per day, no notification).",
++            "ACTION:    No action taken. Investigate why no check ran (machine uptime, "
++            "scheduler history, or a failed run).",
++        ]
++    )
++
+ 
+ def message_missed_day(day, last_success, consecutive) -> str:
+     return "\n".join(
+
+--- a/monitoring/freecash/run_daily_check.py
++++ b/monitoring/freecash/run_daily_check.py
+@@ -328,23 +328,51 @@
+     # and the ledger loses last_attempt_day (the watchdog's coverage signal).
+     ledger = gate.record_attempt(day, now, ledger)
+ 
+-    for missed_day in missed:
+-        change = {
+-            "change_type": "MISSED_DAY",
+-            "field": "last_success_day",
+-            "old_value": missed_day,
+-            "new_value": ledger.get("last_success_day"),
+-            "prior_day_key": ledger.get("last_success_day"),
+-        }
+-        key = changedetect.dedupe_key(day, "MISSED_DAY", "last_success_day", missed_day, ledger.get("last_success_day"))
+-        notify.notify_change(
+-            day,
+-            change,
+-            notify.message_missed_day(missed_day, ledger.get("last_success_day"), len(missed)),
+-            key,
+-            sender=sender,
+-            sleep_seconds=0,
++    if len(missed) > 1:
++        # A catch-up is ONE event, not N.  Every day still gets its own
++        # log-only MISSED_DAY line (the per-day audit record is not lost), but
++        # exactly one notification is dispatched, naming N and the day keys.
++        for missed_day in missed:
++            notify.alert(
++                "MISSED_DAY",
++                day,
++                notify.message_missed_day(missed_day, ledger.get("last_success_day"), len(missed)),
++                severity=notify.SEVERITY_ALERT,
++                dedupe_key=changedetect.dedupe_key(
++                    day, "MISSED_DAY", "last_success_day", missed_day, ledger.get("last_success_day")
++                ),
++                observed={"missed_day": missed_day, "coalesced": True},
++            )
++        key = changedetect.dedupe_key(
++            day, "MISSED_DAY", "missed_days", missed[0], "%d:%s" % (len(missed), missed[-1])
+         )
++        if not notify.key_seen(key):
++            notify.dispatch(
++                notify.message_missed_days(day, missed, ledger.get("last_success_day")),
++                key,
++                day,
++                "MISSED_DAY",
++                sender=sender,
++                sleep_seconds=0,
++            )
++    else:
++        for missed_day in missed:
++            change = {
++                "change_type": "MISSED_DAY",
++                "field": "last_success_day",
++                "old_value": missed_day,
++                "new_value": ledger.get("last_success_day"),
++                "prior_day_key": ledger.get("last_success_day"),
++            }
++            key = changedetect.dedupe_key(day, "MISSED_DAY", "last_success_day", missed_day, ledger.get("last_success_day"))
++            notify.notify_change(
++                day,
++                change,
++                notify.message_missed_day(missed_day, ledger.get("last_success_day"), len(missed)),
++                key,
++                sender=sender,
++                sleep_seconds=0,
++            )
+     if timezone_changed:
+         notify.alert(
+             "MONITOR_DEGRADED",

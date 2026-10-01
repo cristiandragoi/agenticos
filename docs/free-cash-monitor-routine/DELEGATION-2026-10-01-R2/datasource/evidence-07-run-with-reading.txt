@@ -1,0 +1,47 @@
+$ export FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2-reading ; rm -rf $FREECASH_DATA_ROOT
+$ cat $FREECASH_DATA_ROOT/state/operator-state.json   # synthetic reading, format from operator_state.py docstring
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "records": [
+    {
+      "day_key": "2026-10-01",
+      "entered_at_utc": "2026-10-01T07:05:00Z",
+      "account_status": "Operativa",
+      "earnings_total_cents": 1340,
+      "balance_cents": 1340,
+      "pending_cents": 0,
+      "currency": "USD"
+    }
+  ]
+}
+exit=0
+
+$ cd D:/AgenticOS/monitoring/freecash && FREECASH_TOAST_STUB=1 python run_daily_check.py --source operator_state
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit=0
+
+$ cat snapshots/2026-10-01.json
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T07:05:36Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-01"
+  },
+  "degraded": true,
+  "account_status": "Operativa",
+  "earnings_total_cents": 1340,
+  "balance_cents": 1340,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "c3dbba2ecb513783979efdadc8d5020cc4e765d0d3bc84dcbac6f984f7890d8a"
+}
+exit=0
+
+$ cat alerts/alerts.jsonl
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "f8cf9322-5666-4bf0-b1e6-612b5cad64ef", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-10-01. No notification sent. Source DEGRADED (operator-entered record for 2026-10-01).", "observed": {"account_status": "Operativa", "balance_cents": 1340, "degraded": true, "earnings_total_cents": 1340, "pending_cents": 0, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T07:05:36Z"}
+exit=0

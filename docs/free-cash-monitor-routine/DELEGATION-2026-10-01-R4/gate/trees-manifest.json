@@ -1,0 +1,195 @@
+{
+  "shipped": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped",
+    "note": "byte copy of monitoring/freecash",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "repaired": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired",
+    "note": "CTRL-R1.3: 1 substitution at gate.py (anchor len=28) | CTRL-R4.3: 1 substitution at approval_queue.py (anchor len=225)",
+    "hashes": {
+      "approval_queue.py": "aa5de05b3d508028def06b785f051c083a377a57def0584f2bac1c2f007d074d",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "f2a74cefa4dd86f203b04ff16f1ee67164c094818e3ddefa88bf3384cbc0ce01",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "mv1-r1-post-cashout": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout",
+    "note": "R1: an automated earning action (POST /cashout) added beside the read path",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "668f0195d05cd342725071f28db4a0739e8dafbdd3b02706a8d4996729ee0ba0",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "mv2-r2-lock-removed": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed",
+    "note": "R2: the O_CREAT|O_EXCL day lock is removed, so a second same-day run reads again",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "9b9dfc68b3bbf5ee6956c028cbbe565c31bb9e6b2f074351497832c3c3b98246",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "mv3-r3-save-before-load": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load",
+    "note": "R3: the new snapshot is written before the prior one is loaded, so no change can ever be seen",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "17146dd755870358c8ebe4e393f3841d3910b43b5a4d406a8f19edbad440d2d6",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "mv4-r4-execute-without-by": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by",
+    "note": "R4: a queued approval executes with no human (--by is no longer required)",
+    "hashes": {
+      "approval_queue.py": "60544edc153d65033a9a781268812f235352dc6c4e14bfee852f9faaa7b9bea7",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "adv1-r1-obfuscated-method": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method",
+    "note": "R1 evasion: method + path built from non-literal fragments, so the static string scan sees no POST and no /cashout",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "06dd9ecd10ed9bf2c7f2f3a8fd98a1087def8ab2d36f6b1b4604f884aef52fc8",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "adv2-r2-lock-nonbinding": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding",
+    "note": "R2 evasion: the O_CREAT|O_EXCL syscall is still present but a FileExistsError is swallowed into acquired=True",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "156ef1460d297b6016a59799b5e8b36a417d60e7e276b6488d014a6eafa7a33a",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "adv3-r4-getattr-exec": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec",
+    "note": "R4 evasion: the routine executes a queued item via getattr(os, 'sys'+'tem')(...), a call shape the effect scanner never sees",
+    "hashes": {
+      "approval_queue.py": "1a8a9e00abc2a49ffb557ee623687178578bba7e1d0cb0abfdbc409441482c7d",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "adv4-r1-conditional-backdoor": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor",
+    "note": "R1 evasion: an obfuscated write fires only when FREECASH_LIVE_READ=1, a condition no detector run exercises",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "76cdf67ac22285a94d594a0d37fb8350d2e0ab9ca1da19de5e27ee9ef64ee8c9",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "adv5-r3-compare-disabled": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled",
+    "note": "R3 evasion: the load/save order and the comparison operator are untouched, but compare() returns no change for any real pair",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "f527126cca7cef5f2fead7631e6879632604578d958f046bd4feefb21f2a3259",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  },
+  "adv6-r1-new-socket-file": {
+    "path": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file",
+    "note": "R1 evasion: a NEW module that imports a socket client and can POST -- FORBIDDEN_IMPORTS has no http.client and PINNED_IMPORTS only pins readonly_client.py",
+    "hashes": {
+      "approval_queue.py": "0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506",
+      "changedetect.py": "296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b",
+      "gate.py": "1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7",
+      "notify.py": "9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22",
+      "operator_state.py": "32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7",
+      "paths.py": "a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938",
+      "readonly_client.py": "5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27",
+      "run_daily_check.py": "bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c",
+      "status_shim.py": "da0fc9375213b006a729a3d9748b7efc274322a6705eecfeafc6e79118aaa248",
+      "verify_readonly.py": "2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0",
+      "watchdog.py": "11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd"
+    }
+  }
+}

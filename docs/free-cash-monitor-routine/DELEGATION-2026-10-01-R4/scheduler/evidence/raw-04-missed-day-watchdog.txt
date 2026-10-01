@@ -1,0 +1,18 @@
+### captured at
+Do,  1. Okt 2026 11:44:20
+
+### SCENARIO: the trigger DID NOT FIRE (no run today) -- watchdog on a fresh empty root
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-scheduler-10193/uncovered
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+WD_UNCOVERED_RUN1_EXIT=0
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+WD_UNCOVERED_RUN2_EXIT=0
+
+### alerts.jsonl line count (exactly one MISSED_DAY)
+1 C:/Users/cd-pr/AppData/Local/Temp/fc-r4-scheduler-10193/uncovered/alerts/alerts.jsonl
+
+### state/ contents: no ledger, no lock, no snapshot
+day-locks
+notified-keys.json
+day-locks:
+snapshots:

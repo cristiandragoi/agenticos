@@ -1,0 +1,34 @@
+=== mutation_harness.py -- mutate-and-catch proof for rule_gate.py ===
+source routine (READ ONLY): D:\AgenticOS\monitoring\freecash
+interpreter: C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+interpreter probe: 3.11.9 / tzdata / OK / Europe/Berlin
+
+[1] py_compile rule_gate.py + mutation_harness.py -> exit 0
+
+[2] pristine copy of the routine -> D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash
+[3] py_compile of the certified artifact (8 core modules) -> exit 0
+
+[4] GREEN run -- unmodified artifact:
+$ C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe rule_gate.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash
+  R1 NO EARNING ACTION .......... OK (no detector fired)
+  R2 ONCE PER DAY .......... OK (no detector fired)
+  R3 NOTIFY ON CHANGE .......... OK (no detector fired)
+  R4 APPROVAL BEFORE EXTERNAL ACTION .......... OK (no detector fired)
+  RULE GATE: PASS -- D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash satisfies R1 NO EARNING ACTION, R2 ONCE PER DAY, R3 NOTIFY ON CHANGE, R4 APPROVAL BEFORE EXTERNAL ACTION (10 source files scanned)
+  exit=0
+
+[5] planted mutants (N=12):
+  M01 R1        CAUGHT (exit 2) -- POST /cashout write call
+  M02 R1        CAUGHT (exit 2) -- os.system(...) shell-out
+  M03 R1        CAUGHT (exit 2) -- request body on a GET
+  M04 R1        CAUGHT (exit 2) -- connect to a non-loopback host
+  M05 R2        CAUGHT (exit 2) -- second status read within one day
+  M06 R2        CAUGHT (exit 2) -- unresolvable timezone name
+  M07 R2        CAUGHT (exit 2) -- non-atomic day lock (O_EXCL dropped)
+  M08 R3        CAUGHT (exit 2) -- save_snapshot() BEFORE load_snapshot()
+  M09 R3        CAUGHT (exit 2) -- dropped change notification
+  M10 R4        CAUGHT (exit 2) -- auto-executed approval (execution_state != NOT_EXECUTED)
+  M11 R4        CAUGHT (exit 2) -- bypassable decider string 'hermes-agent'
+  M12 R4        CAUGHT (exit 2) -- non-human-decider denylist emptied
+
+[6] catch summary: 12/12 caught, 0 survivors, 0 harness errors

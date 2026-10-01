@@ -1,0 +1,336 @@
+test_five_concurrent_runs_yield_one_winner (test_r1_gate.ConcurrencyTests.test_five_concurrent_runs_yield_one_winner) ... ok
+test_day_key_follows_the_configured_timezone (test_r1_gate.DayKeyTests.test_day_key_follows_the_configured_timezone) ... ok
+test_local_day_differs_from_utc_day_near_midnight (test_r1_gate.DayKeyTests.test_local_day_differs_from_utc_day_near_midnight) ... ok
+test_timezone_change_is_reported_as_degraded (test_r1_gate.DayKeyTests.test_timezone_change_is_reported_as_degraded) ... ok
+test_second_run_skips_with_no_side_effects (test_r1_gate.DoubleRunTests.test_second_run_skips_with_no_side_effects) ... ok
+test_missed_days_are_reported_and_not_backfilled (test_r1_gate.MissedDayTests.test_missed_days_are_reported_and_not_backfilled) ... ok
+test_no_missed_day_for_the_pre_history_period (test_r1_gate.MissedDayTests.test_no_missed_day_for_the_pre_history_period) ... ok
+test_entry_point_only_ever_sends_reads (test_r2_readonly.ReadOnlyIntegrationTests.test_entry_point_only_ever_sends_reads) ... ok
+test_missing_field_in_the_payload_is_a_read_failure (test_r2_readonly.ReadOnlyIntegrationTests.test_missing_field_in_the_payload_is_a_read_failure) ... ok
+test_read_failure_is_loud_consumes_the_day_and_never_retries (test_r2_readonly.ReadOnlyIntegrationTests.test_read_failure_is_loud_consumes_the_day_and_never_retries) ... ok
+test_missing_target_is_not_a_pass (test_r2_readonly.StaticCheckerTests.test_missing_target_is_not_a_pass) ... [verify_readonly] TARGET MISSING: C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-vo9jy__x\does-not-exist (nothing to scan - NOT a pass)
+[verify_readonly] FAIL - target path did not exist; absence of evidence is not evidence of a read-only routine.
+ok
+test_no_provider_host_is_hardcoded_anywhere (test_r2_readonly.StaticCheckerTests.test_no_provider_host_is_hardcoded_anywhere) ... ok
+test_python_port_agrees_with_the_shell_checker (test_r2_readonly.StaticCheckerTests.test_python_port_agrees_with_the_shell_checker) ...   FORBIDDEN [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\injected_probe.py:2: requests.post('http://localhost:3001/api/v1/status/claim', json={})
+  FORBIDDEN [write-call-shape] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\injected_probe.py:2: requests.post('http://localhost:3001/api/v1/status/claim', json={})
+  FORBIDDEN [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\injected_probe.py:2: requests.post('http://localhost:3001/api/v1/status/claim', json={})
+  FORBIDDEN [write-endpoint-path] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\injected_probe.py:2: requests.post('http://localhost:3001/api/v1/status/claim', json={})
+[verify_readonly] FAIL - R2 violation: an earning/write action path exists in a read-only routine.
+ok
+test_shipped_shell_checker_fails_on_a_planted_violation (test_r2_readonly.StaticCheckerTests.test_shipped_shell_checker_fails_on_a_planted_violation) ... ok
+test_shipped_shell_checker_passes_on_the_routine_tree (test_r2_readonly.StaticCheckerTests.test_shipped_shell_checker_passes_on_the_routine_tree) ... ok
+test_unresolved_provider_contract_keeps_its_literal (test_r2_readonly.StaticCheckerTests.test_unresolved_provider_contract_keeps_its_literal) ... ok
+test_allowlisted_get_is_allowed_through (test_r2_readonly.TransportGuardTests.test_allowlisted_get_is_allowed_through) ... ok
+test_audit_guard_refuses_a_non_loopback_connect (test_r2_readonly.TransportGuardTests.test_audit_guard_refuses_a_non_loopback_connect) ... ok
+test_bare_get_reaches_the_loopback_stub (test_r2_readonly.TransportGuardTests.test_bare_get_reaches_the_loopback_stub) ... ok
+test_body_carrying_get_is_refused (test_r2_readonly.TransportGuardTests.test_body_carrying_get_is_refused) ... ok
+test_every_non_read_method_is_refused (test_r2_readonly.TransportGuardTests.test_every_non_read_method_is_refused) ... ok
+test_non_allowlisted_path_is_refused (test_r2_readonly.TransportGuardTests.test_non_allowlisted_path_is_refused) ... ok
+test_non_loopback_host_is_refused (test_r2_readonly.TransportGuardTests.test_non_loopback_host_is_refused) ... ok
+test_write_method_is_refused_before_any_socket_opens (test_r2_readonly.TransportGuardTests.test_write_method_is_refused_before_any_socket_opens) ... ok
+test_balance_movement_has_its_own_type (test_r3_changedetect.ChangeDetectionTests.test_balance_movement_has_its_own_type) ... ok
+test_currency_change_is_degraded_not_a_change (test_r3_changedetect.ChangeDetectionTests.test_currency_change_is_degraded_not_a_change) ... ok
+test_earnings_change_notifies_exactly_once (test_r3_changedetect.ChangeDetectionTests.test_earnings_change_notifies_exactly_once) ... ok
+test_missing_field_is_a_metric_error_not_a_zero (test_r3_changedetect.ChangeDetectionTests.test_missing_field_is_a_metric_error_not_a_zero) ... ok
+test_no_change_day_is_log_only (test_r3_changedetect.ChangeDetectionTests.test_no_change_day_is_log_only) ... ok
+test_one_cent_is_a_change_because_cents_are_exact (test_r3_changedetect.ChangeDetectionTests.test_one_cent_is_a_change_because_cents_are_exact) ... ok
+test_pending_movement_counts_as_an_earnings_change (test_r3_changedetect.ChangeDetectionTests.test_pending_movement_counts_as_an_earnings_change) ... ok
+test_prior_without_data_is_a_baseline_not_a_change (test_r3_changedetect.ChangeDetectionTests.test_prior_without_data_is_a_baseline_not_a_change) ... ok
+test_same_key_is_never_notified_twice_and_the_key_includes_the_day (test_r3_changedetect.ChangeDetectionTests.test_same_key_is_never_notified_twice_and_the_key_includes_the_day) ... ok
+test_snapshot_is_immutable_once_written (test_r3_changedetect.ChangeDetectionTests.test_snapshot_is_immutable_once_written) ... ok
+test_status_change_notifies_exactly_once_and_uses_its_own_key (test_r3_changedetect.ChangeDetectionTests.test_status_change_notifies_exactly_once_and_uses_its_own_key) ... ok
+test_whole_currency_and_cents_aliases_both_work (test_r3_changedetect.ChangeDetectionTests.test_whole_currency_and_cents_aliases_both_work) ... ok
+test_past_expiry_plus_approved_status_executes_nothing (test_r4_approval.ExpiredApprovalTests.test_past_expiry_plus_approved_status_executes_nothing) ... ok
+test_a_machine_may_not_sign_a_decision (test_r4_approval.HumanDecisionTests.test_a_machine_may_not_sign_a_decision) ... ok
+test_cli_refuses_a_machine_identity_with_exit_code_4 (test_r4_approval.HumanDecisionTests.test_cli_refuses_a_machine_identity_with_exit_code_4) ... ok
+test_decide_records_the_decision_and_keeps_the_freeze (test_r4_approval.HumanDecisionTests.test_decide_records_the_decision_and_keeps_the_freeze) ... ok
+test_documented_cli_invocation_works_and_reject_is_recorded (test_r4_approval.HumanDecisionTests.test_documented_cli_invocation_works_and_reject_is_recorded) ... ok
+test_pending_item_survives_a_ninety_day_clock_advance (test_r4_approval.PendingForeverTests.test_pending_item_survives_a_ninety_day_clock_advance) ... RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-01 consecutive_missed_days=0 reminders=0
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=None consecutive_missed_days=0 reminders=0
+[verify_readonly] scanning: C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-vo9jy__x\does-not-exist
+[verify_readonly] forbidden=0 exempt=0 missing_targets=1
+[verify_readonly] scanning: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash
+  EXEMPT    [earning-action] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\approval_queue.py:52
+  EXEMPT    [write-call-shape] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\readonly_client.py:34
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:42
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:46
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:47
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:48
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:49
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:51
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:59
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:60
+  EXEMPT    [earning-action] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:67
+  EXEMPT    [earning-action] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:68
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:75
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:76
+  EXEMPT    [write-endpoint-path] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:76
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:77
+  EXEMPT    [write-endpoint-path] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:77
+  EXEMPT    [account-mutation] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\verify_readonly.py:84
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:27
+  EXEMPT    [write-call-shape] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:27
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:27
+  EXEMPT    [write-endpoint-path] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:27
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:148
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:150
+  EXEMPT    [http-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:156
+  EXEMPT    [earning-verb] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:166
+  EXEMPT    [write-endpoint-path] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r2_readonly.py:166
+  EXEMPT    [write-call-shape] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\daybudget\remedy\tree\monitoring\freecash\tests\test_r4_approval.py:283
+[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+[verify_readonly] PASS - no unexempted write/earning token found.
+[verify_readonly] scanning: C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python
+  EXEMPT    [earning-action] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\approval_queue.py:52
+  EXEMPT    [write-call-shape] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\readonly_client.py:34
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:42
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:46
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:47
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:48
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:49
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:51
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:59
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:60
+  EXEMPT    [earning-action] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:67
+  EXEMPT    [earning-action] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:68
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:75
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:76
+  EXEMPT    [write-endpoint-path] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:76
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:77
+  EXEMPT    [write-endpoint-path] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:77
+  EXEMPT    [account-mutation] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\verify_readonly.py:84
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:27
+  EXEMPT    [write-call-shape] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:27
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:27
+  EXEMPT    [write-endpoint-path] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:27
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:148
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:150
+  EXEMPT    [http-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:156
+  EXEMPT    [earning-verb] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:166
+  EXEMPT    [write-endpoint-path] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r2_readonly.py:166
+  EXEMPT    [write-call-shape] C:\Users\cd-pr\AppData\Local\Temp\freecash-scratch-htrqzo2a\scratch-python\tests\test_r4_approval.py:283
+[verify_readonly] forbidden=4 exempt=28 missing_targets=0
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=BALANCE_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=INITIAL_BASELINE
+11111111-2222-3333-4444-555555555555  APPROVED 2025-12-01  expires_at_utc=2025-12-08T09:00:00Z  execution_state=NOT_EXECUTED
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+RUN_NO_DATA 2026-10-03 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-03 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-04 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-04 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-05 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-05 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-06 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-06 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-07 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-07 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-08 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-08 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-09 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-10-09 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-10 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-10 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-11 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-11 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-12 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-12 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-13 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-13 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-14 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-14 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-15 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-15 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-16 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-10-16 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-17 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-17 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-18 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-18 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-19 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-19 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-20 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-20 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-21 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-22 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-22 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-23 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-10-23 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-24 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-24 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-25 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-25 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-26 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-26 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-27 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-27 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-28 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-28 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-29 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-29 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-30 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-10-30 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-10-31 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-10-31 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-01 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-02 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-02 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-03 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-03 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-04 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-04 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-05 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-05 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-06 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-11-06 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-07 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-07 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-08 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-08 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-09 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-09 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-10 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-10 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+ok
+test_no_module_treats_an_approved_status_as_a_trigger (test_r4_approval.StaticFreezeTests.test_no_module_treats_an_approved_status_as_a_trigger) ... ok
+test_only_the_readonly_client_may_reach_a_socket_library (test_r4_approval.StaticFreezeTests.test_only_the_readonly_client_may_reach_a_socket_library) ... ok
+test_delivery_failure_is_bounded_and_keeps_the_full_message (test_r5_smoke.DeliveryFailureTests.test_delivery_failure_is_bounded_and_keeps_the_full_message) ... ok
+test_first_run_with_operator_data_is_a_silent_baseline (test_r5_smoke.FreshInstallTests.test_first_run_with_operator_data_is_a_silent_baseline) ... ok
+test_first_run_without_data_spends_no_day_and_reports_no_data (test_r5_smoke.FreshInstallTests.test_first_run_without_data_spends_no_day_and_reports_no_data)
+A fresh install with no reading must not spend the day key. ... ok
+test_force_recheck_is_refused_and_recorded (test_r5_smoke.RefusalTests.test_force_recheck_is_refused_and_recorded) ... ok
+test_print_state_is_read_only (test_r5_smoke.RefusalTests.test_print_state_is_read_only) ... ok
+test_unknown_read_source_is_rejected (test_r5_smoke.RefusalTests.test_unknown_read_source_is_rejected) ... ok
+test_healthy_day_raises_no_alarm (test_r5_smoke.WatchdogTests.test_healthy_day_raises_no_alarm) ... ok
+test_missing_check_raises_one_alarm_and_changes_no_state (test_r5_smoke.WatchdogTests.test_missing_check_raises_one_alarm_and_changes_no_state) ... RUN_NO_DATA 2026-11-11 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-11 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-12 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-12 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-13 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-11-13 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-14 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-14 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-15 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-15 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-16 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-16 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-17 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-17 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-18 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-18 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-19 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-19 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-20 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-11-20 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-21 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-22 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-22 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-23 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-23 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-24 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-24 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-25 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-25 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-26 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-26 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-27 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-11-27 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-28 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-28 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-29 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-29 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-11-30 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-11-30 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-01 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-02 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-02 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-03 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-03 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-04 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-12-04 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-05 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-05 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-06 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-06 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-07 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-07 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+ok
+
+----------------------------------------------------------------------
+Ran 52 tests in 11.085s
+
+OK
+RUN_NO_DATA 2026-12-08 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-08 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-09 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-09 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-10 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-10 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-11 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-12-11 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-12 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-12 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-13 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-13 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-14 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-14 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-15 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-15 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-16 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-16 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-17 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-17 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-18 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-12-18 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-19 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-19 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-20 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-20 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-21 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-22 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-22 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-23 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-23 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-24 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-24 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-25 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=1
+WATCHDOG_MISSED_DAY 2026-12-25 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-26 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-26 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-27 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-27 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-28 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-28 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-29 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-29 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_NO_DATA 2026-12-30 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-10-02 consecutive_missed_days=0 reminders=0
+WATCHDOG_MISSED_DAY 2026-12-30 last_attempt_day=2026-10-02 last_outcome=EARNINGS_CHANGED coverage=NOTIFIED
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=0 approvals=0 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=None consecutive_missed_days=0 reminders=0
+RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=None consecutive_missed_days=0 reminders=0
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=INITIAL_BASELINE
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+run_all: tests=52 failures=0 errors=0 skipped=0

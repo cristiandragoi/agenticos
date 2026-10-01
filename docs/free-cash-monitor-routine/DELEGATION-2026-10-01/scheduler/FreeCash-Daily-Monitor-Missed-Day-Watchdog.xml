@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml : Task B definition
+  (late-day missed-run watchdog: same-evening alarm if today's status read
+  never happened).
+
+  STATUS: INERT TEMPLATE. This file registers nothing. It becomes a scheduled
+  task only when a human runs the approval command in SCHEDULER-SPEC.md.
+  Rule R4: human approval before any external action.
+
+  NO SECRETS. This file contains no credential, token, cookie or password.
+
+  This is a SEPARATE task on purpose. The watchdog is the R1 second detector:
+  the in-band detector in gate.py notices a missed day only at the NEXT run,
+  which is up to 24 hours late. This job notices it the same evening.
+
+  It cannot become a second run: it opens no socket, never writes the ledger,
+  never creates or clears a day lock, never writes a snapshot, never touches the
+  approval queue, never runs the status check, and always exits 0.
+
+  Element order mirrors a real task exported from THIS host
+  (`schtasks /Query /TN "cua-driver-serve" /XML`).
+
+  StartBoundary 2026-10-02T21:30:00 => the day AFTER the delegation date, same
+  catch-up reasoning as FreeCash-Daily-Monitor.xml. 21:30 Europe/Berlin is late
+  enough that a 09:00 run would have completed, yet early enough that a missed
+  run is still actionable the same evening.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash monitor watchdog: alarms the same evening if the day's read-only status check never ran. Separate task from FreeCash-Daily-Monitor; opens no socket, writes no ledger, creates no day lock, exits 0. Contains no secret.</Description>
+    <URI>\FreeCash-Daily-Monitor-Missed-Day-Watchdog</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T21:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01\scheduler\freecash-watchdog.cmd"</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

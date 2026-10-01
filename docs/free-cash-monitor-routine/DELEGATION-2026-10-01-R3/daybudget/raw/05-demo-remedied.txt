@@ -1,0 +1,12 @@
+### DEMO: data-less run vs remedied copy
+### COMMAND: FREECASH_ROUTINE_DIR=D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/daybudget/repro/tree/monitoring/freecash "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/daybudget/failing-test-first/defect_demo.py
+BEFORE  last_success_day=2026-09-30 consecutive_missed_days=9
+BEFORE  day_locks=[] snapshots=[]
+run_daily_check exit=0
+RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=RELEASED(True) last_success_day=2026-09-30 consecutive_missed_days=9
+AFTER   last_success_day=2026-09-30 consecutive_missed_days=9 last_outcome=MONITOR_DEGRADED
+AFTER   day_locks=[] snapshots=[]
+watchdog covered=False
+watchdog says: WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=2026-10-01 last_outcome=MONITOR_DEGRADED coverage=NOTIFIED
+MISSED_DAY alerts=1
+### exit=0

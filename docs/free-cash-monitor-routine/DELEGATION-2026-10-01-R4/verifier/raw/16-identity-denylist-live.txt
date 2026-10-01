@@ -1,0 +1,9 @@
+{
+ "hermes-agent": "ACCEPTED status=APPROVED execution_state=NOT_EXECUTED",
+ "assistant": "ACCEPTED status=APPROVED execution_state=NOT_EXECUTED",
+ "claude": "ACCEPTED status=APPROVED execution_state=NOT_EXECUTED",
+ "system": "REFUSED (refused: 'system' is not a human identity; this routine may only record a decision made by a person)",
+ "routine": "REFUSED (refused: 'routine' is not a human identity; this routine may only record a decision made by a person)",
+ "Alice Operator": "ACCEPTED status=APPROVED execution_state=NOT_EXECUTED"
+}
+exit=0

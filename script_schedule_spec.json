@@ -1,0 +1,27 @@
+{
+  "workflow_name": "FreeCashDailyMonitor",
+  "schedule_trigger_spec": {
+    "trigger_type": "windows_task_scheduler",
+    "task_name": "FreeCashDailyCheck",
+    "cron_equivalent": "0 8 * * *",
+    "schedule": {
+      "start_time": "2026-01-01T08:00:00",
+      "repeat_interval": "Day",
+      "days_interval": 1,
+      "end_boundary": "30024-12-31T23:59:59.9999999"
+    },
+    "action": {
+      "executable": "python.exe",
+      "arguments": "D:/AgenticOS/scripts/finance_monitor.py",
+      "working_directory": "D:/AgenticOS"
+    },
+    "settings": {
+      "start_when_available": true,
+      "allow_start_if_on_batteries": true,
+      "execution_time_limit_hours": 1,
+      "run_level": "Highest",
+      "logon_type": "Interactive"
+    },
+    "command": "\"python\" \"D:/AgenticOS/scripts/finance_monitor.py\""
+  }
+}

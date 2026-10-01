@@ -1,0 +1,5 @@
+rule=4
+why=R4: a queued approval executes with no human (--by is no longer required)
+edits=2
+  approval_queue.py: 1 change(s)
+  approval_queue.py: 1 change(s)

@@ -1,0 +1,21 @@
+### HAZARD: does the no-tzdata fallback produce a DIFFERENT day key than the configured zone?
+### Demonstrate with a configured zone that is NOT the machine's local zone.
+### machine local zone = Mitteleuropäische Sommerzeit (+0200). Configured = America/New_York.
+
+--- (A) tzdata interpreter, FREECASH_TZ=America/New_York : honours the configured zone ---
+timezone_report: {'configured': 'America/New_York', 'kind': 'zoneinfo', 'available': True, 'offset_now': '-0400'}
+  day_key(2026-07-01T03:30:00Z UTC) = 2026-06-30
+  day_key(2026-01-15T04:30:00Z UTC) = 2026-01-14
+  venv_exit=0
+
+--- (B) py -3 (NO tzdata), FREECASH_TZ=America/New_York : silently substitutes the machine zone ---
+  py3_exit=0
+timezone_report: {'configured': 'America/New_York', 'kind': 'system-local', 'available': False, 'offset_now': '+0200'}
+  day_key(2026-07-01T03:30:00Z UTC) = 2026-07-01
+  day_key(2026-01-15T04:30:00Z UTC) = 2026-01-15
+  stderr: (bytes=0)
+
+### READING: with tzdata the day flips at 04:00/05:00 UTC (New York); without tzdata
+### the same instants are bucketed by the machine's +0200 offset, i.e. a DIFFERENT
+### calendar day for the 03:30Z instant. A wrong interpreter therefore silently
+### moves the R1 day boundary. It does not raise: kind='system-local'.

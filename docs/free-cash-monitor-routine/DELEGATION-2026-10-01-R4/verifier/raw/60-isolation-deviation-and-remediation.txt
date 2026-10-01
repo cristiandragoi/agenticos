@@ -1,0 +1,33 @@
+=== 60-isolation-deviation-and-remediation.txt ===
+date: 2026-10-01
+
+DEVIATION (self-reported): a manual py_compile of the IN-PLACE originals -- the run
+recorded in raw/10-pycompile.txt -- wrote 8 CPython-3.11 bytecode-cache files under the
+forbidden path monitoring/freecash/__pycache__/ .  No .py source was written anywhere.
+
+File-set delta introduced by this stream (all mtime 2026-10-01 11:55:38), now DELETED:
+  __pycache__/approval_queue.cpython-311.pyc    14944 bytes
+  __pycache__/changedetect.cpython-311.pyc      16080 bytes
+  __pycache__/gate.cpython-311.pyc              11944 bytes
+  __pycache__/notify.cpython-311.pyc            20537 bytes
+  __pycache__/operator_state.cpython-311.pyc     6300 bytes
+  __pycache__/paths.cpython-311.pyc             11117 bytes
+  __pycache__/readonly_client.cpython-311.pyc   12411 bytes
+  __pycache__/run_daily_check.cpython-311.pyc   23272 bytes
+
+NOT changed by this stream:
+  - every *.py source under monitoring/freecash
+      ($ find . -name '*.py' -newermt '2026-10-01 00:00'  => empty)
+  - monitoring/freecash/tests/**
+  - data/freecash-monitor/** (sha256 identical before/after; see 01-/99-isolation)
+
+REMEDIATION: the 8 files above were deleted, restoring __pycache__ to its pre-session
+file set.  Post-remediation listing is exactly the 12 pre-existing entries:
+  approval_queue/changedetect/gate/notify/operator_state/paths/readonly_client/
+  run_daily_check .cpython-314.pyc  (8, dated 2026-09-18..20)
+  verify_readonly.cpython-311.pyc, verify_readonly.cpython-314.pyc,
+  watchdog.cpython-311.pyc,      watchdog.cpython-314.pyc
+
+The delivered rule_gate.py and mutation_harness.py do NOT do this: they compile only
+themselves and the BASELINE copy under this stream's raw/ directory.  The in-place
+compile was an extra manual step and is disclosed here rather than hidden.

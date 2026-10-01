@@ -1,0 +1,80 @@
+EVIDENCE-04 -- SINK INVENTORY: where can an alert land today? (run 2026-10-01T07:10:46Z)
+
+### CMD: grep -nE "import (smtplib|requests|urllib|socket|http)" monitoring/freecash/notify.py
+22:import os
+23:import subprocess
+24:import time
+25:import uuid
+27:import paths
+exit=0
+
+### CMD: grep -rn "smtplib" monitoring/freecash/
+exit=1 (1 = NO smtplib anywhere: the SMTP channel claimed in the docstring does not exist)
+
+### CMD: grep -rniE "telegram|slack|discord|webhook|mail\(|sendmail|chat" monitoring/freecash/*.py
+monitoring/freecash/notify.py:8:    SMTP                  opt-in and OFF by default; not wired to any credential here
+exit=0 (only the docstring mention on notify.py:8)
+
+### CMD: grep -n "def _stub_send\|def _toast_send\|def get_sender" monitoring/freecash/notify.py
+49:_sender_override = None
+151:def _stub_send(message: str) -> None:
+167:def _toast_send(message: str) -> None:
+197:    global _sender_override
+198:    _sender_override = sender
+201:def get_sender():
+202:    if _sender_override is not None:
+203:        return _sender_override
+204:    if os.environ.get("FREECASH_TOAST_STUB") == "1":
+
+### CMD: LIVE sender resolution (the actual object used for dispatch)
+FREECASH_TOAST_STUB unset -> get_sender() = _toast_send
+FREECASH_TOAST_STUB=1     -> get_sender() = _stub_send
+delivery labels: STUB_OK / default (toast): TOAST_OK
+exit=0
+
+### CMD: which powershell / version  (the OS-level transport the toast sink needs)
+/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell
+command -v exit=0
+5.1.26100.9444
+exit=0
+
+### CMD: LIVE toast-sink availability probe WITHOUT showing a balloon
+TOAST_SINK_CONSTRUCTIBLE
+exit=0
+
+### CMD: production state -- which sink artifacts exist on disk?
+data/freecash-monitor/alerts/:
+total 12
+drwxr-xr-x 1 cd-pr 197609    0 Sep 20 21:08 .
+drwxr-xr-x 1 cd-pr 197609    0 Sep 20 21:08 ..
+-rw-r--r-- 1 cd-pr 197609 8956 Okt  1 08:53 alerts.jsonl
+
+data/freecash-monitor/logs/:
+total 2
+drwxr-xr-x 1 cd-pr 197609   0 Sep 30 21:02 .
+drwxr-xr-x 1 cd-pr 197609   0 Sep 20 21:08 ..
+-rw-r--r-- 1 cd-pr 197609 230 Sep 30 21:02 task-a.log
+-rw-r--r-- 1 cd-pr 197609 136 Sep 30 21:02 task-b-watchdog.log
+toast-stub.log present in production? (its absence == the REAL toast path was used)
+ABSENT
+
+### CMD: delivery labels recorded by the routine in production notified-keys.json
+Counter({'TOAST_OK': 10})
+
+### CMD: is any chat transport available to wire? (hermes CLI on PATH)
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/hermes
+/mingw64/bin/curl
+
+### CMD: the two lines that define the toast transport (notify.py)
+179:        "Start-Sleep -Seconds 6;"
+184:    completed = subprocess.run(
+185:        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+188:        timeout=90,
+
+=== SINK VERDICT ===
+1. alerts/alerts.jsonl  -- ALWAYS ON, cannot be disabled (paths.append_jsonl, notify.alert line 78)
+2. Windows toast        -- DEFAULT sender (_toast_send via powershell), cap 2 attempts
+3. logs/toast-stub.log  -- OFFLINE STUB only, enabled by FREECASH_TOAST_STUB=1, label STUB_OK
+4. SMTP / email         -- NOT WIRED (no import, no code path; docstring claim is unbacked)
+5. chat / webhook       -- NOT WIRED (no requests, no urllib, no socket outside readonly_client._transport)
+6. no other sink exists in the routine.

@@ -1,0 +1,43 @@
+== verification pass, utc 2026-10-01T07:38:35Z
+
+hermes verify --detect-only --json .   (runs NOTHING; shows what a full hermes verify would execute)
+{"source":"manifest","recipe":{"name":"Vite","kind":"vite","bootstrap":["npm install"],"build":["npm run build"],"test":["npm run test","npm run lint"],"start":"npm run dev","port":5173,"readinessPath":"/"}}
+  -> bootstrap npm install + npm run build (tsc -b, vite build) + npm run dev server:
+     writes node_modules/ and build output OUTSIDE this stream's permitted directory.
+
+== npm run test (vitest run src/) -- the repo's own JS suite ==
+exit 1
+Test Files  14 failed | 67 passed (81)
+Tests       49 failed | 645 passed (694)
+distinct failing files (all under src/__tests__/):
+src/__tests__/ApiClientHelper.test.ts
+src/__tests__/AppShell.test.tsx
+src/__tests__/CodeX.test.tsx
+src/__tests__/CodeXStudio.test.tsx
+src/__tests__/JarvisConversationOwnership.test.tsx
+src/__tests__/JarvisLayout.test.tsx
+src/__tests__/JarvisNavigation.test.tsx
+src/__tests__/JarvisNavigationEvents.test.tsx
+src/__tests__/JarvisOrb.test.tsx
+src/__tests__/jarvisPersistentRuntime.test.tsx
+src/__tests__/JarvisStudioLayout.test.tsx
+src/__tests__/MissionControlConversation.test.tsx
+src/__tests__/voicePlaybackMute.test.tsx
+src/__tests__/voiceVadResilience.test.tsx
+references to this delivery in the suite output: 0
+  -> pre-existing, unrelated to this docs/Python deliverable (vitest collects src/ only).
+
+== targeted checks on exactly the changed paths ==
+py_compile: exit 0
+human-deciders.example.json: valid JSON, exit 0
+run-identity-proof.sh: bash -n exit 0
+repro-live-denylist-defect.sh: bash -n exit 0
+
+== the stream's acceptance entry point ==
+#   accept  cases : 3 (3 passed)
+#   throwaway root: C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-31096
+#   production root D:/AgenticOS/data/freecash-monitor was never referenced.
+# RESUMEN: cases=14 failures=0 -> ALL PASS
+################################################################################
+TEST_EXIT=0
+run-identity-proof exit=0

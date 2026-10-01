@@ -1,0 +1,48 @@
+### SENDER 1 -- alerts/alerts.jsonl append (always on, no network, no credential)
+code: paths.append_jsonl -> os.open(str(p), O_APPEND|O_CREAT|O_WRONLY)
+evidence: every run above appended; e.g. evidence 01 produced the file
+
+### SENDER 2 -- notify._stub_send (FREECASH_TOAST_STUB=1), via notify.dispatch
+delivery_label = STUB_OK
+logs/toast-stub.log:
+[STUB TOAST 2026-10-01T07:18:21Z] R2 SENDER TEST (stub)
+
+### SENDER 3 -- notify._toast_send (REAL Windows balloon), via notify.dispatch
+delivery_label = TOAST_OK
+recorded delivery:
+"delivery": "TOAST_OK"
+alerts.jsonl exists (only written on FAILURE)? no -> send did not fail
+
+### SENDER 4 -- SMTP
+/d/AgenticOS/monitoring/freecash/notify.py:8:    SMTP                  opt-in and OFF by default; not wired to any credential here
+-> one docstring line only; notify.py defines no SMTP function (def list below)
+52:def default_severity(event_type: str) -> str:
+63:def alert(event_type, day_key, message, severity=None, dedupe_key=None, observed=None) -> dict:
+82:def zero_notifications_message(prior_day=None, source_note=None) -> str:
+91:def emit_no_change(day, prior_day=None, observed=None, source_note=None, sender=None) -> dict:
+102:def emit_initial_baseline(day, observed=None, source_note=None) -> dict:
+116:def load_notified_keys() -> dict:
+123:def key_seen(key: str) -> bool:
+127:def key_delivery(key: str):
+132:def record_notified_key(key: str, delivery: str) -> dict:
+151:def _stub_send(message: str) -> None:
+167:def _toast_send(message: str) -> None:
+195:def set_sender(sender) -> None:
+201:def get_sender():
+209:def retry_sleep_seconds() -> float:
+220:def dispatch(message, dedupe_key, day_key, event_type, sender=None, sleep_seconds=None) -> str:
+264:def notify_change(day, change, message, dedupe_key, sender=None, sleep_seconds=None) -> str:
+308:def _source_line(source_note=None):
+313:def _action_line():
+317:def _detail_line(dedupe_key):
+321:def message_for_change(day, change, current, prior, source_note=None) -> str:
+
+### SENDER 5 -- chat platform (telegram/discord/signal/slack/whatsapp)
+not implemented in notify.py; reachable only via a Hermes cron --deliver target.
+platforms configured in config.yaml:
+   ['api_server']
+channel_directory.json:
+{
+  "updated_at": "2026-10-01T09:17:16.343603",
+  "platforms": {}
+}

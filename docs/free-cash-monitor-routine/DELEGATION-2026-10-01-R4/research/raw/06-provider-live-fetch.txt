@@ -1,0 +1,148 @@
+S2 RESEARCH — RAW LIVE-FETCH EVIDENCE FOR PROVIDER CLAIMS
+Fetched this pass: 2026-10-01 ~11:41–11:47 (Europe/Berlin), via Hermes web tool (web_search / web_extract).
+RULE APPLIED: no endpoint schema is asserted here unless a live source was fetched and is quoted below.
+Where a source is unreachable/undocumented, the claim is marked BLOCKED/UNVERIFIED.
+
+================================================================================
+[1] freecash.com — Terms of Service (the monitored consumer platform)
+URL fetched: https://freecash.com/en/policies/terms   (HTTP 200; page header "Last Updated: July 17, 2026")
+================================================================================
+Quoted verbatim from the fetched page:
+
+  ## 16. Use of the Website
+  1. "These Terms of Services permit you to use the Website for your personal,
+     non-commercial use only. ..."
+  2. "You must not:
+       ...
+       - To use macros, bots, scripts, or any other automation tools designed to
+         simulate or replicate human user activity, including but not limited to
+         automating clicks, movements, or tasks within offers or apps. Such
+         behavior is strictly prohibited, as it undermines the integrity of the
+         platform and results in unfair advantages over other users."
+
+  ## 17. Restrictions and Prohibited Uses  (heading; the clause sits under it)
+  2. "Additionally, you agree not to:
+       - Use any robot, spider or other automatic device, process or means to
+         access the Website for any purpose, including monitoring or copying any
+         of the material on the Website.
+       - Use any manual process to monitor or copy any of the material on the
+         Website, or for any other purpose not expressly authorized in these
+         Terms of Services, without our prior written consent.
+       - Use any device, software or routine that interferes with the proper
+         working of the Website."
+
+=> §17 forbids automated access "including monitoring"; §16 forbids automation
+   tools outright. A once-daily automated poll of freecash.com (session-cookie or
+   otherwise) is a Terms breach on its face.
+
+================================================================================
+[2] freecash.com — robots.txt (full file, fetched live)
+URL: https://freecash.com/robots.txt   (HTTP 200, text/plain)
+================================================================================
+  User-Agent: *
+  Allow: /
+  Allow: /r/*?worldcupbet=*
+  Disallow: /user/
+  Disallow: /myprofile
+  Disallow: /r/
+  Disallow: /_next/
+  Disallow: /_ipx/
+  Disallow: /offer/
+  Disallow: /fc-api/
+  Disallow: /scd-cgi/
+  Disallow: /w/
+  Disallow: /dev-playground/
+  Disallow: /*mailto:*
+
+  Sitemap: https://freecash.com/sitemap.xml
+================================================================================
+
+[3] freecash.com — developer/API portal
+URL fetched: https://freecash.com/en  (HTTP 200, the consumer marketing/landing page)
+Observed: sign-in / sign-up (Google, Facebook, Apple), "Cashout" page, offers/surveys
+marketing copy. NO developer, partner or API documentation link is published.
+Corroborating search: the only "freecash.com API" hit is an UNOFFICIAL, single-commit,
+0-star repo (github.com/garv7685 -> resolves to gravy7125/freecash) whose README is one
+line: "An API for the site freecash.com". No schema, no auth doc, no endpoint list.
+=> freecash.com publishes NO public/official read API. Claim = DOCUMENTED ABSENCE
+   (the vendor's own ToS posture + no developer surface), not an invented schema.
+
+================================================================================
+[4] HG.Cash — documented read-only balance API (B2B LATAM iGaming payment rail)
+URLs fetched: https://docs.hg.cash/openapi  (via search result, live)
+              https://docs.hg.cash/api-reference/accounts/get-user-accounts
+              https://docs.hg.cash/api-reference/accounts/get-account-balance
+              https://docs.hg.cash/countries/argentina/bank-transfers.md
+              https://hg.cash/   (vendor site)
+================================================================================
+Quoted / observed:
+  - Base URL: https://hg.cash/api/v1   (dev: http://dev.hg.cash/api/v1)
+  - Auth: "Bearer Token authentication ... Authorization: Bearer cash_your_token_here";
+    token format "cash_<64-char-hex>"; "Generate your API token in the account settings page".
+  - Read endpoints (documented):
+      GET /accounts                     -> accounts with balance, pendingFees, netBalance,
+                                           status, currency (+ id, name, number, alias,
+                                           platform{id,name}, company{id,name}), count
+      GET /account/{id}/balance         -> id, balance, currency, pendingFees, netBalance,
+                                           status enum{Operativa|Bloqueada|Cerrada}
+        quoted description: "Returns the balance, pending fees, net available balance,
+        currency, and account status for the authenticated user's account by ID."
+      Reference data: GET /api/v1/transaction-statuses, GET /api/v1/transaction-types
+        ("no auth required")
+  - Write endpoints (must never be used by the routine): POST /transactions (cash-out),
+    POST /checkouts, POST /alias-lookup.
+  - Field mapping to the routine's four figures:
+      account_status        <- status          (Operativa|Bloqueada|Cerrada)  YES
+      balance_cents         <- balance          (decimal; x100)               YES
+      pending_cents         <- pendingFees      (decimal; x100)               YES
+      earnings_total_cents  <- NOT PROVIDED by this API                       NO
+  - Access gate: KYC/B2B onboarding ("< 48h Onboarding", iGaming operators);
+    no credentials in the repo.
+=> Verdict: a genuine documented read-only balance API EXISTS, but (i) it does not
+   expose a lifetime-earnings field, (ii) it belongs to a LATAM iGaming payout rail,
+   and nothing in the repo ties the monitored account to HG.Cash.
+
+================================================================================
+[5] Cashfree Payouts — documented read API, but the token is POST-minted
+URLs fetched: https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance
+              https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance-v12
+              https://www.cashfree.com/docs/api-reference/payouts/v1/authorize
+              (via search: .../payouts/v2/authorize, .../payouts/v1/getting-started-with-payouts-apis)
+================================================================================
+Quoted / observed:
+  - Base URL: https://payout-api.cashfree.com  (sandbox: https://payout-gamma.cashfree.com)
+  - Read endpoint: GET /payout/v1/getBalance  (and /payout/v1.2/getBalance, +optional
+    paymentInstrumentId). Description verbatim: "Use this API to get the ledger balance
+    and available balance of your account. Available balance is ledger balance minus the
+    sum of all pending transfers ...". 200 example:
+      {"status":"SUCCESS","subCode":"200","message":"Ledger balance for the account",
+       "data":{"balance":"214735.50","availableBalance":"173980.50"}}
+    Required headers: Authorization (Bearer auth token) and Content-Type.
+  - TOKEN IS MINTED BY A WRITE VERB: POST /payout/v1/authorize
+      description: "Use this API to authenticate with the Cashfree system and obtain the
+      authorization bearer token. All other API calls must have this token ... The
+      generated token is valid for 6 minutes."
+      Required headers: X-Client-Id, X-Client-Secret (+ optional X-Cf-Signature).
+  - Fields: balance + availableBalance only. No account status; no lifetime earnings.
+  - Access gate: merchant signup + "Payouts API enabled" (documented 403 "APIs not enabled").
+=> Verdict: documented read endpoint exists, BUT every read needs a fresh POST-minted
+   token that expires in 6 minutes. Under operator rule R1 (no earning/write action
+   automatically) a daily run would either mint a token by POST each day (a write-class
+   call to the payment provider) or hold long-lived client secrets. Neither is read-only
+   in the verb sense. Also: no lifetime-earnings field; scope is merchant payout balance,
+   and nothing links it to the monitored account.
+
+================================================================================
+[6] BLOCKED / UNVERIFIED provider claims (named explicitly)
+================================================================================
+- BLOCKED: whether a provider read API exists for THE monitored account. No file in the
+  repo names the account's provider; `operator-state.json` is anonymised; no credential
+  exists in the repo (env grep for FREECASH_*/CASHFREE_*/HG_CASH* -> none observed this
+  pass). This is an operator fact, not a fetchable one.
+- BLOCKED: freecash.com's /fc-api/ internal namespace. robots-disallowed and undocumented;
+  it must not be probed (and was not).
+- BLOCKED: any authenticated provider call. R1 forbids it; no credential is available.
+- UNVERIFIED: HG.Cash rate limits (no rate-limit page in docs index).
+- UNVERIFIED: Cashfree Get Balance application-level liveness via an unauthenticated probe
+  (prior pass saw an edge-level 403 HTML page, not the documented application JSON).
+- UNVERIFIED: the two `provider_credentials` DB rows' labels/values (not read; off-limits).

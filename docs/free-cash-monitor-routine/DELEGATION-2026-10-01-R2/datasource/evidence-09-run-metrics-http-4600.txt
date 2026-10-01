@@ -1,0 +1,28 @@
+$ export FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2-metrics
+$ cd D:/AgenticOS/monitoring/freecash && FREECASH_TOAST_STUB=1 python run_daily_check.py --source metrics_http --base-url http://localhost:4600
+RUN_FAILED 2026-10-01 reason=ReadError: GET /api/v1/status/metrics returned HTTP 404
+exit=5
+
+$ cat snapshots/2026-10-01.json   # written BEFORE the read? no: RUN_FAILED returns before snapshot
+total 4
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 09:06 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 09:06 ..
+exit=0
+
+$ cat alerts/alerts.jsonl
+{"day_key": "2026-10-01", "dedupe_key": "b52ac04b90bc4074566b56709affe45a867beff8506847b9180e3ef4771a601f", "event_id": "28b356e0-a518-47c0-aa2e-cbcf5c9a6444", "event_type": "RUN_FAILED", "message": "[FreeCash] RUN FAILED 2026-10-01\nReason:    ReadError: GET /api/v1/status/metrics returned HTTP 404\nDay lock:  CONSUMED (no automatic re-run today - R1)\nAttempts:  last_attempt_day=2026-10-01 last_success_day=None\nDetail:    alerts.jsonl dedupe=run:2026-10-01\nACTION:    No action taken. A second status read on the same day is not permitted by this routine (R1).", "observed": {"field": "read", "new_value": "ReadError: GET /api/v1/status/metrics returned HTTP 404", "old_value": "metrics_http", "prior_day_key": null}, "severity": "alert", "ts_utc": "2026-10-01T07:06:39Z"}
+exit=0
+
+$ cat state/last-run.json
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": null,
+  "last_attempt_at_utc": "2026-10-01T07:06:37Z",
+  "last_success_at_utc": null,
+  "last_outcome": "READ_FAILED",
+  "consecutive_missed_days": 0,
+  "timezone": "UTC",
+  "updated_at_utc": "2026-10-01T07:06:39Z"
+}
+exit=0

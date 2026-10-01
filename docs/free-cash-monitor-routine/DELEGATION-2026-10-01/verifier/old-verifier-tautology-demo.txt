@@ -1,0 +1,32 @@
+# shipped verifier (server/scripts/verify-freecash-rules.mjs) run against a copy of its target
+# with ONE injected line group: an unguarded automated cashout POST. Temp copy: C:\Users\cd-pr\AppData\Local/Temp/fc-verifier/demo1790839141
+$ node scripts/verify-freecash-rules.mjs
+[FREECASH RULE VERIFIER] Starting checks...
+
+[CHECK] Rule 1: No auto-earning actions...
+   Result: PASSED
+
+[CHECK] Rule 2: Once per day check...
+   Result: PASSED
+
+[CHECK] Rule 3: Notify on earnings/status changes...
+   Result: PASSED
+
+[CHECK] Rule 4: Human approval before external action...
+   Result: PASSED
+
+
+=== Rule Compliance Summary ===
+✓ Rule 1 (No auto earnings)     → PASSED
+✓ Rule 2 (Once daily check)      → PASSED
+✓ Rule 3 (Notify changes)        → PASSED
+✓ Rule 4 (Human approval queue)  → PASSED
+
+[OK] All 4 operational rules verified (4/4 passed)
+
+EXIT=0
+
+# rule-3 predicate evaluated directly on that same violating file:
+contains checkForChanges : true
+contains .log( anywhere  : true
+checkRule3 = !A || B      : true

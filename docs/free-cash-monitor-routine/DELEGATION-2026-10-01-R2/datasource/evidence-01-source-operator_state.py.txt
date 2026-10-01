@@ -1,0 +1,153 @@
+$ cd D:/AgenticOS/monitoring/freecash && nl -ba operator_state.py
+     1	"""operator_state.py -- read source B: the operator-entered daily figures file.
+     2	
+     3	Why this source exists (grounded, not invented): research
+     4	(``docs/free-cash-monitor-routine/PROVIDER-API-RESEARCH.md`` section 7) found that
+     5	no live read-only provider status/earnings source exists for the monitored
+     6	account, and that automated access to the consumer platform is prohibited by its
+     7	own terms.  The two acquisition paths that are both available today and
+     8	compliant are (a) the operator's own dashboard reading, typed once a day into a
+     9	local file, and (b) the local metrics substitute (W1/W2 in
+    10	:mod:`readonly_client`).
+    11	
+    12	This module reads (a).  It opens no socket, requests nothing, and holds no
+    13	credential.  Every snapshot built from it is marked ``degraded: true`` and its
+    14	source kind is ``operator_entered``, so a "no change" report can never be
+    15	mistaken for a provider-verified one.
+    16	
+    17	File format -- ``<data root>/state/operator-state.json``::
+    18	
+    19	    {
+    20	      "schema_version": 1,
+    21	      "kind": "operator_entered_daily_status",
+    22	      "note": "...",
+    23	      "records": [
+    24	        {"day_key": "2026-09-18",
+    25	         "entered_at_utc": "2026-09-18T06:40:00Z",
+    26	         "account_status": "ACTIVE",
+    27	         "earnings_total_cents": 1340,
+    28	         "balance_cents": 1340,
+    29	         "pending_cents": 0,
+    30	         "currency": "USD"}
+    31	      ],
+    32	      "template_record": {...}
+    33	    }
+    34	
+    35	One record per local calendar day, ``day_key`` in ``YYYY-MM-DD``.  Only the
+    36	record whose ``day_key`` equals today's operator-local day is used: a stale
+    37	record is never silently carried forward as if it were today's reading.
+    38	"""
+    39	
+    40	import json
+    41	import os
+    42	
+    43	import paths
+    44	
+    45	KIND = "operator_entered"
+    46	READ_OPS = []
+    47	
+    48	TEMPLATE_RECORD = {
+    49	    "day_key": "YYYY-MM-DD",
+    50	    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    51	    "account_status": "ACTIVE",
+    52	    "earnings_total_cents": 0,
+    53	    "balance_cents": 0,
+    54	    "pending_cents": 0,
+    55	    "currency": "USD",
+    56	}
+    57	
+    58	_RECORD_FIELDS = (
+    59	    "day_key",
+    60	    "entered_at_utc",
+    61	    "account_status",
+    62	    "earnings_total_cents",
+    63	    "balance_cents",
+    64	    "pending_cents",
+    65	    "currency",
+    66	)
+    67	
+    68	_HOW_TO = [
+    69	    "Open your own account dashboard in a browser and log in yourself.",
+    70	    "Note four figures: account status, total earnings, current balance, pending amount.",
+    71	    "Append one record to the records list with today's local date as day_key.",
+    72	    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them.",
+    73	]
+    74	
+    75	
+    76	def template_document() -> dict:
+    77	    return {
+    78	        "schema_version": paths.SCHEMA_VERSION,
+    79	        "kind": "operator_entered_daily_status",
+    80	        "note": (
+    81	            "Operator-entered daily status figures. This routine only reads this "
+    82	            "file; it never contacts the platform and never takes an action. "
+    83	            "Every snapshot built from it is marked degraded: true."
+    84	        ),
+    85	        "how_to": list(_HOW_TO),
+    86	        "records": [],
+    87	        "template_record": dict(TEMPLATE_RECORD),
+    88	    }
+    89	
+    90	
+    91	def ensure_template() -> bool:
+    92	    """Create the operator state file with an empty template if it is absent."""
+    93	    path = paths.operator_state_path()
+    94	    if path.exists():
+    95	        return False
+    96	    paths.write_json_atomic(path, template_document())
+    97	    return True
+    98	
+    99	
+   100	def load_document():
+   101	    return paths.read_json(paths.operator_state_path(), default=None)
+   102	
+   103	
+   104	def record_for_day(day, document=None):
+   105	    """Return the record whose day_key is exactly *day*, else None."""
+   106	    doc = document if document is not None else load_document()
+   107	    if not isinstance(doc, dict):
+   108	        return None
+   109	    records = doc.get("records")
+   110	    if not isinstance(records, list):
+   111	        return None
+   112	    match = None
+   113	    for entry in records:
+   114	        if isinstance(entry, dict) and entry.get("day_key") == day:
+   115	            match = entry
+   116	    return match
+   117	
+   118	
+   119	def read_source(day) -> dict:
+   120	    """Read today's operator-entered figures.  Never raises, never opens a socket.
+   121	
+   122	    Returns a dict with the same shape the other read source produces, so
+   123	    ``run_daily_check`` treats both sources identically.
+   124	    """
+   125	    ensure_template()
+   126	    document = load_document() or {}
+   127	    record = record_for_day(day, document)
+   128	    if record is None:
+   129	        return {
+   130	            "kind": KIND,
+   131	            "read_ops": list(READ_OPS),
+   132	            "data_available": False,
+   133	            "note": (
+   134	                "no operator-entered record for %s in %s"
+   135	                % (day, os.path.basename(str(paths.operator_state_path())))
+   136	            ),
+   137	            "payload": None,
+   138	            "raw_body": b"",
+   139	        }
+   140	    payload = {key: record.get(key) for key in _RECORD_FIELDS if key in record}
+   141	    payload.pop("day_key", None)
+   142	    payload.pop("entered_at_utc", None)
+   143	    raw = json.dumps(record, sort_keys=True).encode("utf-8")
+   144	    return {
+   145	        "kind": KIND,
+   146	        "read_ops": list(READ_OPS),
+   147	        "data_available": True,
+   148	        "note": "operator-entered record for %s" % day,
+   149	        "payload": payload,
+   150	        "raw_body": raw,
+   151	    }
+exit=0

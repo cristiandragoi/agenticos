@@ -1,0 +1,39 @@
+=== newest session-authenticated-mue9i5qd ===
+{
+  "kind": "session-authenticated",
+  "payload": {
+    "observed": [
+      "final_url=https://freecash.com/en",
+      "cookie_count=8",
+      "session_cookie_present=true"
+    ],
+    "url": "https://freecash.com/en"
+  },
+  "writtenAt": "2026-09-23T15:32:50.437Z"
+}
+=== newest inspect-work-mue9i6jw ===
+{
+  "kind": "inspect-work",
+  "payload": {
+    "state": "authenticated",
+    "items": [],
+    "url": "https://freecash.com/en"
+  },
+  "writtenAt": "2026-09-23T15:32:51.500Z"
+}
+=== first inspect-work-mua74eee ===
+{
+  "kind": "inspect-work",
+  "payload": {
+    "state": "authenticated",
+    "items": [],
+    "url": "https://freecash.com/en"
+  },
+  "writtenAt": "2026-09-20T19:15:04.550Z"
+}
+=== newest 5 by mtime (names only) ===
+1790177571.5007915000 inspect-work-mue9i6jw-b0ec83de.json
+1790177570.4382528000 session-authenticated-mue9i5qd-3b0799d2.json
+1790177108.5982165000 inspect-work-mue989di-0df4b930.json
+1790177107.1553498000 session-authenticated-mue9889f-078a3e45.json
+1790170077.4175964000 inspect-work-mue51k2w-7ed6121f.json

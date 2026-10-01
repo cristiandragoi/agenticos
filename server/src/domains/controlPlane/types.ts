@@ -161,7 +161,7 @@ export interface RepositoryAuthorityStatus {
 export interface DiscoveredCapability {
   id: string;
   name: string;
-  surface: 'internal' | 'tool' | 'start_menu' | 'desktop' | 'executable' | 'app_user_model_id' | 'process' | 'browser' | 'filesystem' | 'shell' | 'learned' | 'camera' | 'location' | 'taskbar' | 'desktop_observe' | 'screenshot';
+  surface: 'internal' | 'tool' | 'start_menu' | 'desktop' | 'executable' | 'app_user_model_id' | 'process' | 'browser' | 'filesystem' | 'shell' | 'learned' | 'camera' | 'location' | 'taskbar' | 'desktop_observe' | 'browser_observe' | 'screenshot';
   target: string;
   executablePath?: string;
   shortcutPath?: string;

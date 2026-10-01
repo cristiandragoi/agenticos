@@ -1,0 +1,22 @@
+EVIDENCE-07 -- ALERT-SURFACE HARDENING, STAGED NOT APPLIED (run 2026-10-01T07:12:14Z)
+
+### CMD: sha256sum monitoring/freecash/notify.py monitoring/freecash/run_daily_check.py   (BEFORE)
+9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22 *monitoring/freecash/notify.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *monitoring/freecash/run_daily_check.py
+
+### CMD: python delivery/stage_hardening.py delivery/proposed-alerts-writer-tag-and-catchup-coalesce.diff
+diff notify.py -> exit=1, 56 diff lines
+diff run_daily_check.py -> exit=1, 70 diff lines
+wrote docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/delivery/proposed-alerts-writer-tag-and-catchup-coalesce.diff (5610 bytes)
+exit=0
+
+### CMD: sha256sum of the two originals AFTER staging (must be identical)
+9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22 *monitoring/freecash/notify.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *monitoring/freecash/run_daily_check.py
+
+### CMD: find monitoring/freecash -newermt "2026-10-01 00:00" -type f   (must show no .py I touched)
+exit=0
+
+### CMD: git status --porcelain monitoring/   (read-only; no write command issued)
+?? monitoring/
+exit=0  (empty == monitoring/ is byte-identical to HEAD)

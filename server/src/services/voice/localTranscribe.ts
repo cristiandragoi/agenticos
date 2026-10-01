@@ -421,21 +421,64 @@ export function getWarmWorkerStatus(): { ready: boolean; running: boolean; devic
   return warmWorker.getStatus();
 }
 
+import { voiceStudioService } from './VoiceStudioService.js';
+
 export async function transcribeLocally(
   audioBuffer: Buffer,
   extension: string = '.webm',
   language?: string
 ): Promise<LocalTranscribeResult> {
+  const t0 = Date.now();
+  // If VoiceStudio is healthy/available, use it as first-class local real-time provider
+  const vsHealth = await voiceStudioService.checkHealth().catch(() => ({ healthy: false } as any));
+  if (vsHealth.healthy) {
+    try {
+      const vsResult = await voiceStudioService.transcribe(audioBuffer, `audio${extension}`, language);
+      if (vsResult && vsResult.text) {
+        const { voiceRuntimeState } = await import('./VoiceRuntimeState.js');
+        voiceRuntimeState.recordSttTranscription({
+          provider: 'voicestudio',
+          language: vsResult.language || language || 'en',
+          model: 'whisper-1',
+        });
+        return {
+          text: vsResult.text,
+          language: vsResult.language || language || 'en',
+          probability: 1.0,
+          confidence: 1.0,
+          effectiveModel: 'voicestudio-whisper',
+          latencyMs: Date.now() - t0,
+        };
+      }
+    } catch (vsErr: any) {
+      logger.warn('[LocalTranscribe] VoiceStudio transcription failed, falling back to local whisper:', vsErr?.message);
+    }
+  }
+
   const ext = extension.startsWith('.') ? extension : `.${extension}`;
   const tmpFile = path.join(os.tmpdir(), `transcribe-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
   await fs.writeFile(tmpFile, audioBuffer);
 
   try {
     await warmWorker.ensureStarted();
-    return await warmWorker.transcribe(tmpFile, language);
+    const res = await warmWorker.transcribe(tmpFile, language);
+    const { voiceRuntimeState } = await import('./VoiceRuntimeState.js');
+    voiceRuntimeState.recordSttTranscription({
+      provider: 'local-whisper',
+      language: res.language || language || 'en',
+      model: res.effectiveModel || 'tiny.en',
+    });
+    return res;
   } catch (workerErr: any) {
     logger.warn('[LocalTranscribe] Warm worker error, falling back to one-shot transcribe.py:', workerErr?.message);
-    return await transcribeOneShot(tmpFile, language);
+    const res = await transcribeOneShot(tmpFile, language);
+    const { voiceRuntimeState } = await import('./VoiceRuntimeState.js');
+    voiceRuntimeState.recordSttTranscription({
+      provider: 'local-whisper',
+      language: res.language || language || 'en',
+      model: res.effectiveModel || 'tiny.en',
+    });
+    return res;
   } finally {
     // Single-owner temp-file cleanup: runs exactly once, AFTER the warm-worker
     // attempt and (if it was needed) the one-shot fallback have both settled.

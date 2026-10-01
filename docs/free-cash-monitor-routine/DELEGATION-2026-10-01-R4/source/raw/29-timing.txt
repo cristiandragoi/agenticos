@@ -1,0 +1,17 @@
+=== date ===
+Do,  1. Okt 2026 11:47:30
+=== timed single run, throwaway root: C:\Users\cd-pr\AppData\Local/Temp/fc-r4-timing-772/root ===
+--- run 1 (fresh day) ---
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+
+real	0m0,218s
+user	0m0,015s
+sys	0m0,015s
+exit=0
+--- run 2 (same day, duplicate) ---
+SKIP_DUPLICATE_DAY 2026-10-01
+
+real	0m0,187s
+user	0m0,016s
+sys	0m0,015s
+exit=0

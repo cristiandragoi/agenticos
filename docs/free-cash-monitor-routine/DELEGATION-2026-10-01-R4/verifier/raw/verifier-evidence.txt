@@ -1,0 +1,55 @@
+=== VERIFIER EVIDENCE -- failing-something proof (stream S3 'verifier') ===
+target artifact : D:\AgenticOS\monitoring\freecash (copied to D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash)
+gate            : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\rule_gate.py
+interpreter     : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+
+--- py_compile of the EXACT artifact the gate certifies (BASELINE copy, 8 core modules) ---
+command : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe -m py_compile D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\gate.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\readonly_client.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\changedetect.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\notify.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\approval_queue.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\paths.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\operator_state.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash\run_daily_check.py
+exit    : 0
+stdout  : ''
+stderr  : ''
+
+--- GREEN : gate exits 0 on the UNMODIFIED artifact ---
+command : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe rule_gate.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash
+exit    : 0
+R1 NO EARNING ACTION .......... OK (no detector fired)
+R2 ONCE PER DAY .......... OK (no detector fired)
+R3 NOTIFY ON CHANGE .......... OK (no detector fired)
+R4 APPROVAL BEFORE EXTERNAL ACTION .......... OK (no detector fired)
+RULE GATE: PASS -- D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\BASELINE\freecash satisfies R1 NO EARNING ACTION, R2 ONCE PER DAY, R3 NOTIFY ON CHANGE, R4 APPROVAL BEFORE EXTERNAL ACTION (10 source files scanned)
+
+--- RED : gate exits 2 on NAMED PLANTED VIOLATION M01 (POST /cashout write call) ---
+planted in : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\M01\freecash/run_daily_check.py
+command    : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe rule_gate.py D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\M01\freecash
+exit       : 2
+stdout     : ''
+stderr     :
+RULE VIOLATION [R1 NO EARNING ACTION] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\M01\freecash\run_daily_check.py:308
+    write-verb HTTP method present; R1 permits reads only
+    offending line: _MUT = readonly_client.request("POST", "http://localhost:3001/api/v1/cashout", json={"amount_cents": 1})  # MUTANT M01
+RULE VIOLATION [R1 NO EARNING ACTION] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\M01\freecash\run_daily_check.py:308
+    earning/withdrawal path present; R1 forbids any earning action
+    offending line: _MUT = readonly_client.request("POST", "http://localhost:3001/api/v1/cashout", json={"amount_cents": 1})  # MUTANT M01
+RULE VIOLATION [R1 NO EARNING ACTION] D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\M01\freecash\run_daily_check.py:308
+    request carries a body on a read; R1/R2 read path must be bodyless
+    offending line: _MUT = readonly_client.request("POST", "http://localhost:3001/api/v1/cashout", json={"amount_cents": 1})  # MUTANT M01
+RULE GATE: FAIL -- 3 violation(s) on D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\raw\mutants\M01\freecash
+
+--- per-mutant catch table (all 12) ---
+  M01  R1   CAUGHT    POST /cashout write call
+  M02  R1   CAUGHT    os.system(...) shell-out
+  M03  R1   CAUGHT    request body on a GET
+  M04  R1   CAUGHT    connect to a non-loopback host
+  M05  R2   CAUGHT    second status read within one day
+  M06  R2   CAUGHT    unresolvable timezone name
+  M07  R2   CAUGHT    non-atomic day lock (O_EXCL dropped)
+  M08  R3   CAUGHT    save_snapshot() BEFORE load_snapshot()
+  M09  R3   CAUGHT    dropped change notification
+  M10  R4   CAUGHT    auto-executed approval (execution_state != NOT_EXECUTED)
+  M11  R4   CAUGHT    bypassable decider string 'hermes-agent'
+  M12  R4   CAUGHT    non-human-decider denylist emptied
+
+CATCH COUNT : 12/12
+SURVIVORS   : 0
+GREEN       : PASS (exit 0 on unmodified artifact)
+RESULT      : ACCEPTED -- RED on a named plant, GREEN on the unmodified artifact, 0 survivors of 12

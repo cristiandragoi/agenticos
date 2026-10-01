@@ -1,0 +1,13 @@
+--- a/run_daily_check.py
++++ b/run_daily_check.py
+@@ -399,8 +399,9 @@
+         "note": raw.get("note"),
+     }
+     metrics = raw.get("payload") if source["data_available"] else {}
+-    prior = changedetect.load_prior_snapshot(day)
++    # MUTATION r3-a: save-before-load; the baseline is the current state.
+     snapshot = changedetect.build_snapshot(day, metrics, source, raw.get("raw_body") or b"", now=now)
++    prior = snapshot
+     verdict = changedetect.compare(prior, snapshot)
+     snapshot_file, written = changedetect.save_snapshot(snapshot, now=now)
+     observed = observed_for(snapshot, source, prior)

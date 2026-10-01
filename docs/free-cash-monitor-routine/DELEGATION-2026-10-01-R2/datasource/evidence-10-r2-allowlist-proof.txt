@@ -1,0 +1,16 @@
+$ cd D:/AgenticOS/monitoring/freecash && python -c "import readonly_client as rc; ..."
+provider host                GET  https://hg.cash/api/v1/accounts               -> ForbiddenWriteError: R2: host not allowlisted: 'hg.cash'
+provider path on loopback    GET  http://localhost:4600/api/v1/accounts         -> ForbiddenWriteError: R2: path not allowlisted: '/api/v1/accounts'
+write verb                   POST http://localhost:4600/api/v1/status/metrics   -> ForbiddenWriteError: R2: method 'POST' is not read-only (allowed: GET, HEAD)
+exit=0
+
+$ grep -n ALLOWED_HOSTS\|ALLOWED_PATHS\|PROVIDER_ENDPOINT_UNKNOWN monitoring/freecash/readonly_client.py
+27:    PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase
+41:ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+43:ALLOWED_PATHS = (
+48:    # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+60:PROVIDER_ENDPOINT_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+133:    if host not in ALLOWED_HOSTS:
+136:    if not any(pattern.match(path) for pattern in ALLOWED_PATHS):
+162:        if host and host not in ALLOWED_HOSTS:
+exit=0

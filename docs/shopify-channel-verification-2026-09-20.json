@@ -1,0 +1,167 @@
+{
+  "task": "Shopify channel verification, storefront inspection and product inventory sync",
+  "taskRegistry": {
+    "title": "Shopify: Storefront & Channel Operations",
+    "projectId": "proj-shopify",
+    "objectives": ["Run Shopify channel verification, storefront inspection and product inventory sync"],
+    "priorAttempts": 3,
+    "priorOutcome": "blocked — 'Worker state was interrupted by backend restart' (no verification evidence recorded)"
+  },
+  "run": {
+    "executedAt": "2026-09-20T19:10:19Z",
+    "workspace": "D:\\AgenticOS",
+    "repoBranch": "hermes-rescue-20260908",
+    "runtimeDb": "C:/Users/cd-pr/AppData/Roaming/agenticos/data/agentic-os.db",
+    "runtimeDbSelection": "server/src/db/index.ts — APPDATA/agenticos/data wins when it exists; the repo copy server/data/agentic-os.db is legacy",
+    "sandboxDb": "D:/AgenticOS/.tmp/shopify-verify/agentic-os.db (copy of live runtime DB, writes isolated)",
+    "executedCode": "server/dist/services/revenueOperator/{distributionService,operatorService}.js via server/scripts/shopify-channel-verification.mjs",
+    "backendApi": "AgenticOS backend (default port 4600) NOT listening — no HTTP path to the registry during this run"
+  },
+  "channelVerification": {
+    "verdict": "FAILED_AT_AUTHENTICATION",
+    "registryRowsBeforeSeed": 0,
+    "shopifyChannelBeforeSeed": null,
+    "seededChannelCount": 10,
+    "shopifyChannelAfterSeed": {
+      "channel": "SHOPIFY",
+      "status": "auth_required",
+      "humanGateRequired": true,
+      "automationAllowed": true,
+      "capabilities": {
+        "authenticate": true, "catalog": true, "product": true, "listing": true,
+        "publish": true, "checkout": true, "orders": true, "analytics": true,
+        "revenue": true, "inventory": true
+      }
+    },
+    "publishAttempt": {
+      "experimentId": "expt-e0a307e6-",
+      "experimentStatus": "APPROVED",
+      "published": false,
+      "blocked": true,
+      "reason": "SHOPIFY_AUTH_REQUIRED",
+      "gateCreated": "gate-ec1ed787-",
+      "gateType": "SHOPIFY_AUTH_REQUIRED",
+      "gateStatus": "open",
+      "branchPaused": true
+    },
+    "fabricationCheck": {
+      "ledgerEntries": 0,
+      "verifiedRevenue": 0,
+      "note": "No publication, checkout, order, sale or revenue was fabricated by the blocked publish path."
+    },
+    "contractTest": {
+      "command": "cd D:/AgenticOS/server && ../node_modules/.bin/vitest run src/__tests__/distributionService.test.ts",
+      "result": "1 file passed, 2/2 tests passed, 1.16s"
+    },
+    "credentialInventory": {
+      "shopifySdkDependencies": [],
+      "adminApiOrTokenUsage": "none (no apiVersion / X-Shopify / ACCESS_TOKEN call sites)",
+      "envKeys": "no SHOPIFY_* key in .env or server/.env",
+      "storeDomainConfigured": false,
+      "myshopifyHostsFoundInRuntimeDb": 0
+    },
+    "egressChecks": [
+      { "url": "https://www.shopify.com/", "http": 200, "seconds": 0.213 },
+      { "url": "https://admin.shopify.com/", "http": 403, "seconds": 0.182 },
+      { "url": "https://accounts.shopify.com/", "http": 403, "seconds": 0.190 },
+      { "url": "https://admin.shopify.com/oauth/authorize", "http": 403, "seconds": 0.077 }
+    ],
+    "egressNote": "Network path to Shopify exists; 403 on admin/accounts/oauth is edge/WAF rejection of an unauthenticated non-browser client, i.e. no authenticated merchant session."
+  },
+  "storefrontInspection": {
+    "verdict": "BLOCKED_NO_TARGET",
+    "storeDomainConfigured": false,
+    "projectRecord": {
+      "id": "proj-shopify",
+      "name": "Shopify",
+      "description": "Shopify storefront and e-commerce channel operations",
+      "status": "active",
+      "workspacePath": null,
+      "revenueVertical": "shopify"
+    },
+    "onlyShopifyWebSurfaceInCode": {
+      "id": "shopify_web",
+      "url": "https://www.shopify.com",
+      "file": "server/src/services/browser/browserOperator.ts:103",
+      "note": "Platform marketing site, not a merchant storefront"
+    },
+    "browserInspectionTooling": {
+      "attempts": 2,
+      "result": "FAILED",
+      "error": "uv trampoline failed to spawn Python child process (os error 4551)",
+      "impact": "No live DOM inspection of a Shopify surface was possible in this session"
+    }
+  },
+  "productInventorySync": {
+    "verdict": "BLOCKED_NOT_IMPLEMENTED",
+    "syncClientInCodebase": "none — the channel contract declares inventory:true but no Shopify Admin/GraphQL API client exists",
+    "localCatalog": {
+      "source": "revenue_experiments (live runtime DB)",
+      "count": 47,
+      "statusBreakdown": { "APPROVED": 47 },
+      "channelAssigned": 0,
+      "sales": 0,
+      "verifiedRevenue": 0
+    },
+    "diskArtifacts": {
+      "path": "D:/AgenticOS/digital_products",
+      "count": 17,
+      "examples": [
+        "buchhaltung-auf-autopilot.xlsx",
+        "business_starter_kit_for_german_solopreneurs.xlsx",
+        "dropshipping_supplier_outreach_negotiation_prompt_pack.xlsx",
+        "german_customer_service_automation_package.xlsx",
+        "prompt_engineering_workflow_pack.xlsx",
+        "Notion-Vorlage_Kundenprojekt-Manager.xlsx",
+        "de_sme_financial_dashboard_template.md",
+        "eu_service_business_checklist_system.md",
+        "german_kitchen_startup_sop_pack.md",
+        "eu_business_launch_os.notion_template.md"
+      ]
+    },
+    "syncPerformed": false,
+    "reason": "Requires an authenticated Shopify store (Admin API token + store domain). Neither exists; consequently no products were listed, updated or pushed."
+  },
+  "runtimeIntegrityFindings": [
+    {
+      "id": "SHOPIFY-CHAN-001",
+      "severity": "high",
+      "finding": "revenue_distribution_channels is empty (0 rows) in the live runtime DB; operatorService.seedChannels() is reachable only via POST /channels/seed and from tests, so the SHOPIFY channel is unregistered at runtime and any channel verification starts from 'no such channel'.",
+      "evidence": "live DB count=0; sandbox seed produced 10 channels incl. SHOPIFY/auth_required; grep of seed callers"
+    },
+    {
+      "id": "SHOPIFY-CHAN-002",
+      "severity": "medium",
+      "finding": "Two divergent runtime databases exist. The repo copy D:/AgenticOS/server/data/agentic-os.db (50.8 MB, 10 channels, 16 SHOPIFY gates, 32 revenue_action_executions) is not the DB the packaged app uses; the live DB is APPDATA/agenticos/data/agentic-os.db (16.8 MB, matches current schema: 104 tables / 24 migrations). Shopify history recorded in the repo DB is invisible to the running app.",
+      "evidence": "row counts and sqlite_master comparison across both files"
+    },
+    {
+      "id": "SHOPIFY-CHAN-003",
+      "severity": "medium",
+      "finding": "All three existing Shopify task records are 'blocked' with blocker text 'Worker state was interrupted by backend restart' and no result_text — the objective has never produced verification evidence, so the blocked state is a worker-lifecycle artifact rather than a Shopify precondition.",
+      "evidence": "background_tasks rows bgtask-851d24aa9 / bgtask-184b1810c / bgtask-40f2866ed + 24 events"
+    },
+    {
+      "id": "SHOPIFY-CHAN-004",
+      "severity": "high",
+      "finding": "The Shopify project is declared active and its task ACCEPTANCE CRITERION 1 ('Shopify store configuration and channel connectivity verified') is unachievable as configured: no store domain, no credentials, no Admin API client exist anywhere in the codebase or runtime config.",
+      "evidence": "credential inventory + schema/source search"
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "criterion": "Shopify store configuration and channel connectivity verified.",
+      "met": false,
+      "reason": "No Shopify store configuration exists (no domain, no credentials) and the runtime channel registry does not contain a SHOPIFY row. Network reachability to Shopify was verified, but this is not channel connectivity."
+    },
+    {
+      "criterion": "Execution leaves evidence in project task registry.",
+      "met": true,
+      "note": "Evidence event rows appended to the three Shopify task records in the live runtime DB, with a pre-write backup."
+    }
+  ],
+  "blockingHumanGate": {
+    "type": "SHOPIFY_AUTH_REQUIRED",
+    "nextStep": "Provide Shopify store domain plus Admin API access (OAuth app or access token), then POST /channels/seed and set the SHOPIFY channel status to 'active' before any publish/inventory operation can be attempted."
+  }
+}

@@ -15,8 +15,8 @@ export const JarvisOrb: React.FC<JarvisOrbProps> = ({
 }) => {
   // Define colors and animations based on state
   const colors = {
-    idle: { primary: '#00f0ff', secondary: 'rgba(0, 240, 255, 0.15)', glow: 'rgba(0, 240, 255, 0.4)' },
-    listening: { primary: '#10b981', secondary: 'rgba(16, 185, 129, 0.15)', glow: 'rgba(16, 185, 129, 0.4)' },
+    idle: { primary: '#00e5ff', secondary: 'rgba(0, 229, 255, 0.15)', glow: 'rgba(0, 229, 255, 0.4)' },
+    listening: { primary: '#00e5ff', secondary: 'rgba(0, 229, 255, 0.15)', glow: 'rgba(0, 229, 255, 0.4)' },
     transcribing: { primary: '#f59e0b', secondary: 'rgba(245, 158, 11, 0.15)', glow: 'rgba(245, 158, 11, 0.4)' },
     thinking: { primary: '#d4a373', secondary: 'rgba(212, 163, 115, 0.15)', glow: 'rgba(212, 163, 115, 0.4)' },
     speaking: { primary: '#3b82f6', secondary: 'rgba(59, 130, 246, 0.15)', glow: 'rgba(59, 130, 246, 0.4)' },

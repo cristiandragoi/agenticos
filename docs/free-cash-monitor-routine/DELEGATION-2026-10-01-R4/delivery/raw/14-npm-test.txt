@@ -1,0 +1,3675 @@
+=== npm run test (workspace recipe, unrelated to docs/ harness) ===
+
+> agenticos@0.0.0 test
+> vitest run src/
+
+
+ RUN  v4.1.10 D:/AgenticOS
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled
+[JARVIS_NEXT_UI] event=component_mounted roomName=jarvis-next-main
+[JARVIS_NEXT_UI] [JARVIS_NEXT_BUTTON] PHYSICAL CLICK RECEIVED
+[JARVIS_NEXT_UI] event=start_conversation_click currentState=disconnected connected=false
+[JFE] LIVEKIT_START { roomName: 'jarvis-next-main' }
+[JARVIS_LIVEKIT_SESSION] startSession called, currentState=disconnected
+[JARVIS_LIVEKIT_SESSION] Backend not ready yet; awaiting readiness (max 12000ms)...
+
+stderr | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled
+An update to ForwardRef(JarvisNextVoiceSession) inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled
+[JARVIS_NEXT_UI] event=component_unmounted
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 5. a lifecycle interruption neither duplicates nor loses the session
+[JARVIS_NEXT_UI] event=component_mounted roomName=jarvis-next-main
+[JARVIS_NEXT_UI] [JARVIS_NEXT_BUTTON] PHYSICAL CLICK RECEIVED
+[JARVIS_NEXT_UI] event=start_conversation_click currentState=disconnected connected=false
+[JFE] LIVEKIT_START { roomName: 'jarvis-next-main' }
+[JARVIS_LIVEKIT_SESSION] startSession called, currentState=disconnected
+[JARVIS_LIVEKIT_SESSION] session connection already in flight — awaiting active promise
+
+stderr | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 5. a lifecycle interruption neither duplicates nor loses the session
+An update to ForwardRef(JarvisNextVoiceSession) inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 5. a lifecycle interruption neither duplicates nor loses the session
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 5. a lifecycle interruption neither duplicates nor loses the session
+[JARVIS_NEXT_UI] event=component_unmounted
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 6. switching back to Manual tears the LiveKit session down
+[JARVIS_NEXT_UI] event=component_mounted roomName=jarvis-next-main
+[JARVIS_NEXT_UI] [JARVIS_NEXT_BUTTON] PHYSICAL CLICK RECEIVED
+[JARVIS_NEXT_UI] event=start_conversation_click currentState=disconnected connected=false
+[JFE] LIVEKIT_START { roomName: 'jarvis-next-main' }
+[JARVIS_LIVEKIT_SESSION] startSession called, currentState=disconnected
+[JARVIS_LIVEKIT_SESSION] session connection already in flight — awaiting active promise
+
+stderr | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 6. switching back to Manual tears the LiveKit session down
+An update to ForwardRef(JarvisNextVoiceSession) inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 6. switching back to Manual tears the LiveKit session down
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 6. switching back to Manual tears the LiveKit session down
+[JARVIS_NEXT_UI] event=component_unmounted
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 9. conversation mode persists for the session (re-mount rejoins the canonical room)
+[JARVIS_NEXT_UI] event=component_mounted roomName=jarvis-next-main
+[JARVIS_NEXT_UI] [JARVIS_NEXT_BUTTON] PHYSICAL CLICK RECEIVED
+[JARVIS_NEXT_UI] event=start_conversation_click currentState=disconnected connected=false
+[JFE] LIVEKIT_START { roomName: 'jarvis-next-main' }
+[JARVIS_LIVEKIT_SESSION] startSession called, currentState=disconnected
+[JARVIS_LIVEKIT_SESSION] session connection already in flight — awaiting active promise
+
+stderr | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 9. conversation mode persists for the session (re-mount rejoins the canonical room)
+An update to ForwardRef(JarvisNextVoiceSession) inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 9. conversation mode persists for the session (re-mount rejoins the canonical room)
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 9. conversation mode persists for the session (re-mount rejoins the canonical room)
+[JARVIS_NEXT_UI] event=component_unmounted
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+ ❯ src/__tests__/MissionControlConversation.test.tsx (9 tests | 4 failed) 3298ms
+     × 2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled 529ms
+     × 5. a lifecycle interruption neither duplicates nor loses the session 171ms
+     × 6. switching back to Manual tears the LiveKit session down 210ms
+     × 9. conversation mode persists for the session (re-mount rejoins the canonical room) 120ms
+ ❯ src/__tests__/CodeX.test.tsx (1 test | 1 failed) 1775ms
+     × passes proper request-scoped provider and model 1770ms
+stdout | src/__tests__/AppShell.test.tsx > AppShell > UniversalChatDock integration on /hermes-studio > mounts UniversalChatDock on /hermes-studio along with Hermes Kanban components
+[ChatRoute] {
+  route: '/hermes-studio',
+  routeOwnedAgentId: 'agent-hermes',
+  selectedAgentId: 'agent-hermes'
+}
+[JARVIS_FRONTEND_INIT] {
+  FRONTEND_BUILD_ID: '8f7463aa-dirty-20261001-095142',
+  FRONTEND_SOURCE_PATH: 'src/context/JarvisRuntimeContext.tsx',
+  WINDOW_LOCATION: 'http://localhost:3000/',
+  CURRENT_ROUTE: '/hermes-studio'
+}
+
+stdout | src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > opens exactly ONE LiveKit session per conversation, in the canonical room
+[JFE] USEVOICEIO_START { agentId: 'agent-jarvis' }
+[JarvisLiveKit] Starting LiveKit session...
+[JFE] LIVEKIT_START { roomName: 'jarvis-next-main' }
+[JARVIS_LIVEKIT_SESSION] startSession called, currentState=disconnected
+[JARVIS_LIVEKIT_SESSION] Backend not ready yet; awaiting readiness (max 12000ms)...
+
+stdout | src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > opens exactly ONE LiveKit session per conversation, in the canonical room
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > a healthy session is not duplicated, and focus does not open a second one
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > a dropped transport is reported truthfully and creates no phantom session
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > visibilitychange keeps the session usable and does not duplicate it
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+stdout | src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > does not re-acquire the microphone while the session is live (no getUserMedia churn)
+[JARVIS_LIVEKIT_SESSION] stopSession called
+
+ ❯ src/__tests__/voiceVadResilience.test.tsx (5 tests | 5 failed) 5078ms
+     × opens exactly ONE LiveKit session per conversation, in the canonical room 5018ms
+     × a healthy session is not duplicated, and focus does not open a second one 5ms
+     × a dropped transport is reported truthfully and creates no phantom session 11ms
+     × visibilitychange keeps the session usable and does not duplicate it 37ms
+     × does not re-acquire the microphone while the session is live (no getUserMedia churn) 3ms
+stdout | src/__tests__/voicePlaybackMute.test.tsx > useVoiceIO full-duplex mic during TTS playback (barge-in) > A: mic stays LIVE while Jarvis is speaking (full-duplex — barge-in can hear the user)
+[JFE] USEVOICEIO_START { agentId: 'agent-jarvis' }
+[JarvisLiveKit] Starting LiveKit session...
+[JFE] LIVEKIT_START { roomName: 'jarvis-next-main' }
+[JARVIS_LIVEKIT_SESSION] startSession called, currentState=disconnected
+[JARVIS_LIVEKIT_SESSION] Backend not ready yet; awaiting readiness (max 12000ms)...
+
+ ❯ src/__tests__/voicePlaybackMute.test.tsx (4 tests | 4 failed) 5072ms
+     × A: mic stays LIVE while Jarvis is speaking (full-duplex — barge-in can hear the user) 5034ms
+     × B: playback end leaves the mic live (no stale mute from a prior design) 15ms
+     × C: playback error leaves the mic live (recovery never strands it muted) 14ms
+     × D: haltPlayback (barge-in/stop) keeps the mic live 4ms
+stdout | src/__tests__/AppShell.test.tsx > AppShell > UniversalChatDock integration on /hermes-studio > displays submitted messages and streamed responses in the dock
+[ChatRoute] {
+  route: '/hermes-studio',
+  routeOwnedAgentId: 'agent-hermes',
+  selectedAgentId: 'agent-hermes'
+}
+[JARVIS_FRONTEND_INIT] {
+  FRONTEND_BUILD_ID: '8f7463aa-dirty-20261001-095142',
+  FRONTEND_SOURCE_PATH: 'src/context/JarvisRuntimeContext.tsx',
+  WINDOW_LOCATION: 'http://localhost:3000/',
+  CURRENT_ROUTE: '/hermes-studio'
+}
+
+ ❯ src/__tests__/AppShell.test.tsx (2 tests | 2 failed) 1048ms
+     × mounts UniversalChatDock on /hermes-studio along with Hermes Kanban components 748ms
+     × displays submitted messages and streamed responses in the dock 296ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/__tests__/ApiClientHelper.test.ts (25 tests | 1 failed) 51ms
+     × file:// production origin resolves to the backend HTTP origin 10ms
+ ❯ src/__tests__/jarvisPersistentRuntime.test.tsx (0 test)
+ ❯ src/__tests__/JarvisConversationOwnership.test.tsx (4 tests | 1 failed) 21ms
+     × imperative handle routes sendMessage through the latest-closure ref 17ms
+ ❯ src/__tests__/JarvisOrb.test.tsx (31 tests | 1 failed) 3082ms
+     × exposes the required colour contract for every state 15ms
+stderr | src/__tests__/JarvisLayout.test.tsx > Repository gating > keeps ordinary typed Jarvis chat usable when no repository is selected
+An update to JarvisChat inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisLayout.test.tsx > Repository gating > keeps ordinary typed Jarvis chat usable when no repository is selected
+An update to JarvisChat inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisLayout.test.tsx > Repository gating > keeps ordinary typed Jarvis chat usable when no repository is selected
+An update to RoutingOverrideControl inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+stderr | src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > true backend failure shows Backend unavailable with Retry connection
+Failed to load providers: Error: backend down
+    at D:/AgenticOS/src/__tests__/CodeXStudio.test.tsx:209:33
+    at file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///D:/AgenticOS/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+
+Not implemented: HTMLMediaElement's play() method
+ ❯ src/__tests__/JarvisStudioLayout.test.tsx (13 tests | 1 failed) 10485ms
+     × 400 messages: hero intact, content scrolls in the transcript surface 5049ms
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLMediaElement's play() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisChat inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLMediaElement's play() method
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to DataProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisChat inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to DataProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to JarvisStudio inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+An update to DataProvider inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ❯ src/__tests__/JarvisNavigation.test.tsx (12 tests | 2 failed) 15412ms
+     × restores the remembered conversation when returning to /jarvis 5072ms
+     × falls back to the most recent conversation when nothing is remembered 5064ms
+ ❯ src/__tests__/JarvisLayout.test.tsx (35 tests | 3 failed) 19557ms
+     × keeps ordinary typed Jarvis chat usable when no repository is selected 42ms
+     × keeps chat history in the chat workspace, not inside the cockpit 5013ms
+     × first typed message creates a real conversation when activeConversationId is null without sending fake default ID 5035ms
+[agenticos-mcp] invalid JSON-RPC frame: not-json
+ ❯ src/__tests__/revenueScoringAndMissions.test.ts (0 test)
+stderr | src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > EventSource opens once for a goal and receives events
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > manual reconnect resumes after the last event sequence and avoids duplicate events
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx (8 tests | 8 failed) 41229ms
+     × navigation SSE event opens the supported target route 5080ms
+     × Hermes / Boards / Memory / Automations / Research targets also navigate 5897ms
+     × Open Hermes navigates to the existing Hermes route 5039ms
+     × callback is not fired twice for one navigation event 5028ms
+     × invalid navigation targets are rejected and never navigate 5070ms
+     × a navigation event does not create a background task 5073ms
+     × an active background task continues after navigation (still listed, still running) 5025ms
+     × returning to /jarvis restores the conversation and active tasks 5013ms
+ ❯ src/__tests__/CodeXStudio.test.tsx (35 tests | 15 failed) 55313ms
+     × idle with healthy backend shows Ready and not Disconnected 5071ms
+     × true backend failure shows Backend unavailable with Retry connection 5113ms
+     × running shows Stop 5030ms
+     × reconnecting active run still shows Stop 680ms
+     × New Task clears stale run state and preserves provider settings 485ms
+     × rejects repository path alone and never stores it as goal text 5030ms
+     × stopped run does not auto-resume and Resume requires a checkpoint 267ms
+     × user can submit a new task immediately after stopping 5034ms
+     × CodeX Studio Play submits auto approval policy even when settings are strict 5020ms
+     × EventSource opens once for a goal and receives events 5007ms
+     × manual reconnect resumes after the last event sequence and avoids duplicate events 215ms
+     × clicking Stop calls backend cancellation and restores Send 5011ms
+     × reconnect attempts stop after Stop 5006ms
+     × page reload preserves visible approval controls from persisted goal status 5014ms
+     × chat text "I approve" is not required for approval 82ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/jarvisPersistentRuntime.test.tsx [ src/__tests__/jarvisPersistentRuntime.test.tsx ]
+Error: [CRITICAL SECURITY GUARD] Automated test attempted to open production database: C:\Users\cd-pr\AppData\Roaming\AgenticOS\data\agentic-os.db
+Set AGENTICOS_DATA_DIR to an explicit temp directory, or ensure NODE_ENV=test before module load.
+ ❯ server/src/db/index.ts:58:11
+     56|
+     57|   if (isServerDataPath || isProdFragment) {
+     58|     throw new Error(
+       |           ^
+     59|       `[CRITICAL SECURITY GUARD] Automated test attempted to open prod…
+     60|       `Set AGENTICOS_DATA_DIR to an explicit temp directory, or ensure…
+ ❯ server/src/services/agent/assignments.ts:1:1
+ ❯ server/src/domains/jarvis/capabilityRegistry.ts:9:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/50]⎯
+
+ FAIL  src/__tests__/revenueScoringAndMissions.test.ts [ src/__tests__/revenueScoringAndMissions.test.ts ]
+Error: [CRITICAL SECURITY GUARD] Automated test attempted to open production database: C:\Users\cd-pr\AppData\Roaming\AgenticOS\data\agentic-os.db
+Set AGENTICOS_DATA_DIR to an explicit temp directory, or ensure NODE_ENV=test before module load.
+ ❯ server/src/db/index.ts:58:11
+     56|
+     57|   if (isServerDataPath || isProdFragment) {
+     58|     throw new Error(
+       |           ^
+     59|       `[CRITICAL SECURITY GUARD] Automated test attempted to open prod…
+     60|       `Set AGENTICOS_DATA_DIR to an explicit temp directory, or ensure…
+ ❯ server/src/services/revenueOperator/opportunityService.ts:2:1
+ ❯ src/__tests__/revenueScoringAndMissions.test.ts:3:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/50]⎯
+
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 48 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/ApiClientHelper.test.ts > resolveApiBase — canonical backend origin > file:// production origin resolves to the backend HTTP origin
+AssertionError: expected 'http://127.0.0.1:4600/api' to be 'http://localhost:4000/api' // Object.is equality
+
+Expected: "http://localhost:4000/api"
+Received: "http://127.0.0.1:4600/api"
+
+ ❯ src/__tests__/ApiClientHelper.test.ts:20:37
+     18|
+     19|   it('file:// production origin resolves to the backend HTTP origin', …
+     20|     expect(resolveApiBase('file:')).toBe('http://localhost:4000/api');
+       |                                     ^
+     21|   });
+     22|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/50]⎯
+
+ FAIL  src/__tests__/AppShell.test.tsx > AppShell > UniversalChatDock integration on /hermes-studio > mounts UniversalChatDock on /hermes-studio along with Hermes Kanban components
+Error: [2mexpect([22m[31mreceived[39m[2m).toBeInTheDocument()[22m
+
+[31mreceived[39m value must be an HTMLElement or an SVGElement.
+Received has type:  Null
+Received has value: [31mnull[39m
+ ❯ src/__tests__/AppShell.test.tsx:92:23
+     90|     // UniversalChatDock should be present (find its composer input)
+     91|     const dockInput = document.querySelector('.chat-dock__input');
+     92|     expect(dockInput).toBeInTheDocument();
+       |                       ^
+     93|
+     94|     // The mock Outlet representing HermesKanbanView should be present
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/50]⎯
+
+ FAIL  src/__tests__/AppShell.test.tsx > AppShell > UniversalChatDock integration on /hermes-studio > displays submitted messages and streamed responses in the dock
+TestingLibraryElementError: Unable to find an element with the title: Expand.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mstyle[39m=[32m"display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden;"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mdata-testid[39m=[32m"mock-titlebar"[39m
+      [36m>[39m
+        [0mTitlebar[0m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"app-shell"[39m
+        [33mstyle[39m=[32m"flex: 1 1 0%; min-height: 0px; height: auto; display: flex;"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mdata-testid[39m=[32m"mock-left-rail"[39m
+        [36m>[39m
+          [0mLeftRail[0m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"main-column"[39m
+          [33mstyle[39m=[32m"flex: 1 1 0%; display: flex; flex-direction: column; min-width: 0px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mdata-testid[39m=[32m"mock-top-context-bar"[39m
+          [36m>[39m
+            [0mTopContextBar[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"route-viewport route-viewport--fullscreen"[39m
+            [33mstyle[39m=[32m"flex: 1 1 0%; min-height: 0px; overflow: auto;"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mdata-testid[39m=[32m"mock-hermes-kanban-view"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mdata-testid[39m=[32m"mock-hermes-kanban-board"[39m
+              [36m>[39m
+                [0mKanbanBoard[0m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mdata-testid[39m=[32m"mock-hermes-context-panel"[39m
+              [36m>[39m
+                [0mContextPanel[0m
+              [36m</div>[39m
+              [36m<textarea[39m
+                [33mdata-testid[39m=[32m"mock-hermes-composer"[39m
+                [33mplaceholder[39m=[32m"Ask anything or request a task..."[39m
+              [36m/>[39m
+              [36m<button[39m
+                [33mdata-testid[39m=[32m"mock-hermes-send"[39m
+              [36m>[39m
+                [0mSend[0m
+              [36m</button>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"w-96 flex-shrink-0 flex flex-col h-full bg-[#0b0f14]/95 border-l border-slate-800/80 shadow-2xl z-30 backdrop-blur"[39m
+          [33mdata-testid[39m=[32m"persistent-jarvis-dock"[39m
+          [33mstyle[39m=[32m"display: flex;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"p-3 px-4 border-b border-slate-800/80 bg-slate-950/60 flex items-center justify-between gap-2"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-2.5"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"w-5 h-5 rounded-full flex items-center justify-center relative"[39m
+                [33mstyle[39m=[32m"background-color: rgba(0, 229, 255, 0.2); border: 1.5px solid rgb(0, 229, 255);"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-2 h-2 rounded-full "[39m
+                  [33mstyle[39m=[32m"background-color: rgb(0, 229, 255);"[39m
+                [36m/>[39m
+              [36m</div>[39m
+              [36m<div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"flex items-center gap-1.5"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"text-xs font-bold tracking-wider text-white"[39m
+                  [36m>[39m
+                    [0mJARVIS[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 font-mono"[39m
+                  [36m>[39m
+                    [0mhermes-studio[0m
+                  [36m</span>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-[10px] text-slate-400"[39m
+                [36m>[39m
+                  [0mOperational layer ready[0m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-1"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"[39m
+                [33mdata-testid[39m=[32m"jarvis-dock-fullscreen"[39m
+                [33mtitle[39m=[32m"Open Fullscreen Studio"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-maximize2 lucide-maximize-2"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"13"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"13"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M15 3h6v6"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"m21 3-7 7"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"m3 21 7-7"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M9 21H3v-6"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+              [36m</button>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"[39m
+                [33mdata-testid[39m=[32m"jarvis-dock-collapse"[39m
+                [33mtitle[39m=[32m"Collapse Jarvis Dock"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-minimize2 lucide-minimize-2"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"13"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[...
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/__tests__/AppShell.test.tsx:114:33
+    112|
+    113|     // Expand the dock to see messages
+    114|     const expandButton = screen.getByTitle('Expand');
+       |                                 ^
+    115|     fireEvent.click(expandButton);
+    116|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/50]⎯
+
+ FAIL  src/__tests__/CodeX.test.tsx > CodeX StudioChat Provider Configuration > passes proper request-scoped provider and model
+AssertionError: expected 'prov-deepseek' to be 'auto' // Object.is equality
+
+Expected: "auto"
+Received: "prov-deepseek"
+
+ ❯ src/__tests__/CodeX.test.tsx:37:58
+     35|     expect(payload.agentId).toBe('agent-codex');
+     36|     expect(payload.executionOptions).toBeDefined();
+     37|     expect(payload.executionOptions.executionProviderId).toBe('auto');
+       |                                                          ^
+     38|
+     39|     fetchSpy.mockRestore();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > idle with healthy backend shows Ready and not Disconnected
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:196:3
+    194|
+    195| describe('CodeX Studio lifecycle fixes', () => {
+    196|   it('idle with healthy backend shows Ready and not Disconnected', asy…
+       |   ^
+    197|     mockGoalApi(null);
+    198|     render(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > true backend failure shows Backend unavailable with Retry connection
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:208:3
+    206|   });
+    207|
+    208|   it('true backend failure shows Backend unavailable with Retry connec…
+       |   ^
+    209|     fetchMock.mockRejectedValue(new Error('backend down'));
+    210|     render(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > running shows Stop
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:231:3
+    229|   });
+    230|
+    231|   it('running shows Stop', async () => {
+       |   ^
+    232|     const goal = { id: 'goal-running', status: 'running', originalGoal…
+    233|     mockGoalApi(goal);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > reconnecting active run still shows Stop
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name `/^Stop$/i`
+
+Here are the accessible roles:
+
+  button:
+
+  Name "Copy Summary":
+  [36m<button[39m
+    [33mclass[39m=[32m"px-2.5 py-1 text-[11px] font-medium flex items-center gap-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-colors shadow-sm"[39m
+    [33mtitle[39m=[32m"Copy clean plain-text summary for debugging or sharing"[39m
+  [36m/>[39m
+
+  Name "Technical Details & Provider Routing":
+  [36m<button[39m
+    [33mclass[39m=[32m"flex items-center gap-1.5 text-[12px] font-medium text-slate-400 hover:text-slate-200 transition-colors"[39m
+  [36m/>[39m
+
+  Name "Run SettingsLoading...":
+  [36m<button[39m
+    [33mclass[39m=[32m"w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#2d2d2d] transition-colors rounded-md"[39m
+  [36m/>[39m
+
+  Name "Reconnect":
+  [36m<button[39m
+    [33mclass[39m=[32m"flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 transition-colors shrink-0"[39m
+  [36m/>[39m
+
+  Name "New Task":
+  [36m<button[39m
+    [33mclass[39m=[32m"flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/40 text-[12px]"[39m
+  [36m/>[39m
+
+  Name "Send":
+  [36m<button[39m
+    [33mclass[39m=[32m"flex items-center gap-1.5 px-3 py-1.5 rounded border border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-500 text-[12px] disabled:opacity-50 disabled:cursor-not-allowed"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "What should CodeX do?":
+  [36m<textarea[39m
+    [33maria-label[39m=[32m"What should CodeX do?"[39m
+    [33mclass[39m=[32m"w-full min-h-[72px] bg-[#0A0F16] border border-slate-700 rounded-md px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 resize-none"[39m
+    [33mplaceholder[39m=[32m"What should CodeX do?"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"h-full flex flex-col bg-[#0A0F16]"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex-1 overflow-y-auto"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sticky top-0 z-20 border-b border-emerald-500/40 bg-[#0d1117]/95 backdrop-blur-sm"[39m
+          [33mdata-testid[39m=[32m"codex-current-action"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"mx-auto max-w-4xl px-4 py-3 border-x border-b rounded-b-lg border-emerald-500/40 bg-emerald-500/10"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-3 flex-wrap"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2 min-w-0"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"w-2.5 h-2.5 rounded-full shrink-0 bg-emerald-500 animate-pulse"[39m
+                [36m/>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-[11px] font-bold uppercase tracking-widest text-emerald-400"[39m
+                [36m>[39m
+                  [0mWorking[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-sm text-slate-200 font-medium truncate"[39m
+                  [33mtitle[39m=[32m"Starting execution…"[39m
+                [36m>[39m
+                  [0mStarting execution…[0m
+                [36m</span>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2 shrink-0"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"flex items-center gap-1.5 text-[11px] text-amber-400"[39m
+                  [33mtitle[39m=[32m"Event stream connection"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-wifi"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"12"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"12"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 20h.01"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M2 8.82a15 15 0 0 1 20 0"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M5 12.859a10 10 0 0 1 14 0"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M8.5 16.429a5 5 0 0 1 7 0"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"[39m
+                  [36m/>[39m
+                  [0mReconnecting[0m
+                [36m</span>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-2 mt-3 text-[11px]"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex flex-col min-w-0"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-slate-500 uppercase tracking-wider flex items-center gap-1"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-user"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"10"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"10"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"[39m
+                    [36m/>[39m
+                    [36m<circle[39m
+                      [33mcx[39m=[32m"12"[39m
+                      [33mcy[39m=[32m"7"[39m
+                      [33mr[39m=[32m"4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [0m Agent[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-slate-300 truncate flex items-center gap-1"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-bot text-emerald-500"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"11"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"11"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 8V4H8"[39m
+                    [36m/>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"12"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"16"[39m
+                      [33mx[39m=[32m"4"[39m
+                      [33my[39m=[32m"8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M2 14h2"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M20 14h2"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 13v2"[39m
+                    [36m/>...
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/__tests__/CodeXStudio.test.tsx:253:19
+    251|
+    252|     expect(await screen.findByText('Reconnecting')).toBeInTheDocument(…
+    253|     expect(screen.getByRole('button', { name: /^Stop$/i })).toBeInTheD…
+       |                   ^
+    254|   });
+    255|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > New Task clears stale run state and preserves provider settings
+TestingLibraryElementError: Unable to find an element with the text: /Ready for a new CodeX task/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"h-full flex flex-col bg-[#0A0F16]"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex-1 overflow-y-auto"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sticky top-0 z-20 border-b border-emerald-500/40 bg-[#0d1117]/95 backdrop-blur-sm"[39m
+          [33mdata-testid[39m=[32m"codex-current-action"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"mx-auto max-w-4xl px-4 py-3 border-x border-b rounded-b-lg border-emerald-500/40 bg-emerald-500/10"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-3 flex-wrap"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2 min-w-0"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"w-2.5 h-2.5 rounded-full shrink-0 bg-emerald-500 "[39m
+                [36m/>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-[11px] font-bold uppercase tracking-widest text-emerald-400"[39m
+                [36m>[39m
+                  [0mReady[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-sm text-slate-200 font-medium truncate"[39m
+                  [33mtitle[39m=[32m"No active execution. Describe a goal to begin."[39m
+                [36m>[39m
+                  [0mNo active execution. Describe a goal to begin.[0m
+                [36m</span>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex items-center gap-2 shrink-0"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"flex items-center gap-1.5 text-[11px] text-emerald-400"[39m
+                  [33mtitle[39m=[32m"Event stream connection"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-wifi"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"12"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"12"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 20h.01"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M2 8.82a15 15 0 0 1 20 0"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M5 12.859a10 10 0 0 1 14 0"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M8.5 16.429a5 5 0 0 1 7 0"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"w-1.5 h-1.5 rounded-full bg-emerald-500"[39m
+                  [36m/>[39m
+                  [0mReady[0m
+                [36m</span>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-2 mt-3 text-[11px]"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"flex flex-col min-w-0"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-slate-500 uppercase tracking-wider flex items-center gap-1"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-user"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"10"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"10"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"[39m
+                    [36m/>[39m
+                    [36m<circle[39m
+                      [33mcx[39m=[32m"12"[39m
+                      [33mcy[39m=[32m"7"[39m
+                      [33mr[39m=[32m"4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                  [0m Agent[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"text-slate-300 truncate flex items-center gap-1"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"lucide lucide-bot text-emerald-500"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mheight[39m=[32m"11"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                    [33mwidth[39m=[32m"11"[39m
+                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 8V4H8"[39m
+                    [36m/>[39m
+                    [36m<rect[39m
+                      [33mheight[39m=[32m"12"[39m
+                      [33mrx[39m=[32m"2"[39m
+                      [33mwidth[39m=[32m"16"[39m
+                      [33mx[39m=[32m"4"[39m
+                      [33my[39m=[32m"8"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M2 14h2"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M20 14h2"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M15 13v2"[39m
+     ...
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/__tests__/CodeXStudio.test.tsx:283:19
+    281|     fireEvent.click(await screen.findByRole('button', { name: /New Tas…
+    282|
+    283|     expect(screen.getByText(/Ready for a new CodeX task/i)).toBeInTheD…
+       |                   ^
+    284|     expect(screen.getAllByText(/Repository:/i).length).toBeGreaterThan…
+    285|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > rejects repository path alone and never stores it as goal text
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:287:3
+    285|   });
+    286|
+    287|   it('rejects repository path alone and never stores it as goal text',…
+       |   ^
+    288|     mockGoalApi(null);
+    289|     render(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > stopped run does not auto-resume and Resume requires a checkpoint
+Error: [2mexpect([22m[31melement[39m[2m).not.toBeInTheDocument()[22m
+
+[31mexpected document not to contain element, found <button
+  class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/40 text-[12px] disabled:opacity-50"
+>
+  <svg
+    aria-hidden="true"
+    class="lucide lucide-play"
+    fill="none"
+    height="13"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="2"
+    viewBox="0 0 24 24"
+    width="13"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+    />
+  </svg>
+   Resume
+</button> instead[39m
+ ❯ src/__tests__/CodeXStudio.test.tsx:312:69
+    310|
+    311|     await screen.findAllByText('Execution stopped.');
+    312|     expect(screen.queryByRole('button', { name: /^Resume$/i })).not.to…
+       |                                                                     ^
+    313|     expect(fetchMock).not.toHaveBeenCalledWith('/api/chat/agents/goal/…
+    314|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > user can submit a new task immediately after stopping
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:350:3
+    348|   });
+    349|
+    350|   it('user can submit a new task immediately after stopping', async ()…
+       |   ^
+    351|     const goal = { id: 'goal-running', status: 'running', originalGoal…
+    352|     mockGoalApi(goal);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > CodeX Studio Play submits auto approval policy even when settings are strict
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:372:3
+    370|   });
+    371|
+    372|   it('CodeX Studio Play submits auto approval policy even when setting…
+       |   ^
+    373|     mockGoalApi(null);
+    374|     const onGoalCreated = vi.fn();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > EventSource opens once for a goal and receives events
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:397:3
+    395|   });
+    396|
+    397|   it('EventSource opens once for a goal and receives events', async ()…
+       |   ^
+    398|     const goal = { id: 'goal-stream', status: 'queued', originalGoal: …
+    399|     mockGoalApi(goal);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > manual reconnect resumes after the last event sequence and avoids duplicate events
+AssertionError: expected '/api/chat/agents/goal/stream/goal-str…' to be '/api/chat/agents/goal/stream/goal-str…' // Object.is equality
+
+Expected: "/api/chat/agents/goal/stream/goal-stream?lastEventId=7"
+Received: "/api/chat/agents/goal/stream/goal-stream"
+
+ ❯ src/__tests__/CodeXStudio.test.tsx:453:46
+    451|
+    452|     await waitFor(() => expect(MockEventSource.instances).toHaveLength…
+    453|     expect(MockEventSource.instances[1].url).toBe('/api/chat/agents/go…
+       |                                              ^
+    454|     act(() => {
+    455|       MockEventSource.instances[1].emitGoalEvent({ sequence: 7, state:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > clicking Stop calls backend cancellation and restores Send
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:502:3
+    500|   });
+    501|
+    502|   it('clicking Stop calls backend cancellation and restores Send', asy…
+       |   ^
+    503|     const goal = { id: 'goal-running', status: 'running', originalGoal…
+    504|     mockGoalApi(goal);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > reconnect attempts stop after Stop
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:536:3
+    534|   });
+    535|
+    536|   it('reconnect attempts stop after Stop', async () => {
+       |   ^
+    537|     const goal = { id: 'goal-running', status: 'running', originalGoal…
+    538|     mockGoalApi(goal);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > page reload preserves visible approval controls from persisted goal status
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/CodeXStudio.test.tsx:625:3
+    623|   });
+    624|
+    625|   it('page reload preserves visible approval controls from persisted g…
+       |   ^
+    626|     const goal = { id: 'goal-approval', status: 'waiting_for_approval'…
+    627|     mockGoalApi(goal);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/50]⎯
+
+ FAIL  src/__tests__/CodeXStudio.test.tsx > CodeX Studio lifecycle fixes > chat text "I approve" is not required for approval
+Error: [2mexpect([22m[31melement[39m[2m).not.toBeInTheDocument()[22m
+
+[31mexpected document not to contain element, found <button
+  class="flex items-center gap-1.5 px-3 py-1.5 rounded border border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-500 text-[12px] disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  <svg
+    aria-hidden="true"
+    class="lucide lucide-send"
+    fill="none"
+    height="13"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="2"
+    viewBox="0 0 24 24"
+    width="13"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"
+    />
+    <path
+      d="m21.854 2.147-10.94 10.939"
+    />
+  </svg>
+   Send
+</button> instead[39m
+ ❯ src/__tests__/CodeXStudio.test.tsx:650:67
+    648|
+    649|     expect(screen.getByRole('button', { name: /^Approve$/i })).toBeInT…
+    650|     expect(screen.queryByRole('button', { name: /^Send$/i })).not.toBe…
+       |                                                                   ^
+    651|     expect(fetchMock).not.toHaveBeenCalledWith('/api/chat/agents/goal/…
+    652|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/50]⎯
+
+ FAIL  src/__tests__/JarvisConversationOwnership.test.tsx > JarvisChat conversation ownership wiring > imperative handle routes sendMessage through the latest-closure ref
+AssertionError: expected 'import React, { useEffect, useMemo, u…' to contain 'handleSendRef.current?.(text, inputCh…'
+
+- Expected
++ Received
+
+- handleSendRef.current?.(text, inputChannel)
++ import React, { useEffect, useMemo, useRef, useState } from 'react';
++ import { API_BASE } from '../../api/client';
++ import { AlertCircle, Cpu, Server, User, FileText, Image as ImageIcon } from 'lucide-react';
++ import { JarvisComposer, formatFileSize } from './JarvisComposer';
++ import type { MicState, JarvisAttachment } from './JarvisComposer';
++ import { JarvisTeamPreviewCard } from './JarvisTeamPreviewCard';
++ import { JarvisTeamExecutionCard } from './JarvisTeamExecutionCard';
++ import { JarvisGoalCard } from './JarvisGoalCard';
++ import { useCodexStore } from '../../store/codexStore';
++ import { useGatewayStream } from '../../hooks/useGatewayStream';
++ import { ProviderBadge } from '../gateway/ProviderBadge';
++ import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
++ import { useBackendLifecycle } from '../../diagnostics/useBackendLifecycle';
++ import { voiceTraceBegin, voiceTracePush } from '../../diagnostics/voiceTrace';
++ import { voiceTimelinePush } from '../../diagnostics/voiceTimeline';
++ import { normalizeDomainTerms } from '../../lib/domainNormalization';
++ import { executionStore } from '../../diagnostics/executionStore';
++ import { ExecutionBar } from './ExecutionBar';
++ import { RoutingOverrideControl } from './RoutingOverrideControl';
++ import { GatewayNotice } from '../gateway/GatewayNotice';
++ import { GatewayEventTimeline } from '../gateway/GatewayEventTimeline';
++ import { GatewayRetryControls } from '../gateway/GatewayRetryControls';
++ import { ProviderDetailsPanel } from '../gateway/ProviderDetailsPanel';
++ import { ChatActionStatusCard } from './ChatActionStatusCard';
++ 
++ import styles from '../../pages/JarvisStudio.module.css';
++ 
++ /**
++  * Navigation targets JARVIS is allowed to open. Mirrors the existing
++  * application route registry (src/App.tsx) plus the capability-registry
++  * routes on the server; anything not listed here is rejected so a backend
++  * event can never navigate the app somewhere unexpected.
++  */
++ export const JARVIS_NAVIGATION_TARGETS = new Set<string>([
++   '/jarvis',
++   '/hermes',
++   '/hermes-studio',
++   '/codex',
++   '/agent-teams',
++   '/teams',
++   '/mission-control',
++   '/boards',
++   '/research',
++   '/files',
++   '/memory',
++   '/models',
++   '/automations',
++   '/settings',
++   '/projects',
++   '/revenue',
++   '/revenue-operator',
++ ]);
++ 
++ export interface JarvisChatProps {
++   conversationId: string | null;
++   onStatusChange?: (status: JarvisRuntimeStatus) => void;
++   onMessagesChange?: (messages: any[]) => void;
++   onConversationCreated?: (id: string) => void;
++   composerText?: string;
++   onComposerTextChange?: (text: string) => void;
++   /** When language changes or is reported by SSE frames. */
++   onLanguageChange?: (language: string) => void;
++   /** Structured workspace context representing the active module/route/mission */
++   workspaceContext?: {
++     activeModule?: string;
++     activeRoute?: string;
++     selectedProject?: string;
++     selectedMission?: string;
++     selectedArtifact?: string;
++     moduleStateSummary?: string;
++   };
++   /** When provided, the next message send will include this channel tag. */
++   pendingInputChannel?: 'typed' | 'voice';
++   /** Forwarded to the composer: real microphone capture state changes. */
++   onMicStateChange?: (state: MicState) => void;
++   /**
++    * Fires EXACTLY ONCE per completed direct Jarvis reply (SSE `done` event),
++    * with the full accumulated assistant text and the input channel that
++    * originated the request. Consumers (e.g. TTS) must dedupe/guard further.
++    */
++   onAssistantResponse?: (text: string, inputChannel: 'typed' | 'voice', turnId?: number) => void;
++   /**
++    * Progressive TTS hook: fires on every streamed assistant delta of a
++    * DIRECT reply. When provided, the page owns speech (chunked, sequential)
++    * and the one-shot `onAssistantResponse` speech trigger is skipped for
++    * that turn — exactly one TTS path per reply, never both.
++    */
++   onStreamDelta?: (delta: string, inputChannel: 'typed' | 'voice', turnId?: number) => void;
++   /**
++    * PHASE 15 (multi-turn reliability): fired when a voice-channel turn's
++    * response cycle is TRULY over — every terminal stream path (done, error,
++    * execution_failed, timeout, cancel, request failure) — regardless of
++    * whether any audio was played. The conversation engine uses this to
++    * re-arm the microphone deterministically (a delegated/empty/voice-off
++    * reply must never leave the mic dead in 'thinking').
++    */
++   onResponseSettled?: () => void;
++   /**
++    * Navigation hook: fires when the backend emits a validated `navigation`
++    * SSE event (e.g. "Open CodeX" → target `/codex`). Only supported internal
++    * targets are forwarded; invalid/unknown targets are rejected here and
++    * never reach the consumer. The navigation itself never touches task state.
++    */
++   onNavigate?: (target: string) => void;
++   /**
++    * Action runtime hook: fires when the backend emits a structured `action_record`
++    * event (e.g. OPEN_ENTITY, OPEN_MODULE, SHOW_ACTIVITY).
++    */
++   onActionRecord?: (record: any) => void;
++   /**
++    * Canonical-voice integration: when true the composer's OWN microphone
++    * button is hidden — the page-level useVoiceIO engine is the single mic
++    * owner (one microphone, one transcription path).
++    */
++   hideComposerMic?: boolean;
++   /**
++    * Visual variant for the command-center /jarvis page: 'command' renders
++    * labeled monospace transcript lines (YOU / JARVIS / HERMES / CODEX /
++    * REVIEWER / SYSTEM) instead of chat bubbles. Default 'chat' keeps the
++    * existing bubble UI for every other consumer.
++    */
++   transcriptVariant?: 'chat' | 'command';
++   /**
++    * Final layout correction (§8): when true the routing row, ExecutionBar
++    * and composer are NOT rendered inside the transcript dock — the page
++    * hosts a sticky composer at the bottom of the center column instead, so
++    * "Ask Jarvis anything…" can never disappear below the fold.
++    */
++   hideComposer?: boolean;
++ }
++ 
++ /** Imperative API — lets the single canonical voice engine auto-submit a
++  *  transcribed turn through the exact same streaming pipeline as Send. */
++ export interface JarvisChatHandle {
++   sendMessage: (text: string, inputChannel?: 'typed' | 'voice', turnId?: number, attachments?: JarvisAttachment[]) => void;
++   /** Final layout correction (§8): the sticky page-level composer cancels
++    *  the in-flight response through the same pipeline as the inline one. */
++   cancelResponse: () => void;
++ }
++ 
++ export type JarvisRuntimeState = 'idle' | 'understanding' | 'planning' | 'delegating' | 'executing' | 'reviewing' | 'thinking' | 'streaming' | 'approval_required' | 'paused' | 'completed' | 'error' | 'cancelled';
++ 
++ export interface JarvisRuntimeStatus {
++   state: JarvisRuntimeState;
++   elapsedMs: number;
++   firstTokenMs?: number | null;
++   provider?: string | null;
++   model?: string | null;
++   error?: string | null;
++ }
++ 
++ interface SendErrorState {
++   message: string;
++   operationId: string;
++ }
++ 
++ const LIVENESS_TIMEOUT_MS = 45_000; // backend silence watchdog: starts after fetch() headers, resets on every valid SSE event
++ const TOTAL_RESPONSE_TIMEOUT_MS = 120_000;
++ const DEV_TIMING = import.meta.env.DEV;
++ 
++ const getMessageOperationId = (message: any): string | undefined => {
++   const operationId = message?.metadata?.operationId;
++   return typeof operationId === 'string' && operationId.length > 0 ? operationId : undefined;
++ };
++ 
++ const visibleMessagesForOperations = (messages: any[]) => {
++   const seenUserOperations = new Set<string>();
++   const seenAgentOperations = new Set<string>();
++   const seenErrorOperations = new Set<string>();
++   return messages.filter(message => {
++     const operationId = getMessageOperationId(message);
++     if (message.role === 'user' && operationId) {
++       if (seenUserOperations.has(operationId)) return false;
++       seenUserOperations.add(operationId);
++       return true;
++     }
++     if (message.role === 'agent' && operationId) {
++       if (seenAgentOperations.has(operationId)) return false;
++       seenAgentOperations.add(operationId);
++       return true;
++     }
++     if (message.messageType !== 'error') return true;
++     if (!operationId) return true;
++     if (seenErrorOperations.has(operationId)) return false;
++     seenErrorOperations.add(operationId);
++     return true;
++   });
++ };
++ 
++ function parseSseFrames(buffer: string) {
++   const frames = buffer.split('\n\n');
++   const rest = frames.pop() || '';
++   return {
++     rest,
++     events: frames
++       .filter(frame => frame.trim().length > 0)
++       .map(frame => {
++         let event = 'message';
++         let data = '';
++         for (const line of frame.split('\n')) {
++           if (line.startsWith('event:')) event = line.slice(6).trim();
++           if (line.startsWith('data:')) data += line.slice(5).trim();
++         }
++         return { event, data };
++       })
++   };
++ }
++ 
++ const idleStatus: JarvisRuntimeStatus = {
++   state: 'idle',
++   elapsedMs: 0,
++   firstTokenMs: null,
++   provider: null,
++   model: null,
++   error: null
++ };
++ 
++ /**
++  * Classify the runtime state after a stream `done` event.
++  *
++  * Synchronous terminal conversation routes (direct, memory_store,
++  * memory_recall, decision_statement, continuation, project_state_answer,
++  * clarification_required, and investigate replies without a delegation
++  * status) are COMPLETED — they release the composer. Only genuine
++  * delegations carry a status (from execution_* events) and stay
++  * 'executing' until execution_completed/execution_failed arrives.
++  */
++ export function classifyDoneState(data: { route?: string; status?: string | null }): JarvisRuntimeState {
++   const isTerminalConversation =
++     !data.route ||
++     data.route === 'direct' ||
++     data.route === 'clarification_required' ||
++     (data.route === 'investigate' && !data.status) ||
++     !data.status;
++   return isTerminalConversation ? 'completed' : runtimeStateForDelegatedStatus(data.status ?? undefined);
++ }
++ 
++ const runtimeStateForDelegatedStatus = (status?: string): JarvisRuntimeState => {
++   if (status === 'waiting_for_approval' || status === 'awaiting_approval') return 'approval_required';
++   if (status === 'planning' || status === 'queued') return 'executing';
++   if (status === 'running' || status === 'executing') return 'executing';
++   if (status === 'paused') return 'paused';
++   if (status === 'failed') return 'error';
++   if (status === 'completed') return 'completed';
++   return 'executing';
++ };
++ 
++ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
++   conversationId,
++   onStatusChange,
++   onMessagesChange,
++   onConversationCreated,
++   composerText,
++   onComposerTextChange,
++   pendingInputChannel,
++   onMicStateChange,
++   onLanguageChange,
++   onAssistantResponse,
++   onStreamDelta,
++   onNavigate,
++   onActionRecord,
++   onResponseSettled,
++   hideComposerMic,
++   transcriptVariant = 'chat',
++   hideComposer = false,
++   workspaceContext,
++ }, ref) => {
++   const { runSettings } = useCodexStore();
++   const [messages, setMessages] = useState<any[]>([]);
++ 
++   // Diagnostic: report the most recent transcript ProviderBadge value (what
++   // the UI is actually displaying for the last gateway-bearing message).
++   useEffect(() => {
++     const lastBadge = [...messages].reverse().find((m: any) => m?.gateway?.provider);
++     if (lastBadge) {
++       uiDiagnostics.setFrontendBadge(
++         lastBadge.gateway.provider ?? null,
++         lastBadge.gateway.model ?? null,
++         lastBadge.id ?? null
++       );
++     }
++     // Unmount marker: the value stays as last-known, but the component is no
++     // longer mounted (remounts must not erase valid diagnostic state).
++     return () => { uiDiagnostics.setFrontendBadgeUnmounted(); };
++   }, [messages]);
++   const [isProcessing, setIsProcessing] = useState(false);
++   const [sendError, setSendError] = useState<SendErrorState | null>(null);
++ 
++   // ── Backend lifecycle gate (backend lifecycle milestone) ──────────────
++   // Jarvis never pretends to process requests when the backend APIs are
++   // definitively down (offline/failed). The gate activates on the
++   // AUTHORITATIVE lifecycle source (Electron IPC in the desktop app); in
++   // plain browser dev mode the AppShell startup/error screens own the
++   // offline experience instead. Transient states (starting/reconnecting)
++   // keep the composer usable — the lifecycle manager may be mid-restart and
++   // the very next send can succeed. The gate message is the user-facing
++   // contract from the milestone spec.
++   const backendLifecycle = useBackendLifecycle();
++   const backendDefinitivelyDown =
++     backendLifecycle.status === 'offline' || backendLifecycle.status === 'failed';
++   const offlineGateReason =
++     backendLifecycle.source === 'electron' && backendDefinitivelyDown
++       ? backendLifecycle.status === 'offline'
++         ? (backendLifecycle.mode === 'EXTERNAL'
++           ? 'AgenticOS backend is offline — waiting for the external backend.'
++           : 'AgenticOS backend is offline. Reconnecting now…')
++         : 'The backend could not be restored automatically. Open diagnostics (top bar) or retry.'
++       : null;
++   const offlineGateReasonRef = useRef<string | null>(offlineGateReason);
++   useEffect(() => {
++     offlineGateReasonRef.current = offlineGateReason;
++   }, [offlineGateReason]);
++   const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
++   const [detailsMessage, setDetailsMessage] = useState<any | null>(null);
++   const chatEndRef = useRef<HTMLDivElement>(null);
++   // ── Transcript scroll ownership (layout-stability milestone) ──
++   // The transcript scrolls INSIDE its bounded dock. Auto-follow only while
++   // the user is near the bottom; a manual scroll-up is never force-jumped
++   // back — a "Jump to latest" control appears instead (§4).
++   const chatScrollRef = useRef<HTMLDivElement>(null);
++   const stickToBottomRef = useRef(true);
++   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
++   const handleTranscriptScroll = () => {
++     const el = chatScrollRef.current;
++     if (!el) return;
++     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
++     const nearBottom = distanceFromBottom < 140;
++     stickToBottomRef.current = nearBottom;
++     setShowJumpToLatest(!nearBottom && messages.length > 0);
++   };
++   const jumpToLatest = () => {
++     const el = chatScrollRef.current;
++     if (!el) return;
++     el.scrollTop = el.scrollHeight;
++     stickToBottomRef.current = true;
++     setShowJumpToLatest(false);
++   };
++   const abortControllerRef = useRef<AbortController | null>(null);
++   const livenessTimerRef = useRef<number | null>(null);
++   const totalResponseTimerRef = useRef<number | null>(null);
++   const responseTimedOutRef = useRef(false);
++   const timeoutDiagnosisRef = useRef<string | null>(null);
++   const requestStartedAtRef = useRef<number | null>(null);
++   const statusIntervalRef = useRef<number | null>(null);
++   const isProcessingRef = useRef(false);
++   // Exactly-once guard for navigation events: keyed by operationId+target so
++   // the same navigation event is never forwarded twice (the stream loop can
++   // flush the same SSE frame list in two passes).
++   const firedNavigationRef = useRef<Set<string>>(new Set());
++   const failedActionIdsRef = useRef<Set<string>>(new Set());
++   // ── TTS trigger bookkeeping ─────────────────────────────────────────────
++   // Input channel of the in-flight request ('voice' → reply may be spoken).
++   const pendingChannelRef = useRef<'typed' | 'voice'>('typed');
++   // Accumulated streamed assistant text per operation, read exactly once at
++   // the SSE `done` event so the reply is handed to TTS a single time.
++   const streamedTextByOpRef = useRef<Record<string, string>>({});
++   const onAssistantResponseRef = useRef(onAssistantResponse);
++   const onStreamDeltaRef = useRef(onStreamDelta);
++   const onResponseSettledRef = useRef(onResponseSettled);
++   const onLanguageChangeRef = useRef(onLanguageChange);
++   /** operationId → conversationId used for that stream (first turn of a fresh
++    *  conversation creates a NEW id that the prop hasn't propagated yet). */
++   const opConversationRef = useRef<Record<string, string>>({});
++   useEffect(() => {
++     onAssistantResponseRef.current = onAssistantResponse;
++   }, [onAssistantResponse]);
++   useEffect(() => {
++     onStreamDeltaRef.current = onStreamDelta;
++   }, [onStreamDelta]);
++   useEffect(() => {
++     onResponseSettledRef.current = onResponseSettled;
++   }, [onResponseSettled]);
++   useEffect(() => {
++     onLanguageChangeRef.current = onLanguageChange;
++   }, [onLanguageChange]);
++ 
++   // Sync isProcessing to ref
++   useEffect(() => {
++     isProcessingRef.current = isProcessing;
++   }, [isProcessing]);
++   const runtimeStateRef = useRef<JarvisRuntimeState>('idle');
++   const firstTokenMsRef = useRef<number | null>(null);
++   // Durable error for the BLOCKED/ATTENTION surface: the status clock re-emits
++   // status every 250ms and must not clobber a model/provider failure with a
++   // null error between ticks. Cleared explicitly when a new request starts.
++   const errorRef = useRef<string | null>(null);
++   const lastOperationIdRef = useRef<string | null>(null);
++   const [routingOverride, setRoutingOverride] = useState<{ provider: string | null; model: string | null; mode: 'auto' | 'manual' }>({ provider: null, model: null, mode: 'auto' });
++ 
++   const emitStatus = (patch: Partial<JarvisRuntimeStatus>) => {
++     const elapsedMs = requestStartedAtRef.current ? Date.now() - requestStartedAtRef.current : 0;
++     if (patch.state) runtimeStateRef.current = patch.state;
++     if (patch.firstTokenMs !== undefined) firstTokenMsRef.current = patch.firstTokenMs ?? null;
++     // Persist an explicit error (and explicit null clears it); the clock ticks
++     // that only carry { state } must not erase a surfaced failure.
++     if (patch.error !== undefined) errorRef.current = patch.error;
++     onStatusChange?.({
++       state: 'idle',
++       elapsedMs,
++       firstTokenMs: firstTokenMsRef.current,
++       provider: null,
++       model: null,
++       error: errorRef.current,
++       ...patch
++     });
++   };
++ 
++   const clearResponseTimers = () => {
++     if (livenessTimerRef.current !== null) {
++       window.clearTimeout(livenessTimerRef.current);
++       livenessTimerRef.current = null;
++     }
++     if (totalResponseTimerRef.current !== null) {
++       window.clearTimeout(totalResponseTimerRef.current);
++       totalResponseTimerRef.current = null;
++     }
++   };
++ 
++   const startStatusClock = (state: JarvisRuntimeState) => {
++     if (statusIntervalRef.current !== null) window.clearInterval(statusIntervalRef.current);
++     emitStatus({ state });
++     statusIntervalRef.current = window.setInterval(() => emitStatus({ state: runtimeStateRef.current }), 250);
++   };
++ 
++   const stopStatusClock = () => {
++     if (statusIntervalRef.current !== null) {
++       window.clearInterval(statusIntervalRef.current);
++       statusIntervalRef.current = null;
++     }
++   };
++ 
++   // STOP propagation and Goal terminal synchronization:
++   useEffect(() => {
++     const handleGoalTerminal = () => {
++       stopStatusClock();
++       clearResponseTimers();
++       runtimeStateRef.current = 'idle';
++       isProcessingRef.current = false;
++       setIsProcessing(false);
++       emitStatus({ ...idleStatus, state: 'idle' });
++     };
++     window.addEventListener('jarvis:goal-terminal', handleGoalTerminal);
++     return () => {
++       window.removeEventListener('jarvis:goal-terminal', handleGoalTerminal);
++     };
++     // eslint-disable-next-line react-hooks/exhaustive-deps
++   }, []);
++ 
++   const fetchMessages = async (merge = false) => {
++     if (!conversationId) {
++       setMessages([]);
++       onMessagesChange?.([]);
++       return;
++     }
++     try {
++       const res = await fetch(`${API_BASE}/jarvis/conversations/${conversationId}/messages`);
++       const data = await res.json();
++       if (Array.isArray(data)) {
++         if (merge) {
++           setMessages(prev => {
++             const existingIds = new Set(prev.map(message => message.id));
++             return [...prev, ...data.filter((message: any) => !existingIds.has(message.id))];
++           });
++         } else {
++           setMessages(data);
++         }
++       } else {
++         console.error('Expected array of messages, got:', data);
++       }
++     } catch (e) {
++       console.error(e);
++     }
++   };
++ 
++   useEffect(() => {
++     fetchMessages();
++     if (!isProcessingRef.current) {
++       setCreatedGoalId(null);
++       setSendError(null);
++       requestStartedAtRef.current = null;
++       emitStatus(idleStatus);
++     }
++   }, [conversationId]);
++ 
++   useGatewayStream({
++     conversationId,
++     onMessage: (data) => {
++       setMessages(prev => {
++         if (prev.find(p => p.id === data.id)) return prev;
++         return [...prev, data];
++       });
++     },
++     onGatewayEvent: (messageId, event, metadataUpdate) => {
++       // Find the message by ID or fallback to the latest active operation
++       setMessages(prev => {
++         const next = [...prev];
++         let targetIndex = -1;
++         
++         if (messageId) {
++           targetIndex = next.findIndex(m => m.id === messageId);
++         } else {
++           // Find the last agent message
++           for (let i = next.length - 1; i >= 0; i--) {
++             if (next[i].role === 'agent') {
++               targetIndex = i;
++               break;
++             }
++           }
++         }
++         
++         if (targetIndex >= 0) {
++           const m = next[targetIndex];
++           const prevGateway = m.gateway || {};
++           const newGateway = { ...prevGateway, ...metadataUpdate };
++           if (event) {
++             const prevEvents = prevGateway.events || [];
++             newGateway.events = [...prevEvents, event].slice(-20);
++           }
++           next[targetIndex] = { ...m, gateway: newGateway };
++         }
++         return next;
++       });
++     }
++   });
++ 
++   useEffect(() => {
++     // Follow new content only while the user is already near the bottom —
++     // reading history is never interrupted (§4).
++     if (stickToBottomRef.current && chatScrollRef.current) {
++       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
++     }
++   }, [messages, isProcessing]);
++ 
++   useEffect(() => {
++     return () => {
++       if (abortControllerRef.current) {
++         logAbort('component_unmount', abortControllerRef.current, requestStartedAtRef.current);
++         abortControllerRef.current.abort();
++       }
++       clearResponseTimers();
++       if (statusIntervalRef.current !== null) window.clearInterval(statusIntervalRef.current);
++     };
++   }, []);
++ 
++   const logAbort = (reason: string, controller: AbortController, startTime: number | null, extraOpId?: string) => {
++     // If the controller is already aborted, don't double log
++     if (controller.signal.aborted) return;
++     const elapsed = startTime ? Date.now() - startTime : -1;
++     // We try to extract operationId from the currently tracked one if we know it
++     console.debug(`[JarvisChat:abort] reason=${reason} operationId=${extraOpId || 'unknown'} conversationId=${conversationId} elapsed=${elapsed}ms`);
++   };
++ 
++   const activeGoalId = useMemo(() => {
++     if (createdGoalId) return createdGoalId;
++     for (let i = messages.length - 1; i >= 0; i--) {
++       if (messages[i].goalId) return messages[i].goalId as string;
++     }
++     return null;
++   }, [createdGoalId, messages]);
++ 
++   const latestTeamExecutionMessageId = useMemo(() => {
++     for (let i = messages.length - 1; i >= 0; i--) {
++       if (messages[i].messageType === 'team_execution' && messages[i].runId) return messages[i].id;
++     }
++     return null;
++   }, [messages]);
++ 
++   const visibleMessages = useMemo(() => visibleMessagesForOperations(messages), [messages]);
++   const sendErrorHiddenByMessage = useMemo(() => {
++     if (!sendError) return false;
++     return messages.some(message => (
++       message.messageType === 'error'
++       && getMessageOperationId(message) === sendError.operationId
++     ));
++   }, [messages, sendError]);
++ 
++ 
++ 
++   const appendStreamingAssistantText = (operationId: string, delta: string, final = false) => {
++     // Track the accumulated text for the TTS trigger (read once at `done`).
++     if (delta) {
++       streamedTextByOpRef.current[operationId] =
++         `${streamedTextByOpRef.current[operationId] || ''}${delta}`;
++     }
++     setMessages(prev => {
++       const existingIndex = prev.findIndex(p => p.id === `assistant-${operationId}`);
++       if (existingIndex >= 0) {
++         const next = [...prev];
++         next[existingIndex] = {
++           ...next[existingIndex],
++           content: `${next[existingIndex].content}${delta}`,
++           status: final ? 'completed' : 'streaming',
++           updatedAt: new Date().toISOString()
++         };
++         return next;
++       }
++       if (!delta) return prev;
++       return [...prev, {
++         id: `assistant-${operationId}`,
++         role: 'agent',
++         content: delta,
++         status: final ? 'completed' : 'streaming',
++         routedAgent: 'jarvis',
++         createdAt: new Date().toISOString(),
++         metadata: { operationId }
++       }];
++     });
++   };
++ 
++   const appendOperationalEvent = (operationId: string, eventName: string, content: string, metadata: Record<string, any> = {}) => {
++     const id = `op-${operationId}-${eventName}`;
++     setMessages(prev => {
++       const nextMessage = {
++         id,
++         role: 'system',
++         messageType: eventName.startsWith('hermes_progress')
++           ? 'hermes_progress'
++           : eventName === 'action_status'
++           ? 'action_status'
++           : eventName === 'plan'
++           ? 'plan'
++           : eventName === 'approval_required'
++           ? 'approval_request'
++           : 'system_status',
++         content,
++         createdAt: new Date().toISOString(),
++         metadata: { operationId, eventName, ...metadata }
++       };
++       const existingIndex = prev.findIndex(p => p.id === id);
++       if (existingIndex >= 0) {
++         const next = [...prev];
++         next[existingIndex] = nextMessage;
++         return next;
++       }
++       return [...prev, nextMessage];
++     });
++   };
++ 
++   const cancelResponse = () => {
++     responseTimedOutRef.current = false;
++     if (abortControllerRef.current) {
++       logAbort('user_cancel', abortControllerRef.current, requestStartedAtRef.current);
++       abortControllerRef.current.abort();
++     }
++     clearResponseTimers();
++     stopStatusClock();
++     emitStatus({ state: 'cancelled' });
++     // PHASE 15 (multi-turn reliability): a cancelled response is still a
++     // settled response — the conversation engine must re-arm the mic so the
++     // next voice turn works after STOP/barge-in.
++     onResponseSettledRef.current?.();
++     uiDiagnostics.setStreamEnded(null);
++     window.setTimeout(() => {
++       if (!abortControllerRef.current) emitStatus(idleStatus);
++     }, 1200);
++     setIsProcessing(false);
++   };
++ 
++   const buildMessageRequestBody = (
++     text: string,
++     operationId: string,
++     inputChannel: 'typed' | 'voice' = 'typed',
++     attachments?: JarvisAttachment[]
++   ) => {
++     const body: {
++       prompt: string;
++       operationId: string;
++       inputChannel: 'typed' | 'voice';
++       attachments?: JarvisAttachment[];
++       workspacePath?: string;
++       repositoryPath?: string;
++       approvalPolicy?: string;
++       overrideProvider?: string;
++       overrideModel?: string;
++     } = { prompt: text, operationId, inputChannel };
++ 
++     if (attachments && attachments.length > 0) {
++       body.attachments = attachments;
++     }
++ 
++     // Conversation-level routing override (PRIORITY 3): manual selections
++     // apply only to this execution; the backend records them in the ledger.
++     if (routingOverride.mode === 'manual' && routingOverride.provider) {
++       body.overrideProvider = routingOverride.provider;
++       if (routingOverride.model) body.overrideModel = routingOverride.model;
++     }
++ 
++     if (runSettings.workspacePath) {
++       body.workspacePath = runSettings.workspacePath;
++       body.repositoryPath = runSettings.workspacePath;
++       body.approvalPolicy = runSettings.approvalPolicy;
++     }
++ 
++     if (workspaceContext) {
++       (body as any).workspaceContext = workspaceContext;
++     }
++ 
++     return body;
++   };
++ 
++   const currentTurnIdRef = useRef<number | null>(null);
++ 
++   const handleSendMessage = async (
++     text: string,
++     inputChannel: 'typed' | 'voice' = 'voice',
++     turnIdOrAttachments?: number | JarvisAttachment[],
++     maybeAttachments?: JarvisAttachment[]
++   ) => {
++     const turnId = typeof turnIdOrAttachments === 'number' ? turnIdOrAttachments : undefined;
++     const attachments = Array.isArray(turnIdOrAttachments) ? turnIdOrAttachments : maybeAttachments;
++     const hasText = !!text.trim();
++     const hasAttachments = !!attachments && attachments.length > 0;
++     if (!hasText && !hasAttachments) return;
++     currentTurnIdRef.current = typeof turnId === 'number' ? turnId : null;
++     // Offline gate: never route a request into Jarvis logic while the
++     // backend is definitively unavailable — answer truthfully instead.
++     if (offlineGateReasonRef.current) {
++       setMessages(prev => [...prev, {
++         id: `offline-${Date.now()}`,
++         role: 'agent',
++         content: offlineGateReasonRef.current,
++         createdAt: new Date().toISOString(),
++         metadata: { offlineGate: true },
++       }]);
++       setIsProcessing(false);
++       return;
++     }
++     // Track the input channel so the completed reply can be routed to TTS.
++     pendingChannelRef.current = inputChannel;
++     voiceTraceBegin();
++     // Domain grounding: normalize Agentic-OS STT variants ("Authentic OS",
++     // "Argentic OS", "Agenticos") back to the local project name when the
++     // context is a project/architecture reference. Never rewrite unrelated
++     // user words.
++     text = normalizeDomainTerms(text);
++     // ── Dev timing telemetry ──────────────────────────────────────────
++     const t0 = Date.now();
++     if (DEV_TIMING) console.debug('[JarvisChat:timing] submit', { text: text.slice(0, 40), inputChannel, t: t0 });
++     let targetConversationId = conversationId;
++     if (!targetConversationId) {
++       try {
++         const createRes = await fetch(`${API_BASE}/jarvis/conversations`, {
++           method: 'POST',
++           headers: { 'Content-Type': 'application/json' },
++           body: JSON.stringify({ title: text.slice(0, 40) || (hasAttachments ? `File: ${attachments![0].name}` : 'New Conversation') }),
++         });
++         const createData = await createRes.json();
++         if (createData?.id) {
++           targetConversationId = createData.id;
++           onConversationCreated?.(createData.id);
++         } else {
++           throw new Error('Failed to create a new conversation');
++         }
++       } catch (err: any) {
++         setSendError({ message: err.message || 'Failed to create conversation', operationId: `err-${Date.now()}` });
++         setIsProcessing(false);
++         return;
++       }
++     }
++     voiceTracePush('conversation', 'ok', `Conversation ${targetConversationId} (channel ${inputChannel})`);
++ 
++     const operationId = `jarvis-${targetConversationId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
++     // Guaranteed non-null here (created above when missing), but TS can't
++     // narrow a `let` through the await — record the actual id for the TTS
++     // fallback fetch of non-streamed replies.
++     opConversationRef.current[operationId] = targetConversationId || '';
++     lastOperationIdRef.current = operationId;
++     if (abortControllerRef.current) {
++       logAbort('new_request', abortControllerRef.current, requestStartedAtRef.current, operationId);
++       abortControllerRef.current.abort();
++     }
++     const controller = new AbortController();
++     abortControllerRef.current = controller;
++     responseTimedOutRef.current = false;
++     requestStartedAtRef.current = Date.now();
++     firstTokenMsRef.current = null;
++     setCreatedGoalId(null);
++     setIsProcessing(true);
++     setSendError(null);
++     errorRef.current = null;
++     clearResponseTimers();
++     startStatusClock('thinking');
++ 
++     // NOTE: First-token timer is NOT started here.
++     // It is started AFTER fetch() resolves with HTTP headers so that
++     // conversation-creation overhead and network round-trip do NOT eat
++     // into the budget.  See the 'fetch-start' telemetry point below.
++ 
++     totalResponseTimerRef.current = window.setTimeout(() => {
++       if (abortControllerRef.current !== controller || controller.signal.aborted) return;
++       responseTimedOutRef.current = true;
++       const message = 'Jarvis response timed out before completion.';
++       timeoutDiagnosisRef.current = message;
++       logAbort('overall_timeout', controller, requestStartedAtRef.current, operationId);
++       controller.abort();
++       setSendError({ message, operationId });
++       stopStatusClock();
++       emitStatus({ state: 'error', error: message });
++       setIsProcessing(false);
++       onResponseSettledRef.current?.();
++     }, TOTAL_RESPONSE_TIMEOUT_MS);
++ 
++     setMessages(prev => [...prev, {
++       id: operationId,
++       role: 'user',
++       content: text || (hasAttachments ? `[Attached ${attachments!.length} file(s)]` : ''),
++       createdAt: new Date().toISOString(),
++       metadata: { operationId, inputChannel, attachments: hasAttachments ? attachments : undefined }
++     }]);
++ 
++     let fetchStartAt = Date.now();
++     let requestCompletedSuccessfully = false;
++     let sawTerminalEvent = false;
++ 
++     const resetLivenessTimer = () => {
++       if (livenessTimerRef.current !== null) {
++         window.clearTimeout(livenessTimerRef.current);
++         livenessTimerRef.current = null;
++       }
++       if (controller.signal.aborted || requestCompletedSuccessfully) return;
++       livenessTimerRef.current = window.setTimeout(() => {
++         if (abortControllerRef.current !== controller || controller.signal.aborted || requestCompletedSuccessfully) return;
++         responseTimedOutRef.current = true;
++         const message = 'Backend connection timed out (no backend activity for 45s).';
++         timeoutDiagnosisRef.current = message;
++         logAbort('liveness_timeout', controller, fetchStartAt, operationId);
++         controller.abort();
++         setSendError({ message, operationId });
++         stopStatusClock();
++         emitStatus({ state: 'error', error: message });
++         setIsProcessing(false);
++         onResponseSettledRef.current?.();
++       }, LIVENESS_TIMEOUT_MS);
++     };
++ 
++     try {
++       fetchStartAt = Date.now();
++       if (DEV_TIMING) console.debug('[JarvisChat:timing] fetch-start', { operationId, inputChannel, ms: fetchStartAt - t0 });
++       voiceTimelinePush('modelRequestStartAt', `"${text.slice(0, 40)}"`);
++ 
++       const res = await fetch(`${API_BASE}/jarvis/conversations/${targetConversationId}/message/stream`, {
++         method: 'POST',
++         headers: { 'Content-Type': 'application/json' },
++         signal: controller.signal,
++         body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel, attachments))
++       });
++ 
++       // ── Backend liveness watchdog starts HERE — after headers are received ──
++       const headersReceivedAt = Date.now();
++       if (DEV_TIMING) console.debug('[JarvisChat:timing] headers-received', { operationId, status: res.status, ms: headersReceivedAt - fetchStartAt });
++ 
++       resetLivenessTimer();
++ 
++       if (!res.ok) throw new Error(`Request failed (${res.status})`);
++ 
++       if (!res.body) {
++         await sendLegacyMessage(text, operationId, controller, inputChannel);
++         return;
++       }
++ 
++       const reader = res.body.getReader();
++       const decoder = new TextDecoder();
++       let buffer = '';
++       let sawTextChunk = false;
++       let sawFirstChunk = false;
++       let firstChunkAt = 0;
++ 
++       while (true) {
++         let readResult: ReadableStreamReadResult<Uint8Array>;
++         try {
++           readResult = await reader.read();
++         } catch (readErr: any) {
++           // If we already received terminal completion / done event, an abort or socket closure
++           // during read() is normal stream teardown and must NOT throw into catch handler.
++           if (requestCompletedSuccessfully || sawTerminalEvent) {
++             if (DEV_TIMING) console.debug('[JarvisChat:stream] Ignored post-completion reader read error:', readErr?.message);
++             break;
++           }
++           throw readErr;
++         }
++ 
++         const { value, done } = readResult;
++         if (done) {
++           if (sawTerminalEvent) {
++             requestCompletedSuccessfully = true;
++             clearResponseTimers();
++           }
++           break;
++         }
++         // AUTHORITATIVE STOP: after abort, no further SSE frame may be
++         // processed — late old-turn tokens are discarded at the boundary.
++         if (controller.signal.aborted) break;
++ 
++         buffer += decoder.decode(value, { stream: true });
++         const parsed = parseSseFrames(buffer);
++         buffer = parsed.rest;
++ 
++         const hasTerminal = parsed.events.some(event =>
++           ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event)
++         );
++         sawTerminalEvent = sawTerminalEvent || hasTerminal;
++         if (parsed.events.some(event => event.event === 'done')) {
++           requestCompletedSuccessfully = true;
++           clearResponseTimers();
++         }
++ 
++         // ANY valid backend SSE event confirms backend liveness and resets the 45s silence watchdog timer.
++         if (parsed.events.length > 0 && !requestCompletedSuccessfully) {
++           resetLivenessTimer();
++         }
++ 
++         if (!sawFirstChunk && parsed.events.some(e => e.event === 'chunk')) {
++           sawFirstChunk = true;
++           firstChunkAt = Date.now();
++           if (DEV_TIMING) console.debug('[JarvisChat:timing] first-chunk', { operationId, ms: firstChunkAt - headersReceivedAt });
++         }
++         sawTextChunk = await handleStreamEvents(parsed.events, operationId, sawTextChunk);
++       }
++ 
++       if (buffer.trim().length > 0) {
++         buffer += decoder.decode();
++         const parsed = parseSseFrames(`${buffer}\n\n`);
++         const hasTerminal = parsed.events.some(event =>
++           ['done', 'error', 'execution_failed', 'cancelled'].includes(event.event)
++         );
++         sawTerminalEvent = sawTerminalEvent || hasTerminal;
++         if (parsed.events.some(event => event.event === 'done')) {
++           requestCompletedSuccessfully = true;
++           clearResponseTimers();
++         }
++         if (parsed.events.length > 0 && !requestCompletedSuccessfully) {
++           resetLivenessTimer();
++         }
++         await handleStreamEvents(parsed.events, operationId, sawTextChunk);
++       }
++ 
++       if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-done', { operationId, sawTerminalEvent, requestCompletedSuccessfully, ms: Date.now() - (sawFirstChunk ? firstChunkAt : headersReceivedAt) });
++ 
++       if (!sawTerminalEvent && !controller.signal.aborted) {
++         const message = 'Jarvis stream closed before sending a completion or error event.';
++         setSendError({ message, operationId });
++         emitStatus({ state: 'error', error: message });
++         await fetchMessages(true);
++       }
++     } catch (e: any) {
++       if (DEV_TIMING) console.debug('[JarvisChat:timing] stream-error', { operationId, error: e?.message, ms: Date.now() - t0 });
++ 
++       // ── INVARIANT: Once a turn has completed successfully (or received a terminal event),
++       // normal stream cleanup/abort must NEVER generate a user-facing error.
++       if (requestCompletedSuccessfully || sawTerminalEvent) {
++         console.debug('[JarvisChat:stream] Suppressed post-completion stream cleanup error/abort:', e?.message || e);
++         return;
++       }
++ 
++       if (controller.signal.aborted && !responseTimedOutRef.current) {
++         appendStreamingAssistantText(operationId, '\n\n[Response cancelled]', true);
++         delete streamedTextByOpRef.current[operationId];
++         emitStatus({ state: 'cancelled', error: null });
++       } else if (responseTimedOutRef.current) {
++         // The liveness or total-response timeout timer already set the specific diagnosis and emitted status
++         const message = timeoutDiagnosisRef.current || 'Jarvis response timed out.';
++         setSendError({ message, operationId });
++         emitStatus({ state: 'error', error: message });
++       } else {
++         const rawErr = e?.message || String(e || 'Unknown error');
++         let message = `Request error: ${rawErr}`;
++         if (rawErr.includes('Failed to fetch') || rawErr.includes('NetworkError') || rawErr.includes('ECONNREFUSED')) {
++           message = `Could not reach the backend server at ${API_BASE}.`;
++         } else if (rawErr.includes('BodyStreamBuffer was aborted') || rawErr.includes('aborted') || rawErr.includes('AbortError')) {
++           message = controller.signal.aborted
++             ? 'Request was cancelled.'
++             : 'Backend stream connection was closed unexpectedly.';
++         }
++         setSendError({ message, operationId });
++         emitStatus({ state: 'error', error: message });
++       }
++     } finally {
++       clearResponseTimers();
++       stopStatusClock();
++       if (abortControllerRef.current === controller) abortControllerRef.current = null;
++       setIsProcessing(false);
++     }
++   };
++ 
++   // Canonical voice engine auto-submits transcribed turns through the exact
++   // same streaming pipeline the Send button uses (one response-stream path).
++   // NOTE: the imperative handle MUST NOT close over the first render's
++   // closures. `handleSendMessage` and `cancelResponse` read current props
++   // (notably `conversationId`), which are set AFTER mount by the studio's
++   // restore effect — a `[]`-deps handle would capture `conversationId === null`
++   // forever and force every typed/voice send to auto-create a NEW conversation
++   // (follow-up turns lost context; live acceptance showed T1→conv-A, T2→conv-B).
++   const handleSendRef = useRef<((text: string, channel: 'typed' | 'voice', turnId?: number, attachments?: JarvisAttachment[]) => void) | null>(null);
++   handleSendRef.current = (text: string, channel: 'typed' | 'voice', turnId?: number, attachments?: JarvisAttachment[]) => {
++     void handleSendMessage(text, channel, turnId, attachments);
++   };
++   const cancelResponseRef = useRef<(() => void) | null>(null);
++   cancelResponseRef.current = () => cancelResponse();
++   React.useImperativeHandle(ref, () => ({
++     sendMessage: (text: string, inputChannel: 'typed' | 'voice' = 'voice', turnId?: number, attachments?: JarvisAttachment[]) => {
++       handleSendRef.current?.(text, inputChannel, turnId, attachments);
++     },
++     cancelResponse: () => cancelResponseRef.current?.(),
++   }), []); // eslint-disable-line react-hooks/exhaustive-deps
++ 
++   const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {
++     const fallbackRes = await fetch(`${API_BASE}/jarvis/conversations/${conversationId}/message`, {
++       method: 'POST',
++       headers: { 'Content-Type': 'application/json' },
++       signal: controller.signal,
++       body: JSON.stringify(buildMessageRequestBody(text, operationId, inputChannel))
++     });
++     const result = await fallbackRes.json().catch(() => ({}));
++ 
++     if (!fallbackRes.ok || result?.error) {
++       if (result?.route) {
++         await fetchMessages();
++       } else {
++         setSendError({ message: result?.error || `Request failed (${fallbackRes.status})`, operationId });
++       }
++     } else if (result?.route === 'codex' && result?.goalId) {
++       setCreatedGoalId(result.goalId);
++     }
++   };
++ 
++   const handleStreamEvents = async (events: Array<{ event: string; data: string }>, operationId: string, sawTextChunk: boolean): Promise<boolean> => {
++     let nextSawTextChunk = sawTextChunk;
++     for (const event of events) {
++       // Hard turn invalidation: a cancelled stream must never process the
++       // events that were already buffered when the abort landed.
++       if (abortControllerRef.current?.signal.aborted) break;
++       const data = event.data ? JSON.parse(event.data) : {};
++       // D14: the typed chat's SSE stream carries the SAME canonical navigation
++       // packet as the voice transport. Hand it to the single navigation receiver.
++       if (event.event === 'navigation_request' && data?.navId) {
++         console.log('[JFE-NAV] navigation_request received over SSE', data);
++         window.dispatchEvent(new CustomEvent('jarvis:navigation-request', { detail: data }));
++       }
++       if (event.event === 'intent') {
++         emitStatus({ state: data.mode === 'operational_execution' ? 'understanding' : 'thinking' });
++         appendOperationalEvent(
++           operationId,
++           'intent',
++           `Intent: ${data.type}${data.route ? ` (${data.route})` : ''}${data.reason ? ` - ${data.reason}` : ''}`,
++           data
++         );
++       } else if (event.event === 'plan') {
++         emitStatus({ state: 'planning' });
++         const steps = Array.isArray(data.steps) ? data.steps : [];
++         appendOperationalEvent(
++           operationId,
++           'plan',
++           `Plan:\n${steps.map((step: string, index: number) => `${index + 1}. ${step}`).join('\n')}`,
++           data
++         );
++       } else if (event.event === 'agent_selected') {
++         emitStatus({ state: 'delegating' });
++         appendOperationalEvent(operationId, 'agent_selected', `Selected agent: ${data.agent}${data.reason ? ` - ${data.reason}` : ''}`, data);
++       } else if (event.event === 'navigation') {
++         const target = typeof data.target === 'string' ? data.target : '';
++         const targetPath = target.split('?')[0];
++         try {
++           if (target === 'GO_BACK') {
++             window.history.back();
++             appendOperationalEvent(operationId, 'navigation', 'Navigating back', data);
++           } else if (JARVIS_NAVIGATION_TARGETS.has(target) || JARVIS_NAVIGATION_TARGETS.has(targetPath)) {
++             if ((window as any).__SIMULATE_NAVIGATION_FAILURE__) {
++               throw new Error('Controlled test: Navigation dispatch failed: Router could not activate target entity view in Revenue Operator');
++             }
++             const navKey = `${operationId}:${target}`;
++             if (!firedNavigationRef.current.has(navKey)) {
++               firedNavigationRef.current.add(navKey);
++               appendOperationalEvent(operationId, 'navigation', `Opening ${target}`, data);
++               onNavigate?.(target);
++             }
++           } else {
++             throw new Error(`Navigation rejected: unsupported target "${target || data.capability || 'unknown'}"`);
++           }
++         } catch (navErr: any) {
++           console.error('[JarvisChat] Navigation execution failed:', navErr);
++           const actionId = data.actionId || `action-${Date.now()}`;
++           failedActionIdsRef.current.add(actionId);
++           const failedRecord = {
++             id: actionId,
++             ownerAgent: 'jarvis',
++             command: data.command || 'Open entity',
++             actionType: 'OPEN_ENTITY',
++             entityType: data.entityType,
++             entityId: data.entityId,
++             displayName: data.displayName,
++             destination: target,
++             status: 'failed',
++             errorCode: 'NAVIGATION_FAILED',
++             error: navErr.message || 'Navigation dispatch failed',
++             startedAt: new Date().toISOString(),
++             completedAt: new Date().toISOString(),
++             evidence: [
++               { type: 'navigation_error', detail: navErr.message || 'Navigation dispatch failed', timestamp: new Date().toISOString() }
++             ]
++           };
++           onActionRecord?.(failedRecord);
++           if (data.actionId) {
++             fetch(`${API_BASE}/jarvis/actions/${data.actionId}/status`, {
++               method: 'POST',
++               headers: { 'Content-Type': 'application/json' },
++               body: JSON.stringify({
++                 status: 'failed',
++                 errorCode: 'NAVIGATION_FAILED',
++                 error: navErr.message || 'Navigation dispatch failed'
++               })
++             }).catch(() => {});
++           }
++           emitStatus({ state: 'error', error: navErr.message || 'Navigation failed.' });
++           appendOperationalEvent(operationId, 'navigation', `Navigation failed: ${navErr.message || 'Dispatch error'}`, data);
++         }
++       } else if (event.event === 'action_record') {
++         if (data.id && failedActionIdsRef.current.has(data.id)) {
++           return nextSawTextChunk;
++         }
++         onActionRecord?.(data);
++         appendOperationalEvent(operationId, 'action_record', `Action ${data.actionType || 'Action'} (${data.status || 'running'}): ${data.displayName || data.command || ''}`, data);
++       } else if (event.event === 'action_status') {
++         if ((data.actionId && failedActionIdsRef.current.has(data.actionId)) || (data.executionId && failedActionIdsRef.current.has(data.executionId))) {
++           return nextSawTextChunk;
++         }
++         const statusState = data.status === 'completed' ? 'completed' : data.status === 'failed' ? 'error' : 'executing';
++         emitStatus({ state: statusState });
++         appendOperationalEvent(
++           operationId,
++           'action_status',
++           `${data.actionName || 'Action'}: ${data.status} - ${data.currentStep || data.error || ''}`,
++           { actionStatus: data }
++         );
++       } else if (event.event === 'approval_required') {
++         emitStatus({ state: 'approval_required' });
++         appendOperationalEvent(
++           operationId,
++           'approval_required',
++           `Approval required: ${data.reason}\nAction: ${data.proposedAction}${data.workspace ? `\nWorkspace: ${data.workspace}` : ''}`,
++           data
++         );
++       } else if (event.event === 'execution_started') {
++         emitStatus({ state: 'executing' });
++         appendOperationalEvent(operationId, 'execution_started', `Execution started: ${data.agent || data.route}`, data);
++       } else if (event.event === 'execution_progress') {
++         emitStatus({ state: runtimeStateForDelegatedStatus(data.status || data.state) });
++         appendOperationalEvent(operationId, 'execution_progress', `Execution status: ${data.state || data.status || 'running'}`, data);
++       } else if (event.event === 'execution_completed') {
++         emitStatus({ state: 'completed' });
++         appendOperationalEvent(
++           operationId,
++           'execution_completed',
++           `Execution completed${data.goalId ? `\nCodeX goal: ${data.goalId}` : ''}${data.teamId ? `\nTeam: ${data.teamId}` : ''}${data.status ? `\nStatus: ${data.status}` : ''}`,
++           data
++         );
++       } else if (event.event === 'execution_failed') {
++         emitStatus({ state: 'error', error: data.error || 'Execution failed.' });
++         uiDiagnostics.setStreamEnded(operationId);
++         onResponseSettledRef.current?.();
++       } else if (event.event === 'hermes_progress') {
++         const msg = data.message || data.summary || data.content || 'Hermes working...';
++         const phase = data.phase || data.eventType || 'PROGRESS';
++         emitStatus({ state: 'executing' });
++         appendOperationalEvent(
++           operationId,
++           `hermes_progress_${data.id || data.timestamp || Date.now()}`,
++           msg,
++           { ...data, isHermesProgress: true, phase, message: msg }
++         );
++       } else if (event.event === 'progress') {
++         appendOperationalEvent(operationId, 'progress', data.content || data.summary || 'Progress update', data);
++         // Isolated: background task progress updates never trigger TTS auto-speech
++       } else if (event.event === 'intermediate_finding') {
++         appendOperationalEvent(operationId, 'intermediate_finding', data.content || data.summary || 'Intermediate finding', data);
++         // Isolated: intermediate findings never trigger TTS auto-speech
++       } else if (event.event === 'paused') {
++         emitStatus({ state: 'paused' });
++         appendOperationalEvent(operationId, 'paused', `Execution paused${data.reason ? `: ${data.reason}` : ''}`, data);
++       } else if (event.event === 'intent') {
++         if (data.language) {
++           onLanguageChangeRef.current?.(data.language);
++           if (typeof window !== 'undefined') {
++             window.dispatchEvent(new CustomEvent('jarvis:language-changed', {
++               detail: { language: data.language, conversationId }
++             }));
++           }
++         }
++         voiceTracePush('intent_route', 'ok', `Intent ${data.type || data.route || '?'} (${Math.round((data.confidence || 0) * 100)}%)`);
++       } else if (event.event === 'heartbeat') {
++         // Transport keepalive: resets liveness watchdog without modifying transcript
++         emitStatus({ state: data.state || runtimeStateRef.current });
++       } else if (event.event === 'thinking') {
++         emitStatus({ state: 'thinking' });
++         if (data.action) {
++           appendOperationalEvent(operationId, 'thinking', data.action, data);
++         }
++       } else if (event.event === 'timing' && data.marker === 'first_token') {
++         voiceTracePush('provider_model', 'ok', `${data.provider} / ${data.model} — first token in ${data.elapsedMs}ms`);
++         if (typeof data.elapsedMs === 'number') firstTokenMsRef.current = data.elapsedMs;
++       } else if (event.event === 'chunk') {
++         if (nextSawTextChunk === false) {
++           voiceTracePush('response_started', 'ok', 'Response stream started');
++           voiceTimelinePush('firstModelTokenAt', `"${(data.delta || '').slice(0, 30)}"`);
++         }
++         nextSawTextChunk = true;
++         emitStatus({
++           state: 'streaming',
++           firstTokenMs: firstTokenMsRef.current,
++           provider: data.provider ?? null,
++           model: data.model ?? null
++         });
++         if (typeof data.delta === 'string' && data.delta.includes('[Stream Error:')) {
++           const errMsg = data.delta.replace(/^[\s\n]*\[Stream Error:\s*/, '').replace(/\]\s*$/, '').trim() || 'Stream error.';
++           emitStatus({ state: 'error', error: errMsg.slice(0, 200) });
++         }
++         uiDiagnostics.setStreamActive(data.provider ?? null, data.model ?? null, operationId);
++         appendStreamingAssistantText(operationId, data.delta || '');
++         if (data.delta) {
++           const channel = pendingChannelRef.current || 'typed';
++           if (typeof currentTurnIdRef.current === 'number') {
++             onStreamDeltaRef.current?.(data.delta, channel, currentTurnIdRef.current);
++           } else {
++             onStreamDeltaRef.current?.(data.delta, channel);
++           }
++         }
++       } else if (event.event === 'error') {
++         const message = data.error || 'Jarvis response failed.';
++         setSendError({ message, operationId });
++         emitStatus({ state: 'error', error: message });
++         uiDiagnostics.setStreamEnded(operationId);
++         onResponseSettledRef.current?.();
++         await fetchMessages();
++       } else if (event.event === 'done') {
++         if (data.language) {
++           onLanguageChangeRef.current?.(data.language);
++           if (typeof window !== 'undefined') {
++             window.dispatchEvent(new CustomEvent('jarvis:language-changed', {
++               detail: { language: data.language, conversationId }
++             }));
++           }
++         }
++         voiceTracePush('response_done', 'ok', `Stream done (route ${data.route || 'direct'})`);
++         onResponseSettledRef.current?.();
++         appendStreamingAssistantText(operationId, '', true);
++         const finalText = (streamedTextByOpRef.current[operationId] || '').trim();
++         const hadStreamedText = finalText.length > 0;
++         delete streamedTextByOpRef.current[operationId];
++         delete opConversationRef.current[operationId];
++         const isDelegatedRoute = data.route === 'codex' || data.route === 'delegated' || data.route === 'hermes';
++         const isSpokenRoute = !isDelegatedRoute && data.route !== 'voice_stop';
++ 
++         if (isSpokenRoute && hadStreamedText) {
++           const channel = pendingChannelRef.current || 'typed';
++           if (typeof currentTurnIdRef.current === 'number') {
++             onAssistantResponseRef.current?.(finalText, channel, currentTurnIdRef.current);
++           } else {
++             onAssistantResponseRef.current?.(finalText, channel);
++           }
++         }
++         if (data.goalId) setCreatedGoalId(data.goalId);
++         // Current-turn ownership: a background task created by THIS operation
++         // is announced so the Active Task panel selects it (never a stale
++         // historical task) and pins it as the current operation.
++         if (data.taskId) {
++           window.dispatchEvent(new CustomEvent('jarvis:task-created', {
++             detail: { taskId: data.taskId, operationId }
++           }));
++         }
++         // §stabilization: clarification_required is a TERMINAL conversation
++         // state (Jarvis is waiting for the user), NOT a delegated execution.
++         // Treating it as delegated left runtimeStatus stuck in 'executing',
++         // which disabled the composer forever. Terminal conversation routes
++         // complete like 'direct' and release the composer via the idle timer.
++         // Same for a SYNCHRONOUS 'investigate' reply (registry state report):
++         // its done frame carries no status and ends the stream — it is
++         // completed, not a still-executing delegation. (Async delegations —
++         // codex/hermes — carry data.status from execution_* events.) The
++         // classifier also treats every route WITHOUT a delegation status as
++         // terminal — memory_store / memory_recall / decision_statement /
++         // continuation / project_state_answer all complete synchronously and
++         // must release the composer.
++         const nextState = classifyDoneState(data);
++         emitStatus({
++           state: nextState,
++           firstTokenMs: typeof data.firstTokenMs === 'number' ? data.firstTokenMs : firstTokenMsRef.current,
++           provider: data.provider ?? null,
++           model: data.model ?? null
++         });
++         // Diagnostic: the stream ended — move active → lastKnown.
++         uiDiagnostics.setStreamEnded(operationId);
++         stopStatusClock();
++         clearResponseTimers();
++         isProcessingRef.current = false;
++         setIsProcessing(false);
++         window.setTimeout(() => {
++           if (!abortControllerRef.current) {
++             // Reset to idle (recovery shown — never stuck in the error
++             // state) but preserve a surfaced model/provider failure so the
++             // BLOCKED/ATTENTION row keeps showing it until the next request.
++             emitStatus({ ...idleStatus, error: errorRef.current });
++           }
++         }, 800);
++         if (data.route !== 'direct' || !nextSawTextChunk) await fetchMessages(true);
++         if (data.route === 'codex' && data.goalId) setCreatedGoalId(data.goalId);
++       }
++     }
++     return nextSawTextChunk;
++   };
++ 
++   const renderMessageContent = (content: string) => {
++     const parts = content.split('```');
++     return parts.map((part, i) => {
++       if (i % 2 === 1) {
++         const firstLineBreak = part.indexOf('\n');
++         const code = firstLineBreak > -1 ? part.substring(firstLineBreak + 1) : part;
++         return <pre key={i} style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '6px', overflowX: 'auto', marginTop: '8px', marginBottom: '8px' }}><code>{code}</code></pre>;
++       }
++       return <span key={i}>{part}</span>;
++     });
++   };
++ 
++   return (
++     <>
++       {/* §4 command dock: bounded flex column — the transcript gets the
++           scroll surface (flex:1, min-height:0); routing/execution/composer
++           stay fixed-height rows below it instead of eating scroll space.
++           Transparent wrapper for non-command (conversation panel) use. */}
++       <div style={transcriptVariant === 'command' ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : undefined}>
++       <div className={styles.chatScrollFrame} data-testid="jarvis-chat-scroll-frame">
++         <div
++           ref={chatScrollRef}
++           onScroll={handleTranscriptScroll}
++           className={styles.chatContainer}
++           data-testid="jarvis-chat-scroll"
++           // Inline scroll contract (§4): the transcript scrolls here even if
++           // the stylesheet fails to load — the bounded dock provides height.
++           // Jarvis-layout fix: flex-fill (no hard height:100%) so the scroll
++           // surface exactly matches the bounded frame and can never extend
++           // past it into the composer below.
++           style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}
++         >
++         {transcriptVariant === 'command' && visibleMessages.map((msg) => {
++           // ── Command transcript: labeled lines, no bubbles ──
++           const label = (() => {
++             if (msg.role === 'user') return 'YOU';
++             const via = (msg.routedAgent || '').toLowerCase();
++             if (via === 'hermes' || via === 'agent-hermes') return 'HERMES';
++             if (via === 'codex' || via === 'agent-codex') return 'CODEX';
++             if (via === 'reviewer' || via === 'evaluator') return 'REVIEWER';
++             if (msg.role === 'agent') return 'JARVIS';
++             if (msg.messageType === 'approval_request' || msg.messageType === 'plan') return 'REVIEWER';
++             return 'SYSTEM';
++           })();
++           const color = ({ YOU: '#7dd3fc', JARVIS: '#e2e8f0', HERMES: '#fb923c', CODEX: '#4ade80', REVIEWER: '#c084fc', SYSTEM: '#64748b' } as Record<string, string>)[label] || '#94a3b8';
++           if (msg.messageType === 'action_status' || msg.metadata?.actionStatus) {
++             return (
++               <div key={msg.id} data-testid="jarvis-command-action-status" style={{ padding: '4px 2px', borderBottom: '1px solid rgba(30,41,59,0.4)' }}>
++                 <ChatActionStatusCard data={msg.metadata?.actionStatus || {
++                   actionName: 'Action Execution',
++                   targetCapability: 'system',
++                   status: 'running',
++                   currentStep: msg.content
++                 }} />
++               </div>
++             );
++           }
++           return (
++             <div key={msg.id} data-testid="jarvis-command-line" style={{ display: 'flex', gap: 10, padding: '5px 2px', borderBottom: '1px solid rgba(30,41,59,0.4)', fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace", fontSize: 12, lineHeight: 1.55 }}>
++               <span style={{ color, flexShrink: 0, width: 78, letterSpacing: 1, fontWeight: 700 }}>{label}</span>
++               <span style={{ color: msg.messageType === 'error' ? '#fca5a5' : '#cbd5e1', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', minWidth: 0 }}>
++                 {renderMessageContent(msg.content)}
++               </span>
++             </div>
++           );
++         })}
++         {transcriptVariant !== 'command' && visibleMessages.map(msg => {
++           const isUser = msg.role === 'user';
++           const isSystem = msg.role === 'system';
++           const isError = msg.messageType === 'error';
++ 
++           return (
++             <div key={msg.id} className={`${styles.messageRow} ${isUser ? styles.user : isSystem ? styles.system : styles.agent}`}>
++               {!isSystem && (
++                 <div className={`${styles.messageAvatar} ${isUser ? styles.user : styles.agent}`}>
++                   {isUser ? <User size={16} /> : <Cpu size={16} />}
++                 </div>
++               )}
++ 
++               <div className={styles.messageContent} style={isError ? { borderColor: 'var(--color-error)' } : {}}>
++                 {!isSystem && (
++                   <div className={styles.messageMeta}>
++                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
++                       <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
++                         {isUser ? 'You' : 'Jarvis'}
++                         {msg.routedAgent && msg.routedAgent !== 'jarvis' && ` (via ${msg.routedAgent})`}
++                       </span>
++                       {!isUser && <ProviderBadge message={msg} onClick={() => setDetailsMessage(msg)} />}
++                     </div>
++                     <span>
++                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
++                     </span>
++                   </div>
++                 )}
++ 
++                 {isSystem && msg.messageType === 'routing_event' && (
++                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)' }}>
++                     <Server size={14} />
++                     {renderMessageContent(msg.content)}
++                   </div>
++                 )}
++ 
++                 {isSystem && isError && (
++                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-error)' }}>
++                     <AlertCircle size={14} />
++                     {renderMessageContent(msg.content)}
++                   </div>
++                 )}
++ 
++                 {isSystem && msg.messageType === 'system_status' && (
++                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-jarvis)' }}>
++                     <Cpu size={14} />
++                     {renderMessageContent(msg.content)}
++                   </div>
++                 )}
++ 
++                 {isSystem && msg.messageType === 'plan' && (
++                   <div data-testid="jarvis-operational-plan" style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
++                     {renderMessageContent(msg.content)}
++                   </div>
++                 )}
++ 
++                 {isSystem && msg.messageType === 'approval_request' && (
++                   <div data-testid="jarvis-approval-card" style={{ display: 'grid', gap: 10, color: 'var(--text-primary)' }}>
++                     <div style={{ color: 'var(--color-warning)', fontWeight: 700 }}>Approval Required</div>
++                     <div style={{ whiteSpace: 'pre-wrap' }}>{renderMessageContent(msg.content)}</div>
++                     <div style={{ display: 'flex', gap: 8 }}>
++                       <button type="button" disabled title="Approval is handled by the generated execution card">Approve</button>
++                       <button type="button" disabled title="Approval is handled by the generated execution card">Reject</button>
++                     </div>
++                   </div>
++                 )}
++ 
++                 {isSystem && msg.messageType === 'team_preview' && msg.metadata?.teamSheet && (
++                   <JarvisTeamPreviewCard
++                     conversationId={conversationId || ''}
++                     teamId={msg.metadata.teamId}
++                     teamSheet={msg.metadata.teamSheet}
++                   />
++                 )}
++ 
++                 {isSystem && msg.messageType === 'team_execution' && msg.runId && msg.id === latestTeamExecutionMessageId && (
++                   <div data-testid="jarvis-team-execution">
++                     <JarvisTeamExecutionCard
++                       runId={msg.runId}
++                       teamId={msg.metadata?.teamId}
++                     />
++                   </div>
++                 )}
++ 
++                 {((isSystem && msg.messageType === 'action_status') || msg.metadata?.actionStatus) && (
++                   <ChatActionStatusCard data={msg.metadata?.actionStatus || {
++                     actionName: 'Action Execution',
++                     targetCapability: 'system',
++                     status: 'running',
++                     currentStep: msg.content
++                   }} />
++                 )}
++ 
++                 {isSystem && msg.messageType === 'hermes_progress' && (
++                   <div
++                     data-testid="hermes-live-progress-event"
++                     style={{
++                       background: 'rgba(147, 51, 234, 0.08)',
++                       border: '1px solid rgba(168, 85, 247, 0.25)',
++                       borderLeft: '3px solid #a855f7',
++                       borderRadius: '8px',
++                       padding: '10px 14px',
++                       margin: '6px 0',
++                       display: 'flex',
++                       flexDirection: 'column',
++                       gap: '6px',
++                     }}
++                   >
++                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
++                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
++                         <span style={{
++                           display: 'inline-flex',
++                           alignItems: 'center',
++                           gap: '5px',
++                           background: 'rgba(168, 85, 247, 0.2)',
++                           color: '#d8b4fe',
++                           padding: '2px 8px',
++                           borderRadius: '4px',
++                           fontWeight: 700,
++                           fontSize: '10px',
++                           letterSpacing: '0.05em',
++                           textTransform: 'uppercase',
++                         }}>
++                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#c084fc' }} />
++                           Hermes
++                         </span>
++                         <span style={{ color: '#c084fc', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase' }}>
++                           {msg.metadata?.phase || 'EXECUTION'}
++                         </span>
++                         {msg.metadata?.worker && msg.metadata.worker !== 'hermes' && (
++                           <span style={{ color: '#94a3b8', fontSize: '11px' }}>
++                             via {msg.metadata.worker}
++                           </span>
++                         )}
++                       </div>
++                       <span style={{ color: '#64748b', fontSize: '10px' }}>
++                         {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString() : ''}
++                       </span>
++                     </div>
++                     <div style={{ color: '#f1f5f9', fontSize: '13px', lineHeight: '1.45', whiteSpace: 'pre-wrap' }}>
++                       {renderMessageContent(msg.metadata?.message || msg.content)}
++                     </div>
++                     {msg.metadata?.evidenceSummary && (
++                       <div style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px' }}>
++                         {msg.metadata.evidenceSummary}
++                       </div>
++                     )}
++                   </div>
++                 )}
++ 
++                 {isSystem && !['routing_event', 'error', 'system_status', 'plan', 'approval_request', 'team_preview', 'team_execution', 'action_status', 'hermes_progress'].includes(msg.messageType || '') && (
++                   <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
++                     {renderMessageContent(msg.content)}
++                   </div>
++                 )}
++ 
++                 {!isSystem && (
++                   <div style={{ color: isError ? 'var(--color-error)' : 'inherit' }}>
++                     {msg.metadata?.attachments && msg.metadata.attachments.length > 0 && (
++                       <div
++                         data-testid="message-attachments"
++                         style={{
++                           display: 'flex',
++                           flexWrap: 'wrap',
++                           gap: 8,
++                           marginBottom: 8,
++                         }}
++                       >
++                         {msg.metadata.attachments.map((att: any) => (
++                           <div
++                             key={att.id || att.name}
++                             style={{
++                               display: 'flex',
++                               alignItems: 'center',
++                               gap: 8,
++                               background: 'rgba(255, 255, 255, 0.08)',
++                               border: '1px solid rgba(255, 255, 255, 0.15)',
++                               borderRadius: 8,
++                               padding: '6px 10px',
++                               fontSize: 12,
++                               maxWidth: 260,
++                             }}
++                           >
++                             {att.type?.startsWith('image/') && att.dataUrl ? (
++                               <img
++                                 src={att.dataUrl}
++                                 alt={att.name}
++                                 style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }}
++                               />
++                             ) : att.type?.startsWith('image/') ? (
++                               <ImageIcon size={18} style={{ color: 'var(--color-jarvis, #00d4ff)', flexShrink: 0 }} />
++                             ) : (
++                               <FileText size={18} style={{ color: 'var(--color-jarvis, #00d4ff)', flexShrink: 0 }} />
++                             )}
++                             <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
++                               <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
++                                 {att.name}
++                               </span>
++                               <span style={{ fontSize: 10, color: 'var(--text-tertiary, #94a3b8)' }}>
++                                 {formatFileSize(att.size)}
++                               </span>
++                             </div>
++                           </div>
++                         ))}
++                       </div>
++                     )}
++                     {renderMessageContent(msg.content)}
++                   </div>
++                 )}
++                 
++                 {!isUser && msg.gateway && (
++                   <div className="mt-2 flex flex-col gap-1">
++                     <GatewayNotice message={msg} />
++                     <GatewayEventTimeline events={msg.gateway.events || []} />
++                     {(msg.gateway.status === 'failed' || msg.gateway.status === 'interrupted') && (
++                       <GatewayRetryControls 
++                         isProcessing={isProcessing} 
++                         onRetry={(provider) => handleSendMessage(msg.content, 'typed')} 
++                       />
++                     )}
++                   </div>
++                 )}
++               </div>
++             </div>
++           );
++         })}
++ 
++         {activeGoalId && (
++           <div className={`${styles.messageRow} ${styles.system}`}>
++             <div className={styles.messageContent} style={{ background: 'transparent', border: 'none', width: '100%', padding: 0 }}>
++               <JarvisGoalCard goalId={activeGoalId} />
++             </div>
++           </div>
++         )}
++ 
++         {sendError && !sendErrorHiddenByMessage && (
++           <div data-testid="jarvis-send-error" className={`${styles.messageRow} ${styles.system}`}>
++             <div className={styles.messageContent} style={{ borderColor: 'var(--color-error)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-error)' }}>
++               <AlertCircle size={14} />
++               {sendError.message}
++             </div>
++           </div>
++         )}
++ 
++         <div ref={chatEndRef} />
++         </div>
++         {showJumpToLatest && (
++           <button
++             data-testid="jarvis-jump-to-latest"
++             className={styles.jumpToLatest}
++             onClick={jumpToLatest}
++           >
++             ↓ JUMP TO LATEST
++           </button>
++         )}
++       </div>
++       </div>
++ 
++       {/* Routing override + ExecutionBar stay with the transcript command
++           flow; only the composer moves out when hideComposer is set (§8) —
++           the page hosts it sticky at the bottom of the center column. */}
++       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px' }}>
++         <RoutingOverrideControl value={routingOverride} onChange={setRoutingOverride} />
++       </div>
++       <ExecutionBar />
++ 
++       {!hideComposer && (
++       <JarvisComposer
++         onSendMessage={handleSendMessage}
++         isProcessing={isProcessing}
++         onCancelResponse={cancelResponse}
++         composerText={composerText}
++         onComposerTextChange={onComposerTextChange}
++         onMicStateChange={onMicStateChange}
++         hideMic={hideComposerMic}
++         disabledReason={offlineGateReason}
++       />
++       )}
++       
++       {detailsMessage && (
++         <ProviderDetailsPanel 
++           message={detailsMessage} 
++           onClose={() => setDetailsMessage(null)} 
++         />
++       )}
++     </>
++   );
++ });
++ JarvisChat.displayName = 'JarvisChat';
++
+
+ ❯ src/__tests__/JarvisConversationOwnership.test.tsx:26:17
+     24|   it('imperative handle routes sendMessage through the latest-closure …
+     25|     expect(src).toContain('handleSendRef.current');
+     26|     expect(src).toContain('handleSendRef.current?.(text, inputChannel)…
+       |                 ^
+     27|     expect(src).not.toContain('void handleSendMessage(text, inputChann…
+     28|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/50]⎯
+
+ FAIL  src/__tests__/JarvisLayout.test.tsx > Repository gating > keeps ordinary typed Jarvis chat usable when no repository is selected
+AssertionError: expected 'Ask Jarvis anything or attach files...' to be 'Ask Jarvis anything...' // Object.is equality
+
+Expected: "Ask Jarvis anything..."
+Received: "Ask Jarvis anything or attach files..."
+
+ ❯ src/__tests__/JarvisLayout.test.tsx:332:47
+    330|     const sendBtn = screen.getByRole('button', { name: /send message/i…
+    331|     expect(sendBtn).not.toBeDisabled();
+    332|     expect(input.getAttribute('placeholder')).toBe('Ask Jarvis anythin…
+       |                                               ^
+    333|
+    334|     fireEvent.click(sendBtn);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/50]⎯
+
+ FAIL  src/__tests__/JarvisLayout.test.tsx > Phase 1 Dashboard and Telemetry > keeps chat history in the chat workspace, not inside the cockpit
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisLayout.test.tsx:416:3
+    414|   });
+    415|
+    416|   it('keeps chat history in the chat workspace, not inside the cockpit…
+       |   ^
+    417|     messagesForTest = [{ id: 'm1', role: 'agent', content: 'Visible re…
+    418|     renderPage();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/50]⎯
+
+ FAIL  src/__tests__/JarvisLayout.test.tsx > Orb persistence and layout > first typed message creates a real conversation when activeConversationId is null without sending fake default ID
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisLayout.test.tsx:552:3
+    550|   });
+    551|
+    552|   it('first typed message creates a real conversation when activeConve…
+       |   ^
+    553|     const requestedUrls: string[] = [];
+    554|     renderPage(async (url: string, options?: any) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > restores the remembered conversation when returning to /jarvis
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigation.test.tsx:213:3
+    211|
+    212| describe('Jarvis session preservation across navigation', () => {
+    213|   it('restores the remembered conversation when returning to /jarvis',…
+       |   ^
+    214|     // Simulate a previous visit that left conv-B active.
+    215|     try { sessionStorage.setItem(CONV_KEY, 'conv-B'); } catch { /* ign…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigation.test.tsx > Jarvis session preservation across navigation > falls back to the most recent conversation when nothing is remembered
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigation.test.tsx:263:3
+    261|   });
+    262|
+    263|   it('falls back to the most recent conversation when nothing is remem…
+       |   ^
+    264|     const requested: string[] = [];
+    265|     const fetchMock = vi.fn().mockImplementation((url: any, options?: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > navigation SSE event opens the supported target route
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:190:3
+    188| /* ── Tests ────────────────────────────────────────────────── */
+    189| describe('Jarvis navigation SSE events', () => {
+    190|   it('navigation SSE event opens the supported target route', async ()…
+       |   ^
+    191|     navEvents = [
+    192|       sse('status', { state: 'thinking' }),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Hermes / Boards / Memory / Automations / Research targets also navigate
+Error: [2mexpect([22m[31melement[39m[2m).not.toBeDisabled()[22m
+
+Received element is disabled:
+  [31m<button
+  aria-label="Send Message"
+  class="_actionBtn_64c0df _primary_64c0df"
+  disabled=""
+  style="padding: 6px 14px; gap: 6px; font-weight: 600;"
+  title="Send message"
+/>[39m
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"_root_994453"[39m
+        [33mdata-testid[39m=[32m"jarvis-studio"[39m
+        [33mstyle[39m=[32m"display: flex; flex-direction: row; height: 100%; overflow: hidden;"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"_mainColumn_64c0df"[39m
+          [33mdata-testid[39m=[32m"jarvis-active-layout"[39m
+          [33mstyle[39m=[32m"position: relative; flex: 1 1 0%; min-width: 0px; min-height: 0px; overflow: hidden; display: flex; flex-direction: column;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"_centerScroll_994453"[39m
+            [33mdata-testid[39m=[32m"jarvis-center-scroll"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"_jarvisStage_994453"[39m
+              [33mdata-testid[39m=[32m"jarvis-stage"[39m
+              [33mstyle[39m=[32m"overflow: hidden;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"_wordmark_994453"[39m
+                [33mstyle[39m=[32m"opacity: 1;"[39m
+              [36m>[39m
+                [0mJARVIS[0m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mdata-testid[39m=[32m"jarvis-status-strip"[39m
+                [33mstyle[39m=[32m"display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; z-index: 5; margin: 16px 0px 10px;"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(74, 222, 128); display: inline-block;"[39m
+                  [36m/>[39m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0mCONNECTED[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(100, 116, 139); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mASSIGNED [0m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0m—[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(100, 116, 139); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mACTIVE [0m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0m—[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(239, 68, 68); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mHERMES [0m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0mOFFLINE[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(239, 68, 68); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mBROWSER [0m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0mUNAVAILABLE[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(74, 222, 128); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mSTT [0m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0mlocal-whisper[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(74, 222, 128); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mTTS [0m
+                  [36m<b[39m
+                    [33mstyle[39m=[32m"color: rgb(203, 213, 225);"[39m
+                  [36m>[39m
+                    [0mlocal-neural-tts[0m
+                  [36m</b>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mstyle[39m=[32m"display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: rgb(148, 163, 184); white-space: nowrap;"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mstyle[39m=[32m"width: 7px; height: 7px; border-radius: 50%; background: rgb(100, 116, 139); display: inline-block;"[39m
+                  [36m/>[39m
+                  [0mMIC [0m
+                  [36m<b[39m...
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:176:43
+    174|   fireEvent.change(input, { target: { value: text } });
+    175|   const sendBtn = screen.getByRole('button', { name: /send message/i }…
+    176|   await waitFor(() => expect(sendBtn).not.toBeDisabled());
+       |                                           ^
+    177|   // The send handler's async stream continuation calls navigate() fro…
+    178|   // promise chain. Under parallel-worker load React can defer that co…
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > Open Hermes navigates to the existing Hermes route
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:227:3
+    225|   }, 30000);
+    226|
+    227|   it('Open Hermes navigates to the existing Hermes route', async () =>…
+       |   ^
+    228|     navEvents = [
+    229|       sse('navigation', { target: '/hermes', capability: 'hermes', ope…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > callback is not fired twice for one navigation event
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:237:3
+    235|   });
+    236|
+    237|   it('callback is not fired twice for one navigation event', async () …
+       |   ^
+    238|     navEvents = [
+    239|       sse('navigation', { target: '/codex', capability: 'codex', opera…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > invalid navigation targets are rejected and never navigate
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:253:3
+    251|   });
+    252|
+    253|   it('invalid navigation targets are rejected and never navigate', asy…
+       |   ^
+    254|     navEvents = [
+    255|       sse('navigation', { target: 'https://evil.example', capability: …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > a navigation event does not create a background task
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:266:3
+    264|   });
+    265|
+    266|   it('a navigation event does not create a background task', async () …
+       |   ^
+    267|     navEvents = [
+    268|       sse('navigation', { target: '/codex', capability: 'codex', opera…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > an active background task continues after navigation (still listed, still running)
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:280:3
+    278|   });
+    279|
+    280|   it('an active background task continues after navigation (still list…
+       |   ^
+    281|     navEvents = [
+    282|       sse('navigation', { target: '/codex', capability: 'codex', opera…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/50]⎯
+
+ FAIL  src/__tests__/JarvisNavigationEvents.test.tsx > Jarvis navigation SSE events > returning to /jarvis restores the conversation and active tasks
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisNavigationEvents.test.tsx:292:3
+    290|   });
+    291|
+    292|   it('returning to /jarvis restores the conversation and active tasks'…
+       |   ^
+    293|     // 1. On /jarvis, the task panel (open by default) shows the activ…
+    294|     renderPage();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/50]⎯
+
+ FAIL  src/__tests__/JarvisOrb.test.tsx > JarvisOrb — state contract > exposes the required colour contract for every state
+AssertionError: expected '#00e5ff' to be '#3b82f6' // Object.is equality
+
+Expected: "#3b82f6"
+Received: "#00e5ff"
+
+ ❯ src/__tests__/JarvisOrb.test.tsx:63:55
+     61|     // thinking amber, speaking purple, error red, offline dark red.
+     62|     expect(JARVIS_ORB_COLORS.idle.toLowerCase()).toBe('#00e5ff');
+     63|     expect(JARVIS_ORB_COLORS.listening.toLowerCase()).toBe('#3b82f6');
+       |                                                       ^
+     64|     expect(JARVIS_ORB_COLORS.transcribing.toLowerCase()).toBe('#22c55e…
+     65|     expect(JARVIS_ORB_COLORS.thinking.toLowerCase()).toBe('#f5b50a');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/50]⎯
+
+ FAIL  src/__tests__/JarvisStudioLayout.test.tsx > long content is handled by the center scrollbar (§18) > 400 messages: hero intact, content scrolls in the transcript surface
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/JarvisStudioLayout.test.tsx:295:3
+    293|
+    294| describe('long content is handled by the center scrollbar (§18)', () =…
+    295|   it('400 messages: hero intact, content scrolls in the transcript sur…
+       |   ^
+    296|     const messages = Array.from({ length: 400 }, (_, i) => ({
+    297|       id: `m-${i}`,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/50]⎯
+
+ FAIL  src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 2. Conversation mode opens exactly ONE canonical LiveKit session, mic enabled
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ src/__tests__/MissionControlConversation.test.tsx:281:33
+    279|
+    280|     // One room, one connect — in the ONE canonical room, never a per-…
+    281|     expect(createdRooms.length).toBe(1);
+       |                                 ^
+    282|     expect(createdRooms[0].connectCalled).toBe(1);
+    283|     expect(createdRooms[0].connectArgs?.wsUrl).toBe(JARVIS_TEST_WS_URL…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/50]⎯
+
+ FAIL  src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 5. a lifecycle interruption neither duplicates nor loses the session
+TypeError: Cannot read properties of undefined (reading 'disconnectCalled')
+ ❯ src/__tests__/MissionControlConversation.test.tsx:333:17
+    331|
+    332|     // The active session survives a browser lifecycle event: not torn…
+    333|     expect(room.disconnectCalled).toBe(0);
+       |                 ^
+    334|     expect(createdRooms.length).toBe(1);
+    335|     expect(jarvisLiveKitSession.isConnected).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/50]⎯
+
+ FAIL  src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 6. switching back to Manual tears the LiveKit session down
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/__tests__/MissionControlConversation.test.tsx:342:46
+    340|     renderPanel();
+    341|     await activateConversationMode();
+    342|     expect(jarvisLiveKitSession.isConnected).toBe(true);
+       |                                              ^
+    343|
+    344|     await act(async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/50]⎯
+
+ FAIL  src/__tests__/MissionControlConversation.test.tsx > Mission Control cockpit — conversation integration (LiveKit) > 9. conversation mode persists for the session (re-mount rejoins the canonical room)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/__tests__/MissionControlConversation.test.tsx:410:46
+    408|     await activateConversationMode();
+    409|     expect(sessionStorage.getItem('agenticos:jarvis:conversationMode')…
+    410|     expect(jarvisLiveKitSession.isConnected).toBe(true);
+       |                                              ^
+    411|
+    412|     first.unmount();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/50]⎯
+
+ FAIL  src/__tests__/voicePlaybackMute.test.tsx > useVoiceIO full-duplex mic during TTS playback (barge-in) > A: mic stays LIVE while Jarvis is speaking (full-duplex — barge-in can hear the user)
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:133:3
+    131|   }
+    132|
+    133|   it('A: mic stays LIVE while Jarvis is speaking (full-duplex — barge-…
+       |   ^
+    134|     const { result } = setupHook();
+    135|     await startConversation(result);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[42/50]⎯
+
+ FAIL  src/__tests__/voicePlaybackMute.test.tsx > useVoiceIO full-duplex mic during TTS playback (barge-in) > B: playback end leaves the mic live (no stale mute from a prior design)
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:113:55
+    111|   async function startConversation(result: any) {
+    112|     let ok = false;
+    113|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    114|     expect(ok).toBe(true);
+    115|   }
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voicePlaybackMute.test.tsx:113:11
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:145:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[43/50]⎯
+
+ FAIL  src/__tests__/voicePlaybackMute.test.tsx > useVoiceIO full-duplex mic during TTS playback (barge-in) > C: playback error leaves the mic live (recovery never strands it muted)
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:113:55
+    111|   async function startConversation(result: any) {
+    112|     let ok = false;
+    113|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    114|     expect(ok).toBe(true);
+    115|   }
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voicePlaybackMute.test.tsx:113:11
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:156:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[44/50]⎯
+
+ FAIL  src/__tests__/voicePlaybackMute.test.tsx > useVoiceIO full-duplex mic during TTS playback (barge-in) > D: haltPlayback (barge-in/stop) keeps the mic live
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:113:55
+    111|   async function startConversation(result: any) {
+    112|     let ok = false;
+    113|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    114|     expect(ok).toBe(true);
+    115|   }
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voicePlaybackMute.test.tsx:113:11
+ ❯ src/__tests__/voicePlaybackMute.test.tsx:167:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[45/50]⎯
+
+ FAIL  src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > opens exactly ONE LiveKit session per conversation, in the canonical room
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/voiceVadResilience.test.tsx:122:3
+    120|   }
+    121|
+    122|   it('opens exactly ONE LiveKit session per conversation, in the canon…
+       |   ^
+    123|     const { result } = renderHook(() => useVoiceIO({ agentId: 'agent-j…
+    124|     await startConversation(result);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[46/50]⎯
+
+ FAIL  src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > a healthy session is not duplicated, and focus does not open a second one
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voiceVadResilience.test.tsx:117:55
+    115|   async function startConversation(result: { current: ReturnType<typeo…
+    116|     let ok = false;
+    117|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    118|     expect(ok).toBe(true);
+    119|     return ok;
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ Proxy.<anonymous> node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voiceVadResilience.test.tsx:117:11
+ ❯ src/__tests__/voiceVadResilience.test.tsx:140:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[47/50]⎯
+
+ FAIL  src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > a dropped transport is reported truthfully and creates no phantom session
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voiceVadResilience.test.tsx:117:55
+    115|   async function startConversation(result: { current: ReturnType<typeo…
+    116|     let ok = false;
+    117|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    118|     expect(ok).toBe(true);
+    119|     return ok;
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ Proxy.<anonymous> node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voiceVadResilience.test.tsx:117:11
+ ❯ src/__tests__/voiceVadResilience.test.tsx:151:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[48/50]⎯
+
+ FAIL  src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > visibilitychange keeps the session usable and does not duplicate it
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voiceVadResilience.test.tsx:117:55
+    115|   async function startConversation(result: { current: ReturnType<typeo…
+    116|     let ok = false;
+    117|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    118|     expect(ok).toBe(true);
+    119|     return ok;
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ Proxy.<anonymous> node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voiceVadResilience.test.tsx:117:11
+ ❯ src/__tests__/voiceVadResilience.test.tsx:164:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[49/50]⎯
+
+ FAIL  src/__tests__/voiceVadResilience.test.tsx > Jarvis LiveKit voice-session resilience (single-session ownership) > does not re-acquire the microphone while the session is live (no getUserMedia churn)
+TypeError: Cannot read properties of null (reading 'startConversation')
+ ❯ src/__tests__/voiceVadResilience.test.tsx:117:55
+    115|   async function startConversation(result: { current: ReturnType<typeo…
+    116|     let ok = false;
+    117|     await act(async () => { ok = await result.current.startConversatio…
+       |                                                       ^
+    118|     expect(ok).toBe(true);
+    119|     return ok;
+ ❯ node_modules/@testing-library/react/dist/act-compat.js:47:24
+ ❯ process.env.NODE_ENV.exports.act node_modules/react/cjs/react.development.js:814:22
+ ❯ Proxy.<anonymous> node_modules/@testing-library/react/dist/act-compat.js:46:25
+ ❯ startConversation src/__tests__/voiceVadResilience.test.tsx:117:11
+ ❯ src/__tests__/voiceVadResilience.test.tsx:177:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[50/50]⎯
+
+
+ Test Files  15 failed | 66 passed (81)
+      Tests  48 failed | 632 passed (680)
+   Start at  11:53:48
+   Duration  68.84s (transform 61.27s, setup 24.71s, import 121.13s, tests 221.47s, environment 161.82s)
+
+npm_test_exit=1

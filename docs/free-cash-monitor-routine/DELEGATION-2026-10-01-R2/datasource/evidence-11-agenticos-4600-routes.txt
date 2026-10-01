@@ -1,0 +1,42 @@
+$ curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://localhost:4600/api/health
+200
+exit=0
+
+$ curl -s -m 5 http://localhost:4600/api/health
+{"status":"healthy","pid":32500,"uptime":3809.7161863,"environment":"development","version":"9.0.0","build":{"fingerprint":"08029d641dec1f970161d3b69305e757cde82e595e971d86c35a91770989d97e","algorithm":"content-sha256-v1","filesCount":648,"gitSha":"8f7463aa6931d57e12ec81b904b98cec04e932cf","gitShort":"8f7463aa","isDirty":true,"buildTimestamp":"2026-10-01T05:49:00.903Z","buildId":"8f7463aa-dirty-20261001-054900"}}
+exit=0
+
+$ for p in /api/v1/status/metrics /api/v1/status /api/freecash/status /api/freecash/monitor; do curl -s -m 4 -o /dev/null -w "$p %{http_code}\n" http://localhost:4600$p; done
+/api/v1/status/metrics 404
+/api/v1/status 404
+/api/freecash/status 404
+/api/freecash/monitor 404
+exit=0
+
+$ curl -s -m 3 -o /dev/null -w 'localhost:3001 %{http_code}\n' http://localhost:3001/api/v1/status
+localhost:3001 000
+exit=7
+
+$ netstat -ano | grep LISTENING | grep -E ':(3001|4600)'
+(no match)
+exit=0
+
+$ grep -rniE "\.(get|post|put)\(['\"]/api" server/src/index.ts | wc -l
+5
+exit=0
+
+$ grep -rniE "(balance|earnings|payout|account_?status)" server/src/index.ts | head -20
+exit=0
+
+$ grep -rniE "freecash|free-cash|free_cash" server/src/index.ts
+435:// FreeCash is no longer our objective. Do not resume its tasks on startup; preserve existing records.
+436:// import { reconcileGoalsOnStartup } from './services/freeCash/freeCashExecutor.js';
+exit=0
+
+$ grep -rn 'freecashMonitorAdapter\|freeCashAdapter' server/src --include=*.ts | grep -v __tests__
+server/src/domains/jarvisNext/operator/operatorController.ts:4:import { freeCashMonitorAdapter } from '../../../adapters/freecashMonitorAdapter.js';
+server/src/domains/jarvisV2/turnController.ts:24:import { freeCashMonitorAdapter } from '../../adapters/freecashMonitorAdapter.js';
+exit=0
+
+$ grep -rniE '(router|app)\.get\(.*(balance|earnings)' server/src --include=*.ts | grep -v __tests__
+exit=1

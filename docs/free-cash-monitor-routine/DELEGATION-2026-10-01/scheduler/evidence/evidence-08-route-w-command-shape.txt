@@ -1,0 +1,24 @@
+### captured at
+2026-10-01 08:53:46 +02:00
+
+### The Task-Scheduler <Arguments> string is executed here by cmd.exe, with
+### FREECASH_DATA_ROOT exported to a THROWAWAY root so nothing can reach production.
+
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-w-cmdshape
+### FORM 1 -- quoted program + quoted script + log redirection:
+Die Syntax fÅr den Dateinamen, Verzeichnisnamen oder die DatentrÑgerbezeichnung ist falsch.
+cmd_exit=1
+--- form1.log ---
+cat: 'C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-w-cmdshape/logs/form1.log': No such file or directory
+
+### FORM 2 -- unquoted (no path on this host contains a space):
+cmd_exit=0
+--- form2.log ---
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+
+### day-locks in the throwaway root (expect 2026-10-01 only):
+ls: cannot access 'C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-w-cmdshape/state/day-locks/': No such file or directory
+### production day-locks (must still be the two originals):
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock

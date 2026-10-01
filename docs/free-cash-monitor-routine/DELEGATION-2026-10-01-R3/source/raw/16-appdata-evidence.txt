@@ -1,0 +1,50 @@
+=== dataDir: C:\Users\cd-pr\AppData\Roaming/AgenticOS/data ===
+total 208814
+drwxr-xr-x 1 cd-pr 197609         0 Sep 30 23:24 .
+drwxr-xr-x 1 cd-pr 197609         0 Okt  1 08:05 ..
+-rw-r--r-- 1 cd-pr 197609        24 Okt  1 09:25 active-project.json
+-rw-r--r-- 1 cd-pr 197609 208736256 Okt  1 09:28 agentic-os.db
+-rw-r--r-- 1 cd-pr 197609     32768 Okt  1 08:03 agentic-os.db-shm
+-rw-r--r-- 1 cd-pr 197609   4140632 Okt  1 09:30 agentic-os.db-wal
+drwxr-xr-x 1 cd-pr 197609         0 Sep 20 21:15 browser_profiles
+drwxr-xr-x 1 cd-pr 197609         0 Sep 20 21:15 freecash
+-rw-r--r-- 1 cd-pr 197609    894444 Sep 26 18:04 local_worker_tasks.json
+drwxr-xr-x 1 cd-pr 197609         0 Aug 30 08:51 magnitude-screenshots
+drwxr-xr-x 1 cd-pr 197609         0 Sep 11 06:59 revenue-operator
+drwxr-xr-x 1 cd-pr 197609         0 Sep 27 15:34 screenshots
+-rw-r--r-- 1 cd-pr 197609       112 Okt  1 08:03 workspace-selection.json
+=== freecash dir ===
+total 29
+drwxr-xr-x 1 cd-pr 197609   0 Sep 20 21:15 .
+drwxr-xr-x 1 cd-pr 197609   0 Sep 30 23:24 ..
+drwxr-xr-x 1 cd-pr 197609   0 Sep 23 17:32 evidence
+-rw-r--r-- 1 cd-pr 197609 329 Sep 23 17:32 session-evidence.json
+=== session-evidence.json ===
+{
+  "service": "freecash",
+  "authenticated": true,
+  "verifiedAt": "2026-09-23T15:32:31.406Z",
+  "evidencePath": "C:\\Users\\cd-pr\\AppData\\Roaming\\AgenticOS\\data\\freecash\\evidence\\session-authenticated-mue9i5qd-3b0799d2.json",
+  "detail": "final_url=https://freecash.com/en; cookie_count=8; session_cookie_present=true"
+}
+=== freecash/evidence dir ===
+total 77
+drwxr-xr-x 1 cd-pr 197609   0 Sep 23 17:32 .
+drwxr-xr-x 1 cd-pr 197609   0 Sep 20 21:15 ..
+-rw-r--r-- 1 cd-pr 197609 175 Sep 20 21:15 inspect-work-mua74eee-4244543c.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 20 21:34 inspect-work-mua7tmpp-778add8b.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 20 21:37 inspect-work-mua7xu2o-9b9d808a.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 21 08:23 inspect-work-muauzm85-f5343106.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 21 08:24 inspect-work-muav0wgf-16e2e5b1.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 21 09:06 inspect-work-muawj1e1-d3026102.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 21 09:07 inspect-work-muawk4l4-07c1b577.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 21 21:06 inspect-work-mubm9n1t-76b70fc4.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 07:57 inspect-work-muc9huv3-092d6adb.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 09:23 inspect-work-mucckteb-85456fa8.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 09:57 inspect-work-mucdt8ly-82ef0b43.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 09:58 inspect-work-mucdugfp-fc6fbe77.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 10:49 inspect-work-mucfnloi-55aed239.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 10:50 inspect-work-mucfp1ng-1908b558.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 10:51 inspect-work-mucfqp44-12018106.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 10:53 inspect-work-mucfsnm1-b07ea255.json
+-rw-r--r-- 1 cd-pr 197609 175 Sep 22 10:54 inspect-work-mucfu45i-47208715.json

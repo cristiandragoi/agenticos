@@ -81,6 +81,10 @@ import './services/execution/costTracker.js';
 import { checkTeamRecovery } from './services/agentTeams/recovery.js';
 checkTeamRecovery();
 
+// Initialize Autonomous Stall Watchdog Supervisor
+import { stallWatchdog } from './domains/controlPlane/StallWatchdog.js';
+stallWatchdog.start();
+
 // Routers
 import healthRouter from './routers/health.js';
 import systemRouter from './routers/system.js';
@@ -206,6 +210,17 @@ const failStaleRuns = () => {
   try {
     ensureBackgroundTaskTables();
   } catch { /* best effort */ }
+
+  // Restore and reconnect AntiGravity Engineering worker sessions (Requirements 3, 4, 5, 8)
+  try {
+    import('./services/backgroundTasks/antigravityAdapter.js').then(({ restoreAndReconnectAntigravitySessions }) => {
+      setTimeout(() => {
+        restoreAndReconnectAntigravitySessions().catch(err => {
+          logger.warn('[AntiGravity Recovery] Session reconnection notice:', err?.message);
+        });
+      }, 1500);
+    }).catch(() => {});
+  } catch { /* best effort */ }
 };
 failStaleRuns();
 // Re-check every 5 minutes for any new stale runs that appear during uptime
@@ -252,7 +267,7 @@ app.use(legacyHeadersMiddleware);
 // Auth is bypassed in dev, enforced in production
 app.use('/api', (req, res, next) => {
   logger.info(`[BACKEND] INCOMING: ${req.method} ${req.url}`);
-  if (req.path === '/health' || req.path.startsWith('/health/') || req.path.startsWith('/runtime') || req.path.startsWith('/system/') || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline')) return next(); // public for now
+  if (req.path === '/health' || req.path.startsWith('/health/') || req.path.startsWith('/runtime') || req.path.startsWith('/system/') || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline') || req.path.startsWith('/integrations/')) return next(); // public for now
   return authMiddleware(req, res, next);
 });
 
@@ -261,6 +276,8 @@ app.use('/api/health', healthRouter);
 import runtimeIdentityRouter from './routers/runtimeIdentity.js';
 app.use('/api/runtime', runtimeIdentityRouter);
 app.use('/api/system', systemRouter);
+import { telegramRouter } from './routers/telegramRouter.js';
+app.use('/api/integrations/telegram', telegramRouter);
 app.use('/api/workspace-index', workspaceIndexRouter);
 
 import { selfHealRouter } from './routers/selfHeal.js';
@@ -401,6 +418,10 @@ backgroundTaskManager.restoreAfterRestart();
 import { goalLifecycleManager } from './domains/controlPlane/GoalLifecycle.js';
 goalLifecycleManager.restoreAfterRestart();
 
+// Telegram Remote Jarvis Adapter initialization
+import { telegramAdapter } from './adapters/telegramAdapter.js';
+telegramAdapter.start().catch(err => logger.error('[Telegram Boot] Error:', err));
+
 import { incidentReconciler } from './domains/selfHeal/IncidentReconciler.js';
 incidentReconciler.reconcileAll();
 setInterval(() => {
@@ -504,6 +525,18 @@ if (!process.env.VERCEL) {
           projects: projectCount,
           browser: 'ready',
         });
+
+        // Startup Capability Certification Runner:
+        // Automatically initiates autonomous capability certification after startup grace period
+        setTimeout(async () => {
+          try {
+            const { autonomousCapabilityCertificationRunner } = await import('./domains/controlPlane/AutonomousCapabilityCertificationRunner.js');
+            logger.info('[Supervisor] Initiating startup capability certification pass...');
+            autonomousCapabilityCertificationRunner.startCertification();
+          } catch (certErr: any) {
+            logger.warn('[Supervisor] Startup certification runner notice:', certErr?.message);
+          }
+        }, 12000).unref();
       } catch (err: any) {
         logger.warn('[Supervisor] Dependency verification notice:', { message: err?.message || err });
       }

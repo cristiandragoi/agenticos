@@ -1,0 +1,24 @@
+=== date ===
+Do,  1. Okt 2026 11:47:52
+=== rank-3 source: %APPDATA%\AgenticOS\data\freecash\session-evidence.json ===
+path = C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/session-evidence.json
+-rw-r--r-- 1 cd-pr 197609 329 Sep 23 17:32 C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/session-evidence.json
+--- content (booleans/strings only; contains no cookie values) ---
+{
+  "service": "freecash",
+  "authenticated": true,
+  "verifiedAt": "2026-09-23T15:32:31.406Z",
+  "evidencePath": "C:\\Users\\cd-pr\\AppData\\Roaming\\AgenticOS\\data\\freecash\\evidence\\session-authenticated-mue9i5qd-3b0799d2.json",
+  "detail": "final_url=https://freecash.com/en; cookie_count=8; session_cookie_present=true"
+}
+=== production day-locks (today's key spent?) ===
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 2026-10-01 08:53 .
+drwxr-xr-x 1 cd-pr 197609 0 2026-10-01 08:53 ..
+-rw-r--r-- 1 cd-pr 197609 0 2026-09-20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 2026-09-30 21:01 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 2026-10-01 08:53 2026-10-01.lock
+
+=== production operator-state.json: records count + how_to ===
+records = 0
+how_to = ['Open your own account dashboard in a browser and log in yourself.', 'Note four figures: account status, total earnings, current balance, pending amount.', "Append one record to the records list with today's local date as day_key.", 'Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them.']

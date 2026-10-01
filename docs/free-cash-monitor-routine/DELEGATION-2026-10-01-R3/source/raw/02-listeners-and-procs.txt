@@ -1,0 +1,57 @@
+=== netstat -ano | grep LISTENING (all, then filter) ===
+(none on 3001/4600)
+=== netstat -ano raw grep 4600 ===
+  TCP    127.0.0.1:4600         127.0.0.1:52468        HERGESTELLT     32500
+  TCP    127.0.0.1:4600         127.0.0.1:52469        HERGESTELLT     32500
+  TCP    127.0.0.1:4600         127.0.0.1:52471        HERGESTELLT     32500
+  TCP    127.0.0.1:4600         127.0.0.1:52472        HERGESTELLT     32500
+  TCP    127.0.0.1:4600         127.0.0.1:52473        HERGESTELLT     32500
+  TCP    127.0.0.1:4600         127.0.0.1:54135        HERGESTELLT     32500
+  TCP    127.0.0.1:52468        127.0.0.1:4600         HERGESTELLT     23988
+  TCP    127.0.0.1:52469        127.0.0.1:4600         HERGESTELLT     23988
+  TCP    127.0.0.1:52471        127.0.0.1:4600         HERGESTELLT     23988
+  TCP    127.0.0.1:52472        127.0.0.1:4600         HERGESTELLT     23988
+  TCP    127.0.0.1:52473        127.0.0.1:4600         HERGESTELLT     23988
+  TCP    127.0.0.1:53861        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53884        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53899        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53903        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53908        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53914        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53935        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53969        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:53985        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:54001        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:54006        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:54025        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:54054        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:54060        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:54135        127.0.0.1:4600         HERGESTELLT     23988
+  TCP    127.0.0.1:56904        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56923        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56933        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56945        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56954        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56962        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56982        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56986        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56988        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56990        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:56993        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57001        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57019        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57030        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57032        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57034        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57038        127.0.0.1:4600         WARTEND         0
+  TCP    127.0.0.1:57043        127.0.0.1:4600         WARTEND         0
+Binary file (standard input) matches
+=== tasklist name filter ===
+INFORMATION: Es werden keine Aufgaben mit den angegebenen Kriterien ausgefÅhrt.
+=== tasklist | grep -i electron ===
+(no electron process)
+=== tasklist | grep -i node (pid 32500 owner?) ===
+
+Abbildname                     PID Sitzungsname       Sitz.-Nr. Speichernutzung
+========================= ======== ================ =========== ===============
+node.exe                     32500 Console                    1       281.676 K

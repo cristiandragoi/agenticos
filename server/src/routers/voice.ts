@@ -1,6 +1,7 @@
 import { sanitizeMarkdownForSpeech } from '../utils/speechSanitizer.js';
 import { logger } from '../utils/logger.js';
 import { Router } from 'express';
+import { secretStore } from '../services/gateway/secretStore.js';
 import multer from 'multer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +36,7 @@ const __dirname = path.dirname(__filename);
 
 // GET /api/voice/tts/status - Authoritative diagnostics for renderer voice UI
 router.get('/tts/status', async (req, res) => {
-  const deepgramKey = process.env.DEEPGRAM_API_KEY;
+  const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
   const conversationId = (req.query.conversationId as string) || (req.query.conversation_id as string) || undefined;
   const explicitLang = (req.query.language as string) || undefined;
 
@@ -46,14 +47,30 @@ router.get('/tts/status', async (req, res) => {
   activeLang = activeLang || 'en';
 
   const requestedLocale = resolveLocaleForLanguage(activeLang);
-  const effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
-  const useDeepgram = Boolean(deepgramKey && activeLang === 'en');
-  const effectiveProvider = useDeepgram ? 'deepgram' : 'edge-tts';
+  const { voiceStudioService } = await import('../services/voice/VoiceStudioService.js');
+  const vsStatus = await voiceStudioService.checkHealth().catch(() => ({ healthy: false } as any));
+
+  let effectiveProvider: string;
+  let effectiveVoice: string;
+
+  if (activeLang === 'de' && hasPiperVoiceForLanguage('de')) {
+    effectiveProvider = 'piper';
+    effectiveVoice = LANGUAGE_TO_PIPER_VOICE.de || 'de_DE-thorsten-high';
+  } else if (vsStatus.healthy) {
+    effectiveProvider = 'voicestudio';
+    effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
+  } else if (Boolean(deepgramKey && activeLang === 'en' && resolveVoiceForLanguage(activeLang, req.query.voice as string).startsWith('aura-'))) {
+    effectiveProvider = 'deepgram';
+    effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
+  } else {
+    effectiveProvider = 'edge-tts';
+    effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
+  }
 
   let availability = true;
   let fallbackReason: string | null = null;
 
-  if (activeLang !== 'en' || !useDeepgram) {
+  if (effectiveProvider === 'edge-tts') {
     const probe = await verifySpeechSynthesisAvailability(effectiveVoice);
     if (!probe.available) {
       availability = false;
@@ -62,21 +79,36 @@ router.get('/tts/status', async (req, res) => {
   }
 
   res.json({
-    configured: Boolean(deepgramKey ? true : availability),
+    configured: Boolean(vsStatus.healthy || deepgramKey ? true : availability),
     activeLanguage: activeLang,
     requestedLocale,
     effectiveProvider,
     effectiveVoice,
-    availability,
-    speechAvailable: availability,
+    availability: vsStatus.healthy || availability,
+    speechAvailable: vsStatus.healthy || availability,
     fallbackReason,
     endpoint: '/api/voice/tts',
     locale: requestedLocale,
     jarvisVoice: effectiveVoice,
     engine: effectiveProvider,
+    voiceStudio: vsStatus,
     interpreter: resolvePythonExecutable(),
     supportedLanguages: ['en', 'de', 'ro'],
   });
+});
+
+// GET /api/voice/runtime-state - Authoritative internal runtime state telemetry
+router.get('/runtime-state', async (_req, res) => {
+  try {
+    const { voiceRuntimeState } = await import('../services/voice/VoiceRuntimeState.js');
+    const snapshot = await voiceRuntimeState.getSnapshot();
+    res.json({
+      success: true,
+      runtimeState: snapshot,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || String(err) });
+  }
 });
 
 // POST /api/voice/transcribe - Transcribe audio using Deepgram with Local Whisper fallback
@@ -370,9 +402,30 @@ router.post('/speak', async (req, res) => {
     const cleanText = sanitizeMarkdownForSpeech(text) || text;
     const detectedLang = language || detectTextLanguage(cleanText) || 'en';
     let audio: Buffer | null = null;
+    let contentType = 'audio/mpeg';
 
-    const deepgramKey = process.env.DEEPGRAM_API_KEY;
-    if (deepgramKey && detectedLang === 'en') {
+    // ── PIPER primary for de/ro ────────────────────────────────────────────
+    if ((detectedLang === 'de' || detectedLang === 'ro') && hasPiperVoiceForLanguage(detectedLang)) {
+      const piperVoiceKey = LANGUAGE_TO_PIPER_VOICE[detectedLang];
+      try {
+        const piperResult = await synthesizeWithPiper(cleanText, detectedLang, piperVoiceKey);
+        audio = piperResult.audio;
+        contentType = 'audio/wav';
+        const { voiceRuntimeState } = await import('../services/voice/VoiceRuntimeState.js');
+        voiceRuntimeState.recordTtsSynthesis({
+          provider: 'piper',
+          voice: piperResult.voice,
+          model: piperResult.voice,
+          fallbackReason: null,
+        });
+        logger.info('[Voice/Speak] Piper synthesis OK', { lang: detectedLang, voice: piperResult.voice, bytes: audio.length });
+      } catch (piperErr: any) {
+        logger.warn('[Voice/Speak] Piper failed, falling back to local neural TTS', piperErr?.message);
+      }
+    }
+
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
+    if (!audio && deepgramKey && detectedLang === 'en') {
       let defaultVoice = 'aura-orion-en';
       if (agentId === 'agent-jarvis') {
         defaultVoice = 'aura-helios-en';
@@ -409,7 +462,7 @@ router.post('/speak', async (req, res) => {
     }
 
     res.set({
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': contentType,
       'Content-Length': audio.byteLength.toString(),
     });
     res.send(audio);
@@ -450,6 +503,13 @@ router.post('/tts', async (req, res) => {
         usedVoice = piperResult.voice;
         usedProvider = 'piper';
         usedFormat = 'audio/wav';
+        const { voiceRuntimeState } = await import('../services/voice/VoiceRuntimeState.js');
+        voiceRuntimeState.recordTtsSynthesis({
+          provider: 'piper',
+          voice: usedVoice,
+          model: usedVoice,
+          fallbackReason: null,
+        });
         logger.info('[Voice/TTS] Piper synthesis OK', { lang: detectedLang, voice: usedVoice, bytes: audio.length });
       } catch (piperErr: any) {
         fallbackReason = `Piper failed: ${piperErr.message}`;
@@ -459,7 +519,7 @@ router.post('/tts', async (req, res) => {
 
     // ── DEEPGRAM for English (if key present) ─────────────────────────────
     if (!audio) {
-      const deepgramKey = process.env.DEEPGRAM_API_KEY;
+      const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
       if (deepgramKey && detectedLang === 'en') {
         let defaultVoice = 'aura-orion-en';
         if (agentId === 'agent-jarvis') {

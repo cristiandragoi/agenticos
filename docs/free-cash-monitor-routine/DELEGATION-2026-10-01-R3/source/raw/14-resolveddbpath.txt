@@ -1,0 +1,26 @@
+=== resolvedDbPath import in prerequisiteService ===
+16:import fs from 'fs';
+17:import path from 'path';
+18:import { rawDb, resolvedDbPath } from '../../db/index.js';
+19:import { logger } from '../../utils/logger.js';
+54:  return path.dirname(resolvedDbPath);
+=== drizzle config / DATABASE_PATH ===
+server/src/db/index.ts:327:export const resolvedDbPath = canonicalDbPath;
+server/src/adapters/hermesAdapter.ts
+server/src/db/index.ts
+server/src/services/dispatcher/capabilityDispatcher.ts
+server/src/services/freeCash/freeCashExecutor.ts
+server/src/services/prerequisites/prerequisiteService.ts
+server/src/types.ts
+server/src/__tests__/jarvisOperationalGrounding.test.ts
+=== search for resolvedDbPath export ===
+server/src/adapters/hermesAdapter.ts:201:    let resolvedDbPath: string | null = null;
+server/src/adapters/hermesAdapter.ts:203:      if (fs.existsSync(p)) { resolvedDbPath = p; break; }
+server/src/adapters/hermesAdapter.ts:205:    if (!resolvedDbPath) {
+server/src/adapters/hermesAdapter.ts:209:    const sqlite = new Database(resolvedDbPath, { readonly: true });
+server/src/adapters/hermesAdapter.ts:233:      resolvedDbPath,
+server/src/db/index.ts:327:export const resolvedDbPath = canonicalDbPath;
+server/src/services/dispatcher/capabilityDispatcher.ts:249:    const resolvedDbPath = proof.resolvedDbPath;
+server/src/services/dispatcher/capabilityDispatcher.ts:263:        `[CapabilityProof] Canonical DB: ${resolvedDbPath}`,
+server/src/services/freeCash/freeCashExecutor.ts:28:import { resolvedDbPath } from '../../db/index.js';
+server/src/services/freeCash/freeCashExecutor.ts:45:  return path.dirname(resolvedDbPath);

@@ -1,0 +1,15 @@
+=== find session-evidence.json ===
+=== dataDir definition in prerequisiteService ===
+53:function dataDir(): string {
+server/src/services/freeCash/freeCashExecutor.ts:44:function dataDir(): string {
+server/src/services/prerequisites/prerequisiteService.ts:53:function dataDir(): string {
+=== evidence dirs ===
+./docs/acceptance/evidence
+./docs/backups/phase2d-2026-08-20T20-06-17/evidence
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence
+./docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/evidence
+./docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/evidence
+./docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/verifier/evidence
+./docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/workflow/evidence
+./evidence

@@ -288,6 +288,46 @@ async function executeInRepoHermesPlan(
   backgroundTaskRepo.updateTask(task.taskId, { linkedRunId: inRepoResult.run.id });
   mgr.appendEvent(task.taskId, 'task.run_linked', `Hermes plan run linked (${inRepoResult.run.id}).`, { planRunId: inRepoResult.run.id });
 
+  try {
+    const { engineeringWorkerRegistry } = await import('../../domains/controlPlane/EngineeringWorkerRegistry.js');
+    engineeringWorkerRegistry.recordWorkerEvent({
+      taskId: task.taskId,
+      goalId: (task.metadata as any)?.goalId || goal.id,
+      workerId: 'hermes',
+      runId: inRepoResult.run.id,
+      eventType: 'WORKER_ACCEPTED',
+      output: `Hermes in-repo planning worker accepted task ${task.taskId}`,
+    });
+    engineeringWorkerRegistry.registerWorkerSession({
+      taskId: task.taskId,
+      goalId: (task.metadata as any)?.goalId || goal.id,
+      workerId: 'hermes',
+      antigravityConversationId: inRepoResult.run.id,
+      antigravitySessionId: inRepoResult.run.id,
+      workspace: task.workspaceRoot || (await getWorkspaceRoot()) || 'D:\\AgenticOS',
+      createdAt: new Date().toISOString(),
+      lastHeartbeat: new Date().toISOString(),
+      status: 'BUSY',
+      title: task.title,
+      currentStage: 'planning',
+      filesRead: [],
+      filesChanged: [],
+      testsPassed: 0,
+      testsFailed: 0,
+      buildStatus: 'idle',
+      errors: [],
+      metadata: {},
+    });
+    const { unifiedOperationalContext } = await import('../../domains/controlPlane/UnifiedOperationalContext.js');
+    unifiedOperationalContext.setActiveReferent({
+      activeTaskId: task.taskId,
+      activeGoalRunId: (task.metadata as any)?.goalId || goal.id,
+      activeWorker: 'hermes',
+      activeSubject: objective,
+      originChannel: (task.metadata as any)?.originChannel || 'desktop',
+    });
+  } catch {}
+
   let completed = executionRunService.getRun(inRepoResult.run.id);
   const start = Date.now();
   while (completed && (completed.status === 'running' || completed.status === 'queued') && Date.now() - start < 120000) {
@@ -419,6 +459,46 @@ export async function dispatchHermesTask(task: BackgroundTaskRecord, workspaceRo
     mgr.appendEvent(task.taskId, 'task.run_linked', `Hermes run linked (${record.id}).`, { hermesRunId: record.hermesRunId });
     mgr.appendEvent(task.taskId, 'task.agent_selected', `Worker: Hermes (live API server — ${resolvedProvider} / ${resolvedModel}).`, { agent: 'Hermes', provider: resolvedProvider, model: resolvedModel });
     mgr.transition(task.taskId, 'running', { currentStage: 'running', progressMessage: 'Hermes agent started.' });
+
+    try {
+      const { engineeringWorkerRegistry } = await import('../../domains/controlPlane/EngineeringWorkerRegistry.js');
+      engineeringWorkerRegistry.recordWorkerEvent({
+        taskId: task.taskId,
+        goalId: (task.metadata as any)?.goalId,
+        workerId: 'hermes',
+        runId: record.id,
+        eventType: 'WORKER_ACCEPTED',
+        output: `Hermes live API worker accepted task ${task.taskId}`,
+      });
+      engineeringWorkerRegistry.registerWorkerSession({
+        taskId: task.taskId,
+        goalId: (task.metadata as any)?.goalId,
+        workerId: 'hermes',
+        antigravityConversationId: record.id,
+        antigravitySessionId: record.id,
+        workspace: root || 'D:\\AgenticOS',
+        createdAt: new Date().toISOString(),
+        lastHeartbeat: new Date().toISOString(),
+        status: 'BUSY',
+        title: task.title,
+        currentStage: 'running',
+        filesRead: [],
+        filesChanged: [],
+        testsPassed: 0,
+        testsFailed: 0,
+        buildStatus: 'idle',
+        errors: [],
+        metadata: {},
+      });
+      const { unifiedOperationalContext } = await import('../../domains/controlPlane/UnifiedOperationalContext.js');
+      unifiedOperationalContext.setActiveReferent({
+        activeTaskId: task.taskId,
+        activeGoalRunId: (task.metadata as any)?.goalId,
+        activeWorker: 'hermes',
+        activeSubject: task.objective,
+        originChannel: (task.metadata as any)?.originChannel || 'desktop',
+      });
+    } catch {}
 
     // Stream upstream events into the task contract.
     const onEvent = (evt: HermesActivityEvent, rec: HermesRunRecord) => {

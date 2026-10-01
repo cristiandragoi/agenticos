@@ -1,0 +1,52 @@
+== utc: 2026-10-01T07:35:38Z
+== interpreter: C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe  (Python 3.11.9)
+== live module: D:/AgenticOS/monitoring/freecash/approval_queue.py
+== live NON_HUMAN_DECIDERS guard line:
+55:NON_HUMAN_DECIDERS = frozenset(
+153:    if who.lower() in NON_HUMAN_DECIDERS:
+== grep for the allowlist control in the LIVE file (expect: absent):
+   <none: the allowlist control is absent from the live file>
+== throwaway root: C:/Users/cd-pr/AppData/Local/Temp/fc-r3-identity-live-defect/root
+
+--------------------------------------------------------------
+CASE: DENYLIST BYPASS 1: --by "hermes-agent"  (the value already recorded in an earlier pass)
+$ python approval_queue.py decide --id e9bb0c8a-a648-4f60-b11a-2fb199af0d56 --decision approve --by hermes-agent --note probe
+recorded APPROVED for e9bb0c8a-a648-4f60-b11a-2fb199af0d56 by hermes-agent at 2026-10-01T07:35:38Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+  item: status=APPROVED decided_by='hermes-agent' execution_state=NOT_EXECUTED expires_at_utc=None
+
+--------------------------------------------------------------
+CASE: DENYLIST BYPASS 2: --by "Claude"
+$ python approval_queue.py decide --id 9a929ead-c966-4d45-b210-1f3c4263b5c8 --decision approve --by Claude --note probe
+recorded APPROVED for 9a929ead-c966-4d45-b210-1f3c4263b5c8 by Claude at 2026-10-01T07:35:39Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+  item: status=APPROVED decided_by='Claude' execution_state=NOT_EXECUTED expires_at_utc=None
+
+--------------------------------------------------------------
+CASE: DENYLIST BYPASS 3: --by "operator-1"
+$ python approval_queue.py decide --id 9b38568a-350c-4ed9-af1f-a4a524cf591f --decision approve --by operator-1 --note probe
+recorded APPROVED for 9b38568a-350c-4ed9-af1f-a4a524cf591f by operator-1 at 2026-10-01T07:35:39Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+  item: status=APPROVED decided_by='operator-1' execution_state=NOT_EXECUTED expires_at_utc=None
+
+--------------------------------------------------------------
+CASE: DENYLIST BYPASS 4: --by "assistant"
+$ python approval_queue.py decide --id df3c025d-6c81-4bc1-9258-44dcdf089f52 --decision approve --by assistant --note probe
+recorded APPROVED for df3c025d-6c81-4bc1-9258-44dcdf089f52 by assistant at 2026-10-01T07:35:39Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+  item: status=APPROVED decided_by='assistant' execution_state=NOT_EXECUTED expires_at_utc=None
+
+--------------------------------------------------------------
+CASE: FLOOR STILL WORKS: --by "agent"
+$ python approval_queue.py decide --id e70f7dec-996c-47a4-958b-013eb9308568 --decision approve --by agent --note probe
+REFUSED: refused: 'agent' is not a human identity; this routine may only record a decision made by a person
+exit_code = 4
+  item: status=PENDING decided_by=None execution_state=NOT_EXECUTED expires_at_utc=None
+
+== live file untouched (sha256):
+0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506 *D:/AgenticOS/monitoring/freecash/approval_queue.py
+== done

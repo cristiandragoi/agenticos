@@ -1,0 +1,369 @@
+===== FREE CASH PATH-B SOURCE CITATIONS (read-only, this pass Do,  1. Okt 2026 11:49:56) =====
+
+### server/src/services/freeCash/freeCashExecutor.ts:44-50 (dataDir / profile path)
+function dataDir(): string {
+  return path.dirname(resolvedDbPath);
+}
+
+export function freeCashProfilePath(): string {
+  return path.join(dataDir(), 'browser_profiles', FREECASH_ACCOUNT_ID);
+}
+
+### freeCashExecutor.ts:118-124 (writeEvidenceArtifact -> artefact naming)
+function writeEvidenceArtifact(kind: string, payload: unknown): string {
+  const dir = path.join(dataDir(), FREECASH_SERVICE, 'evidence');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${kind}-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}.json`);
+  fs.writeFileSync(file, JSON.stringify({ kind, payload, writtenAt: new Date().toISOString() }, null, 2), 'utf-8');
+  return file;
+}
+
+### freeCashExecutor.ts:150-178 (checkAuthenticatedSession -> writes session-<state> artefact + session evidence)
+export async function checkAuthenticatedSession(): Promise<FreeCashInspection> {
+  const inspectedAt = new Date().toISOString();
+  try {
+    return await withFreeCashPage(async (page) => {
+      await page.goto(FREECASH_HOME, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch((e: any) => e);
+      const { state, observed } = await detectSession(page);
+      const evidencePath = writeEvidenceArtifact(`session-${state}`, { observed, url: page.url() });
+      if (state === 'authenticated') {
+        writeSessionEvidence({
+          service: FREECASH_SERVICE,
+          authenticated: true,
+          verifiedAt: inspectedAt,
+          evidencePath,
+          detail: observed.join('; '),
+        });
+      } else if (state === 'unauthenticated') {
+        const prev = readSessionEvidence(FREECASH_SERVICE);
+        if (prev?.authenticated) {
+          writeSessionEvidence({
+            service: FREECASH_SERVICE,
+            authenticated: false,
+            verifiedAt: inspectedAt,
+            evidencePath,
+            detail: `Live recheck found no session (${observed.join('; ')}).`,
+          });
+        }
+      }
+      return { state, observed, evidencePath, inspectedAt };
+    }, { headless: true });
+
+### freeCashExecutor.ts:251-276 (inspectAccountState: ONLY balance_text_present boolean, no figure)
+/** Read-only account inspection (milestone 1). */
+export async function inspectAccountState(): Promise<FreeCashInspection> {
+  const inspectedAt = new Date().toISOString();
+  try {
+    return await withFreeCashPage(async (page) => {
+      await page.goto(FREECASH_HOME, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch((e: any) => e);
+      const { state, observed } = await detectSession(page);
+      const extras: string[] = [];
+      if (state === 'authenticated') {
+        const title = await page.title().catch(() => '');
+        if (title) extras.push(`page_title=${title}`);
+        const balanceText = await page
+          .locator('[data-testid*="balance" i], [class*="balance" i]')
+          .first()
+          .innerText({ timeout: 2500 })
+          .catch(() => '');
+        if (balanceText) extras.push(`balance_text_present=${balanceText.length > 0}`);
+      }
+      const all = [...observed, ...extras];
+      const evidencePath = writeEvidenceArtifact('inspect-account', { state, observed: all, url: page.url() });
+      return { state, observed: all, evidencePath, inspectedAt };
+    }, { headless: true });
+  } catch (err: any) {
+    return { state: 'unknown', observed: [], evidencePath: null, inspectedAt, error: err?.message };
+  }
+}
+
+### freeCashExecutor.ts:278-302 (inspectAvailableWork: state + items, no money)
+/** Read-only inventory of what work is actually available on the page. */
+export async function inspectAvailableWork(): Promise<FreeCashInspection & { items: string[] }> {
+  const inspectedAt = new Date().toISOString();
+  try {
+    return await withFreeCashPage(async (page) => {
+      await page.goto(FREECASH_HOME, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch((e: any) => e);
+      const { state, observed } = await detectSession(page);
+      const items: string[] = [];
+      if (state === 'authenticated') {
+        const offers = await page
+          .locator('[data-testid*="offer" i] h3, [class*="offer" i] h3, [data-testid*="task" i]')
+          .allInnerTexts({ timeout: 4000 })
+          .catch(() => [] as string[]);
+        for (const t of offers.slice(0, 10)) {
+          const clean = (t || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+          if (clean) items.push(clean);
+        }
+      }
+      const evidencePath = writeEvidenceArtifact('inspect-work', { state, items, url: page.url() });
+      return { state, observed, evidencePath, inspectedAt, items };
+    }, { headless: true });
+  } catch (err: any) {
+    return { state: 'unknown', observed: [], evidencePath: null, inspectedAt, items: [], error: err?.message };
+  }
+}
+
+### server/src/services/prerequisites/prerequisiteService.ts:53-80 (dataDir + sessionEvidencePath + writer)
+function dataDir(): string {
+  return path.dirname(resolvedDbPath);
+}
+
+export function sessionEvidencePath(service: string): string {
+  return path.join(dataDir(), service, 'session-evidence.json');
+}
+
+export function readSessionEvidence(service: string): ExternalSessionEvidence | null {
+  try {
+    const p = sessionEvidencePath(service);
+    if (!fs.existsSync(p)) return null;
+    const parsed = JSON.parse(fs.readFileSync(p, 'utf-8')) as ExternalSessionEvidence;
+    if (!parsed || typeof parsed.authenticated !== 'boolean' || !parsed.verifiedAt) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist LIVE verification evidence. Only the executor (which actually saw
+ *  the external state) may call this. */
+export function writeSessionEvidence(ev: ExternalSessionEvidence): void {
+  const p = sessionEvidencePath(ev.service);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(ev, null, 2), 'utf-8');
+}
+
+
+### server/src/routers/projects.ts:389-392 + 410-433 (the only auth routes; no account/earnings route)
+// GET  /api/projects/:projectId/freecash/auth  → current safe auth/session state
+// POST /api/projects/:projectId/freecash/auth  → same (POST alias for clients)
+router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+// POST /api/projects/:projectId/freecash/auth/verify
+// Re-probes the live session against the managed profile. Only a real
+// 'authenticated' probe result writes evidence, arms the resume and pumps it.
+router.post('/:projectId/freecash/auth/verify', async (req, res) => {
+  try {
+    const { checkAuthenticatedSession, markResumePending, resumePendingGoals } =
+      await import('../services/freeCash/freeCashExecutor.js');
+    const probe = await checkAuthenticatedSession();
+    let resumed = 0;
+    if (probe.state === 'authenticated') {
+      markResumePending('freecash');
+      resumed = await resumePendingGoals();
+    }
+    res.json({
+      probe: {
+        state: probe.state,
+        observed: probe.observed,
+        evidencePath: probe.evidencePath,
+        inspectedAt: probe.inspectedAt,
+        error: probe.error,
+      },
+      resumedGoals: resumed,
+      status: await freeCashAuthStatus(req.params.projectId),
+    });
+
+### server/src/services/backgroundTasks/adapters.ts:1813-1848 (only in-app consumer; session+work only)
+    }
+
+    const goalId = ((task.metadata as any)?.goalId as string) || gate.goal?.id || null;
+    const { checkAuthenticatedSession, inspectAvailableWork } = await import('../freeCash/freeCashExecutor.js');
+
+    // LIVE probe — the only legitimate source of "the session is valid".
+    const probe = await checkAuthenticatedSession();
+    mgr.appendEvent(task.taskId, 'task.progress', `Live FreeCash session probe: ${probe.state} (${probe.observed.join('; ') || 'no signals'}).`, {
+      service: FREECASH_SERVICE,
+      probeState: probe.state,
+      evidencePath: probe.evidencePath,
+    });
+
+    if (probe.state !== 'authenticated') {
+      const blocker = `Live FreeCash session probe returned "${probe.state}" — the account is not signed in, so no external action was attempted.`;
+      mgr.transition(task.taskId, 'waiting_for_auth', {
+        currentStage: 'waiting_for_auth',
+        progressMessage: blocker,
+        blocker,
+        resumable: true,
+      });
+      return { ok: false, error: blocker };
+    }
+
+    // ── REAL EXTERNAL EXECUTION STARTS HERE ────────────────────────────────
+    mgr.transition(task.taskId, 'running', {
+      currentStage: 'external_execution',
+      progressMessage: 'Live FreeCash session verified — running read-only external inventory.',
+    });
+
+    const work = await inspectAvailableWork();
+    const evidencePath = work.evidencePath;
+    backgroundTaskRepo.updateTask(task.taskId, {
+      metadata: {
+        ...(task.metadata || {}),
+        workMode: 'external_execution',
+
+### server/src/adapters/freecashMonitorAdapter.ts:198-209 (hardcoded stub)
+  async fetchStatus(): Promise<FreeCashStatus> {
+    return {
+      lastChecked: new Date().toISOString(),
+      pendingEarnings: undefined,
+      earnedToday: 0,
+      statusAlerts: [],
+      requiresApproval: [],
+      adapterHealth: 'healthy',
+      externalConnected: false,
+      externalStatusMessage: 'Local monitor adapter is operational in read-only sandbox mode. External FreeCash API connection is not configured.'
+    };
+  }
+
+### monitoring/freecash/operator_state.py:48-66 (TEMPLATE_RECORD + fields)
+TEMPLATE_RECORD = {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD",
+}
+
+_RECORD_FIELDS = (
+    "day_key",
+    "entered_at_utc",
+    "account_status",
+    "earnings_total_cents",
+    "balance_cents",
+    "pending_cents",
+    "currency",
+)
+
+### monitoring/freecash/operator_state.py:104-151 (record_for_day + read_source)
+def record_for_day(day, document=None):
+    """Return the record whose day_key is exactly *day*, else None."""
+    doc = document if document is not None else load_document()
+    if not isinstance(doc, dict):
+        return None
+    records = doc.get("records")
+    if not isinstance(records, list):
+        return None
+    match = None
+    for entry in records:
+        if isinstance(entry, dict) and entry.get("day_key") == day:
+            match = entry
+    return match
+
+
+def read_source(day) -> dict:
+    """Read today's operator-entered figures.  Never raises, never opens a socket.
+
+    Returns a dict with the same shape the other read source produces, so
+    ``run_daily_check`` treats both sources identically.
+    """
+    ensure_template()
+    document = load_document() or {}
+    record = record_for_day(day, document)
+    if record is None:
+        return {
+            "kind": KIND,
+            "read_ops": list(READ_OPS),
+            "data_available": False,
+            "note": (
+                "no operator-entered record for %s in %s"
+                % (day, os.path.basename(str(paths.operator_state_path())))
+            ),
+            "payload": None,
+            "raw_body": b"",
+        }
+    payload = {key: record.get(key) for key in _RECORD_FIELDS if key in record}
+    payload.pop("day_key", None)
+    payload.pop("entered_at_utc", None)
+    raw = json.dumps(record, sort_keys=True).encode("utf-8")
+    return {
+        "kind": KIND,
+        "read_ops": list(READ_OPS),
+        "data_available": True,
+        "note": "operator-entered record for %s" % day,
+        "payload": payload,
+        "raw_body": raw,
+    }
+
+### monitoring/freecash/changedetect.py:111-138 (normalize_metrics raises on missing field)
+def normalize_metrics(payload) -> dict:
+    """Extract the four compared fields (+ currency) or raise MetricError."""
+    if not isinstance(payload, dict):
+        raise MetricError("metrics payload is not a JSON object")
+    out = {}
+    for field, _change, _sub in COMPARED_FIELDS:
+        if field == "account_status":
+            raw = _lookup(payload, _STATUS_ALIASES)
+            if raw is None:
+                raise MetricError("metrics payload is missing 'account_status'")
+            if not isinstance(raw, str):
+                raw = str(raw)
+            out[field] = raw.strip().upper()
+            continue
+        raw = _lookup(payload, _MONEY_ALIASES[field])
+        source = "cents"
+        if raw is None:
+            raw = _lookup(payload, _DOLLAR_ALIASES[field])
+            source = "whole-currency"
+        if raw is None:
+            raise MetricError("metrics payload is missing '%s'" % field)
+        value = _as_cents(raw, field)
+        if source == "whole-currency":
+            value = int(round(value)) if isinstance(value, int) else value
+        out[field] = int(value)
+    currency = _lookup(payload, _CURRENCY_ALIASES)
+    out["currency"] = (str(currency).strip().upper() if currency else "UNKNOWN")
+    return out
+
+### monitoring/freecash/changedetect.py:150-176 (build_snapshot null policy)
+def build_snapshot(day, metrics, source, raw_body=b"", now=None) -> dict:
+    """Build the immutable snapshot for *day* (schema in ROUTINE-DESIGN 4.1)."""
+    metrics = dict(metrics or {})
+    source = dict(source or {})
+    available = bool(source.get("data_available", True))
+    snapshot = {
+        "schema_version": paths.SCHEMA_VERSION,
+        "day_key": day,
+        "captured_at_utc": paths.iso_utc(now),
+        "source": {
+            "kind": source.get("kind") or "unknown",
+            "read_ops": list(source.get("read_ops") or []),
+            "data_available": available,
+            "note": source.get("note"),
+        },
+        # Every source available today is a substitute for the provider read:
+        # the marker lets a "no change" report ever be mistaken for
+        # "provider verified no change" (ROUTINE-DESIGN 4.1 / 9.1 item 4).
+        "degraded": True,
+        "account_status": metrics.get("account_status") if available else None,
+        "earnings_total_cents": metrics.get("earnings_total_cents") if available else None,
+        "balance_cents": metrics.get("balance_cents") if available else None,
+        "pending_cents": metrics.get("pending_cents") if available else None,
+        "currency": metrics.get("currency") if available else None,
+        "raw_response_sha256": sha256_hex(raw_body),
+    }
+    return snapshot
+
+### monitoring/freecash/changedetect.py:256-275 (compare: int vs null => a change)
+    earnings_moved = prior.get("earnings_total_cents") != current.get("earnings_total_cents")
+    for field, change_type, subtype in COMPARED_FIELDS:
+        if field in money_fields:
+            continue
+        if field == "balance_cents" and earnings_moved:
+            continue
+        old = prior.get(field)
+        new = current.get(field)
+        if old == new:
+            continue
+        change = {
+            "change_type": change_type,
+            "field": field,
+            "old_value": old,
+            "new_value": new,
+            "prior_day_key": prior.get("day_key"),
+        }
+        if subtype:
+            change["subtype"] = subtype
+        result["changes"].append(change)

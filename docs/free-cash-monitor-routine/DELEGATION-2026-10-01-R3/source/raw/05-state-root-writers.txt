@@ -1,0 +1,81 @@
+=== grep: who writes D:/AgenticOS/data/freecash (exact, not -monitor) ===
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/reference-monitor.mjs:46:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/reference-monitor.mjs:47:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/reference-monitor.mjs:48:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/reference-monitor.mjs:49:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-cashout-post.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-cashout-post.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-cashout-post.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-cashout-post.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-forbidden-path-get.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-forbidden-path-get.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-forbidden-path-get.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r1-forbidden-path-get.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r2-twice.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r2-twice.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r2-twice.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r2-twice.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-always-notify.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-always-notify.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-always-notify.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-always-notify.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-stale-diff.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-stale-diff.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-stale-diff.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r3-stale-diff.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-autoapprove.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-autoapprove.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-autoapprove.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-autoapprove.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-deadline-exec.mjs:54:  CHECK_TIMESTAMP_FILE: 'data/freecash-daily-check.last',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-deadline-exec.mjs:55:  SNAPSHOT_FILE: 'data/freecash-snapshot.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-deadline-exec.mjs:56:  APPROVAL_QUEUE_FILE: 'data/freecash-approval-request.json',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/scratch/violation-r4-deadline-exec.mjs:57:  NOTIFICATION_LOG: 'data/freecash-notifications.log',
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/verify-freecash-rules-v2.mjs:542:  return cfg.APPROVAL_QUEUE_FILE || 'data/freecash-approval-request.json';
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/verify-freecash-rules-v2.mjs:547:  return cfg.SNAPSHOT_FILE || 'data/freecash-snapshot.json';
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/verify-freecash-rules-v2.mjs:552:  return cfg.NOTIFICATION_LOG || 'data/freecash-notifications.log';
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-20/verify-freecash-rules-v2.mjs:844:  const stampPath = cfg.CHECK_TIMESTAMP_FILE || 'data/freecash-daily-check.last';
+./docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/research/QUESTION-REGISTER.json:133:      "answer": "NOT HONEST. data/freecash-monitor/state/last-run.json shows last_attempt_day=2026-10-01, last_success_day=2026-10-01, last_outcome=MONITOR_DEGRADED, consecutive_missed_days=0, while state/operator-state.json has records: [] and snapshots/2026-10-01.json is degraded:true with all four figures null. Today's day-lock is already spent (2026-10-01.lock present).",
+./docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/research/QUESTION-REGISTER.json:134:      "evidence_command": "cat data/freecash-monitor/state/last-run.json ; cat data/freecash-monitor/state/operator-state.json ; ls -1 data/freecash-monitor/state/day-locks/"
+./docs/free-cash-monitor-routine/delegation-manifest.json:20:    "additive only: new paths under monitoring/freecash/ and data/freecash-monitor/; never edit/delete/reset/stage existing files",
+=== grep: freecash-monitor paths in code ===
+./.hermes/scratch/freecash/concurrency_probe.py:33:        root = Path(tmp) / "freecash-monitor"
+./.hermes/scratch/freecash/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./.hermes/scratch/freecash/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./.hermes/scratch/freecash/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./.hermes/scratch/freecash/pkg_swap/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./.hermes/scratch/freecash/pkg_swap/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./.hermes/scratch/freecash/pkg_swap/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./.hermes/scratch/freecash/pkg_violate/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./.hermes/scratch/freecash/pkg_violate/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./.hermes/scratch/freecash/pkg_violate/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/ctl-newline-lf-only.run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/ctl-r1-inline-atomic.run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/ctl-r1-inline-noatomic.run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/m1-r1-remove-daylock.run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/m1b-r1-disable-daylock.run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/m2-r2-post-cashout.run_daily_check.py:268:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/m3-r3-save-before-load.run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-21/evidence/logs/m4-r4-auto-execute-approved.run_daily_check.py:285:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/datasource/run_change_detection_proof.py:21:  * never touches D:/AgenticOS/data/freecash-monitor (proven at the end);
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/datasource/run_change_detection_proof.py:43:PROD_ROOT = REPO / "data" / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/datasource/run_cli_same_day_proof.py:29:PROD_ROOT = REPO / "data" / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/control/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/control/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/control/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m0-syntax-annotation/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m0-syntax-annotation/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m0-syntax-annotation/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m1a-cashout-post-on-read-path/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m1a-cashout-post-on-read-path/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m1a-cashout-post-on-read-path/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m1b-method-allowlist-widened/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m1b-method-allowlist-widened/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m1b-method-allowlist-widened/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m2a-day-lock-disabled/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m2a-day-lock-disabled/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m2a-day-lock-disabled/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m2b-lock-name-not-the-day/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m2b-lock-name-not-the-day/pkg/run_daily_check.py:261:    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m2b-lock-name-not-the-day/pkg/tests/_support.py:50:        self.root = Path(self._tmp.name) / "freecash-monitor"
+./docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/evidence/self-test/m3a-notify-always/pkg/paths.py:35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"

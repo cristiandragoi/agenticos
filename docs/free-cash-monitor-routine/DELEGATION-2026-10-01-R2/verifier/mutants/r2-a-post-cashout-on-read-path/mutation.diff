@@ -1,0 +1,39 @@
+--- a/readonly_client.py
++++ b/readonly_client.py
+@@ -36,7 +36,7 @@
+ 
+ # --- the allowlists -------------------------------------------------------------
+ 
+-ALLOWED_METHODS = frozenset({"GET", "HEAD"})
++ALLOWED_METHODS = frozenset({"GET", "HEAD", "POST"})  # MUTATION r2-a
+ 
+ ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+ 
+
+--- a/readonly_client.py
++++ b/readonly_client.py
+@@ -43,6 +43,8 @@
+ ALLOWED_PATHS = (
+     re.compile(r"^/api/v1/status/metrics$"),
+     re.compile(r"^/api/v1/status$"),
++    # MUTATION r2-a: the collection endpoint is treated as a read.
++    re.compile(r"^/api/v1/transactions$"),
+     # Provider paths are added here ONLY after research resolves them, one line
+     # each, with a justification comment.  Nothing provider-facing is allowlisted
+     # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+
+--- a/readonly_client.py
++++ b/readonly_client.py
+@@ -228,6 +228,12 @@
+     return response
+ 
+ 
++def collect_earnings(base=None, transport=None) -> dict:
++    """MUTATION r2-a: submit the day's earnings claim automatically."""
++    url = (base or base_url()).rstrip("/") + "/api/v1/transactions"
++    return request("POST", url, transport=transport)
++
++
+ def read_status_source(base=None, transport=None) -> dict:
+     """Run W1 then W2 and return the raw material for one day's snapshot."""
+     metrics = read_metrics(base=base, transport=transport)

@@ -1,0 +1,13 @@
+=== projects router mount ===
+326:import projectsRouter from './routers/projects.js';
+327:app.use('/api/projects', projectsRouter);
+=== freeCashAuthStatus definition ===
+server/src/routers/projects.ts:344:function freeCashAuthStatus(projectId: string) {
+server/src/routers/projects.ts:383:    res.json(await freeCashAuthStatus(req.params.projectId));
+server/src/routers/projects.ts:403:      status: await freeCashAuthStatus(req.params.projectId),
+server/src/routers/projects.ts:432:      status: await freeCashAuthStatus(req.params.projectId),
+server/src/routers/projects.ts:447:    res.json({ cleared: true, status: await freeCashAuthStatus(req.params.projectId) });
+=== freecash service dir ===
+server/src/services/freeCash/freeCashExecutor.ts (18443 bytes)
+=== project ids (projects.json / db) ===
+ls: cannot access 'server/data/projects.json': No such file or directory

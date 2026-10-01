@@ -1,0 +1,49 @@
+=== handleFreeCashAuthStatus definition ===
+server/src/routers/projects.ts:381:async function handleFreeCashAuthStatus(req: any, res: any) {
+server/src/routers/projects.ts:391:router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+server/src/routers/projects.ts:392:router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+=== how routers are mounted (app.use / api prefix) ===
+server/src/index.ts:260:app.use('/api/stripe', stripeRouter);
+server/src/index.ts:268:app.use('/api', (req, res, next) => {
+server/src/index.ts:275:app.use('/api/health', healthRouter);
+server/src/index.ts:277:app.use('/api/runtime', runtimeIdentityRouter);
+server/src/index.ts:278:app.use('/api/system', systemRouter);
+server/src/index.ts:280:app.use('/api/integrations/telegram', telegramRouter);
+server/src/index.ts:281:app.use('/api/workspace-index', workspaceIndexRouter);
+server/src/index.ts:284:app.use('/api/self-heal', selfHealRouter);
+server/src/index.ts:286:app.use('/api/gemini', authMiddleware, geminiRouter);
+server/src/index.ts:287:app.use('/api/agents', agentsRouter);
+server/src/index.ts:288:app.use('/api/providers', providersRouter);
+server/src/index.ts:290:app.use('/api/providers/observability', providerStatusRouter);
+server/src/index.ts:291:app.use('/api/system/providers', providerStatusRouter);
+server/src/index.ts:292:app.use('/api/runtimes', runtimesRouter);
+server/src/index.ts:293:app.use('/api/teams', teamsRouter);
+server/src/index.ts:294:app.use('/api/runs', runsRouter);
+server/src/index.ts:295:app.use('/api/chat', chatRouter);
+server/src/index.ts:296:app.use('/api/memory', memoryRouter);
+server/src/index.ts:297:app.use('/api/memories', memoryRouter);
+server/src/index.ts:298:app.use('/api/boards', boardsRouter);
+server/src/index.ts:299:app.use('/api/teams', teamsRouter);
+server/src/index.ts:300:app.use('/api/tools', toolsRouter);
+server/src/index.ts:301:app.use('/api/sync', syncRouter);
+server/src/index.ts:302:app.use('/api/loops', loopsRouter);
+server/src/index.ts:303:app.use('/api/video', videoRouter);
+server/src/index.ts:304:app.use('/api/voice', voiceRouter);
+server/src/index.ts:305:app.use('/api/hermes-api', hermesApiRouter);
+server/src/index.ts:306:app.use('/api/research', researchRouter);
+server/src/index.ts:307:app.use('/api/sales', salesRouter);
+server/src/index.ts:308:app.use('/api/artifacts', artifactsRouter);
+server/src/index.ts:309:app.use('/api/kanban', kanbanRouter);
+server/src/index.ts:310:app.use('/api/dispatch', laneRouter);
+server/src/index.ts:312:app.use('/api/dispatch/capability', capabilityDispatchRouter);
+server/src/index.ts:314:app.use('/api/tasks', tasksRouter);
+server/src/index.ts:316:app.use('/api/background-tasks', backgroundTasksRouter);
+server/src/index.ts:318:app.use('/api/run-ledger', runLedgerRouter);
+server/src/index.ts:319:app.use('/api/schedules', schedulesRouter);
+server/src/index.ts:321:app.use('/api/routines', routinesRouter);
+server/src/index.ts:322:app.use('/api/heavy-gen', heavyGenRouter);
+server/src/index.ts:324:app.use('/api/connectors', connectorRouter);
+=== find server entry / index ===
+ls: cannot access 'server/src/app.ts': No such file or directory
+ls: cannot access 'server/src/server.ts': No such file or directory
+-rw-r--r-- 1 cd-pr 197609 26551 Sep 29 23:59 server/src/index.ts

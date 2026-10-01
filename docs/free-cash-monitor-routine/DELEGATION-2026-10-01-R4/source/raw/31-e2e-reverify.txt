@@ -1,0 +1,23 @@
+=== date ===
+Do,  1. Okt 2026 11:49:52
+=== re-verification run: fresh throwaway root C:\Users\cd-pr\AppData\Local/Temp/fc-r4-verify-555/root ===
+=== command: python e2e_r3_two_day.py ===
+exit = 0
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+notified-keys.json = {
+exit = 0
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+EARNINGS_CHANGED alert lines = 1
+toast-stub.log lines         = 1
+== 2b. dedupe key persisted in state/notified-keys.json
+dedupe key = 8341abccc4ac2b8ca19f3571961293f83e2e514e1085541453d3103e58379d5c
+key_delivery(key) = STUB_OK
+exit = 0
+SKIP_DUPLICATE_DAY 2026-10-02
+EARNINGS_CHANGED alert lines = 1 (unchanged)
+toast-stub.log lines         = 1 (unchanged)
+notified-keys count          = 1 (unchanged)
+dispatch_change(...) returned = DEDUPED
+expected DEDUPED; keys_before=1 keys_after=1 toast_before=1 toast_after=1
+state/notified-keys.json
+exit=0

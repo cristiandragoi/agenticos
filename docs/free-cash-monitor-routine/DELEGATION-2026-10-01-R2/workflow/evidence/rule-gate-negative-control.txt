@@ -1,0 +1,82 @@
+==============================================================================
+rule-gate-verify :: executable rule gate for the Free Cash daily monitor
+==============================================================================
+target : C:/Users/cd-pr/AppData/Local/Temp/fc-r2/rgv-neg/bad.py
+exists : True   kind: python
+parse  : OK -- python ast.parse OK
+token scan hits (informational, ROUTINE-DESIGN §3.3 false-positive class): 1
+    4: [write-call-shape] requests.post("https://x/api/v1/withdraw", json={"amount":1})
+
+------------------------------------------------------------------------------
+R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+------------------------------------------------------------------------------
+  FAIL  atomic same-day guard (double-run barrier)
+        evidence: no O_CREAT|O_EXCL / 'x'-mode create / atomic mkdir anywhere in the file
+  FAIL  day key is a calendar day
+        evidence: no calendar-day key derivation found (no %Y-%m-%d / toDateString / date().isoformat)
+  PASS  no rolling 24h window used as the daily gate
+        evidence: no 86400/24h/timedelta(days=1) daily-gate arithmetic found
+  PASS  duplicate-run path is side-effect free
+        evidence: no state write found inside the already-ran early-exit branch
+  FAIL  missed day is detectable
+        evidence: no last_success_day / MISSED_DAY / reconcile / watchdog token in code: a day with no run is indistinguishable from a day with nothing to report
+  PASS  guard fails CLOSED on error
+        evidence: no except/catch branch was found returning a permissive value from a *ran()*/*allowed()* style guard
+  >>> R1 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R2: NO automated earning action (no POST/PUT/PATCH/DELETE; no claim/withdraw/payout/redeem/survey/offer execution)
+------------------------------------------------------------------------------
+  FAIL  no write/earning call shape or endpoint path  [line 4]
+        evidence: line 4 [write-call-shape]: requests.post("https://x/api/v1/withdraw", json={"amount":1})
+  FAIL  no non-GET/HEAD HTTP method is used  [line 4]
+        evidence: line 4: requests.post("https://x/api/v1/withdraw", json={"amount":1})
+  FAIL  deny-by-default allowlist exists (structural barrier)
+        evidence: no ALLOWED_METHODS/ALLOWED_PATHS/ForbiddenWriteError: read-only-ness is a convention here, not an enforced denial, so one added line can become a write with no barrier to trip
+  FAIL  no invented/unresolved provider endpoint  [line 4]
+        evidence: line 4: requests.post("https://x/api/v1/withdraw", json={"amount":1}) -- host 'x' is not grounded in a verified provider contract (ROUTINE-DESIGN §3.1: W3/W4 are PROVIDER_ENDPOINT_UNKNOWN until the research phase resolves them)
+  PASS  no earning-action execution path in the monitor
+        evidence: no run_action/execute_*/perform_action/simulate_action call site found
+  >>> R2 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R3: operator notified when earnings/account status CHANGES (prior-state load BEFORE snapshot write; dedupe = one change = one notification)
+------------------------------------------------------------------------------
+  FAIL  prior state is loaded BEFORE the new snapshot is written
+        evidence: no prior-state load call found at all (snapshot writes present at lines: []) -- so no change can ever be compared
+  FAIL  exactly-one-notification dedupe key exists
+        evidence: no dedupe/notified-keys/seen-keys token in code: the same change re-notifies, and a same-day re-entry has nothing to suppress it
+  PASS  change comparison is exact (no threshold can swallow it)
+        evidence: no relative/percentage threshold found next to a balance/earnings field
+  FAIL  notification is a delivery path, not a print stub
+        evidence: no smtplib/toast/webhook/notify_manager/dispatch/alerts.jsonl write found; the only outputs are 0 print() call(s) (first at line n/a) -- stdout of a scheduled task is not a notification
+  >>> R3 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R4: human approval before ANY external action (may enqueue; no execution path; timeout never converts pending -> executed)
+------------------------------------------------------------------------------
+  FAIL  the routine may enqueue a request for a human
+        evidence: no approval queue / PENDING item is produced in code: a detected change has no route to a human decision
+  PASS  consent is not fabricated by RNG
+        evidence: no random.choice/random.random in the approval path
+  PASS  consent is not hardcoded
+        evidence: no success=True / approved=True / {'approved': True} literal found
+  PASS  the routine contains NO execution path
+        evidence: no action-executing call site found
+  PASS  an APPROVED item is not auto-executed
+        evidence: nothing reads an APPROVED status and executes it
+  PASS  a timeout cannot convert pending -> executed
+        evidence: no timeout/expiry branch that proceeds or executes
+  PASS  the approval gate is actually reachable
+        evidence: no approve/decide/consent function is defined in this file (there is no gate here to be unreachable) -- the queue/enqueue check above is the binding one
+  >>> R4 RESULT: FAIL
+
+------------------------------------------------------------------------------
+RUNTIME PROBE (temp-dir copy of the target; cwd = temp)
+------------------------------------------------------------------------------
+  - skipped (pass --run to enable; nothing was executed)
+
+==============================================================================
+SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+VERDICT: NOT COMPLIANT -- 4/4 rule(s) violated: R1, R2, R3, R4
+==============================================================================

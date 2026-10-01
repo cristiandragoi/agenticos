@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-03-13T09:00:00Z",
+  "items": [
+    {
+      "approval_id": "13fea481-32ab-4778-8de5-023658914748",
+      "created_at_utc": "2026-03-11T09:00:00Z",
+      "day_key": "2026-03-11",
+      "change_dedupe_key": "db5b769692da3039994bdaead4b82dba20e2fd9e16712291e0ba4a8777581111",
+      "reason": "earnings_total_cents moved from $10.25 to $10.50. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 1050,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    },
+    {
+      "approval_id": "30807fc1-c258-4bb6-a04b-0e3ddd3d8513",
+      "created_at_utc": "2026-03-13T09:00:00Z",
+      "day_key": "2026-03-13",
+      "change_dedupe_key": "ec11e6fa3cc831b2782c7b271c5e7ed2577a04187f0160df8b027a457b63736a",
+      "reason": "Account status moved from ACTIVE to LIMITED. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": "LIMITED",
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    }
+  ]
+}

@@ -1,0 +1,1820 @@
+=== schtasks /query /fo LIST (full) ‚Äî 2026-10-01T11:40:33+02:00 ===
+
+Ordner: \
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Adobe Acrobat Update Task
+NÑchste Laufzeit: 01.10.2026 19:00:00
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Adobe Acrobat Update Task
+NÑchste Laufzeit: 01.10.2026 19:00:00
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \AgenticOS_Desktop
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \AgenticOS_Launch
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \cua-driver-serve
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Hermes_Gateway
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Hermes_Gateway_researcher
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \OneDrive Per-Machine Standalone Update Task
+NÑchste Laufzeit: 02.10.2026 04:41:24
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \OneDrive Reporting Task-S-1-5-21-3435097649-250514390-3575566063-1001
+NÑchste Laufzeit: 02.10.2026 02:19:32
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \OneDrive Startup Task-S-1-5-21-3435097649-250514390-3575566063-1001
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Ordner: \GoogleSystem
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Office
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Actions Server
+NÑchste Laufzeit: 01.10.2026 12:00:00
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Actions Server
+NÑchste Laufzeit: 01.10.2026 12:00:00
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Automatic Updates 2.0
+NÑchste Laufzeit: 02.10.2026 07:16:37
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Automatic Updates 2.0
+NÑchste Laufzeit: 02.10.2026 09:10:55
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Automatic Updates 2.0
+NÑchste Laufzeit: 02.10.2026 11:35:57
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Background Push Maintenance
+NÑchste Laufzeit: 01.10.2026 17:43:14
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Background Push Maintenance
+NÑchste Laufzeit: 01.10.2026 17:43:14
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office ClickToRun Service Monitor
+NÑchste Laufzeit: 02.10.2026 07:27:31
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates
+NÑchste Laufzeit: 01.10.2026 16:24:59
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates
+NÑchste Laufzeit: 01.10.2026 16:12:05
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates
+NÑchste Laufzeit: 01.10.2026 17:58:45
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates
+NÑchste Laufzeit: 01.10.2026 15:33:10
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates
+NÑchste Laufzeit: 01.10.2026 16:41:39
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates
+NÑchste Laufzeit: 01.10.2026 16:08:35
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates Logon
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Feature Updates Logon
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Performance Monitor
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Startup Maintenance
+NÑchste Laufzeit: 02.10.2026 08:43:12
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Office\Office Startup Maintenance
+NÑchste Laufzeit: 02.10.2026 08:06:25
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\OneCore
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\.NET Framework
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64 Critical
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 Critical
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\AccountHealth
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\AccountHealth\RecoverabilityToastTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Active Directory Rights Management Services Client
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Active Directory Rights Management Services Client\AD RMS Rights Policy Template Management (Automated)
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Active Directory Rights Management Services Client\AD RMS Rights Policy Template Management (Automated)
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Active Directory Rights Management Services Client\AD RMS Rights Policy Template Management (Manual)
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\AppID
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\AppID\PolicyConverter
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\AppID\VerifiedPublisherCertStoreCheck
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Application Experience
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Application Experience\MareBackup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser Exp
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Application Experience\PcaPatchDbTask
+NÑchste Laufzeit: 01.10.2026 15:27:32
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Application Experience\SdbinstMergeDbTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Application Experience\SdbinstMergeDbTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Application Experience\StartupAppTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\ApplicationData
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ApplicationData\appuriverifierdaily
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ApplicationData\appuriverifierinstall
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ApplicationData\CleanupTemporaryState
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ApplicationData\DsSvcCleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\AppListBackup
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\AppListBackup\Backup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\AppListBackup\BackupNonMaintenance
+NÑchste Laufzeit: 03.10.2026 03:13:05
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\AppxDeploymentClient
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\AppxDeploymentClient\Pre-staged app cleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Autochk
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Autochk\Proxy
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\BitLocker
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\BitLocker\BitLocker Encrypt All Drives
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\BitLocker\BitLocker MDM policy Refresh
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Bluetooth
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Bluetooth\UninstallDeviceTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\BrokerInfrastructure
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\BrokerInfrastructure\BgTaskRegistrationMaintenanceTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\capabilityaccessmanager
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\capabilityaccessmanager\maintenancetasks
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\CertificateServicesClient
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CertificateServicesClient\UserTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CertificateServicesClient\UserTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CertificateServicesClient\UserTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CertificateServicesClient\UserTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CertificateServicesClient\UserTask-Roam
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CertificateServicesClient\UserTask-Roam
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Chkdsk
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Chkdsk\ProactiveScan
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Chkdsk\SyspartRepair
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\CloudExperienceHost
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CloudExperienceHost\CreateObjectTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\CloudRestore
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CloudRestore\Backup
+NÑchste Laufzeit: 05.10.2026 12:29:28
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CloudRestore\Backup
+NÑchste Laufzeit: 06.10.2026 03:28:28
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\CloudRestore\Restore
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\ConsentUX
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\ConsentUX\UnifiedConsent
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ConsentUX\UnifiedConsent\UnifiedConsentSyncTask
+NÑchste Laufzeit: 01.10.2026 12:15:16
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ConsentUX\UnifiedConsent\UnifiedConsentSyncTask
+NÑchste Laufzeit: 01.10.2026 13:05:13
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Containers
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Containers\CmCleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Customer Experience Improvement Program
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Customer Experience Improvement Program\Consolidator
+NÑchste Laufzeit: 01.10.2026 12:00:00
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Customer Experience Improvement Program\UsbCeip
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Data Integrity Scan
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Data Integrity Scan\Data Integrity Check And Scan
+NÑchste Laufzeit: 01.10.2026 23:02:59
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Data Integrity Scan\Data Integrity Check And Scan
+NÑchste Laufzeit: 01.10.2026 23:28:23
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Data Integrity Scan\Data Integrity Scan
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Data Integrity Scan\Data Integrity Scan for Crash Recovery
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Defrag
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Defrag\ScheduledDefrag
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Device Information
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Device Information\Device
+NÑchste Laufzeit: 02.10.2026 04:39:12
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Device Information\Device
+NÑchste Laufzeit: 02.10.2026 04:47:51
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Device Information\Device User
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Device Setup
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Device Setup\Driver Recovery on Reboot
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Diagnosis
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Diagnosis\Scheduled
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Diagnosis\UnexpectedCodepath
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\DirectX
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DirectX\DirectXDatabaseUpdater
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DirectX\DirectXDatabaseUpdater
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DirectX\DXGIAdapterCache
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DirectX\DXGIAdapterCache
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DirectX\DXGIAdapterCache
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\DiskCleanup
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DiskCleanup\SilentCleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\DiskDiagnostic
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticResolver
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\DiskFootprint
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DiskFootprint\Diagnostics
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DiskFootprint\StorageSense
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\DUSM
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\DUSM\dusmtask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\EDP
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\EDP\EDP App Launch Task
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\EDP\EDP Auth Task
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\EDP\EDP Inaccessible Credentials Task
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\EDP\StorageCardEncryption Task
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\ExploitGuard
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ExploitGuard\ExploitGuard MDM policy Refresh
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ExploitGuard\ExploitGuard MDM policy Refresh
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ExploitGuard\ExploitGuard MDM policy Refresh
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Feedback
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\Feedback\Siuf
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Feedback\Siuf\DmClient
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\File Classification Infrastructure
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\File Classification Infrastructure\Property Definition Sync
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\FileHistory
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\FileHistory\File History (maintenance mode)
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Flighting
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\Flighting\FeatureConfig
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\BootstrapUsageDataReporting
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\GovernedFeatureUsageProcessing
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\GovernedFeatureUsageProcessing
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\ReconcileConfigs
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\ReconcileFeatures
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\ReconcileFeatures
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\ReconcileFeatures
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\ReconcileFeatures
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\ReconcileFeatures
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\SafeguardsReconciliation
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\UsageDataReceiver
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\FeatureConfig\UsageDataReporting
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Flighting\OneSettings
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\OneSettings\RefreshCache
+NÑchste Laufzeit: 01.10.2026 18:16:51
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\OneSettings\RefreshCache
+NÑchste Laufzeit: 01.10.2026 18:29:46
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\OneSettings\RefreshCache
+NÑchste Laufzeit: 01.10.2026 17:40:43
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Flighting\OneSettings\RefreshCache
+NÑchste Laufzeit: 01.10.2026 18:16:16
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Hotpatch
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+NÑchste Laufzeit: 02.10.2026 03:15:53
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+NÑchste Laufzeit: 02.10.2026 03:18:04
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+NÑchste Laufzeit: 02.10.2026 03:08:16
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\input
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\InputSettingsRestoreDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\LocalUserSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\MouseSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\PenSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\RemoteMouseSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\RemotePenSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\RemoteTouchpadSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\syncpensettings
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\input\TouchpadSyncDataAvailable
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\InstallService
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\RestoreDevice
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\ScanForUpdates
+NÑchste Laufzeit: 02.10.2026 19:47:07
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\ScanForUpdates
+NÑchste Laufzeit: 02.10.2026 02:02:02
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\ScanForUpdates
+NÑchste Laufzeit: 02.10.2026 16:04:59
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\ScanForUpdatesAsUser
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\WakeUpAndContinueUpdates
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\InstallService\WakeUpAndScanForUpdates
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\International
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\International\Synchronize Language Settings
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\International\Synchronize Language Settings
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Kernel
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Kernel\La57Cleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\LanguageComponentsInstaller
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\LanguageComponentsInstaller\Installation
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\LanguageComponentsInstaller\ReconcileLanguageResources
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Live
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\Location
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Location\WindowsActionDialog
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Maintenance
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Maintenance\WinSAT
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Management
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\Management\Autopilot
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Autopilot\DetectHardwareChange
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Autopilot\DetectHardwareChange
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Autopilot\RemediateHardwareChange
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Management\Provisioning
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Provisioning\Cellular
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Provisioning\Logon
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Provisioning\MdmDiagnosticsCleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Provisioning\Retry
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Management\Provisioning\RunOnReboot
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Maps
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Maps\MapsToastTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Maps\MapsUpdateTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\MemoryDiagnostic
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MemoryDiagnostic\AutomaticOfflineMemoryDiagnostic
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MemoryDiagnostic\ProcessMemoryDiagnosticEvents
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MemoryDiagnostic\ProcessMemoryDiagnosticEvents
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MemoryDiagnostic\ProcessMemoryDiagnosticEvents
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MemoryDiagnostic\ProcessMemoryDiagnosticEvents
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MemoryDiagnostic\RunFullMemoryDiagnostic
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\MUI
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\MUI\LPRemove
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Multimedia
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Multimedia\SystemSoundsService
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Wird ausgefÅhrt
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Network Connectivity Status Indicator
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Network Connectivity Status Indicator\NcsiIdentifyUserProxies
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Network Connectivity Status Indicator\NcsiIdentifyUserProxies
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Network Connectivity Status Indicator\NcsiIdentifyUserProxies
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\NlaSvc
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\NlaSvc\WiFiTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Offline Files
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Offline Files\Background Synchronization
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Offline Files\Logon Synchronization
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\PCRPF
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\PCRPF\PCR Prediction Framework Firmware Update Task
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\PerformanceTrace
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\PerformanceTrace\ShowFeedbackToast
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\PerformanceTrace\WhesvcToast
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\PLA
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\Plug and Play
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Plug and Play\Device Install Group Policy
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Plug and Play\Device Install Reboot Required
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Plug and Play\Device Install Reboot Required
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Plug and Play\Sysprep Generalize Drivers
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Power Efficiency Diagnostics
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Printing
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Printing\EduPrintProv
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Printing\PrinterCleanupTask
+NÑchste Laufzeit: 26.10.2026 12:00:00
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Printing\PrintJobCleanupTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\RecoveryEnvironment
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\RecoveryEnvironment\VerifyWinRE
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\ReFsDedupSvc
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\ReFsDedupSvc\Initialization
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Registry
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Registry\RegIdleBackup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Servicing
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Servicing\OOBEFodSetup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Servicing\StartComponentCleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Setup
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Setup\PITRTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Setup\SetupRecoveryDataTask
+NÑchste Laufzeit: 15.10.2026 08:39:46
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\SharedPC
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SharedPC\Account Cleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Shell
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Shell\CreateObjectTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Shell\FamilySafetyMonitor
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Shell\FamilySafetyRefreshTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Shell\IndexerAutomaticMaintenance
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Shell\ThemesSyncedImageDownload
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\SoftwareProtectionPlatform
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SoftwareProtectionPlatform\SvcRestartTaskLogon
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\SpacePort
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SpacePort\SpaceAgentTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SpacePort\SpaceAgentTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SpacePort\SpaceManagerTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SpacePort\SpaceManagerTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\StateRepository
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\StateRepository\MaintenanceTasks
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Storage Tiers Management
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Storage Tiers Management\Storage Tiers Management Initialization
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Storage Tiers Management\Storage Tiers Optimization
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Subscription
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Subscription\EnableLicenseAcquisition
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Subscription\EnableLicenseAcquisition
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Subscription\EnableLicenseAcquisition
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Subscription\LicenseAcquisition
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Subscription\LicenseAcquisition
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Subscription\LicenseAcquisition
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Sustainability
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sustainability\PowerGridForecastTask
+NÑchste Laufzeit: 01.10.2026 12:07:41
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sustainability\PowerGridForecastTask
+NÑchste Laufzeit: 01.10.2026 12:09:29
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sustainability\SustainabilityTelemetry
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Sysmain
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sysmain\HybridDriveCachePrepopulate
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sysmain\HybridDriveCacheRebalance
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sysmain\ResPriStaticDbSync
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Sysmain\WsSwapAssessmentTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\SystemRestore
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\SystemRestore\SR
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Task Manager
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Task Manager\Interactive
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\TextServicesFramework
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\TextServicesFramework\MsCtfMonitor
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Time Synchronization
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Time Synchronization\ForceSynchronizeTime
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Time Synchronization\ForceSynchronizeTime
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Time Synchronization\SynchronizeTime
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Time Zone
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Time Zone\SynchronizeTimeZone
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\UPnP
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\UPnP\UPnPHostConfig
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\USB
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\USB\Usb-Notifications
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\USB\Usb-Notifications
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\USB\Usb-Notifications
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\USB\Usb-Notifications
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\WCM
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WCM\WiFiTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\WDI
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WDI\ResolutionHost
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Windows Defender
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Defender\Windows Defender Cache Maintenance
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Defender\Windows Defender Cleanup
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Defender\Windows Defender Verification
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Windows Error Reporting
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Error Reporting\QueueReporting
+NÑchste Laufzeit: 01.10.2026 14:14:26
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Error Reporting\QueueReporting
+NÑchste Laufzeit: 01.10.2026 14:03:06
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Error Reporting\QueueReporting
+NÑchste Laufzeit: 01.10.2026 14:15:44
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Error Reporting\QueueReporting
+NÑchste Laufzeit: 01.10.2026 14:48:27
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Error Reporting\QueueReporting
+NÑchste Laufzeit: 01.10.2026 14:16:15
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Windows Filtering Platform
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Filtering Platform\BfeOnServiceStartTypeChange
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Windows Media Sharing
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Windows Media Sharing\UpdateLibrary
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\WindowsAI
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \Microsoft\Windows\WindowsColorSystem
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WindowsColorSystem\Calibration Loader
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WindowsColorSystem\Calibration Loader
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\WindowsUpdate
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WindowsUpdate\Scheduled Start
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WindowsUpdate\Scheduled Start
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WindowsUpdate\Scheduled Start
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WindowsUpdate\Scheduled Start
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Wininet
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Wininet\CacheTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Wird ausgefÅhrt
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\WlanSvc
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WlanSvc\CDSSync
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WlanSvc\MoProfileManagement
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WlanSvc\MoProfileManagement
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Work Folders
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Work Folders\Work Folders Logon Synchronization
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Work Folders\Work Folders Maintenance Work
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\Workplace Join
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Workplace Join\Automatic-Device-Join
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Workplace Join\Automatic-Device-Join
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Workplace Join\Device-Sync
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Workplace Join\Recovery-Check
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\Workplace Join\Recovery-Check
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\Windows\WwanSvc
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WwanSvc\NotificationTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WwanSvc\OobeDiscovery
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WwanSvc\OobeDiscovery
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\Windows\WwanSvc\OobeDiscovery
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \Microsoft\XblGameSave
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \Microsoft\XblGameSave\XblGameSaveTask
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Bereit
+Anmeldemodus:     Interaktiv/Hintergrund
+
+Ordner: \PerplexitySystem
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \SoftLanding
+INFORMATION: Es sind keine geplanten Aufgaben auf Ihrer Zugriffsebene vorhanden
+
+Ordner: \SoftLanding\S-1-5-21-3435097649-250514390-3575566063-1001
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \SoftLanding\S-1-5-21-3435097649-250514390-3575566063-1001\SoftLandingCreativeManagementTask
+NÑchste Laufzeit: 01.10.2026 18:26:53
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \SoftLanding\S-1-5-21-3435097649-250514390-3575566063-1001\SoftLandingCreativeManagementTask
+NÑchste Laufzeit: 01.10.2026 18:26:53
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \SoftLanding\S-1-5-21-3435097649-250514390-3575566063-1001\SoftLandingCreativeManagementTask
+NÑchste Laufzeit: 01.10.2026 18:26:53
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \SoftLanding\S-1-5-21-3435097649-250514390-3575566063-1001\SoftLandingDeferralTask-{c9b7cd71-d3b2-4f16-b838-303e818623d1}
+NÑchste Laufzeit: 01.10.2026 11:41:00
+Status:           Bereit
+Anmeldemodus:     Nur interaktiv
+
+Hostname:         CDINTERNATIONAL
+Aufgabenname:     \SoftLanding\S-1-5-21-3435097649-250514390-3575566063-1001\SoftLandingTriggerTask-128000000001615609-render-{39c60464-fdd9-4358-bee7-25299ccbfcb3}
+NÑchste Laufzeit: Nicht zutreffend
+Status:           Deaktiviert
+Anmeldemodus:     Nur interaktiv
+
+=== filtered: lines matching -i freecash / free.cash / agenticos / jarvis ===
+Aufgabenname:     \AgenticOS_Desktop
+Aufgabenname:     \AgenticOS_Launch
+[grep exit=0]  (1 = no match)
+
+=== filtered: lines matching -i monitor ===
+Aufgabenname:     \Microsoft\Office\Office ClickToRun Service Monitor
+Aufgabenname:     \Microsoft\Office\Office Performance Monitor
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+Aufgabenname:     \Microsoft\Windows\Hotpatch\Monitoring
+Aufgabenname:     \Microsoft\Windows\Shell\FamilySafetyMonitor
+Aufgabenname:     \Microsoft\Windows\TextServicesFramework\MsCtfMonitor
+[grep exit=0]  (1 = no match)

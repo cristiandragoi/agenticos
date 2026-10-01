@@ -1,0 +1,54 @@
+== proposed-control check, 2026-10-01T06:54:36Z
+== proposed file : D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01/delivery/proposed/approval_queue.py (a COPY; the real source is untouched)
+== import path   : PYTHONPATH=D:/AgenticOS/monitoring/freecash  (for 'import paths')
+== throwaway root: C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/proposed-queue
+
+$ python -m py_compile D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01/delivery/proposed/approval_queue.py
+py_compile exit=0
+
+$ diff -u monitoring/freecash/approval_queue.py <copy>   (the patch, see the .diff file)
+
+--------------------------------------------------------------
+CASE: P1 no identity configured, --by "Hermes Agent"
+$ FREECASH_OPERATOR_IDENTITY=[]
+$ python <proposed>/approval_queue.py decide --id 9fa3e493-0490-4c04-bc84-2ebd98418518 --decision approve --by Hermes Agent --note probe
+REFUSED: refused: no operator identity is configured. Set FREECASH_OPERATOR_IDENTITY="<your name>" in the host environment; a decision that cannot be attributed to the configured operator is not recorded.
+exit_code = 4
+item state: {"status": "PENDING", "decided_by": null, "execution_state": "NOT_EXECUTED"}
+
+--------------------------------------------------------------
+CASE: P2 identity configured = a human, --by "Hermes Agent"
+$ FREECASH_OPERATOR_IDENTITY=[Christian Doppler]
+$ python <proposed>/approval_queue.py decide --id b2673966-9745-465f-a80a-78d4091c0451 --decision approve --by Hermes Agent --note probe
+REFUSED: refused: 'Hermes Agent' is not the configured operator identity 'Christian Doppler' (FREECASH_OPERATOR_IDENTITY)
+exit_code = 4
+item state: {"status": "PENDING", "decided_by": null, "execution_state": "NOT_EXECUTED"}
+
+--------------------------------------------------------------
+CASE: P3 identity configured = a machine label
+$ FREECASH_OPERATOR_IDENTITY=[FreeCash Monitor Bot]
+$ python <proposed>/approval_queue.py decide --id 2afab7b2-a3cc-4425-8897-a5726d1bc0f4 --decision approve --by FreeCash Monitor Bot --note probe
+REFUSED: refused: the configured operator identity 'FreeCash Monitor Bot' matches a machine-label pattern; fix FREECASH_OPERATOR_IDENTITY before deciding
+exit_code = 4
+item state: {"status": "PENDING", "decided_by": null, "execution_state": "NOT_EXECUTED"}
+
+--------------------------------------------------------------
+CASE: P4 identity configured = a human, --by matches
+$ FREECASH_OPERATOR_IDENTITY=[Christian Doppler]
+$ python <proposed>/approval_queue.py decide --id 1562fd11-a354-4232-85fe-e9a7f4f52099 --decision approve --by Christian Doppler --note checked the figures myself
+recorded APPROVED for 1562fd11-a354-4232-85fe-e9a7f4f52099 by Christian Doppler at 2026-10-01T06:54:39Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+item state: {"status": "APPROVED", "decided_by": "Christian Doppler", "execution_state": "NOT_EXECUTED"}
+
+--------------------------------------------------------------
+CASE: P5 identity configured, --by omitted
+$ FREECASH_OPERATOR_IDENTITY=[Christian Doppler]
+$ python <proposed>/approval_queue.py decide --id 7812cf05-a4b5-49ac-837b-3737cb32ff85 --decision approve --note probe
+usage: approval_queue.py decide [-h] --id ID --decision {approve,reject} --by
+                                BY --note NOTE
+approval_queue.py decide: error: the following arguments are required: --by
+exit_code = 2
+item state: {"status": "PENDING", "decided_by": null, "execution_state": "NOT_EXECUTED"}
+
+== done; the last CASE (P5) uses argparse's own required-argument refusal.

@@ -1,0 +1,42 @@
+###############################################################################
+# 05 — THE PRODUCTION FACT: operator R3 has never had an input and has never fired.
+# READ-ONLY reads of D:/AgenticOS/data/freecash-monitor. Nothing written.
+# during: 2026-10-01T09:51:07Z
+###############################################################################
+
+$ # change-event rows in the production alert log
+$ python -c "..." data/freecash-monitor/alerts/alerts.jsonl
+rows: 15
+by event_type: {'MONITOR_DEGRADED': 3, 'SKIP_DUPLICATE_DAY': 2, 'MISSED_DAY': 10}
+change-event rows (EARNINGS/STATUS/BALANCE_CHANGED): 0
+non-null dedupe_key rows: 10
+
+$ # the human-entered source that R3 compares against
+kind: operator_entered_daily_status
+records: 0
+note: Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.
+
+$ # every production snapshot: coverage must be read from data_available, never from last_outcome
+D:/AgenticOS/data/freecash-monitor/snapshots\2026-09-20.json data_available=False degraded=True raw_response_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+D:/AgenticOS/data/freecash-monitor/snapshots\2026-09-30.json data_available=False degraded=True raw_response_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+D:/AgenticOS/data/freecash-monitor/snapshots\2026-10-01.json data_available=False degraded=True raw_response_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+sha256 of the EMPTY STRING      : e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+$ cat data/freecash-monitor/state/last-run.json
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+
+PRODUCTION FACT: 0 change-event rows; the human-entered source holds 0 records; every
+snapshot ever written has data_available=false and the sha256 of the empty string as its
+raw_response_sha256. R3 has therefore never had an input and has never fired a change
+notification in production. The 10 non-null dedupe keys in notified-keys.json belong to
+MISSED_DAY (10) rows, i.e. the absence-of-run path, not to a change.

@@ -21,6 +21,10 @@ import { desktopExecutor } from '../jarvis/execution/executors/desktopExecutor.j
 import { gitExecutor } from '../jarvis/execution/executors/gitExecutor.js';
 import { terminalExecutor } from '../jarvis/execution/executors/terminalExecutor.js';
 import { browserExecutor } from '../jarvis/execution/executors/browserExecutor.js';
+import {
+  BACKGROUND_MAINTENANCE_POLICY,
+} from '../jarvis/perception/perceptionOperation.js';
+import { runWithBackgroundOwnership } from '../jarvis/perception/turnOwnership.js';
 import type { ToolExecutionResponse, WorkerRiskLevel, WorkerVerification } from './types.js';
 
 export class ToolRegistryBridge {
@@ -67,6 +71,24 @@ export class ToolRegistryBridge {
    * Execute an existing capability through its canonical executor with verification.
    */
   public async executeTool(tool: string, args: Record<string, any> = {}): Promise<ToolExecutionResponse> {
+    // ── P0: the local worker is BACKGROUND work ─────────────────────────────
+    // It may run commands, but it may NOT control the user's interactive desktop:
+    // opening Chrome/Notepad/Calculator, navigating a browser, foregrounding a
+    // window or killing processes are all denied by this explicit policy. That is
+    // the difference between "the worker is running" and "the worker may drive
+    // the user's screen".
+    return runWithBackgroundOwnership(
+      {
+        origin: 'background_worker',
+        capability: 'local_worker',
+        policy: BACKGROUND_MAINTENANCE_POLICY,
+        source: 'localWorker/toolRegistryBridge',
+      },
+      () => this.executeToolInner(tool, args),
+    );
+  }
+
+  private async executeToolInner(tool: string, args: Record<string, any> = {}): Promise<ToolExecutionResponse> {
     logger.info('[ToolRegistryBridge] Executing tool:', { tool, args });
 
     switch (tool) {

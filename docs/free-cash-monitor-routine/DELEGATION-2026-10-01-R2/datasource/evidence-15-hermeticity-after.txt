@@ -1,0 +1,34 @@
+$ date
+Do,  1. Okt 2026 09:07:39
+exit=0
+
+$ sha256sum data/freecash-monitor/state/last-run.json data/freecash-monitor/alerts/alerts.jsonl
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+exit=0
+
+$ find data/freecash-monitor -type f -newermt "2026-10-01 00:00" | sort
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+exit=0
+
+$ find data/freecash-monitor -type f | sort
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/logs/task-a.log
+data/freecash-monitor/logs/task-b-watchdog.log
+data/freecash-monitor/snapshots/2026-09-20.json
+data/freecash-monitor/snapshots/2026-09-30.json
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-09-20.lock
+data/freecash-monitor/state/day-locks/2026-09-30.lock
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+data/freecash-monitor/state/notified-keys.json
+data/freecash-monitor/state/operator-state.json
+exit=0
+
+$ git status --porcelain data/freecash-monitor
+?? data/freecash-monitor/
+exit=0

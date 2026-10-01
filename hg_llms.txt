@@ -1,0 +1,126 @@
+# HG.Cash
+
+## Documentation
+
+- [Introduction](https://docs.hg.cash/introduction.md)
+
+### Settlement
+
+- [Introduction](https://docs.hg.cash/settlement/introduction.md): Buy USDT with ARS, hold balances, and withdraw—on your schedule
+- [Withdrawal wallets](https://docs.hg.cash/settlement/withdrawals.md): Verify and sign withdrawal wallets
+- [Buy SPOT  USDT](https://docs.hg.cash/settlement/spot.md): Buy spot USDT
+- [USDT Withdrawals](https://docs.hg.cash/exchange/usdt-withdrawals.md): Create USDT withdrawals
+
+### Checkouts
+
+- [Introduction](https://docs.hg.cash/checkouts/introduction.md): Hosted payment pages for Argentina, Brazil, Chile, and Bolivia
+- [Create checkouts](https://docs.hg.cash/checkouts/create.md): Create hosted payment sessions from the dashboard or API
+- [Validate payments](https://docs.hg.cash/checkouts/validate.md): Approve or reject checkouts awaiting manual review
+- [Reconcile checkouts](https://docs.hg.cash/checkouts/reconcile.md): Link inbound bank movements to pending checkouts
+
+### Claims
+
+- [Introduction](https://docs.hg.cash/claims/introduction.md): Report missing Argentina bank transfers with receipt evidence
+
+### Developers
+
+- [Overview](https://docs.hg.cash/developers/introduction.md): Webhooks developers use with HG.Cash
+- [Receiving webhooks](https://docs.hg.cash/developers/receiving-webhooks.md): Callbacks for transactions and transaction requests with optional HMAC verification
+- [Delivery history and health monitoring](https://docs.hg.cash/developers/webhook-delivery-and-monitoring.md): Dashboard delivery logs, automatic disable on repeated failures, and email alerts
+
+## Countries
+
+- [Countries](https://docs.hg.cash/countries/introduction.md): Payment rails and APIs by country where HG.Cash operates
+
+### Argentina
+
+- [Bank transfers](https://docs.hg.cash/countries/argentina/bank-transfers.md): ARS accounts, webhook notifications, and instant cash-outs
+
+### Chile
+
+- [Cash-in](https://docs.hg.cash/countries/chile/cash-in.md): Hosted payment pages for Chile CLP accounts
+- [Payouts](https://docs.hg.cash/countries/chile/payouts.md): Bank payouts from Chile CLP accounts
+
+### Brazil
+
+- [PIX cash-in](https://docs.hg.cash/countries/brazil/pix-cash-in.md): Receive BRL payments via PIX QR or copy-paste
+- [PIX payouts](https://docs.hg.cash/countries/brazil/pix-payouts.md): Send BRL via PIX from Brazil accounts
+
+### Bolivia
+
+- [QR cash-in](https://docs.hg.cash/countries/bolivia/qr-cash-in.md): Receive BOB payments via QR code
+- [Payouts](https://docs.hg.cash/countries/bolivia/payouts.md): ACH bank payouts from Bolivia BOB accounts
+
+## API reference
+
+### API documentation
+
+#### Transactions
+
+- [Create Transaction Request (Cash Out)](https://docs.hg.cash/api-reference/transactions/create-transaction-request-cash-out.md): Create a new transaction request from one of your accounts. This does not perform an on-chain/bank transfer. You may provide a `webhookUrl` to receive status updates.
+- [Get Transaction Request Status](https://docs.hg.cash/api-reference/transactions/get-transaction-request-status.md): Retrieve the status of a transaction request created via `/transactions`. Requires the bearer token of the user that created the request.
+- [Get Transaction Receipt](https://docs.hg.cash/api-reference/transactions/get-transaction-receipt.md): Generate a PDF receipt for a transaction and return a signed URL to download it. The receipt is generated and cached for subsequent requests. The signed URL expires after 1 hour.
+- [Get Transaction ID for Request](https://docs.hg.cash/api-reference/transactions/get-transaction-id-for-request.md): Retrieve the linked Transaction ID for a transaction request. Returns the actual bank transaction ID once the request has been processed (status DONE). Returns `null` if the transaction has not yet been linked (e.g. still PENDING or PROCESSING).
+
+#### Checkouts
+
+- [List checkouts](https://docs.hg.cash/api-reference/checkouts/list-checkouts.md)
+- [Create checkout session](https://docs.hg.cash/api-reference/checkouts/create-checkout-session.md): Creates a hosted checkout for AR (transfer + DNI match), BR (PIX QR), CL (provider iframe), or BO (QR payment). Returns `checkoutUrl` for the payer and optional provider fields (QR, iframe URL).
+- [Get checkout](https://docs.hg.cash/api-reference/checkouts/get-checkout.md)
+- [Cancel pending checkout](https://docs.hg.cash/api-reference/checkouts/cancel-pending-checkout.md)
+- [Get checkout receipt download URL](https://docs.hg.cash/api-reference/checkouts/get-checkout-receipt-download-url.md)
+
+#### Claims
+
+- [Create claim with receipt attachment](https://docs.hg.cash/api-reference/claims/create-claim-with-receipt-attachment.md): Creates a dispute claim ("reclamo") with transfer receipt evidence attached as a base64-encoded PDF or JPEG. All metadata fields must be supplied explicitly; the API does not parse or extract data from the file. ADMIN callers must include `accountId`. USER callers may omit `accountId` or associate t…
+- [Get claim by ID](https://docs.hg.cash/api-reference/claims/get-claim-by-id.md): Returns a single claim created by the authenticated user or visible to a scoped admin. Includes a time-limited signed `fileUrl` when receipt evidence is stored.
+
+#### Brazil
+
+- [Create Inbound Transaction (Brazil)](https://docs.hg.cash/api-reference/brazil/create-inbound-transaction-brazil.md): Create an inbound transaction to receive a payment. Returns a QR code for the payer to scan. Account must be a Brazil (BRL) account. Transaction starts in `pending` status until payment is confirmed.
+- [Create Outbound Transaction (Brazil)](https://docs.hg.cash/api-reference/brazil/create-outbound-transaction-brazil.md): Create an outbound transaction (withdraw) from a Brazil (BRL) account. Requires sufficient net balance. Transaction starts in `processing` status.
+- [Get Transaction Status (Brazil)](https://docs.hg.cash/api-reference/brazil/get-transaction-status-brazil.md): Fetch the current status of a direct transaction (inbound or outbound). Distinct from `GET /transaction/{id}/status` which returns TransactionRequest status.
+
+#### Chile
+
+- [List payment methods (Chile)](https://docs.hg.cash/api-reference/chile/list-payment-methods-chile.md): Returns active payment methods available for Chile (CLP) cash-in. Methods are enabled when your Chile CLP account is provisioned for hosted checkout.
+- [Create Inbound Transaction (Chile)](https://docs.hg.cash/api-reference/chile/create-inbound-transaction-chile.md): Create an inbound transaction and receive a hosted checkout URL. Account must be Chile CLP. Starts in `pending` until payment completes.
+- [Create Outbound Transaction (Chile)](https://docs.hg.cash/api-reference/chile/create-outbound-transaction-chile.md): Create a bank payout from a Chile CLP account. Requires sufficient net balance. Transaction starts in `processing`.
+- [Get Transaction Status (Chile)](https://docs.hg.cash/api-reference/chile/get-transaction-status-chile.md): Fetch the latest status of a Chile direct transaction (inbound or outbound) and update HG.Cash when it has changed.
+
+#### Bolivia
+
+- [List banks (Bolivia ACH)](https://docs.hg.cash/api-reference/bolivia/list-banks-bolivia-ach.md): Returns banks available for Bolivia outbound ACH payouts.
+- [Create Inbound Transaction (Bolivia)](https://docs.hg.cash/api-reference/bolivia/create-inbound-transaction-bolivia.md): Create an inbound BOB transaction and receive a QR code (base64 image) for the payer. Account must use BOB currency and country BO.
+- [Create Outbound Transaction (Bolivia ACH)](https://docs.hg.cash/api-reference/bolivia/create-outbound-transaction-bolivia-ach.md): Create an outbound BOB bank transfer from a BOB account. Requires sufficient balance for amount plus outbound fee.
+- [Get Transaction Status (Bolivia)](https://docs.hg.cash/api-reference/bolivia/get-transaction-status-bolivia.md)
+
+#### Reference Data
+
+- [Look up CVU or Alias](https://docs.hg.cash/api-reference/reference-data/look-up-cvu-or-alias.md): Look up beneficiary information by CVU (22 digits) or alias. Returns alias, CUIT, CVU, name, and person type.
+- [Get Transaction Statuses](https://docs.hg.cash/api-reference/reference-data/get-transaction-statuses.md): Retrieve all available transaction statuses.
+- [Get Transaction Types](https://docs.hg.cash/api-reference/reference-data/get-transaction-types.md): Retrieve all available transaction types.
+
+#### Accounts
+
+- [Get User Accounts](https://docs.hg.cash/api-reference/accounts/get-user-accounts.md): Returns the authenticated user's accounts, including ledger balance, pending fees, net available balance (balance minus pending fees), and account status.
+- [Get Account Balance](https://docs.hg.cash/api-reference/accounts/get-account-balance.md): Returns the balance, pending fees, net available balance, currency, and account status for the authenticated user's account by ID.
+
+#### Webhooks
+
+- [Transaction request status updated](https://docs.hg.cash/api-reference/webhooks/transaction-request-status-updated.md): Webhook sent when a transaction request status changes
+- [Transaction request associated with transaction](https://docs.hg.cash/api-reference/webhooks/transaction-request-associated-with-transaction.md): HG.Cash sends this webhook when an outbound transaction request is linked to its corresponding ledger transaction (after Urbana processing). The body matches `TransactionRequestStatusWebhook`, uses `topic` `TRANSACTION_REQUEST`, `eventType` `transaction_associated`, and includes `transactionId`.
+- [Account movement](https://docs.hg.cash/api-reference/webhooks/account-movement.md): Webhook sent when money moves in or out of your HG.Cash accounts
+- [Checkout event](https://docs.hg.cash/api-reference/webhooks/checkout-event.md): HG.Cash sends this webhook when a hosted checkout session completes, needs manual review, or is rejected. Configure `webhookUrl` on create or use your default webhook URL in Settings.
+- [Claim status updated](https://docs.hg.cash/api-reference/webhooks/claim-status-updated.md): HG.Cash sends this webhook when a claim status changes (admin update or COELSA auto-reconcile). The body matches `GET /claims/{id}` fields (without `fileUrl`) plus routing metadata. Webhooks are not sent on create or comment-only updates.
+
+## OpenAPI Specs
+
+- [openapi](/api-reference/openapi.yaml)
+
+> The links below point to documentation indexes. Follow each `/_llms/` index recursively until you reach documentation pages.
+
+## Indexes
+
+- [Spanish (53 pages)](https://docs.hg.cash/_llms/es.md): Documentation for Spanish.
+- [Brazilian Portuguese (53 pages)](https://docs.hg.cash/_llms/pt-br.md): Documentation for Brazilian Portuguese.

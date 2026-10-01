@@ -1,0 +1,37 @@
+{
+  "demos": {
+    "r3_two_days": {
+      "day1_alerts": [
+        "INITIAL_BASELINE"
+      ],
+      "day1_outcome": "INITIAL_BASELINE",
+      "day2_alerts_all": [
+        "INITIAL_BASELINE",
+        "OK_NO_CHANGE"
+      ],
+      "day2_exit": 0,
+      "day2_line": "RUN_OK 2026-10-01 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+      "day2_new_alert_types": [
+        "OK_NO_CHANGE"
+      ],
+      "day2_outcome": "OK_NO_CHANGE",
+      "kind": "r3_two_days",
+      "pending_items": [],
+      "snapshots": [
+        "2026-09-30.json",
+        "2026-10-01.json"
+      ]
+    }
+  },
+  "file": "changedetect.py",
+  "gateA_exit": 1,
+  "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL",
+  "gateB_exit": 1,
+  "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL",
+  "gate_a_rule": "RULE 3",
+  "id": "r3-b-sub-dollar-threshold",
+  "readonly_scan_exit": 0,
+  "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+  "reason": "R3 violation: a sub-dollar threshold silently swallows real earnings moves (the comparison is no longer exact).",
+  "rule": "R3"
+}

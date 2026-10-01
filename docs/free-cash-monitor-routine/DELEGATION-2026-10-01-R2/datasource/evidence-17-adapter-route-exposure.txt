@@ -1,0 +1,41 @@
+$ grep -rn 'freeCashMonitorAdapter' server/src --include=*.ts | grep -v __tests__
+server/src/adapters/freecashMonitorAdapter.ts:222:export const freeCashMonitorAdapter = new FreeCashMonitorAdapter();
+server/src/adapters/freecashMonitorAdapter.ts:223:export default freeCashMonitorAdapter;
+server/src/domains/jarvisNext/operator/operatorController.ts:4:import { freeCashMonitorAdapter } from '../../../adapters/freecashMonitorAdapter.js';
+server/src/domains/jarvisNext/operator/operatorController.ts:115:    const connStatus = await freeCashMonitorAdapter.fetchStatus();
+server/src/domains/jarvisV2/turnController.ts:24:import { freeCashMonitorAdapter } from '../../adapters/freecashMonitorAdapter.js';
+server/src/domains/jarvisV2/turnController.ts:414:          const status = await freeCashMonitorAdapter.fetchStatus();
+exit=0
+
+$ grep -rn 'fetchStatus' server/src --include=*.ts | grep -v __tests__
+server/src/adapters/freecashMonitorAdapter.ts:106:    const status = await this.fetchStatus();
+server/src/adapters/freecashMonitorAdapter.ts:128:      const status = await this.fetchStatus();
+server/src/adapters/freecashMonitorAdapter.ts:198:  async fetchStatus(): Promise<FreeCashStatus> {
+server/src/domains/jarvisNext/operator/operatorController.ts:115:    const connStatus = await freeCashMonitorAdapter.fetchStatus();
+server/src/domains/jarvisV2/turnController.ts:414:          const status = await freeCashMonitorAdapter.fetchStatus();
+exit=0
+
+$ grep -rn 'externalConnected' server/src --include=*.ts | grep -v __tests__
+server/src/adapters/freecashMonitorAdapter.ts:33:  externalConnected: boolean;
+server/src/adapters/freecashMonitorAdapter.ts:206:      externalConnected: false,
+server/src/domains/jarvisNext/operator/operatorController.ts:116:    const externalConnected = connStatus.externalConnected;
+server/src/domains/jarvisNext/operator/operatorController.ts:164:    if (!externalConnected) {
+server/src/domains/jarvisV2/naturalRenderer.ts:33:    freeCashStatus?: { adapterHealth: string; externalConnected: boolean; message: string };
+server/src/routers/projects.ts:373:        externalConnected: state.externalConnected,
+server/src/services/prerequisites/prerequisiteService.ts:29:  externalConnected: boolean;
+server/src/services/prerequisites/prerequisiteService.ts:167:      sessionValid: false, externalConnected: false, blocker: null, checkedAt, satisfied: true,
+server/src/services/prerequisites/prerequisiteService.ts:177:  const externalConnected = sessionValid || Boolean(evidence);
+server/src/services/prerequisites/prerequisiteService.ts:195:    externalConnected,
+exit=0
+
+$ grep -rnE "(router|app)\.(get|post)\(" server/src/index.ts server/src/routers/*.ts | wc -l
+399
+exit=0
+
+$ grep -rniE "(router|app)\.(get|post)\(.*(freecash|free-cash|balance|earnings|account.?status)" server/src/index.ts server/src/routers/*.ts
+server/src/routers/projects.ts:391:router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+server/src/routers/projects.ts:392:router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+server/src/routers/projects.ts:397:router.post('/:projectId/freecash/auth/login', async (req, res) => {
+server/src/routers/projects.ts:413:router.post('/:projectId/freecash/auth/verify', async (req, res) => {
+server/src/routers/projects.ts:443:router.post('/:projectId/freecash/auth/clear', async (req, res) => {
+exit=0

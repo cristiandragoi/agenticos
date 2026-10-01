@@ -1,0 +1,86 @@
+=== 5. EXACT COMMAND LINE AND INTERPRETER PATH, READ BACK FROM DISK ===
+RUN AT: Do,  1. Okt 2026 09:15:00
+
+--- sha256 of the staged artifacts ---
+0155f63f94021d95d90a20d1aa6ab1869e2394e89af5bccfa33432154c46741a *D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/freecash-daily.cmd
+eed52014ef179f9d1ea871f416117bb8c23340670ca73036f3a001806f1c88a0 *D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/FreeCash-Daily-Monitor-R2.xml
+
+--- the wrapper's interpreter candidate lines, GREPPED FROM DISK ---
+72:if defined FREECASH_PY call :probe "%FREECASH_PY%"
+73:call :probe "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"
+74:call :probe "%LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts\python.exe"
+75:call :probe "%HERMES_HOME%\hermes-agent\venv\Scripts\python.exe"
+76:call :probe "py -3.11"
+
+--- the wrapper's pinned env lines, GREPPED FROM DISK ---
+62:set "FREECASH_DATA_ROOT=D:\AgenticOS\data\freecash-monitor"
+63:set "FREECASH_TZ=Europe/Berlin"
+64:set "FREECASH_READ_SOURCE=operator_state"
+65:set "FREECASH_TOAST_STUB="
+66:set "FC_ENTRY=D:\AgenticOS\monitoring\freecash\run_daily_check.py"
+67:set "FC_CWD=D:\AgenticOS"
+68:set "FC_LOGDIR=%FREECASH_DATA_ROOT%\logs"
+
+--- the wrapper's monitor invocation line, GREPPED FROM DISK ---
+5:REM  entry run_daily_check.py).
+66:set "FC_ENTRY=D:\AgenticOS\monitoring\freecash\run_daily_check.py"
+98:"%FC_PY%" "%FC_ENTRY%" --source operator_state >>"%FC_LOG%" 2>&1
+
+--- the XML Action block, GREPPED FROM DISK ---
+95:      <Command>C:\Windows\System32\cmd.exe</Command>
+96:      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R2\scheduler\freecash-daily.cmd"</Arguments>
+97:      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+
+--- WHICH INTERPRETER THE WRAPPER ACTUALLY RESOLVED, from the wrapper's own log ---
+(above greps the copy; the resolved value is in the harness run log below)
+freecash-daily py="C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"
+
+--- interpreter of record, read back from its own sys.executable ---
+C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
+
+--- the day-key that interpreter produces for Europe/Berlin right now ---
+2026-10-01
+
+=== CORRECTION (appended Do,  1. Okt 2026 09:19:11) ===
+The FreeCash-Daily-Monitor-R2.xml hash in this file is SUPERSEDED.
+This read-back predates my own fix, made after validate_task_xml.py rejected the
+first draft: XML comments may not contain a double hyphen, and the first draft did.
+
+hash recorded above                    : eed52014ef179f9d1ea871f416117bb8c23340670ca73036f3a001806f1c88a0
+current hash of the delivered XML      : a2963ab276e2bd1acd063d1f141130a26e039da7406dacd4ae975cbf3ecdd067
+current hash of the delivered wrapper  : 0155f63f94021d95d90a20d1aa6ab1869e2394e89af5bccfa33432154c46741a
+
+The wrapper hash is UNCHANGED (the wrapper was never edited after this read-back).
+Every VALUE quoted in this file (the Action command/arguments/WorkingDirectory, the
+interpreter candidate lines, the pinned env block) is unchanged by that fix and was
+re-read from the current XML by evidence-13.
+
+=== FINAL CONSISTENCY CHECK: hashes quoted in SCHEDULER-FINDINGS.md vs on disk ===
+on disk:
+0155f63f94021d95d90a20d1aa6ab1869e2394e89af5bccfa33432154c46741a *D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/freecash-daily.cmd
+a2963ab276e2bd1acd063d1f141130a26e039da7406dacd4ae975cbf3ecdd067 *D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/FreeCash-Daily-Monitor-R2.xml
+quoted in the findings doc:
+0155f63f94021d95d90a20d1aa6ab1869e2394e89af5bccfa33432154c46741a
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9
+a2963ab276e2bd1acd063d1f141130a26e039da7406dacd4ae975cbf3ecdd067
+eed52014ef179f9d1ea871f416117bb8c23340670ca73036f3a001806f1c88a0
+
+=== do the doc's quoted hashes appear on disk? (expect both YES) ===
+  0155f63f94021d95d90a20d1aa6ab1869e2394e89af5bccfa33432154c46741a  YES (matches a delivered artifact)
+  1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8  no  (superseded draft, called out in the doc)
+  a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9  no  (superseded draft, called out in the doc)
+  a2963ab276e2bd1acd063d1f141130a26e039da7406dacd4ae975cbf3ecdd067  YES (matches a delivered artifact)
+  eed52014ef179f9d1ea871f416117bb8c23340670ca73036f3a001806f1c88a0  no  (superseded draft, called out in the doc)
+
+=== clarifying the previous check: the two other hashes are PRODUCTION files, not artifacts ===
+on disk (production):
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+doc claims for production:
+432:before: a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9  last-run.json
+433:after : a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9  last-run.json
+434:before: 1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8  alerts.jsonl
+435:after : 1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8  alerts.jsonl
+-> both production hashes in the doc MATCH the live files, i.e. hermeticity held.

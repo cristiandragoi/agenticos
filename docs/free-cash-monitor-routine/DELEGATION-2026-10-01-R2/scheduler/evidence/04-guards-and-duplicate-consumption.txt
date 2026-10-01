@@ -1,0 +1,38 @@
+### GUARD A: FREECASH_DATA_ROOT unset
+freecash-daily-wrapper: REFUSED - FREECASH_DATA_ROOT is unset; paths.py would fall back to
+freecash-daily-wrapper: the production root (D:/AgenticOS/data/freecash-monitor). Nothing run (exit 91).
+rc=91
+
+### GUARD B: FREECASH_DATA_ROOT = production root
+freecash-daily-wrapper: REFUSED - FREECASH_DATA_ROOT='D:/AgenticOS/data/freecash-monitor' is the PRODUCTION root.
+freecash-daily-wrapper: this wrapper is sandbox-only. Nothing run (exit 91).
+rc=91
+
+### GUARD C: FREECASH_DATA_ROOT outside %LOCALAPPDATA%\Temp
+freecash-daily-wrapper: REFUSED - FREECASH_DATA_ROOT='D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/scratch' is not under
+freecash-daily-wrapper: C:/Users/cd-pr/AppData/Local/Temp. Nothing run (exit 91).
+rc=91
+
+### GUARD D: MSYS form (/c/...) under Temp -> accepted, converted for the native interpreter
+rc=0
+
+### GUARD E: interpreter without tzdata (C:/Python314/python.exe) -> exit 90, nothing consumed
+freecash-daily-wrapper: FAIL - C:/Python314/python.exe cannot resolve ZoneInfo('Europe/Berlin').
+freecash-daily-wrapper: the R1 day key would silently degrade. No run, no day lock (exit 90).
+rc=90
+sandbox H created? no -> no day lock consumed, no state written
+
+### DUPLICATE RUN CONSUMES NOTHING (sandbox A, one more run on top of the two in evidence 01)
+-- before --
+edbce0b49d91a9595424cda99a5456779b3adc1309711fb43587cf3f2c2a5164 *state/last-run.json
+9f27419c079a5bb2077e352a917dbcf8a5b29aa12bd52127061ec6fbc5563c32 *snapshots/2026-10-01.json
+823ff932c2e824c1544b41aa171dd61dac38bdef1e5de0231659f49dae9052ee *alerts/alerts.jsonl
+run rc=0 stdout_bytes=0
+-- after --
+edbce0b49d91a9595424cda99a5456779b3adc1309711fb43587cf3f2c2a5164 *state/last-run.json
+9f27419c079a5bb2077e352a917dbcf8a5b29aa12bd52127061ec6fbc5563c32 *snapshots/2026-10-01.json
+0e1af74e05784942bb9f836570b7bc2a4796c757092cae72356553a9d08590f0 *alerts/alerts.jsonl
+ledger 2026-10-01 identical  = true
+snapshot 2026-10-01 identical= true
+alerts.jsonl lines: before=3 after=4 delta=1 (the single SKIP_DUPLICATE_DAY audit line; no dispatch)
+state/notified-keys.json present? no -> no notification was ever dispatched in this sandbox

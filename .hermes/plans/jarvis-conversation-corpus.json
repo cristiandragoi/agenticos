@@ -1,0 +1,530 @@
+{
+  "$comment": "Permanent conversational regression corpus for Jarvis. Run by server/src/__tests__/jarvisConversationCorpus.test.ts (deterministic, production state writer) and by scripts/jarvis-corpus-live.cjs (typed, against the running app). Expectations are behavioural: no generic re-ask, referent retention, action carry, clarification typing, honest failure.",
+  "version": 2,
+  "chains": [
+    {
+      "id": "chain1_shopify_failure",
+      "defect": "D2 failure context destroyed on a failed project operation",
+      "turns": [
+        {
+          "prompt": "Jarvis, start the Shopify project."
+        },
+        {
+          "prompt": "Why not?",
+          "expect": {
+            "mustNotMatch": [
+              "what would you like me to do",
+              "i didn't catch",
+              "couldn't make that out"
+            ]
+          }
+        },
+        {
+          "prompt": "What do you need?",
+          "expect": {
+            "mustNotMatch": [
+              "what would you like me to do",
+              "i didn't catch"
+            ],
+            "mustMatch": [
+              "shop"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain2_freecash_status",
+      "defect": "D3 short follow-up treated as a new command (no pronoun/ellipsis continuation)",
+      "turns": [
+        {
+          "prompt": "Jarvis, open Free Cash."
+        },
+        {
+          "prompt": "Check its status.",
+          "expect": {
+            "mustNotMatch": [
+              "what would you like me to do",
+              "which project",
+              "i didn't catch"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain3_freecash_need",
+      "defect": "D4 read/status continuactions not understood",
+      "turns": [
+        {
+          "prompt": "Jarvis, start working on Free Cash."
+        },
+        {
+          "prompt": "What does it need?",
+          "expect": {
+            "mustNotMatch": [
+              "what would you like me to do",
+              "i didn't catch"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain4_switch_entity_same_action",
+      "defect": "D5 action not carried when the entity changes",
+      "turns": [
+        {
+          "prompt": "Jarvis, open Shopify."
+        },
+        {
+          "prompt": "Now TikTok Shop.",
+          "expect": {
+            "mustNotMatch": [
+              "what would you like me to do",
+              "i didn't catch"
+            ],
+            "mustMatch": [
+              "tik\\s?tok"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain5_youtube_target_preserved",
+      "defect": "D6 named browser target silently dropped in favour of the platform root",
+      "turns": [
+        {
+          "prompt": "Jarvis, Seeadler TV on YouTube.",
+          "expect": {
+            "mustMatch": [
+              "see\\s?adler"
+            ],
+            "mustNotMatch": [
+              "^youtube is open\\.$"
+            ]
+          }
+        },
+        {
+          "prompt": "The channel.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain6_choice_yes_ambiguous",
+      "defect": "D7 bare Yes against a multi-choice question guessed the action",
+      "seed": {
+        "pendingClarification": {
+          "kind": "anchor_action",
+          "targetName": "Free Cash",
+          "targetType": "project",
+          "intendedAction": "open",
+          "attempt": 1,
+          "askedAt": "now",
+          "options": [
+            "the project",
+            "the website"
+          ],
+          "clarificationType": "choice"
+        },
+        "clarificationType": "choice",
+        "offeredOptions": [
+          "the project",
+          "the website"
+        ],
+        "activeProjectName": "Free Cash",
+        "lastResolvedEntityName": "Free Cash"
+      },
+      "turns": [
+        {
+          "prompt": "Yes.",
+          "expect": {
+            "exact": "Which one — the project or the website?"
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain7_yesno_executes",
+      "defect": "D7 counterpart: a bare Yes against a YES/NO question must execute",
+      "seed": {
+        "pendingClarification": {
+          "kind": "confirm_open",
+          "targetName": "Free Cash",
+          "targetType": "project",
+          "intendedAction": "open",
+          "attempt": 1,
+          "askedAt": "now",
+          "options": [
+            "yes"
+          ],
+          "clarificationType": "yes_no"
+        },
+        "clarificationType": "yes_no",
+        "offeredOptions": [
+          "yes"
+        ],
+        "activeProjectName": "Free Cash",
+        "lastResolvedEntityName": "Free Cash"
+      },
+      "turns": [
+        {
+          "prompt": "Yes.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "which one",
+              "what would you like me to do"
+            ],
+            "mustMatch": [
+              "free cash"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain8_try_again",
+      "defect": "D2/D8 no retry path after a recorded failure",
+      "seed": {
+        "activeProjectName": "Shopify",
+        "lastResolvedEntityName": "Shopify",
+        "lastResolvedAction": "operate",
+        "lastExecutionResult": {
+          "success": false,
+          "verified": false,
+          "route": "project_operate",
+          "entityName": "Shopify",
+          "at": 0
+        },
+        "lastFailureReason": "there is currently no runnable task in that project",
+        "lastVerificationState": "failed"
+      },
+      "turns": [
+        {
+          "prompt": "Try again.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch"
+            ],
+            "mustMatch": [
+              "shop"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain9_why_without_recorded_reason",
+      "defect": "D9 honesty: no invented reason when nothing failed / nothing recorded",
+      "seed": {
+        "lastResolvedEntityName": "Shopify",
+        "lastResolvedAction": "operate"
+      },
+      "turns": [
+        {
+          "prompt": "Why?",
+          "expect": {
+            "mustMatch": [
+              "verified reason"
+            ],
+            "mustNotMatch": [
+              "what would you like me to do"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain10_stop_interrupts",
+      "defect": "D10 stale/queued speech after an interruption command",
+      "$comment": "Interruption contract: cancel the speech, do NOT deliver another spoken answer. Either nothing, or at most a tiny acknowledgement (controller path returns 'Stopped.'; the live stream path cancels before the router and emits nothing).",
+      "turns": [
+        {
+          "prompt": "Shut up.",
+          "expect": {
+            "mustMatch": [
+              "^(stopped|okay)?\\.?$"
+            ],
+            "mustNotMatch": [
+              "\\w{12,}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain11_low_confidence_keeps_action",
+      "defect": "D11 low STT confidence erased a coherent verb",
+      "seed": {
+        "activeProjectName": "Free Cash",
+        "lastResolvedEntityName": "Free Cash"
+      },
+      "turns": [
+        {
+          "prompt": "and jump is start the free cash project.",
+          "confidence": 0.39,
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out"
+            ],
+            "mustMatch": [
+              "free cash"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain13_delegation_status",
+      "defect": "D15 no real delegation state / worker claims without evidence",
+      "$comment": "Phase F: these must resolve from REAL worker/task state as conversational continuations. They must never fall back to a generic re-ask, and must never emit the bare 'Started.' template.",
+      "turns": [
+        {
+          "prompt": "Jarvis, start working on Free Cash.",
+          "expect": {
+            "mustNotMatch": [
+              "^started\\.$"
+            ]
+          }
+        },
+        {
+          "prompt": "What is Codex doing?",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do",
+              "revenue operator"
+            ],
+            "mustMatch": [
+              "^[A-Z]"
+            ]
+          }
+        },
+        {
+          "prompt": "What is Codex doing on Free Cash?",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do",
+              "revenue operator"
+            ],
+            "mustMatch": [
+              "^[A-Z]"
+            ]
+          }
+        },
+        {
+          "prompt": "Is anything running on Free Cash?",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do"
+            ],
+            "mustMatch": [
+              "^[A-Z]"
+            ]
+          }
+        },
+        {
+          "prompt": "Stop the current Free Cash task.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do",
+              "revenue operator: free cash mission to the revenue operator"
+            ],
+            "mustMatch": [
+              "^[A-Z]"
+            ]
+          }
+        },
+        {
+          "prompt": "What failed?",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do"
+            ],
+            "mustMatch": [
+              "^[A-Z]"
+            ]
+          }
+        },
+        {
+          "prompt": "Try that task again.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do"
+            ],
+            "mustMatch": [
+              "^[A-Z]"
+            ]
+          }
+        },
+        {
+          "prompt": "What is blocked?",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do"
+            ],
+            "mustMatch": [
+              "block"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain14_correction_intent",
+      "defect": "D22 a denial of the last claim produced a generic re-ask",
+      "seed": {
+        "activeProjectName": "Free Cash",
+        "activeEntityName": "Free Cash",
+        "lastResolvedEntityName": "Free Cash",
+        "lastResolvedAction": "open",
+        "lastExecutionResult": {
+          "success": false,
+          "verified": false,
+          "route": "navigate",
+          "entityName": "Free Cash",
+          "at": 0
+        },
+        "lastFailureReason": "the interface did not navigate successfully",
+        "lastVerificationState": "failed",
+        "lastAssistantTurn": "I've opened Free Cash."
+      },
+      "turns": [
+        {
+          "prompt": "No, you didn't.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "could you say it again",
+              "what would you like me to do",
+              "i heard "
+            ]
+          }
+        },
+        {
+          "prompt": "You know you did not.",
+          "expect": {
+            "mustNotMatch": [
+              "i didn't catch",
+              "couldn't make that out",
+              "what would you like me to do",
+              "i heard "
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain15_credential_question",
+      "defect": "D24 credential questions were answered with project statistics",
+      "seed": {
+        "activeProjectId": "proj-free-cash",
+        "activeProjectName": "Free Cash",
+        "activeEntityName": "Free Cash",
+        "lastResolvedEntityName": "Free Cash"
+      },
+      "turns": [
+        {
+          "prompt": "What credentials do you need from me?",
+          "expect": {
+            "mustNotMatch": [
+              "priority 1",
+              "goals",
+              "background tasks"
+            ],
+            "mustMatch": [
+              "credential|account|login"
+            ]
+          }
+        },
+        {
+          "prompt": "Do you need my email or password?",
+          "expect": {
+            "mustNotMatch": [
+              "priority 1",
+              "goals"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain12_no_repeat_loop",
+      "defect": "D12 repeated identical clarification",
+      "turns": [
+        {
+          "prompt": "Free Cash",
+          "confidence": 0.2
+        },
+        {
+          "prompt": "Free Cash",
+          "confidence": 0.2,
+          "expect": {
+            "mustNotRepeatPrevious": true,
+            "mustMatch": [
+              "open it, check its status, or start working on it"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "chain16_account_binding",
+      "defect": "D24b an account question about one entity quoted another project's recorded blocker",
+      "seed": {
+        "activeProjectId": "proj-shopify",
+        "activeProjectName": "Shopify",
+        "activeEntityName": "Shopify",
+        "lastResolvedEntityId": "proj-shopify",
+        "lastResolvedEntityName": "Shopify"
+      },
+      "turns": [
+        {
+          "prompt": "What credentials do you need from me?",
+          "expect": {
+            "mustNotMatch": [
+              "freecash",
+              "free cash"
+            ],
+            "mustMatch": [
+              "own records|account or access record|won.t borrow"
+            ]
+          }
+        },
+        {
+          "prompt": "Why can't you log in?",
+          "expect": {
+            "mustNotMatch": [
+              "priority 1",
+              "goals",
+              "freecash"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

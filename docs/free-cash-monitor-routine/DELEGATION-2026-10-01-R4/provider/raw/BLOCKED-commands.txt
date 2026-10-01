@@ -1,0 +1,55 @@
+### BLOCKED / REFUSED — exact command + raw output per item (Stream P)
+### All commands run 2026-10-01, git-bash/MSYS, non-elevated. GET only, no credentials, no token mint.
+
+[B-1] Candidate: local app API on 127.0.0.1:4600  (verdict: BLOCKED — server not listening)
+command : curl -sS -m 10 -D - -o /dev/null -w 'HTTP=%{http_code} SIZE=%{size_download}' http://127.0.0.1:4600/api/health
+output  : curl: (7) Failed to connect to 127.0.0.1:4600 after 2044 ms: Could not connect to server
+          HTTP=000 CT= SIZE=0
+          shell_rc=7
+also    : curl -sS -m 10 -D - -o /dev/null -w 'HTTP=%{http_code}' http://127.0.0.1:3001/api/v1/status/metrics
+output  : curl: (7) Failed to connect to 127.0.0.1:3001 after 2043 ms: Could not connect to server
+          HTTP=000 SIZE=0  shell_rc=7
+also    : netstat -ano | grep -E ':4600|:3001' | wc -l  ->  0  (no listener)
+
+[B-2] Candidate: HG.Cash GET /accounts  (verdict: BLOCKED-NO-ACCOUNT — documented read path exists, no token in repo)
+command : curl -sS -m 20 -D - -o /dev/null -w 'HTTP=%{http_code}' https://hg.cash/api/v1/accounts
+output  : HTTP/1.1 401 Unauthorized
+          Content-Type: application/json
+          X-Matched-Path: /api/v1/accounts
+          HTTP=401
+body    : {"error":"Missing or invalid authorization header. Expected: Bearer <token>"}
+note    : no HG.Cash credential exists anywhere in the repo; a token is generated manually in
+          account settings and the service is KYC-gated B2B onboarding. No account = cannot read.
+
+[B-3] Candidate: HG.Cash GET /account/{id}/balance  (verdict: BLOCKED-NO-ACCOUNT, same cause)
+command : curl -sS -m 20 -D - -o /dev/null -w 'HTTP=%{http_code}' https://hg.cash/api/v1/account/1/balance
+output  : HTTP/1.1 401 Unauthorized ; X-Matched-Path: /api/v1/account/[id]/balance
+body    : {"error":"Missing or invalid authorization header. Expected: Bearer <token>"}
+
+[B-4] Candidate: Cashfree Payouts — read requires a token minted by a POST  (verdict: R1-INCOMPATIBLE — REFUSED)
+documented mint (NOT executed, R1 forbids):
+          POST https://payout-api.cashfree.com/payout/v1/authorize
+          headers: X-Client-Id, X-Client-Secret
+          -> returns the Bearer token then required by GET /payout/v1/getBalance
+command actually run (unauthenticated GET, read-only):
+          curl -sS -m 20 https://payout-api.cashfree.com/payout/v1/getBalance
+output  : HTTP/1.1 200 OK
+          { "status":"ERROR", "message":"Token is not valid", "subCode":"403"}
+note    : the read endpoint cannot be called without a token that only a POST can mint; R1
+          forbids the mint, so this candidate is refused, not merely blocked.
+
+[B-5] Candidate: FreeCash.io  (verdict: NO-DOCUMENTED-READ-PATH — parked domain, not a platform)
+command : curl -sS -m 20 https://freecash.io/llms.txt
+output  : HTTP/1.1 200 OK ; body: "freecash.io is a domain name currently listed for sale on
+          GoDaddy's aftermarket."
+also    : curl -sS -m 20 https://api.freecash.com/v1/status  -> HTTP/1.1 404 Not Found (empty body)
+          curl -sS -m 20 https://api.freecash.com/            -> HTTP/1.1 404 Not Found (empty body)
+
+[B-6] Candidate: FreeCash.com (the real consumer platform the account sits on)
+      (verdict: R1-INCOMPATIBLE / NO-DOCUMENTED-READ-PATH — no public API; ToS bans automated monitoring)
+command : curl -sS -m 25 -o fc-terms.html -w 'HTTP=%{http_code} SIZE=%{size_download}'
+          https://freecash.com/en/policies/terms
+output  : HTTP=200 SIZE=420307
+clause  : "Use any robot, spider or other automatic device, process or means to access the Website
+          for any purpose, including monitoring or copying any of the material on the Website."
+          "To use macros, bots, scripts, or any other automation tools ... strictly prohibited."

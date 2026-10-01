@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-02",
+  "last_success_day": "2026-10-02",
+  "last_attempt_at_utc": "2026-10-02T08:00:00Z",
+  "last_success_at_utc": "2026-10-02T08:00:00Z",
+  "last_outcome": "EARNINGS_CHANGED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-02T08:00:00Z"
+}

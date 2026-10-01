@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "project": "Free Cash Finance Automation - daily status monitoring",
+  "repository": "D:/AgenticOS",
+  "branch": "hermes-rescue-20260908",
+  "head": "d14253d",
+  "issued_utc": "2026-09-18",
+  "issuer": "hermes-orchestrator",
+  "rules": {
+    "R1": "exactly one status check per operator-local calendar day",
+    "R2": "zero automated earning actions (GET/HEAD to allowlisted paths only; no write endpoint reachable)",
+    "R3": "notify operator when earnings or account status changes (exactly one notification per distinct change)",
+    "R4": "human approval before ANY external action; routine contains no execution path"
+  },
+  "evidence_standard": "a rule is compliant only if (a) the violation is unreachable in code, (b) a test was executed showing the mechanism denying the violation, and (c) the checker was shown to FAIL on an injected violation",
+  "hard_constraints_on_agents": [
+    "no external action of any kind (no provider call, no scheduled task, no message send, no purchase)",
+    "no credentials; secrets resolved from vault/env at runtime only",
+    "no invented endpoints - unresolved provider paths stay as 'PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase'",
+    "additive only: new paths under monitoring/freecash/ and data/freecash-monitor/; never edit/delete/reset/stage existing files",
+    "no git add / git commit / git checkout / git stash",
+    "python 3.14 stdlib only; do not install packages to make a test pass",
+    "report commands and observed output, not intentions"
+  ],
+  "tasks": [
+    {
+      "id": "W1",
+      "name": "build offline-provable routine core",
+      "owner": "builder-subagent",
+      "state": "dispatched",
+      "inputs": ["docs/free-cash-monitor-routine/ROUTINE-DESIGN.md", "docs/free-cash-monitor-routine/RULE-GATE-CHECKLIST.md"],
+      "outputs": ["monitoring/freecash/run_daily_check.py", "monitoring/freecash/gate.py", "monitoring/freecash/readonly_client.py", "monitoring/freecash/changedetect.py", "monitoring/freecash/notify.py", "monitoring/freecash/approval_queue.py", "monitoring/freecash/watchdog.py", "monitoring/freecash/verify_readonly.py", "monitoring/freecash/tests/"],
+      "gate": "G1",
+      "evidence_required": ["file listing", "git status --short before/after showing only new paths", "executed test output", "verify-readonly.sh exit codes"],
+      "blocked_on": null
+    },
+    {
+      "id": "W2",
+      "name": "re-verify provider / ToS / notification / scheduler facts",
+      "owner": "research-subagent",
+      "state": "dispatched",
+      "inputs": ["docs/free-cash-monitor-routine/DELEGATION-RESEARCH-PLAN.md", "docs/free-cash-monitor-routine/RESEARCH-PLAN.md"],
+      "outputs": ["docs/free-cash-monitor-routine/PROVIDER-FINDINGS-REVERIFIED.md"],
+      "gate": "G2",
+      "evidence_required": ["per claim: fetched URL or executed command with observed result", "explicit COULD NOT VERIFY labels"],
+      "blocked_on": null
+    },
+    {
+      "id": "W3",
+      "name": "adversarial rule verification with negative controls",
+      "owner": "verifier-subagent",
+      "state": "gated",
+      "inputs": ["W1 artifact"],
+      "outputs": ["monitoring/freecash/tests/verification-report.md"],
+      "gate": "G3",
+      "evidence_required": ["per rule: command + observed output", ">=1 injected-violation control per rule proving the checker fails"],
+      "blocked_on": "W1"
+    },
+    {
+      "id": "W4",
+      "name": "operator decision packet",
+      "owner": "hermes-orchestrator",
+      "state": "gated",
+      "inputs": ["W2"],
+      "outputs": ["docs/free-cash-monitor-routine/PROVIDER-DECISION-PACKET.md"],
+      "gate": "G4",
+      "evidence_required": ["each option: Expected Effort, Time-to-Revenue, Dependencies, First Concrete Action, named blocker"],
+      "blocked_on": "W2"
+    },
+    {
+      "id": "W5",
+      "name": "register Task A 08:35 + Task B 23:50 (IgnoreNew, StartWhenAvailable, no restart-on-failure)",
+      "owner": "operator-human",
+      "state": "blocked-human-approval",
+      "inputs": ["G1/G3 green", "W4 decision"],
+      "outputs": ["schtasks definitions"],
+      "gate": "G5",
+      "evidence_required": ["schtasks /Query /V /FO LIST output"],
+      "blocked_on": "human approval (R4)"
+    },
+    {
+      "id": "W6",
+      "name": "30-day unattended-operability review",
+      "owner": "operator-human",
+      "state": "not-started",
+      "inputs": ["running routine"],
+      "outputs": ["weekly runbook results"],
+      "gate": null,
+      "evidence_required": ["degraded:true trend", "MISSED_DAY count", "DELIVERY_FAILED count"],
+      "blocked_on": "W5"
+    }
+  ],
+  "read_source_options": [
+    {"id": "O1", "verdict": "recommended-now", "source": "local GET /api/v1/status/metrics + operator-entered state file", "effort_hours": "6-10", "time_to_visibility": "same day (rules) / 1-2 days (first cycle)", "dependencies": "python 3.14 stdlib", "degraded": true},
+    {"id": "O2", "verdict": "conditional", "source": "HG.Cash GET /accounts (documented read-only)", "effort_hours": "4-8 on top of O1", "time_to_visibility": "3 days - 2 weeks", "dependencies": "confirmed HG.Cash account + dashboard token in env", "degraded": false},
+    {"id": "O3", "verdict": "conditional", "source": "Cashfree GET /payout/v1/getBalance", "effort_hours": "4-8 on top of O1", "time_to_visibility": "1-4 weeks (activation queue)", "dependencies": "merchant account with Payouts API enabled", "degraded": false},
+    {"id": "O4", "verdict": "recommended-parallel", "source": "operator-entered state file only", "effort_hours": "1-2", "time_to_visibility": "same day", "dependencies": "writable state dir + 60 s/day operator login", "degraded": false},
+    {"id": "O5", "verdict": "rejected", "source": "scripted browser session against freecash.com", "effort_hours": "4-6", "time_to_visibility": "negative expected value", "dependencies": "stored credentials + 2FA", "degraded": null, "rejection_basis": "provider ToS forbids automated access including monitoring; robots.txt disallows account paths"}
+  ],
+  "verification": {
+    "verify_readonly_sh": "docs/free-cash-monitor-routine/verify-readonly.sh",
+    "target_missing_exit_code": 2,
+    "gate_sheet": "docs/free-cash-monitor-routine/RULE-GATE-CHECKLIST.md",
+    "known_defect_class": "a checker that cannot find its target, or that greps for strings it always finds, certifies nothing"
+  }
+}

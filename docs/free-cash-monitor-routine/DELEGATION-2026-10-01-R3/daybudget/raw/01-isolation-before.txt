@@ -1,0 +1,18 @@
+### sha256sum production state (BEFORE) — 2026-10-01T09:33:24+02:00
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+### find new files under production root newer than today 00:00 (BEFORE)
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+find_exit=0
+### day-locks (BEFORE)
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock
+### snapshot list (BEFORE)
+2026-09-20.json
+2026-09-30.json
+2026-10-01.json

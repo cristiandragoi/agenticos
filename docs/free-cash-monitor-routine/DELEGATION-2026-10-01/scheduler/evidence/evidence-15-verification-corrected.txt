@@ -1,0 +1,34 @@
+### captured at
+2026-10-01 09:10:39 +02:00
+
+### Evidence-14 carried two FAILs that were HARNESS bugs, re-proven here:
+###   (a) my python check literal used \v which JSON-unescaped to a vertical tab, so the
+###       substring could never match. Escaping removed.
+###   (b) I asserted coverage=DEDUPED on a COVERED day, where watchdog.py correctly prints
+###       WATCHDOG_OK (covered == no alarm). Assertion split into covered / uncovered cases.
+
+### H1  XML pinned-interpreter assertion, escaping removed
+PASS DECISION-V2-FreeCash-Daily-Monitor.xml pinned_interpreter_via=hermes-agent/venv/Scripts/python.exe
+PASS DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml pinned_interpreter_via=hermes-agent/venv/Scripts/python.exe
+
+### H2  watchdog on a COVERED day (today's check already ran) -> silent WATCHDOG_OK, twice
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=MONITOR_DEGRADED
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=MONITOR_DEGRADED
+PASS covered_day_silent_twice
+
+### H3  watchdog on an UNCOVERED day (no ledger at all) -> NOTIFIED then DEDUPED
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+PASS uncovered_notified_then_deduped
+one alarm line only:
+      1 "event_type": "MISSED_DAY"
+
+### H4  production state root untouched by this verification
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *D:/AgenticOS/data/freecash-monitor/state/last-run.json
+0f28d5699b30c6d7b48224f9fa6da26113938c66fafc99e16f391dbedd60e9dd *D:/AgenticOS/data/freecash-monitor/state/notified-keys.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *D:/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl
+
+RESULT: ALL_CHECKS_PASS

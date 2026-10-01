@@ -1,0 +1,33 @@
+===== FINAL isolation + deliverable listing Do,  1. Okt 2026 11:54:39 =====
+-- production hashes (must equal expected a287/1b9c/be8b) --
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+-- find newer than 11:30 (expect zero) --
+(end)
+-- day-locks after everything --
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock
+
+-- Stream A deliverables --
+total 52
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 11:54:31.883708200 +0200 .
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 11:50:18.778313700 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 22307 2026-10-01 11:54:31.621402000 +0200 PATH-B-BRIDGE-R4.md
+-rwxr-xr-x 1 cd-pr 197609 12040 2026-10-01 11:51:05.655328500 +0200 probe_apppath_bridge_r4.py
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 11:54:39.531446300 +0200 raw
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 11:53:15.611182500 +0200 routine_copy
+-rwxr-xr-x 1 cd-pr 197609  5781 2026-10-01 11:53:11.642467800 +0200 verify_mapping_in_scratch.py
+-- raw/ --
+total 57
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 11:54:39.531446300 +0200 .
+drwxr-xr-x 1 cd-pr 197609     0 2026-10-01 11:54:31.883708200 +0200 ..
+-rw-r--r-- 1 cd-pr 197609  7749 2026-10-01 11:48:26.078917600 +0200 01-app-path-artefact-inventory.txt
+-rw-r--r-- 1 cd-pr 197609   636 2026-10-01 11:48:39.739301800 +0200 02-live-api-probes.txt
+-rw-r--r-- 1 cd-pr 197609 15327 2026-10-01 11:49:57.285180900 +0200 03-source-reads.txt
+-rw-r--r-- 1 cd-pr 197609  7276 2026-10-01 11:53:25.833765400 +0200 04-wiring-and-routes.txt
+-rw-r--r-- 1 cd-pr 197609  1145 2026-10-01 11:53:27.680375100 +0200 05-isolation-after.txt
+-rw-r--r-- 1 cd-pr 197609  1219 2026-10-01 11:54:39.853861200 +0200 06-final-isolation.txt
+-rw-r--r-- 1 cd-pr 197609  5606 2026-10-01 11:51:20.410622300 +0200 10-probe-red-path.txt
+-rw-r--r-- 1 cd-pr 197609  2939 2026-10-01 11:53:15.943942700 +0200 11-mapping-in-scratch.txt

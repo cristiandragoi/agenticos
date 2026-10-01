@@ -1,0 +1,478 @@
+$ cd D:/AgenticOS/monitoring/freecash && nl -ba run_daily_check.py
+     1	"""run_daily_check.py -- the routine's single entry point (rules R1-R4).
+     2	
+     3	One run does, in this order:
+     4	
+     5	1. **R1** -- consume today's operator-local day with an atomic exclusive-create
+     6	   lock.  If the day is already consumed, print ``SKIP_DUPLICATE_DAY``, append
+     7	   exactly one ``SKIP_DUPLICATE_DAY`` line to the alert log, and exit 0 having
+     8	   performed no read, no snapshot write and no ledger write.
+     9	2. record the attempt, emit in-band ``MISSED_DAY`` lines for uncovered days
+    10	   (never back-filling them), and flag a timezone change as ``MONITOR_DEGRADED``.
+    11	3. **R2** -- acquire today's figures through one of two read-only sources:
+    12	   the operator-entered state file (default) or the local metrics substitute
+    13	   (``GET``/``HEAD`` through :mod:`readonly_client`, allowlisted paths only).
+    14	4. **R3** -- compare against the prior snapshot (loaded *before* the new one is
+    15	   written), emit exactly one line per distinct change, and notify at most once
+    16	   per change via a dedupe key recorded before dispatch.  ``OK_NO_CHANGE`` is
+    17	   log-only.  More than five changes coalesce into one summary notification.
+    18	5. **R4** -- enqueue an approval item for each notified change.  Enqueueing is a
+    19	   notification with a handle: nothing in this file (or anywhere else in the
+    20	   routine) acts on an approved status.  There is no execution code path here at
+    21	   all.
+    22	
+    23	Exit codes::
+    24	
+    25	    0  ran, or the day was already consumed (a duplicate is not an error)
+    26	    2  usage error
+    27	    3  --force-recheck refused (a second status read in one day is forbidden)
+    28	    5  the status read failed; the day lock stays in place, no automatic re-run
+    29	
+    30	Manual re-check is deliberately **not** implemented.  ROUTINE-DESIGN 2.3
+    31	describes a human ``--force-recheck`` that consumes a second, distinct lock
+    32	suffix and writes a second snapshot for the same day.  That is a second status
+    33	read on a day that already had one, and this implementation is required to
+    34	enforce "exactly one status read per operator-local calendar day" without
+    35	exception, so the flag is accepted only to be refused -- and the refusal is
+    36	written to ``logs/forced-recheck-requests.jsonl`` so the request itself is still
+    37	auditable.
+    38	"""
+    39	
+    40	import argparse
+    41	import os
+    42	import sys
+    43	
+    44	import approval_queue
+    45	import changedetect
+    46	import gate
+    47	import notify
+    48	import operator_state
+    49	import paths
+    50	import readonly_client
+    51	
+    52	DEFAULT_SOURCE = "operator_state"
+    53	SOURCES = ("operator_state", "metrics_http")
+    54	
+    55	MAX_NOTIFICATIONS = 5
+    56	MAX_APPROVAL_ITEMS = 5
+    57	
+    58	VERSION = "1.0.0"
+    59	
+    60	
+    61	# --------------------------------------------------------------------------- read
+    62	
+    63	
+    64	def read_source(kind, day, base=None, transport=None) -> dict:
+    65	    """Return today's figures from the selected read-only source."""
+    66	    if kind == "metrics_http":
+    67	        raw = readonly_client.read_status_source(base=base, transport=transport)
+    68	        metrics = changedetect.normalize_metrics(raw["payload"])
+    69	        return {
+    70	            "kind": raw["kind"],
+    71	            "read_ops": list(raw["read_ops"]),
+    72	            "data_available": True,
+    73	            "note": "local metrics substitute (health probe HTTP %s)" % raw["probe_status"],
+    74	            "payload": metrics,
+    75	            "raw_body": raw["raw_body"],
+    76	        }
+    77	    return operator_state.read_source(day)
+    78	
+    79	
+    80	def resolve_source(explicit=None) -> str:
+    81	    kind = explicit or os.environ.get("FREECASH_READ_SOURCE") or DEFAULT_SOURCE
+    82	    if kind not in SOURCES:
+    83	        raise ValueError("unknown read source %r (expected one of %s)" % (kind, ", ".join(SOURCES)))
+    84	    return kind
+    85	
+    86	
+    87	# --------------------------------------------------------------------------- notify
+    88	
+    89	
+    90	def observed_for(snapshot, source, prior) -> dict:
+    91	    return {
+    92	        "account_status": snapshot.get("account_status"),
+    93	        "earnings_total_cents": snapshot.get("earnings_total_cents"),
+    94	        "balance_cents": snapshot.get("balance_cents"),
+    95	        "pending_cents": snapshot.get("pending_cents"),
+    96	        "prior_day_key": (prior or {}).get("day_key"),
+    97	        "source": source.get("kind"),
+    98	        "degraded": True,
+    99	    }
+   100	
+   101	
+   102	def change_dedupe_key(day, change) -> str:
+   103	    return changedetect.dedupe_key(
+   104	        day,
+   105	        change["change_type"],
+   106	        change["field"],
+   107	        change["old_value"],
+   108	        change["new_value"],
+   109	    )
+   110	
+   111	
+   112	def approval_reason(change) -> str:
+   113	    """Operator-readable reason.  Names what moved; proposes nothing executable."""
+   114	    field = change.get("field")
+   115	    old = change.get("old_value")
+   116	    new = change.get("new_value")
+   117	    if field == "account_status":
+   118	        return "Account status moved from %s to %s. Review and decide whether any action is wanted." % (old, new)
+   119	    return "%s moved from %s to %s. Review and decide whether any action is wanted." % (
+   120	        field,
+   121	        changedetect.format_cents(old),
+   122	        changedetect.format_cents(new),
+   123	    )
+   124	
+   125	
+   126	def dispatch_change(day, change, snapshot, prior, source, sender, sleep_seconds, now=None,
+   127	                    enqueue=True) -> str:
+   128	    """One change: log line(s) + at most one notification.  Returns the result."""
+   129	    key = change_dedupe_key(day, change)
+   130	    change["dedupe_key"] = key
+   131	    if notify.key_seen(key):
+   132	        notify.alert(
+   133	            change["change_type"],
+   134	            day,
+   135	            notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note")),
+   136	            severity=notify.SEVERITY_INFO,
+   137	            dedupe_key=key,
+   138	            observed={
+   139	                "field": change.get("field"),
+   140	                "old_value": change.get("old_value"),
+   141	                "new_value": change.get("new_value"),
+   142	                "already_notified": True,
+   143	            },
+   144	        )
+   145	        return "DEDUPED"
+   146	
+   147	    message = notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note"))
+   148	    item = None
+   149	    if enqueue:
+   150	        # R4: enqueue only -- a handle for a human, never a permission to act.
+   151	        item = approval_queue.enqueue(day, change, approval_reason(change), now=now)
+   152	        notify.alert(
+   153	            "APPROVAL_PENDING",
+   154	            day,
+   155	            "Approval item %s enqueued (PENDING, no expiry, NOT_EXECUTED). "
+   156	            "Nothing will act on it without you." % item["approval_id"],
+   157	            severity=notify.SEVERITY_NOTIFY,
+   158	            dedupe_key=key,
+   159	            observed={
+   160	                "approval_id": item["approval_id"],
+   161	                "change_dedupe_key": key,
+   162	                "status": item["status"],
+   163	                "execution_state": item["execution_state"],
+   164	            },
+   165	        )
+   166	        message = message + "\nApproval:  %s (PENDING - yours to decide, nothing executes)" % item["approval_id"]
+   167	    result = notify.notify_change(
+   168	        day, change, message, key, sender=sender, sleep_seconds=sleep_seconds
+   169	    )
+   170	    return result
+   171	
+   172	
+   173	def notify_changes(day, changes, snapshot, prior, source, sender, sleep_seconds, now=None) -> dict:
+   174	    """Emit one line per distinct change; notify once each, or once in total if >5."""
+   175	    outcome = {"notified": 0, "deduped": 0, "failed": 0, "coalesced": False, "approvals": 0}
+   176	    coalesce = len(changes) > MAX_NOTIFICATIONS
+   177	    for index, change in enumerate(changes):
+   178	        if coalesce:
+   179	            key = change_dedupe_key(day, change)
+   180	            change["dedupe_key"] = key
+   181	            notify.alert(
+   182	                change["change_type"],
+   183	                day,
+   184	                notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note")),
+   185	                severity=notify.SEVERITY_INFO,
+   186	                dedupe_key=key,
+   187	                observed={
+   188	                    "field": change.get("field"),
+   189	                    "old_value": change.get("old_value"),
+   190	                    "new_value": change.get("new_value"),
+   191	                    "coalesced": True,
+   192	                },
+   193	            )
+   194	            continue
+   195	        enqueue = index < MAX_APPROVAL_ITEMS
+   196	        result = dispatch_change(
+   197	            day, change, snapshot, prior, source, sender, sleep_seconds, now=now, enqueue=enqueue
+   198	        )
+   199	        if result == "NOTIFIED":
+   200	            outcome["notified"] += 1
+   201	            if enqueue:
+   202	                outcome["approvals"] += 1
+   203	        elif result == "DEDUPED":
+   204	            outcome["deduped"] += 1
+   205	        else:
+   206	            outcome["failed"] += 1
+   207	    if coalesce:
+   208	        outcome["coalesced"] = True
+   209	        summary = notify.message_summary(day, len(changes), source_note=source.get("note"))
+   210	        key = changedetect.dedupe_key(day, "MONITOR_DEGRADED", "change_count", MAX_NOTIFICATIONS, len(changes))
+   211	        if not notify.key_seen(key):
+   212	            notify.dispatch(summary, key, day, "MONITOR_DEGRADED", sender=sender, sleep_seconds=sleep_seconds)
+   213	            outcome["notified"] += 1
+   214	    return outcome
+   215	
+   216	
+   217	def nag_pending(day, now, sender, sleep_seconds) -> int:
+   218	    """At most one reminder per item per seven days.  A reminder never decides."""
+   219	    records = paths.read_jsonl(paths.alerts_path())
+   220	    count = 0
+   221	    for item in approval_queue.pending_items():
+   222	        if not approval_queue.nag_due(item, now=now, records=records):
+   223	            continue
+   224	        key = changedetect.dedupe_key(
+   225	            day, "APPROVAL_PENDING", "approval_id", item.get("approval_id"), item.get("status")
+   226	        )
+   227	        notify.alert(
+   228	            "APPROVAL_PENDING",
+   229	            day,
+   230	            "Reminder: approval item %s has been waiting since %s (still PENDING, no expiry)."
+   231	            % (item.get("approval_id"), item.get("created_at_utc")),
+   232	            severity=notify.SEVERITY_NOTIFY,
+   233	            dedupe_key=key,
+   234	            observed={"approval_id": item.get("approval_id"), "status": item.get("status"), "reminder": True},
+   235	        )
+   236	        notify.dispatch(
+   237	            notify.message_approval_pending(item),
+   238	            key,
+   239	            day,
+   240	            "APPROVAL_PENDING",
+   241	            sender=sender,
+   242	            sleep_seconds=sleep_seconds,
+   243	        )
+   244	        count += 1
+   245	    return count
+   246	
+   247	
+   248	# --------------------------------------------------------------------------- run
+   249	
+   250	
+   251	def build_parser() -> argparse.ArgumentParser:
+   252	    parser = argparse.ArgumentParser(
+   253	        prog="run_daily_check.py",
+   254	        description="Free Cash daily status-monitoring routine (R1-R4). Read-only; executes nothing.",
+   255	    )
+   256	    parser.add_argument("--source", choices=SOURCES, default=None, help="read source (default: %s)" % DEFAULT_SOURCE)
+   257	    parser.add_argument("--base-url", default=None, help="base URL for the metrics read source")
+   258	    parser.add_argument("--print-state", action="store_true", help="print the ledger and queue, then stop")
+   259	    parser.add_argument("--force-recheck", action="store_true", help="refused by design (see module docstring)")
+   260	    parser.add_argument("--reason", default=None, help="reason accompanying --force-recheck (audited)")
+   261	    parser.add_argument("--version", action="version", version="freecash-monitor " + VERSION)
+   262	    return parser
+   263	
+   264	
+   265	def run(argv=None, now=None, sender=None, transport=None, base=None) -> int:
+   266	    """Entry point.  ``now`` is a test seam: it pins the whole run's clock."""
+   267	    if now is not None:
+   268	        paths.set_clock(now)
+   269	        try:
+   270	            return _run(argv, now, sender, transport, base)
+   271	        finally:
+   272	            paths.clear_clock()
+   273	    return _run(argv, now, sender, transport, base)
+   274	
+   275	
+   276	def _run(argv=None, now=None, sender=None, transport=None, base=None) -> int:
+   277	    args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
+   278	    paths.ensure_layout()
+   279	    readonly_client.install_audit_guard()
+   280	
+   281	    if args.force_recheck:
+   282	        paths.append_jsonl(
+   283	            paths.logs_dir() / "forced-recheck-requests.jsonl",
+   284	            {
+   285	                "ts_utc": paths.iso_utc(now),
+   286	                "requested_day": gate.day_key(now),
+   287	                "reason": args.reason or "",
+   288	                "decision": "REFUSED",
+   289	                "why": "one status read per operator-local calendar day (R1)",
+   290	            },
+   291	        )
+   292	        print(
+   293	            "REFUSED_FORCE_RECHECK %s reason=%r (a second status read in one day is "
+   294	            "forbidden by R1; the request was recorded in logs/forced-recheck-requests.jsonl)"
+   295	            % (gate.day_key(now), args.reason or "")
+   296	        )
+   297	        return 3
+   298	
+   299	    if args.print_state:
+   300	        ledger = gate.load_ledger()
+   301	        print("ledger: %s" % paths.ledger_path())
+   302	        for key in sorted(ledger):
+   303	            print("  %-24s %s" % (key, ledger[key]))
+   304	        print("pending items: %d" % len(approval_queue.pending_items()))
+   305	        return 0
+   306	
+   307	    source_kind = resolve_source(args.source)
+   308	    day = gate.day_key(now)
+   309	    acquired, lock = gate.acquire_day_lock(day)
+   310	    if not acquired:
+   311	        # R1 duplicate: exactly one log line, no read, no snapshot, no ledger write.
+   312	        notify.alert(
+   313	            "SKIP_DUPLICATE_DAY",
+   314	            day,
+   315	            "Day %s already consumed (lock %s). Duplicate run performed no read and "
+   316	            "wrote no snapshot." % (day, lock.name),
+   317	            severity=notify.SEVERITY_INFO,
+   318	            observed={"lock": str(lock)},
+   319	        )
+   320	        print("SKIP_DUPLICATE_DAY %s" % day)
+   321	        return 0
+   322	
+   323	    ledger = gate.load_ledger()
+   324	    missed = gate.missed_days(day, ledger)
+   325	    timezone_changed = gate.timezone_changed(ledger)
+   326	    # record_attempt() works on a copy and returns it; the returned ledger must
+   327	    # be kept, otherwise record_outcome() below persists the pre-attempt copy
+   328	    # and the ledger loses last_attempt_day (the watchdog's coverage signal).
+   329	    ledger = gate.record_attempt(day, now, ledger)
+   330	
+   331	    for missed_day in missed:
+   332	        change = {
+   333	            "change_type": "MISSED_DAY",
+   334	            "field": "last_success_day",
+   335	            "old_value": missed_day,
+   336	            "new_value": ledger.get("last_success_day"),
+   337	            "prior_day_key": ledger.get("last_success_day"),
+   338	        }
+   339	        key = changedetect.dedupe_key(day, "MISSED_DAY", "last_success_day", missed_day, ledger.get("last_success_day"))
+   340	        notify.notify_change(
+   341	            day,
+   342	            change,
+   343	            notify.message_missed_day(missed_day, ledger.get("last_success_day"), len(missed)),
+   344	            key,
+   345	            sender=sender,
+   346	            sleep_seconds=0,
+   347	        )
+   348	    if timezone_changed:
+   349	        notify.alert(
+   350	            "MONITOR_DEGRADED",
+   351	            day,
+   352	            "Timezone changed since the last run (ledger=%s, now=%s). Day-key boundaries may "
+   353	            "show a gap or an extra day." % (ledger.get("timezone"), gate.tz_name()),
+   354	            severity=notify.SEVERITY_ALERT,
+   355	            observed={"ledger_timezone": ledger.get("timezone"), "current_timezone": gate.tz_name()},
+   356	        )
+   357	    tz_report = gate.timezone_report()
+   358	    if tz_report["kind"] == "system-local":
+   359	        notify.alert(
+   360	            "MONITOR_DEGRADED",
+   361	            day,
+   362	            "Configured timezone %r is not resolvable on this host (no local IANA database); "
+   363	            "using the machine's own local zone (offset %s), which is the operator wall clock. "
+   364	            "Install the tzdata package to honour the configured name exactly."
+   365	            % (tz_report["configured"], tz_report["offset_now"]),
+   366	            severity=notify.SEVERITY_INFO,
+   367	            observed=dict(tz_report, condition="timezone_unavailable"),
+   368	        )
+   369	        print("WARNING timezone_unavailable configured=%s offset=%s" % (tz_report["configured"], tz_report["offset_now"]))
+   370	
+   371	    try:
+   372	        raw = read_source(source_kind, day, base=args.base_url or base, transport=transport)
+   373	    except (readonly_client.ReadError, readonly_client.ForbiddenWriteError, changedetect.MetricError) as exc:
+   374	        reason = "%s: %s" % (type(exc).__name__, exc)
+   375	        change = {
+   376	            "change_type": "RUN_FAILED",
+   377	            "field": "read",
+   378	            "old_value": source_kind,
+   379	            "new_value": reason,
+   380	            "prior_day_key": ledger.get("last_success_day"),
+   381	        }
+   382	        key = changedetect.dedupe_key(day, "READ_FAILED", "read", source_kind, reason)
+   383	        notify.notify_change(
+   384	            day,
+   385	            change,
+   386	            notify.message_run_failed(day, reason, ledger),
+   387	            key,
+   388	            sender=sender,
+   389	            sleep_seconds=0,
+   390	        )
+   391	        gate.record_outcome(day, "READ_FAILED", now, ledger, missed=len(missed))
+   392	        print("RUN_FAILED %s reason=%s" % (day, reason))
+   393	        return 5
+   394	
+   395	    source = {
+   396	        "kind": raw.get("kind"),
+   397	        "read_ops": raw.get("read_ops"),
+   398	        "data_available": bool(raw.get("data_available")),
+   399	        "note": raw.get("note"),
+   400	    }
+   401	    metrics = raw.get("payload") if source["data_available"] else {}
+   402	    prior = changedetect.load_prior_snapshot(day)
+   403	    snapshot = changedetect.build_snapshot(day, metrics, source, raw.get("raw_body") or b"", now=now)
+   404	    verdict = changedetect.compare(prior, snapshot)
+   405	    snapshot_file, written = changedetect.save_snapshot(snapshot, now=now)
+   406	    observed = observed_for(snapshot, source, prior)
+   407	
+   408	    notifications = 0
+   409	    approvals = 0
+   410	    if not source["data_available"]:
+   411	        outcome = "MONITOR_DEGRADED"
+   412	        notify.alert(
+   413	            "MONITOR_DEGRADED",
+   414	            day,
+   415	            "No data for %s (%s). Snapshot written with null fields; nothing is compared "
+   416	            "and nothing is notified until a reading exists." % (day, source.get("note")),
+   417	            severity=notify.SEVERITY_INFO,
+   418	            observed=observed,
+   419	        )
+   420	    elif verdict["baseline"]:
+   421	        outcome = "INITIAL_BASELINE"
+   422	        notify.emit_initial_baseline(day, observed=observed, source_note=source.get("note"))
+   423	    elif not verdict["changes"]:
+   424	        outcome = "OK_NO_CHANGE"
+   425	        notify.emit_no_change(
+   426	            day,
+   427	            prior_day=(prior or {}).get("day_key"),
+   428	            observed=observed,
+   429	            source_note=source.get("note"),
+   430	        )
+   431	    else:
+   432	        for note in verdict["degraded"]:
+   433	            notify.alert("MONITOR_DEGRADED", day, note, severity=notify.SEVERITY_ALERT, observed=observed)
+   434	        result = notify_changes(
+   435	            day, verdict["changes"], snapshot, prior or {}, source, sender, 0, now=now
+   436	        )
+   437	        notifications = result["notified"]
+   438	        approvals = result["approvals"]
+   439	        outcome = verdict["changes"][0]["change_type"]
+   440	
+   441	    reminders = nag_pending(day, now, sender, 0)
+   442	
+   443	    if now is None:
+   444	        changedetect.prune_old_artifacts(now)
+   445	
+   446	    gate.record_outcome(day, outcome, now, ledger, missed=len(missed))
+   447	    print(
+   448	        "RUN_OK %s outcome=%s source=%s(data_available=%s) snapshot=%s written=%s "
+   449	        "changes=%d notifications=%d approvals=%d reminders=%d lock=%s"
+   450	        % (
+   451	            day,
+   452	            outcome,
+   453	            source["kind"],
+   454	            source["data_available"],
+   455	            snapshot_file.name,
+   456	            written,
+   457	            len(verdict["changes"]),
+   458	            notifications,
+   459	            approvals,
+   460	            reminders,
+   461	            lock.name,
+   462	        )
+   463	    )
+   464	    return 0
+   465	
+   466	
+   467	def main(argv=None) -> int:
+   468	    try:
+   469	        return run(argv)
+   470	    except ValueError as exc:
+   471	        print("USAGE ERROR: %s" % exc, file=sys.stderr)
+   472	        return 2
+   473	
+   474	
+   475	if __name__ == "__main__":
+   476	    sys.exit(main())
+exit=0

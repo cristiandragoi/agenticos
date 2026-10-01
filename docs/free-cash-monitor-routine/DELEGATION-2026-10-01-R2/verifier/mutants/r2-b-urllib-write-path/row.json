@@ -1,0 +1,58 @@
+{
+  "demos": {
+    "r2_bypass": {
+      "_submit_claim": {
+        "detail": "<urlopen error [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte>",
+        "outcome": "URLError"
+      },
+      "helpers_found": [
+        "_submit_claim"
+      ],
+      "kind": "r2_bypass"
+    },
+    "r2_forbidden": {
+      "allowed_write_requests": [],
+      "attempts": [
+        {
+          "attempt": "POST http://localhost:3001/api/v1/cashout",
+          "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "POST http://localhost:3001/api/v1/transactions",
+          "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "DELETE http://localhost:3001/api/v1/status/metrics",
+          "detail": "R2: method 'DELETE' is not read-only (allowed: GET, HEAD)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "GET http://localhost:3001/api/v1/status/metrics",
+          "outcome": "ALLOWED"
+        }
+      ],
+      "body_on_read": "ForbiddenWriteError: R2: request bodies are forbidden ('json')",
+      "kind": "r2_forbidden",
+      "module_file": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R2\\verifier\\mutants\\r2-b-urllib-write-path\\pkg\\readonly_client.py",
+      "transport_reached": [
+        {
+          "method": "GET",
+          "url": "http://localhost:3001/api/v1/status/metrics"
+        }
+      ]
+    }
+  },
+  "file": "run_daily_check.py",
+  "gateA_exit": 1,
+  "gateA_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL",
+  "gateB_exit": 1,
+  "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=PASS",
+  "gate_a_rule": "RULE 1 (legacy R2)",
+  "id": "r2-b-urllib-write-path",
+  "readonly_scan_exit": 1,
+  "readonly_scan_line": "[verify_readonly] forbidden=7 exempt=28 missing_targets=0",
+  "reason": "R2 violation: an out-of-band POST /api/v1/claim is added to the read path with urllib, so the read-only client's allowlist is bypassed entirely.",
+  "rule": "R2"
+}

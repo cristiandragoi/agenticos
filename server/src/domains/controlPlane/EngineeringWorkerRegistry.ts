@@ -32,6 +32,8 @@ import { repositoryAuthority } from './RepositoryAuthority.js';
 import { argusService } from './ArgusService.js';
 import { randomUUID } from 'node:crypto';
 
+import { rawDb } from '../../db/index.js';
+
 const execAsync = promisify(exec);
 
 export type EngineeringEventType =
@@ -53,7 +55,10 @@ export type EngineeringEventType =
   | 'DEPLOY_STARTED'
   | 'DEPLOY_FINISHED'
   | 'WORKER_DONE'
-  | 'WORKER_ERROR';
+  | 'WORKER_ERROR'
+  | 'VALIDATING'
+  | 'ARGUS_VERIFYING'
+  | 'COMPLETED';
 
 export interface EngineeringExecutionEvent {
   id: string;
@@ -69,6 +74,31 @@ export interface EngineeringExecutionEvent {
   exitCode?: number;
   changedFiles?: string[];
   metadata?: Record<string, any>;
+}
+
+export interface EngineeringWorkerSession {
+  taskId: string;
+  goalId?: string;
+  workerId: string;
+  antigravityConversationId: string;
+  antigravitySessionId?: string;
+  workspace: string;
+  createdAt: string;
+  lastHeartbeat: string;
+  status: 'ONLINE' | 'BUSY' | 'DISCONNECTED' | 'COMPLETED' | 'FAILED' | string;
+  transcriptPath?: string;
+  title?: string;
+  currentStage?: string;
+  currentFile?: string;
+  currentCommand?: string;
+  lastOutput?: string;
+  filesRead: string[];
+  filesChanged: string[];
+  testsPassed: number;
+  testsFailed: number;
+  buildStatus: 'idle' | 'running' | 'passed' | 'failed' | string;
+  errors: string[];
+  metadata: Record<string, any>;
 }
 
 export interface EngineeringWorker {
@@ -123,11 +153,15 @@ export class EngineeringWorkerRegistry {
   private static instance: EngineeringWorkerRegistry;
 
   private workers: Map<string, EngineeringWorker> = new Map();
+  private sessions: Map<string, EngineeringWorkerSession> = new Map();
   private eventLog: EngineeringExecutionEvent[] = [];
   private readonly maxEvents = 1000;
+  private tablesInitialized = false;
 
   private constructor() {
+    this.ensurePersistenceTables();
     this.initializeWorkers();
+    this.loadDurableState();
   }
 
   public static getInstance(): EngineeringWorkerRegistry {
@@ -233,9 +267,230 @@ export class EngineeringWorkerRegistry {
     });
   }
 
+  private ensurePersistenceTables(): void {
+    if (this.tablesInitialized) return;
+    try {
+      rawDb.exec(`
+        CREATE TABLE IF NOT EXISTS engineering_worker_sessions (
+          task_id TEXT PRIMARY KEY,
+          goal_id TEXT,
+          worker_id TEXT NOT NULL,
+          antigravity_conversation_id TEXT NOT NULL,
+          antigravity_session_id TEXT,
+          workspace TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          last_heartbeat TEXT NOT NULL,
+          status TEXT NOT NULL,
+          transcript_path TEXT,
+          title TEXT,
+          current_stage TEXT,
+          current_file TEXT,
+          current_command TEXT,
+          last_output TEXT,
+          files_read TEXT NOT NULL DEFAULT '[]',
+          files_changed TEXT NOT NULL DEFAULT '[]',
+          tests_passed INTEGER NOT NULL DEFAULT 0,
+          tests_failed INTEGER NOT NULL DEFAULT 0,
+          build_status TEXT NOT NULL DEFAULT 'idle',
+          errors TEXT NOT NULL DEFAULT '[]',
+          metadata TEXT NOT NULL DEFAULT '{}'
+        );
+
+        CREATE TABLE IF NOT EXISTS engineering_execution_events (
+          id TEXT PRIMARY KEY,
+          task_id TEXT,
+          goal_id TEXT,
+          worker_id TEXT NOT NULL,
+          run_id TEXT,
+          timestamp TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          file TEXT,
+          command TEXT,
+          output TEXT,
+          exit_code INTEGER,
+          changed_files TEXT,
+          metadata TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_eng_events_task ON engineering_execution_events(task_id, timestamp);
+      `);
+      this.tablesInitialized = true;
+    } catch (err: any) {
+      logger.warn('[EngineeringWorkerRegistry] Failed to initialize SQLite tables:', err?.message);
+    }
+  }
+
+  public loadDurableState(): void {
+    try {
+      if (!this.tablesInitialized) this.ensurePersistenceTables();
+      // 1. Hydrate sessions
+      const rows = rawDb.prepare(`
+        SELECT * FROM engineering_worker_sessions ORDER BY created_at DESC LIMIT 100
+      `).all() as any[];
+
+      for (const row of rows) {
+        const session: EngineeringWorkerSession = {
+          taskId: row.task_id,
+          goalId: row.goal_id || undefined,
+          workerId: row.worker_id,
+          antigravityConversationId: row.antigravity_conversation_id,
+          antigravitySessionId: row.antigravity_session_id || undefined,
+          workspace: row.workspace,
+          createdAt: row.created_at,
+          lastHeartbeat: row.last_heartbeat,
+          status: row.status,
+          transcriptPath: row.transcript_path || undefined,
+          title: row.title || undefined,
+          currentStage: row.current_stage || undefined,
+          currentFile: row.current_file || undefined,
+          currentCommand: row.current_command || undefined,
+          lastOutput: row.last_output || undefined,
+          filesRead: JSON.parse(row.files_read || '[]'),
+          filesChanged: JSON.parse(row.files_changed || '[]'),
+          testsPassed: row.tests_passed || 0,
+          testsFailed: row.tests_failed || 0,
+          buildStatus: row.build_status || 'idle',
+          errors: JSON.parse(row.errors || '[]'),
+          metadata: JSON.parse(row.metadata || '{}'),
+        };
+        this.sessions.set(session.taskId, session);
+      }
+
+      // 2. Hydrate recent events
+      const eventRows = rawDb.prepare(`
+        SELECT * FROM engineering_execution_events ORDER BY timestamp DESC LIMIT 200
+      `).all() as any[];
+
+      const loadedEvents: EngineeringExecutionEvent[] = eventRows.reverse().map(r => ({
+        id: r.id,
+        taskId: r.task_id || undefined,
+        goalId: r.goal_id || undefined,
+        workerId: r.worker_id,
+        runId: r.run_id || undefined,
+        timestamp: r.timestamp,
+        eventType: r.event_type as EngineeringEventType,
+        file: r.file || undefined,
+        command: r.command || undefined,
+        output: r.output || undefined,
+        exitCode: r.exit_code !== null ? r.exit_code : undefined,
+        changedFiles: r.changed_files ? JSON.parse(r.changed_files) : undefined,
+        metadata: r.metadata ? JSON.parse(r.metadata) : undefined,
+      }));
+
+      if (loadedEvents.length > 0) {
+        this.eventLog = [...loadedEvents, ...this.eventLog].slice(-this.maxEvents);
+      }
+
+      logger.info(`[EngineeringWorkerRegistry] Hydrated ${this.sessions.size} durable sessions and ${loadedEvents.length} events from SQLite.`);
+    } catch (err: any) {
+      logger.warn('[EngineeringWorkerRegistry] Failed to hydrate durable state from SQLite:', err?.message);
+    }
+  }
+
+  public registerWorkerSession(session: EngineeringWorkerSession): EngineeringWorkerSession {
+    return this.upsertSession(session);
+  }
+
+  public upsertSession(session: EngineeringWorkerSession): EngineeringWorkerSession {
+    this.sessions.set(session.taskId, session);
+    try {
+      if (!this.tablesInitialized) this.ensurePersistenceTables();
+      const stmt = rawDb.prepare(`
+        INSERT INTO engineering_worker_sessions (
+          task_id, goal_id, worker_id, antigravity_conversation_id, antigravity_session_id,
+          workspace, created_at, last_heartbeat, status, transcript_path, title,
+          current_stage, current_file, current_command, last_output, files_read,
+          files_changed, tests_passed, tests_failed, build_status, errors, metadata
+        ) VALUES (
+          @taskId, @goalId, @workerId, @antigravityConversationId, @antigravitySessionId,
+          @workspace, @createdAt, @lastHeartbeat, @status, @transcriptPath, @title,
+          @currentStage, @currentFile, @currentCommand, @lastOutput, @filesRead,
+          @filesChanged, @testsPassed, @testsFailed, @buildStatus, @errors, @metadata
+        )
+        ON CONFLICT(task_id) DO UPDATE SET
+          goal_id = excluded.goal_id,
+          worker_id = excluded.worker_id,
+          antigravity_conversation_id = excluded.antigravity_conversation_id,
+          antigravity_session_id = excluded.antigravity_session_id,
+          workspace = excluded.workspace,
+          last_heartbeat = excluded.last_heartbeat,
+          status = excluded.status,
+          transcript_path = excluded.transcript_path,
+          title = excluded.title,
+          current_stage = excluded.current_stage,
+          current_file = excluded.current_file,
+          current_command = excluded.current_command,
+          last_output = excluded.last_output,
+          files_read = excluded.files_read,
+          files_changed = excluded.files_changed,
+          tests_passed = excluded.tests_passed,
+          tests_failed = excluded.tests_failed,
+          build_status = excluded.build_status,
+          errors = excluded.errors,
+          metadata = excluded.metadata
+      `);
+
+      stmt.run({
+        taskId: session.taskId,
+        goalId: session.goalId || null,
+        workerId: session.workerId,
+        antigravityConversationId: session.antigravityConversationId,
+        antigravitySessionId: session.antigravitySessionId || null,
+        workspace: session.workspace,
+        createdAt: session.createdAt,
+        lastHeartbeat: session.lastHeartbeat,
+        status: session.status,
+        transcriptPath: session.transcriptPath || null,
+        title: session.title || null,
+        currentStage: session.currentStage || null,
+        currentFile: session.currentFile || null,
+        currentCommand: session.currentCommand || null,
+        lastOutput: session.lastOutput || null,
+        filesRead: JSON.stringify(session.filesRead || []),
+        filesChanged: JSON.stringify(session.filesChanged || []),
+        testsPassed: session.testsPassed || 0,
+        testsFailed: session.testsFailed || 0,
+        buildStatus: session.buildStatus || 'idle',
+        errors: JSON.stringify(session.errors || []),
+        metadata: JSON.stringify(session.metadata || {}),
+      });
+    } catch (err: any) {
+      logger.warn(`[EngineeringWorkerRegistry] Failed to persist session ${session.taskId}:`, err?.message);
+    }
+    return session;
+  }
+
+  public getSession(taskId: string): EngineeringWorkerSession | undefined {
+    return this.sessions.get(taskId);
+  }
+
+  public getSessions(limit = 50): EngineeringWorkerSession[] {
+    return this.getAllSessions(limit);
+  }
+
+  public getAllSessions(limit = 50): EngineeringWorkerSession[] {
+    const list = Array.from(this.sessions.values());
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return list.slice(0, limit);
+  }
+
+  public getActiveSession(workerId = 'antigravity'): EngineeringWorkerSession | undefined {
+    // Prefer running/busy sessions, then most recent
+    const sessions = this.getAllSessions(20).filter(s => s.workerId === workerId);
+    const active = sessions.find(s => s.status === 'BUSY' || s.status === 'ONLINE');
+    return active || sessions[0];
+  }
+
+  public updateWorkerStatus(workerId: string, status: 'ONLINE' | 'BUSY' | 'DEGRADED' | 'OFFLINE'): void {
+    const worker = this.workers.get(workerId);
+    if (worker) {
+      worker.status = status;
+      worker.lastActiveAt = new Date().toISOString();
+    }
+  }
+
   /**
    * Append a structured execution event from any engineering worker.
-   * Updates the worker's live heartbeat and telemetry snapshot.
+   * Updates the worker's live heartbeat and telemetry snapshot, and persists to SQLite.
    */
   public recordWorkerEvent(eventInput: Omit<EngineeringExecutionEvent, 'id'>): EngineeringExecutionEvent {
     const event: EngineeringExecutionEvent = {
@@ -247,6 +502,37 @@ export class EngineeringWorkerRegistry {
     this.eventLog.push(event);
     if (this.eventLog.length > this.maxEvents) {
       this.eventLog.shift();
+    }
+
+    // Persist event to SQLite
+    try {
+      if (!this.tablesInitialized) this.ensurePersistenceTables();
+      rawDb.prepare(`
+        INSERT INTO engineering_execution_events (
+          id, task_id, goal_id, worker_id, run_id, timestamp, event_type,
+          file, command, output, exit_code, changed_files, metadata
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?
+        )
+      `).run(
+        event.id,
+        event.taskId || null,
+        event.goalId || null,
+        event.workerId,
+        event.runId || null,
+        event.timestamp,
+        event.eventType,
+        event.file || null,
+        event.command || null,
+        event.output ? event.output.slice(0, 2000) : null,
+        event.exitCode !== undefined ? event.exitCode : null,
+        event.changedFiles ? JSON.stringify(event.changedFiles) : null,
+        event.metadata ? JSON.stringify(event.metadata) : null
+      );
+    } catch (err: any) {
+      // Log warning but continue in-memory
+      logger.warn('[EngineeringWorkerRegistry] Failed to persist event to SQLite:', err?.message);
     }
 
     // Update worker live snapshot
@@ -336,10 +622,23 @@ export class EngineeringWorkerRegistry {
           if (!worker.errors) worker.errors = [];
           worker.errors.push(event.output || 'Build failed');
           break;
+        case 'VALIDATING':
+          worker.currentStage = 'validating';
+          worker.lastAction = 'Validating worker output & evidence';
+          break;
+        case 'ARGUS_VERIFYING':
+          worker.currentStage = 'argus_verifying';
+          worker.lastAction = 'Argus independent verification in progress';
+          break;
         case 'WORKER_DONE':
           worker.status = 'ONLINE';
           worker.currentStage = 'worker_done';
           worker.lastAction = 'Worker execution finished';
+          break;
+        case 'COMPLETED':
+          worker.status = 'ONLINE';
+          worker.currentStage = 'completed';
+          worker.lastAction = 'Task completed';
           break;
         case 'WORKER_ERROR':
           worker.status = 'DEGRADED';
@@ -349,6 +648,50 @@ export class EngineeringWorkerRegistry {
           worker.errors.push(event.output || 'Worker error');
           break;
       }
+    }
+
+    // Update session snapshot if linked to a task
+    if (event.taskId) {
+      let session = this.sessions.get(event.taskId);
+      if (!session) {
+        session = {
+          taskId: event.taskId,
+          goalId: event.goalId,
+          workerId: event.workerId,
+          antigravityConversationId: event.runId || '',
+          workspace: 'D:\\AgenticOS',
+          createdAt: event.timestamp || new Date().toISOString(),
+          lastHeartbeat: event.timestamp || new Date().toISOString(),
+          status: 'BUSY',
+          filesRead: [],
+          filesChanged: [],
+          testsPassed: 0,
+          testsFailed: 0,
+          buildStatus: 'idle',
+          errors: [],
+          metadata: {},
+        };
+      }
+
+      session.lastHeartbeat = event.timestamp || new Date().toISOString();
+      if (worker?.currentStage) session.currentStage = worker.currentStage;
+      if (worker?.currentFile) session.currentFile = worker.currentFile;
+      if (worker?.currentCommand) session.currentCommand = worker.currentCommand;
+      if (event.output) session.lastOutput = event.output.slice(0, 1000);
+      if (worker?.filesRead) session.filesRead = [...worker.filesRead];
+      if (worker?.filesChanged) session.filesChanged = [...worker.filesChanged];
+      if (worker?.testsPassedCount !== undefined) session.testsPassed = worker.testsPassedCount;
+      if (worker?.testsFailedCount !== undefined) session.testsFailed = worker.testsFailedCount;
+      if (worker?.buildStatus) session.buildStatus = worker.buildStatus;
+      if (worker?.errors) session.errors = [...worker.errors];
+
+      if (event.eventType === 'WORKER_DONE' || event.eventType === 'COMPLETED') {
+        session.status = 'COMPLETED';
+      } else if (event.eventType === 'WORKER_ERROR') {
+        session.status = 'FAILED';
+      }
+
+      this.upsertSession(session);
     }
 
     return event;
@@ -363,11 +706,15 @@ export class EngineeringWorkerRegistry {
     worker: EngineeringWorker | undefined;
     events: EngineeringExecutionEvent[];
     allWorkers: EngineeringWorker[];
+    sessions: EngineeringWorkerSession[];
+    activeSession: EngineeringWorkerSession | undefined;
   } {
     return {
       worker: this.workers.get(workerId),
       events: this.getWorkerEvents(workerId, 50),
       allWorkers: this.getAllWorkers(),
+      sessions: this.getAllSessions(20),
+      activeSession: this.getActiveSession(workerId),
     };
   }
 

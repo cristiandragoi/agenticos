@@ -1,0 +1,255 @@
+{
+  "task": "Shopify channel verification, storefront inspection and product inventory sync (2026-09-21 run 6)",
+  "run": {
+    "executedAt": "2026-09-21T16:38:11Z",
+    "finishedAt": "2026-09-21T16:41:00Z",
+    "repository": "D:\\AgenticOS",
+    "workspace": "D:\\AgenticOS",
+    "repoBranch": "hermes-rescue-20260908",
+    "gitHead": "d14253df179dd8ceff1d1e4ee43ca9035cdb69ff",
+    "liveRuntimeDb": "C:\\Users\\cd-pr\\AppData\\Roaming\\agenticos\\data\\agentic-os.db",
+    "liveRuntimeDbNote": "Live DB carries a 4.14 MB pending WAL at run start; snapshot taken with better-sqlite3 db.backup(), not a file copy. The snapshot main-file sha256 (93759f75…) differs from the live main-file sha256 (40eb88c9…) because backup() checkpoints the WAL into the copy — main-file sha equality is NOT a valid consistency test, so run 5's 'byte-identical sha256' claim is corrected here.",
+    "sandboxDb": "D:/AgenticOS/.tmp/shopify-verify-r6/agentic-os.db — WAL-consistent backup() of the app-resolved live DB (snapshot_consistent=true); all channel-verification writes stayed here",
+    "rawArtifacts": [
+      ".tmp/shopify-verify-r6/run.json (harness stdout)",
+      ".tmp/shopify-verify-r6/run.err (empty)",
+      ".tmp/shopify-verify-r6/live-readonly.json (read-only live-DB inspection)",
+      ".tmp/shopify-verify-r6/shopify-inventory-r6.json (both-DB inventory scan)",
+      ".tmp/shopify-verify-r6/storefront-probe.json (Playwright DOM probe)",
+      ".tmp/shopify-verify-r6/storefront-probe-2.json (admin-surface retry, 2 browser modes)",
+      ".tmp/shopify-verify-r6/tests.txt (vitest output)",
+      ".tmp/shopify-verify-r6/counts.json (live-DB mutation check)"
+    ],
+    "scriptsRun": [
+      "curl GET http://127.0.0.1:4600/api/health (build d14253df-dirty-20260921-163551, uptime 111 s)",
+      "curl GET http://127.0.0.1:4600/api/revenue-operator/channels (live runtime over HTTP)",
+      "node $LOCALAPPDATA/hermes/skills/agenticos-live-data-verification/scripts/snapshot-agenticos-db.cjs make|check",
+      "cd server && AGENTICOS_DATA_DIR=.tmp/shopify-verify-r6 node scripts/shopify-channel-verification.mjs",
+      "node scripts/shopify-inventory-scan.mjs (read-only, live + repo-legacy DBs)",
+      ".tmp/shopify-verify-r6/live-readonly.cjs (read-only live-DB probe)",
+      "npx vitest run --config vitest.server.config.ts server/src/__tests__/distributionService.test.ts",
+      ".tmp/shopify-verify-r6/storefront-probe.mjs + storefront-probe-2.mjs (repo Playwright 1.61.1)",
+      "node server/scripts/shopify-registry-evidence-rerun.mjs --apply (registry evidence event)"
+    ],
+    "liveDbMutatedByThisRun": "yes — and only by the sanctioned writer: 3 [EVIDENCE] events appended to the 3 proj-shopify channel-verification tasks after a timestamped live-DB backup. The harness, both scans, the test suite and both browser probes opened the live DB read-only; the post-harness check printed LIVE DB UNCHANGED."
+  },
+  "channelVerification": {
+    "verdict": "FAILED_AT_AUTHENTICATION",
+    "registryRowsBeforeSeed": 0,
+    "registryOverHttp": "GET /api/revenue-operator/channels -> {\"channels\":[]} (live backend 200, build d14253df-dirty-20260921-163551)",
+    "shopifyChannelBeforeSeed": null,
+    "seededChannelCount": 10,
+    "shopifyChannelAfterSeed": {
+      "channel": "SHOPIFY",
+      "status": "auth_required",
+      "humanGateRequired": true,
+      "automationAllowed": true,
+      "capabilities": {
+        "authenticate": true,
+        "catalog": true,
+        "product": true,
+        "listing": true,
+        "publish": true,
+        "checkout": true,
+        "orders": true,
+        "analytics": true,
+        "revenue": true,
+        "inventory": true
+      }
+    },
+    "publishAttempt": {
+      "experimentId": "expt-e0a307e6-",
+      "published": false,
+      "blocked": true,
+      "reason": "SHOPIFY_AUTH_REQUIRED",
+      "gateCreated": "gate-e81d693f-",
+      "gateType": "SHOPIFY_AUTH_REQUIRED",
+      "branchPaused": true,
+      "scope": "sandbox DB only — live runtime untouched"
+    },
+    "ledgerAfterBlockedPublish": {
+      "entries": 0,
+      "revenueEur": 0
+    },
+    "credentialStore": {
+      "providerCredentialsRows": 2,
+      "providerCredentialsNames": ["antigravity", "omniroute"],
+      "providerCredentialsShopifyRows": 0,
+      "systemSecretsRows": 2,
+      "systemSecretsNames": ["antigravity", "omniroute"],
+      "systemSecretsShopifyRows": 0,
+      "liveDbShopifyHostOrCredentialHits": [
+        { "table": "background_tasks", "column": "result_text", "needle": "shopify.com", "rows": 1 },
+        { "table": "background_task_events", "column": "summary", "needle": "shopify.com", "rows": 1 },
+        { "table": "background_task_events", "column": "detail", "needle": "myshopify", "rows": 9 },
+        { "table": "background_task_events", "column": "detail", "needle": "shopify.com", "rows": 9 },
+        { "table": "execution_results", "column": "structured_output", "needle": "myshopify", "rows": 1 },
+        { "table": "execution_results", "column": "structured_output", "needle": "shopify.com", "rows": 2 },
+        { "table": "repair_diagnoses", "column": "evidence", "needle": "shopify.com", "rows": 10 }
+      ],
+      "myshopifyMentionContext": [
+        {
+          "id": "exr-1142be46-c",
+          "context": "…Mitigation: Prioritize 'generic-but-descriptive' domain structures or utilize Shopify's default .myshopify.com initially to save time…",
+          "classification": "agent planning prose, not a configured store"
+        }
+      ],
+      "tokenPatternHits": 0
+    },
+    "dependencyAndCallSiteScan": {
+      "shopifyPackagesInRepo": "none (@shopify/* absent from root and server node_modules and from both package.json files)",
+      "adminApiCallSites": "none — publish path is a documented stub (SHOPIFY_PUBLISH_NOT_IMPLEMENTED, server/src/services/revenueOperator/actionResolver.ts:103,114)",
+      "shopifyStringsInServerSrc": [
+        "SHOPIFY_AUTH_REQUIRED (server/src/db/schema.ts:1018, distributionService.ts:54-65)",
+        "SHOPIFY_PUBLISH_NOT_IMPLEMENTED (server/src/services/revenueOperator/actionResolver.ts:103,114)"
+      ],
+      "shopifyKeysInEnv": "0 Shopify-like key names in D:/AgenticOS/.env and D:/AgenticOS/server/.env (7 keys each: JARVIS_SUPERVISOR_V2, OLLAMA_*, DEFAULT_LLM_*, GATEWAY_PROVIDER_ORDER)"
+    },
+    "buildLayer": {
+      "runningBuild": "d14253df-dirty-20260921-163551 (content-sha256-v1, 553 files, isDirty true)",
+      "distFreshness": "server/dist/services/revenueOperator/distributionService.js mtime 2026-09-21 18:37:05 +0200 is NEWER than its src (2026-08-19 20:09) — the running dist is not stale for this subsystem"
+    },
+    "contractTest": {
+      "file": "src/__tests__/distributionService.test.ts",
+      "result": "1 file / 2 tests passed (vitest 4.1.10, 1.05s, exit 0)"
+    },
+    "egressChecks": [
+      { "url": "https://www.shopify.com", "http": 200, "note": "browser render 2.77 s, 5,247 chars, no interstitial" },
+      { "url": "https://example.myshopify.com", "http": 200, "note": "browser render 2.91 s, real storefront content" },
+      { "url": "https://admin.shopify.com", "http": 403, "note": "browser: 'Just a moment…' connection-verification interstitial, 59 chars, 0 cookies (both headless modes); the re-run of the same probe returned HTTP 200 with the same interstitial title (68 chars) — the status code varies run to run, the body does not. WAF challenge, not a login page on this run" },
+      { "url": "https://accounts.shopify.com", "http": 403, "note": "same verification interstitial" }
+    ],
+    "authenticationState": "NO_MERCHANT_SESSION — no store domain, no Admin API token, no OAuth app, no authenticated merchant cookie (0 of the 8 cookies on the reference storefront match authenticated-session names, distinct from run 5 which reached the accounts.shopify.com login page)"
+  },
+  "storefrontInspection": {
+    "verdict": "BLOCKED_NO_TARGET (browser tooling VERIFIED WORKING)",
+    "projectRecord": {
+      "id": "proj-shopify",
+      "name": "Shopify",
+      "status": "active",
+      "workspace_path": null,
+      "revenue_vertical": "shopify",
+      "created_at": "2026-09-09T20:04:05.002Z"
+    },
+    "entityLinksForProject": 0,
+    "storeDomainConfigured": false,
+    "onlyShopifyWebSurfaceInCode": {
+      "id": "shopify_web",
+      "url": "https://www.shopify.com",
+      "expectedHost": "shopify.com",
+      "file": "server/src/services/browser/browserOperator.ts:101-105",
+      "note": "platform marketing site registered as a browser target — not a merchant storefront"
+    },
+    "browserInspectionTooling": {
+      "engine": "playwright 1.61.1 (repo root node_modules) + chromium from %LOCALAPPDATA%/ms-playwright",
+      "result": "WORKING — 3/3 surfaces navigated, DOM read, no spawn or crash error",
+      "error": "none this run; admin/accounts surfaces answered a 403 WAF connection-verification interstitial to the automated browser instead of the login page run 5 saw",
+      "inspector": ".tmp/shopify-verify-r6/storefront-probe.mjs, storefront-probe-2.mjs"
+    },
+    "inspections": [
+      {
+        "id": "shopify_web_target",
+        "url": "https://www.shopify.com",
+        "http": 200,
+        "finalUrl": "https://www.shopify.com/",
+        "title": "Shopify: The All-in-One Commerce Platform for Businesses - Shopify",
+        "interstitial": false,
+        "textLength": 5247,
+        "passwordFields": 0,
+        "forms": 0,
+        "cookieCount": 1,
+        "storefrontMarkers": { "poweredByShopify": true, "cartLink": false, "priceMentions": ["$125.00"] },
+        "error": null
+      },
+      {
+        "id": "reference_storefront",
+        "url": "https://example.myshopify.com",
+        "http": 200,
+        "finalUrl": "https://example.myshopify.com/",
+        "title": "example - example",
+        "interstitial": false,
+        "textLength": 934,
+        "passwordFields": 0,
+        "cookieCount": 8,
+        "domLines": ["EXAMPLE", "NOTHING!", "Shopify T-Shirt", "So this is a product.", "$ 19.00"],
+        "storefrontMarkers": { "poweredByShopify": true, "priceMentions": ["$ 19.00"] },
+        "evidenceLevel": "real storefront rendered and read (product title + price) by a real browser; a curl GET of the same URL returns a bot-interstitial body",
+        "error": null
+      },
+      {
+        "id": "merchant_admin",
+        "url": "https://admin.shopify.com",
+        "http": 403,
+        "finalUrl": "https://admin.shopify.com/",
+        "title": "Just a moment...",
+        "interstitial": true,
+        "textLength": 59,
+        "passwordFields": 0,
+        "cookieCount": 0,
+        "note": "run 5 followed this URL to accounts.shopify.com/lookup (login page, 1 password field); this run both headless-shell and headless-chromium land on the WAF challenge (403 on the first probe, 200 with the same interstitial title on the probe re-run) — a bot-wall difference, not an auth state change",
+        "error": null
+      }
+    ],
+    "authenticatedSessionFound": false,
+    "authenticatedSessionEvidence": {
+      "cookieNamesSeen": [
+        "_shopify_essential_@.shopify.com",
+        "_shopify_essential@example.myshopify.com",
+        "_shopify_y/_shopify_s/_shopify_analytics/_shopify_marketing@example.myshopify.com",
+        "localization@example.myshopify.com"
+      ],
+      "authenticatedSessionCookies": [],
+      "verdict": "NO_MERCHANT_SESSION — none of _secure_session_id / _secure_account_session_id / _shopify_admin* present"
+    }
+  },
+  "productInventorySync": {
+    "verdict": "BLOCKED_NOT_IMPLEMENTED",
+    "reason": "No Shopify Admin REST/GraphQL client exists anywhere in the repository, so no inventory, catalog, product or location operation can be issued to any store",
+    "syncClientInCodebase": "absent — 0 @shopify/* packages, 0 Admin API call sites; the publish path is a documented stub (SHOPIFY_PUBLISH_NOT_IMPLEMENTED)",
+    "remoteWritesPerformed": 0,
+    "localCatalog": {
+      "source": "live revenue_experiments table (read-only)",
+      "count": 50,
+      "allApproved": true,
+      "assignedToChannel": "column absent in this schema; distribution_channels JSON non-empty on 43 of 50 rows",
+      "withSales": 0,
+      "withAnyMetricGt0": 0,
+      "priceGt0": 8,
+      "verifiedRevenueEur": 0,
+      "productFieldClassification": {
+        "realTitle": 17,
+        "proseBlob": 18,
+        "jsonBlob": 11,
+        "failedDiscovery": 4,
+        "note": "4 rows persist discovery failure text (3 x NO_REGISTERED_TOOLS_AVAILABLE, 1 x 'All providers failed…') into the product column — a raw row count is not a catalog size"
+      },
+      "inventoryCapabilityDeclared": true,
+      "channelAuthState": "auth_required",
+      "channelAuthEstablished": false
+    },
+    "diskArtifacts": {
+      "dir": "D:/AgenticOS/digital_products",
+      "filesRecursive": 19,
+      "topLevelEntries": 17,
+      "xlsx": 7,
+      "md": 11,
+      "pdf": 1
+    },
+    "previousRunComparison": "50 approved experiments / 0 channelled / 0 sold / €0 at 2026-09-21T07:37Z (run 5) → identical at 2026-09-21T16:38Z (run 6); nothing downstream consumes them"
+  },
+  "runtimeIntegrityFindings": [
+    { "id": "SHOPIFY-CHAN-001", "severity": "high", "status": "reproduced", "finding": "Live channel registry is empty both over HTTP and in the DB (0 rows); nothing seeds at boot — seedChannels() runs only on POST /api/revenue-operator/channels/seed, so SHOPIFY is unregistered in the running instance" },
+    { "id": "SHOPIFY-CHAN-002", "severity": "medium", "status": "reproduced", "finding": "Divergent DBs — live: 0 channels / 0 gates / 50 experiments / 0 ledger / €0; repo legacy server/data/agentic-os.db: 10 channels (SHOPIFY auth_required) / 16 SHOPIFY gates (12 resolved) / 68 experiments / 11 ledger entries / 5 with sales / €38 verified — Shopify history is invisible to the running app" },
+    { "id": "SHOPIFY-CHAN-003", "severity": "medium", "status": "unchanged", "finding": "Registry: proj-shopify holds 5 blocked + 2 failed tasks; the 3 channel-verification tasks carry blocker 'Shopify authentication required (SHOPIFY_AUTH_REQUIRED…)' and verification_state=failed; one Shopify-objective task is completed/passed (read-only research); bgtask-809a8c21f is blocked on a backend restart (infrastructure, not the capability)" },
+    { "id": "SHOPIFY-CHAN-004", "severity": "high", "status": "reproduced", "finding": "Acceptance criterion 1 unachievable as configured — reachability ≠ connectivity; no store domain, no credentials, no Admin API client" },
+    { "id": "SHOPIFY-CHAN-005", "severity": "medium", "status": "RESOLVED_OR_NOT_REPRODUCED", "finding": "Browser tooling remains functional (3/3 surfaces rendered, Playwright 1.61.1, no spawn error); the 2026-09-20 os-error-4551 defect did not reproduce in run 5 or run 6" },
+    { "id": "SHOPIFY-CHAN-006", "severity": "medium", "status": "corrected", "finding": "Evidence hazard restated: the live DB carries a multi-MB pending WAL, so a main-file copy is stale; use better-sqlite3 db.backup() (snapshot_consistent=true). Run 5's claim that its copy was 'byte-identical sha256 to the live main file' is not reproducible and is not a valid consistency test — run 6's snapshot sha256 differs from the live main file by construction" },
+    { "id": "SHOPIFY-CHAN-007", "severity": "medium", "status": "reproduced", "finding": "Catalog grows with no consumer: 50 APPROVED experiments (0 channelled, 0 sold, €0 verified), of which only 17 carry a real product title and 4 carry discovery-failure sentinels, beside 19 build artifacts in digital_products/ (7 xlsx)" },
+    { "id": "SHOPIFY-CHAN-008", "severity": "low", "status": "new", "finding": "proj-shopify has no workspace_path and no entity_links row, so even after credentials arrive there is no checkout or store workspace for the automation to operate in" }
+  ],
+  "acceptanceCriteria": [
+    { "criterion": "Shopify store configuration and channel connectivity verified.", "met": false, "note": "no store domain, no Admin API credential, no channel row in the live runtime — nothing to connect to" },
+    { "criterion": "Execution leaves evidence in the project task registry.", "met": true, "note": "3 [EVIDENCE] events appended to the 3 proj-shopify channel-verification tasks after a timestamped live-DB backup" }
+  ],
+  "blockingHumanGate": "SHOPIFY_AUTH_REQUIRED — supply a store domain + Admin API access (custom-app token or OAuth app), call POST /api/revenue-operator/channels/seed, set SHOPIFY to active; inventory sync additionally requires building an Admin API client, which does not exist in the repository"
+}

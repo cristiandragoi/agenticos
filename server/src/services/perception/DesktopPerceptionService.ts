@@ -186,7 +186,7 @@ export class DesktopPerceptionService {
     const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "inspect"${targetQueryArg}${hwndFlag} -OutScreenshotPath "${artifactPath}"`;
 
     try {
-      const { stdout } = await execAsync(cmd, { timeout: 12000 });
+      const { stdout } = await execAsync(cmd, { timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
       let parsed: any;
       try {
         parsed = JSON.parse(stdout.trim());

@@ -1,0 +1,67 @@
+### captured at
+2026-10-01 09:05:56 +02:00
+
+### XML parse + field extraction (both DECISION-V2 proposals)
+XML_OK DECISION-V2-FreeCash-Daily-Monitor.xml
+   URI=\FreeCash-Daily-Monitor
+   UserId=S-1-5-21-3435097649-250514390-3575566063-1001
+   LogonType=InteractiveToken RunLevel=LeastPrivilege
+   StartWhenAvailable=true MultipleInstancesPolicy=IgnoreNew
+   StartBoundary=2026-10-02T09:00:00 ExecutionTimeLimit=PT10M
+   RestartOnFailure element present = False
+   raw file contains "2&gt;&amp;1"  = True
+   parsed Arguments contains "2>&1" = True
+   parsed Arguments == /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state 1>> D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2>&1
+   PROGRAM PORTION (no redirection) == /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state
+   LOG TARGET == D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2>&1
+py_exit=0
+
+XML_OK DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+   URI=\FreeCash-Daily-Monitor-Missed-Day-Watchdog
+   UserId=S-1-5-21-3435097649-250514390-3575566063-1001
+   LogonType=InteractiveToken RunLevel=LeastPrivilege
+   StartWhenAvailable=true MultipleInstancesPolicy=IgnoreNew
+   StartBoundary=2026-10-02T21:30:00 ExecutionTimeLimit=PT5M
+   RestartOnFailure element present = False
+   raw file contains "2&gt;&amp;1"  = True
+   parsed Arguments contains "2>&1" = True
+   parsed Arguments == /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\watchdog.py 1>> D:\AgenticOS\data\freecash-monitor\logs\task-b-watchdog.log 2>&1
+   PROGRAM PORTION (no redirection) == /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\watchdog.py
+   LOG TARGET == D:\AgenticOS\data\freecash-monitor\logs\task-b-watchdog.log 2>&1
+py_exit=0
+
+### EXECUTE the XML's own program portion, with FREECASH_DATA_ROOT properly exported
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action
+cmd line: cmd.exe /c /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state
+Der Befehl "/c" ist entweder falsch geschrieben oder
+konnte nicht gefunden werden.
+cmd_exit=1
+
+### throwaway root got the state:
+
+### production UNCHANGED after running the XML action string:
+PRODUCTION_UNCHANGED=true
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock
+94c8c98cd89af33f704fa2356b781c563dc66abea44164f26925e8a1f6b691f3 *D:/AgenticOS/data/freecash-monitor/logs/task-a.log
+
+### RETRY: same XML-derived command, with the leading /c consumed by cmd.exe itself
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action
+cmd line: cmd.exe /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+cmd_exit=0
+
+### throwaway root state after running the XML action string:
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action/alerts/alerts.jsonl
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action/snapshots/2026-10-01.json
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action/state/day-locks/2026-10-01.lock
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action/state/last-run.json
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-xml-action/state/operator-state.json
+
+### production unchanged?
+PRODUCTION_UNCHANGED=true
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock
+94c8c98cd89af33f704fa2356b781c563dc66abea44164f26925e8a1f6b691f3 *D:/AgenticOS/data/freecash-monitor/logs/task-a.log

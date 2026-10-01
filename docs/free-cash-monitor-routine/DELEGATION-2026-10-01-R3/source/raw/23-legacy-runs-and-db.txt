@@ -1,0 +1,27 @@
+=== sqlite files ===
+-rw-r--r-- 1 cd-pr 197609 0 Sep 17 21:38 database.sqlite
+-rw-r--r-- 1 cd-pr 197609 0 Sep 25 14:02 server/data/database.sqlite
+-rw-r--r-- 1 cd-pr 197609 0 Jul 18 09:18 server/database.sqlite
+
+=== does server/database.sqlite have accounts/events_logs/status_checks? ===
+D:/AgenticOS/server/database.sqlite size=0 tables=0 wanted_present=[]
+D:/AgenticOS/server/data/database.sqlite size=0 tables=0 wanted_present=[]
+D:/AgenticOS/database.sqlite size=0 tables=0 wanted_present=[]
+
+=== server/tasks artefacts (did daily-finance-monitor ever run?) ===
+ls: cannot access 'server/tasks/last_status.json': No such file or directory
+-rw-r--r-- 1 cd-pr 197609 526 Sep 20 21:31 server/tasks/daily_monitor.log
+-rw-r--r-- 1 cd-pr 197609  17 Sep 19 21:51 server/tasks/last_run_time.json
+--- tail daily_monitor.log ---
+Found 0 recent earnings event(s) for review
+Daily routine finished (checks=0, approve_needed=False)
+Daily check skipped (run within last 24h)
+Daily check skipped (run within last 24h)
+Daily check skipped (run within last 24h)
+
+=== scripts/monitoring artefacts (did free-cash-daily-check ever run?) ===
+ls: cannot access 'data/monitoring': No such file or directory
+-rw-r--r-- 1 cd-pr 197609 495 Sep 20 21:10 logs/daily_monitor_runtime.log
+
+=== staleness math: session-evidence verifiedAt vs now ===
+verifiedAt 2026-09-23 15:32:31.406000+00:00 now 2026-10-01 07:34:49.417981+00:00 age_days=7.67 -> fresh(<=1d)? False

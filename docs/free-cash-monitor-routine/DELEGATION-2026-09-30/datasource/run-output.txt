@@ -1,0 +1,296 @@
+==============================================================================
+ENVIRONMENT
+==============================================================================
+interpreter            : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+tzdata importable      : True
+FREECASH_DATA_ROOT     : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\datasource\_state-root
+paths.data_root()      : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\datasource\_state-root
+PRODUCTION root        : D:\AgenticOS\data\freecash-monitor
+FREECASH_TZ            : Europe/Berlin
+tz resolve             : {"configured": "Europe/Berlin", "kind": "zoneinfo", "available": true, "offset_now": "+0200"}
+DEFAULT_SOURCE         : operator_state
+FREECASH_READ_SOURCE   : None (unset -> default)
+read source resolved   : operator_state
+
+==============================================================================
+STEP 1 - seed day 1 baseline record: 2026-10-01
+==============================================================================
+{
+  "account_status": "ACTIVE",
+  "balance_cents": 1340,
+  "currency": "USD",
+  "day_key": "2026-10-01",
+  "earnings_total_cents": 1340,
+  "entered_at_utc": "2026-10-01T06:40:00Z",
+  "pending_cents": 0
+}
+
+--- run day1 baseline (2026-10-01T06:35:00Z) exit=0 ---
+  RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+
+==============================================================================
+STEP 2 - seed day 2 record with CHANGED earnings: 2026-10-02
+==============================================================================
+{
+  "account_status": "ACTIVE",
+  "balance_cents": 1670,
+  "currency": "USD",
+  "day_key": "2026-10-02",
+  "earnings_total_cents": 1670,
+  "entered_at_utc": "2026-10-02T06:40:00Z",
+  "pending_cents": 0
+}
+
+--- run day2 earnings moved (2026-10-02T06:35:00Z) exit=0 ---
+  RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+
+==============================================================================
+STEP 3 - same-day run again (no new record, same clock)
+==============================================================================
+--- run day2 duplicate (2026-10-02T06:35:00Z) exit=0 ---
+  SKIP_DUPLICATE_DAY 2026-10-02
+
+==============================================================================
+STEP 4 - seed day 3 record with CHANGED account status: 2026-10-03
+==============================================================================
+{
+  "account_status": "RESTRICTED",
+  "balance_cents": 1670,
+  "currency": "USD",
+  "day_key": "2026-10-03",
+  "earnings_total_cents": 1670,
+  "entered_at_utc": "2026-10-03T06:40:00Z",
+  "pending_cents": 0
+}
+
+--- run day3 status changed (2026-10-03T06:35:00Z) exit=0 ---
+  RUN_OK 2026-10-03 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-03.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-03.lock
+
+==============================================================================
+ARTIFACTS under D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\datasource\_state-root
+==============================================================================
+### state/operator-state.json  (exists=True size=1655)
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "note": "Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.",
+  "how_to": [
+    "Open your own account dashboard in a browser and log in yourself.",
+    "Note four figures: account status, total earnings, current balance, pending amount.",
+    "Append one record to the records list with today's local date as day_key.",
+    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them."
+  ],
+  "records": [
+    {
+      "day_key": "2026-10-01",
+      "entered_at_utc": "2026-10-01T06:40:00Z",
+      "account_status": "ACTIVE",
+      "earnings_total_cents": 1340,
+      "balance_cents": 1340,
+      "pending_cents": 0,
+      "currency": "USD"
+    },
+    {
+      "day_key": "2026-10-02",
+      "entered_at_utc": "2026-10-02T06:40:00Z",
+      "account_status": "ACTIVE",
+      "earnings_total_cents": 1670,
+      "balance_cents": 1670,
+      "pending_cents": 0,
+      "currency": "USD"
+    },
+    {
+      "day_key": "2026-10-03",
+      "entered_at_utc": "2026-10-03T06:40:00Z",
+      "account_status": "RESTRICTED",
+      "earnings_total_cents": 1670,
+      "balance_cents": 1670,
+      "pending_cents": 0,
+      "currency": "USD"
+    }
+  ],
+  "template_record": {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD"
+  }
+}
+
+### state/day-locks/2026-10-01.lock  (exists=True size=0)
+
+
+### state/day-locks/2026-10-02.lock  (exists=True size=0)
+
+
+### state/day-locks/2026-10-03.lock  (exists=True size=0)
+
+
+### state/last-run.json  (exists=True size=339)
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-03",
+  "last_success_day": "2026-10-03",
+  "last_attempt_at_utc": "2026-10-03T06:35:00Z",
+  "last_success_at_utc": "2026-10-03T06:35:00Z",
+  "last_outcome": "STATUS_CHANGED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-03T06:35:00Z"
+}
+
+### state/notified-keys.json  (exists=True size=466)
+{
+  "schema_version": 1,
+  "keys": {
+    "47d85a19609e1576433151fecf021aff15eaa06575cc66bd9e3f5be76e352281": {
+      "first_notified_at_utc": "2026-10-02T06:35:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-10-02T06:35:00Z"
+    },
+    "ab423bf859529b136d21234230bf04ee873cf6deb01465591a6e71669313a23e": {
+      "first_notified_at_utc": "2026-10-03T06:35:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-10-03T06:35:00Z"
+    }
+  }
+}
+
+### snapshots/2026-10-01.json  (exists=True size=493)
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:35:00Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-01"
+  },
+  "degraded": true,
+  "account_status": "ACTIVE",
+  "earnings_total_cents": 1340,
+  "balance_cents": 1340,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "cbf03a7ea89069b8f37d860eca8841eb0cf90d9625921b4cce3bfd99749bfcbc"
+}
+
+### snapshots/2026-10-02.json  (exists=True size=493)
+{
+  "schema_version": 1,
+  "day_key": "2026-10-02",
+  "captured_at_utc": "2026-10-02T06:35:00Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-02"
+  },
+  "degraded": true,
+  "account_status": "ACTIVE",
+  "earnings_total_cents": 1670,
+  "balance_cents": 1670,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "709617445096887704e91ce677f925bc299fd29a5ff721182434c037a2ed4d54"
+}
+
+### snapshots/2026-10-03.json  (exists=True size=497)
+{
+  "schema_version": 1,
+  "day_key": "2026-10-03",
+  "captured_at_utc": "2026-10-03T06:35:00Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-03"
+  },
+  "degraded": true,
+  "account_status": "RESTRICTED",
+  "earnings_total_cents": 1670,
+  "balance_cents": 1670,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "849eeca4732f8306b1c36343a9275b720447ba5aa1388b4dec3993b3c336841c"
+}
+
+### approvals/pending.json  (exists=True size=1875)
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-10-03T06:35:00Z",
+  "items": [
+    {
+      "approval_id": "147089c7-edd8-4b03-8208-bbce2d41b650",
+      "created_at_utc": "2026-10-02T06:35:00Z",
+      "day_key": "2026-10-02",
+      "change_dedupe_key": "47d85a19609e1576433151fecf021aff15eaa06575cc66bd9e3f5be76e352281",
+      "reason": "earnings_total_cents moved from $13.40 to $16.70. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 1670,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    },
+    {
+      "approval_id": "ba0c36a0-c06e-4392-8b44-2530203b6da5",
+      "created_at_utc": "2026-10-03T06:35:00Z",
+      "day_key": "2026-10-03",
+      "change_dedupe_key": "ab423bf859529b136d21234230bf04ee873cf6deb01465591a6e71669313a23e",
+      "reason": "Account status moved from ACTIVE to RESTRICTED. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": "RESTRICTED",
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    }
+  ]
+}
+
+### logs/toast-stub.log  (exists=True size=931)
+[STUB TOAST 2026-10-02T06:35:00Z] [FreeCash] EARNINGS CHANGE 2026-10-02 | Earnings:  $13.40 -> $16.70  (+$3.30) | Balance:   $16.70 (changed too) | Pending:   $0.00 | Status:    ACTIVE (unchanged) | Source:    DEGRADED (operator-entered record for 2026-10-02) | Detail:    alerts.jsonl dedupe=47d85a19609e1576 | ACTION:    No action taken. Review and approve anything you want done. | Approval:  147089c7-edd8-4b03-8208-bbce2d41b650 (PENDING - yours to decide, nothing executes)
+[STUB TOAST 2026-10-03T06:35:00Z] [FreeCash] STATUS CHANGE 2026-10-03 | Account status: ACTIVE -> RESTRICTED | Earnings:  $16.70 (unchanged)  Balance: $16.70 (unchanged) | Source:    DEGRADED (operator-entered record for 2026-10-03) | Detail:    alerts.jsonl dedupe=ab423bf859529b13 | ACTION:    No action taken. Review and approve anything you want done. | Approval:  ba0c36a0-c06e-4392-8b44-2530203b6da5 (PENDING - yours to decide, nothing executes)
+
+### alerts/alerts.jsonl  (raw lines)
+line count: 6
+  [01] {"day_key": "2026-10-01", "dedupe_key": null, "event_id": "b3f5f879-418f-4982-96b8-6f6c2113c7ae", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-10-01. No notification sent. Source DEGRADED (operator-entered record for 2026-10-01).", "observed": {"account_status": "ACTIVE", "balance_cents": 1340, "degraded": true, "earnings_total_cents": 1340, "pending_cents": 0, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T06:35:00Z"}
+  [02] {"day_key": "2026-10-02", "dedupe_key": "47d85a19609e1576433151fecf021aff15eaa06575cc66bd9e3f5be76e352281", "event_id": "f59cd681-478a-4bc7-8923-cb72ecc97180", "event_type": "APPROVAL_PENDING", "message": "Approval item 147089c7-edd8-4b03-8208-bbce2d41b650 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will act on it without you.", "observed": {"approval_id": "147089c7-edd8-4b03-8208-bbce2d41b650", "change_dedupe_key": "47d85a19609e1576433151fecf021aff15eaa06575cc66bd9e3f5be76e352281", "execution_state": "NOT_EXECUTED", "status": "PENDING"}, "severity": "notify", "ts_utc": "2026-10-02T06:35:00Z"}
+  [03] {"day_key": "2026-10-02", "dedupe_key": "47d85a19609e1576433151fecf021aff15eaa06575cc66bd9e3f5be76e352281", "event_id": "d7f68902-e3ca-44b1-9b73-aac224c1c13b", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-10-02\nEarnings:  $13.40 -> $16.70  (+$3.30)\nBalance:   $16.70 (changed too)\nPending:   $0.00\nStatus:    ACTIVE (unchanged)\nSource:    DEGRADED (operator-entered record for 2026-10-02)\nDetail:    alerts.jsonl dedupe=47d85a19609e1576\nACTION:    No action taken. Review and approve anything you want done.\nApproval:  147089c7-edd8-4b03-8208-bbce2d41b650 (PENDING - yours to decide, nothing executes)", "observed": {"field": "earnings_total_cents", "new_value": 1670, "old_value": 1340, "prior_day_key": "2026-10-01"}, "severity": "notify", "ts_utc": "2026-10-02T06:35:00Z"}
+  [04] {"day_key": "2026-10-02", "dedupe_key": null, "event_id": "42fcbaaf-e85e-4a66-a3c3-e7884c26ab1a", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-10-02 already consumed (lock 2026-10-02.lock). Duplicate run performed no read and wrote no snapshot.", "observed": {"lock": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\datasource\\_state-root\\state\\day-locks\\2026-10-02.lock"}, "severity": "info", "ts_utc": "2026-10-02T06:35:00Z"}
+  [05] {"day_key": "2026-10-03", "dedupe_key": "ab423bf859529b136d21234230bf04ee873cf6deb01465591a6e71669313a23e", "event_id": "4118291a-5e18-4917-acaa-1780c4e6ffa0", "event_type": "APPROVAL_PENDING", "message": "Approval item ba0c36a0-c06e-4392-8b44-2530203b6da5 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will act on it without you.", "observed": {"approval_id": "ba0c36a0-c06e-4392-8b44-2530203b6da5", "change_dedupe_key": "ab423bf859529b136d21234230bf04ee873cf6deb01465591a6e71669313a23e", "execution_state": "NOT_EXECUTED", "status": "PENDING"}, "severity": "notify", "ts_utc": "2026-10-03T06:35:00Z"}
+  [06] {"day_key": "2026-10-03", "dedupe_key": "ab423bf859529b136d21234230bf04ee873cf6deb01465591a6e71669313a23e", "event_id": "e74194a3-f8b1-4400-be97-28e35b2acb50", "event_type": "STATUS_CHANGED", "message": "[FreeCash] STATUS CHANGE 2026-10-03\nAccount status: ACTIVE -> RESTRICTED\nEarnings:  $16.70 (unchanged)  Balance: $16.70 (unchanged)\nSource:    DEGRADED (operator-entered record for 2026-10-03)\nDetail:    alerts.jsonl dedupe=ab423bf859529b13\nACTION:    No action taken. Review and approve anything you want done.\nApproval:  ba0c36a0-c06e-4392-8b44-2530203b6da5 (PENDING - yours to decide, nothing executes)", "observed": {"field": "account_status", "new_value": "RESTRICTED", "old_value": "ACTIVE", "prior_day_key": "2026-10-02"}, "severity": "notify", "ts_utc": "2026-10-03T06:35:00Z"}
+
+==============================================================================
+SUMMARY
+==============================================================================
+EARNINGS_CHANGED dedupe key (day2) = 47d85a19609e1576433151fecf021aff15eaa06575cc66bd9e3f5be76e352281
+  present in notified-keys.json : True
+  entry                          : {"delivery": "STUB_OK", "first_notified_at_utc": "2026-10-02T06:35:00Z", "updated_at_utc": "2026-10-02T06:35:00Z"}
+STATUS_CHANGED dedupe key (day3)  = ab423bf859529b136d21234230bf04ee873cf6deb01465591a6e71669313a23e
+  present in notified-keys.json : True
+  entry                          : {"delivery": "STUB_OK", "first_notified_at_utc": "2026-10-03T06:35:00Z", "updated_at_utc": "2026-10-03T06:35:00Z"}
+
+PRODUCTION ROOT UNTOUCHED CHECK
+  operator-state.json size (prod): 879

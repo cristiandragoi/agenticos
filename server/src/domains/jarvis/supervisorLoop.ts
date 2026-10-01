@@ -535,8 +535,37 @@ export async function handleSupervisorV2Stream(
   }
 
   // ── Operational Controller Intercept (Evidence-First Grounding) ──
-  const { OperationalController } = await import('./operationalEvidence.js');
-  const opIntercept = await OperationalController.handleOperationalRequest(prompt, conversationId);
+  // D-4: perception is not a task lookup. A turn that continues an active
+  // perception goal, or that carries camera/screen perception intent, must never
+  // be answered by the background-task evidence path (which is where
+  // "No matching task exists." comes from). Perception is decided FIRST, in the
+  // authoritative early perception layer, and the intercept is skipped for it.
+  const { decidePerceptionTurn } = await import('./perception/perceptionIntent.js');
+  const { getActivePerception } = await import('./perception/perceptionFocus.js');
+  const perceptionClaim = decidePerceptionTurn({
+    prompt,
+    conversationId,
+    turnId: operationId,
+    focus: getActivePerception(conversationId),
+  });
+  const perceptionOwnsTurn =
+    perceptionClaim.claimed ||
+    perceptionClaim.camera?.isCameraPerception === true ||
+    perceptionClaim.foreground?.isReadForegroundScreen === true;
+  if (perceptionOwnsTurn) {
+    logger.info('[SupervisorLoop] PERCEPTION_OWNS_TURN — operational intercept skipped', {
+      kind: perceptionClaim.kind,
+      capability: perceptionClaim.capability || null,
+      reason: perceptionClaim.reason,
+    });
+  }
+
+  const { OperationalController } = perceptionOwnsTurn
+    ? { OperationalController: null as any }
+    : await import('./operationalEvidence.js');
+  const opIntercept = perceptionOwnsTurn
+    ? null
+    : await OperationalController.handleOperationalRequest(prompt, conversationId);
   if (opIntercept) {
     writeSse('intent', { type: 'operational_control', route: 'operational_control', mode: 'direct_conversation', confidence: 1, operationId });
     const parts = opIntercept.reply.match(/.{1,140}(?:\s|$)/g) || [opIntercept.reply];

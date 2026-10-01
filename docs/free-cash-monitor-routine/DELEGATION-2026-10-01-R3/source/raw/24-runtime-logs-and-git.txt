@@ -1,0 +1,48 @@
+=== logs/daily_monitor_runtime.log ===
+[2026-09-20 19:10:50 UTC] action=fetch_error day=unknown details=HTTPConnectionPool(host='localhost', port=3001): Max retries exceeded with url: /api/v1/status/metrics (Caused by NewConnectionError("HTTPConnection(host='localhost', port=3001): Failed to establish a new connection: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte"))
+[2026-09-20 19:10:50 UTC] action=daily_check_failed day=2026-09-20 details=metrics_not_available
+=== server/tasks/last_run_time.json ===
+1789847478.493505
+=== server/tasks/daily_monitor.log (full) ===
+Running in SIMULATE mode
+Skipping account balance read due to mode or DB issue
+Earnings check skipped in SIMULATE mode (use with test flags)
+Daily routine finished (checks=0, approve_needed=False)
+Database connected to D:\AgenticOS\server\tasks\..\database.sqlite
+Checked 0 account(s): []
+Found 0 recent earnings event(s) for review
+Daily routine finished (checks=0, approve_needed=False)
+Daily check skipped (run within last 24h)
+Daily check skipped (run within last 24h)
+Daily check skipped (run within last 24h)
+=== full git status (confirm only my new dir) ===
+ M electron/main.ts
+ M electron/processOwnership.ts
+ M package-lock.json
+ M server/scripts/desktop_perception.ps1
+ M server/scripts/piper_tts.py
+ M server/src/domains/controlPlane/ActionClaimGuard.ts
+ M server/src/domains/controlPlane/ArgusService.ts
+ M server/src/domains/controlPlane/AutonomousRecoveryEngine.ts
+ M server/src/domains/controlPlane/CapabilityDiscovery.ts
+ M server/src/domains/controlPlane/ControlPlaneExecutor.ts
+ M server/src/domains/controlPlane/ControlPlaneTurnHandler.ts
+ M server/src/domains/controlPlane/EngineeringWorkerRegistry.ts
+ M server/src/domains/controlPlane/GoalLifecycle.ts
+ M server/src/domains/controlPlane/UniversalVerifier.ts
+ M server/src/domains/controlPlane/WindowsApplicationResolver.ts
+ M server/src/domains/controlPlane/types.ts
+ M server/src/domains/conversations/service.ts
+ M server/src/domains/jarvis/conversationLanguage.ts
+ M server/src/domains/jarvis/execution/executors/browserExecutor.ts
+ M server/src/domains/jarvis/execution/executors/desktopExecutor.ts
+ M server/src/domains/jarvis/execution/executors/terminalExecutor.ts
+ M server/src/domains/jarvis/execution/universalExecutionController.ts
+ M server/src/domains/jarvis/intentRouter.ts
+ M server/src/domains/jarvis/investigation.ts
+ M server/src/domains/jarvis/orchestrator.ts
+ M server/src/domains/jarvis/supervisorLoop.ts
+ M server/src/domains/jarvis/supervisorTools.ts
+ M server/src/domains/jarvisNext/jarvisNextAgent.ts
+ M server/src/domains/jarvisNext/speechArbiter.ts
+ M server/src/domains/jarvisNext/turnRouter.ts

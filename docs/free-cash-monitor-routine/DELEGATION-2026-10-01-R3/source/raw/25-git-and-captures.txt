@@ -1,0 +1,33 @@
+=== git status for my delegation dir (should be untracked only) ===
+?? docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/
+=== untracked entries mentioning my dir ===
+=== raw captures present ===
+total 149
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:35 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:33 ..
+-rw-r--r-- 1 cd-pr 197609  1578 Okt  1 09:28 01-live-http-probes.txt
+-rw-r--r-- 1 cd-pr 197609  3868 Okt  1 09:28 02-listeners-and-procs.txt
+-rw-r--r-- 1 cd-pr 197609  1358 Okt  1 09:29 03-state-roots.txt
+-rw-r--r-- 1 cd-pr 197609  1159 Okt  1 09:29 04-legacy-existence.txt
+-rw-r--r-- 1 cd-pr 197609 13619 Okt  1 09:29 05-state-root-writers.txt
+-rw-r--r-- 1 cd-pr 197609  1117 Okt  1 09:29 06-false-compliance.txt
+-rw-r--r-- 1 cd-pr 197609  9276 Okt  1 09:30 07-state-contents.txt
+-rw-r--r-- 1 cd-pr 197609  4925 Okt  1 09:30 08-finance-monitor-and-routes.txt
+-rw-r--r-- 1 cd-pr 197609  3295 Okt  1 09:30 09-server-mounts.txt
+-rw-r--r-- 1 cd-pr 197609   875 Okt  1 09:30 10-freecash-service.txt
+-rw-r--r-- 1 cd-pr 197609  3983 Okt  1 09:30 11-freecash-auth-endpoint.txt
+-rw-r--r-- 1 cd-pr 197609  5566 Okt  1 09:31 12-prereq-evidence-paths.txt
+-rw-r--r-- 1 cd-pr 197609   839 Okt  1 09:31 13-evidence-file-search.txt
+-rw-r--r-- 1 cd-pr 197609  1636 Okt  1 09:31 14-resolveddbpath.txt
+-rw-r--r-- 1 cd-pr 197609  1590 Okt  1 09:31 15-dbpath.txt
+-rw-r--r-- 1 cd-pr 197609  2985 Okt  1 09:31 16-appdata-evidence.txt
+-rw-r--r-- 1 cd-pr 197609  3004 Okt  1 09:31 17-evidence-artifacts.txt
+-rw-r--r-- 1 cd-pr 197609  1084 Okt  1 09:32 18-evidence-contents.txt
+-rw-r--r-- 1 cd-pr 197609  1362 Okt  1 09:32 19-transport-probe.txt
+-rw-r--r-- 1 cd-pr 197609  1549 Okt  1 09:33 20b-operator-source-present.txt
+-rw-r--r-- 1 cd-pr 197609  2210 Okt  1 09:33 20-operator-source-e2e.txt
+-rw-r--r-- 1 cd-pr 197609 19713 Okt  1 09:34 21-scheduling-and-refs.txt
+-rw-r--r-- 1 cd-pr 197609  3298 Okt  1 09:34 22-legacy-verification.txt
+-rw-r--r-- 1 cd-pr 197609  1449 Okt  1 09:34 23-legacy-runs-and-db.txt
+-rw-r--r-- 1 cd-pr 197609  2744 Okt  1 09:34 24-runtime-logs-and-git.txt
+-rw-r--r-- 1 cd-pr 197609   201 Okt  1 09:35 25-git-and-captures.txt

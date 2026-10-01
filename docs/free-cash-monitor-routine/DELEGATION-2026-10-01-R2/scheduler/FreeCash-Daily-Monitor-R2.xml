@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor-R2.xml : Task definition for the canonical Free Cash
+  daily read-only status monitor (R1: exactly one status read per operator-local
+  Europe/Berlin calendar day).
+
+  DELEGATION: DELEGATION-2026-10-01-R2 / DESIGN TRACK 2.
+
+  STATUS: INERT TEMPLATE.  This file registers nothing.  It becomes a scheduled
+  task only when a human runs the approval command in REGISTRATION-COMMAND.txt
+  (rule R4: human approval before any external action).
+
+  NO SECRETS.  No credential, token, cookie or password appears here: the
+  routine is read-only and holds no credential at all.
+
+  ELEMENT ORDER is copied from a task this Windows build itself produced
+  (read-only export: schtasks /Query /TN "\cua-driver-serve" /XML), so the
+  sequence RegistrationInfo, Principals, Settings, Triggers, Actions and the
+  child order inside Settings match what this host serialises.  Task version 1.3
+  is the version that same export carried.
+
+  WHY XML AND NOT A schtasks /Create ONE-LINER:
+    StartWhenAvailable=true is the ONLY catch-up mechanism this route offers for
+    a machine that was asleep or off at the fire time, and schtasks /Create
+    exposes NO switch for it.  The XML is required to obtain it.
+
+  CHOSEN SEMANTICS, AND WHY
+    StartBoundary 2026-10-02T09:00:00
+        = the day AFTER the delegation date.  A StartBoundary in the past,
+          combined with StartWhenAvailable=true, fires ONE catch-up run at
+          registration time; that run would consume the day's R1 lock.  Set this
+          to the day AFTER your intended first real run.
+    StartWhenAvailable true
+        = a missed 09:00 (machine asleep or off) fires ONCE when the machine is
+          next available instead of being lost.  This is the slept-machine
+          catch-up.  It is intentionally combined with the routine's own
+          in-band MISSED_DAY detection, which reports the gap on the next run.
+    WakeToRun NOT set
+        = the task never wakes the machine.  A read-only status check does not
+          justify waking the operator's computer; catching up on wake is enough.
+    MultipleInstancesPolicy IgnoreNew
+        = a slow run can never be stacked by the next trigger.
+    No RestartOnFailure
+        = failure semantics are explicitly "no retry-until-success loop".  A
+          failed read leaves the day lock in place (the day is spent) and the
+          routine records RUN_FAILED; the watchdog reports it.  A retry loop
+          would be a second read attempt in the same day.
+    RunLevel LeastPrivilege (/RL LIMITED equivalent)
+        = NEVER HighestAvailable: nothing here needs elevation.
+    LogonType InteractiveToken
+        = per user, interactive session only.  The routine's desktop-toast
+          transport needs a real desktop session; S4U or PASSWORD would run
+          without one and the balloon would go nowhere.
+    ExecutionTimeLimit PT10M
+        = the whole run is a few seconds of local file I/O; ten minutes is a
+          generous ceiling.
+    DisallowStartIfOnBatteries / StopIfGoingOnBatteries false
+        = a laptop on battery still performs the day's one read.
+-->
+<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash daily read-only status monitor (R1: exactly one status read per operator-local Europe/Berlin calendar day). Non-elevated, per-user, LeastPrivilege, IgnoreNew, StartWhenAvailable, no retry-until-success. Registers nothing by itself; contains no secret.</Description>
+    <URI>\FreeCash-Daily-Monitor-R2</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T09:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R2\scheduler\freecash-daily.cmd"</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

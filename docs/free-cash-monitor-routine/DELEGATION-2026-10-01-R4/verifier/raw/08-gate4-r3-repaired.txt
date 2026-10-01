@@ -1,0 +1,57 @@
+========================================================================================
+rule_gate_r3.py -- independent AST gate, canonical rule numbering
+package: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\pkg-repaired
+========================================================================================
+
+Rule 1  at most one status read per Europe/Berlin calendar day.
+  [PASS] R1.1  day lock is an atomic O_CREAT|O_EXCL exclusive-create keyed on the local calendar day
+          seen: gate.py:118 os.open(O_CREAT|O_EXCL|O_WRONLY) in acquire_day_lock
+          seen: gate.py:95 day_key -> .date().isoformat(); lock file = '%s.lock' % day
+  [PASS] R1.2  acquire_day_lock() is called before any status-read call in the same function
+          seen: run_daily_check.py _run(): lock :309 < first read :372
+  [PASS] R1.3  the data-less outcome is NOT a member of gate.SUCCESS_OUTCOMES
+          seen: degraded outcome 'MONITOR_DEGRADED' is not in SUCCESS_OUTCOMES ['BALANCE_CHANGED', 'EARNINGS_CHANGED', 'INITIAL_BASELINE', 'OK_NO_CHANGE', 'STATUS_CHANGED']
+  [PASS] R1.4  the data_available=False branch does not assign last_success_day / zero the miss counter
+          seen: data-less branch only sets the outcome; last_success_day is untouched there
+  >>> RULE 1 RESULT: PASS
+
+Rule 2  no earning/withdrawal/transaction action; read-only transport only.
+  [PASS] R2.1  only readonly_client.py imports a socket/HTTP library
+          seen: imports of ['aiohttp', 'ftplib', 'http', 'httpx', 'requests', 'smtplib', 'socket', 'urllib'] confined to readonly_client.py
+  [PASS] R2.2  readonly_client.ALLOWED_METHODS is a subset of {GET, HEAD}
+          seen: ALLOWED_METHODS=['GET', 'HEAD']
+  [PASS] R2.3  ALLOWED_PATHS admits no earning/write endpoint and ALLOWED_HOSTS is loopback-only
+          seen: ALLOWED_PATHS=['^/api/v1/status/metrics$', '^/api/v1/status$']
+          seen: ALLOWED_HOSTS=['127.0.0.1', '::1', '[::1]', 'localhost']
+  [PASS] R2.4  no write/earning call shape in any enforcement module (AST, not grep)
+          seen: no .post/.put/.patch/.delete, no body-bearing urlopen, no POST/PUT/PATCH/DELETE literal in 10 modules
+  >>> RULE 2 RESULT: PASS
+
+Rule 3  exactly once per change, deduplicated.
+  [PASS] R3.1  prior snapshot is loaded before the current snapshot is written
+          seen: run_daily_check.py _run(): load_prior_snapshot :402 < save_snapshot :405
+  [PASS] R3.2  changedetect.compare() compares the four fields exactly (no tolerance/threshold)
+          seen: changedetect.py:226 compare() has no order comparison; equality only
+  [PASS] R3.3  the dedupe key is written to the index before the sender is invoked
+          seen: notify.py:224 record_notified_key before sender :231
+  >>> RULE 3 RESULT: PASS
+
+Rule 4  explicit named-human approval; no execution path.
+  [PASS] R4.1  no dynamic-code or shell execution primitive (eval/exec/bare compile/__import__/runpy/os.system/os.popen)
+          seen: no eval/exec/bare-compile/__import__/runpy/os.system/os.popen in 10 modules
+  [PASS] R4.1b  any subprocess call is confined to notify.py AND its argv names no network/earning tool
+          seen: subprocess sites (local notifier only): ['notify.py:184']
+  [PASS] R4.2  approval item's expires_at_utc/execution_state/execution_allowed resolve to the frozen literals
+          seen: approval_queue.py:108 expires_at_utc = None
+          seen: approval_queue.py:108 execution_state = 'NOT_EXECUTED'
+          seen: approval_queue.py:108 execution_allowed_by_this_routine = False
+  [PASS] R4.3a  a decider-identity guard exists (absence of any guard accepts any label)
+          seen: approval_queue.py:149 membership guard present (1 comparison(s))
+  [PASS] R4.3b  the guard is an allowlist of human identities (a denylist admits 'hermes-agent'/'assistant'/'claude')
+          seen: guard classifies as ['allowlist'] (['HUMAN_OPERATORS', 'who'])
+  >>> RULE 4 RESULT: PASS
+
+----------------------------------------------------------------------------------------
+SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+VERDICT: COMPLIANT -- all four canonical operator rules enforced
+----------------------------------------------------------------------------------------

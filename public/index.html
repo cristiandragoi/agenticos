@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>AgenticOS - Human Gate Approvals</title>
+    <style>
+      :root {
+        --bg: rgb(15, 22, 35);
+        --fg: #e5e7eb;
+        --muted-fg: #9ca3af;
+        --accent: #6366f1;
+        --success: #22c55e;
+        --error: #ef4444;
+        --card: rgb(22, 27, 38);
+        --border: rgb(37, 42, 53);
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      body { background: var(--bg); color: var(--fg); min-height: 100vh; padding: 32px; }
+      h1 { margin-bottom: 16px; font-size: 28px; color: var(--fg); }
+      .subtitle { color: var(--muted-fg); margin-bottom: 24px; }
+      .gate-list { display: grid; gap: 16px; max-width: 1000px; margin: 0 auto; }
+      .gate-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+      .gate-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+      .gate-type-badge { padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+      .type-outbound { background: rgba(59, 130, 83, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+      .type-shopify { background: rgba(56, 189, 248, 0.2); color: #67e8f9; border: 1px solid #06b6d4; }
+      .gate-id { font-family: monospace; color: var(--muted-fg); }
+      .gate-task { font-size: 13px; color: var(--accent); margin-left: auto; }
+      .details { padding: 12px; background: rgb(8, 9, 15); border-radius: 6px; margin-bottom: 16px; font-size: 14px; line-height: 1.6; }
+      .draft-msg { color: var(--fg); font-style: italic; white-space: pre-wrap; max-width: 500px; }
+      .reason { color: var(--muted-fg); margin-bottom: 8px; }
+      .buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+      button { padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.2s; }
+      button:hover { opacity: 0.85; }
+      .btn-approve { background: var(--success); color: white; }
+      .btn-reject { background: var(--error); color: white; }
+      .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: currentcolor; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 10px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .loading { text-align: center; padding: 48px; color: var(--muted-fg); }
+      .status-pill { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; background: rgb(60, 63, 67); color: var(--muted-fg); border: 1px solid var(--border); }
+      .empty-state { text-align: center; padding: 48px; color: var(--muted-fg); }
+      .status-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 24px; background: #0d1117; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted-fg); display: flex; align-items: center; gap: 12px; }
+      .status-pill { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 12px; margin-right: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>⏳ Pending Human Gate Approvals</h1>
+    <div class="subtitle">Review and resolve human intervention gates required by Revenue Operator workflows</div>
+    
+    <div id="app" class="loading">Loading open gates...</div>
+    
+    <div class="status-bar">
+      <span class="status-pill">Live</span>
+      <span>Connected to backend</span>
+    </div>
+
+    <script>
+      const APP_ROOT = '/';
+      
+      async function fetchOpenGates() {
+        const response = await fetch(APP_ROOT + '/api/background-tasks/human-gates/open');
+        if (!response.ok) throw new Error('Failed to fetch open gates');
+        return await response.json();
+      }
+      
+      function renderGate(gate, index) {
+        const card = document.createElement('div');
+        card.className = 'gate-card';
+        
+        const typeBadge = gate.type === 'OUTBOUND_APPROVAL' 
+          ? '<span class="gate-type-badge type-outbound">Outbound Approval</span>'
+          : '<span class="gate-type-badge type-shopify">Shopify Auth Required</span>';
+        
+        const taskInfo = gate.taskId ? `<span class="gate-task">Task: ${gate.taskId.substring(0,12)}</span>` : '';
+        const reasonHtml = gate.reason ? `\n<div class="reason"><strong>Reason:</strong> ${escape(gate.reason)}</div>` : '';
+        
+        if (gate.type === 'OUTBOUND_APPROVAL') {
+          return `
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+              ${typeBadge} ${index + 1}. <span class="gate-id">${gate.id}</span> ${taskInfo}
+              <span class="status-pill">${gate.type}</span>
+            </div>
+            <div class="details">
+              <strong>Recipient:</strong> ${escape(gate.recipient || '—')}<br>
+              ${reasonHtml}
+              <div style="margin-top:8px;"><strong>Draft Message:</strong></div>
+              <pre class="draft-msg" style="margin-top:6px;">${escape(gate.outboundDraftMessage || 'No draft available')}</pre>
+            </div>
+            <div class="buttons">
+              <button class="btn-approve" onclick="handleGateAction(${index}, 'APPROVE', '${gate.id}')">✓ Approve</button>
+              <button class="btn-reject" onclick="handleGateAction(${index}, 'REJECT', '${gate.id}')">✗ Reject</button>
+            </div>
+          `;
+        } else {
+          return `
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+              ${typeBadge} ${index + 1}. <span class="gate-id">${gate.id}</span> ${taskInfo}
+              <span class="status-pill">${gate.type}</span>
+            </div>
+            <div class="details">
+              ${reasonHtml}
+              <strong>Reason:</strong> Shopify authentication required to complete this catalog or product upload.<br>
+              Please open the OAuth URL below in your browser to authorize AgenticOS to access your Shopify store.
+              
+              <div style="margin-top:12px;"><strong>Shopify OAuth URL:</strong></div>
+              <a href="${escape(gate.shopifyOAuthUrl || '#')}" target="_blank" class="shopify-link" id="link-${index}">
+                🔗 Authorize in Browser (opens new tab) →
+              </a>
+            </div>
+            <div class="buttons">
+              <button class="btn-approve" onclick="attemptShopifyAuth(${index}, '${gate.id}')">✓ Complete in Browser</button>
+              <button class="btn-reject" onclick="handleGateAction(${index}, 'REJECT', '${gate.id}')">✗ Reject</button>
+            </div>
+          `;
+        }
+      }
+      
+      function handleGateAction(index, action, gateId) {
+        const gate = gates[index];
+        
+        // Use the approval endpoint defined in backgroundTasks.ts
+        fetch(APP_ROOT + `/api/background-tasks/${gate.taskId}/gates/${gate.id}/${action}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(result => {
+          if (result?.success || result?.id === gateId) {
+            // Success - remove card with subtle feedback
+            const card = document.querySelectorAll('.gate-card')[index];
+            card.style.opacity = '0';
+            setTimeout(() => {
+              card.remove();
+              checkCompletion();
+            }, 300);
+          } else {
+            alert(result?.error || action === 'REJECT' ? 'Gate rejected successfully' : 'Failed to update gate');
+          }
+        })
+        .catch(err => {
+          console.error(action, gateId, err);
+          alert(`${action} failed: ${err.message}`);
+        });
+      }
+      
+      function attemptShopifyAuth(index, gateId) {
+        if (!gates[index]?.shopifyOAuthUrl) {
+          alert('No OAuth URL available for this gate. Please use the browser button instead.');
+          return;
+        }
+        window.open(gates[index].shopifyOAuthUrl || APP_ROOT + `/oauth/shopify/callback?state=${gateId}&response_type=code`, '_blank');
+      }
+      
+      function escape(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/>/g, '&gt;')
+          .replace(/</g, '&lt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+      
+      function checkCompletion() {
+        const remain = document.querySelectorAll('.gate-card').length;
+        if (remain === 0) {
+          document.getElementById('app').innerHTML = `
+            <div class="empty-state">
+              <h2>✅ No pending approvals</h2>
+              <p>All human gates have been resolved. Revenue workflows can continue.</p>
+            </div>
+          `;
+        }
+      }
+      
+      // Initialize
+      fetchOpenGates()
+        .then(gates => {
+          this.gates = gates;
+          document.getElementById('app').innerHTML = '';
+          
+          if (!gates || gates.length === 0) {
+            document.getElementById('app').innerHTML = `
+              <div class="empty-state">
+                <h2>✅ No pending approvals</h2>
+                <p>All human gates have been resolved. Revenue workflows can continue.</p>
+              </div>
+            `;
+          } else {
+            gates.forEach((gate, i) => {
+              const card = document.createElement('div');
+              card.className = 'gate-card';
+              card.innerHTML = renderGate(gate, i);
+              document.getElementById('app').appendChild(card);
+            });
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load gates:', err);
+          document.getElementById('app').innerHTML = `
+            <div class="empty-state">
+              <h2>⚠️ Unable to load approvals</h2>
+              <p>Could not connect to the approval backend. Please check:</p>
+              <ul style="text-align:left; margin-top:12px;">
+                <li>The backend server is running</li>
+                <li>Your internet connection to ${APP_ROOT}</li>
+              </ul>
+            </div>
+          `;
+        });
+      
+      // Listen for OAuth callback (optional refinement)
+      // The Shopify OAuth redirect should be handled by the browser window after clicking the link/button.
+    </script>
+  </body>
+</html>

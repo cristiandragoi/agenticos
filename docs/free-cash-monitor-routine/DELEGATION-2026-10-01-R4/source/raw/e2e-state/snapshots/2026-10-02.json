@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "day_key": "2026-10-02",
+  "captured_at_utc": "2026-10-02T08:00:00Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-02"
+  },
+  "degraded": true,
+  "account_status": "ACTIVE",
+  "earnings_total_cents": 2540,
+  "balance_cents": 2540,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "d1e82cb30a2fe6a1f522edf9d0847f71f5dbf05e3b49196bd2e720e09c764c5e"
+}

@@ -1,0 +1,52 @@
+--- a/monitoring/freecash/approval_queue.py (shipped)
++++ b/proposed/approval_queue_allowlist.py (proposed, unapplied)
+@@ -51,10 +51,25 @@
+ #: an instruction this routine carries out.
+ ACTION_LABEL_FOR_HUMAN_REVIEW = "REQUEST_PAYOUT"  # readonly-exempt: design-schema label for a human decision; no code executes it
+ 
+-#: A machine may not sign a decision.
++#: PROPOSED (workflow stream S1) -- the guard is an ALLOWLIST read from
++#: <data root>/state/human-deciders.json, not a denylist of ten literal words.  The ten
++#: words are kept only as defence in depth: an operator who pasted one of them into the
++#: allowlist still could not sign with it.
+ NON_HUMAN_DECIDERS = frozenset(
+     {"system", "routine", "automation", "agent", "cron", "scheduler", "monitor", "bot", "script", "machine"}
+ )
++
++HUMAN_DECIDERS_FILENAME = "human-deciders.json"
++
++
++def load_human_deciders():
++    """Return (lowercased names, path).  Missing/malformed/empty file -> empty set."""
++    path = paths.state_dir() / HUMAN_DECIDERS_FILENAME
++    document = paths.read_json(path, default=None)
++    names = []
++    if isinstance(document, dict) and isinstance(document.get("deciders"), list):
++        names = [str(name).strip() for name in document["deciders"] if str(name).strip()]
++    return {name.lower() for name in names}, path
+ 
+ NAG_INTERVAL_DAYS = 7
+ NAG_EVENT = "APPROVAL_PENDING"
+@@ -150,10 +165,21 @@
+     who = (name or "").strip()
+     if not who:
+         raise NotHumanError("--by is required: a decision must name the human who made it")
++    allowed, path = load_human_deciders()
++    if not allowed:
++        raise NotHumanError(
++            "refused: no human deciders are configured; add your own name to %s "
++            "(an empty allowlist refuses everyone)" % path
++        )
+     if who.lower() in NON_HUMAN_DECIDERS:
+         raise NotHumanError(
+-            "refused: %r is not a human identity; this routine may only record a "
++            "refused: %r is a machine identity; this routine may only record a "
+             "decision made by a person" % who
++        )
++    if who.lower() not in allowed:
++        raise NotHumanError(
++            "refused: %r is not on the human-deciders allowlist %s; an unlisted identity "
++            "may not sign (the shipped denylist would have accepted it)" % (who, path)
+         )
+     return who
+ 

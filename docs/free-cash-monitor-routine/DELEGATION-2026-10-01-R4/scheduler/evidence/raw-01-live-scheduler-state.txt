@@ -1,0 +1,30 @@
+### captured at
+Do,  1. Okt 2026 11:44:04
+
+### interpreter of record
+3.11.9 Europe/Berlin tzdata 2025.3
+
+### CMD1: /c/Windows/System32/schtasks.exe /query /fo LIST | grep -i -E 'free|cash'
+grep_exit=1
+
+### CMD2: schtasks task-name lines filtered
+namen_grep_exit=1
+
+### CMD3: hermes cron list
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+cron_list_exit=0
+
+### CMD4: hermes cron status
+
+✓ Gateway is running — cron jobs will fire automatically
+  PID: 392
+  Ticker heartbeat: 26s ago
+
+  No active jobs
+
+cron_status_exit=0
+
+### CMD5: ls C:/Users/cd-pr/AppData/Local/hermes/scripts/
+ls: cannot access 'C:/Users/cd-pr/AppData/Local/hermes/scripts/': No such file or directory
+ls_exit=2

@@ -1,0 +1,9 @@
+$ export FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2-metrics-3001
+$ cd D:/AgenticOS/monitoring/freecash && FREECASH_TOAST_STUB=1 python run_daily_check.py --source metrics_http
+  # no --base-url => readonly_client.DEFAULT_BASE_URL = http://localhost:3001
+RUN_FAILED 2026-10-01 reason=ReadError: GET /api/v1/status/metrics failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+exit=5
+
+$ cat alerts/alerts.jsonl
+{"day_key": "2026-10-01", "dedupe_key": "82f19ed530c272d8a1eb573f6b4af039196022a5e458175b6614ee51f6ce2d1b", "event_id": "cf4eda36-c46d-4f32-82cc-099e79d950f5", "event_type": "RUN_FAILED", "message": "[FreeCash] RUN FAILED 2026-10-01\nReason:    ReadError: GET /api/v1/status/metrics failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte\nDay lock:  CONSUMED (no automatic re-run today - R1)\nAttempts:  last_attempt_day=2026-10-01 last_success_day=None\nDetail:    alerts.jsonl dedupe=run:2026-10-01\nACTION:    No action taken. A second status read on the same day is not permitted by this routine (R1).", "observed": {"field": "read", "new_value": "ReadError: GET /api/v1/status/metrics failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte", "old_value": "metrics_http", "prior_day_key": null}, "severity": "alert", "ts_utc": "2026-10-01T07:06:44Z"}
+exit=0

@@ -1,0 +1,83 @@
+###############################################################################
+# 10 — THE OPERATOR-FACING STATUS REPORT (tools/status_report.py), rendered from two roots
+# during: 2026-10-01T09:56:02Z
+###############################################################################
+
+=== RUN 1: the PRODUCTION root (READ-ONLY; the stream writes nothing there) ===
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/status_report.py --root D:/AgenticOS/data/freecash-monitor --day 2026-10-01
+--------------------------------------------------------------------------
+FreeCash status monitor -- 2026-10-01
+--------------------------------------------------------------------------
+data root    : D:\AgenticOS\data\freecash-monitor
+day lock     : PRESENT (the day is consumed)
+ledger       : last_outcome=MONITOR_DEGRADED last_success_day=2026-10-01 consecutive_missed_days=0
+operator file: records=0  (nobody has entered today's figures)
+
+READING      : NONE -- a snapshot exists but it carries no figures.
+               data_available=false, every figure null, raw_response_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+COVERAGE     : none. Do not read this as success: the ledger may still show
+               last_outcome=MONITOR_DEGRADED and last_success_day=2026-10-01, which is exactly the lie.
+
+CHANGES today: 0
+notifications : 0 change-notification line(s) for this day
+dedupe index  : 10 key(s) total, delivery labels ['TOAST_OK']
+approval items: 0
+
+VERDICT: NO READING TODAY -- 2026-10-01. No figure was observed; R3 had nothing to compare.
+--------------------------------------------------------------------------
+exit=0
+
+=== RUN 2: the throwaway root that DID carry a reading (from raw/03 GREEN) ===
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/status_report.py --root C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root --day 2026-10-01
+--------------------------------------------------------------------------
+FreeCash status monitor -- 2026-10-01
+--------------------------------------------------------------------------
+data root    : C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\preflight-data\root
+day lock     : PRESENT (the day is consumed)
+ledger       : last_outcome=INITIAL_BASELINE last_success_day=2026-10-01 consecutive_missed_days=0
+operator file: records=1
+
+READING      : PRESENT (captured 2026-10-01T09:55:57Z, source=operator_entered, degraded=True)
+STATUS       : ACTIVE
+EARNINGS     : $10.25
+BALANCE      : $10.25
+PENDING      : $0.00
+CURRENCY     : USD
+COVERAGE     : yes (snapshot data_available=true)
+
+CHANGES today: 0
+notifications : 0 change-notification line(s) for this day
+dedupe index  : 0 key(s) total, delivery labels []
+approval items: 0
+
+VERDICT: READING PRESENT, no change vs the previous snapshot for 2026-10-01.
+--------------------------------------------------------------------------
+exit=0
+
+=== RUN 3: the throwaway root on a day with NO snapshot -> the 'no reading today' wording ===
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/status_report.py --root C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root --day 2026-10-02
+--------------------------------------------------------------------------
+FreeCash status monitor -- 2026-10-02
+--------------------------------------------------------------------------
+data root    : C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\preflight-data\root
+day lock     : absent
+ledger       : last_outcome=INITIAL_BASELINE last_success_day=2026-10-01 consecutive_missed_days=0
+operator file: records=1
+
+READING      : NONE -- no snapshot exists for 2026-10-02
+COVERAGE     : none
+
+CHANGES today: 0
+notifications : 0 change-notification line(s) for this day
+dedupe index  : 0 key(s) total, delivery labels []
+approval items: 0
+
+VERDICT: NO READING TODAY -- 2026-10-02. No figure was observed; R3 had nothing to compare.
+--------------------------------------------------------------------------
+exit=0
+
+=== RUN 4: a compact machine line for a log, on a data-less day (the defect root from raw/02) ===
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/status_report.py --root C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/defect-dataless/root --day 2026-10-01 | tail -3
+
+VERDICT: NO READING TODAY -- 2026-10-01. No figure was observed; R3 had nothing to compare.
+--------------------------------------------------------------------------

@@ -1,0 +1,24 @@
+== production state root byte-neutrality check, captured 2026-10-01T06:51:20Z
+$ find data/freecash-monitor -type f | sort | xargs sha256sum   # AFTER
+7a90034fd6565764b5bdab697ff84f657746cfc562c6453f5a6a09f1f82096cc *data/freecash-monitor/alerts/alerts.jsonl
+94c8c98cd89af33f704fa2356b781c563dc66abea44164f26925e8a1f6b691f3 *data/freecash-monitor/logs/task-a.log
+ec4eab60fe748d867172eb81974ad2474ee1b09747f2cc57b93becaa35df3d67 *data/freecash-monitor/logs/task-b-watchdog.log
+965e1132078d8739ee445e5c36cdfc9523825c436d59a82d92e38bf71706d6e5 *data/freecash-monitor/snapshots/2026-09-20.json
+804b5e435a64fc6fe67ee1b904608d2745b3f9762a85dc6d867231df5a16bc4b *data/freecash-monitor/snapshots/2026-09-30.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 *data/freecash-monitor/state/day-locks/2026-09-20.lock
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 *data/freecash-monitor/state/day-locks/2026-09-30.lock
+2310072a649dbfdbf7072dfb44915eeb75ab4ada8d849e9e78961e8358af399a *data/freecash-monitor/state/last-run.json
+0f28d5699b30c6d7b48224f9fa6da26113938c66fafc99e16f391dbedd60e9dd *data/freecash-monitor/state/notified-keys.json
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+
+$ diff <(BEFORE) <(AFTER)
+exit=0
+(empty diff above + exit=0 = every byte of the production root is identical to the pre-run hash)
+files before: 10   files after: 10
+$ ls -la data/freecash-monitor/state/day-locks/
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 21:01 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 21:02 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+(no 2026-10-01.lock = the production root was never driven by this session)

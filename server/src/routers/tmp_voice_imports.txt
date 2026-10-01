@@ -1,0 +1,25 @@
+import { sanitizeMarkdownForSpeech } from '../utils/speechSanitizer.js';
+import { logger } from '../utils/logger.js';
+import { Router } from 'express';
+import multer from 'multer';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runAgentLoop } from '../services/agent/agentLoop.js';
+import { mockAgents } from '../data.js';
+import { transcribeLocally } from '../services/voice/localTranscribe.js';
+import {
+  synthesizeLocally,
+  resolveVoiceForLanguage,
+  resolveLocaleForLanguage,
+  verifySpeechSynthesisAvailability,
+  resolvePythonExecutable,
+  DEFAULT_NEURAL_VOICE,
+} from '../services/voice/localTts.js';
+import {
+  detectTextLanguage,
+  getConversationLanguage,
+  setConversationLanguage,
+  isSubstantiveLanguageDetection,
+} from '../domains/jarvis/conversationLanguage.js';
+
+const router = Router();

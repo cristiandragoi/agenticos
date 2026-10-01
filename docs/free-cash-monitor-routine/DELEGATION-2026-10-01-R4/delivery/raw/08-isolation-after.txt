@@ -1,0 +1,24 @@
+=== isolation AFTER ===
+Do,  1. Okt 2026 11:51:17
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+--- find production root -type f -newermt '2026-10-01 11:30' ---
+find_rc=0
+--- find production root -newermt today 00:00 ---
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+find_rc=0
+--- monitoring/freecash/*.py mtimes (top) ---
+-rw-r--r-- 1 cd-pr 197609 10914 2026-09-20 06:57:40.024218500 +0200 monitoring/freecash/approval_queue.py
+-rw-r--r-- 1 cd-pr 197609 11983 2026-09-20 06:59:46.491521300 +0200 monitoring/freecash/changedetect.py
+-rw-r--r-- 1 cd-pr 197609  7983 2026-09-18 07:32:28.671267400 +0200 monitoring/freecash/gate.py
+-rw-r--r-- 1 cd-pr 197609 15479 2026-09-20 06:57:46.627530500 +0200 monitoring/freecash/notify.py
+-rw-r--r-- 1 cd-pr 197609  4942 2026-09-18 07:26:12.896833300 +0200 monitoring/freecash/operator_state.py
+-rw-r--r-- 1 cd-pr 197609  6429 2026-09-18 07:31:20.766051200 +0200 monitoring/freecash/paths.py
+-rw-r--r-- 1 cd-pr 197609  8847 2026-09-18 07:25:45.065683700 +0200 monitoring/freecash/readonly_client.py
+-rw-r--r-- 1 cd-pr 197609 18977 2026-09-20 06:57:40.273090900 +0200 monitoring/freecash/run_daily_check.py
+-rw-r--r-- 1 cd-pr 197609  7856 2026-09-18 07:27:18.887746900 +0200 monitoring/freecash/verify_readonly.py
+-rw-r--r-- 1 cd-pr 197609  4176 2026-09-20 06:59:58.043125200 +0200 monitoring/freecash/watchdog.py

@@ -1,0 +1,44 @@
+EVIDENCE-07b -- the STAGED patch exercised in a throwaway COPY (still not applied)  (run 2026-10-01T07:12:39Z)
+
+### CMD: python delivery/run_proposed_proof.py
+proposed package built at C:\Users\cd-pr\AppData\Local\Temp\fc-r2-proposed-pkg (copies only; monitoring/ untouched)
+notify loaded from:         C:\Users\cd-pr\AppData\Local\Temp\fc-r2-proposed-pkg\notify.py
+run_daily_check loaded from: C:\Users\cd-pr\AppData\Local\Temp\fc-r2-proposed-pkg\run_daily_check.py
+
+missed days (10): ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29']
+RUN_OK 2026-09-30 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-30.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-30.lock
+exit_code=0
+
+DISPATCHES SENT TO THE SINK: 1   (was 10 before the change)
+---
+[STUB TOAST 2026-09-30T12:00:00Z] [FreeCash] 10 MISSED DAYS 2026-09-30
+No successful status check recorded for: 2026-09-20, 2026-09-21, 2026-09-22, 2026-09-23, 2026-09-24, 2026-09-25, 2026-09-26, 2026-09-27, 2026-09-28, 2026-09-29
+First missed: 2026-09-20.  Last missed: 2026-09-29.
+Last success: 2026-09-19.
+Per-day detail: alerts.jsonl (one MISSED_DAY line per day, no notification).
+ACTION:    No action taken. Investigate why no check ran (machine uptime, scheduler history, or a failed run).
+
+alerts.jsonl lines written: 11
+every line now carries a writer object:
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  MISSED_DAY           writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+  INITIAL_BASELINE     writer={'entry_point': 'run_proposed_proof.py', 'pid': 31412, 'started_utc': '2026-10-01T07:12:39Z'}
+
+MISSED_DAY log lines still one-per-day: 10
+coalesced summary dispatched once: True
+exit=0
+
+### CMD: sha256sum monitoring/freecash/notify.py monitoring/freecash/run_daily_check.py  (AFTER the proof run)
+9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22 *monitoring/freecash/notify.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *monitoring/freecash/run_daily_check.py
+
+### CMD: find monitoring/freecash -type f -newermt "2026-10-01 00:00"
+exit=0  (no output == monitoring/ untouched by the proof run)

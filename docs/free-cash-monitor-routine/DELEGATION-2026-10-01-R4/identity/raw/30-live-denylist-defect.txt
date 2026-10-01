@@ -1,0 +1,22 @@
+module under test : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\identity\work\repo-live\monitoring\freecash\approval_queue.py
+package           : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\identity\work\repo-live\monitoring\freecash
+guard in force    : shipped copy (work/repo-live)
+throwaway root    : C:\Users\cd-pr\AppData\Local/Temp/fc-r4-identity-denylist-28296
+
+--by           exit   outcome  detail
+'hermes-agent' 0      ACCEPTED status=APPROVED decided_by='hermes-agent' expires_at_utc=None execution_state=NOT_EXECUTED
+'assistant'    0      ACCEPTED status=APPROVED decided_by='assistant' expires_at_utc=None execution_state=NOT_EXECUTED
+'claude'       0      ACCEPTED status=APPROVED decided_by='claude' expires_at_utc=None execution_state=NOT_EXECUTED
+'Claude'       0      ACCEPTED status=APPROVED decided_by='Claude' expires_at_utc=None execution_state=NOT_EXECUTED
+'operator-1'   0      ACCEPTED status=APPROVED decided_by='operator-1' expires_at_utc=None execution_state=NOT_EXECUTED
+'the monitor'  0      ACCEPTED status=APPROVED decided_by='the monitor' expires_at_utc=None execution_state=NOT_EXECUTED
+'agent'        4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: 'agent' is not a human identity; this routine may only record a decision made by a person
+'monitor'      4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: 'monitor' is not a human identity; this routine may only record a decision made by a person
+'system'       4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person
+'bot'          4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: 'bot' is not a human identity; this routine may only record a decision made by a person
+'   '          4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: --by is required: a decision must name the human who made it

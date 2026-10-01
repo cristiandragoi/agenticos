@@ -1,0 +1,62 @@
+COMMAND: "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python" docs/.../scheduler/evidence/test_wrapper_by_execution.py
+RUN AT: Do,  1. Okt 2026 09:14:36
+================================================================================
+read D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/freecash-daily.cmd (7517 bytes)
+
+=== HARNESS COPY 1: data-root redirect, interpreter unchanged ===
+  [copy1/data-root] occurrences of target = 1 (must be exactly 1)
+  [copy1/data-root] substituted; original string now present = False
+  [copy1] wrap-inert check: 'INERT ARTIFACT' comment still present = True
+  wrote D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/evidence/wrapper-harness-copy1-dataroot-redirect.cmd
+
+--- FILTERED SOURCE PROOF: the copy's pinned env block ---
+    set "FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/wrapperprod"
+    set "FREECASH_TZ=Europe/Berlin"
+    set "FREECASH_READ_SOURCE=operator_state"
+    set "FREECASH_TOAST_STUB="
+    set "FC_ENTRY=D:\AgenticOS\monitoring\freecash\run_daily_check.py"
+    set "FC_CWD=D:\AgenticOS"
+    set "FC_LOGDIR=%FREECASH_DATA_ROOT%\logs"
+    set "FC_PY="
+    set "FC_DAY="
+    set "FC_TMP=%TEMP%\freecash-daykey-%RANDOM%-%RANDOM%.txt"
+    set "FC_LOG=%FC_LOGDIR%\daily-%FC_DAY%.log"
+    set "FC_RC=%ERRORLEVEL%"
+    set "FC_TRY=%~1"
+    set "FC_PTMP=%TEMP%\freecash-probe-%RANDOM%-%RANDOM%.txt"
+    set "FC_CAND="
+
+--- run 1 (fresh day in the scratch root) ---
+  copy1 run1: exit=0  stdout_bytes=0  stderr_bytes=0
+  after run1: locks=['2026-10-01.lock'] snapshots=['2026-10-01.json'] logs=['daily-2026-10-01.log']
+
+--- run 2 (immediate second run, same day) ---
+  before run2: locks=['2026-10-01.lock'] snapshots=['2026-10-01.json'] logs=['daily-2026-10-01.log']
+  copy1 run2: exit=0  stdout_bytes=0  stderr_bytes=0
+  after run2: locks=['2026-10-01.lock'] snapshots=['2026-10-01.json'] logs=['daily-2026-10-01.log']
+  locks unchanged=True   snapshots unchanged=True
+
+--- log file written by the wrapper (proof it logged, not emitted) ---
+  ### daily-2026-10-01.log (664 bytes)
+      [01.10.2026  9:14:37,16] freecash-daily py="C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe" root="C:/Users/cd-pr/AppData/Local/Temp/fc-r2/wrapperprod" tz=Europe/Berlin source=operator_state
+      RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+      [01.10.2026  9:14:37,84] freecash-daily py="C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe" root="C:/Users/cd-pr/AppData/Local/Temp/fc-r2/wrapperprod" tz=Europe/Berlin source=operator_state
+      SKIP_DUPLICATE_DAY 2026-10-01
+
+=== HARNESS COPY 2: interpreter candidates replaced by a NO-TZDATA python ===
+  [copy2/probe-block] occurrences of target = 1 (must be exactly 1)
+  [copy2/probe-block] substituted; original string now present = False
+  wrote D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/evidence/wrapper-harness-copy2-no-tzdata.cmd
+  wrote D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/scheduler/evidence/wrapper-harness-copy2b-no-tzdata-own-root.cmd (own root: C:/Users/cd-pr/AppData/Local/Temp/fc-r2/wrapperprod-notzdata)
+
+--- run under the no-tzdata interpreter: expect exit 90, NO lock, no snapshot ---
+  copy2 run: exit=90  stdout_bytes=0  stderr_bytes=207
+    stderr: "freecash-daily: FAIL no tzdata-capable Python interpreter found (needs ZoneInfo('Europe/Berlin')). Tried: FREECASH_PY, the Hermes venv paths, py -3.11. The monitor was NOT run and no day lock was consumed. \n"
+  after copy2 run: locks=[] snapshots=[] logs=[]
+  day-locks dir exists=False  (must be False or empty: no day consumed)
+
+=== VERDICT ===
+  copy1 run1 exit=0 (expect 0), run2 exit=0 (expect 0); stdout/stderr empty on both: True
+  copy2 exit=90 (expect 90), stderr non-empty: True, no lock consumed: True
+  WRAPPER VERIFIED BY EXECUTION = True
+script_exit=0

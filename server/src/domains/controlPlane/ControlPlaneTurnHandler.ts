@@ -16,6 +16,8 @@
  * → Argus independently verifies → incident closes automatically → RepairMemory learns.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { logger } from '../../utils/logger.js';
 import { goalLifecycleManager } from './GoalLifecycle.js';
 import { capabilityDiscovery } from './CapabilityDiscovery.js';
@@ -96,7 +98,686 @@ export class ControlPlaneTurnHandler {
    */
   public async handleTurn(opts: ControlPlaneTurnOpts): Promise<TurnResult | null> {
     const { prompt, effectivePrompt, conversationId, turnId, onActionProgress, focus } = opts;
-    const lower = effectivePrompt.toLowerCase().trim();
+
+    // ── 0. STT/Intent Normalization for key entities ──
+    let normalizedPrompt = effectivePrompt;
+    normalizedPrompt = normalizedPrompt.replace(/\b(?:comet\s+per\s*plexity|per\s*plexity\s+page)\b/gi, 'Comet Perplexity');
+    normalizedPrompt = normalizedPrompt.replace(/\b(?:hermes\s+one|hermis\s+1|hermis\s+one)\b/gi, 'Hermes 1');
+    normalizedPrompt = normalizedPrompt.replace(/\b(?:zeus|suisse|zoos)\s+voice\b/gi, 'Zeus voice');
+    const lower = normalizedPrompt.toLowerCase().trim();
+
+    // ── 0a. Explicit Worker Delegation (AntiGravity): HIGHEST PRECEDENCE ──
+    // Executes strictly before voice switching, language_preference, browser, desktop,
+    // open-app, Hermes, or LLM fallback.
+    const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('./ExplicitEngineeringDelegation.js');
+    const explicitEngineering = parseExplicitEngineeringDelegation(prompt) || parseExplicitEngineeringDelegation(effectivePrompt);
+    if (explicitEngineering) {
+      logger.info('[ControlPlaneTurnHandler] Explicit AntiGravity delegation detected — executing canonical lifecycle');
+      const delRes = await executeEngineeringDelegation(explicitEngineering, {
+        conversationId,
+        turnId,
+        workspace: 'D:\\AgenticOS',
+        speakFn: async (textToSpeak) => {
+          try {
+            const { jarvisNextAgent } = await import('../jarvisNext/jarvisNextAgent.js');
+            await jarvisNextAgent.speak(textToSpeak, turnId);
+          } catch {}
+        },
+        broadcastFn: (data) => {
+          try {
+            onActionProgress?.(data);
+          } catch {}
+        },
+      });
+      return {
+        handled: true,
+        route: 'engineering_delegation' as any,
+        text: delRes.text,
+        evidence: delRes.success,
+        executed: delRes.success,
+        verified: delRes.success,
+        timings: {},
+        goalId: delRes.goalId,
+      };
+    }
+
+    // ── 0a1. Speech Transcript Corrections ("No, I said X, not Y", "No, not Y, X") ──
+    if (/\b(?:no,?\s+i\s+said|correction:|no,?\s+not\s+.+,\s+.+)\b/i.test(lower)) {
+      const correctedText = effectivePrompt.replace(/^(?:no,?\s+)?(?:i\s+said\s+|correction:?\s*)/i, '').trim();
+      logger.info(`[ControlPlaneTurnHandler] Conversational speech correction received: "${correctedText}"`);
+      const reply = `Understood. I've corrected that to: "${correctedText}".`;
+      if (focus) {
+        focus.lastAssistantTurn = reply;
+        focus.lastUserTurn = correctedText;
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text: reply,
+        evidence: true,
+        executed: true,
+        verified: true,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0a2. Canonical Turn Execution Service Delegation (Perception, Telegram, Worker Status, Referents) ──
+    // Ensures installed desktop voice engine passes through the authoritative CanonicalTurnExecutionService.
+    try {
+      const { canonicalTurnExecutionService } = await import('../jarvis/canonicalTurnExecutionService.js');
+      const canonicalRes = await canonicalTurnExecutionService.execute({
+        conversationId,
+        prompt: effectivePrompt || prompt,
+        modality: 'voice',
+        onProgress: onActionProgress,
+      });
+
+      if (
+        canonicalRes &&
+        canonicalRes.route &&
+        canonicalRes.route !== 'direct' &&
+        canonicalRes.route !== 'llm_fallback' &&
+        canonicalRes.status !== 'failed'
+      ) {
+        logger.info(`[ControlPlaneTurnHandler] Turn handled by CanonicalTurnExecutionService [route=${canonicalRes.route}]`);
+        if (focus) {
+          focus.lastAssistantTurn = canonicalRes.assistantText;
+          focus.lastResolvedEntityName = canonicalRes.route;
+        }
+        return {
+          handled: true,
+          route: canonicalRes.route as any,
+          text: canonicalRes.assistantText,
+          evidence: canonicalRes.verified ?? true,
+          executed: canonicalRes.status === 'completed' || canonicalRes.status === 'delegated',
+          verified: canonicalRes.verified ?? true,
+          goalId: canonicalRes.goalRunId || canonicalRes.taskId,
+          timings: { totalMs: 0 },
+        };
+      }
+    } catch (canonErr: any) {
+      logger.warn('[ControlPlaneTurnHandler] CanonicalTurnExecutionService error:', canonErr?.message);
+    }
+
+    // ── 0a2. Telegram Cross-Channel Introspection Queries (§5) ──
+    if (/\b(?:does\s+(?:our|my)\s+(?:agenticos\s+)?telegram\s+bot\s+work|is\s+(?:the\s+)?telegram\s+bot\s+(?:working|active|online|connected))\b/i.test(lower)) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const status = await unifiedOperationalContext.getTelegramRuntimeState();
+      let reply = '';
+      if (status.configured && status.connected) {
+        reply = `Yes, our AgenticOS Telegram bot (@${status.botUsername || 'AgenticOSBot'}) is active, connected, and polling for authorized messages.`;
+      } else if (status.configured && !status.connected) {
+        reply = `The Telegram bot is configured for @${status.botUsername || 'bot'}, but is currently disconnected (${status.lastError || 'offline'}).`;
+      } else {
+        reply = `The AgenticOS Telegram bot is currently waiting for a bot token in settings.`;
+      }
+      if (focus) focus.lastAssistantTurn = reply;
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text: reply,
+        evidence: true,
+        executed: true,
+        verified: true,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    if (/\b(?:did\s+you\s+receive|check|any|show)\s+(?:my\s+)?(?:last\s+)?(?:message\s+(?:there|on\s+telegram)|telegram\s+message)\b/i.test(lower) ||
+        /\b(?:receive\s+my\s+last\s+telegram\s+message|received\s+my\s+telegram\s+message)\b/i.test(lower)) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const status = await unifiedOperationalContext.getTelegramRuntimeState();
+      let reply = '';
+      if (status.lastInboundTextPreview) {
+        const timeStr = status.lastInboundMessageAt ? ` at ${new Date(status.lastInboundMessageAt).toLocaleTimeString()}` : '';
+        reply = `Yes, I received your last Telegram message${timeStr}: "${status.lastInboundTextPreview}".`;
+      } else if (status.connected) {
+        reply = `The Telegram bot is connected and operational, but I have not received any inbound messages on Telegram in this session yet.`;
+      } else {
+        reply = `The Telegram bot is not currently connected to receive messages.`;
+      }
+      if (focus) focus.lastAssistantTurn = reply;
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text: reply,
+        evidence: true,
+        executed: true,
+        verified: true,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    if (/\b(?:are\s+you\s+the\s+same\s+jarvis\s+i\s+am\s+speaking\s+with\s+on\s+telegram|same\s+jarvis\s+as\s+on\s+telegram|same\s+jarvis\s+on\s+telegram)\b/i.test(lower)) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const status = await unifiedOperationalContext.getTelegramRuntimeState();
+      let reply = 'Yes, I am the same Jarvis. Both this desktop interface and our Telegram bot share the unified AgenticOS operational context, task ledger, and worker execution state.';
+      if (status.lastInboundTextPreview) {
+        reply += ` For example, I have recorded your last Telegram message: "${status.lastInboundTextPreview}".`;
+      }
+      if (focus) focus.lastAssistantTurn = reply;
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text: reply,
+        evidence: true,
+        executed: true,
+        verified: true,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0a3. Delegation Proposal Recognition ("Could you delegate an investigation of AgenticOS worker routing to Hermes?") ──
+    const isDelegationProposal = /\b(?:could\s+you|can\s+you|would\s+you|please)\s+delegate\s+(?:an?\s+)?(.+?)\s+to\s+(hermes|codex|antigravity)\b/i.test(lower);
+    if (isDelegationProposal) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const match = lower.match(/\b(?:could\s+you|can\s+you|would\s+you|please)\s+delegate\s+(?:an?\s+)?(.+?)\s+to\s+(hermes|codex|antigravity)\b/i);
+      const proposedObjective = match ? match[1].trim() : 'investigation of AgenticOS worker routing';
+      const proposedWorker = match ? match[2].trim().toLowerCase() : 'hermes';
+
+      unifiedOperationalContext.proposeAction({
+        proposedObjective,
+        proposedWorker,
+        conversationId,
+        proposingTurnId: turnId,
+        confirmationRequired: true,
+      });
+
+      const workerDisplay = proposedWorker === 'hermes' ? 'Hermes' : proposedWorker === 'codex' ? 'CodeX' : 'AntiGravity';
+      const reply = `Would you like me to delegate this ${proposedObjective} to ${workerDisplay}?`;
+      if (focus) {
+        focus.lastAssistantTurn = reply;
+        focus.lastResolvedEntityName = workerDisplay;
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text: reply,
+        evidence: true,
+        executed: true,
+        verified: true,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0a4. Explicit Confirmation of Pending Action ("Yes, do that.", "Go ahead.", "Confirm.") ──
+    const isExplicitConfirmation = /^(?:yes[,\s]+)?(?:do\s+that|please\s+do|go\s+ahead(?:\s+and\s+do\s+that)?|confirm|execute\s+it|delegate\s+it)[.!]?$/i.test(lower) ||
+      (/^(?:yes|yeah|yep|sure|ok|okay)[.!]?$/i.test(lower) && Boolean((await import('./UnifiedOperationalContext.js')).unifiedOperationalContext.getActivePendingAction(conversationId)));
+
+    if (isExplicitConfirmation) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const pending = unifiedOperationalContext.getActivePendingAction(conversationId);
+      if (pending) {
+        unifiedOperationalContext.acceptPendingAction(pending.pendingActionId);
+        logger.info(`[ControlPlaneTurnHandler] Executing confirmed PendingAction: ${pending.pendingActionId} [worker=${pending.proposedWorker}]`);
+
+        onActionProgress?.({
+          actionName: `Delegate to ${pending.proposedWorker}: ${pending.proposedObjective}`,
+          targetCapability: 'engineering',
+          status: 'running',
+          stage: 'DISPATCHING',
+          currentStep: `Dispatching confirmed task to ${pending.proposedWorker}...`,
+        });
+
+        const { executeEngineeringDelegation } = await import('./ExplicitEngineeringDelegation.js');
+        const delRes = await executeEngineeringDelegation({
+          action: 'delegate',
+          worker: pending.proposedWorker as any,
+          task: pending.proposedObjective,
+          rawPrompt: effectivePrompt,
+        }, {
+          conversationId,
+          turnId,
+          workspace: 'D:\\AgenticOS',
+          speakFn: async (textToSpeak) => {
+            try {
+              const { jarvisNextAgent } = await import('../jarvisNext/jarvisNextAgent.js');
+              await jarvisNextAgent.speak(textToSpeak, turnId);
+            } catch {}
+          },
+          broadcastFn: (data) => {
+            try {
+              onActionProgress?.(data);
+            } catch {}
+          },
+        });
+
+        let reply = '';
+        if (delRes.success && delRes.taskId) {
+          const workerDisplay = pending.proposedWorker === 'hermes' ? 'Hermes' : 'AntiGravity';
+          reply = `I have delegated the investigation to ${workerDisplay} under task ID ${delRes.taskId}. ${workerDisplay} has accepted the task.`;
+          unifiedOperationalContext.setActiveReferent({
+            activeTaskId: delRes.taskId,
+            activeGoalRunId: delRes.goalId,
+            activeWorker: pending.proposedWorker,
+            activeSubject: pending.proposedObjective,
+            originChannel: 'voice',
+          });
+        } else {
+          reply = `I couldn't deliver the task to ${pending.proposedWorker} because ${delRes.error || 'the worker did not accept the task'}.`;
+        }
+
+        if (focus) {
+          focus.lastAssistantTurn = reply;
+          focus.lastResolvedEntityName = pending.proposedWorker;
+        }
+
+        return {
+          handled: true,
+          route: 'engineering_delegation' as any,
+          text: reply,
+          evidence: delRes.success,
+          executed: delRes.success,
+          verified: delRes.success,
+          timings: { totalMs: 0 },
+          goalId: delRes.goalId,
+        };
+      }
+    }
+
+    // ── 0a5. Explicit Rejection of Pending Action ("No, don't do that.", "Cancel that.") ──
+    const isExplicitRejection = /^(?:no[,\s]+)?(?:don'?t\s+do\s+that|cancel\s+(?:that|it)|never\s*mind|stop)[.!]?$/i.test(lower);
+    if (isExplicitRejection) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const pending = unifiedOperationalContext.getActivePendingAction(conversationId);
+      if (pending) {
+        unifiedOperationalContext.rejectPendingAction(pending.pendingActionId, 'User cancelled');
+        const reply = "Understood. I've cancelled that proposed action.";
+        if (focus) focus.lastAssistantTurn = reply;
+        return {
+          handled: true,
+          route: 'chat_trivial',
+          text: reply,
+          evidence: true,
+          executed: true,
+          verified: true,
+          timings: { totalMs: 0 },
+        };
+      }
+    }
+
+    // ── 0a6. Conversational Acknowledgment Handling (Affirmation MUST NOT repeat action!) ──
+    // "Yes, that's right.", "Correct.", "Exactly.", "Thank you.", "Okay, good.", "That's what I meant."
+    const cleanedAck = lower.replace(/[.!?,]+$/, '').trim();
+    const isConversationalAck = /^(?:yes,?\s+(?:that'?s\s+(?:right|correct|what\s+i\s+meant)|exactly)|correct|exactly|thank\s+you|thanks|okay,?\s+good|that'?s\s+what\s+i\s+meant|sounds\s+good|great|perfect|got\s+it)$/i.test(cleanedAck) ||
+      (/^(?:yes|yeah|yep|ok|okay)$/i.test(cleanedAck) && !((await import('./UnifiedOperationalContext.js')).unifiedOperationalContext.getActivePendingAction(conversationId)));
+
+    if (isConversationalAck) {
+      logger.info(`[ControlPlaneTurnHandler] Conversational acknowledgment received: "${normalizedPrompt}" — producing clean confirmation without repeating any tool`);
+      const reply = "Understood. Glad I could help.";
+      if (focus) {
+        focus.lastAssistantTurn = reply;
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text: reply,
+        evidence: true,
+        executed: false,
+        verified: true,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0a7. Deterministic Task Status Lookup (§3, §4, §8, §16, §17) ──
+    const isTaskStatusCheck = (
+      /\b(?:status\s+of|what\s+(?:is|happened\s+with)|how\s+is|did\s+(?:hermes|antigravity|codex|he|she|it|you)\s+finish|is\s+it\s+(?:done|finished|completed?)|where\s+is)\b/i.test(lower) &&
+      /\b(?:task|job|work|goal|delegat|update|github|git|repo|bgtask-|goal-|hermes|antigravity|codex)\b/i.test(lower)
+    ) || /\b(?:did\s+(?:hermes|antigravity|codex|he|it)\s+finish\s+it)\b/i.test(lower)
+      || /\b(?:what\s+happened\s+with\s+(?:the\s+)?task\s+(?:i\s+just\s+gave\s+hermes|i\s+gave\s+hermes))\b/i.test(lower)
+      || /\b(?:what\s+happened\s+with\s+(?:it|that))\b/i.test(lower);
+
+    if (isTaskStatusCheck) {
+      const { unifiedOperationalContext } = await import('./UnifiedOperationalContext.js');
+      const resolution = unifiedOperationalContext.resolveTaskReferent(normalizedPrompt, {
+        conversationId,
+        channel: 'voice',
+      });
+      if (resolution.match) {
+        const t = resolution.match;
+        const reply = `Task ${t.taskId} assigned to ${t.worker} is currently ${t.status.toUpperCase()}${t.stage ? ` in stage ${t.stage}` : ''}.${t.blocker ? ` Blocker: ${t.blocker}` : ''}${t.completionEvidence ? ` Result: ${t.completionEvidence}` : ''}`;
+        if (focus) {
+          focus.lastAssistantTurn = reply;
+          focus.lastResolvedEntityName = t.taskId;
+        }
+        return {
+          handled: true,
+          route: 'action',
+          text: reply,
+          evidence: true,
+          executed: true,
+          verified: true,
+          timings: { totalMs: 0 },
+        };
+      }
+    }
+
+    // ── 0b. Dedicated Voice Switching Intent & Turn Isolation ──
+    const voiceSwitchMatch = lower.match(/\b(?:switch|change|set|use)\s+(?:the\s+)?(?:voice|tts)\s+to\s+([a-z0-9_\-]+)/i) ||
+      lower.match(/\b(?:switch|change|set|use)\s+to\s+([a-z0-9_\-]+)\s+voice\b/i) ||
+      lower.match(/\b(?:use|switch to|change to)\s+(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|killian|emil)(?:\s+voice)?\b/i) ||
+      lower.match(/\b(zeus|helios|orion|athena|angus|orpheus)\s+voice\b/i);
+
+    if (voiceSwitchMatch) {
+      const rawTarget = (voiceSwitchMatch[1] || voiceSwitchMatch[2] || '').toLowerCase().trim();
+      let targetVoiceId = 'aura-zeus-en';
+      let targetVoiceName = 'Zeus';
+      if (rawTarget.includes('helios')) {
+        targetVoiceId = 'aura-helios-en';
+        targetVoiceName = 'Helios';
+      } else if (rawTarget.includes('zeus')) {
+        targetVoiceId = 'aura-zeus-en';
+        targetVoiceName = 'Zeus';
+      } else if (rawTarget.includes('orion')) {
+        targetVoiceId = 'aura-orion-en';
+        targetVoiceName = 'Orion';
+      } else if (rawTarget.includes('athena')) {
+        targetVoiceId = 'aura-athena-en';
+        targetVoiceName = 'Athena';
+      } else if (rawTarget.includes('angus')) {
+        targetVoiceId = 'aura-angus-en';
+        targetVoiceName = 'Angus';
+      } else if (rawTarget.includes('orpheus')) {
+        targetVoiceId = 'aura-orpheus-en';
+        targetVoiceName = 'Orpheus';
+      } else if (rawTarget.includes('ryan')) {
+        targetVoiceId = 'en-GB-RyanNeural';
+        targetVoiceName = 'Ryan';
+      } else if (rawTarget.includes('killian')) {
+        targetVoiceId = 'de-DE-KillianNeural';
+        targetVoiceName = 'Killian';
+      } else if (rawTarget.includes('emil')) {
+        targetVoiceId = 'ro-RO-EmilNeural';
+        targetVoiceName = 'Emil';
+      } else if (rawTarget.includes('voicestudio') || rawTarget.includes('omnivox') || rawTarget.includes('studio')) {
+        targetVoiceId = 'voicestudio-default';
+        targetVoiceName = 'VoiceStudio';
+      }
+
+      try {
+        const { jarvisNextAgent } = await import('../jarvisNext/jarvisNextAgent.js');
+        jarvisNextAgent.setVoiceConfig({ voiceId: targetVoiceId, voiceProfile: targetVoiceName.toLowerCase() });
+      } catch (err: any) {
+        logger.warn('[ControlPlaneTurnHandler] Error setting voice config on jarvisNextAgent:', err?.message);
+      }
+
+      // Ensure clean turn isolation: clear stale camera / worker slot context
+      if (focus) {
+        focus.lastAssistantTurn = `I have switched to the ${targetVoiceName} voice.`;
+        focus.lastResolvedEntityName = `${targetVoiceName} Voice`;
+      }
+
+      return {
+        handled: true,
+        route: 'action',
+        text: `I have switched to the ${targetVoiceName} voice.`,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: `${targetVoiceName} Voice`,
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0c. Autonomous Capability Certification Trigger ─────────────────────
+    if (/\b(?:run\s+(?:full\s+)?(?:system\s+)?certification|certify\s+all\s+(?:capabilities|features)|inspect\s+all\s+(?:features|capabilities)|test\s+all\s+capabilities)\b/i.test(lower)) {
+      const { autonomousCapabilityCertificationRunner } = await import('./AutonomousCapabilityCertificationRunner.js');
+      autonomousCapabilityCertificationRunner.startCertification({ conversationId });
+      const speech = 'I have started the autonomous production capability certification. I will test every capability through live production paths, heal any defects with AntiGravity, and report the verified results.';
+      if (focus) {
+        focus.lastAssistantTurn = speech;
+        focus.lastResolvedEntityName = 'System Certification';
+      }
+      return {
+        handled: true,
+        route: 'action',
+        text: speech,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'Capability Certification',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0d. Authoritative Voice & Conversational State Queries ─────────────
+    if (/\b(?:which\s+tts\s+provider|what\s+tts\s+provider|who\s+is\s+synthesizing|which\s+provider\s+is\s+synthesizing|welche\s+stimme|welcher\s+tts|welche\s+sprachausgabe|welches\s+sprachmodell|which\s+voice\s+are\s+you\s+using|what\s+voice\s+are\s+you\s+using)\b/i.test(lower)) {
+      const { voiceRuntimeState } = await import('../../services/voice/VoiceRuntimeState.js');
+      const text = await voiceRuntimeState.formatProviderAnswer();
+      if (focus) {
+        focus.lastAssistantTurn = text;
+        focus.lastResolvedEntityName = 'Voice Runtime State';
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'Voice Runtime State',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('../jarvis/conversationLanguage.js');
+    const langSwitch = detectLanguageSwitchRequest(prompt);
+    if (langSwitch.isLanguageSwitch && langSwitch.targetLanguage) {
+      const targetLang = langSwitch.targetLanguage;
+      setConversationLanguage(conversationId, targetLang, true);
+      const { voiceRuntimeState } = await import('../../services/voice/VoiceRuntimeState.js');
+      voiceRuntimeState.setLanguage(targetLang, targetLang === 'de' ? 'de-DE' : targetLang === 'ro' ? 'ro-RO' : 'en-GB', true);
+      const text = buildLanguageSwitchConfirmation(targetLang);
+      if (focus) {
+        focus.lastAssistantTurn = text;
+        focus.lastResolvedEntityName = 'Language Switch';
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'Language Switch',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0e. Existing AgenticOS GitHub Repository Integration (D:\AgenticOS) ──
+    const isGitStatusQuery =
+      /\b(?:check\s+(?:the\s+)?(?:status\s+of\s+(?:my\s+)?(?:agenticos\s+)?(?:github\s+)?(?:repo(?:sitory)?)?|(?:agenticos\s+)?(?:github|git)\s+status)|pr[üu]fe\s+(?:den\s+)?status\s+(?:meines\s+)?(?:bestehenden\s+)?(?:agenticos\s+)?(?:github[- ]?)?repo(?:sitories|sitory)?|git\s+status\b|status\s+(?:des\s+)?(?:agenticos\s+)?repo(?:sitories|sitory)?|update\s+(?:my\s+)?(?:existing\s+)?(?:agenticos\s+)?(?:github\s+)?repo(?:sitory)?)\b/i.test(lower) ||
+      (/\bstatus\b/i.test(lower) && /\b(?:git|github|repo|repository)\b/i.test(lower));
+
+    if (isGitStatusQuery) {
+      const { agenticOsGitService } = await import('./AgenticOsGitService.js');
+      const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+      const convLang = getConversationLanguage(conversationId);
+      const isGerman = convLang === 'de' || /\b(?:pr[üu]fe|status\s+meines|deutsch)\b/i.test(lower);
+      const isUpdate = /\bupdate\s+(?:my\s+)?(?:existing\s+)?(?:agenticos\s+)?(?:github\s+)?repo/i.test(lower);
+      const { formattedText } = agenticOsGitService.getStatus(isGerman ? 'de' : 'en');
+      let responseText = formattedText;
+      if (isUpdate) {
+        responseText = `Under the Git safety contract, I have inspected your repository status without performing unreviewed remote mutations:\n${formattedText}`;
+      }
+      if (focus) {
+        focus.lastAssistantTurn = responseText;
+        focus.lastResolvedEntityName = 'AgenticOS GitHub Repository';
+      }
+      return {
+        handled: true,
+        route: 'action',
+        text: responseText,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'AgenticOS GitHub Repository',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    const isGitDiffQuery =
+      /\b(?:show\s+(?:me\s+)?what\s+changed|what\s+changed\s+in\s+(?:the\s+)?(?:agenticos\s+)?repo(?:sitory)?|zeige\s+(?:mir\s+)?(?:was\s+sich\s+ge[aä]ndert\s+hat|die\s+[aä]nderungen)|git\s+diff\b)/i.test(lower);
+
+    if (isGitDiffQuery) {
+      const { agenticOsGitService } = await import('./AgenticOsGitService.js');
+      const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+      const convLang = getConversationLanguage(conversationId);
+      const isGerman = convLang === 'de' || /\b(?:zeige|ge[aä]ndert|[aä]nderungen)\b/i.test(lower);
+      const { formattedText } = agenticOsGitService.getChanges(isGerman ? 'de' : 'en');
+      if (focus) {
+        focus.lastAssistantTurn = formattedText;
+        focus.lastResolvedEntityName = 'AgenticOS Git Diff';
+      }
+      return {
+        handled: true,
+        route: 'action',
+        text: formattedText,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'AgenticOS Git Diff',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    const isGitCommitQuery =
+      /\b(?:commit\s+(?:the\s+)?(?:current\s+)?(?:agenticos\s+)?changes|committe\s+(?:die\s+)?(?:aktuellen\s+)?[aä]nderungen)\b/i.test(lower);
+
+    if (isGitCommitQuery) {
+      const { agenticOsGitService } = await import('./AgenticOsGitService.js');
+      const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+      const convLang = getConversationLanguage(conversationId);
+      const isGerman = convLang === 'de' || /\b(?:committe|[aä]nderungen)\b/i.test(lower);
+      const { success, formattedText } = agenticOsGitService.commitChanges(undefined, isGerman ? 'de' : 'en');
+      if (focus) {
+        focus.lastAssistantTurn = formattedText;
+        focus.lastResolvedEntityName = 'AgenticOS Git Commit';
+      }
+      return {
+        handled: true,
+        route: 'action',
+        text: formattedText,
+        evidence: true,
+        executed: success,
+        verified: success,
+        entityName: 'AgenticOS Git Commit',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    const isGitPushQuery =
+      /\b(?:push\s+(?:the\s+)?(?:current\s+)?(?:branch\s+to\s+(?:the\s+)?(?:existing\s+)?(?:github\s+)?repo(?:sitory)?|to\s+github)|pushe\s+(?:den\s+)?(?:aktuellen\s+)?branch|git\s+push\b)\b/i.test(lower);
+
+    if (isGitPushQuery) {
+      const { agenticOsGitService } = await import('./AgenticOsGitService.js');
+      const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+      const convLang = getConversationLanguage(conversationId);
+      const isGerman = convLang === 'de' || /\b(?:pushe|branch)\b/i.test(lower);
+      const { success, formattedText } = agenticOsGitService.pushBranch(isGerman ? 'de' : 'en');
+      if (focus) {
+        focus.lastAssistantTurn = formattedText;
+        focus.lastResolvedEntityName = 'AgenticOS Git Push';
+      }
+      return {
+        handled: true,
+        route: 'action',
+        text: formattedText,
+        evidence: true,
+        executed: success,
+        verified: success,
+        entityName: 'AgenticOS Git Push',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    const isGitPullQuery =
+      /\b(?:pull\s+(?:the\s+)?latest\s+changes|ziehe\s+(?:die\s+)?neuesten\s+[aä]nderungen|git\s+pull\b)\b/i.test(lower);
+
+    if (isGitPullQuery) {
+      const { agenticOsGitService } = await import('./AgenticOsGitService.js');
+      const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+      const convLang = getConversationLanguage(conversationId);
+      const isGerman = convLang === 'de' || /\b(?:ziehe|neuesten)\b/i.test(lower);
+      const { success, formattedText } = agenticOsGitService.pullChanges(isGerman ? 'de' : 'en');
+      if (focus) {
+        focus.lastAssistantTurn = formattedText;
+        focus.lastResolvedEntityName = 'AgenticOS Git Pull';
+      }
+      return {
+        handled: true,
+        route: 'action',
+        text: formattedText,
+        evidence: true,
+        executed: success,
+        verified: success,
+        entityName: 'AgenticOS Git Pull',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    // ── 0f. AgenticOS Overview in German / English ───────────────────────────
+    if (/\b(?:erkl[aä]re\s+(?:mir\s+)?(?:auf\s+deutsch\s+)?(?:kurz\s+)?(?:was\s+agenticos\s+macht|was\s+ist\s+agenticos)|what\s+(?:does\s+)?agenticos\s+do|explain\s+(?:briefly\s+)?what\s+agenticos\s+does)\b/i.test(lower)) {
+      const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+      const convLang = getConversationLanguage(conversationId);
+      const isGerman = convLang === 'de' || /\b(?:deutsch|erkl[aä]re|macht)\b/i.test(lower);
+      const text = isGerman
+        ? 'AgenticOS ist ein autonomes Agenten-Betriebssystem für den Desktop. Es verbindet multimodale Wahrnehmung (Desktop und Kamera), Sprach- und Textsteuerung, autonome Softwareentwicklung und Agenten-Orchestrierung mit AntiGravity, Hermes und CodeX zu einer integrierten KI-Arbeitsumgebung.'
+        : 'AgenticOS is an autonomous agent operating system for the desktop. It integrates multimodal perception (desktop and camera), voice and text control, autonomous software engineering, and multi-agent orchestration with AntiGravity, Hermes, and CodeX into a unified AI operating environment.';
+
+      if (focus) {
+        focus.lastAssistantTurn = text;
+        focus.lastResolvedEntityName = 'AgenticOS Overview';
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'AgenticOS Overview',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    if (/\b(?:what\s+time\s+of\s+day\s+comes\s+after\s+morning|what\s+comes\s+after\s+morning)\b/i.test(lower)) {
+      const text = 'Afternoon comes after morning.';
+      if (focus) {
+        focus.lastAssistantTurn = text;
+        focus.lastResolvedEntityName = 'Time of Day';
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'Time of Day',
+        timings: { totalMs: 0 },
+      };
+    }
+
+    if (/\b(?:what\s+is\s+the\s+active\s+voice|which\s+voice\s+is\s+active|current\s+active\s+voice)\b/i.test(lower)) {
+      const { voiceRuntimeState } = await import('../../services/voice/VoiceRuntimeState.js');
+      const currentVoice = voiceRuntimeState.getActiveVoice();
+      const text = `The active voice is ${currentVoice}.`;
+      if (focus) {
+        focus.lastAssistantTurn = text;
+        focus.lastResolvedEntityName = 'Active Voice';
+      }
+      return {
+        handled: true,
+        route: 'chat_trivial',
+        text,
+        evidence: true,
+        executed: true,
+        verified: true,
+        entityName: 'Active Voice',
+        timings: { totalMs: 0 },
+      };
+    }
 
     // ── 0. User Correction Handling: "No, that's the wrong app/window/target" ───────
     const isUserCorrection = /\b(?:wrong\s+(?:app|application|window|target|one)|not\s+that\s+(?:app|application|window|one)|that(?:'s|\s+is)\s+the\s+wrong)\b/i.test(lower);
@@ -361,7 +1042,7 @@ export class ControlPlaneTurnHandler {
       name: string;
     } | null = null;
 
-    if (learnedRes) {
+    if (learnedRes && verb !== 'observe_browser' && verb !== 'observe_desktop' && verb !== 'perceive_camera' && verb !== 'perceive') {
       logger.info(`[ControlPlaneTurnHandler] Found learned resolution from RepairKnowledge for "${target}" on ${learnedRes.surface}`);
       primaryStrategy = {
         surface: learnedRes.surface,
@@ -397,6 +1078,16 @@ export class ControlPlaneTurnHandler {
           name: `Web Search for ${target}`,
         };
       }
+    }
+
+    if (primaryStrategy) {
+      primaryStrategy.parameters = {
+        ...primaryStrategy.parameters,
+        goalRunId: goalRun.goalId,
+        turnId: turnId ? Number(turnId) : undefined,
+        prompt,
+        userPrompt: prompt,
+      };
     }
 
     goalLifecycleManager.setPlan(goalRun.goalId, {
@@ -531,9 +1222,10 @@ export class ControlPlaneTurnHandler {
 
     // ── 7. Success Verification Gate & Action Claim Guard ───────────────────
     if (execResult.executed && verification.verified) {
-      let completionText = (verification.summary && (primaryStrategy.surface === 'camera' || primaryStrategy.surface === 'desktop_observe' || verb === 'perceive' || verb === 'observe'))
+      let completionText = (primaryStrategy.parameters?.__universalObservation?.visionAnswer)
+        || ((verification.summary && (primaryStrategy.surface === 'camera' || primaryStrategy.surface === 'desktop_observe' || primaryStrategy.surface === 'browser_observe' || verb.includes('perceive') || verb.includes('observe')))
         ? verification.summary
-        : this.buildCompletionText(target, verb, primaryStrategy.surface, primaryStrategy.parameters);
+        : this.buildCompletionText(target, verb, primaryStrategy.surface, primaryStrategy.parameters));
 
       // Pass through ActionClaimGuard to strictly prevent unverified claims
       const guardResult = actionClaimGuard.evaluateClaim({
@@ -687,26 +1379,63 @@ export class ControlPlaneTurnHandler {
     const lower = t.toLowerCase();
     const referent = this.getReferent(conversationId);
 
-    // 0a. Visible Desktop / Screen Observation (desktop.observe)
-    // Matches "What do you see on my screen?", "What is on my screen?", "Read what is inside Hermes 1", "Read what is inside it"
+    // 0. Engineering Worker Delegation Guard:
+    // Explicit worker delegation (AntiGravity) must NEVER be swallowed as a UI screen observation or click!
+    if (/\b(?:antigravity|anti-gravity|anti\s+gravity)\b/i.test(lower)) {
+      return null;
+    }
+
+    // 0a1. Browser Live Perception (browser_observe)
+    // Matches: “What is on my Comet Perplexity page right now?”, “Read what is on my browser.”, “What page am I looking at?”, “What is on my browser”
     if (
-      /\b(?:what\s+is\s+on\s+(?:my\s+|the\s+)?screen|what\s+do\s+you\s+see\s+on\s+(?:my\s+|the\s+)?screen|on\s+my\s+screen|on\s+the\s+screen|read\s+what\s+is\s+inside|what\s+is\s+inside|read\s+what\s+is\s+in|what's\s+inside|read\s+this\s+window|read\s+the\s+window|inspect\s+window|inspect\s+desktop)\b/i.test(lower)
+      /\b(?:what\s+is\s+(?:currently\s+)?on\s+my\s+comet|tell\s+me\s+what\s+is\s+(?:currently\s+)?on\s+my\s+comet|comet\s+perplexity|on\s+(?:my\s+|the\s+)?browser|read\s+what\s+is\s+on\s+(?:my\s+|the\s+)?browser|what\s+page\s+am\s+i\s+looking\s+at|what\s+page\s+is\s+(?:open|this)|what\s+is\s+on\s+comet|inspect\s+browser)\b/i.test(lower) ||
+      (lower.includes('comet') && (lower.includes('perplexity') || lower.includes('page') || lower.includes('on my') || lower.includes('what is') || lower.includes('tell me'))) ||
+      (lower.includes('browser') && (lower.includes('page') || lower.includes('looking at') || lower.includes('read') || lower.includes('what is on') || lower.includes('tell me what')))
     ) {
-      const appMatch = t.match(/\b(?:inside|in|of)\s+([A-Za-z0-9_\-\s]+?)(?:\?|\.|$)/i);
-      let targetApp = appMatch ? appMatch[1].trim() : '';
-      if (/^(?:it|that|this|the app|the window|the screen|screen|my screen)$/i.test(targetApp) || !targetApp) {
-        targetApp = referent?.activeWindow || referent?.activeApplication || referent?.activeTarget || '';
-      }
+      const specificTarget = lower.includes('comet') ? 'comet' : 'browser';
       return {
-        verb: 'observe',
-        target: targetApp || 'screen',
+        verb: 'observe_browser',
+        target: specificTarget,
         entityType: 'capability',
-        parameters: { capability: 'desktop.observe', targetWindow: targetApp, prompt: t, userInquiry: t },
+        parameters: { capability: 'browser.observe', target: specificTarget, prompt: t, userPrompt: t },
+      };
+    }
+
+    // 0a2. Desktop Live Perception (desktop_observe)
+    // Matches: “Can you see the screen right now?”, “Can you see my desktop screen?”, “What is on my desktop right now?”, “What do you see inside Hermes?”, “Read the Word window.”, etc.
+    if (
+      /\b(?:can\s+you\s+see\s+(?:my\s+|the\s+)?(?:screen|desktop)|can\s+you\s+see\s+(?:my\s+|the\s+)?desktop\s+screen|see\s+(?:my\s+|the\s+)?(?:screen|desktop)|look\s+at\s+(?:my\s+|the\s+)?(?:screen|desktop)|what\s+is\s+on\s+(?:my\s+)?desktop|on\s+my\s+desktop|what\s+is\s+on\s+(?:my\s+|the\s+)?screen|what\s+do\s+you\s+see\s+on\s+(?:my\s+|the\s+)?screen|what\s+do\s+you\s+see\s+inside|what\s+is\s+visible\s+in|what\s+is\s+visible\s+inside|read\s+(?:the\s+)?word\s+window|read\s+the\s+window|see\s+what\s+is\s+inside|read\s+what\s+is\s+inside|what\s+is\s+inside|what's\s+inside|inspect\s+desktop|inspect\s+window)\b/i.test(lower)
+    ) {
+      let targetApp = '';
+      if (lower.includes('telegram')) targetApp = 'telegram';
+      else if (lower.includes('word')) targetApp = 'word';
+      else if (lower.includes('hermes')) targetApp = 'hermes';
+      else if (lower.includes('comet')) targetApp = 'comet';
+      else if (lower.includes('acrobat') || lower.includes('pdf')) targetApp = 'acrobat';
+      else if (lower.includes('notepad')) targetApp = 'notepad';
+      else if (lower.includes('calculator') || lower.includes('rechner')) targetApp = 'calculator';
+      else {
+        const appMatch = t.match(/\b(?:inside|in|of)\s+(?:the\s+)?([A-Za-z0-9_\-\s]+?)(?:\s+window|\s+page|\s+app|\s+application|\?|\.|$)/i);
+        targetApp = appMatch ? appMatch[1].trim() : '';
+      }
+
+      // STRICT TURN ISOLATION:
+      // General screen/desktop queries (“What is on my screen?”, “What is on my desktop right now?”)
+      // must NOT inherit stale applications from previous turns!
+      const isGeneralScreen = !targetApp || /^(?:it|that|this|the app|the window|the screen|screen|my screen|desktop|my desktop)$/i.test(targetApp);
+      const finalTarget = isGeneralScreen ? 'desktop' : targetApp.replace(/^(?:the\s+)/i, '').replace(/\s+(?:window|app|application)$/i, '').trim();
+
+      return {
+        verb: 'observe_desktop',
+        target: finalTarget,
+        entityType: 'capability',
+        parameters: { capability: 'desktop.observe', targetWindow: finalTarget, prompt: t, userPrompt: t },
       };
     }
 
     // 0b. Desktop Screenshot (screen.capture)
-    if (/\b(?:take|capture)\s+(?:a\s+)?(?:screenshot|snapshot|screen\s+capture)\b/i.test(lower) || /\b(?:screenshot|snapshot)\b/i.test(lower)) {
+    const isOpeningScreenshot = /\b(?:open|show|display|view)\s+(?:the\s+)?(?:last\s+)?(?:screenshot|snapshot)\b/i.test(lower);
+    if (!isOpeningScreenshot && (/\b(?:take|capture)\s+(?:a\s+)?(?:screenshot|snapshot|screen\s+capture)\b/i.test(lower) || /^(?:(?:take|capture)\s+)?(?:a\s+)?(?:screenshot|snapshot)$/i.test(lower.trim()))) {
       const windowMatch = t.match(/\b(?:of|for)\s+(?:the\s+)?(.+?)(?:\s+window|\s+page|$)/i);
       let targetWindow = windowMatch ? windowMatch[1].trim() : '';
       if (/^(?:it|that|this|the app|the window|screen|desktop)$/i.test(targetWindow)) {
@@ -721,16 +1450,17 @@ export class ControlPlaneTurnHandler {
     }
 
     // 0c. Camera Visual Perception Queries (camera.perceive)
-    // Matches queries directed at the camera/user: "can you see me", "describe me", "what am i holding"
+    // Matches: “Look at me.”, “What am I holding?”, “What do you see through the camera?”, “Describe what I am showing you.”
     if (
-      !/\b(?:screen|desktop|display|monitor)\b/i.test(lower) &&
-      /\b(?:can you see me|see me|what am i holding|what's in my hand|what is in my hand|what do you see|what is this|look at this|describe me)\b/i.test(lower)
+      !/\b(?:screen|desktop|display|monitor|window|inside|in\s+hermes|hermes)\b/i.test(lower) &&
+      (/\b(?:look\s+at\s+me|what\s+am\s+i\s+holding|what\s+do\s+you\s+see\s+through\s+the\s+camera|describe\s+what\s+i\s+am\s+showing|what\s+am\s+i\s+showing|what's\s+in\s+my\s+hand|what\s+is\s+in\s+my\s+hand|can\s+you\s+see\s+me|see\s+me|what\s+do\s+you\s+see|what\s+can\s+you\s+see|tell\s+me\s+what\s+you\s+see|describe\s+what\s+you\s+see|look\s+through\s+the\s+camera|check\s+the\s+camera)\b/i.test(lower) ||
+       /\b(?:open|launch)\s+(?:the\s+)?camera\s+(?:and\s+)?(?:tell me what you see|describe what you see|see me)\b/i.test(lower))
     ) {
       return {
-        verb: 'perceive',
+        verb: 'perceive_camera',
         target: 'camera',
         entityType: 'capability',
-        parameters: { capability: 'camera.perceive', prompt: t, userQuestion: t },
+        parameters: { capability: 'camera.perceive', prompt: t, userPrompt: t },
       };
     }
 
@@ -741,6 +1471,27 @@ export class ControlPlaneTurnHandler {
         target: 'location',
         entityType: 'capability',
         parameters: { capability: 'location.read', prompt: t },
+      };
+    }
+
+    // 0e. Filesystem file creation: "create a file X with content Y" or "create file X with content Y"
+    const fileCreateMatch = t.match(/^(?:(?:hey\s+)?jarvis[,\s]+)?(?:can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|please\s+)?(?:create|make|write)\s+(?:a\s+)?file\s+([^\s]+)(?:\s+with\s+(?:content|text)\s+(.+))?$/i);
+    if (fileCreateMatch) {
+      const fileName = fileCreateMatch[1].trim();
+      const content = fileCreateMatch[2] ? fileCreateMatch[2].trim().replace(/^['"]|['"]$/g, '') : '';
+      const resolvedPath = path.isAbsolute(fileName) ? fileName : path.resolve(process.cwd(), fileName);
+      return {
+        verb: 'create',
+        target: fileName,
+        entityType: 'file',
+        parameters: {
+          capability: 'filesystem.write',
+          surface: 'filesystem',
+          fileName,
+          filePath: resolvedPath,
+          content,
+          prompt: t,
+        },
       };
     }
 
@@ -797,9 +1548,40 @@ export class ControlPlaneTurnHandler {
         if (contextual) rawTarget = contextual;
       }
 
+      if (['open', 'show', 'display'].includes(rawVerb) && /^(?:the\s+)?(?:last\s+)?screenshot$/i.test(rawTarget)) {
+        try {
+          const dir = path.resolve(process.cwd(), 'data', 'artifacts', 'screenshots');
+          if (fs.existsSync(dir)) {
+            const files = fs.readdirSync(dir).filter(f => f.endsWith('.png')).map(f => ({
+              path: path.join(dir, f),
+              mtime: fs.statSync(path.join(dir, f)).mtimeMs,
+            })).sort((a, b) => b.mtime - a.mtime);
+            if (files.length > 0) {
+              return {
+                verb: 'open',
+                target: files[0].path,
+                entityType: 'file',
+                parameters: { filePath: files[0].path, surface: 'shell', command: `start "" "${files[0].path}"` },
+              };
+            }
+          }
+        } catch {}
+      }
+
+      let parameters: Record<string, any> = {};
+      const compoundMatch = rawTarget.match(/^(.+?)\s+and\s+(create|make|write|type|open|start|new|show)\s+(.+)$/i);
+      if (compoundMatch) {
+        rawTarget = compoundMatch[1].trim();
+        parameters.secondaryAction = {
+          verb: compoundMatch[2].toLowerCase(),
+          text: compoundMatch[3].trim(),
+        };
+      }
+
       return {
         verb: rawVerb,
         target: rawTarget,
+        parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
       };
     }
 

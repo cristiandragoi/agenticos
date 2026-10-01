@@ -1,0 +1,40 @@
+### captured at
+2026-10-01 08:48:05 +02:00
+
+### CMD-G1 (guard, case 1: FREECASH_DATA_ROOT UNSET) -- must exit 9, execute nothing
+REFUSED_STATE_ROOT: FREECASH_DATA_ROOT is UNSET; refusing to run. paths.py:35 falls back to the production root (D:/AgenticOS/data/freecash-monitor). Set FREECASH_DATA_ROOT to a throwaway directory. Nothing was executed.
+exit=9
+
+### CMD-G2 (guard, case 2: root == production, forward slashes)
+REFUSED_STATE_ROOT: FREECASH_DATA_ROOT='D:/AgenticOS/data/freecash-monitor' resolves to the PRODUCTION root (D:/AgenticOS/data/freecash-monitor); refusing to run. Nothing was executed.
+exit=9
+
+### CMD-G3 (guard, case 3: backslashes + trailing slash + mixed case)
+REFUSED_STATE_ROOT: FREECASH_DATA_ROOT='D:\AgenticOS\data\freecash-monitor\' resolves to the PRODUCTION root (D:/AgenticOS/data/freecash-monitor); refusing to run. Nothing was executed.
+exit=9
+
+### CMD-G4 (guard, case 4: uppercase + doubled separators)
+REFUSED_STATE_ROOT: FREECASH_DATA_ROOT='D://AgenticOS//DATA//freecash-monitor' resolves to the PRODUCTION root (D:/AgenticOS/data/freecash-monitor); refusing to run. Nothing was executed.
+exit=9
+
+### CMD-G5 (control: a throwaway root is ACCEPTED and refused nothing)
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/guard-control mode=check entry=D:/AgenticOS/monitoring/freecash/run_daily_check.py
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit=0
+
+### production state after the four refusal probes (must be byte-identical to BEFORE)
+PRODUCTION_UNCHANGED=true
+--- before ---
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 21:01 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 21:02 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+2310072a649dbfdbf7072dfb44915eeb75ab4ada8d849e9e78961e8358af399a *D:/AgenticOS/data/freecash-monitor/state/last-run.json
+--- after ---
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 21:01 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 30 21:02 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+2310072a649dbfdbf7072dfb44915eeb75ab4ada8d849e9e78961e8358af399a *D:/AgenticOS/data/freecash-monitor/state/last-run.json

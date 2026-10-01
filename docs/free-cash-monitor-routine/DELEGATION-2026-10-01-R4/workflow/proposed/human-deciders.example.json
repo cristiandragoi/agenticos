@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "kind": "human_deciders_allowlist",
+  "note": "PROPOSED (workflow stream S1). Operator-editable. A decision recorded by approval_queue.decide --by <name> is accepted ONLY when <name> appears in 'deciders' below. Replace the placeholder with your own name, spelled the way you will type it. An empty 'deciders' list refuses everyone. This file does not exist in production today; nothing reads it until the proposed patch is applied.",
+  "state_file": "state/human-deciders.json",
+  "template_note": "shipped template ships with an empty list (deny-all until the human adds themselves)",
+  "deciders": []
+}

@@ -1,0 +1,61 @@
+### PRODUCTION FORENSICS after the leak at ~08:53:46 local 2026-10-01
+2026-10-01 08:54:24 +02:00
+
+### day-locks (2026-10-01.lock is NEW -- created by the leaked run)
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 2026-10-01 08:53:46.692255500 +0200 .
+drwxr-xr-x 1 cd-pr 197609 0 2026-10-01 08:53:46.722515000 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 0 2026-09-20 21:08:00.700187900 +0200 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 2026-09-30 21:01:05.532562200 +0200 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 2026-10-01 08:53:46.692255500 +0200 2026-10-01.lock
+
+### snapshots
+total 3
+drwxr-xr-x 1 cd-pr 197609   0 2026-10-01 08:53:46.704717500 +0200 .
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-20 21:08:00.673099100 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 518 2026-09-20 21:08:00.723437700 +0200 2026-09-20.json
+-rw-r--r-- 1 cd-pr 197609 518 2026-09-30 21:02:05.634694500 +0200 2026-09-30.json
+-rw-r--r-- 1 cd-pr 197609 518 2026-10-01 08:53:46.700191600 +0200 2026-10-01.json
+
+### state/last-run.json (sha256 now vs the sha recorded earlier this session: 2310072a649dbfdbf7072dfb44915eeb75ab4ada8d849e9e78961e8358af399a)
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *D:/AgenticOS/data/freecash-monitor/state/last-run.json
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+
+### alerts.jsonl -- last 4 lines (canonical evidence record)
+{"day_key": "2026-09-30", "dedupe_key": "719a79b94e6ba913d0c407a2ecb97161c5d2da57b74be746904d0f366b43d0ad", "event_id": "30566e8f-ddb7-48d0-96ed-473340f3be4f", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-29\nNo successful status check recorded for 2026-09-29.\nLast success: 2026-09-20. consecutive_missed_days=9\nACTION:    No action taken. Investigate why no check ran (machine uptime, scheduler history, or a failed run).", "observed": {"field": "last_success_day", "new_value": "2026-09-20", "old_value": "2026-09-29", "prior_day_key": "2026-09-20"}, "severity": "alert", "ts_utc": "2026-09-30T19:01:58Z"}
+{"day_key": "2026-09-30", "dedupe_key": null, "event_id": "59600892-4b09-4da4-b0ba-65537c4f110c", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-09-30 (no operator-entered record for 2026-09-30 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": "2026-09-20", "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-09-30T19:02:05Z"}
+{"day_key": "2026-09-30", "dedupe_key": null, "event_id": "43d7ba43-f273-4e85-92f5-a048e26aa3ea", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-09-30 already consumed (lock 2026-09-30.lock). Duplicate run performed no read and wrote no snapshot.", "observed": {"lock": "D:\\AgenticOS\\data\\freecash-monitor\\state\\day-locks\\2026-09-30.lock"}, "severity": "info", "ts_utc": "2026-09-30T19:02:06Z"}
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "c4b7e50d-b141-49c3-8305-c2ffd1160fd6", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-10-01 (no operator-entered record for 2026-10-01 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": "2026-09-30", "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T06:53:46Z"}
+
+### alerts.jsonl line count and sha256
+15
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *D:/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl
+
+### notified-keys.json (must be unchanged: no dispatch occurred)
+0f28d5699b30c6d7b48224f9fa6da26113938c66fafc99e16f391dbedd60e9dd *D:/AgenticOS/data/freecash-monitor/state/notified-keys.json
+     10 "delivery": "TOAST_OK"
+
+### logs/ (no task-a.log/task-b-watchdog.log should have been touched)
+total 2
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-30 21:02:07.417043300 +0200 .
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-20 21:08:00.673099100 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 230 2026-09-30 21:02:06.521072000 +0200 task-a.log
+-rw-r--r-- 1 cd-pr 197609 136 2026-09-30 21:02:08.669538500 +0200 task-b-watchdog.log
+
+### operator-state.json mtime (must be untouched)
+-rw-r--r-- 1 cd-pr 197609 879 2026-09-20 21:08:00.718966300 +0200 D:/AgenticOS/data/freecash-monitor/state/operator-state.json
+
+### approvals/ (must be untouched/empty)
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:08 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:08 ..

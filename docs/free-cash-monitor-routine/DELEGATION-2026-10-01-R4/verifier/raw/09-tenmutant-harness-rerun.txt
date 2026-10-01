@@ -1,0 +1,42 @@
+package : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\pkg-clean (sha of readonly_client.py = 5426b56c11d20fbe)
+gate    : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\verifier\rule_gate_r3gate.py (sha = 11b605f2336157a3)
+python  : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe (3.11.9)
+workdir : C:\Users\cd-pr\AppData\Local\Temp\fc-r4-verifier-r3gate-rerun\mutants
+prod    : D:/AgenticOS/data/freecash-monitor (must gain no file; harness never writes there)
+
+mv1-r1-post-cashout            rule=1 exit=1  R1=FAIL           R2=PASS           R3=PASS           R4=PASS           DETECTED=YES
+    first FAIL: FAIL  no HTTP write verb literal reaches any call
+mv2-r2-lock-removed            rule=2 exit=1  R1=PASS           R2=FAIL           R3=PASS           R4=PASS           DETECTED=YES
+    first FAIL: FAIL  an atomic exclusive-create barrier exists in the package
+mv3-r3-save-before-load        rule=3 exit=1  R1=PASS           R2=PASS           R3=FAIL           R4=PASS           DETECTED=YES
+    first FAIL: FAIL  the prior snapshot is loaded before the new one is written
+mv4-r4-execute-without-by      rule=4 exit=1  R1=PASS           R2=PASS           R3=PASS           R4=FAIL           DETECTED=YES
+    first FAIL: FAIL  the approval queue defines a human decision path that can refuse
+adv1-r1-obfuscated-method      rule=1 exit=1  R1=FAIL           R2=PASS           R3=PASS           R4=PASS           DETECTED=YES
+    first FAIL: FAIL  no write verb is assembled from fragments and passed to a call
+adv2-r2-lock-nonbinding        rule=2 exit=1  R1=PASS           R2=FAIL           R3=PASS           R4=PASS           DETECTED=YES
+    first FAIL: FAIL  run #2 on the same day D does NOT perform a status read
+adv3-r4-getattr-exec           rule=4 exit=1  R1=FAIL           R2=PASS           R3=PASS           R4=FAIL           DETECTED=YES
+    first FAIL: FAIL  no dynamic dispatch site (eval/exec/__import__/computed getattr) exists
+adv4-r1-conditional-backdoor   rule=1 exit=1  R1=FAIL           R2=PASS           R3=PASS           R4=PASS           DETECTED=YES
+    first FAIL: FAIL  no write verb is assembled from fragments and passed to a call
+adv5-r3-compare-disabled       rule=3 exit=1  R1=PASS           R2=PASS           R3=FAIL           R4=FAIL           DETECTED=YES
+    first FAIL: FAIL  day 2 (earnings 1025 -> 1050) is detected and notified
+adv6-r1-new-socket-file        rule=1 exit=1  R1=FAIL           R2=PASS           R3=PASS           R4=FAIL           DETECTED=YES
+    first FAIL: FAIL  no write verb is assembled from fragments and passed to a call
+
+SUMMARY TABLE (also in mutation-evidence/MUTATION-TABLE.tsv)
+mutation                       rule exit  caught
+mv1-r1-post-cashout            1    1     YES   
+mv2-r2-lock-removed            2    1     YES   
+mv3-r3-save-before-load        3    1     YES   
+mv4-r4-execute-without-by      4    1     YES   
+adv1-r1-obfuscated-method      1    1     YES   
+adv2-r2-lock-nonbinding        2    1     YES   
+adv3-r4-getattr-exec           4    1     YES   
+adv4-r1-conditional-backdoor   1    1     YES   
+adv5-r3-compare-disabled       3    1     YES   
+adv6-r1-new-socket-file        1    1     YES   
+
+All 10 mutations were flagged by the gate.
+harness_exit=0

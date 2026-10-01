@@ -1,0 +1,15 @@
+== live loopback probes at Do,  1. Okt 2026 11:48:27 ==
+URL http://localhost:4600/api/health -> HTTP 000 (curl exit 7)
+URL http://127.0.0.1:4600/api/health -> HTTP 000 (curl exit 7)
+URL http://localhost:4600/api/projects/proj-free-cash/freecash/auth -> HTTP 000 (curl exit 7)
+URL http://localhost:4600/api/projects -> HTTP 000 (curl exit 7)
+URL http://localhost:3001/api/v1/status/metrics -> HTTP 000 (curl exit 7)
+
+== netstat for 4600 / 3001 ==
+(netstat end)
+
+== electron / electron-like processes ==
+0
+
+== server pid from earlier pass (32500) alive? ==
+INFORMATION: Es werden keine Aufgaben mit den angegebenen Kriterien ausgefhrt.

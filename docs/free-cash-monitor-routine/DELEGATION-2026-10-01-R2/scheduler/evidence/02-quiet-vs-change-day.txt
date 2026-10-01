@@ -1,0 +1,28 @@
+### QUIET DAY: prior snapshot 2026-09-30 (ACTIVE/1340/1340/0 USD) == today's operator record
+wrapper rc=0  stdout_bytes=0  stderr_bytes=0
+--- wrapper stdout ---
+--- wrapper stderr ---
+--- the run's own log line (what it decided) ---
+RUN_OK 2026-10-01 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+
+### CHANGE DAY: same prior snapshot, today's record earnings 1500 (moved from 1340)
+wrapper rc=0  stdout_bytes=197  stderr_bytes=0
+--- wrapper stdout ---
+RUN_OK 2026-10-01 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-01.lock
+--- wrapper stderr ---
+--- alerts.jsonl ---
+{"day_key": "2026-10-01", "dedupe_key": "56858c66f01b51e50df09e9b662b43a82ecdf26e9eba23fbcf7dac80f0eb7e1a", "event_id": "6eb5928b-2376-4311-9b9e-ae3842e8dd15", "event_type": "APPROVAL_PENDING", "message": "Approval item 547eeda8-fd94-4a9f-8dcd-d423c153dff9 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will act on it without you.", "observed": {"approval_id": "547eeda8-fd94-4a9f-8dcd-d423c153dff9", "change_dedupe_key": "56858c66f01b51e50df09e9b662b43a82ecdf26e9eba23fbcf7dac80f0eb7e1a", "execution_state": "NOT_EXECUTED", "status": "PENDING"}, "severity": "notify", "ts_utc": "2026-10-01T07:17:26Z"}
+{"day_key": "2026-10-01", "dedupe_key": "56858c66f01b51e50df09e9b662b43a82ecdf26e9eba23fbcf7dac80f0eb7e1a", "event_id": "448a90b2-c831-49b5-b492-10a69ac5289e", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-10-01\nEarnings:  $13.40 -> $15.00  (+$1.60)\nBalance:   $15.00 (changed too)\nPending:   $0.00\nStatus:    ACTIVE (unchanged)\nSource:    DEGRADED (operator-entered record for 2026-10-01)\nDetail:    alerts.jsonl dedupe=56858c66f01b51e5\nACTION:    No action taken. Review and approve anything you want done.\nApproval:  547eeda8-fd94-4a9f-8dcd-d423c153dff9 (PENDING - yours to decide, nothing executes)", "observed": {"field": "earnings_total_cents", "new_value": 1500, "old_value": 1340, "prior_day_key": "2026-09-30"}, "severity": "notify", "ts_utc": "2026-10-01T07:17:26Z"}
+--- notified-keys.json ---
+{
+  "schema_version": 1,
+  "keys": {
+    "56858c66f01b51e50df09e9b662b43a82ecdf26e9eba23fbcf7dac80f0eb7e1a": {
+      "first_notified_at_utc": "2026-10-01T07:17:26Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-10-01T07:17:26Z"
+    }
+  }
+}
+--- stub toast log (sandbox transport) ---
+[STUB TOAST 2026-10-01T07:17:26Z] [FreeCash] EARNINGS CHANGE 2026-10-01 | Earnings:  $13.40 -> $15.00  (+$1.60) | Balance:   $15.00 (changed too) | Pending:   $0.00 | Status:    ACTIVE (unchanged) | Source:    DEGRADED (operator-entered record for 2026-10-01) | Detail:    alerts.jsonl dedupe=56858c66f01b51e5 | ACTION:    No action taken. Review and approve anything you want done. | Approval:  547eeda8-fd94-4a9f-8dcd-d423c153dff9 (PENDING - yours to decide, nothing executes)

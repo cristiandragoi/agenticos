@@ -1,0 +1,39 @@
+=== node --version ===
+v24.20.0
+=== node --check server/scripts/freecash-daily-monitor.mjs ===
+D:\AgenticOS\server\scripts\freecash-daily-monitor.mjs:41
+function isDailyCheckAllowed(): boolean {
+                              ^
+
+SyntaxError: Unexpected token ':'
+    at checkSyntax (node:internal/main/check_syntax:72:5)
+
+Node.js v24.20.0
+node_check_exit=1
+=== node --check server/scripts/verify-freecash-rules.mjs ===
+node_check_exit=0
+=== node server/scripts/verify-freecash-rules.mjs (read-only verifier) ===
+[FREECASH RULE VERIFIER] Starting checks...
+
+[CHECK] Rule 1: No auto-earning actions...
+   Result: PASSED
+
+[CHECK] Rule 2: Once per day check...
+   Result: PASSED
+
+[CHECK] Rule 3: Notify on earnings/status changes...
+   Result: PASSED
+
+[CHECK] Rule 4: Human approval before external action...
+   Result: PASSED
+
+
+=== Rule Compliance Summary ===
+✓ Rule 1 (No auto earnings)     → PASSED
+✓ Rule 2 (Once daily check)      → PASSED
+✓ Rule 3 (Notify changes)        → PASSED
+✓ Rule 4 (Human approval queue)  → PASSED
+
+[OK] All 4 operational rules verified (4/4 passed)
+
+verifier_exit=0

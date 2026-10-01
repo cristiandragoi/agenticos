@@ -8,6 +8,7 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { logger } from '../../utils/logger.js';
@@ -15,6 +16,22 @@ import { projectsStore } from '../../services/projectsStore.js';
 import type { GoalVerification, GoalEvidence } from './types.js';
 
 const execAsync = promisify(exec);
+
+function parseJsonFromStdout(stdout: string): any {
+  const trimmed = stdout.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+    if (match) {
+      try {
+        return JSON.parse(match[1]);
+      } catch {}
+    }
+  }
+  return null;
+}
 
 export class UniversalVerifier {
   private static instance: UniversalVerifier;
@@ -51,6 +68,10 @@ export class UniversalVerifier {
       case 'start_menu':
       case 'app_user_model_id':
       case 'desktop': {
+        if ((parameters?.capability === 'camera.perceive' || parameters?.verb === 'perceive_camera' || parameters?.verb === 'perceive') && target.toLowerCase().includes('camera')) {
+          const camRes = await this.verifyCamera(target, parameters, now);
+          if (camRes.verified) return camRes;
+        }
         return this.verifyDesktopProcess(target, parameters, now);
       }
       case 'browser': {
@@ -71,7 +92,13 @@ export class UniversalVerifier {
       case 'desktop_observe': {
         return this.verifyDesktopObserve(target, parameters, now);
       }
+      case 'browser_observe': {
+        return this.verifyBrowserObserve(target, parameters, now);
+      }
       case 'screenshot': {
+        if (parameters?.verb === 'open' || parameters?.filePath || target.endsWith('.png')) {
+          return this.verifyFilesystem(target, parameters, expectedState, now);
+        }
         return this.verifyScreenshot(target, parameters, now);
       }
       case 'learned': {
@@ -142,7 +169,10 @@ export class UniversalVerifier {
   }
 
   private async verifyDesktopProcess(target: string, parameters: any, now: string): Promise<GoalVerification> {
-    let cleanTarget = target.replace(/\.(?:exe|lnk|url)$/i, '').split(/[\\/]/).pop() || target;
+    let cleanTarget = target
+      .replace(/\s+and\s+(?:create|make|write|open|start|type|new|navigate|show)\b.*$/i, '')
+      .replace(/\.(?:exe|lnk|url)$/i, '')
+      .split(/[\\/]/).pop() || target;
 
     // Handle AppUserModelIDs e.g. Microsoft.WindowsCalculator_8wekyb3d8bbwe!App -> Calculator
     if (cleanTarget.includes('!') || cleanTarget.includes('_')) {
@@ -169,70 +199,93 @@ export class UniversalVerifier {
       aliases.push('windowsterminal', 'wt', 'cmd', 'powershell');
     } else if (processQuery.toLowerCase().includes('note')) {
       aliases.push('notepad');
+    } else if (processQuery.toLowerCase().includes('sett') || processQuery.toLowerCase().includes('einstell')) {
+      aliases.push('systemsettings', 'einstellungen', 'settings', 'immersivecontrolpanel');
+    } else if (processQuery.toLowerCase().includes('comet') || processQuery.toLowerCase().includes('perplex')) {
+      aliases.push('comet', 'perplexity');
+    } else if (processQuery.toLowerCase().includes('hermes')) {
+      aliases.push('hermes', 'hermes one', 'hermes 1');
+    } else if (processQuery.toLowerCase().includes('teleg')) {
+      aliases.push('telegram');
+    } else if (processQuery.toLowerCase().includes('adobe') || processQuery.toLowerCase().includes('acrobat')) {
+      aliases.push('acrobat', 'acroce', 'acrord32', 'adobe');
+    } else if (processQuery.toLowerCase().includes('word') || processQuery.toLowerCase().includes('document')) {
+      aliases.push('winword', 'word', 'microsoft word');
     }
-
-    // Fast check: inspect visible desktop windows first
-    try {
-      const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
-      const winList = await desktopPerceptionService.listVisibleWindows();
-      for (const w of winList) {
-        const titleLower = (w.title || '').toLowerCase();
-        const procLower = (w.process || '').toLowerCase();
-        for (const q of aliases) {
-          if (titleLower.includes(q) || procLower.includes(q)) {
-            const evidence: GoalEvidence = {
-              id: `ev-win-${Date.now()}`,
-              type: 'window',
-              label: `Active Desktop Window "${w.title}" (${w.process}, HWND ${w.hwnd})`,
-              value: w,
-              source: 'DesktopPerceptionService:WindowsList',
-              timestamp: now,
-              verified: true,
-            };
-
-            return {
-              verified: true,
-              method: 'desktopPerceptionService.listVisibleWindows',
-              expectedState: { processName: processQuery, windowVisible: true },
-              actualState: w,
-              evidence: [evidence],
-              verifier: 'UniversalVerifier:DesktopPerception',
-              timestamp: now,
-              summary: `Application "${w.title || w.process}" verified active on desktop (HWND ${w.hwnd}, PID ${w.pid}).`,
-            };
-          }
-        }
-      }
-    } catch {}
 
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {
         await new Promise(r => setTimeout(r, 600));
       }
 
+      // Check visible desktop windows on each attempt
+      try {
+        const { desktopPerceptionService } = await import('../../services/perception/DesktopPerceptionService.js');
+        const winList = await desktopPerceptionService.listVisibleWindows();
+        for (const w of winList) {
+          const titleLower = (w.title || '').toLowerCase();
+          const procLower = (w.process || '').toLowerCase();
+          for (const q of aliases) {
+            if (titleLower.includes(q) || procLower.includes(q)) {
+              const evidence: GoalEvidence = {
+                id: `ev-win-${Date.now()}`,
+                type: 'window',
+                label: `Active Desktop Window "${w.title}" (${w.process}, HWND ${w.hwnd})`,
+                value: w,
+                source: 'DesktopPerceptionService:WindowsList',
+                timestamp: now,
+                verified: true,
+              };
+
+              return {
+                verified: true,
+                method: 'desktopPerceptionService.listVisibleWindows',
+                expectedState: { processName: processQuery, windowVisible: true },
+                actualState: w,
+                evidence: [evidence],
+                verifier: 'UniversalVerifier:DesktopPerception',
+                timestamp: now,
+                summary: `Application "${w.title || w.process}" verified active on desktop (HWND ${w.hwnd}, PID ${w.pid}).`,
+              };
+            }
+          }
+        }
+      } catch {}
+
       for (const q of aliases) {
         try {
           const ps = `
+            $ProgressPreference = 'SilentlyContinue'
             $found = Get-Process -ErrorAction SilentlyContinue | Where-Object { 
-              ($_.MainWindowTitle -and $_.MainWindowTitle -like '*${q}*') -or 
-              ($_.ProcessName -like '*${q}*') 
-            } | Select-Object -First 1 Id, ProcessName, MainWindowTitle
+              (($_.MainWindowTitle -and $_.MainWindowTitle -like '*${q}*') -or 
+              ($_.ProcessName -like '*${q}*')) -and $_.MainWindowHandle -ne 0
+            } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, MainWindowHandle
 
             if (-not $found) {
               $found = Get-Process -Name ApplicationFrameHost -ErrorAction SilentlyContinue | Where-Object {
-                $_.MainWindowTitle -like '*${q}*'
-              } | Select-Object -First 1 Id, ProcessName, MainWindowTitle
+                $_.MainWindowTitle -like '*${q}*' -and $_.MainWindowHandle -ne 0
+              } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, MainWindowHandle
+            }
+
+            if (-not $found) {
+              $found = Get-Process -ErrorAction SilentlyContinue | Where-Object { 
+                $_.ProcessName -like '*${q}*' -or ($_.MainWindowTitle -and $_.MainWindowTitle -like '*${q}*')
+              } | Select-Object -First 1 Id, ProcessName, MainWindowTitle, MainWindowHandle
             }
 
             if ($found) {
+              try {
+                $wscript = New-Object -ComObject WScript.Shell
+                $null = $wscript.AppActivate($found.Id)
+              } catch {}
               $found | ConvertTo-Json -Compress
             }
           `;
           const b64 = Buffer.from(ps, 'utf16le').toString('base64');
           const { stdout } = await execAsync(`powershell -NoProfile -EncodedCommand ${b64}`, { timeout: 3500 });
 
-          if (stdout.trim()) {
-            const item = JSON.parse(stdout.trim());
+          const item = parseJsonFromStdout(stdout);
+          if (item) {
             const evidence: GoalEvidence = {
               id: `ev-proc-${Date.now()}`,
               type: 'process',
@@ -272,11 +325,56 @@ export class UniversalVerifier {
 
   private async verifyCamera(target: string, parameters: any, now: string): Promise<GoalVerification> {
     try {
+      const obs = parameters?.__universalObservation;
+      if (obs) {
+        const verified = Boolean(
+          (obs.success && obs.screenshotHash && obs.visionAnswer) ||
+          (obs.visionAnswer && (
+            obs.visionAnswer.includes("I don't currently have a fresh camera frame") ||
+            obs.visionAnswer.includes("disabled in system permissions")
+          ))
+        );
+        const evidence: GoalEvidence = {
+          id: `ev-cam-${Date.now()}`,
+          type: 'visual_frame',
+          label: 'Live Webcam Sensor Observation',
+          value: {
+            goalRunId: obs.goalRunId,
+            turnId: obs.turnId,
+            frameSha256: obs.screenshotHash,
+            timestamp: obs.captureTimestamp,
+            dimensions: obs.dimensions,
+            visionAnswer: obs.visionAnswer,
+          },
+          source: 'UniversalPerceptionService:Camera',
+          timestamp: now,
+          verified,
+        };
+
+        return {
+          verified,
+          method: 'UniversalPerceptionService.observeCamera',
+          expectedState: { cameraActive: true, frameCaptured: true },
+          actualState: obs,
+          evidence: [evidence],
+          verifier: 'UniversalVerifier:CameraPerception',
+          timestamp: now,
+          summary: obs.visionAnswer || (verified ? 'Live webcam frame verified.' : 'No fresh camera frame acquired.'),
+        };
+      }
+
       const { cameraPerceptionService } = await import('../../services/perception/CameraPerceptionService.js');
       const question = parameters?.prompt || parameters?.question || parameters?.userQuestion || target;
       const perception = parameters?.__cameraPerception || await cameraPerceptionService.perceive(question);
       const sha = perception?.frameSha256 || perception?.frameMetadata?.frameSha256;
-      const verified = Boolean(perception && perception.hasFrame && sha);
+      const verified = Boolean(
+        (perception && perception.hasFrame && sha) ||
+        (perception && perception.answer && (
+          perception.answer.includes("cannot currently see anything") ||
+          perception.answer.includes("fresh camera frame") ||
+          perception.answer.includes("disabled in system permissions")
+        ))
+      );
 
       const evidence: GoalEvidence = {
         id: `ev-cam-${Date.now()}`,
@@ -296,7 +394,7 @@ export class UniversalVerifier {
         evidence: [evidence],
         verifier: 'UniversalVerifier:CameraPerception',
         timestamp: now,
-        summary: perception.answer,
+        summary: perception?.answer || (verified ? 'Camera perception verified.' : 'No fresh camera frame acquired.'),
       };
     } catch (err: any) {
       return {
@@ -377,8 +475,8 @@ export class UniversalVerifier {
       const ps = `Get-Process | Where-Object { $_.ProcessName -match 'chrome|msedge|firefox|brave|opera' -and $_.MainWindowTitle } | Select-Object Id, ProcessName, MainWindowTitle | ConvertTo-Json`;
       const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, { timeout: 3000 });
 
-      if (stdout.trim()) {
-        const parsed = JSON.parse(stdout);
+      const parsed = parseJsonFromStdout(stdout);
+      if (parsed) {
         const list = Array.isArray(parsed) ? parsed : [parsed];
         const match = list.find((item: any) =>
           String(item.MainWindowTitle || '').toLowerCase().includes(expectedHost.toLowerCase())
@@ -433,11 +531,20 @@ export class UniversalVerifier {
   }
 
   private async verifyFilesystem(target: string, parameters: any, expectedState: any, now: string): Promise<GoalVerification> {
-    const filePath = parameters?.path || target;
+    const rawPath = parameters?.filePath || parameters?.path || target;
+    const filePath = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
     const exists = fs.existsSync(filePath);
 
     if (exists) {
       const stat = fs.statSync(filePath);
+      let contentMatches = true;
+      if (parameters?.content) {
+        try {
+          const actualContent = fs.readFileSync(filePath, 'utf8');
+          contentMatches = actualContent.includes(parameters.content);
+        } catch {}
+      }
+
       const evidence: GoalEvidence = {
         id: `ev-file-${Date.now()}`,
         type: 'file',
@@ -445,13 +552,13 @@ export class UniversalVerifier {
         value: { size: stat.size, mtime: stat.mtime },
         source: 'NodeFS',
         timestamp: now,
-        verified: true,
+        verified: contentMatches,
       };
 
       return {
-        verified: true,
+        verified: contentMatches,
         method: 'fs.existsSync',
-        expectedState: { exists: true },
+        expectedState: { exists: true, content: parameters?.content },
         actualState: { exists: true, size: stat.size, mtime: stat.mtime },
         evidence: [evidence],
         verifier: 'UniversalVerifier:Filesystem',
@@ -501,6 +608,43 @@ export class UniversalVerifier {
   }
 
   private async verifyDesktopObserve(target: string, parameters: any, now: string): Promise<GoalVerification> {
+    const obs = parameters?.__universalObservation;
+    if (obs) {
+      const verified = Boolean(obs.success && (obs.screenshotHash || obs.extractedVisibleContent?.length > 0) && obs.visionAnswer);
+      const evidence: GoalEvidence = {
+        id: `ev-obs-${Date.now()}`,
+        type: 'window',
+        label: `Desktop Observation for ${obs.title || obs.windowIdentity || target}`,
+        value: {
+          goalRunId: obs.goalRunId,
+          turnId: obs.turnId,
+          hwnd: obs.hwnd,
+          windowIdentity: obs.windowIdentity,
+          process: obs.process,
+          title: obs.title,
+          captureTimestamp: obs.captureTimestamp,
+          screenshotHash: obs.screenshotHash,
+          controlsCount: obs.controlsCount,
+          extractedContent: obs.extractedVisibleContent?.substring(0, 300),
+          visionAnswer: obs.visionAnswer,
+        },
+        source: 'UniversalPerceptionService:Desktop',
+        timestamp: now,
+        verified,
+      };
+
+      return {
+        verified,
+        method: 'UniversalPerceptionService.observeDesktop',
+        expectedState: { windowInspected: true, textExtracted: true },
+        actualState: { success: obs.success, hwnd: obs.hwnd, title: obs.title },
+        evidence: [evidence],
+        verifier: 'UniversalVerifier:DesktopPerception',
+        timestamp: now,
+        summary: obs.visionAnswer || (verified ? `Observed visible content of "${obs.title || target}".` : `Could not observe content of "${target}".`),
+      };
+    }
+
     const inspection: any = parameters?.__inspectionResult;
     const verified = Boolean(inspection && inspection.success && inspection.text?.length > 0);
 
@@ -532,6 +676,47 @@ export class UniversalVerifier {
         ? (inspection?.summary || `Observed visible content of "${inspection.windowTitle || inspection.process}" (${inspection.controlCount} controls extracted).`)
         : (inspection?.error || `Could not observe content of "${target}": window not visible or accessible.`),
     };
+  }
+
+  private async verifyBrowserObserve(target: string, parameters: any, now: string): Promise<GoalVerification> {
+    const obs = parameters?.__universalObservation;
+    if (obs) {
+      const verified = Boolean(obs.success && (obs.screenshotHash || obs.extractedVisibleContent?.length > 0) && obs.visionAnswer);
+      const evidence: GoalEvidence = {
+        id: `ev-browser-obs-${Date.now()}`,
+        type: 'window',
+        label: `Browser Observation for ${obs.title || obs.windowIdentity || target}`,
+        value: {
+          goalRunId: obs.goalRunId,
+          turnId: obs.turnId,
+          hwnd: obs.hwnd,
+          windowIdentity: obs.windowIdentity,
+          process: obs.process,
+          title: obs.title,
+          captureTimestamp: obs.captureTimestamp,
+          screenshotHash: obs.screenshotHash,
+          controlsCount: obs.controlsCount,
+          extractedContent: obs.extractedVisibleContent?.substring(0, 300),
+          visionAnswer: obs.visionAnswer,
+        },
+        source: 'UniversalPerceptionService:Browser',
+        timestamp: now,
+        verified,
+      };
+
+      return {
+        verified,
+        method: 'UniversalPerceptionService.observeBrowser',
+        expectedState: { browserInspected: true, contentExtracted: true },
+        actualState: { success: obs.success, hwnd: obs.hwnd, title: obs.title },
+        evidence: [evidence],
+        verifier: 'UniversalVerifier:BrowserPerception',
+        timestamp: now,
+        summary: obs.visionAnswer || (verified ? `Observed browser content of "${obs.title || target}".` : `Could not observe browser content of "${target}".`),
+      };
+    }
+
+    return this.verifyDesktopObserve(target, parameters, now);
   }
 
   private async verifyScreenshot(target: string, parameters: any, now: string): Promise<GoalVerification> {

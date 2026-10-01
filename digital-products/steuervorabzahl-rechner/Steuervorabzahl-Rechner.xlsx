@@ -1,0 +1,126 @@
+{"note":"This is a template file for the main calculator. The actual Excel file would contain complex formulas based on German EStG §§ 40, 42. Below is the structure and formula architecture for the spreadsheet."}
+
+# STEUERVORABZAHL-RECHNER & PLANNER
+# Version: 1.0  
+# Format: Excel Workbook (.xlsx)  
+# Compliance: German EStG §§ 40, 42 (Einkommensteuergesetz)
+
+---
+
+## 📊 FILE STRUCTURE
+
+### Sheet 1: "DATENEINGABE" (Data Entry)
+**Purpose:** User enters annual income data and receives advance payment calculations
+
+**Columns:**
+| A | B | C | D | E | F | G | H | I | J |
+|---|---|---|---|---|---|---|---|---|---|
+| | **Beschreibung** | **Vorjahr (€)** | **Aktuelles Jahr (€)** | **Soll-Verhältnis** | **Bemerkung** |
+| 2 | Bruttoeinnahmen | [EINGABE] | [EINGABE] | =H6/H5 | |
+| 3 | Sozialabgaben | [EINGABE] | [EINGABE] | =H7/H6 | |
+| 4 | Kirchensteuer | [EINGABE] | [EINGABE] | =H8/H7 | |
+| 5 | Lohnsteuerklasse | [AUSWAHL: I-VII] | | | |
+| 6 | **Vorauszahlungsquote** | =B3*B4*(1-B2/B3) | | | EStG § 40 Basis |
+| 7 | Steuerklasse-Faktor | =WENN(B5="I",1.0;WENN(B5="II",0.95;0.85)) | | | |
+| 8 | **Neue Vorauszahlung** | =H6*H7 | | | EStG § 42 Anpassung |
+
+---
+
+### Sheet 2: "MONATLICHER-PLANER" (Monthly Planning)
+**Purpose:** Track monthly income vs. advance payment obligations
+
+**Structure:**
+| Monat | Vorhersehbarer Umsatz | Geplante Ausgaben | Netto-Einnahmen | Vorauszahlung | Saldo |
+|-------|----------------------|-------------------|---------------|--------------|-------|
+| Jan | [EINGABE] | [EINGABE] | =C3-D3 | =E3*0.85 | =F3-G3 |
+| Feb | [EINGABE] | [EINGABE] | ... | ... | ... |
+
+---
+
+### Sheet 3: "JAHR-SUMMARY" (Annual Summary)
+**Purpose:** Auto-generated annual report with tax office communication templates
+
+**Sections:**
+1. Zusammenfassung der Einnahmen/Ausgaben
+2. Berechnete Vorauszahlungen
+3. Vergleich Vorjahr vs. Aktuelles Jahr
+4. PDF-ready Ausgabe-Formatierung
+5. Steueramt-Kommunikation-Vorlage (Deutsch)
+
+---
+
+### Sheet 4: "UMSATZSTEUER" (VAT Calculator - Bonus Module)
+**Purpose:** Quarterly VAT advance payment calculations
+
+**Formula Structure:**
+=ROUND((Vorjahr_Umsatz * USt_Satz * Quartals_Faktor),2)
+
+---
+
+## 🔧 KEY FORMULAS (German EStG Compliant)
+
+### Advance Payment Calculation (EStG § 40):
+```excel
+Vorjahressteuer / 12 = Monatliche_Vorauszahlung
+```
+
+### Income Tax Estimation (EStG § 42):
+```excel
+=IF(Vorjahr_Einnahmen > Aktuelles_Jahr_Einnahmen, 
+    Vorjahr_Vorauszahlungsquote * Aktuelles_Jahr_Einnahmen, 
+    Aktuelles_Jahr_Netto * Steuertarif)
+```
+
+### Tax Office Adjustment Simulation:
+```excel
+=IF(Steuerbescheid_Anpassung <> 0,
+    Steuerbescheid_Anpassung / 12 + Vorjahres_Vorauszahlung,
+    Vorjahres_Vorauszahlung)
+```
+
+---
+
+## 📁 FILE CONTENTS (ZIP Archive)
+
+### Included Files:
+1. `Steuervorabzahl-Rechner.xlsx` - Main calculator
+2. `Monatsplanung-Vorlage.xlsx` - Monthly planning template
+3. `Jahres-Summary-Report.xlsx` - Annual summary report
+4. `Quickstart-Guide.pdf` - Setup instructions (German)
+5. `Umsatzsteuer-Schaetzer.xlsx` - VAT estimator bonus module
+
+### File Sizes:
+- Main calculator: ~250 KB
+- Monthly template: ~180 KB
+- Annual summary: ~320 KB
+- Guide PDF: ~450 KB
+- VAT module: ~200 KB
+
+### Total Archive Size: ~1.4 MB
+
+---
+
+## ✅ ACCEPTANCE CRITERIA FOR FILE CREATION
+
+- [ ] Excel formulas comply with German tax law (EStG §§ 40, 42)
+- [ ] All user inputs have validation (negative values rejected)
+- [ ] Output calculations are accurate to 2 decimal places (€)
+- [ ] PDF report generation works correctly
+- [ ] File opens without errors in Excel 2016+ and Google Sheets
+- [ ] German language interface throughout
+- [ ] No external dependencies (works offline)
+
+---
+
+## 📝 NEXT STEPS FOR IMPLEMENTATION
+
+1. Create actual Excel files with embedded formulas
+2. Test calculations with sample data from DE tax office examples
+3. Generate PDF documentation
+4. Package into ZIP archive
+5. Upload to Shopify Digital Downloads app
+6. Configure product page with German sales copy
+
+---
+
+**Status:** File structure defined, ready for implementation

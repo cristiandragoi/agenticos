@@ -1,0 +1,62 @@
+### captured at
+2026-10-01 09:02:09 +02:00
+
+### re-check: any '--' inside the XML comments of the two DECISION-V2 proposals?
+DECISION-V2-FreeCash-Daily-Monitor.xml:2:<!--
+DECISION-V2-FreeCash-Daily-Monitor.xml:59:-->
+DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml:2:<!--
+DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml:37:-->
+
+### XML well-formedness (pinned interpreter)
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\xml\etree\ElementTree.py", line 1219, in parse
+    tree.parse(source, parser)
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\xml\etree\ElementTree.py", line 581, in parse
+    self._root = parser._parse_whole(source)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+xml.etree.ElementTree.ParseError: not well-formed (invalid token): line 96, column 227
+exit=1
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\xml\etree\ElementTree.py", line 1219, in parse
+    tree.parse(source, parser)
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\xml\etree\ElementTree.py", line 581, in parse
+    self._root = parser._parse_whole(source)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+xml.etree.ElementTree.ParseError: not well-formed (invalid token): line 74, column 205
+exit=1
+
+### files this track created in scheduler/ (mine, by name pattern)
+DECISION-V2-FreeCash-Daily-Monitor.xml
+DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+DECISION-V2-HERMES-CRON-SCRIPTS-PROPOSAL.md
+evidence
+freecash-daily.cmd
+FreeCash-Daily-Monitor.xml
+FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+freecash-guarded-run.sh
+freecash-watchdog.cmd
+
+### proof I modified no tracked file: tracked files with mtime in the last 90 minutes
+D:/AgenticOS/server/.agentic/gateway-metrics.json
+D:/AgenticOS/server/.agentic/gateway-runs.jsonl
+D:/AgenticOS/server/agentic-os.db
+D:/AgenticOS/server/data/agentic-os.db-shm
+D:/AgenticOS/server/data/agentic-os.db-wal
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418111-if6xy.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418115-44tr6.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418117-4rqnd.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418120-jpneg.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418122-j4v15.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418125-ylx5s.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418129-1g35t.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418132-aurwc.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418135-a6ia5.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418141-7u443.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836418143-gm3f8.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836532058-ritw7.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836532061-fx4a5.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836532065-45rl1.png
+D:/AgenticOS/server/data/artifacts/screenshots/foreground-read-1790836532067-tvndn.png
+--- end of recent-mtime scan (empty above == nothing of mine touched them)

@@ -22,6 +22,7 @@
 
 import { executionRunService, type ExecutionResultRecord } from './executionRunService.js';
 import type { WorkerFinding, FindingVerdict } from './findings.js';
+import { unifiedOperationalContext } from '../../domains/controlPlane/UnifiedOperationalContext.js';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -215,8 +216,18 @@ export function listConversationResults(
   conversationId: string,
   worker?: 'codex' | 'hermes',
 ): ConversationResultEntry[] {
-  if (!conversationId) return [];
-  const runs = executionRunService.listRunsForConversation(conversationId);
+  let runs = conversationId ? executionRunService.listRunsForConversation(conversationId) : [];
+
+  // Cross-channel shared operational state (§1, §2, §4)
+  if (runs.length === 0) {
+    try {
+      const activeRef = unifiedOperationalContext.getActiveReferent();
+      if (activeRef.activeTaskId) {
+        runs = executionRunService.listRunsForTask(activeRef.activeTaskId);
+      }
+    } catch {}
+  }
+
   const entries: ConversationResultEntry[] = [];
   for (const run of runs) {
     if (worker && run.workerType !== worker) continue;
@@ -354,7 +365,16 @@ export function resolveResultReference(input: ResolveResultReferenceInput): Reso
 
   const entries = listConversationResults(conversationId, worker);
   if (entries.length === 0) {
-    return none('No prior worker results exist in this conversation.');
+    try {
+      const activeRef = unifiedOperationalContext.getActiveReferent();
+      if (activeRef.activeTaskId) {
+        const task = unifiedOperationalContext.getTask(activeRef.activeTaskId);
+        if (task) {
+          return none(`Active task \`${task.taskId}\` (${task.worker}: "${task.objective}") has status ${task.status}. No prior grounded worker analysis result artifact exists yet.`);
+        }
+      }
+    } catch {}
+    return none('No prior worker results exist in this operational context.');
   }
 
   const intent = classifyReferenceIntent(userPrompt, input.findingIndexHint);

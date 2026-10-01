@@ -1,0 +1,44 @@
+=== ISOLATION AFTER — 2026-10-01T11:52:50+02:00 ===
+$ sha256sum data/freecash-monitor/state/last-run.json data/freecash-monitor/alerts/alerts.jsonl
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+
+=== full production root listing (must be the same 12 files) ===
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/logs/task-a.log
+data/freecash-monitor/logs/task-b-watchdog.log
+data/freecash-monitor/snapshots/2026-09-20.json
+data/freecash-monitor/snapshots/2026-09-30.json
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-09-20.lock
+data/freecash-monitor/state/day-locks/2026-09-30.lock
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+data/freecash-monitor/state/notified-keys.json
+data/freecash-monitor/state/operator-state.json
+file count: 12
+
+=== find -newermt '2026-10-01 00:00' — every line accounted for ===
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+newer-than count: 4
+
+=== config/ untouched? ===
+total 65
+drwxr-xr-x 1 cd-pr 197609   0 Sep 11 10:12 .
+drwxr-xr-x 1 cd-pr 197609   0 Sep 30 23:06 ..
+-rw-r--r-- 1 cd-pr 197609 578 Sep 11 10:12 freecash-crontab
+
+=== monitoring/ untouched? (mtimes) ===
+-rw-r--r-- 1 cd-pr 197609 10914 Sep 20 06:57 monitoring/freecash/approval_queue.py
+-rw-r--r-- 1 cd-pr 197609 11983 Sep 20 06:59 monitoring/freecash/changedetect.py
+-rw-r--r-- 1 cd-pr 197609  7983 Sep 18 07:32 monitoring/freecash/gate.py
+-rw-r--r-- 1 cd-pr 197609 15479 Sep 20 06:57 monitoring/freecash/notify.py
+-rw-r--r-- 1 cd-pr 197609  4942 Sep 18 07:26 monitoring/freecash/operator_state.py
+-rw-r--r-- 1 cd-pr 197609  6429 Sep 18 07:31 monitoring/freecash/paths.py
+-rw-r--r-- 1 cd-pr 197609  8847 Sep 18 07:25 monitoring/freecash/readonly_client.py
+-rw-r--r-- 1 cd-pr 197609 18977 Sep 20 06:57 monitoring/freecash/run_daily_check.py
+-rw-r--r-- 1 cd-pr 197609  7856 Sep 18 07:27 monitoring/freecash/verify_readonly.py
+-rw-r--r-- 1 cd-pr 197609  4176 Sep 20 06:59 monitoring/freecash/watchdog.py

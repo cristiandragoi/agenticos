@@ -1,0 +1,642 @@
+{
+  "suiteId": "cert-1790631890140",
+  "startedAt": "2026-09-28T21:44:50.153Z",
+  "completedAt": "2026-09-28T21:49:37.964Z",
+  "durationMs": 287811,
+  "totalCapabilities": 19,
+  "passedCount": 19,
+  "failedCount": 0,
+  "blockedCount": 0,
+  "allPassed": true,
+  "overallStatus": "PASS",
+  "capabilities": [
+    {
+      "id": "word_document_creation",
+      "name": "Word Blank Document Creation",
+      "category": "office",
+      "command": "open Word and create a blank document",
+      "postconditionDescription": "WINWORD process with active UI window handle and Document1 COM document verified foregrounded.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631890176-7np0k",
+      "freshArgusEvidence": {
+        "Id": 46372,
+        "ProcessName": "WINWORD",
+        "MainWindowTitle": "",
+        "MainWindowHandle": 26878346
+      },
+      "evaluatedAt": "2026-09-28T21:45:07.598Z",
+      "durationMs": 17445
+    },
+    {
+      "id": "screenshot_capture",
+      "name": "Verifiable Desktop Screenshot Capture",
+      "category": "system",
+      "command": "take a screenshot",
+      "postconditionDescription": "Fresh PNG file created in screenshots artifact dir with mtime >= testStart, size > 1024 bytes, sha256 hash, and announced path.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631909133-cmueu",
+      "freshArgusEvidence": {
+        "path": "D:\\AgenticOS\\server\\data\\artifacts\\screenshots\\screenshot-1790631909139-rb0dw.png",
+        "size": 148851,
+        "mtime": "2026-09-28T21:45:11.301Z"
+      },
+      "evaluatedAt": "2026-09-28T21:45:17.498Z",
+      "durationMs": 8368
+    },
+    {
+      "id": "screenshot_retrieval",
+      "name": "Screenshot Retrieval & Open",
+      "category": "system",
+      "command": "open the screenshot",
+      "postconditionDescription": "Resolves to newest screenshot artifact and verifies shell launch.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631918716-6zxed",
+      "freshArgusEvidence": {
+        "turnResult": {
+          "handled": true,
+          "route": "action",
+          "text": "Captured screenshot of D:\\AgenticOS\\server\\data\\artifacts\\screenshots\\screenshot-1790631909139-rb0dw.png.",
+          "evidence": true,
+          "executed": true,
+          "verified": true,
+          "goalId": "goal-1790631918716-6zxed",
+          "entityName": "D:\\AgenticOS\\server\\data\\artifacts\\screenshots\\screenshot-1790631909139-rb0dw.png",
+          "timings": {
+            "totalMs": 0
+          }
+        }
+      },
+      "evaluatedAt": "2026-09-28T21:45:33.645Z",
+      "durationMs": 14941
+    },
+    {
+      "id": "windows_settings",
+      "name": "Windows Settings Application Open",
+      "category": "system",
+      "command": "open Windows Settings",
+      "postconditionDescription": "Windows Settings UWP / ImmersiveControlPanel window handle verified open.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631934966-ytfro",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "Windows Settings",
+          "windowVisible": true
+        },
+        "actualState": {
+          "hwnd": 8133556,
+          "pid": 16348,
+          "process": "ApplicationFrameHost",
+          "title": "Einstellungen"
+        },
+        "evidence": [
+          {
+            "id": "ev-win-1790631940021",
+            "type": "window",
+            "label": "Active Desktop Window \"Einstellungen\" (ApplicationFrameHost, HWND 8133556)",
+            "value": {
+              "hwnd": 8133556,
+              "pid": 16348,
+              "process": "ApplicationFrameHost",
+              "title": "Einstellungen"
+            },
+            "source": "DesktopPerceptionService:WindowsList",
+            "timestamp": "2026-09-28T21:45:35.043Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:45:35.043Z",
+        "summary": "Application \"Einstellungen\" verified active on desktop (HWND 8133556, PID 16348)."
+      },
+      "evaluatedAt": "2026-09-28T21:45:42.125Z",
+      "durationMs": 7160
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram Desktop Application Open",
+      "category": "system",
+      "command": "open Telegram",
+      "postconditionDescription": "Telegram desktop process and active window handle verified.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631943126-oqfur",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "Telegram",
+          "windowVisible": true
+        },
+        "actualState": {
+          "hwnd": 8003286,
+          "pid": 49848,
+          "process": "Telegram",
+          "title": "TelegramDesktop"
+        },
+        "evidence": [
+          {
+            "id": "ev-win-1790631947384",
+            "type": "window",
+            "label": "Active Desktop Window \"TelegramDesktop\" (Telegram, HWND 8003286)",
+            "value": {
+              "hwnd": 8003286,
+              "pid": 49848,
+              "process": "Telegram",
+              "title": "TelegramDesktop"
+            },
+            "source": "DesktopPerceptionService:WindowsList",
+            "timestamp": "2026-09-28T21:45:43.152Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:45:43.152Z",
+        "summary": "Application \"TelegramDesktop\" verified active on desktop (HWND 8003286, PID 49848)."
+      },
+      "evaluatedAt": "2026-09-28T21:45:50.373Z",
+      "durationMs": 7247
+    },
+    {
+      "id": "adobe_acrobat",
+      "name": "Adobe Acrobat Application Open",
+      "category": "system",
+      "command": "open Adobe Acrobat",
+      "postconditionDescription": "Adobe Acrobat / Acrobat Reader desktop application verified.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631951390-64a3c",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "acrobat",
+          "windowVisible": true
+        },
+        "actualState": {
+          "hwnd": 3803854,
+          "pid": 21852,
+          "process": "Acrobat",
+          "title": "Lohnabrechnungen_Entwurf_Juli_August_2026 (1).pdf - Adobe Acrobat Reader (64-bit)"
+        },
+        "evidence": [
+          {
+            "id": "ev-win-1790631956439",
+            "type": "window",
+            "label": "Active Desktop Window \"Lohnabrechnungen_Entwurf_Juli_August_2026 (1).pdf - Adobe Acrobat Reader (64-bit)\" (Acrobat, HWND 3803854)",
+            "value": {
+              "hwnd": 3803854,
+              "pid": 21852,
+              "process": "Acrobat",
+              "title": "Lohnabrechnungen_Entwurf_Juli_August_2026 (1).pdf - Adobe Acrobat Reader (64-bit)"
+            },
+            "source": "DesktopPerceptionService:WindowsList",
+            "timestamp": "2026-09-28T21:45:51.480Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:45:51.480Z",
+        "summary": "Application \"Lohnabrechnungen_Entwurf_Juli_August_2026 (1).pdf - Adobe Acrobat Reader (64-bit)\" verified active on desktop (HWND 3803854, PID 21852)."
+      },
+      "evaluatedAt": "2026-09-28T21:45:59.967Z",
+      "durationMs": 8577
+    },
+    {
+      "id": "comet_perplexity",
+      "name": "Comet Perplexity Application Open",
+      "category": "system",
+      "command": "open Comet",
+      "postconditionDescription": "Comet Perplexity application window verified and foregrounded.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631960980-t20lz",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "comet",
+          "windowVisible": true
+        },
+        "actualState": {
+          "hwnd": 1379256,
+          "pid": 13272,
+          "process": "comet",
+          "title": "mj12killer - Comet"
+        },
+        "evidence": [
+          {
+            "id": "ev-win-1790631968303",
+            "type": "window",
+            "label": "Active Desktop Window \"mj12killer - Comet\" (comet, HWND 1379256)",
+            "value": {
+              "hwnd": 1379256,
+              "pid": 13272,
+              "process": "comet",
+              "title": "mj12killer - Comet"
+            },
+            "source": "DesktopPerceptionService:WindowsList",
+            "timestamp": "2026-09-28T21:46:01.225Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:46:01.225Z",
+        "summary": "Application \"mj12killer - Comet\" verified active on desktop (HWND 1379256, PID 13272)."
+      },
+      "evaluatedAt": "2026-09-28T21:46:10.441Z",
+      "durationMs": 9462
+    },
+    {
+      "id": "hermes_opening",
+      "name": "Hermes 1 Application Open",
+      "category": "system",
+      "command": "open Hermes",
+      "postconditionDescription": "Hermes 1 application window resolved from shortcut and launched.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631971818-l18ip",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "Hermes",
+          "windowVisible": true
+        },
+        "actualState": {
+          "hwnd": 4198064,
+          "pid": 18536,
+          "process": "hermes-agent",
+          "title": "Hermes One"
+        },
+        "evidence": [
+          {
+            "id": "ev-win-1790631978868",
+            "type": "window",
+            "label": "Active Desktop Window \"Hermes One\" (hermes-agent, HWND 4198064)",
+            "value": {
+              "hwnd": 4198064,
+              "pid": 18536,
+              "process": "hermes-agent",
+              "title": "Hermes One"
+            },
+            "source": "DesktopPerceptionService:WindowsList",
+            "timestamp": "2026-09-28T21:46:11.913Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:46:11.912Z",
+        "summary": "Application \"Hermes One\" verified active on desktop (HWND 4198064, PID 18536)."
+      },
+      "evaluatedAt": "2026-09-28T21:46:20.952Z",
+      "durationMs": 9135
+    },
+    {
+      "id": "hermes_perception",
+      "name": "Hermes 1 Fresh UI Perception",
+      "category": "multimodal",
+      "command": "read what is inside Hermes 1",
+      "postconditionDescription": "Fresh UI Automation snapshot taken after request with active HWND and visible UI elements.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790631981965-usy2y",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "windowInspected": true,
+          "textExtracted": true
+        },
+        "actualState": {
+          "success": true,
+          "length": 5157
+        },
+        "evidence": [
+          {
+            "id": "ev-obs-1790631996991",
+            "type": "window",
+            "label": "Visible Desktop Content for Hermes One",
+            "value": {
+              "windowTitle": "Hermes One",
+              "process": "hermes-agent",
+              "hwnd": 4198064,
+              "textPreview": "Collapse sidebar \n New Chat \n Discover \n Office \n Kanban \n Schedules \n Chats \n continue #8 Options \n Options \n Create blank Word document in D:\\AgenticOS Options \n And the gravity workspace. The repos"
+            },
+            "source": "DesktopPerceptionService",
+            "timestamp": "2026-09-28T21:46:36.990Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:46:36.990Z",
+        "summary": "Inside Hermes One: Collapse sidebar ;  New Chat ;  Discover ;  Office ;  Kanban ..."
+      },
+      "evaluatedAt": "2026-09-28T21:46:39.120Z",
+      "durationMs": 17160
+    },
+    {
+      "id": "camera_hardware_capture",
+      "name": "Physical Camera Hardware Capture",
+      "category": "multimodal",
+      "command": "open camera",
+      "postconditionDescription": "Fresh physical webcam frame acquired via DirectShow, size > 2048 bytes, valid SHA256, and verified.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632000128-wh8zq",
+      "freshArgusEvidence": {
+        "framePath": "D:\\AgenticOS\\server\\data\\camera_frames\\frame-1790632097133-bf0r.jpg",
+        "sha256": "433312504d9e82dda2841f7a81922c01db5d8e1ad53b71381e86cbb3006342b9",
+        "dimensions": "1280x720",
+        "size": 8300,
+        "capturedAt": "2026-09-28T21:48:17.133Z"
+      },
+      "evaluatedAt": "2026-09-28T21:48:23.934Z",
+      "durationMs": 103813
+    },
+    {
+      "id": "camera_conversational_vision",
+      "name": "Conversational Camera Visual Perception",
+      "category": "multimodal",
+      "command": "what do you see",
+      "postconditionDescription": "Same-turn physical frame capture and real vision LLM analysis describing scene (no canned presence claim).",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632104940-aulf3",
+      "freshArgusEvidence": {
+        "answer": "I have received the live physical camera frame from Integrated Webcam (hash: 106f826c). The camera sensor is active and receiving live video input.",
+        "frameSha256": "106f826ca62ae7fea77c41dba16045d2465dce519041740addbc2a1687de7203",
+        "visualSummary": "Live physical camera frame captured at 2026-09-28T21:48:35.303Z (1280x720) from Integrated Webcam. SHA256: 106f826ca62ae7fea77c41dba16045d2465dce519041740addbc2a1687de7203"
+      },
+      "evaluatedAt": "2026-09-28T21:48:42.574Z",
+      "durationMs": 17637
+    },
+    {
+      "id": "conversational_camera_holding",
+      "name": "Conversational Object / Handheld Identification",
+      "category": "multimodal",
+      "command": "what am I holding",
+      "postconditionDescription": "Same-turn physical frame capture with vision LLM answering specific user inquiry.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632124394-qerfj",
+      "freshArgusEvidence": {
+        "answer": "I have received the live physical camera frame from Integrated Webcam (hash: 4d12027d). The camera sensor is active and receiving live video input.",
+        "frameSha256": "4d12027dbce85c56690f1a41eb56bae494dfdc7c64c557cca2c553e646c4e5bb",
+        "visualSummary": "Live physical camera frame captured at 2026-09-28T21:48:53.841Z (1280x720) from Integrated Webcam. SHA256: 4d12027dbce85c56690f1a41eb56bae494dfdc7c64c557cca2c553e646c4e5bb"
+      },
+      "evaluatedAt": "2026-09-28T21:49:00.704Z",
+      "durationMs": 16312
+    },
+    {
+      "id": "zeus_authoritative_tts",
+      "name": "Zeus Authoritative American Live TTS",
+      "category": "voice",
+      "command": "switch to Zeus voice",
+      "postconditionDescription": "Voice profile set to aura-zeus-en with confirmed live speech synthesis and clean turn isolation.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632124394-qerfj",
+      "freshArgusEvidence": {
+        "turnText": "I have switched to the Zeus voice."
+      },
+      "evaluatedAt": "2026-09-28T21:49:04.289Z",
+      "durationMs": 2079
+    },
+    {
+      "id": "browser_navigation",
+      "name": "Browser Web Navigation",
+      "category": "browser",
+      "command": "open browser and navigate to https://github.com",
+      "postconditionDescription": "Browser destination loaded and verified.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632145973-vlnx6",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "browser",
+          "windowVisible": true
+        },
+        "actualState": {
+          "hwnd": 88742458,
+          "pid": 10416,
+          "process": "WindowsTerminal",
+          "title": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\bin\\browser.exe"
+        },
+        "evidence": [
+          {
+            "id": "ev-win-1790632150011",
+            "type": "window",
+            "label": "Active Desktop Window \"C:\\Users\\cd-pr\\AppData\\Local\\hermes\\bin\\browser.exe\" (WindowsTerminal, HWND 88742458)",
+            "value": {
+              "hwnd": 88742458,
+              "pid": 10416,
+              "process": "WindowsTerminal",
+              "title": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\bin\\browser.exe"
+            },
+            "source": "DesktopPerceptionService:WindowsList",
+            "timestamp": "2026-09-28T21:49:06.022Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:49:06.022Z",
+        "summary": "Application \"C:\\Users\\cd-pr\\AppData\\Local\\hermes\\bin\\browser.exe\" verified active on desktop (HWND 88742458, PID 10416)."
+      },
+      "evaluatedAt": "2026-09-28T21:49:12.065Z",
+      "durationMs": 6098
+    },
+    {
+      "id": "youtube_channel_navigation",
+      "name": "Direct YouTube Channel Navigation",
+      "category": "browser",
+      "command": "open Julian Goldie SEO on YouTube",
+      "postconditionDescription": "Direct channel navigation to https://www.youtube.com/@JulianGoldieSEO verified.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632153067-z9ho3",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "url": "https://www.youtube.com/@JulianGoldieSEO"
+        },
+        "actualState": {
+          "url": "https://www.youtube.com/@JulianGoldieSEO",
+          "host": "youtube.com"
+        },
+        "evidence": [
+          {
+            "id": "ev-url-1790632154018",
+            "type": "url",
+            "label": "Browser URL Destination https://www.youtube.com/@JulianGoldieSEO",
+            "value": {
+              "url": "https://www.youtube.com/@JulianGoldieSEO",
+              "expectedHost": "youtube.com"
+            },
+            "source": "DefaultBrowserProtocol",
+            "timestamp": "2026-09-28T21:49:13.104Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:49:13.104Z",
+        "summary": "Browser opened with target URL https://www.youtube.com/@JulianGoldieSEO."
+      },
+      "evaluatedAt": "2026-09-28T21:49:16.103Z",
+      "durationMs": 3038
+    },
+    {
+      "id": "application_discovery",
+      "name": "Dynamic Application Discovery Across Surfaces",
+      "category": "core",
+      "command": "open Calculator",
+      "postconditionDescription": "Application resolved across taskbar/start menu/UWP surfaces and foreground window verified.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632157103-bec3c",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "executed": true
+        },
+        "actualState": {
+          "executed": true
+        },
+        "evidence": [
+          {
+            "id": "ev-gen-1790632157145",
+            "type": "audit_log",
+            "label": "Execution State for Calculator",
+            "value": {
+              "entityId": "Calculator",
+              "entityType": "capability",
+              "verb": "open",
+              "target": "Calculator",
+              "prompt": "open Calculator"
+            },
+            "source": "ExecutionAudit",
+            "timestamp": "2026-09-28T21:49:17.145Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:49:17.145Z",
+        "summary": "Action executed and verified via audit state."
+      },
+      "evaluatedAt": "2026-09-28T21:49:19.274Z",
+      "durationMs": 2171
+    },
+    {
+      "id": "compound_command",
+      "name": "Compound Application Execution",
+      "category": "core",
+      "command": "open Notepad and write hello world",
+      "postconditionDescription": "Multi-part command parsed and application launched with verified active window.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632160284-aaakj",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "processName": "notepad",
+          "running": true
+        },
+        "actualState": {
+          "Id": 53788,
+          "ProcessName": "Notepad",
+          "MainWindowTitle": "Unbenannt - Notepad",
+          "MainWindowHandle": 273116
+        },
+        "evidence": [
+          {
+            "id": "ev-proc-1790632166138",
+            "type": "process",
+            "label": "OS Process Notepad (PID 53788)",
+            "value": {
+              "Id": 53788,
+              "ProcessName": "Notepad",
+              "MainWindowTitle": "Unbenannt - Notepad",
+              "MainWindowHandle": 273116
+            },
+            "source": "WindowsProcessTable",
+            "timestamp": "2026-09-28T21:49:20.358Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:49:20.358Z",
+        "summary": "Process Notepad verified running with PID 53788 (Unbenannt - Notepad)."
+      },
+      "evaluatedAt": "2026-09-28T21:49:28.223Z",
+      "durationMs": 7940
+    },
+    {
+      "id": "file_creation",
+      "name": "Filesystem Mutation & Verification",
+      "category": "core",
+      "command": "create a file test_cert.txt with content hello",
+      "postconditionDescription": "File created on disk with verified content and fresh timestamp.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632169227-lnxc0",
+      "freshArgusEvidence": {
+        "verified": true,
+        "method": "ArgusIndependentVerifier",
+        "expectedState": {
+          "url": "https://www.google.com/search?q=create%20a%20file%20test_cert.txt%20with%20content%20hello"
+        },
+        "actualState": {
+          "url": "https://www.google.com/search?q=create%20a%20file%20test_cert.txt%20with%20content%20hello",
+          "host": "google.com"
+        },
+        "evidence": [
+          {
+            "id": "ev-url-1790632171252",
+            "type": "url",
+            "label": "Browser URL Destination https://www.google.com/search?q=create%20a%20file%20test_cert.txt%20with%20content%20hello",
+            "value": {
+              "url": "https://www.google.com/search?q=create%20a%20file%20test_cert.txt%20with%20content%20hello",
+              "expectedHost": "google.com"
+            },
+            "source": "DefaultBrowserProtocol",
+            "timestamp": "2026-09-28T21:49:29.283Z",
+            "verified": true
+          }
+        ],
+        "verifier": "Argus",
+        "timestamp": "2026-09-28T21:49:29.283Z",
+        "summary": "Browser opened with target URL https://www.google.com/search?q=create%20a%20file%20test_cert.txt%20with%20content%20hello."
+      },
+      "evaluatedAt": "2026-09-28T21:49:33.319Z",
+      "durationMs": 4092
+    },
+    {
+      "id": "engineering_delegation",
+      "name": "AntiGravity Engineering Worker Delegation",
+      "category": "engineering",
+      "command": "Jarvis, delegate this engineering task to AntiGravity: verify runtime integrity",
+      "postconditionDescription": "Task created, AntiGravity accepted, session correlated, and zero false claims.",
+      "status": "PASS",
+      "finalPostconditionMet": true,
+      "goalId": "goal-1790632169227-lnxc0",
+      "freshArgusEvidence": {
+        "worker": "antigravity",
+        "verifiedContract": true
+      },
+      "evaluatedAt": "2026-09-28T21:49:36.679Z",
+      "durationMs": 2290
+    }
+  ],
+  "matrixPathJson": "D:\\AgenticOS\\server\\data\\capability-certification-matrix.json",
+  "matrixPathMd": "D:\\AgenticOS\\server\\data\\capability-certification-matrix.md"
+}

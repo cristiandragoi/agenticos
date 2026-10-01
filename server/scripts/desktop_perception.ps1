@@ -5,6 +5,9 @@ param(
     [string]$OutScreenshotPath = ""
 )
 
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 $source = @"
 using System;
 using System.Text;
@@ -43,6 +46,12 @@ public class DesktopPerceptionHelper {
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
     [DllImport("user32.dll")]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+    [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, ref POINT pt);
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")]
     public static extern IntPtr GetWindowDC(IntPtr hWnd);
     [DllImport("user32.dll")]
     public static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
@@ -73,12 +82,20 @@ public class DesktopPerceptionHelper {
         public int Bottom;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT {
+        public int X;
+        public int Y;
+    }
+
     public class WindowEntry {
         public long Hwnd;
         public uint Pid;
         public string Process;
         public string Title;
         public string ClassName;
+        public int Width;
+        public int Height;
     }
 
     public static void Attach() {
@@ -95,22 +112,34 @@ public class DesktopPerceptionHelper {
         List<WindowEntry> list = new List<WindowEntry>();
         EnumProc enumCallback = (hWnd, lParam) => {
             if (IsWindowVisible(hWnd)) {
+                StringBuilder sbClass = new StringBuilder(256);
+                GetClassName(hWnd, sbClass, 256);
+                string cName = sbClass.ToString();
+                if (cName.Contains("ToolSaveBits") || cName.Contains("Tooltip") || cName.Contains("DropShadow")) {
+                    return true;
+                }
+
+                RECT r;
+                GetWindowRect(hWnd, out r);
+                int w = r.Right - r.Left;
+                int h = r.Bottom - r.Top;
+
                 StringBuilder sb = new StringBuilder(512);
                 GetWindowText(hWnd, sb, 512);
                 string title = sb.ToString();
-                if (!string.IsNullOrEmpty(title)) {
+                if (!string.IsNullOrEmpty(title) && (w >= 100 && h >= 100 || cName == "Progman")) {
                     uint pid = 0;
                     GetWindowThreadProcessId(hWnd, out pid);
                     string pName = "";
                     try { pName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch {}
-                    StringBuilder sbClass = new StringBuilder(256);
-                    GetClassName(hWnd, sbClass, 256);
                     WindowEntry e = new WindowEntry();
                     e.Hwnd = hWnd.ToInt64();
                     e.Pid = pid;
                     e.Process = pName;
                     e.Title = title;
-                    e.ClassName = sbClass.ToString();
+                    e.ClassName = cName;
+                    e.Width = w;
+                    e.Height = h;
                     list.Add(e);
                 }
             }
@@ -192,30 +221,61 @@ function Get-TargetWindow {
     # Check current foreground
     $fg = [DesktopPerceptionHelper]::GetForegroundWindow()
     $fgTitle = ""
+    $fgW = 0
+    $fgH = 0
     if ($fg -ne [IntPtr]::Zero) {
         $sb = New-Object System.Text.StringBuilder 512
         [DesktopPerceptionHelper]::GetWindowText($fg, $sb, 512) | Out-Null
         $fgTitle = $sb.ToString()
+        $rect = New-Object DesktopPerceptionHelper+RECT
+        [DesktopPerceptionHelper]::GetWindowRect($fg, [ref]$rect) | Out-Null
+        $fgW = $rect.Right - $rect.Left
+        $fgH = $rect.Bottom - $rect.Top
     }
 
     $qClean = if ($Query) { 
         $Query.ToLower().Trim() -replace '^(?:read|inspect|what\s+is\s+inside|what''s\s+inside|inside|in|the)\s+', '' -replace '\s+(?:window|page|app|application)$', ''
     } else { "" }
 
-    # If query is deictic or empty:
-    if (-not $qClean -or $qClean -match '^(?:active|current|this|the)\b' -or $qClean -eq 'active_window') {
-        # If foreground is valid and not AgenticOS, return foreground
-        if ($fg -ne [IntPtr]::Zero -and $fgTitle -notlike "*AgenticOS*") {
+    # If query is deictic, empty, or desktop/screen:
+    if (-not $qClean -or $qClean -eq 'desktop' -or $qClean -eq 'screen' -or $qClean -eq 'fullscreen' -or $qClean -match '^(?:active|current|this|the)\b' -or $qClean -eq 'active_window') {
+        # If desktop or screen was explicitly queried, pick Progman if available
+        if ($qClean -eq 'desktop' -or $qClean -eq 'screen' -or $qClean -eq 'fullscreen') {
+            $progman = $allWindows | Where-Object { $_.ClassName -eq "Progman" -or $_.Title -eq "Program Manager" } | Select-Object -First 1
+            if ($progman) { return [IntPtr]$progman.Hwnd }
+        }
+        # If foreground is valid, not AgenticOS, and prominent
+        if ($fg -ne [IntPtr]::Zero -and $fgTitle -notlike "*AgenticOS*" -and $fgW -ge 300 -and $fgH -ge 200) {
             return $fg
         }
         # Otherwise pick first prominent non-explorer non-AgenticOS window
         $match = $allWindows | Where-Object { 
             $_.Process -ne "explorer" -and 
             $_.Title -notlike "*AgenticOS*" -and
-            $_.Title -notlike "*Program Manager*"
+            $_.Title -notlike "*Program Manager*" -and
+            $_.Width -ge 300 -and
+            $_.Height -ge 200
         } | Select-Object -First 1
         if ($match) { return [IntPtr]$match.Hwnd }
         if ($fg -ne [IntPtr]::Zero) { return $fg }
+    }
+
+    if ($qClean -eq 'browser' -or $qClean -match '^(?:browser|web\s*browser)$') {
+        # Check active foreground first if it's a browser
+        if ($fg -ne [IntPtr]::Zero -and $fgTitle -notlike "*AgenticOS*") {
+            $fgProc = $allWindows | Where-Object { $_.Hwnd -eq $fg.ToInt64() } | Select-Object -First 1
+            if ($fgProc -and $fgProc.Process -match 'comet|chrome|msedge|firefox|brave|opera') {
+                return $fg
+            }
+        }
+        # Find any prominent browser window (Comet, Chrome, Edge, etc.)
+        $browserMatch = $allWindows | Where-Object { 
+            $_.Process -match 'comet|chrome|msedge|firefox|brave|opera' -and 
+            $_.Width -ge 300 -and 
+            $_.Height -ge 200 
+        } | Select-Object -First 1
+        if ($browserMatch) { return [IntPtr]$browserMatch.Hwnd }
+        if ($fg -ne [IntPtr]::Zero -and $fgTitle -notlike "*AgenticOS*") { return $fg }
     }
 
     if ($qClean) {
@@ -271,6 +331,374 @@ function Get-TargetWindow {
     return $fg
 }
 
+# ═════════════════════════════════════════════════════════════════════════════
+# ACTION: read_foreground
+#
+# Reads the ACTUAL foreground window's visible content.
+#
+# Separation of concerns (each step is a distinct, independently verifiable fact):
+#   1. Foreground identification  — GetForegroundWindow() ONLY. No window search,
+#      no token scoring over window titles, no application launching, no task lookup.
+#   2. Window geometry            — window rect vs CLIENT rect, expressed in screen
+#      coordinates, so the non-client band (title bar / caption buttons / borders)
+#      is a known rectangle rather than a guess.
+#   3. UI tree extraction         — UIA descendants of the CONTENT root.
+#   4. Content extraction         — non-client chrome is excluded by GEOMETRY
+#      (any element whose bounding box lies outside the client area) and by control
+#      type (TitleBar / MenuBar / ScrollBar / Thumb / Separator). The window title is
+#      reported as identity metadata and is NEVER injected into the content text.
+#   5. Screenshot                 — captured for the vision fallback; on its own it
+#      is never presented as extracted content.
+#
+# reason codes distinguish "nothing to read" from "cannot read this window".
+# ═════════════════════════════════════════════════════════════════════════════
+if ($Action -eq 'read_foreground') {
+    # Production ALWAYS reads the true foreground window. An explicit -Hwnd is
+    # accepted only for non-destructive diagnostics against an already-open
+    # window; the voice path never passes it.
+    $fgHwnd = if ($Hwnd -gt 0) { [IntPtr]$Hwnd } else { [DesktopPerceptionHelper]::GetForegroundWindow() }
+    $reason = ""
+
+    if ($fgHwnd -eq [IntPtr]::Zero) { $reason = "no_foreground_window" }
+    elseif (-not [DesktopPerceptionHelper]::IsWindowVisible($fgHwnd)) { $reason = "foreground_not_visible" }
+    elseif ([DesktopPerceptionHelper]::IsIconic($fgHwnd)) { $reason = "foreground_minimised" }
+
+    $title = ""
+    $cls = ""
+    $procName = ""
+    $fgPid = [uint32]0
+
+    if ($reason -eq "") {
+        $sbT = New-Object System.Text.StringBuilder 512
+        [DesktopPerceptionHelper]::GetWindowText($fgHwnd, $sbT, 512) | Out-Null
+        $title = $sbT.ToString()
+
+        $sbC = New-Object System.Text.StringBuilder 256
+        [DesktopPerceptionHelper]::GetClassName($fgHwnd, $sbC, 256) | Out-Null
+        $cls = $sbC.ToString()
+
+        [DesktopPerceptionHelper]::GetWindowThreadProcessId($fgHwnd, [ref]$fgPid) | Out-Null
+        try { $procName = [System.Diagnostics.Process]::GetProcessById([int]$fgPid).ProcessName } catch {}
+
+        # Reading our own UI is never what the user means by "my screen". This
+        # covers the AgenticOS/Electron shell, the Hermes desktop runtime the
+        # agent itself runs inside, the AntiGravity IDE and the computer-use
+        # overlay: none of them are the intended target.
+        $selfProcesses = '^(?i:agenticos|electron|hermes-agent|hermes|antigravity|antigravity ide|cua-driver)$'
+        if ($procName -match $selfProcesses -or $title -like '*AgenticOS*' -or $title -like '*Hermes One*') {
+            $reason = "foreground_is_agenticos"
+        }
+    }
+
+    if ($reason -ne "") {
+        [PSCustomObject]@{
+            success     = $false
+            action      = "read_foreground"
+            reason      = $reason
+            hwnd        = if ($fgHwnd) { $fgHwnd.ToInt64() } else { 0 }
+            windowTitle = $title
+            process     = $procName
+        } | ConvertTo-Json -Compress
+        exit 0
+    }
+
+    # ── 2. Geometry: separate client area from non-client chrome ────────────
+    $winRect = New-Object DesktopPerceptionHelper+RECT
+    [DesktopPerceptionHelper]::GetWindowRect($fgHwnd, [ref]$winRect) | Out-Null
+    $cliRect = New-Object DesktopPerceptionHelper+RECT
+    [DesktopPerceptionHelper]::GetClientRect($fgHwnd, [ref]$cliRect) | Out-Null
+    $origin = New-Object DesktopPerceptionHelper+POINT
+    $origin.X = 0
+    $origin.Y = 0
+    [DesktopPerceptionHelper]::ClientToScreen($fgHwnd, [ref]$origin) | Out-Null
+
+    $clientLeft   = $origin.X
+    $clientTop    = $origin.Y
+    $clientRight  = $origin.X + ($cliRect.Right - $cliRect.Left)
+    $clientBottom = $origin.Y + ($cliRect.Bottom - $cliRect.Top)
+    $nonClientTopPx = $clientTop - $winRect.Top
+
+    # ── 3. Content root: prefer the Chromium/Electron render widget host ────
+    $contentRoot = $null
+    foreach ($cHwnd in [DesktopPerceptionHelper]::FindChildWindows($fgHwnd)) {
+        $ccs = New-Object System.Text.StringBuilder 256
+        [DesktopPerceptionHelper]::GetClassName($cHwnd, $ccs, 256) | Out-Null
+        if ($ccs.ToString() -eq "Chrome_RenderWidgetHostHWND") {
+            try {
+                $r = [System.Windows.Automation.AutomationElement]::FromHandle($cHwnd)
+                if ($r) { $contentRoot = $r; break }
+            } catch {}
+        }
+    }
+    if (-not $contentRoot) {
+        try { $contentRoot = [System.Windows.Automation.AutomationElement]::FromHandle($fgHwnd) } catch {}
+    }
+
+    # ── 4. Content-first, content-type-aware extraction ─────────────────────
+    #
+    # C1: .Name is the ACCESSIBILITY label. It is visible text only for
+    #     content-bearing types; for Button/MenuItem/TabItem it is chrome.
+    # C2: for Chromium/Electron ClientRect == WindowRect (NonClientTop = 0), so
+    #     geometry cannot separate chrome. Type + pattern provenance must.
+    # C4: chrome appears before content in tree order, so content types are
+    #     collected into their own bucket and can never be crowded out.
+    $contentTypes = @('ControlType.Document', 'ControlType.Edit', 'ControlType.Text')
+    $secondaryContentTypes = @('ControlType.DataItem', 'ControlType.TreeItem', 'ControlType.ListItem')
+    $chromeTypes = @(
+        'ControlType.Button', 'ControlType.MenuItem', 'ControlType.TabItem',
+        'ControlType.Hyperlink', 'ControlType.ToolBar', 'ControlType.MenuBar',
+        'ControlType.TitleBar', 'ControlType.ScrollBar', 'ControlType.Thumb',
+        'ControlType.Separator', 'ControlType.Group', 'ControlType.Pane'
+    )
+    # Caption controls, EN + DE, as a belt-and-braces filter.
+    $skipNames = '^(?i:minimi[sz]e|maximi[sz]e|restore|close|system|minimieren|maximieren|wiederherstellen|schliessen|schließen)$'
+
+    $enumCap = 4000
+    $contentCap = 400
+    $chromeCap = 120
+    $descendantCount = 0
+    $geometryFiltered = 0
+    $textPatternHits = 0
+    $valuePatternHits = 0
+    $textPatternChars = 0
+    $valuePatternChars = 0
+    $contentCount = 0
+    $chromeCount = 0
+    $typeCounts = @{}
+    $records = @()
+    $seenRecords = @{}
+
+    if ($contentRoot) {
+        try {
+            $descendants = $contentRoot.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants,
+                [System.Windows.Automation.Condition]::TrueCondition)
+
+            foreach ($d in $descendants) {
+                $descendantCount++
+                if ($descendantCount -gt $enumCap) { break }
+
+                $ct = $d.Current.ControlType.ProgrammaticName
+                $short = $ct -replace '^ControlType\.', ''
+                if (-not $typeCounts.ContainsKey($short)) { $typeCounts[$short] = 0 }
+                $typeCounts[$short]++
+
+                $isContent = $contentTypes -contains $ct
+                $isSecondary = $secondaryContentTypes -contains $ct
+                $isChrome = $chromeTypes -contains $ct
+                if (-not ($isContent -or $isSecondary -or $isChrome)) { continue }
+
+                $name = [string]$d.Current.Name
+                if ($name -and $name -match $skipNames) { $geometryFiltered++; continue }
+
+                # Geometry is a SECONDARY signal only (C2): it still catches
+                # classic Win32 non-client chrome, and is expected to filter
+                # nothing at all for Chromium/Electron.
+                $b = $d.Current.BoundingRectangle
+                if (-not $b.IsEmpty -and $b.Width -gt 1 -and $b.Height -gt 1) {
+                    if ($b.Bottom -le $clientTop -or $b.Top -ge $clientBottom -or
+                        $b.Right -le $clientLeft -or $b.Left -ge $clientRight) {
+                        $geometryFiltered++
+                        if (-not $isContent) { continue }
+                    }
+                }
+
+                $bucket = 'chrome'
+                $text = ""
+                $pattern = "name"
+
+                if ($isContent) {
+                    $bucket = 'content'
+                    if ($contentCount -ge $contentCap) { continue }
+
+                    # Document / Text -> TextPattern carries the real visible text.
+                    if ($ct -eq 'ControlType.Document' -or $ct -eq 'ControlType.Text') {
+                        try {
+                            $tp = $d.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
+                            if ($tp) {
+                                $t = $tp.DocumentRange.GetText(-1)
+                                if ($t -and $t.Trim()) {
+                                    $text = $t
+                                    $pattern = "textpattern"
+                                    $textPatternHits++
+                                    $textPatternChars += $t.Trim().Length
+                                }
+                            }
+                        } catch {}
+                    }
+                    # Edit (and Document without TextPattern) -> ValuePattern.
+                    if (-not $text) {
+                        try {
+                            $vp = $d.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+                            if ($vp -and $vp.Current.Value -and $vp.Current.Value.Trim()) {
+                                $text = $vp.Current.Value
+                                $pattern = "valuepattern"
+                                $valuePatternHits++
+                                $valuePatternChars += $vp.Current.Value.Trim().Length
+                            }
+                        } catch {}
+                    }
+                    # Text elements, and any content element with no pattern.
+                    if (-not $text -and $name) { $text = $name }
+                }
+                elseif ($isSecondary) {
+                    $bucket = 'content'
+                    if ($contentCount -ge $contentCap) { continue }
+                    $text = $name
+                    if (-not $text) {
+                        try {
+                            $vp = $d.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+                            if ($vp) { $text = $vp.Current.Value; $valuePatternHits++; $valuePatternChars += ([string]$text).Trim().Length }
+                        } catch {}
+                    }
+                }
+                else {
+                    if ($chromeCount -ge $chromeCap) { continue }
+                    $text = $name
+                }
+
+                if (-not $text) { continue }
+                $clean = ($text -replace '[\r\n\t\x00-\x1F]', ' ').Trim()
+                # U+FFFC/U+FFFD are object placeholders, not text.
+                $clean = ($clean -replace '[\uFFFC\uFFFD]', '').Trim()
+                if (-not $clean) { continue }
+
+                $key = "$bucket|$clean"
+                if ($seenRecords.ContainsKey($key)) { continue }
+                $seenRecords[$key] = $true
+
+                if ($bucket -eq 'content') { $contentCount++ } else { $chromeCount++ }
+                $records += [PSCustomObject]@{
+                    bucket  = $bucket
+                    type    = $short
+                    pattern = $pattern
+                    chars   = $clean.Length
+                    text    = $clean
+                }
+            }
+        } catch {}
+    }
+
+    $contentItems = @($records | Where-Object { $_.bucket -eq 'content' })
+    $chromeItems  = @($records | Where-Object { $_.bucket -eq 'chrome' })
+
+    # C1 (continued): navigation labels must not reach the answer. Two shapes
+    # occur in practice:
+    #   (a) an element whose entire text IS a navigation label, and
+    #   (b) one big Text node in which Chromium concatenates the menu bar with
+    #       the real page content.
+    # (a) is dropped outright. (b) is filtered by removing maximal runs of tokens
+    # that match labels found in THIS window's chrome bucket — window-local
+    # evidence only, never a per-application or per-language word list.
+    $chromeLabelSet = @{}
+    foreach ($c in $chromeItems) { $chromeLabelSet[$c.text.ToLowerInvariant()] = $true }
+
+    $chromePhrases = @{}
+    $maxPhraseTokens = 1
+    foreach ($k in $chromeLabelSet.Keys) {
+        if (-not $k) { continue }
+        $toks = @($k -split '\s+' | Where-Object { $_ })
+        if ($toks.Count -lt 1 -or $toks.Count -gt 4) { continue }
+        $chromePhrases[($toks -join ' ')] = $true
+        if ($toks.Count -gt $maxPhraseTokens) { $maxPhraseTokens = $toks.Count }
+    }
+    # ASCII-only literals: PowerShell 5.1 reads this file as ANSI, so non-ASCII
+    # characters in source would be mis-decoded. En/em dashes by codepoint.
+    $trimChars = [char[]]@('.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}', '"', "'", '-', ' ')
+    $trimChars += [char]0x2013
+    $trimChars += [char]0x2014
+
+    $chromeLabelSuppressed = 0
+    $keptContent = @()
+    foreach ($c in $contentItems) {
+        if ($chromeLabelSet.ContainsKey($c.text.ToLowerInvariant()) -and $c.chars -le 60) {
+            $chromeLabelSuppressed++
+            continue
+        }
+
+        $tokens = @($c.text -split '\s+' | Where-Object { $_ })
+        if ($tokens.Count -gt 1) {
+            $kept = @()
+            $i = 0
+            while ($i -lt $tokens.Count) {
+                $matched = 0
+                $upper = $maxPhraseTokens
+                if ($upper -gt ($tokens.Count - $i)) { $upper = $tokens.Count - $i }
+                for ($n = $upper; $n -ge 1; $n--) {
+                    $cand = (($tokens[$i..($i + $n - 1)] -join ' ')).Trim($trimChars).ToLowerInvariant()
+                    if ($cand -and $chromePhrases.ContainsKey($cand)) { $matched = $n; break }
+                }
+                if ($matched -gt 0) { $i += $matched; $chromeLabelSuppressed++ }
+                else { $kept += $tokens[$i]; $i++ }
+            }
+            if ($kept.Count -eq 0) { $chromeLabelSuppressed++; continue }
+            $c.text = ($kept -join ' ')
+            $c.chars = $c.text.Length
+        }
+        $keptContent += $c
+    }
+    $contentItems = $keptContent
+
+    $contentText = (($contentItems | ForEach-Object { $_.text }) -join " `n ") -replace '[\x00-\x09\x0B\x0C\x0E-\x1F]', ' '
+    $chromeText  = (($chromeItems  | ForEach-Object { $_.text }) -join " `n ") -replace '[\x00-\x09\x0B\x0C\x0E-\x1F]', ' '
+
+    # ── 5. Screenshot for the vision fallback (never claimed as text) ───────
+    $shot = $null
+    if ($OutScreenshotPath) {
+        $oW = 0
+        $oH = 0
+        $capOk = [DesktopPerceptionHelper]::CaptureHwnd($fgHwnd, $OutScreenshotPath, [ref]$oW, [ref]$oH)
+        if ($capOk -and (Test-Path $OutScreenshotPath) -and (Get-Item $OutScreenshotPath).Length -gt 1024) {
+            $shot = @{
+                success      = $true
+                width        = $oW
+                height       = $oH
+                artifactPath = $OutScreenshotPath
+                sha256       = (Get-FileHash -Path $OutScreenshotPath -Algorithm SHA256).Hash.ToLower()
+                byteSize     = (Get-Item $OutScreenshotPath).Length
+            }
+        }
+    }
+
+    [PSCustomObject]@{
+        success              = $true
+        action               = "read_foreground"
+        hwnd                 = $fgHwnd.ToInt64()
+        windowTitle          = $title
+        windowClass          = $cls
+        process              = $procName
+        pid                  = [int]$fgPid
+        method               = if ($contentRoot) { "uia" } else { "none" }
+        text                 = $contentText
+        contentText          = $contentText
+        chromeText           = $chromeText
+        contentChars         = $contentText.Length
+        chromeChars          = $chromeText.Length
+        contentElementCount  = $contentItems.Count
+        chromeElementCount   = $chromeItems.Count
+        controlCount         = $contentItems.Count
+        textPatternHits      = $textPatternHits
+        valuePatternHits     = $valuePatternHits
+        textPatternChars     = $textPatternChars
+        valuePatternChars    = $valuePatternChars
+        chromeLabelSuppressedCount = $chromeLabelSuppressed
+        geometryFilteredCount = $geometryFiltered
+        chromeFilteredCount  = $geometryFiltered
+        totalDescendants     = $descendantCount
+        controlTypesSeen     = $typeCounts
+        contentElements      = ($contentItems | Select-Object -First 40)
+        chromeElements       = ($chromeItems  | Select-Object -First 40)
+        geometry             = @{
+            windowRect     = @{ left = $winRect.Left; top = $winRect.Top; right = $winRect.Right; bottom = $winRect.Bottom }
+            clientRect     = @{ left = $clientLeft; top = $clientTop; right = $clientRight; bottom = $clientBottom }
+            nonClientTopPx = $nonClientTopPx
+        }
+        screenshot           = $shot
+        confidence           = 0.9
+    } | ConvertTo-Json -Depth 6 -Compress
+    exit 0
+}
+
 $targetHwnd = Get-TargetWindow -RequestedHwnd $Hwnd -Query $TargetQuery
 
 if ($targetHwnd -eq [IntPtr]::Zero) {
@@ -301,6 +729,14 @@ if ($OutScreenshotPath) {
     $outW = 0
     $outH = 0
     $capSuccess = [DesktopPerceptionHelper]::CaptureHwnd($targetHwnd, $OutScreenshotPath, [ref]$outW, [ref]$outH)
+    if (-not $capSuccess -or -not (Test-Path $OutScreenshotPath) -or (Get-Item $OutScreenshotPath).Length -le 1024) {
+        # Fallback to Progman or prominent window
+        $fallbackWin = $allWindows | Where-Object { $_.ClassName -eq "Progman" -or ($_.Width -ge 400 -and $_.Height -ge 300) } | Select-Object -First 1
+        if ($fallbackWin) {
+            $capSuccess = [DesktopPerceptionHelper]::CaptureHwnd([IntPtr]$fallbackWin.Hwnd, $OutScreenshotPath, [ref]$outW, [ref]$outH)
+            $targetHwnd = [IntPtr]$fallbackWin.Hwnd
+        }
+    }
     if ($capSuccess -and (Test-Path $OutScreenshotPath)) {
         $item = Get-Item $OutScreenshotPath
         $sha = (Get-FileHash -Path $OutScreenshotPath -Algorithm SHA256).Hash.ToLower()
@@ -347,6 +783,7 @@ if ($elementToInspect) {
     try {
         $descendants = $elementToInspect.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
         foreach ($d in $descendants) {
+            if ($extractedControls.Count -ge 200) { break }
             $name = $d.Current.Name
             $ct = $d.Current.ControlType.ProgrammaticName
             $val = ""

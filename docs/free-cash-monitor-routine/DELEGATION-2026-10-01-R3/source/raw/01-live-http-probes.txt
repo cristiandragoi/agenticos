@@ -1,0 +1,27 @@
+=== date ===
+Do,  1. Okt 2026 09:28:45
+=== curl -m5 localhost:4600/api/health ===
+HTTP 200
+curl_exit=0
+body:
+{"status":"healthy","pid":32500,"uptime":5130.6281285,"environment":"development","version":"9.0.0","build":{"fingerprint":"08029d641dec1f970161d3b69305e757cde82e595e971d86c35a91770989d97e","algorithm":"content-sha256-v1","filesCount":648,"gitSha":"8f7463aa6931d57e12ec81b904b98cec04e932cf","gitShort":"8f7463aa","isDirty":true,"buildTimestamp":"2026-10-01T05:49:00.903Z","buildId":"8f7463aa-dirty-20261001-054900"}}
+=== curl -m5 localhost:4600/api/v1/status/metrics ===
+HTTP 404
+curl_exit=0
+body:
+{"error":{"code":"NOT_FOUND","message":"Route GET /api/v1/status/metrics not found","requestId":"38a5002e-3f23-46b8-9169-9e71b191cb05"}}
+=== curl -m5 localhost:4600/api/v1/status ===
+HTTP 404
+curl_exit=0
+body:
+{"error":{"code":"NOT_FOUND","message":"Route GET /api/v1/status not found","requestId":"d7b27a43-8b01-44b4-bc31-f761d8737955"}}
+=== curl -m5 127.0.0.1:3001/health ===
+HTTP 000
+curl_exit=7
+=== curl -m5 localhost:3001/api/v1/status/metrics ===
+HTTP 000
+curl_exit=7
+=== curl -m5 127.0.0.1:4600/api/health (IP form) ===
+HTTP 200
+curl_exit=0
+{"status":"healthy","pid":32500,"uptime":5135.7202663,"environment":"development","version":"9.0.0","build":{"fingerprint":"08029d641dec1f970161d3b69305e757cde82e595e971d86c35a91770989d97e","algorithm":"content-sha256-v1","filesCount":648,"gitSha":"8f7463aa6931d57e12ec81b904b98cec04e932cf","gitShort":"8f7463aa","isDirty":true,"buildTimestamp":"2026-10-01T05:49:00.903Z","buildId":"8f7463aa-dirty-20261001-054900"}}

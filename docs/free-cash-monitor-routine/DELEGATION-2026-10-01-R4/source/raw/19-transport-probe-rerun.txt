@@ -1,0 +1,18 @@
+=== date ===
+Do,  1. Okt 2026 11:44:49
+=== python = C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe ===
+=== running R3 probe_source_candidates.py (readonly_client, loopback GET/HEAD only) ===
+ALLOWED_METHODS = ['GET', 'HEAD']
+ALLOWED_HOSTS   = ['127.0.0.1', '::1', '[::1]', 'localhost']
+ALLOWED_PATHS   = ['^/api/v1/status/metrics$', '^/api/v1/status$']
+DEFAULT_BASE_URL= http://localhost:3001
+METRICS_PATH    = /api/v1/status/metrics
+STATUS_PATH     = /api/v1/status
+----------------------------------------------------------------------
+READERR| W1 read_metrics base=4600 (allowlisted path, live server)              -> ReadError: GET /api/v1/status/metrics failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+READERR| W1 read_metrics base=3001 (default base, nothing listening)            -> ReadError: GET /api/v1/status/metrics failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+READERR| W2 probe_status base=4600                                              -> ReadError: HEAD /api/v1/status failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+BLOCK| GET /api/health on 4600 (NOT allowlisted)                              -> ForbiddenWriteError: R2: path not allowlisted: '/api/health'
+BLOCK| GET /api/projects/proj-free-cash/freecash/auth on 4600 (NOT allowlisted) -> ForbiddenWriteError: R2: path not allowlisted: '/api/projects/proj-free-cash/freecash/auth'
+ERR  | GET /api/v1/status/metrics on 3001 (allowlisted, conn refused)         -> ConnectionRefusedError: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+exit=0

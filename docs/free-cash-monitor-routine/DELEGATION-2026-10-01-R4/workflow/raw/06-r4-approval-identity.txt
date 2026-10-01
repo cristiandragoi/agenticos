@@ -1,0 +1,217 @@
+###############################################################################
+# 06 — OPERATOR R4 APPROVAL BEFORE EXTERNAL ACTION — identity guard, BOTH DIRECTIONS
+#      hermes-agent REFUSED by the proposed allowlist gate / operator name ACCEPTED
+#      and the FROZEN-FIELD property stated separately from the ATTRIBUTION property
+# during: 2026-10-01T09:51:12Z
+###############################################################################
+
+--- step 1: prove the copy is the shipped file (no edit to monitoring/freecash/**) ---
+0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506 *D:/AgenticOS/monitoring/freecash/approval_queue.py
+0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506 *D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/approval_queue.py
+
+--- step 2: generate the proposed allowlist variant + patch from the copy ---
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/make_allowlist_variant.py D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/proposed
+anchor 1 replaced: True
+anchor 2 replaced: True
+old body still present (must be False): False
+shipped  sha256: 0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506  (10914 bytes)
+variant  sha256: 52f70e4dc9f059501547271ed50c74abe3c4a20c2a18c61450dd096f699e1d2d  (12167 bytes)
+wrote: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\proposed\approval_queue_allowlist.py
+wrote: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\proposed\approval_queue.allowlist.patch  (52 diff lines)
+exit=0
+
+--- step 3: THE ONE RUN — both directions ---
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/identity/root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/identity_both_directions.py C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/identity/root D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/proposed
+root: C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root
+env pins: FREECASH_DATA_ROOT=C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root AGENT_TEAMS_DB_PATH=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/agent-teams.db AGENTICOS_DATA_DIR=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/agenticos-data
+wrote C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root\state\human-deciders.json
+shipped module : D:\AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy\approval_queue.py
+proposed module: D:\AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/proposed\approval_queue_allowlist.py
+
+==============================================================================
+A. SHIPPED GUARD (denylist at approval_queue.py:55-57, checked :153) -- THE BYPASS
+==============================================================================
+  _normalise_decider('hermes-agent') -> ACCEPTED as 'hermes-agent'   <-- machine can sign
+  _normalise_decider('assistant'  ) -> ACCEPTED as 'assistant'   <-- machine can sign
+  _normalise_decider('claude'     ) -> ACCEPTED as 'claude'   <-- machine can sign
+  _normalise_decider('the monitor') -> ACCEPTED as 'the monitor'   <-- machine can sign
+  _normalise_decider('the operator') -> ACCEPTED as 'the operator'   <-- machine can sign
+  RESULT: 4 machine identities are ACCEPTED by the shipped guard. R4's stated property 'only a human can sign' is FALSE as shipped.
+
+==============================================================================
+B. PROPOSED ALLOWLIST GATE -- BOTH DIRECTIONS, ONE RUN, REAL EXIT CODES
+==============================================================================
+
+$ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\proposed\identity_gate.py --by 'hermes-agent' --root C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root
+identity_gate: root=C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root
+identity_gate: refused: 'hermes-agent' is not on the human-deciders allowlist C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root\state\human-deciders.json (the shipped denylist would have accepted it)
+identity_gate: VERDICT=REFUSED
+EXIT=4
+
+$ python D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\proposed\identity_gate.py --by 'the operator' --root C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root
+identity_gate: root=C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root
+identity_gate: accepted: 'the operator' is on the human-deciders allowlist C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root\state\human-deciders.json
+identity_gate: VERDICT=ACCEPTED
+EXIT=0
+
+RED   : identity_gate.py exits 4 (REFUSED) on the machine identity 'hermes-agent'
+GREEN : identity_gate.py exits 0 (ACCEPTED) on the operator identity 'the operator'
+
+==============================================================================
+C. PROPOSED PATCHED MODULE -- refusal at the decision site itself
+==============================================================================
+  approval_queue_allowlist.decide(by='hermes-agent') -> REFUSED
+  NotHumanError: refused: 'hermes-agent' is not on the human-deciders allowlist C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\identity\root\state\human-deciders.json; an unlisted identity may not sign (the shipped denylist would have accepted it)
+
+==============================================================================
+D. PROPOSED PATCHED MODULE -- accepted decision, attribution + frozen fields
+==============================================================================
+  decided_by                       = 'the operator'   (ATTRIBUTION: who signed)
+  status                           = 'APPROVED'
+  execution_state                  = 'NOT_EXECUTED'   (FROZEN)
+  expires_at_utc                   = None   (FROZEN: no expiry, so nothing can 'expire into' execution)
+  execution_allowed_by_this_routine= False   (FROZEN)
+
+==============================================================================
+E. SEPARATE THE TWO PROPERTIES -- shipped guard signs with a machine identity
+==============================================================================
+  ATTRIBUTION property : decided_by='hermes-agent'  status='APPROVED'   <-- BROKEN as shipped
+  SAFETY property      : execution_state='NOT_EXECUTED' expires_at_utc=None execution_allowed=False   <-- INTACT
+  The two failures are independent: fixing attribution does not depend on the frozen fields, and the frozen fields do not rescue a false attribution.
+
+==============================================================================
+VERDICT
+==============================================================================
+RESULT: PASS -- hermes-agent REFUSED, operator ACCEPTED, frozen fields intact
+decided.jsonl lines: 2
+pending.json exists: True
+IDENTITY_HARNESS_EXIT=0
+
+--- step 4: the proposed patch, verbatim (UNAPPLIED) ---
+--- a/monitoring/freecash/approval_queue.py (shipped)
++++ b/proposed/approval_queue_allowlist.py (proposed, unapplied)
+@@ -51,10 +51,25 @@
+ #: an instruction this routine carries out.
+ ACTION_LABEL_FOR_HUMAN_REVIEW = "REQUEST_PAYOUT"  # readonly-exempt: design-schema label for a human decision; no code executes it
+ 
+-#: A machine may not sign a decision.
++#: PROPOSED (workflow stream S1) -- the guard is an ALLOWLIST read from
++#: <data root>/state/human-deciders.json, not a denylist of ten literal words.  The ten
++#: words are kept only as defence in depth: an operator who pasted one of them into the
++#: allowlist still could not sign with it.
+ NON_HUMAN_DECIDERS = frozenset(
+     {"system", "routine", "automation", "agent", "cron", "scheduler", "monitor", "bot", "script", "machine"}
+ )
++
++HUMAN_DECIDERS_FILENAME = "human-deciders.json"
++
++
++def load_human_deciders():
++    """Return (lowercased names, path).  Missing/malformed/empty file -> empty set."""
++    path = paths.state_dir() / HUMAN_DECIDERS_FILENAME
++    document = paths.read_json(path, default=None)
++    names = []
++    if isinstance(document, dict) and isinstance(document.get("deciders"), list):
++        names = [str(name).strip() for name in document["deciders"] if str(name).strip()]
++    return {name.lower() for name in names}, path
+ 
+ NAG_INTERVAL_DAYS = 7
+ NAG_EVENT = "APPROVAL_PENDING"
+@@ -150,10 +165,21 @@
+     who = (name or "").strip()
+     if not who:
+         raise NotHumanError("--by is required: a decision must name the human who made it")
++    allowed, path = load_human_deciders()
++    if not allowed:
++        raise NotHumanError(
++            "refused: no human deciders are configured; add your own name to %s "
++            "(an empty allowlist refuses everyone)" % path
++        )
+     if who.lower() in NON_HUMAN_DECIDERS:
+         raise NotHumanError(
+-            "refused: %r is not a human identity; this routine may only record a "
++            "refused: %r is a machine identity; this routine may only record a "
+             "decision made by a person" % who
++        )
++    if who.lower() not in allowed:
++        raise NotHumanError(
++            "refused: %r is not on the human-deciders allowlist %s; an unlisted identity "
++            "may not sign (the shipped denylist would have accepted it)" % (who, path)
+         )
+     return who
+ 
+
+--- step 5: the frozen-field property in the throwaway queue, raw ---
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-10-01T09:51:13Z",
+  "items": [
+    {
+      "approval_id": "da006200-cd5e-4a6b-a572-2abb2f64457e",
+      "created_at_utc": "2026-10-01T09:51:13Z",
+      "day_key": "2026-10-01",
+      "change_dedupe_key": "demo-key",
+      "reason": "demo: earnings moved",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 1340,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    },
+    {
+      "approval_id": "da5e937a-6dd4-4509-be21-79d6097ca948",
+      "created_at_utc": "2026-10-01T09:51:13Z",
+      "day_key": "2026-10-01",
+      "change_dedupe_key": "demo-key",
+      "reason": "demo: earnings moved",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 1340,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "APPROVED",
+      "status_reason": "read the change myself; no action wanted",
+      "decided_at_utc": "2026-10-01T09:51:13Z",
+      "decided_by": "the operator",
+      "decision_note": "read the change myself; no action wanted",
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    },
+    {
+      "approval_id": "4046284f-3046-4daa-840a-859f96952865",
+      "created_at_utc": "2026-10-01T09:51:13Z",
+      "day_key": "2026-10-01",
+      "change_dedupe_key": "demo-key",
+      "reason": "demo: earnings moved",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 1340,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "APPROVED",
+      "status_reason": "shipped guard accepted this name",
+      "decided_at_utc": "2026-10-01T09:51:13Z",
+      "decided_by": "hermes-agent",
+      "decision_note": "shipped guard accepted this name",
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    }
+  ]
+}
+
+--- step 6: the decision trail, raw ---
+{"approval_id": "da5e937a-6dd4-4509-be21-79d6097ca948", "change_dedupe_key": "demo-key", "day_key": "2026-10-01", "decided_at_utc": "2026-10-01T09:51:13Z", "decided_by": "the operator", "decision": "APPROVED", "decision_note": "read the change myself; no action wanted", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "REQUEST_PAYOUT", "amount_cents": 1340, "destination": "OPERATOR_SPECIFIED - not stored by the routine", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+{"approval_id": "4046284f-3046-4daa-840a-859f96952865", "change_dedupe_key": "demo-key", "day_key": "2026-10-01", "decided_at_utc": "2026-10-01T09:51:13Z", "decided_by": "hermes-agent", "decision": "APPROVED", "decision_note": "shipped guard accepted this name", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "REQUEST_PAYOUT", "amount_cents": 1340, "destination": "OPERATOR_SPECIFIED - not stored by the routine", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}

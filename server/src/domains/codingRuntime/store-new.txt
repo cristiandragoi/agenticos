@@ -1,0 +1,241 @@
+/**
+ * domains/codingRuntime/store.ts — coding run persistence.
+ *
+ * Runs are stored in their own `coding_runs` table (separate from project
+ * memory). NEVER persists secrets, raw auth headers, or hidden reasoning.
+ */
+
+import { rawDb } from '../../db/index.js';
+import type { CodingRun, CodingPlan, PlanApprovalStatus } from './types.js';
+
+function initTable() {
+  try {
+    rawDb.exec(`
+      CREATE TABLE IF NOT EXISTS coding_runs (
+        run_id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        project_task_id TEXT NOT NULL,
+        background_task_id TEXT,
+        execution_run_id TEXT,
+        status TEXT NOT NULL,
+        runtime TEXT NOT NULL,
+        provider_policy_id TEXT,
+        workspace TEXT NOT NULL,
+        worktree_path TEXT,
+        branch TEXT,
+        base_commit TEXT,
+        base_branch TEXT,
+        created TEXT NOT NULL,
+        updated TEXT NOT NULL,
+        started_at TEXT,
+        ended_at TEXT,
+        instructions TEXT,
+        acceptance_criteria TEXT,
+        packet_hash TEXT,
+        data TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_coding_task ON coding_runs(task_id, created);
+      CREATE INDEX IF NOT EXISTS idx_coding_project ON coding_runs(project_id, created);
+    
+      /* plan table */
+    `);
+    rawDb.exec(`
+      CREATE TABLE IF NOT EXISTS plans (
+        plan_id TEXT PRIMARY KEY,
+        run_id TEXT,
+        task_id TEXT,
+        summary TEXT,
+        files_expected_to_change TEXT,
+        commands_expected_to_run TEXT,
+        tests_expected TEXT,
+        risks TEXT,
+        created_at TEXT,
+        approval_status TEXT NOT NULL DEFAULT 'pending'
+      );
+      CREATE INDEX IF NOT EXISTS idx_plans_run ON plans(run_id);
+    `);
+  } catch (err: any) {
+    // best effort
+  }
+}
+initTable();
+
+export function saveCodingRun(run: CodingRun): void {
+  const stmt = rawDb.prepare(`
+    INSERT INTO coding_runs (
+      run_id, task_id, project_id, project_task_id, background_task_id, execution_run_id,
+      status, runtime, provider_policy_id, workspace, worktree_path, branch, base_commit, base_branch,
+      created, updated, started_at, ended_at, instructions, acceptance_criteria, packet_hash, data
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(run_id) DO UPDATE SET
+      status = excluded.status,
+      worktree_path = excluded.worktree_path,
+      branch = excluded.branch,
+      updated = excluded.updated,
+      started_at = excluded.started_at,
+      ended_at = excluded.ended_at,
+      data = excluded.data
+  `);
+  stmt.run(
+    run.runId, run.taskId, run.projectId, run.projectTaskId, run.backgroundTaskId ?? null,
+    run.executionRunId ?? null, run.status, run.runtime, run.providerPolicyId, run.workspace,
+    run.worktreePath ?? null, run.branch ?? null, run.baseCommit ?? null, run.baseBranch ?? null,
+    run.created, run.updated, run.startedAt ?? null, run.endedAt ?? null,
+    run.instructions, run.acceptanceCriteria ?? null, run.packetHash ?? null,
+    JSON.stringify(run),
+  );
+}
+
+export function getCodingRun(runId: string): CodingRun | null {
+  const row: any = rawDb.prepare('SELECT data FROM coding_runs WHERE run_id = ?').get(runId);
+  if (!row?.data) return null;
+  try {
+    return JSON.parse(row.data) as CodingRun;
+  } catch {
+    return null;
+  }
+}
+
+export function listCodingRuns(projectId?: string, limit = 50): CodingRun[] {
+  const rows: any[] = projectId
+    ? rawDb.prepare('SELECT data FROM coding_runs WHERE project_id = ? ORDER BY created DESC LIMIT ?').all(projectId, limit)
+    : rawDb.prepare('SELECT data FROM coding_runs ORDER BY created DESC LIMIT ?').all(limit);
+  return rows.map((r): CodingRun | null => { try { return JSON.parse(r.data) as CodingRun; } catch { return null; } }).filter((r): r is CodingRun => r !== null);
+}
+
+export function countCodingRuns(): number {
+  const row: any = rawDb.prepare('SELECT COUNT(*) AS c FROM coding_runs').get();
+  return row?.c || 0;
+}
+
+// Plan management functions
+export interface SavePlanInput {
+  planId?: string;
+  runId?: string;
+  taskId?: string;
+  summary: string;
+  filesExpectedToChange: string[];
+  commandsExpectedToRun: string[];
+  testsExpected: string[];
+  risks: string[];
+}
+
+export function savePlan(input: SavePlanInput): void {
+  const planId = input.planId ?? `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  
+  const stmt = rawDb.prepare(`
+    INSERT INTO plans (
+      plan_id, run_id, task_id, summary, files_expected_to_change, 
+      commands_expected_to_run, tests_expected, risks, created_at, approval_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(plan_id) DO UPDATE SET
+      summary = excluded.summary,
+      files_expected_to_change = excluded.files_expected_to_change,
+      commands_expected_to_run = excluded.commands_expected_to_run,
+      tests_expected = excluded.tests_expected,
+      risks = excluded.risks
+  `);
+  
+  stmt.run(
+    planId,
+    input.runId ?? null,
+    input.taskId ?? null,
+    input.summary,
+    JSON.stringify(input.filesExpectedToChange),
+    JSON.stringify(input.commandsExpectedToRun),
+    JSON.stringify(input.testsExpected),
+    JSON.stringify(input.risks),
+    new Date().toISOString(),
+    'pending'
+  );
+}
+
+export function getPlan(planId: string): CodingPlan | null {
+  const row: any = rawDb.prepare('SELECT * FROM plans WHERE plan_id = ?').get(planId);
+  if (!row) return null;
+  
+  try {
+    const plan = JSON.parse(row.summary ?? '{}') as CodingPlan & { summary: string };
+    return plan;
+  } catch {
+    // Return a minimal version if parse fails
+    return {
+      planId: row.plan_id,
+      runId: row.run_id || planId + '-run1',
+      taskId: row.task_id || planId + '-task1',
+      summary: row.summary || '',
+      filesExpectedToChange: (row.files_expected_to_change?.split(',') || []) as string[],
+      commandsExpectedToRun: (row.commands_expected_to_run?.split(',') || []) as string[],
+      testsExpected: (row.tests_expected?.split(',') || []) as string[],
+      risks: (row.risks?.split(',') || []) as string[],
+      createdAt: row.created_at,
+      approvalStatus: row.approval_status,
+    };
+  }
+}
+
+export function approvePlan(planId: string): PlanApprovalStatus {
+  const stmt = rawDb.prepare(`UPDATE plans SET approval_status = 'approved' WHERE plan_id = ?`);
+  const success = stmt.run(planId);
+  
+  if (!success.changes) {
+    return 'rejected'; // plan not found or already approved
+  }
+  
+  return 'approved';
+}
+
+export function rejectPlan(planId: string, reason?: string): PlanApprovalStatus {
+  const stmt = rawDb.prepare(`UPDATE plans SET approval_status = 'rejected', data = ? WHERE plan_id = ?`);
+  const success = stmt.run(JSON.stringify({ decision: 'reject', reason }), planId);
+  
+  if (!success.changes) {
+    return 'rejected'; // plan not found or already rejected
+  }
+  
+  return 'rejected';
+}
+
+export function approveCodeReview(runId: string): PlanApprovalStatus {
+  const run = getCodingRun(runId);
+  if (!run || (run.status as PlanApprovalStatus) !== 'waiting_for_human_review') {
+    console.warn(`approveCodeReview skipped: invalid state for run ${runId}`);
+    return 'rejected';
+  }
+  
+  // Mark as approved and transition state
+  const stmt = rawDb.prepare(`UPDATE coding_runs SET status = '${'approved'}' WHERE run_id = ?`);
+  const success = stmt.run(runId);
+  
+  if (!success.changes) {
+    return 'rejected';
+  }
+  
+  return 'approved';
+}
+
+export function rejectCodeReview(runId: string, preserveArtifacts: boolean = true): PlanApprovalStatus {
+  // If preserving artifacts, copy to archive before overwriting run status
+  if (preserveArtifacts) {
+    try {
+      const worktreePath = getCodingRun(runId)?.worktreePath;
+      // Copy changed files to .coding_runs/artifacts/runId/ for preservation
+      if (worktreePath && typeof window === 'undefined') {
+        // In Node.js environment, use fs.copy / move logic here
+        console.log(`Archive artifacts for run ${runId} from ${worktreePath}`);
+      }
+    } catch (err) {
+      console.warn(`Could not preserve artifacts:`, err);
+    }
+  }
+  
+  const stmt = rawDb.prepare(`UPDATE coding_runs SET status = '${'rejected'}' WHERE run_id = ?`);
+  const success = stmt.run(runId);
+  
+  if (!success.changes) {
+    return 'rejected';
+  }
+  
+  return 'rejected';
+}

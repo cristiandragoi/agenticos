@@ -1,0 +1,106 @@
+=== sha256 of the empty string (the routine's raw_response_sha256 on every snapshot) ===
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 *-
+
+=== sha256sum of the three production snapshots ===
+965e1132078d8739ee445e5c36cdfc9523825c436d59a82d92e38bf71706d6e5 *data/freecash-monitor/snapshots/2026-09-20.json
+804b5e435a64fc6fe67ee1b904608d2745b3f9762a85dc6d867231df5a16bc4b *data/freecash-monitor/snapshots/2026-09-30.json
+bad8f35efc334ac4506b6bd42d79ff95a683e8bffa38afbf485331ebe5a05e23 *data/freecash-monitor/snapshots/2026-10-01.json
+
+=== every snapshot's raw_response_sha256 + degraded/data_available + figures ===
+data/freecash-monitor/snapshots\2026-09-20.json
+   degraded=True data_available=None
+   account_status       = None
+   earnings_total_cents = None
+   balance_cents        = None
+   pending_cents        = None
+   currency             = None
+   raw_response_sha256  = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+data/freecash-monitor/snapshots\2026-09-30.json
+   degraded=True data_available=None
+   account_status       = None
+   earnings_total_cents = None
+   balance_cents        = None
+   pending_cents        = None
+   currency             = None
+   raw_response_sha256  = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+data/freecash-monitor/snapshots\2026-10-01.json
+   degraded=True data_available=None
+   account_status       = None
+   earnings_total_cents = None
+   balance_cents        = None
+   pending_cents        = None
+   currency             = None
+   raw_response_sha256  = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+
+=== RAW snapshot 2026-10-01.json (verbatim) ===
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:53:46Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+=== RAW state/last-run.json (verbatim) ===
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+
+=== RAW state/operator-state.json (verbatim) ===
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "note": "Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.",
+  "how_to": [
+    "Open your own account dashboard in a browser and log in yourself.",
+    "Note four figures: account status, total earnings, current balance, pending amount.",
+    "Append one record to the records list with today's local date as day_key.",
+    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them."
+  ],
+  "records": [],
+  "template_record": {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD"
+  }
+}
+
+=== alerts.jsonl: event_type counts ===
+total rows: 15
+{'MONITOR_DEGRADED': 3, 'SKIP_DUPLICATE_DAY': 2, 'MISSED_DAY': 10}
+by day: {'2026-09-20': 2, '2026-09-21': 1, '2026-09-30': 11, '2026-10-01': 1}
+
+=== find data/freecash-monitor -type f -newermt '2026-10-01 00:00' ===
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+
+=== git status --porcelain for the routine sources ===
+?? monitoring/
+?? scripts/monitoring/
+(empty above == UNTRACKED, not a clean tree:)
+?? monitoring/

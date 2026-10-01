@@ -1,0 +1,45 @@
+=== G5_r3verifier (rule_gate_r3.py): checks red on mutant that are GREEN on repaired ===
+repaired check ids: R1.1,R1.2,R1.3,R1.4,R2.1,R2.2,R2.3,R2.4,R3.1,R3.2,R3.3,R4.1,R4.1b,R4.2,R4.3a,R4.3b
+  shipped                        exit-flip-checks=R1.3,R4.3b                   rules=R1,R4
+  repaired                       exit-flip-checks=NONE                         rules=-
+  mv1-r1-post-cashout            exit-flip-checks=R1.3,R2.4,R4.3b              rules=R1,R2,R4
+  mv2-r2-lock-removed            exit-flip-checks=R1.1,R1.3,R4.3b              rules=R1,R4
+  mv3-r3-save-before-load        exit-flip-checks=R1.3,R3.1,R4.3b              rules=R1,R3,R4
+  mv4-r4-execute-without-by      exit-flip-checks=R1.3,R4.3a,R4.3b             rules=R1,R4
+  adv1-r1-obfuscated-method      exit-flip-checks=R1.3,R4.3b                   rules=R1,R4
+  adv2-r2-lock-nonbinding        exit-flip-checks=R1.3,R4.3b                   rules=R1,R4
+  adv3-r4-getattr-exec           exit-flip-checks=R1.3,R4.3b                   rules=R1,R4
+  adv4-r1-conditional-backdoor   exit-flip-checks=R1.3,R4.3b                   rules=R1,R4
+  adv5-r3-compare-disabled       exit-flip-checks=R1.3,R4.3b                   rules=R1,R4
+  adv6-r1-new-socket-file        exit-flip-checks=R1.3,R2.1,R2.4,R4.3b         rules=R1,R2,R4
+  G5 survivors (no check red-vs-repaired): none
+
+=== G2_0930 (rule_gate.py 2026-09-30): rules red on mutant that are GREEN on repaired ===
+  shipped                        flipped_rules=NONE
+  repaired                       flipped_rules=NONE
+  mv1-r1-post-cashout            flipped_rules=R1
+  mv2-r2-lock-removed            flipped_rules=R2
+  mv3-r3-save-before-load        flipped_rules=R3
+  mv4-r4-execute-without-by      flipped_rules=R4
+  adv1-r1-obfuscated-method      flipped_rules=R1
+  adv2-r2-lock-nonbinding        flipped_rules=R2
+  adv3-r4-getattr-exec           flipped_rules=NONE
+  adv4-r1-conditional-backdoor   flipped_rules=NONE
+  adv5-r3-compare-disabled       flipped_rules=R3,R4
+  adv6-r1-new-socket-file        flipped_rules=R4
+  G2 survivors (no rule flips): ['adv3-r4-getattr-exec', 'adv4-r1-conditional-backdoor']
+
+=== G4_r3gate (rule_gate.py 2026-10-01-R3): rules red on mutant that are GREEN on repaired ===
+  shipped                        flipped_rules=NONE
+  repaired                       flipped_rules=NONE
+  mv1-r1-post-cashout            flipped_rules=R1
+  mv2-r2-lock-removed            flipped_rules=R2
+  mv3-r3-save-before-load        flipped_rules=R3
+  mv4-r4-execute-without-by      flipped_rules=R4
+  adv1-r1-obfuscated-method      flipped_rules=R1
+  adv2-r2-lock-nonbinding        flipped_rules=R2
+  adv3-r4-getattr-exec           flipped_rules=R1,R4
+  adv4-r1-conditional-backdoor   flipped_rules=R1
+  adv5-r3-compare-disabled       flipped_rules=R3,R4
+  adv6-r1-new-socket-file        flipped_rules=R1,R4
+  G4 survivors: none

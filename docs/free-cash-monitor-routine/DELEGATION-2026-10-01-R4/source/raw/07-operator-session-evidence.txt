@@ -1,0 +1,8 @@
+path exists: True
+top-level keys: ['authenticated', 'detail', 'evidencePath', 'service', 'verifiedAt']
+  service        = freecash
+  authenticated  = True
+  verifiedAt     = 2026-09-23T15:32:31.406Z
+  evidencePath   = C:\Users\cd-pr\AppData\Roaming\AgenticOS\data\freecash\evidence\session-authenticated-mue9i5qd-3b0799d2.json
+  detail         = final_url=https://freecash.com/en; cookie_count=8; session_cookie_present=true
+contains cookie values? False

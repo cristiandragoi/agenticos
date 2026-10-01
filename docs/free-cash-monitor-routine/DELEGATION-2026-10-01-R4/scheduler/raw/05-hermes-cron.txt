@@ -1,0 +1,52 @@
+=== hermes CLI on PATH? ===
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/hermes
+exit=0
+
+=== hermes --version ===
+Hermes Agent v0.21.3 (2026.9.14) · upstream 64ea66b0
+Install directory: C:\Users\cd-pr\AppData\Local\hermes\hermes-agent
+Install method: git
+Python: 3.11.9
+OpenAI SDK: 2.24.0
+exit=0
+
+=== hermes cron --help ===
+usage: hermes cron [-h] [--accept-hooks]
+                   {list,create,add,edit,pause,resume,run,remove,rm,delete,resnap,status,runs,history,incidents,notepad,doctor,tick}
+                   ...
+
+Manage scheduled tasks
+
+positional arguments:
+  {list,create,add,edit,pause,resume,run,remove,rm,delete,resnap,status,runs,history,incidents,notepad,doctor,tick}
+    list                List scheduled jobs
+    create (add)        Create a scheduled job
+    edit                Edit an existing scheduled job
+    pause               Pause a scheduled job
+    resume              Resume a paused job
+    run                 Run a job on the next scheduler tick
+    remove (rm, delete)
+                        Remove a scheduled job
+    resnap              Adopt the current global inference resolution for
+                        unpinned jobs without pinning them (they keep tracking
+                        future global changes). Use after deliberately
+                        changing the default model.
+    status              Check if cron scheduler is running
+    runs (history)      Show durable execution attempts
+    incidents           List or acknowledge durable cron failure incidents
+    notepad             Read/write a job's durable notepad (persistent KV
+                        across runs)
+    doctor              Check scheduled jobs for common health issues
+    tick                Run due jobs once and exit
+
+options:
+  -h, --help            show this help message and exit
+  --accept-hooks        Auto-approve unseen shell hooks without a TTY prompt
+                        (equivalent to HERMES_ACCEPT_HOOKS=1 /
+                        hooks_auto_accept: true).
+exit=0
+
+=== hermes cron list ===
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+exit=0

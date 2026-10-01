@@ -1,0 +1,57 @@
+$ export FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty ; rm -rf $FREECASH_DATA_ROOT
+$ cd D:/AgenticOS/monitoring/freecash && python run_daily_check.py --source operator_state
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit=0
+
+$ find C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty -type f | sort
+C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty/alerts/alerts.jsonl
+C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty/snapshots/2026-10-01.json
+C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty/state/day-locks/2026-10-01.lock
+C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty/state/last-run.json
+C:/Users/cd-pr/AppData/Local/Temp/fc-r2-empty/state/operator-state.json
+exit=0
+
+$ cat snapshots/2026-10-01.json
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T07:05:36Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+exit=0
+
+$ cat state/operator-state.json
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "note": "Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.",
+  "how_to": [
+    "Open your own account dashboard in a browser and log in yourself.",
+    "Note four figures: account status, total earnings, current balance, pending amount.",
+    "Append one record to the records list with today's local date as day_key.",
+    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them."
+  ],
+  "records": [],
+  "template_record": {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD"
+  }
+}
+exit=0

@@ -1,0 +1,159 @@
+{
+  "package": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired",
+  "rules": {
+    "1": "PASS",
+    "2": "PASS",
+    "3": "PASS",
+    "4": "PASS"
+  },
+  "checks": [
+    {
+      "id": "R1.1",
+      "rule": 1,
+      "ok": true,
+      "what": "day lock is an atomic O_CREAT|O_EXCL exclusive-create keyed on the local calendar day",
+      "evidence": [
+        "  seen: gate.py:118 os.open(O_CREAT|O_EXCL|O_WRONLY) in acquire_day_lock",
+        "  seen: gate.py:95 day_key -> .date().isoformat(); lock file = '%s.lock' % day"
+      ]
+    },
+    {
+      "id": "R1.2",
+      "rule": 1,
+      "ok": true,
+      "what": "acquire_day_lock() is called before any status-read call in the same function",
+      "evidence": [
+        "  seen: run_daily_check.py _run(): lock :309 < first read :372"
+      ]
+    },
+    {
+      "id": "R1.3",
+      "rule": 1,
+      "ok": true,
+      "what": "the data-less outcome is NOT a member of gate.SUCCESS_OUTCOMES",
+      "evidence": [
+        "  seen: degraded outcome 'MONITOR_DEGRADED' is not in SUCCESS_OUTCOMES ['BALANCE_CHANGED', 'EARNINGS_CHANGED', 'INITIAL_BASELINE', 'OK_NO_CHANGE', 'STATUS_CHANGED']"
+      ]
+    },
+    {
+      "id": "R1.4",
+      "rule": 1,
+      "ok": true,
+      "what": "the data_available=False branch does not assign last_success_day / zero the miss counter",
+      "evidence": [
+        "  seen: data-less branch only sets the outcome; last_success_day is untouched there"
+      ]
+    },
+    {
+      "id": "R2.1",
+      "rule": 2,
+      "ok": true,
+      "what": "only readonly_client.py imports a socket/HTTP library",
+      "evidence": [
+        "  seen: imports of ['aiohttp', 'ftplib', 'http', 'httpx', 'requests', 'smtplib', 'socket', 'urllib'] confined to readonly_client.py"
+      ]
+    },
+    {
+      "id": "R2.2",
+      "rule": 2,
+      "ok": true,
+      "what": "readonly_client.ALLOWED_METHODS is a subset of {GET, HEAD}",
+      "evidence": [
+        "  seen: ALLOWED_METHODS=['GET', 'HEAD']"
+      ]
+    },
+    {
+      "id": "R2.3",
+      "rule": 2,
+      "ok": true,
+      "what": "ALLOWED_PATHS admits no earning/write endpoint and ALLOWED_HOSTS is loopback-only",
+      "evidence": [
+        "  seen: ALLOWED_PATHS=['^/api/v1/status/metrics$', '^/api/v1/status$']",
+        "  seen: ALLOWED_HOSTS=['127.0.0.1', '::1', '[::1]', 'localhost']"
+      ]
+    },
+    {
+      "id": "R2.4",
+      "rule": 2,
+      "ok": true,
+      "what": "no write/earning call shape in any enforcement module (AST, not grep)",
+      "evidence": [
+        "  seen: no .post/.put/.patch/.delete, no body-bearing urlopen, no POST/PUT/PATCH/DELETE literal in 10 modules"
+      ]
+    },
+    {
+      "id": "R3.1",
+      "rule": 3,
+      "ok": true,
+      "what": "prior snapshot is loaded before the current snapshot is written",
+      "evidence": [
+        "  seen: run_daily_check.py _run(): load_prior_snapshot :402 < save_snapshot :405"
+      ]
+    },
+    {
+      "id": "R3.2",
+      "rule": 3,
+      "ok": true,
+      "what": "changedetect.compare() compares the four fields exactly (no tolerance/threshold)",
+      "evidence": [
+        "  seen: changedetect.py:226 compare() has no order comparison; equality only"
+      ]
+    },
+    {
+      "id": "R3.3",
+      "rule": 3,
+      "ok": true,
+      "what": "the dedupe key is written to the index before the sender is invoked",
+      "evidence": [
+        "  seen: notify.py:224 record_notified_key before sender :231"
+      ]
+    },
+    {
+      "id": "R4.1",
+      "rule": 4,
+      "ok": true,
+      "what": "no dynamic-code or shell execution primitive (eval/exec/bare compile/__import__/runpy/os.system/os.popen)",
+      "evidence": [
+        "  seen: no eval/exec/bare-compile/__import__/runpy/os.system/os.popen in 10 modules"
+      ]
+    },
+    {
+      "id": "R4.1b",
+      "rule": 4,
+      "ok": true,
+      "what": "any subprocess call is confined to notify.py AND its argv names no network/earning tool",
+      "evidence": [
+        "  seen: subprocess sites (local notifier only): ['notify.py:184']"
+      ]
+    },
+    {
+      "id": "R4.2",
+      "rule": 4,
+      "ok": true,
+      "what": "approval item's expires_at_utc/execution_state/execution_allowed resolve to the frozen literals",
+      "evidence": [
+        "  seen: approval_queue.py:108 expires_at_utc = None",
+        "  seen: approval_queue.py:108 execution_state = 'NOT_EXECUTED'",
+        "  seen: approval_queue.py:108 execution_allowed_by_this_routine = False"
+      ]
+    },
+    {
+      "id": "R4.3a",
+      "rule": 4,
+      "ok": true,
+      "what": "a decider-identity guard exists (absence of any guard accepts any label)",
+      "evidence": [
+        "  seen: approval_queue.py:149 membership guard present (1 comparison(s))"
+      ]
+    },
+    {
+      "id": "R4.3b",
+      "rule": 4,
+      "ok": true,
+      "what": "the guard is an allowlist of human identities (a denylist admits 'hermes-agent'/'assistant'/'claude')",
+      "evidence": [
+        "  seen: guard classifies as ['allowlist'] (['HUMAN_OPERATORS', 'who'])"
+      ]
+    }
+  ]
+}

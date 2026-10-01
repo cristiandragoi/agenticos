@@ -1,0 +1,754 @@
+/**
+ * supervisorLoop.ts — Jarvis Conversational Supervisor Loop (Phase 1).
+ *
+ * Provides a unified reasoning front-door where Jarvis:
+ * 1. Receives complete conversation history and scoped memory
+ * 2. Decides whether to answer directly, query system state, recall memory, or delegate to Hermes/CodeX
+ * 3. Resolves contextual referents ("Do that", "Fix it", "Ask CodeX to check that") into explicit tool parameters
+ * 4. Synthesizes natural conversational responses from structured tool outputs
+ * 5. Strictly enforces grounding invariants (never claims mutations unless tool evidence exists)
+ */
+import { logger } from '../../utils/logger.js';
+import { conversationService } from '../conversations/service.js';
+import { llmChat } from '../../services/llmGateway.js';
+import { executeSupervisorTool } from './supervisorTools.js';
+import { getScopedJarvisMemoryContext } from './coreMemory.js';
+import { getWorkspaceRoot } from '../../services/workspaceStore.js';
+import * as executionState from '../../services/executionState.js';
+export function isSupervisorV2Enabled(req) {
+    if (process.env.JARVIS_SUPERVISOR_V2 === 'true')
+        return true;
+    if (req?.body?.supervisorV2 === true || req?.body?.supervisorV2 === 'true')
+        return true;
+    if (req?.headers?.['x-jarvis-supervisor-v2'] === 'true')
+        return true;
+    return false;
+}
+/**
+ * Extract tool calls from model output if present.
+ * Supports <tool_call>{"name": "...", "parameters": {...}}</tool_call>,
+ * unclosed <tool_call> blocks, markdown code fences, or embedded JSON tool objects.
+ */
+export function extractToolCall(text) {
+    if (!text)
+        return null;
+    // 1. Check <tool_call>... (with or without closing </tool_call>)
+    const tagRegex = /<tool_call>([\s\S]*?)(?:<\/tool_call>|<tool_call>|$)/gi;
+    let match;
+    while ((match = tagRegex.exec(text)) !== null) {
+        const inner = match[1].trim();
+        if (!inner)
+            continue;
+        const jsonMatch = inner.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                const parsed = JSON.parse(jsonMatch[0].trim());
+                const name = parsed.name || parsed.tool;
+                const parameters = parsed.parameters || parsed.arguments || parsed.params || {};
+                if (name && typeof name === 'string') {
+                    return { name, parameters, raw: match[0] };
+                }
+            }
+            catch { }
+        }
+    }
+    // 2. Check markdown code fence with tool call
+    const fenceMatch = text.match(/```(?:json|tool_call)?\s*(\{[\s\S]*?"(?:tool|name)"[\s\S]*?\})\s*```/i);
+    if (fenceMatch && fenceMatch[1]) {
+        try {
+            const parsed = JSON.parse(fenceMatch[1].trim());
+            const name = parsed.name || parsed.tool;
+            const parameters = parsed.parameters || parsed.arguments || parsed.params || {};
+            if (name && typeof name === 'string') {
+                return { name, parameters, raw: fenceMatch[0] };
+            }
+        }
+        catch { }
+    }
+    // 3. Raw JSON containing "name" or "tool" with parameters
+    const objMatch = text.match(/\{\s*"(?:name|tool)"\s*:\s*"[^"]+"\s*,\s*"(?:parameters|arguments|params)"\s*:\s*\{[\s\S]*?\}\s*\}/i);
+    if (objMatch && objMatch[0]) {
+        try {
+            const parsed = JSON.parse(objMatch[0].trim());
+            const name = parsed.name || parsed.tool;
+            const parameters = parsed.parameters || parsed.arguments || parsed.params || {};
+            if (name && typeof name === 'string') {
+                return { name, parameters, raw: objMatch[0] };
+            }
+        }
+        catch { }
+    }
+    // 4. Raw JSON starting with {"name": "..."} or {"tool": "..."}
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}') && (trimmed.includes('"name"') || trimmed.includes('"tool"'))) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            const name = parsed.name || parsed.tool;
+            const parameters = parsed.parameters || parsed.arguments || parsed.params || {};
+            if (name && typeof name === 'string') {
+                return { name, parameters, raw: trimmed };
+            }
+        }
+        catch { }
+    }
+    return null;
+}
+/**
+ * Build entity context block from a resolved opportunity.
+ */
+export async function buildOpportunityContext(entityId) {
+    const { getOpportunity } = await import('../../services/revenueOperator/opportunityService.js');
+    const opp = await getOpportunity(entityId);
+    if (!opp)
+        return '';
+    let missionInfo = null;
+    if (opp.convertedMissionId) {
+        try {
+            const { db } = await import('../../db/index.js');
+            const { revenueMissions } = await import('../../db/schema.js');
+            const { eq } = await import('drizzle-orm');
+            missionInfo = db.select().from(revenueMissions).where(eq(revenueMissions.id, opp.convertedMissionId)).get();
+        }
+        catch { /* best effort */ }
+    }
+    logger.info('[SupervisorLoop] Hydrated opportunity for context grounding', {
+        entityId: opp.id,
+        title: opp.title,
+        status: opp.status,
+        convertedMissionId: opp.convertedMissionId
+    });
+    const lines = [
+        '## CURRENTLY OPEN REVENUE OPERATOR ENTITY (AUTHORITATIVE SYSTEM RECORD)',
+        `id: ${opp.id}`,
+        `title: ${opp.title}`,
+        `description: ${opp.description || 'None'}`,
+        `category: ${opp.category}`,
+        `status: ${opp.status}`,
+        `source / sourceUrl: ${opp.source}${opp.sourceUrl ? ` (${opp.sourceUrl})` : ''}`,
+        `estimatedRevenue: ${opp.estimatedRevenue}`,
+        `estimatedCost: ${opp.estimatedCost}`,
+        `estimatedTimeToRevenueDays: ${opp.estimatedTimeToRevenueDays}`,
+        `automationPotential: ${opp.automationPotential}`,
+        `manualWorkload: ${opp.manualWorkload}`,
+        `riskLevel: ${opp.riskLevel}`,
+        `confidence: ${opp.confidence}`,
+        `score / score breakdown: Score: ${opp.score}/100. Breakdown: Revenue Potential: +${opp.scoreBreakdown.revenuePotentialPts}, Time to Revenue: +${opp.scoreBreakdown.timeToRevenuePts}, Automation: +${opp.scoreBreakdown.automationPotentialPts}, Low Capital: +${opp.scoreBreakdown.lowCapitalPts}, Confidence: +${opp.scoreBreakdown.confidencePts}, Workload Penalty: -${opp.scoreBreakdown.manualWorkloadPenalty}, Risk Penalty: -${opp.scoreBreakdown.riskPenalty}`,
+        `evidence: ${JSON.stringify(opp.evidence || [])}`,
+        `notes: ${opp.notes || 'None'}`,
+        `convertedMissionId: ${opp.convertedMissionId || 'None'}`
+    ];
+    if (missionInfo) {
+        lines.push(`converted mission title: ${missionInfo.title}`, `converted mission status: ${missionInfo.status}`, `converted mission target: €${missionInfo.targetAmount}`, `converted mission budget: €${missionInfo.advertisingBudget || 0}`, `converted mission strategy: ${missionInfo.description || ''}`);
+    }
+    lines.push('', 'CRITICAL GROUNDING RULES FOR THIS REVENUE OPERATOR ENTITY:', '- Use the authoritative entity data above when answering questions about this entity.', '- This authoritative record OUTRANKS any general memory entries. If memory mentions a different project (e.g. "Alpha Project"), it is NOT the entity the user is asking about — answer from the authoritative record only.', '- Do not invent fields or facts that are not present.', '- When a field is not explicitly stored, distinguish clearly between (1) STORED FACT, (2) REASONABLE INFERENCE, and (3) MISSING DATA. A reasonable inference may ONLY be derived directly from an explicit stored fact (e.g. the title positions the product for solopreneurs).', '- For targetCustomer: The data model does not contain a dedicated targetCustomer field. The title positions this opportunity for solopreneurs ("Niche Notion & Agentic Workflow Template Pack for Solopreneurs"), NOT from the description unless explicitly present there.', '- ABSOLUTE PROHIBITION ON UNSUPPORTED SOCIAL PROOF: The authoritative entity record contains NO customer interviews, NO testimonials, NO user feedback, NO customer feedback, and NO reviews. Do NOT use the words "testimonial", "testimonials", "user feedback", "customer feedback", "reviews", or "users reporting" anywhere in your response (neither as a claim nor in the negative).', '- For evidence: cite the actual stored evidence from the record ("High margin digital product with automated checkout delivery"). If asked about customer interview evidence, state that no verified customer interview evidence is recorded. Do not cite generic memory or user principles.', '- For contextual follow-ups & simplification: When asked to explain simply, preserve ALL materially important facts from the previous answer (both that no verified customer interview evidence is recorded, and the stored evidence).', '- For next recommended action: Recognize that this opportunity is already CONVERTED into mission ' + (opp.convertedMissionId || 'mission-048eade2-') + ' (' + (missionInfo?.title || 'active mission') + '). Explain that the next steps belong to the converted mission rather than recommending to implement or review this opportunity as a new candidate.');
+    return `\n\n${lines.join('\n')}`;
+}
+/**
+ * Hydrates the active or named entity context using multi-tier resolution.
+ */
+export async function hydrateActiveEntityContext(userPrompt, wsCtx) {
+    let activeEntityContext = '';
+    let resolvedEntityId = undefined;
+    if (wsCtx && wsCtx.activeModule === 'revenue-operator') {
+        try {
+            if (wsCtx.activeEntityType === 'opportunity' && wsCtx.activeEntityId) {
+                resolvedEntityId = wsCtx.activeEntityId;
+                activeEntityContext = await buildOpportunityContext(wsCtx.activeEntityId);
+            }
+            else if (!wsCtx.activeEntityId) {
+                const { resolveContextualEntity } = await import('./actionRuntime.js');
+                const resolution = await resolveContextualEntity(userPrompt, wsCtx);
+                if (resolution.status === 'resolved' && resolution.entityType === 'opportunity') {
+                    logger.info('[SupervisorLoop] Conversational entity resolved (no UI selection)', {
+                        entityId: resolution.entityId,
+                        displayName: resolution.displayName,
+                        matchedFrom: 'conversational resolution'
+                    });
+                    resolvedEntityId = resolution.entityId;
+                    activeEntityContext = await buildOpportunityContext(resolution.entityId);
+                }
+            }
+        }
+        catch (err) {
+            logger.warn('[SupervisorLoop] Entity hydration failed', err);
+        }
+    }
+    return { activeEntityContext, resolvedEntityId };
+}
+/**
+ * Build rich system prompt for the Jarvis Supervisor.
+ */
+export async function buildSupervisorSystemPrompt(conversationId, userPrompt, workspacePath, options = {}) {
+    const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || undefined;
+    // 1. Memory Context (if scoped/relevant)
+    let memoryContext = '';
+    try {
+        const mem = await getScopedJarvisMemoryContext(userPrompt, effectiveWorkspace);
+        if (mem) {
+            memoryContext = `\n\nSTRUCTURED CORE MEMORY:\n${mem}`;
+        }
+    }
+    catch { }
+    const workspaceContext = effectiveWorkspace ? `Active workspace: ${effectiveWorkspace}` : '';
+    // 2. Active Revenue Operator Entity Hydration
+    const wsCtx = options.workspaceContext;
+    const { activeEntityContext } = await hydrateActiveEntityContext(userPrompt, wsCtx);
+    // 3. Authoritative Project Priorities Context (dynamically from projectsStore)
+    let projectContext = '';
+    try {
+        const { getAuthoritativeProjectContext } = await import('./projectMemory.js');
+        projectContext = getAuthoritativeProjectContext();
+    }
+    catch { }
+    // §9 — name handling from profile, never hardcoded. No fabricated name.
+    let nameRule = '';
+    try {
+        const { getUserWorkingProfile } = await import('./coreMemory.js');
+        const userProfile = getUserWorkingProfile();
+        if (userProfile.avoidNameDrops) {
+            nameRule = 'Do not address the user by name. Stay completely silent of their name.';
+        }
+        else if (userProfile.preferredName) {
+            nameRule = `The user's preferred name is "${userProfile.preferredName}". Use it only in greetings or when identity correction is needed, never as a repetitive salutation.`;
+        }
+        else if (userProfile.preferredTitle) {
+            nameRule = `The user's preferred title/form of address is "${userProfile.preferredTitle}". Use this title naturally and sparingly—never in every sentence.`;
+        }
+        else {
+            nameRule = 'Address the user naturally without using a specific name.';
+        }
+    }
+    catch {
+        nameRule = 'Address the user naturally without using a specific name.';
+    }
+    // §11 — structured semantic context from the deterministic resolver. The LLM
+    // MUST use these authoritative values; it must not re-derive or fabricate.
+    let semanticContextBlock = '';
+    const sc = options.semanticContext;
+    if (sc) {
+        const lines = [
+            '## STRUCTURED CONTEXT (from deterministic semantic resolver — do not re-derive)',
+        ];
+        if (sc.activeEntity) {
+            lines.push(`- Active entity: ${sc.activeEntity.displayName} (${sc.activeEntity.type}, ${sc.activeEntity.domain}, ID: ${sc.activeEntity.id})`);
+        }
+        if (sc.pendingAction) {
+            lines.push(`- Pending action: ${sc.pendingAction.intent} → ${sc.pendingAction.target?.displayName || sc.pendingAction.objective || '?'} via ${sc.pendingAction.executor || '?'} (status: ${sc.pendingAction.status})`);
+        }
+        if (sc.activeGoal)
+            lines.push(`- Active goal: ${sc.activeGoal}`);
+        if (sc.activeTaskId)
+            lines.push(`- Active task: ${sc.activeTaskId}`);
+        if (sc.delegatedTaskId)
+            lines.push(`- Delegated task: ${sc.delegatedTaskId}`);
+        lines.push(`- User timezone: ${sc.userTimezone}`);
+        lines.push(`- Current local time: ${sc.currentLocalTime}`);
+        lines.push('You MUST use the entity/task IDs above. Do not fabricate entity names, task IDs, or action states.');
+        semanticContextBlock = `\n\n${lines.join('\n')}`;
+    }
+    return [
+        'You are Jarvis, the conversational supervisor and AI partner in Agentic OS.',
+        '',
+        '## CORE ARCHITECTURE & ROLES',
+        '- You are the conversational identity and primary reasoning intelligence of Agentic OS.',
+        '- You DO NOT edit code or run destructive terminal commands directly. You delegate implementation and debugging to CodeX.',
+        '- You delegate deep planning, research, architectural analysis, and multi-agent coordination to Hermes.',
+        '- You delegate verification and auditing to Argus.',
+        '',
+        '## CONVERSATIONAL STYLE & GROUNDING INVARIANTS',
+        '1. Answer immediately in short, natural, conversational sentences. Do NOT repeat the user question back to them.',
+        '2. STRICT ACTION-DRIVEN BEHAVIOR: NEVER begin your response with "Understood", "Acknowledged", "Got it", or the user\'s name/title. Do NOT repeat or paraphrase the user\'s instruction.',
+        `3. ${nameRule} NEVER address the user with military or subordinate titles unless explicitly requested as a preferred title (e.g. Master, Commander, Chief, Executive). Never start responses with boilerplate monitoring jargon.`,
+        '4. Do NOT append generic customer service sign-offs (e.g. "Is there anything else I can help you with today?") to your answers.',
+        '5. For short greetings ("you there?", "hey", "good morning") when no task is pending, reply with brief natural warmth — one short sentence, no generic call-centre phrasing.',
+        '6. For math, factual, or simple queries (e.g. "what is 2 plus 2", "tell me a joke"), answer directly and concisely.',
+        '7. SYSTEM HEALTH: When asked about system status, summarize the outcome naturally in plain English without printing raw JSON.',
+        '8. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it. Never say you are "starting" or "initiating" an implementation unless you have successfully called the delegate_codex_goal or delegate_hermes_task tool.',
+        '9. REFERENT RESOLUTION: When the user says "Do that", "Fix it", "Check that", "Continue", "Proceed with it", or "Ask CodeX to check that", resolve the pronoun from the previous conversation turns AND active workspace/memory context into an EXPLICIT, DETAILED objective before delegating.',
+        '10. AUTHORITY PRECEDENCE: AUTHORITATIVE CURRENT RUNTIME STATE > tool results > structured memory/project/dialogue state > conversation history > model inference.',
+        '11. HISTORICAL CLAIM VERIFICATION: Past assistant statements about system/tool availability are not authoritative operational evidence. Verify them against current tool schemas and runtime health before repeating them as facts. Never repeat past assistant claims such as "browser failed", "terminal disconnected", "memory unavailable", or "tools missing" as facts unless current structured state verifies them.',
+        '12. CLOSED-WORLD TOOL LANGUAGE: If a tool is NOT registered in your schema, state that the capability is not available directly in this Jarvis session; never claim it failed or crashed. If a registered tool was called and errored, report the verified error. If a tool was not called, never fabricate an invocation or failure. If a service health probe is explicitly unreachable, report it; otherwise do not speculate.',
+        '13. ROLE BOUNDARIES (Browser & Terminal Operations): Jarvis interactive supervisor tool authority consists strictly of the 5 registered tools below. Jarvis itself does NOT directly execute browser or terminal operations. Direct browser, terminal, or implementation work belongs to CodeX or capability workers. When asked to "Click in", "Start", "Open browser", or perform direct UI/terminal operations, explain the available path or route/delegate to CodeX/capability workers; NEVER claim browser or terminal "connections failed".',
+        '14. MEMORY AVAILABILITY: Structured core memory, active projects, and dialogue state are hosted locally in AgenticOS. NEVER claim memory service is "disconnected" or "missing" unless an explicit diagnostic check verifies storage failure.',
+        options.selectedModel
+            ? `MODEL IDENTITY: When asked what model, provider, or architecture you are using, state clearly and truthfully: "${options.selectedModel}". Never invent a model name.`
+            : 'MODEL IDENTITY: When asked what model you are using, report the actually configured runtime model truthfully; never invent a model name.',
+        '',
+        '## AVAILABLE SUPERVISOR TOOLS',
+        'You can call tools when needed by outputting a tool call block formatted exactly as:',
+        '<tool_call>',
+        '{"name": "tool_name", "parameters": { ... }}',
+        '</tool_call>',
+        '',
+        'Available tools:',
+        '- get_system_health({ component?: "gateways"|"tasks"|"all" }): Check health of gateways and active tasks',
+        '- delegate_hermes_task({ objective: string, context?: string }): Queue deep planning or research to Hermes',
+        '- delegate_codex_goal({ goal: string, context?: string, targetFiles?: string[], approvalRequired?: boolean }): Queue code inspection, debugging, or fixes to CodeX',
+        '- recall_memory({ query: string }): Search persistent memory',
+        '- get_current_work({ scope?: "active"|"recent"|"all" }): Query active and recent background work',
+        '',
+        'If the user is asking a conversational question or greeting that requires no tools, reply directly with your text message without any <tool_call> tag.',
+        workspaceContext,
+        memoryContext,
+        projectContext,
+        activeEntityContext,
+        semanticContextBlock,
+        options.inputChannel === 'voice' ? '\nInput channel: microphone transcription.' : ''
+    ].filter(Boolean).join('\n');
+}
+/**
+ * Retrieve recent clean conversation history.
+ */
+export async function getCleanConversationHistory(conversationId, currentPrompt, maxTurns = 12) {
+    try {
+        const msgs = await conversationService.getMessages(conversationId);
+        const arr = Array.isArray(msgs) ? msgs : [];
+        const history = [];
+        for (let i = arr.length - 1; i >= 0 && history.length < maxTurns; i--) {
+            const m = arr[i];
+            if (!m || m.role === 'system' || m.messageType === 'system_status' || m.messageType === 'diagnostics')
+                continue;
+            const content = typeof m.content === 'string' ? m.content.trim() : '';
+            if (!content)
+                continue;
+            if (content.includes('offline mode. No external model is reachable'))
+                continue;
+            if (m.role === 'user' && content === currentPrompt && i === arr.length - 1)
+                continue; // skip current turn
+            history.unshift({
+                role: m.role === 'agent' ? 'assistant' : 'user',
+                content
+            });
+        }
+        return history;
+    }
+    catch (err) {
+        logger.warn('[SupervisorLoop] Error loading history', err);
+        return [];
+    }
+}
+/**
+ * Executes the supervisor turn and streams SSE events to the response.
+ */
+export async function handleSupervisorV2Stream(req, res, opts) {
+    const { conversationId, prompt, workspacePath, approvalPolicy = 'manual', operationId = `sup-${Date.now()}`, inputChannel, overrideProvider, overrideModel, selectedProvider = 'OpenRouter', selectedModel = 'auto', fallbackProvider = 'ollama', fallbackModel = 'llama3.2:3b' } = opts;
+    const writeSse = (event, data) => {
+        if (!res.writableEnded) {
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+            res.flush?.();
+        }
+    };
+    const startedAt = Date.now();
+    // The stream router creates the canonical Jarvis execution record before
+    // entering Supervisor V2.  Supervisor V2 owns several early-return paths;
+    // finish or client-close must therefore settle that record, otherwise a
+    // successfully answered turn leaves the dock permanently at ROUTING.
+    let responseFinished = false;
+    let terminalStatus = 'COMPLETED';
+    const settleExecution = () => {
+        const record = executionState.get(operationId);
+        if (record?.worker === 'jarvis' && !record.note) {
+            executionState.end(operationId, terminalStatus);
+        }
+    };
+    res.once?.('finish', () => {
+        responseFinished = true;
+        settleExecution();
+    });
+    req.once?.('close', () => {
+        if (!responseFinished) {
+            terminalStatus = 'CANCELLED';
+            settleExecution();
+        }
+    });
+    logger.info('[JarvisPipeline] PIPELINE=JARVIS SUPERVISOR V2', { conversationId, prompt, operationId });
+    logger.info('[SupervisorV2] Beginning supervisor turn', { conversationId, prompt, operationId });
+    // 0. Deterministic Language Switch Intercept
+    const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('./conversationLanguage.js');
+    const langReq = detectLanguageSwitchRequest(prompt);
+    if (langReq.isLanguageSwitch && langReq.targetLanguage) {
+        const mutationResult = setConversationLanguage(conversationId, langReq.targetLanguage);
+        const reply = mutationResult.success
+            ? buildLanguageSwitchConfirmation(mutationResult.activeLanguage)
+            : `Failed to switch language to ${langReq.targetLanguage}. Current language is ${mutationResult.activeLanguage}.`;
+        writeSse('intent', {
+            type: 'language_preference',
+            route: 'language_preference',
+            mode: 'conversational_supervisor',
+            confidence: 1.0,
+            reason: langReq.reason,
+            language: mutationResult.activeLanguage,
+            operationId,
+        });
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'user',
+            content: prompt,
+            metadata: { operationId, inputChannel, supervisorV2: true },
+        });
+        const parts = reply.match(/.{1,140}(?:\s|$)/g) || [reply];
+        for (const p of parts) {
+            if (p)
+                writeSse('chunk', { delta: p, operationId, provider: 'agentic-os', model: 'language-manager' });
+        }
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'agent',
+            content: reply,
+            routedAgent: 'jarvis',
+            metadata: {
+                operationId,
+                provider: 'agentic-os',
+                model: 'language-manager',
+                language: mutationResult.activeLanguage,
+                actionVerified: mutationResult.success,
+                supervisorV2: true,
+            },
+        });
+        writeSse('done', {
+            route: 'language_preference',
+            category: 'conversation',
+            status: 'completed',
+            operationId,
+            provider: 'agentic-os',
+            model: 'language-manager',
+            language: mutationResult.activeLanguage,
+            actionVerified: mutationResult.success,
+            totalMs: Date.now() - startedAt,
+        });
+        return res.end();
+    }
+    // ── Operational Controller Intercept (Evidence-First Grounding) ──
+    const { OperationalController } = await import('./operationalEvidence.js');
+    const opIntercept = await OperationalController.handleOperationalRequest(prompt, conversationId);
+    if (opIntercept) {
+        writeSse('intent', { type: 'operational_control', route: 'operational_control', mode: 'direct_conversation', confidence: 1, operationId });
+        const parts = opIntercept.reply.match(/.{1,140}(?:\s|$)/g) || [opIntercept.reply];
+        for (const p of parts) {
+            if (p)
+                writeSse('chunk', { delta: p, operationId, provider: 'agentic-os', model: 'operational-controller' });
+        }
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'agent',
+            content: opIntercept.reply,
+            routedAgent: 'jarvis',
+            metadata: { operationId, provider: 'agentic-os', model: 'operational-controller', supervisorV2: true }
+        });
+        writeSse('done', { route: 'operational_control', category: 'operational_control', operationId, provider: 'agentic-os', model: 'operational-controller', totalMs: Date.now() - startedAt });
+        return res.end();
+    }
+    const { getConversationLanguage } = await import('./conversationLanguage.js');
+    const convLang = getConversationLanguage(conversationId);
+    // 1. Deterministic Canonical Task Status Intercept
+    const { isTaskStatusQuery, formatCanonicalSnapshotAnswer } = await import('./taskStatusFormatter.js');
+    if (isTaskStatusQuery(prompt)) {
+        const { getCanonicalTaskSnapshot } = await import('../../services/backgroundTasks/canonicalSnapshot.js');
+        const snap = getCanonicalTaskSnapshot();
+        const reply = formatCanonicalSnapshotAnswer(snap, convLang || 'en');
+        writeSse('intent', {
+            type: 'task_status',
+            route: 'task_status',
+            mode: 'conversational_supervisor',
+            confidence: 1.0,
+            reason: 'Deterministic Canonical Task Status Answer',
+            operationId
+        });
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'user',
+            content: prompt,
+            metadata: { operationId, inputChannel, supervisorV2: true }
+        });
+        const parts = reply.match(/.{1,140}(?:\s|$)/g) || [reply];
+        for (const p of parts) {
+            if (p)
+                writeSse('chunk', { delta: p, operationId, provider: 'agentic-os', model: 'canonical-snapshot' });
+        }
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'agent',
+            content: reply,
+            routedAgent: 'jarvis',
+            metadata: {
+                operationId,
+                provider: 'agentic-os',
+                model: 'canonical-snapshot',
+                intent: { type: 'task_status', mode: 'direct_conversation' },
+                snapshot: snap,
+                supervisorV2: true
+            }
+        });
+        writeSse('done', {
+            route: 'task_status_answer',
+            category: 'context',
+            status: 'completed',
+            operationId,
+            provider: 'agentic-os',
+            model: 'canonical-snapshot',
+            totalMs: Date.now() - startedAt
+        });
+        return res.end();
+    }
+    // 1.5 Fast Conversation Lane Intercept (TASK: JARVIS-FAST-CONVERSATION-LANE-001)
+    const { isFastConversationRequest, handleFastConversationStream } = await import('./fastConversationLane.js');
+    const fastCheck = isFastConversationRequest(prompt, opts.workspaceContext);
+    if (fastCheck.isFast) {
+        logger.info('[SupervisorV2] Routing to Fast Conversation Lane', {
+            conversationId,
+            reason: fastCheck.reason,
+            prompt
+        });
+        return await handleFastConversationStream(req, res, opts);
+    }
+    // 2. Initial SSE Intent
+    writeSse('intent', {
+        type: 'supervisor_turn',
+        route: 'supervisor_v2',
+        mode: 'conversational_supervisor',
+        pipeline: 'JARVIS SUPERVISOR V2',
+        confidence: 1.0,
+        operationId
+    });
+    writeSse('thinking', { action: 'Evaluating request…', operationId });
+    // 3. Append User Message
+    await conversationService.appendMessage({
+        conversationId,
+        role: 'user',
+        content: prompt,
+        metadata: { operationId, inputChannel, supervisorV2: true }
+    });
+    // 4. Assemble Context & History
+    const [systemPrompt, history] = await Promise.all([
+        buildSupervisorSystemPrompt(conversationId, prompt, workspacePath, { approvalPolicy, inputChannel, workspaceContext: opts.workspaceContext, semanticContext: opts.semanticContext, selectedModel }),
+        getCleanConversationHistory(conversationId, prompt)
+    ]);
+    // 5. First LLM Pass (Decision & Tool Call or Direct Answer)
+    let initialReply = '';
+    let activeEffProvider = selectedProvider;
+    let activeEffModel = selectedModel;
+    try {
+        const firstPass = await llmChat({
+            systemPrompt,
+            prompt,
+            history,
+            agentId: 'agent-jarvis',
+            provider: overrideProvider || undefined,
+            model: overrideModel || undefined,
+            timeoutMs: 120000,
+            requestId: operationId
+        });
+        initialReply = firstPass.reply || '';
+        if (firstPass.provider && firstPass.provider !== 'offline') {
+            activeEffProvider = firstPass.provider;
+        }
+        if (firstPass.model) {
+            activeEffModel = firstPass.model;
+        }
+    }
+    catch (err) {
+        terminalStatus = 'FAILED';
+        logger.error('[SupervisorV2] LLM invocation failed', err);
+        const errMsg = 'I encountered an issue connecting to my reasoning model. Please check the model gateway status.';
+        writeSse('error', { error: String(err?.message || err), provider: activeEffProvider, model: activeEffModel, operationId });
+        writeSse('chunk', { delta: errMsg, operationId, provider: activeEffProvider, model: activeEffModel });
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'agent',
+            content: errMsg,
+            routedAgent: 'jarvis',
+            metadata: { operationId, error: String(err) }
+        });
+        writeSse('done', { route: 'supervisor_v2', status: 'error', operationId, provider: activeEffProvider, model: activeEffModel });
+        return res.end();
+    }
+    // 6. Tool Call Detection
+    const toolCall = extractToolCall(initialReply);
+    if (!toolCall) {
+        // Direct conversational response (No tool required)
+        // Clean any accidental XML artifacts
+        let rawClean = initialReply
+            .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+            .replace(/<tool_call>[\s\S]*/gi, '')
+            .replace(/<invoke>[\s\S]*?<\/invoke>/gi, '')
+            .trim();
+        if (!rawClean) {
+            rawClean = initialReply.trim() || "I am ready and listening. How can I help you today?";
+        }
+        // Apply grounding guardrail sanitization (action promises / repetition / false completions)
+        const { sanitizeDirectResponse } = await import('./groundingGuardrail.js');
+        let cleanReply = sanitizeDirectResponse(rawClean, {
+            prompt,
+            hasGroundedEvidence: false,
+            hasExecutionEvidence: false,
+        });
+        // §11/§12: Operational Claim Gate — secure against hallucinated/fabricated operational state
+        const { OperationalClaimGate } = await import('./operationalEvidence.js');
+        const claimCheck = OperationalClaimGate.verifyClaims(cleanReply, conversationId, prompt);
+        if (!claimCheck.ok) {
+            cleanReply = claimCheck.response;
+        }
+        // Stream text in chunks
+        const parts = cleanReply.match(/.{1,140}(?:\s|$)/g) || [cleanReply];
+        for (const p of parts) {
+            if (p)
+                writeSse('chunk', { delta: p, operationId, provider: activeEffProvider, model: activeEffModel });
+        }
+        await conversationService.appendMessage({
+            conversationId,
+            role: 'agent',
+            content: cleanReply,
+            routedAgent: 'jarvis',
+            metadata: {
+                operationId,
+                provider: activeEffProvider,
+                model: activeEffModel,
+                intent: { type: 'conversation', mode: 'direct_conversation' },
+                supervisorV2: true
+            }
+        });
+        writeSse('done', {
+            route: 'direct',
+            category: 'conversation',
+            status: 'completed',
+            language: convLang,
+            operationId,
+            provider: activeEffProvider,
+            model: activeEffModel,
+            totalMs: Date.now() - startedAt
+        });
+        return res.end();
+    }
+    // 6. Tool Execution
+    logger.info('[SupervisorV2] Executing supervisor tool call', { tool: toolCall.name, params: toolCall.parameters });
+    writeSse('status', {
+        state: 'executing',
+        currentAction: `Executing ${toolCall.name}…`,
+        operationId
+    });
+    let toolResult;
+    let toolError = null;
+    try {
+        toolResult = await executeSupervisorTool(toolCall.name, toolCall.parameters, {
+            conversationId,
+            workspacePath
+        });
+    }
+    catch (err) {
+        toolError = err?.message || String(err);
+        logger.warn('[SupervisorV2] Tool execution error', { tool: toolCall.name, error: toolError });
+        toolResult = { error: toolError, success: false };
+    }
+    // Emit intention if a task was created
+    if (toolCall.name === 'delegate_codex_goal') {
+        writeSse('intent', {
+            type: 'worker_delegation',
+            route: 'codex',
+            worker: 'codex',
+            taskId: toolResult?.taskId,
+            status: toolResult?.status,
+            operationId
+        });
+    }
+    else if (toolCall.name === 'delegate_hermes_task') {
+        writeSse('intent', {
+            type: 'worker_delegation',
+            route: 'hermes',
+            worker: 'hermes',
+            taskId: toolResult?.taskId,
+            status: toolResult?.status,
+            operationId
+        });
+    }
+    // 7. Second LLM Pass (Natural Conversational Synthesis)
+    const synthesisPrompt = [
+        `User Request: "${prompt}"`,
+        '',
+        `Tool Executed: ${toolCall.name}`,
+        `Tool Input: ${JSON.stringify(toolCall.parameters)}`,
+        `Tool Structured Result:`,
+        JSON.stringify(toolResult, null, 2),
+        '',
+        'INSTRUCTION:',
+        '- Provide a natural, concise, conversational response to the user explaining the result.',
+        '- ACTION-DRIVEN BEHAVIOR: NEVER begin your response with "Understood", "Acknowledged", or the user\'s name/title. Do NOT repeat or paraphrase the user\'s instruction.',
+        '- If a task was delegated to CodeX or Hermes, state the action directly (e.g. "I\'ve queued the task for CodeX", or "CodeX has started the implementation"). State the task ID or status if provided in the tool result. Do NOT claim the task has completed.',
+        '- If this was a health/system query, explain the status conversationally (e.g. "Everything is running smoothly" or "Hermes is currently unreachable"). Do NOT dump raw JSON or telemetry lists unless requested.',
+        '- If the tool reported an error, explain the situation truthfully without fabricating success.',
+        '- Do NOT output any XML tags or <tool_call> blocks in this response.'
+    ].join('\n');
+    let finalReply = '';
+    try {
+        const secondPass = await llmChat({
+            systemPrompt,
+            prompt: synthesisPrompt,
+            history,
+            agentId: 'agent-jarvis',
+            provider: overrideProvider || undefined,
+            model: overrideModel || undefined,
+            timeoutMs: 120000,
+            requestId: operationId
+        });
+        finalReply = secondPass.reply || '';
+        if (secondPass.provider && secondPass.provider !== 'offline') {
+            activeEffProvider = secondPass.provider;
+        }
+        if (secondPass.model) {
+            activeEffModel = secondPass.model;
+        }
+    }
+    catch (err) {
+        // Fallback synthesis if second LLM pass fails
+        finalReply = toolResult?.message || `I executed ${toolCall.name}, but encountered an issue formulating the final summary.`;
+    }
+    let rawFinal = finalReply
+        .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+        .replace(/<tool_call>[\s\S]*/gi, '')
+        .replace(/<invoke>[\s\S]*?<\/invoke>/gi, '')
+        .trim();
+    if (!rawFinal) {
+        rawFinal = toolResult?.message || (toolResult ? JSON.stringify(toolResult) : `Execution of ${toolCall.name} completed.`);
+    }
+    const { sanitizeDirectResponse } = await import('./groundingGuardrail.js');
+    const cleanFinalReply = sanitizeDirectResponse(rawFinal, {
+        prompt,
+        hasGroundedEvidence: Boolean(toolResult && !toolResult.error),
+        hasExecutionEvidence: Boolean(toolResult && !toolResult.error),
+        groundedResult: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)
+    });
+    // Stream synthesis chunks
+    const parts = cleanFinalReply.match(/.{1,140}(?:\s|$)/g) || [cleanFinalReply];
+    for (const p of parts) {
+        if (p)
+            writeSse('chunk', { delta: p, operationId, provider: activeEffProvider, model: activeEffModel });
+    }
+    await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: cleanFinalReply,
+        routedAgent: 'jarvis',
+        metadata: {
+            operationId,
+            provider: activeEffProvider,
+            model: activeEffModel,
+            toolCall: {
+                name: toolCall.name,
+                parameters: toolCall.parameters,
+                result: toolResult
+            },
+            supervisorV2: true
+        }
+    });
+    writeSse('done', {
+        route: toolCall.name.startsWith('delegate') ? 'worker_delegation' : 'supervisor_v2',
+        category: toolCall.name,
+        status: toolResult?.status || 'completed',
+        language: convLang,
+        taskId: toolResult?.taskId,
+        operationId,
+        provider: activeEffProvider,
+        model: activeEffModel,
+        totalMs: Date.now() - startedAt
+    });
+    return res.end();
+}

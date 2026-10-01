@@ -1,0 +1,189 @@
+=== 2. PRODUCTION HERMETICITY -- AFTER (must be identical to evidence-01 BEFORE) ===
+RUN AT: Do,  1. Okt 2026 09:15:02
+=== sha256 production ledger+alerts (compare with evidence-01) ===
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+=== find -type f -newermt "2026-10-01 00:00" (compare with evidence-01) ===
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+=== full state root listing (mtime) -- compare with evidence-01 ===
+2026-09-20 21:08:00.7001879000 0 data/freecash-monitor/state/day-locks/2026-09-20.lock
+2026-09-20 21:08:00.7189663000 879 data/freecash-monitor/state/operator-state.json
+2026-09-20 21:08:00.7234377000 518 data/freecash-monitor/snapshots/2026-09-20.json
+2026-09-30 21:01:05.5325622000 0 data/freecash-monitor/state/day-locks/2026-09-30.lock
+2026-09-30 21:02:05.6301726000 2172 data/freecash-monitor/state/notified-keys.json
+2026-09-30 21:02:05.6346945000 518 data/freecash-monitor/snapshots/2026-09-30.json
+2026-09-30 21:02:06.5210720000 230 data/freecash-monitor/logs/task-a.log
+2026-09-30 21:02:08.6695385000 136 data/freecash-monitor/logs/task-b-watchdog.log
+2026-10-01 08:53:46.6922555000 0 data/freecash-monitor/state/day-locks/2026-10-01.lock
+2026-10-01 08:53:46.7001916000 518 data/freecash-monitor/snapshots/2026-10-01.json
+2026-10-01 08:53:46.7047175000 8956 data/freecash-monitor/alerts/alerts.jsonl
+2026-10-01 08:53:46.7184158000 341 data/freecash-monitor/state/last-run.json
+=== day-locks ===
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 08:53 2026-10-01.lock
+
+=== every scratch root I created, for the record ===
+total 8513
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:14 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:15 ..
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:08 asleep-gap
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:08 backclock
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:08 backclock-sameday
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-1
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-1.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-1.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-1.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-1.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-1.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-1.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-1.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-1.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-1.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-1.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-10
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-10.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-10.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-10.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-10.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-10.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-10.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-10.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-10.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-10.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-10.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-2
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-2.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-2.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-2.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-2.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-2.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-2.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-2.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-2.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-2.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-2.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-3
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-3.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-3.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-3.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-3.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-3.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-3.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-3.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-3.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-3.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-3.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-4
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-4.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-4.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-4.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-4.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-4.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-4.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-4.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-4.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-4.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-4.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-5
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-5.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-5.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-5.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-5.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-5.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-5.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-5.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-5.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-5.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-5.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-6
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-6.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-6.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-6.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-6.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-6.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-6.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-6.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-6.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-6.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-6.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-7
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-7.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-7.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-7.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-7.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-7.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-7.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-7.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-7.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-7.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-7.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-8
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-8.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-8.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-8.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-8.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-8.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-8.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-8.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-8.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-8.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-8.5.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:07 race-9
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-9.1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:07 race-9.1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-9.2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-9.2.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-9.3.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-9.3.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-9.4.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-9.4.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:07 race-9.5.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:07 race-9.5.out
+-rw-r--r-- 1 cd-pr 197609  6033 Okt  1 09:11 rgv-bad.txt
+-rw-r--r-- 1 cd-pr 197609  1254 Okt  1 09:11 rgv-monitoring_freecash.txt
+-rw-r--r-- 1 cd-pr 197609  5698 Okt  1 09:11 rgv-monitoring_freecash_gate.py.txt
+-rw-r--r-- 1 cd-pr 197609  5373 Okt  1 09:11 rgv-monitoring_freecash_run_daily_check.py.txt
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:11 rgv-neg
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:13 root-a
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:13 root-c
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:13 root-d
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:13 root-e
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:14 root-tz
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:06 run1.err
+-rw-r--r-- 1 cd-pr 197609   199 Okt  1 09:06 run1.out
+-rw-r--r-- 1 cd-pr 197609     0 Okt  1 09:06 run2.err
+-rw-r--r-- 1 cd-pr 197609    31 Okt  1 09:06 run2.out
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:06 scratchA
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:07 suite-1.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:12 suite-10.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:13 suite-11.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:13 suite-12.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:13 suite-13.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:13 suite-14.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:14 suite-15.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:14 suite-16.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:14 suite-17.txt
+-rw-r--r-- 1 cd-pr 197609 44424 Okt  1 09:14 suite-18.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:14 suite-19.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:07 suite-2.txt
+-rw-r--r-- 1 cd-pr 197609 10158 Okt  1 09:15 suite-20.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:07 suite-3.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:07 suite-4.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:08 suite-5.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:08 suite-6.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:12 suite-7.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:12 suite-8.txt
+-rw-r--r-- 1 cd-pr 197609 43886 Okt  1 09:12 suite-9.txt
+-rw-r--r-- 1 cd-pr 197609   966 Okt  1 09:14 suite-exits.txt
+-rw-r--r-- 1 cd-pr 197609  2607 Okt  1 09:08 verify-default.txt
+-rw-r--r-- 1 cd-pr 197609   835 Okt  1 09:11 vro-bad.txt
+-rw-r--r-- 1 cd-pr 197609   208 Okt  1 09:11 vro-clean.txt
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:14 wrapperprod
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:14 wrapperprod-notzdata

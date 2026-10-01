@@ -1,0 +1,28 @@
+########## CASE 2: wired source, ONE record for today ##########
+mode = present  THROWAWAY root = C:\Users\cd-pr\AppData\Local/Temp/fc-r3-src-present-1453/root
+operator-local day_key = 2026-10-01
+paths.data_root() = C:\Users\cd-pr\AppData\Local\Temp\fc-r3-src-present-1453\root
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit = 0
+snapshot = {
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T07:33:31Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-01"
+  },
+  "degraded": true,
+  "account_status": "ACTIVE",
+  "earnings_total_cents": 1340,
+  "balance_cents": 1340,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "29e0eaf8930d735e62a9f06101e28bab13ef25781dc8d5316f043b10bf9f2d2e"
+}
+
+alerts = {"day_key": "2026-10-01", "dedupe_key": null, "event_id": "0b4d8ff1-1118-4f3b-9c39-02978f2616ac", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-10-01. No notification sent. Source DEGRADED (operator-entered record for 2026-10-01).", "observed": {"account_status": "ACTIVE", "balance_cents": 1340, "degraded": true, "earnings_total_cents": 1340, "pending_cents": 0, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T07:33:31Z"}
+
+case2_exit=0

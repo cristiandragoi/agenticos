@@ -1,0 +1,37 @@
+=== date / git ===
+Do,  1. Okt 2026 11:42:50
+8f7463aa6931d57e12ec81b904b98cec04e932cf
+hermes-rescue-20260908
+=== PRE sha256 production state ===
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+=== ls day-locks ===
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 08:53 2026-10-01.lock
+=== last-run.json full ===
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+=== operator-state records ===
+records_len= 0
+=== approvals/pending.json ===
+ls: cannot access 'data/freecash-monitor/approvals/pending.json': No such file or directory
+cat: data/freecash-monitor/approvals/pending.json: No such file or directory
+=== find newermt today ===
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json

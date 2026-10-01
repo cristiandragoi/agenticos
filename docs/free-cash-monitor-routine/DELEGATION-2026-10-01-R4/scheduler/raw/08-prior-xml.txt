@@ -1,0 +1,365 @@
+=== prior unregistered XML (DELEGATION-2026-10-01/scheduler) ===
+total 104
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:11 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:05 ..
+-rw-r--r-- 1 cd-pr 197609  5279 Okt  1 09:04 DECISION-V2-FreeCash-Daily-Monitor.xml
+-rw-r--r-- 1 cd-pr 197609  3875 Okt  1 09:04 DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+-rw-r--r-- 1 cd-pr 197609  4890 Okt  1 08:58 DECISION-V2-HERMES-CRON-SCRIPTS-PROPOSAL.md
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:10 evidence
+-rw-r--r-- 1 cd-pr 197609  6249 Okt  1 09:02 freecash-daily.cmd
+-rw-r--r-- 1 cd-pr 197609  4653 Okt  1 08:51 FreeCash-Daily-Monitor.xml
+-rw-r--r-- 1 cd-pr 197609  3082 Okt  1 08:50 FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+-rwxr-xr-x 1 cd-pr 197609  4678 Okt  1 08:47 freecash-guarded-run.sh
+-rw-r--r-- 1 cd-pr 197609  3901 Okt  1 09:02 freecash-watchdog.cmd
+-rw-r--r-- 1 cd-pr 197609 37097 Okt  1 09:11 SCHEDULER-DECISION-V2.md
+
+--- docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/DECISION-V2-FreeCash-Daily-Monitor.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  DECISION-V2-FreeCash-Daily-Monitor.xml  :  Task A (daily read-only status read)
+
+  STATUS: *** PROPOSAL ONLY ***  This file registers NOTHING.
+  It becomes a scheduled task only when the operator runs the single approval
+  command printed in SCHEDULER-DECISION-V2.md section 6 (rule R4: registering a
+  scheduled task is an external, state-changing action).
+
+  FILE-NAME NOTE: this delegation's scheduler/ directory also contains
+  FreeCash-Daily-Monitor.xml, written by a SIBLING track (sa-3-6510f83b). This
+  file is the DECISION-V2 artifact and is deliberately named differently so
+  neither track overwrote the other. The approval string in
+  SCHEDULER-DECISION-V2.md names THIS file.
+
+  INTERPRETER, PINNED
+  Python 3.11.9 at ...\hermes-agent\venv\Scripts\python.exe, which HAS tzdata.
+  The system interpreter (py -3, 3.14) has no IANA database, so
+  ZoneInfo('Europe/Berlin') fails to resolve and gate.py degrades the R1 day key
+  to the machine-local zone while reporting MONITOR_DEGRADED. Verified today:
+      3.11.9 Europe/Berlin   (exit 0)
+
+  WHY NO .cmd WRAPPER, AND WHAT IT COSTS
+  schtasks cannot set environment variables. The production values the routine
+  needs are already its code defaults (paths.py:35 DEFAULT_DATA_ROOT,
+  gate.py:48 DEFAULT_TZ, run_daily_check.py:52 DEFAULT_SOURCE), and no
+  FREECASH_* variable exists at User or Machine scope (verified: all four report
+  User=[] Machine=[]), so a service-spawned task's environment is deterministic.
+  Cost: stdout is not captured as its own file, so this file redirects it into
+  logs\task-a.log from the Arguments string instead of via a wrapper process.
+
+  The unquoted action form below is FORM 2 of evidence-08, which executed
+  successfully through cmd.exe. FORM 1 (fully quoted) FAILED with
+  "Die Syntax fuer den Dateinamen ... ist falsch" and executed nothing; do not
+  "fix" this by adding quotes. No path on this host contains a space.
+
+  SETTINGS
+    StartWhenAvailable=true            a missed 09:00 fires ONCE on next
+                                       availability instead of being lost.
+    MultipleInstancesPolicy=IgnoreNew  a slow run is never stacked.
+    RunLevel=LeastPrivilege            never HighestAvailable (R2: nothing needs
+                                       elevation; the routine only reads).
+    LogonType=InteractiveToken         per-user interactive session; the toast
+                                       transport needs a real desktop.
+    ExecutionTimeLimit=PT10M           the run is seconds of file I/O.
+    No RestartOnFailure element        deliberate. A retry cannot produce a
+                                       second status read, because today's day
+                                       lock is already consumed, so the retry
+                                       prints SKIP_DUPLICATE_DAY and exits 0;
+                                       and a failed read (exit 5) must not be
+                                       retried automatically (run_daily_check.py
+                                       exit table: "5 ... no automatic re-run").
+
+  StartBoundary is set to the day after the earliest plausible approval date:
+  with StartWhenAvailable=true and a boundary already past, registration itself
+  fires one catch-up run.
+  ============================================================================
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash daily read-only status monitor (R1: exactly one status read per operator-local day). LeastPrivilege, per-user, IgnoreNew, StartWhenAvailable. PROPOSAL ONLY, registers nothing by itself.</Description>
+    <URI>\FreeCash-Daily-Monitor</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T09:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state 1>> D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2&gt;&amp;1</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+
+--- ET.parse(docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/DECISION-V2-FreeCash-Daily-Monitor.xml) ---
+PARSED OK
+--- docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml  :  Task B
+  (same-evening alarm if today's read-only status read never happened)
+
+  STATUS: *** PROPOSAL ONLY ***  Registers NOTHING. Registration is the
+  operator's approval step (rule R4); the approval string is in
+  SCHEDULER-DECISION-V2.md section 6.
+
+  FILE-NAME NOTE: the sibling FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml in
+  this directory belongs to track sa-3-6510f83b. This is the DECISION-V2 file.
+
+  WHY A SEPARATE TASK
+  The in-band missed-day detector in gate.py only notices an uncovered day at
+  the NEXT run, up to 24 h late. This task notices it the SAME EVENING. If it
+  shared Task A's trigger it would never examine a day independently of Task A.
+
+  IT CANNOT BECOME A SECOND RUN
+  watchdog.py opens no socket, never writes the ledger, never creates or clears
+  a day lock, never writes a snapshot, never touches the approval queue, never
+  runs the status check, always exits 0. Its only writes are
+  alerts/alerts.jsonl and state/notified-keys.json (dedupe index written BEFORE
+  dispatch, so at most one alarm per day). Proven today against throwaway roots
+  (evidence-04, evidence-05):
+      absent ledger         -> WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None
+                               last_outcome=None  coverage=NOTIFIED, then coverage=DEDUPED
+      interrupted prior day -> WATCHDOG_MISSED_DAY 2026-10-01
+                               last_attempt_day=2026-09-30 last_outcome=READ_FAILED
+                               coverage=NOTIFIED, then coverage=DEDUPED
+      ledger sha256 650c9a2c... identical across three runs.
+
+  Same pinned interpreter, same reasoning and the same unquoted cmd.exe action
+  form as Task A. Note: watchdog.py never dispatches OK_NO_CHANGE, but its
+  MISSED_DAY alarm IS a real toast; that is the intent.
+  ============================================================================
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash monitor watchdog: alarms the same evening if the day's read-only check never ran. Separate task; opens no socket, writes no ledger, creates no day lock, exits 0. PROPOSAL ONLY, registers nothing by itself.</Description>
+    <URI>\FreeCash-Daily-Monitor-Missed-Day-Watchdog</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T21:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\watchdog.py 1>> D:\AgenticOS\data\freecash-monitor\logs\task-b-watchdog.log 2&gt;&amp;1</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+
+--- ET.parse(docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml) ---
+PARSED OK
+--- docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/FreeCash-Daily-Monitor.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor.xml : Task A definition (daily read-only status read)
+
+  STATUS: INERT TEMPLATE. This file registers nothing. It becomes a scheduled
+  task only when a human runs the approval command in SCHEDULER-SPEC.md.
+  Rule R4: human approval before any external action.
+
+  NO SECRETS. This file contains no credential, token, cookie or password:
+  the routine is read-only and holds no credential at all.
+
+  Element order (RegistrationInfo, Principals, Settings, Triggers, Actions)
+  deliberately mirrors a real task already registered on THIS host
+  (\cua-driver-serve, exported with `schtasks /Query /TN "cua-driver-serve" /XML`),
+  so the sequence matches what this Windows build itself produces.
+
+  Chosen semantics and why:
+    StartBoundary 2026-10-02T09:00:00  => the day AFTER the delegation date. A
+                                         StartBoundary in the past, combined with
+                                         StartWhenAvailable=true, fires ONE
+                                         catch-up run at registration time; that
+                                         catch-up would consume the day's R1 lock
+                                         before the read source is populated
+                                         (see SCHEDULER-SPEC.md precondition P1).
+                                         Set the date to the day AFTER your
+                                         intended first real run.
+    StartWhenAvailable=true            => a missed 09:00 (machine asleep/off) is
+                                         fired once when the machine is next
+                                         available instead of being lost.
+    MultipleInstancesPolicy=IgnoreNew  => a slow run can never be stacked by the
+                                         next trigger.
+    NO RestartOnFailure                => failure semantics are explicitly
+                                         "no retry-until-success loop" (spec
+                                         section 6). A failed read leaves the day
+                                         lock in place; the watchdog reports it.
+    RunLevel=LeastPrivilege            => the /RL LIMITED equivalent. NEVER
+                                         HighestAvailable: nothing here needs
+                                         elevation.
+    LogonType=InteractiveToken         => per user, interactive session only. The
+                                         toast transport needs a real desktop
+                                         session; S4U or PASSWORD would run
+                                         without one and the balloon would go
+                                         nowhere.
+    ExecutionTimeLimit=PT10M           => the whole run is a few seconds of file
+                                         I/O; ten minutes is a generous ceiling.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash daily read-only status monitor (R1: exactly one status read per operator-local Europe/Berlin day). Non-elevated, per-user, LeastPrivilege, IgnoreNew, StartWhenAvailable, no retry-until-success. Registers nothing by itself; contains no secret.</Description>
+    <URI>\FreeCash-Daily-Monitor</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T09:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01\scheduler\freecash-daily.cmd"</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+
+--- ET.parse(docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/FreeCash-Daily-Monitor.xml) ---
+PARSED OK
+--- docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml : Task B definition
+  (late-day missed-run watchdog: same-evening alarm if today's status read
+  never happened).
+
+  STATUS: INERT TEMPLATE. This file registers nothing. It becomes a scheduled
+  task only when a human runs the approval command in SCHEDULER-SPEC.md.
+  Rule R4: human approval before any external action.
+
+  NO SECRETS. This file contains no credential, token, cookie or password.
+
+  This is a SEPARATE task on purpose. The watchdog is the R1 second detector:
+  the in-band detector in gate.py notices a missed day only at the NEXT run,
+  which is up to 24 hours late. This job notices it the same evening.
+
+  It cannot become a second run: it opens no socket, never writes the ledger,
+  never creates or clears a day lock, never writes a snapshot, never touches the
+  approval queue, never runs the status check, and always exits 0.
+
+  Element order mirrors a real task exported from THIS host
+  (`schtasks /Query /TN "cua-driver-serve" /XML`).
+
+  StartBoundary 2026-10-02T21:30:00 => the day AFTER the delegation date, same
+  catch-up reasoning as FreeCash-Daily-Monitor.xml. 21:30 Europe/Berlin is late
+  enough that a 09:00 run would have completed, yet early enough that a missed
+  run is still actionable the same evening.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash monitor watchdog: alarms the same evening if the day's read-only status check never ran. Separate task from FreeCash-Daily-Monitor; opens no socket, writes no ledger, creates no day lock, exits 0. Contains no secret.</Description>
+    <URI>\FreeCash-Daily-Monitor-Missed-Day-Watchdog</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T21:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01\scheduler\freecash-watchdog.cmd"</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+
+--- ET.parse(docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml) ---
+PARSED OK

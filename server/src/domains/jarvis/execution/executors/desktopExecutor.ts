@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, exec, execFileSync } from 'node:child_process';
+import { assertSideEffectOwnership } from '../../perception/turnOwnership.js';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../../../../utils/logger.js';
@@ -386,7 +387,28 @@ export class DesktopExecutor {
   }
 
   public async openApplication(appInput: string): Promise<{ success: boolean; app: string; pid?: number; error?: string }> {
-    const effectiveInput = (/^(it|that|this|the app|it again)$/i.test((appInput || '').trim()) && this.lastActiveApp)
+    // ── P0 turn-ownership enforcement ────────────────────────────────────────
+    // Application launch is the most visible external side effect there is. A
+    // cancelled or superseded turn must never physically open anything, so the
+    // gate runs at the top of the method — before resolution, before any
+    // PowerShell probe, before spawn.
+    {
+      const gate = assertSideEffectOwnership('desktop_launch', 'launch/activate a desktop application');
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, app: appInput,
+        });
+        return { success: false, app: appInput, error: `rejected:${gate.reason}` };
+      }
+    }
+
+    const trimmedInput = (appInput || '').trim();
+    const isAnaphoric = /^(it|that|this|the app|it again|it so i can see it|it so i see it)$/i.test(trimmedInput) ||
+      /^(?:open\s+)?it(?:\s+(?:again|now|please|so i can see it))?$/i.test(trimmedInput);
+    const effectiveInput = (isAnaphoric && this.lastActiveApp)
       ? this.lastActiveApp.displayName
       : appInput;
 
@@ -515,6 +537,22 @@ export class DesktopExecutor {
   }
 
   public async closeApplication(appInput: string): Promise<{ success: boolean; app: string; error?: string }> {
+    // ── P0: destructive side effect, gated like every other one ─────────────
+    // A superseded turn must not close an application that belongs to the user's
+    // newer turn. Closing/killing is a desktop side effect, so it carries the
+    // same ownership requirement as launching.
+    {
+      const gate = assertSideEffectOwnership('desktop_kill', 'close an application');
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, app: appInput,
+        });
+        return { success: false, app: appInput, error: `rejected:${gate.reason}` };
+      }
+    }
     const effectiveInput = (/^(it|that|this|the app|the application)$/i.test((appInput || '').trim()) && this.lastActiveApp)
       ? this.lastActiveApp.displayName
       : appInput;
@@ -562,6 +600,18 @@ export class DesktopExecutor {
   }
 
   public async openFolder(folderPath: string): Promise<{ success: boolean; app: string; path: string; error?: string }> {
+    {
+      const gate = assertSideEffectOwnership('desktop_launch', 'open a folder in File Explorer');
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description,
+        });
+        return { success: false, app: 'File Explorer', path: folderPath, error: `rejected:${gate.reason}` };
+      }
+    }
     let p = folderPath.trim();
     if ((/^(it|that|again|the same folder)$/i.test(p) || !p) && this.lastOpenedFolder) {
       p = this.lastOpenedFolder.path;
@@ -683,6 +733,19 @@ export class DesktopExecutor {
     stopped: string;
     error?: string;
   }> {
+    // ── P0: destructive side effect, gated like every other one ─────────────
+    {
+      const gate = assertSideEffectOwnership('desktop_kill', 'stop/kill a process');
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, target,
+        });
+        return { success: false, stopped: '', error: `rejected:${gate.reason}` };
+      }
+    }
     if (process.platform !== 'win32') {
       return { success: false, stopped: '', error: 'Supported on Windows only' };
     }
@@ -727,6 +790,18 @@ export class DesktopExecutor {
     foregroundHwnd?: number;
     error?: string;
   }> {
+    {
+      const gate = assertSideEffectOwnership('desktop_foreground', 'foreground/focus an application window');
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, app: appInput,
+        });
+        return { success: false, verified: false, app: appInput, error: `rejected:${gate.reason}` };
+      }
+    }
     const detailed = this.resolveWindowsDesktopApp(appInput);
     const procName = detailed.processName || appInput.replace(/\.exe$/i, '');
     const displayName = detailed.displayName || appInput;
@@ -790,6 +865,21 @@ export class DesktopExecutor {
     speech: string;
     details?: any;
   }> {
+    {
+      const gate = assertSideEffectOwnership('desktop_foreground', 'locate and activate an application');
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, app: appInput,
+        });
+        return {
+          found: false, actionTaken: 'not_found', app: appInput, verified: false,
+          speech: '', details: { reason: gate.reason },
+        };
+      }
+    }
     const detailed = this.resolveWindowsDesktopApp(appInput);
     const displayName = detailed.displayName || appInput;
     const processName = detailed.processName || appInput.replace(/\.exe$/i, '');
@@ -907,6 +997,18 @@ export class DesktopExecutor {
   }
 
   public async executeStep(step: ActionPlanStep, context: TurnContext): Promise<ExecutionResult> {
+    {
+      const gate = assertSideEffectOwnership('desktop_automation', `desktop action: ${step.action}`);
+      if (!gate.ok) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, step: step.action,
+        });
+        return { stepId: step.stepId, success: false, data: { reason: gate.reason }, output: '', error: `rejected:${gate.reason}` };
+      }
+    }
     if (step.action === 'screenshot' || step.action === 'capture_screenshot') {
       const targetWindow = (step.parameters.targetWindow as string) || (step.parameters.target as string) || undefined;
       const res = await this.takeScreenshot({ targetWindow });

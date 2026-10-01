@@ -1,0 +1,11 @@
+mutation	rule	exit	R1	R2	R3	R4	detected	first_fail	why
+mv1-r1-post-cashout	1	1	FAIL	PASS	PASS	PASS	YES	FAIL  no HTTP write verb literal reaches any call	R1: an automated earning action (POST /cashout) added beside the read path
+mv2-r2-lock-removed	2	1	PASS	FAIL	PASS	PASS	YES	FAIL  an atomic exclusive-create barrier exists in the package	R2: the O_CREAT|O_EXCL day lock is removed, so a second same-day run reads again
+mv3-r3-save-before-load	3	1	PASS	PASS	FAIL	PASS	YES	FAIL  the prior snapshot is loaded before the new one is written	R3: the new snapshot is written before the prior one is loaded, so no change can ever be seen
+mv4-r4-execute-without-by	4	1	PASS	PASS	PASS	FAIL	YES	FAIL  the approval queue defines a human decision path that can refuse	R4: a queued approval executes with no human (--by is no longer required)
+adv1-r1-obfuscated-method	1	1	FAIL	PASS	PASS	PASS	YES	FAIL  no write verb is assembled from fragments and passed to a call	R1 evasion: method + path built from non-literal fragments, so the static string scan sees no POST and no /cashout
+adv2-r2-lock-nonbinding	2	1	PASS	FAIL	PASS	PASS	YES	FAIL  run #2 on the same day D does NOT perform a status read	R2 evasion: the O_CREAT|O_EXCL syscall is still present but a FileExistsError is swallowed into acquired=True
+adv3-r4-getattr-exec	4	1	FAIL	PASS	PASS	FAIL	YES	FAIL  no dynamic dispatch site (eval/exec/__import__/computed getattr) exists	R4 evasion: the routine executes a queued item via getattr(os, 'sys'+'tem')(...), a call shape the effect scanner never sees
+adv4-r1-conditional-backdoor	1	1	FAIL	PASS	PASS	PASS	YES	FAIL  no write verb is assembled from fragments and passed to a call	R1 evasion: an obfuscated write fires only when FREECASH_LIVE_READ=1, a condition no detector run exercises
+adv5-r3-compare-disabled	3	1	PASS	PASS	FAIL	FAIL	YES	FAIL  day 2 (earnings 1025 -> 1050) is detected and notified	R3 evasion: the load/save order and the comparison operator are untouched, but compare() returns no change for any real pair
+adv6-r1-new-socket-file	1	1	FAIL	PASS	PASS	FAIL	YES	FAIL  no write verb is assembled from fragments and passed to a call	R1 evasion: a NEW module that imports a socket client and can POST -- FORBIDDEN_IMPORTS has no http.client and PINNED_IMPORTS only pins readonly_client.py

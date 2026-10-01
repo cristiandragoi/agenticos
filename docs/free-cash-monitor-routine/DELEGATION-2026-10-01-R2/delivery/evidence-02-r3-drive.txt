@@ -1,0 +1,186 @@
+
+==============================================================================
+PHASE 1 -- day 2026-09-19, first ever run (no prior snapshot)
+==============================================================================
+RUN_OK 2026-09-19 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-19.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-19.lock
+exit_code=0
+
+--- after 2026-09-19: alerts.jsonl has 1 line(s) ---
+{"dedupe_key": "", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-09-19. No notification sent. Source DEGRADED (operat", "severity": "info", "ts_utc": "2026-09-19T12:00:00Z"}
+
+==============================================================================
+PHASE 2 -- day 2026-09-20, IDENTICAL reading (expect NO notification)
+==============================================================================
+RUN_OK 2026-09-20 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-09-20.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-20.lock
+exit_code=0
+
+--- after 2026-09-20: alerts.jsonl has 2 line(s) ---
+{"dedupe_key": "", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-09-19. No notification sent. Source DEGRADED (operat", "severity": "info", "ts_utc": "2026-09-19T12:00:00Z"}
+{"dedupe_key": "", "event_type": "OK_NO_CHANGE", "message": "No change vs 2026-09-19. No notification sent. Source DEGRADED (operator-entered record fo", "severity": "info", "ts_utc": "2026-09-20T12:00:00Z"}
+
+NEW lines added this run: 1
+NEW event_types: ['OK_NO_CHANGE']
+NEW severities:  ['info']
+toast dispatched this run? sends to stub log:
+  toast-stub.log exists=False content=''
+
+==============================================================================
+PHASE 3 -- day 2026-09-21, EARNINGS changed 1000 -> 1500 (expect exactly ONE notify)
+==============================================================================
+RUN_OK 2026-09-21 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-21.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-21.lock
+exit_code=0
+
+--- after 2026-09-21: alerts.jsonl has 4 line(s) ---
+{"dedupe_key": "", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-09-19. No notification sent. Source DEGRADED (operat", "severity": "info", "ts_utc": "2026-09-19T12:00:00Z"}
+{"dedupe_key": "", "event_type": "OK_NO_CHANGE", "message": "No change vs 2026-09-19. No notification sent. Source DEGRADED (operator-entered record fo", "severity": "info", "ts_utc": "2026-09-20T12:00:00Z"}
+{"dedupe_key": "9910aea316e2073e", "event_type": "APPROVAL_PENDING", "message": "Approval item 84d607c7-124a-43d3-b26d-50901201f42c enqueued (PENDING, no expiry, NOT_EXECU", "severity": "notify", "ts_utc": "2026-09-21T12:00:00Z"}
+{"dedupe_key": "9910aea316e2073e", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-09-21", "severity": "notify", "ts_utc": "2026-09-21T12:00:00Z"}
+
+NEW lines added this run: 2
+  event_type=APPROVAL_PENDING severity=notify dedupe16=9910aea316e2073e
+  event_type=EARNINGS_CHANGED severity=notify dedupe16=9910aea316e2073e
+
+reconstructed dedupe_key(2026-09-21,EARNINGS_CHANGED,earnings_total_cents,1000,1500) = 9910aea316e2073e70a8d56d8bb481cf6764fa74bedb8f5f74bad0f9e8e18a6b
+matching alert lines: 2
+
+FULL PAYLOAD of the notification that was dispatched (from toast-stub.log):
+[STUB TOAST 2026-09-21T12:00:00Z] [FreeCash] EARNINGS CHANGE 2026-09-21 | Earnings:  $10.00 -> $15.00  (+$5.00) | Balance:   $10.00 | Pending:   $0.00 | Status:    ACTIVE (unchanged) | Source:    DEGRADED (operator-entered record for 2026-09-21) | Detail:    alerts.jsonl dedupe=9910aea316e2073e | ACTION:    No action taken. Review and approve anything you want done. | Approval:  84d607c7-124a-43d3-b26d-50901201f42c (PENDING - yours to decide, nothing executes)
+
+
+approval queue after this run:
+{'schema_version': 1, 'updated_at_utc': '2026-09-21T12:00:00Z', 'items': [{'approval_id': '84d607c7-124a-43d3-b26d-50901201f42c', 'created_at_utc': '2026-09-21T12:00:00Z', 'day_key': '2026-09-21', 'change_dedupe_key': '9910aea316e2073e70a8d56d8bb481cf6764fa74bedb8f5f74bad0f9e8e18a6b', 'reason': 'earnings_total_cents moved from $10.00 to $15.00. Review and decide whether any action is wanted.', 'proposed_action': {'action_type': 'REQUEST_PAYOUT', 'amount_cents': 1500, 'destination': 'OPERATOR_SPECIFIED - not stored by the routine', 'provider_endpoint': 'PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase'}, 'status': 'PENDING', 'status_reason': None, 'decided_at_utc': None, 'decided_by': None, 'decision_note': None, 'expires_at_utc': None, 'execution_state': 'NOT_EXECUTED', 'execution_allowed_by_this_routine': False}]}
+
+==============================================================================
+PHASE 4 -- day 2026-09-22, ACCOUNT STATUS changed ACTIVE -> REVIEW_REQUIRED
+==============================================================================
+RUN_OK 2026-09-22 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-22.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-22.lock
+exit_code=0
+
+--- after 2026-09-22: alerts.jsonl has 6 line(s) ---
+{"dedupe_key": "", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-09-19. No notification sent. Source DEGRADED (operat", "severity": "info", "ts_utc": "2026-09-19T12:00:00Z"}
+{"dedupe_key": "", "event_type": "OK_NO_CHANGE", "message": "No change vs 2026-09-19. No notification sent. Source DEGRADED (operator-entered record fo", "severity": "info", "ts_utc": "2026-09-20T12:00:00Z"}
+{"dedupe_key": "9910aea316e2073e", "event_type": "APPROVAL_PENDING", "message": "Approval item 84d607c7-124a-43d3-b26d-50901201f42c enqueued (PENDING, no expiry, NOT_EXECU", "severity": "notify", "ts_utc": "2026-09-21T12:00:00Z"}
+{"dedupe_key": "9910aea316e2073e", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-09-21", "severity": "notify", "ts_utc": "2026-09-21T12:00:00Z"}
+{"dedupe_key": "41f5d0d760bf31ba", "event_type": "APPROVAL_PENDING", "message": "Approval item 619662c8-cbcb-4203-a42e-681fb68e84d1 enqueued (PENDING, no expiry, NOT_EXECU", "severity": "notify", "ts_utc": "2026-09-22T12:00:00Z"}
+{"dedupe_key": "41f5d0d760bf31ba", "event_type": "STATUS_CHANGED", "message": "[FreeCash] STATUS CHANGE 2026-09-22", "severity": "notify", "ts_utc": "2026-09-22T12:00:00Z"}
+
+NEW lines added this run: 2
+  event_type=APPROVAL_PENDING severity=notify dedupe16=41f5d0d760bf31ba
+  event_type=STATUS_CHANGED severity=notify dedupe16=41f5d0d760bf31ba
+
+reconstructed dedupe_key(2026-09-22,STATUS_CHANGED,account_status,ACTIVE,REVIEW_REQUIRED) = 41f5d0d760bf31baa2e5401b66566d4fac9039e0d472b2df014b283f52b70e90
+matching alert lines: 2
+
+==============================================================================
+PHASE 5 -- RE-RUN the same day (R1 gate) and RE-DISPATCH the same change (dedupe gate)
+==============================================================================
+5a. re-run run_daily_check for 2026-09-21 (a second status read on a consumed day):
+SKIP_DUPLICATE_DAY 2026-09-21
+exit_code=0
+
+--- after re-run of 2026-09-21: alerts.jsonl has 7 line(s) ---
+{"dedupe_key": "", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-09-19. No notification sent. Source DEGRADED (operat", "severity": "info", "ts_utc": "2026-09-19T12:00:00Z"}
+{"dedupe_key": "", "event_type": "OK_NO_CHANGE", "message": "No change vs 2026-09-19. No notification sent. Source DEGRADED (operator-entered record fo", "severity": "info", "ts_utc": "2026-09-20T12:00:00Z"}
+{"dedupe_key": "9910aea316e2073e", "event_type": "APPROVAL_PENDING", "message": "Approval item 84d607c7-124a-43d3-b26d-50901201f42c enqueued (PENDING, no expiry, NOT_EXECU", "severity": "notify", "ts_utc": "2026-09-21T12:00:00Z"}
+{"dedupe_key": "9910aea316e2073e", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-09-21", "severity": "notify", "ts_utc": "2026-09-21T12:00:00Z"}
+{"dedupe_key": "41f5d0d760bf31ba", "event_type": "APPROVAL_PENDING", "message": "Approval item 619662c8-cbcb-4203-a42e-681fb68e84d1 enqueued (PENDING, no expiry, NOT_EXECU", "severity": "notify", "ts_utc": "2026-09-22T12:00:00Z"}
+{"dedupe_key": "41f5d0d760bf31ba", "event_type": "STATUS_CHANGED", "message": "[FreeCash] STATUS CHANGE 2026-09-22", "severity": "notify", "ts_utc": "2026-09-22T12:00:00Z"}
+{"dedupe_key": "", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-09-21 already consumed (lock 2026-09-21.lock). Duplicate run performed no read an", "severity": "info", "ts_utc": "2026-09-21T12:00:00Z"}
+notifications dispatched by the re-run: 1 (no stub lines added)
+
+5b. call the REAL dispatch path twice with the SAME change object + SAME dedupe key:
+  attempt 1 -> DEDUPED
+  attempt 2 -> DEDUPED
+  attempt 3 -> DEDUPED
+
+notified-keys.json entry for that key:
+{
+  "delivery": "STUB_OK",
+  "first_notified_at_utc": "2026-09-21T12:00:00Z",
+  "updated_at_utc": "2026-09-21T12:00:00Z"
+}
+total alert lines carrying that dedupe_key: 5
+
+5c. FRESH key, never dispatched -- the NOTIFIED -> DEDUPED transition on one key:
+  attempt 1 -> NOTIFIED   (dedupe_key=9db7e9c0960c7088)
+  attempt 2 -> DEDUPED   (dedupe_key=9db7e9c0960c7088)
+  attempt 3 -> DEDUPED   (dedupe_key=9db7e9c0960c7088)
+  dispatches actually sent to the sink (stub lines added): 1
+  dedupe index delivery label: {"first_notified_at_utc": "2026-10-01T07:10:05Z", "delivery": "STUB_OK", "updated_at_utc": "2026-10-01T07:10:05Z"}
+  -> one notification for the change, all later attempts of the SAME key are log-only.
+
+==============================================================================
+PHASE D -- multi-day catch-up: last success 2026-09-19, next run 2026-09-30
+==============================================================================
+ledger.last_success_day = 2026-09-19
+gate.missed_days('2026-09-30', ledger) = ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29']
+count = 10
+RUN_OK 2026-09-30 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-30.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-30.lock
+
+exit_code=0  wall_clock_seconds=0.258 (STUB sender, no toast)
+
+--- after 2026-09-30 catch-up: alerts.jsonl has 12 line(s) ---
+{"dedupe_key": "d99ab69c06e1ae35", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-20", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "2d846b414f04e16c", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-21", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "475c397125a78150", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-22", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "0c1fdf17590e8324", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-23", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "1d7d8adbcc66a684", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-24", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "b307f9f5fcbd6b20", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-25", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "3290611c1da1a98a", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-26", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "5812fdc3f0d650f9", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-27", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "8bf0b7d226adc1b5", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-28", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "3f9f6c2f9c303568", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-29", "severity": "alert", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "f3953925b01677a8", "event_type": "APPROVAL_PENDING", "message": "Approval item b105f495-e9bb-433e-a34f-84407aa67a5f enqueued (PENDING, no expiry, NOT_EXECU", "severity": "notify", "ts_utc": "2026-09-30T12:00:00Z"}
+{"dedupe_key": "f3953925b01677a8", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-09-30", "severity": "notify", "ts_utc": "2026-09-30T12:00:00Z"}
+
+MISSED_DAY alerts produced: 10
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-20'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-21'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-22'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-23'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-24'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-25'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-26'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-27'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-28'
+  2026-09-30 ts=2026-09-30T12:00:00Z severity=alert first_msg='[FreeCash] MISSED DAY 2026-09-29'
+
+stub delivery lines written: 11
+Is there ONE coalesced summary? searching for a summary/coalesce line:
+[]
+
+per-dispatch sleep in the MISSED_DAY loop (run_daily_check.py line 346):
+  source of the missed-day loop:
+    "change_type": "MISSED_DAY",
+    key = changedetect.dedupe_key(day, "MISSED_DAY", "last_success_day", missed_day, ledger.get("last_success_day"))
+    notify.notify_change(
+    sleep_seconds=0,
+    notify.notify_change(
+    sleep_seconds=0,
+    result = notify_changes(
+
+==============================================================================
+PHASE D2 -- the catch-up REPEATS if the return-day run fails (dedupe key embeds the day)
+==============================================================================
+MISSED_DAY alert lines already on disk for run2: 10
+simulate the return-day run having FAILED: roll the ledger back to last_success_day=2026-09-19
+gate.missed_days('2026-10-01', ledger) = ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30']
+count = 11
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit_code=0
+MISSED_DAY alert lines now on disk: 21
+days alerted TWICE (same missed day, different day_key in the key):
+  [FreeCash] MISSED DAY 2026-09-20 x2
+  [FreeCash] MISSED DAY 2026-09-21 x2
+  [FreeCash] MISSED DAY 2026-09-22 x2
+  [FreeCash] MISSED DAY 2026-09-23 x2
+  [FreeCash] MISSED DAY 2026-09-24 x2
+  [FreeCash] MISSED DAY 2026-09-25 x2
+  [FreeCash] MISSED DAY 2026-09-26 x2
+  [FreeCash] MISSED DAY 2026-09-27 x2
+  [FreeCash] MISSED DAY 2026-09-28 x2
+  [FreeCash] MISSED DAY 2026-09-29 x2
+distinct MISSED_DAY alerts for 2026-09-20..2026-09-29 re-emitted on 2026-10-01: 10
+run-failure line for 2026-10-01 present? ['MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MISSED_DAY', 'MONITOR_DEGRADED']
+
+-> every missed day is re-alerted on each subsequent day until a run SUCCEEDS, because the dedupe key is sha256(day|...|missed_day|...) and 'day' changes. This is the fatigue amplifier.

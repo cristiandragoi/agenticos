@@ -1,0 +1,78 @@
+== timestamp (UTC): 2026-10-01T06:49:46Z
+== interpreter: C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe
+== cwd: /d/AgenticOS/monitoring/freecash
+== $FREECASH_TOAST_STUB = [1]  (no real desktop toast)
+   [fixture] operator-state 2026-10-01 earnings=1340 -> C:\Users\cd-pr\AppData\Local\Temp\freecash-deleg-2026-10-01\notify-A\state\operator-state.json
+
+==============================================================
+CASE: A  baseline day (no prior snapshot) -> expect notifications=0
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-A
+$ python run_daily_check.py
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit_code = 0
+   [fixture] prior snapshot 2026-09-30 earnings=1340 -> C:\Users\cd-pr\AppData\Local\Temp\freecash-deleg-2026-10-01\notify-B\snapshots\2026-09-30.json
+   [fixture] operator-state 2026-10-01 earnings=1340 -> C:\Users\cd-pr\AppData\Local\Temp\freecash-deleg-2026-10-01\notify-B\state\operator-state.json
+
+==============================================================
+CASE: B  no-change day (prior 1340 == today 1340) -> expect notifications=0
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-B
+$ python run_daily_check.py
+RUN_OK 2026-10-01 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit_code = 0
+   [fixture] prior snapshot 2026-09-30 earnings=1340 -> C:\Users\cd-pr\AppData\Local\Temp\freecash-deleg-2026-10-01\notify-C\snapshots\2026-09-30.json
+   [fixture] operator-state 2026-10-01 earnings=1500 -> C:\Users\cd-pr\AppData\Local\Temp\freecash-deleg-2026-10-01\notify-C\state\operator-state.json
+
+==============================================================
+CASE: C  EARNINGS_CHANGED day (prior 1340, today 1500) -> expect notifications=1
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-C
+$ python run_daily_check.py
+RUN_OK 2026-10-01 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-01.lock
+exit_code = 0
+
+==============================================================
+CASE: C  duplicate same-day run, lock still present (R1) -> expect SKIP_DUPLICATE_DAY
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-C
+$ python run_daily_check.py
+SKIP_DUPLICATE_DAY 2026-10-01
+exit_code = 0
+
+--- C alerts.jsonl after the two runs (line-numbered):
+ 1  event_type=APPROVAL_PENDING dedupe=56858c66f01b51e5
+ 2  event_type=EARNINGS_CHANGED dedupe=56858c66f01b51e5
+ 3  event_type=SKIP_DUPLICATE_DAY dedupe=-
+alerts.jsonl total lines = 3
+--- toast-stub.log line count AFTER run 1+2 (expect 1 = one real dispatch only):
+1 C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-C/logs/toast-stub.log
+
+--- isolating the DEDUPE layer: removing today's R1 day-lock so a second processing
+    of the SAME change can reach the dedupe check (R1 removal is deliberate here).
+
+==============================================================
+CASE: C  SAME change replayed (day-lock removed) -> expect notifications=0 (deduped)
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-C
+$ python run_daily_check.py
+RUN_OK 2026-10-01 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-01.json written=False changes=1 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit_code = 0
+
+--- C alerts.jsonl after the replay:
+ 1  event_type=APPROVAL_PENDING dedupe=56858c66f01b51e5 observed_keys=approval_id,change_dedupe_key,execution_state,status
+ 2  event_type=EARNINGS_CHANGED dedupe=56858c66f01b51e5 observed_keys=field,new_value,old_value,prior_day_key
+ 3  event_type=SKIP_DUPLICATE_DAY dedupe=- observed_keys=lock
+ 4  event_type=EARNINGS_CHANGED dedupe=56858c66f01b51e5 observed_keys=already_notified,field,new_value,old_value
+counts by event_type: {'APPROVAL_PENDING': 1, 'EARNINGS_CHANGED': 2, 'SKIP_DUPLICATE_DAY': 1}
+EARNINGS_CHANGED lines = 2
+--- toast-stub.log line count AFTER the replay (expect STILL 1 -> no re-notify):
+1 C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/notify-C/logs/toast-stub.log
+--- notified-keys.json (dedupe key -> delivery label):
+{
+  "schema_version": 1,
+  "keys": {
+    "56858c66f01b51e50df09e9b662b43a82ecdf26e9eba23fbcf7dac80f0eb7e1a": {
+      "first_notified_at_utc": "2026-10-01T06:49:48Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-10-01T06:49:48Z"
+    }
+  }
+}
+
+== done.

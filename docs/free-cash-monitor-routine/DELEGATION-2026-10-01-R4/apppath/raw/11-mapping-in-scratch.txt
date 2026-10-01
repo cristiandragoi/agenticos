@@ -1,0 +1,35 @@
+===== mapping-in-scratch run Do,  1. Okt 2026 11:53:15 =====
+== verify_mapping_in_scratch.py ==
+package copy : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\apppath\routine_copy\freecash
+
+==========================================================================
+SCENARIO A-bridge-omits-currency  (Path-B record currency: omitted)
+scratch root: C:\Users\cd-pr\AppData\Local\Temp\fcr4-apppath-mapping-8276\A-bridge-omits-currency\root
+-- day1 FULL --
+RUN_OK 2026-09-29 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-29.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-29.lock
+-- day2 PATH-B (session proxy + three nulls) --
+RUN_OK 2026-09-30 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-30.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-30.lock
+   ALERT MONITOR_DEGRADED   currency changed USD -> None; money comparison skipped
+   ALERT APPROVAL_PENDING   Approval item a32a4707-5955-46d3-b045-e2ace3c4c992 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will a
+   ALERT STATUS_CHANGED     [FreeCash] STATUS CHANGE 2026-09-30
+day2 snapshot: status='SESSION_AUTHENTICATED' earnings=None balance=None pending=None currency=None
+
+==========================================================================
+SCENARIO B-bridge-carries-currency  (Path-B record currency: USD)
+scratch root: C:\Users\cd-pr\AppData\Local\Temp\fcr4-apppath-mapping-8276\B-bridge-carries-currency\root
+-- day1 FULL --
+RUN_OK 2026-09-29 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-29.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-29.lock
+-- day2 PATH-B (session proxy + three nulls) --
+RUN_OK 2026-09-30 outcome=STATUS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-30.json written=True changes=3 notifications=3 approvals=3 reminders=0 lock=2026-09-30.lock
+   ALERT APPROVAL_PENDING   Approval item 6fb53849-c3eb-48a2-b1c4-3077dee46291 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will a
+   ALERT STATUS_CHANGED     [FreeCash] STATUS CHANGE 2026-09-30
+   ALERT APPROVAL_PENDING   Approval item 68b6bd9a-ad10-4ac5-947f-5103ef756de6 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will a
+   ALERT EARNINGS_CHANGED   [FreeCash] EARNINGS CHANGE 2026-09-30
+   ALERT APPROVAL_PENDING   Approval item 10a22bef-cca4-4b4d-992e-dd6182c1b8a3 enqueued (PENDING, no expiry, NOT_EXECUTED). Nothing will a
+   ALERT EARNINGS_CHANGED   [FreeCash] EARNINGS CHANGE 2026-09-30
+day2 snapshot: status='SESSION_AUTHENTICATED' earnings=None balance=None pending=None currency='USD'
+
+==========================================================================
+production root: D:\AgenticOS\data\freecash-monitor (never used as FREECASH_DATA_ROOT)
+FAILURES: none
+EXIT_CODE=0

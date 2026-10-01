@@ -1,0 +1,109 @@
+# Parent pass evidence — 2026-10-01, window 11:37:50 → 11:42 local (Europe/Berlin, UTC+02:00)
+# Author: parent session (DELEGATION-2026-10-01-R4). Every line below is command output from THIS pass.
+# Interpreter of record: /c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python  ->  Python 3.11.9
+
+## A1 clock + interpreter
+Do,  1. Okt 2026 11:37:50
+which python -> /c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python
+python -V    -> Python 3.11.9
+
+## A2 production root sha256 BEFORE (11:38)
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+
+## A3 files written to the production root today
+08:53 data/freecash-monitor/alerts/alerts.jsonl
+08:53 data/freecash-monitor/snapshots/2026-10-01.json
+08:53 data/freecash-monitor/state/day-locks/2026-10-01.lock
+08:53 data/freecash-monitor/state/last-run.json
+=> exactly 4 files, all mtime 08:53; nothing written to production since 08:53.
+
+## A4 day locks (ls -la --time-style=long-iso data/freecash-monitor/state/day-locks/)
+2026-09-20.lock  (2026-09-20 21:08, 0 bytes)
+2026-09-30.lock  (2026-09-30 21:01, 0 bytes)
+2026-10-01.lock  (2026-10-01 08:53, 0 bytes)   <- today's key is SPENT
+
+## A5 ledger + snapshots
+data/freecash-monitor/state/last-run.json:
+  last_attempt_day=2026-10-01  last_success_day=2026-10-01
+  last_attempt_at_utc=last_success_at_utc=2026-10-01T06:53:46Z
+  last_outcome=MONITOR_DEGRADED  consecutive_missed_days=0  timezone=Europe/Berlin
+snapshots/: 2026-09-20.json, 2026-09-30.json, 2026-10-01.json (all 518 bytes)
+snapshots/2026-10-01.json: source.data_available=false, degraded=true,
+  account_status/earnings_total_cents/balance_cents/pending_cents/currency = null,
+  raw_response_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 (sha256 of empty input)
+
+## A6 alerts trail
+wc -l data/freecash-monitor/alerts/alerts.jsonl -> 15
+newest line: day_key=2026-10-01 event_type=MONITOR_DEGRADED ts_utc=2026-10-01T06:53:46Z
+line keys: day_key, dedupe_key, event_id, event_type, message, observed, severity, ts_utc
+=> no writer/pid/entry-point key on any of the 15 lines (one unattributed writer per day)
+
+## A7 operator source
+python -c "json.load(operator-state.json)" -> records=0 ; keys=[schema_version,kind,note,how_to,records,template_record]
+=> no operator figure has ever been entered (11th consecutive day)
+
+## A8 code mtimes (monitoring/freecash/*.py)
+approval_queue.py 2026-09-20 06:57 | changedetect.py 2026-09-20 06:59 | gate.py 2026-09-18 07:32
+notify.py 2026-09-20 06:57 | operator_state.py 2026-09-18 07:26 | paths.py 2026-09-18 07:31
+readonly_client.py 2026-09-18 07:25 | run_daily_check.py 2026-09-20 06:57 | verify_readonly.py 2026-09-18 07:27
+watchdog.py 2026-09-20 06:59
+=> newest mtime 2026-09-20 06:59; zero code change in 11 days
+
+## A19 scheduling
+schtasks /Query /FO CSV /NH | wc -l -> 278 rows ; grep -ic freecash -> 0
+hermes cron list -> "No scheduled jobs."
+
+## G1 shipped gate, file scope (scripts/monitoring/rule_gate_verify.py monitoring/freecash/run_daily_check.py)
+SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS      exit=1
+VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+  (this gate numbers R1 = "status check at most ONCE per calendar day",
+   R2 = "NO automated earning action" -- the INVERTED numbering)
+  failing checks under its R1: "atomic same-day guard (double-run barrier)" and "day key is a calendar day"
+   (both FAIL because the lock/day-key logic lives in gate.py/paths.py, not in the file-scoped target)
+
+## G2 shipped gate with --package
+usage: rule_gate_verify.py [-h] [--run] [--json] [--json-out JSON_OUT] target
+rule_gate_verify.py: error: unrecognized arguments: --package      exit=2
+
+## G4 delivered gate (docs/free-cash-monitor-routine/DELEGATION-2026-09-30/verifier/rule_gate.py)
+python .../rule_gate.py --package monitoring/freecash --workdir "$LOCALAPPDATA/Temp/fcr4-g4-$$"
+SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer   exit=0
+  (rule 4 alone ran 20 checks; example trail record: decided_by="Alice Operator", execution_state=NOT_EXECUTED, expires_at_utc=null)
+
+## G6 static read-only gate (monitoring/freecash/verify_readonly.py)
+[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+[verify_readonly] PASS - no unexempted write/earning token found.      exit=0
+
+## G7 legacy Node monitor
+node --check server/scripts/freecash-daily-monitor.mjs
+server/scripts/freecash-daily-monitor.mjs:41  function isDailyCheckAllowed(): boolean {
+SyntaxError: Unexpected token ':'                                        exit=1
+=> never executed; TS annotation in a .mjs
+
+## G8 offline suite with a throwaway root
+FREECASH_DATA_ROOT="$LOCALAPPDATA/Temp/fcr4-suite-$$" python monitoring/freecash/tests/run_all.py
+WATCHDOG_MISSED_DAY 2026-10-01 ... coverage=NOTIFIED / DEDUPED
+run_all: tests=52 failures=0 errors=0 skipped=0                          exit=0
+(N=1 this pass; V11B recorded 3 red runs in 26 for test_five_concurrent_runs_yield_one_winner -> C28)
+
+## G9 mutation material present
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/verifier/mutants/:
+  canonical-control, r1-a-lock-removed, r1-b-lock-nonbinding, r2-a-post-cashout-on-read-path,
+  r2-b-urllib-write-path, r3-a-baseline-is-current, r3-b-sub-dollar-threshold,
+  r4-a-nonhuman-decider-accepted, r4-b-arms-on-approve
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01/verifier/: rule_gate.py sibling, blindspot_probe.py,
+  concurrency-flake-evidence.txt (09:17), clean-run-gate-v1.txt (08:44), gate-self-test.txt (08:45)
+
+## G10 production root sha256 AFTER (11:42)
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c *data/freecash-monitor/state/operator-state.json
+=> byte-identical to A2: this pass is hermetic. Scratch dirs used: %LOCALAPPDATA%\Temp\fcr4-*
+
+## G12 repository
+git status --porcelain | wc -l -> 870 (V11B 09:2x: 868)
+branch hermes-rescue-20260908, HEAD 8f7463a
+monitoring/ and data/freecash-monitor/ remain untracked (in-place edits there produce no reviewable diff)

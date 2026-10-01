@@ -1,0 +1,44 @@
+=== CONCURRENCY RACE: 5 processes launched simultaneously, 10 independent scratch roots ===
+=== method: each round gets a fresh FREECASH_DATA_ROOT; 5 background launches; wait; count outcomes ===
+=== interpreter: C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python (Python 3.11.9) ===
+
+round 1: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 2: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 3: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 4: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 5: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 6: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 7: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 8: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 9: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+round 10: RUN_OK=1 SKIP=4 other=0 locks=1 snapshots=1 alert_lines=5 -> OK
+
+=== SUMMARY: rounds=10 launches=50 red_rounds=0 ===
+
+=== raw stdout from every process of round 1 (first race, verbatim) ===
+--- race-1.1.out ---
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+   (stderr bytes: 0)
+--- race-1.2.out ---
+SKIP_DUPLICATE_DAY 2026-10-01
+   (stderr bytes: 0)
+--- race-1.3.out ---
+SKIP_DUPLICATE_DAY 2026-10-01
+   (stderr bytes: 0)
+--- race-1.4.out ---
+SKIP_DUPLICATE_DAY 2026-10-01
+   (stderr bytes: 0)
+--- race-1.5.out ---
+SKIP_DUPLICATE_DAY 2026-10-01
+   (stderr bytes: 0)
+
+=== round-1 lock dir (exactly one lock file) ===
+total 4
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 09:07 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 09:07 ..
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 09:07 2026-10-01.lock
+=== round-1 snapshots ===
+total 8
+drwxr-xr-x 1 cd-pr 197609   0 Okt  1 09:07 .
+drwxr-xr-x 1 cd-pr 197609   0 Okt  1 09:07 ..
+-rw-r--r-- 1 cd-pr 197609 518 Okt  1 09:07 2026-10-01.json

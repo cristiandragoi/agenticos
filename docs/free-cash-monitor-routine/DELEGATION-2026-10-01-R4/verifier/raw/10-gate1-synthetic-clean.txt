@@ -1,0 +1,81 @@
+==============================================================================
+rule-gate-verify :: executable rule gate for the Free Cash daily monitor
+==============================================================================
+target : D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/verifier/g1-synthetic/g1_clean.py
+exists : True   kind: python
+parse  : OK -- python ast.parse OK
+
+------------------------------------------------------------------------------
+R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+------------------------------------------------------------------------------
+  PASS  atomic exclusive-create day guard present  [line 40]
+        evidence: line 40: fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+  PASS  day key is a calendar day  [line 25]
+        evidence: line 25: return now.astimezone(ZoneInfo(TZ_NAME)).date().isoformat()
+  PASS  no rolling 24h window used as the daily gate
+        evidence: no 86400/24h/timedelta(days=1) daily-gate arithmetic found
+  PASS  duplicate-run path is side-effect free
+        evidence: no state write found inside the already-ran early-exit branch
+  PASS  missed day is detectable  [line 55]
+        evidence: line 55: return {"last_success_day": None, "consecutive_missed_days": 0}
+  PASS  guard fails CLOSED on error
+        evidence: no except/catch branch was found returning a permissive value from a *ran()*/*allowed()* style guard
+  >>> R1 RESULT: PASS
+
+------------------------------------------------------------------------------
+R2: NO automated earning action (no POST/PUT/PATCH/DELETE; no claim/withdraw/payout/redeem/survey/offer execution)
+------------------------------------------------------------------------------
+  PASS  no write/earning call shape or endpoint path
+        evidence: 0 unexempted decisive hits in 146 lines (0 exempted by 'readonly-exempt:', 0 prose-only 'earning-verb' hits in the known false-positive class)
+  PASS  no non-GET/HEAD HTTP method is used
+        evidence: no POST/PUT/PATCH/DELETE call or method literal found
+  PASS  deny-by-default allowlist exists (structural barrier)  [line 17]
+        evidence: line 17: ALLOWED_METHODS = frozenset({"GET", "HEAD"})
+  PASS  no invented/unresolved provider endpoint
+        evidence: every URL literal is localhost/127.0.0.1 or explicitly marked PROVIDER_ENDPOINT_UNKNOWN
+  PASS  no earning-action execution path in the monitor
+        evidence: no run_action/execute_*/perform_action/simulate_action call site found
+  >>> R2 RESULT: PASS
+
+------------------------------------------------------------------------------
+R3: operator notified when earnings/account status CHANGES (prior-state load BEFORE snapshot write; dedupe = one change = one notification)
+------------------------------------------------------------------------------
+  PASS  prior state is loaded BEFORE the new snapshot is written  [line 133]
+        evidence: in run_check(): LOAD at line 133 (prior = load_prior_snapshot(day)) precedes WRITE at line 135 (save_snapshot(metrics, day))
+  PASS  exactly-one-notification dedupe key exists  [line 82]
+        evidence: line 82: index = STATE / "notified-keys.json"
+  PASS  change comparison is exact (no threshold can swallow it)
+        evidence: no relative/percentage threshold found next to a balance/earnings field
+  PASS  notification is a delivery path, not a print stub  [line 87]
+        evidence: line 87: def dispatch(message, key, day, change_type, sender=None):
+  >>> R3 RESULT: PASS
+
+------------------------------------------------------------------------------
+R4: human approval before ANY external action (may enqueue; no execution path; timeout never converts pending -> executed)
+------------------------------------------------------------------------------
+  PASS  the routine may enqueue a request for a human  [line 101]
+        evidence: line 101: pending = STATE / "pending.json"
+  PASS  consent is not fabricated by RNG
+        evidence: no random.choice/random.random in the approval path
+  PASS  consent is not hardcoded
+        evidence: no success=True / approved=True / {'approved': True} literal found
+  PASS  the routine contains NO execution path
+        evidence: no action-executing call site found
+  PASS  an APPROVED item is not auto-executed
+        evidence: nothing reads an APPROVED status and executes it
+  PASS  a timeout cannot convert pending -> executed
+        evidence: no timeout/expiry branch that proceeds or executes
+  PASS  the approval gate is actually reachable
+        evidence: every approval/decide function has at least one call site
+  >>> R4 RESULT: PASS
+
+------------------------------------------------------------------------------
+RUNTIME PROBE (temp-dir copy of the target; cwd = temp)
+------------------------------------------------------------------------------
+  - skipped (pass --run to enable; nothing was executed)
+
+==============================================================================
+SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+VERDICT: COMPLIANT -- 4/4 rules structurally enforced with cited evidence
+==============================================================================
+exit=0

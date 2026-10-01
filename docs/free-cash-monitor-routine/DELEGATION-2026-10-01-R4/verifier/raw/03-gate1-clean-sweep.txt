@@ -1,0 +1,10 @@
+approval_queue.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS
+changedetect.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+gate.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+notify.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+operator_state.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+paths.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+readonly_client.py exit=1 :: SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL
+run_daily_check.py exit=1 :: SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+verify_readonly.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+watchdog.py exit=1 :: SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL

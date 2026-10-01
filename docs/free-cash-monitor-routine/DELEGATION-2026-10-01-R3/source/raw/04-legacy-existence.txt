@@ -1,0 +1,21 @@
+EXISTS: server/scripts/freecash-daily-monitor.mjs  (326 lines, 10474 bytes)
+EXISTS: server/scripts/verify-freecash-rules.mjs  (80 lines, 3034 bytes)
+EXISTS: server/src/adapters/freecashMonitorAdapter.ts  (223 lines, 6428 bytes)
+EXISTS: scripts/monitoring/free-cash-daily-check.py  (293 lines, 11024 bytes)
+EXISTS: scripts/make_freecash_check.py  (98 lines, 2957 bytes)
+EXISTS: server/tasks/daily-finance-monitor.py  (330 lines, 13434 bytes)
+EXISTS: config/freecash-crontab  (11 lines, 578 bytes)
+=== finance-monitor package ===
+./finance-monitor
+total 101
+drwxr-xr-x 1 cd-pr 197609     0 Sep 17 21:41 .
+drwxr-xr-x 1 cd-pr 197609     0 Sep 30 23:06 ..
+-rw-r--r-- 1 cd-pr 197609  7133 Sep 11 11:50 .COMPLETION_REPORT.md
+-rw-r--r-- 1 cd-pr 197609   164 Sep 11 11:42 .delivery_status.json
+-rw-r--r-- 1 cd-pr 197609  2635 Sep 11 11:59 .VERIFIED.md
+-rw-r--r-- 1 cd-pr 197609 15936 Sep 11 11:25 __init__.py
+drwxr-xr-x 1 cd-pr 197609     0 Sep 30 20:56 __pycache__
+drwxr-xr-x 1 cd-pr 197609     0 Sep 11 11:14 config
+drwxr-xr-x 1 cd-pr 197609     0 Sep 11 10:33 docs
+drwxr-xr-x 1 cd-pr 197609     0 Sep 17 21:41 src
+drwxr-xr-x 1 cd-pr 197609     0 Sep 20 21:30 tests

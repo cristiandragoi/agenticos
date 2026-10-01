@@ -1,0 +1,28 @@
+=== tree: D:/AgenticOS/data/freecash ===
+/d/AgenticOS/data/freecash
+
+=== tree: D:/AgenticOS/data/freecash-monitor ===
+/d/AgenticOS/data/freecash-monitor
+/d/AgenticOS/data/freecash-monitor/alerts
+/d/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl
+/d/AgenticOS/data/freecash-monitor/approvals
+/d/AgenticOS/data/freecash-monitor/logs
+/d/AgenticOS/data/freecash-monitor/logs/task-a.log
+/d/AgenticOS/data/freecash-monitor/logs/task-b-watchdog.log
+/d/AgenticOS/data/freecash-monitor/snapshots
+/d/AgenticOS/data/freecash-monitor/snapshots/2026-09-20.json
+/d/AgenticOS/data/freecash-monitor/snapshots/2026-09-30.json
+/d/AgenticOS/data/freecash-monitor/snapshots/2026-10-01.json
+/d/AgenticOS/data/freecash-monitor/state
+/d/AgenticOS/data/freecash-monitor/state/day-locks
+/d/AgenticOS/data/freecash-monitor/state/day-locks/2026-09-20.lock
+/d/AgenticOS/data/freecash-monitor/state/day-locks/2026-09-30.lock
+/d/AgenticOS/data/freecash-monitor/state/day-locks/2026-10-01.lock
+/d/AgenticOS/data/freecash-monitor/state/last-run.json
+/d/AgenticOS/data/freecash-monitor/state/notified-keys.json
+/d/AgenticOS/data/freecash-monitor/state/operator-state.json
+
+=== tree: D:/AgenticOS/server/data/freecash-monitor ===
+/d/AgenticOS/server/data/freecash-monitor
+/d/AgenticOS/server/data/freecash-monitor/INTEGRATION_STATUS.md
+/d/AgenticOS/server/data/freecash-monitor/README.md

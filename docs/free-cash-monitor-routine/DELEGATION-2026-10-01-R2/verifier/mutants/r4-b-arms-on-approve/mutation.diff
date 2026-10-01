@@ -1,0 +1,22 @@
+--- a/approval_queue.py
++++ b/approval_queue.py
+@@ -176,10 +176,15 @@
+     item["decided_at_utc"] = stamp
+     item["decided_by"] = who
+     item["decision_note"] = reason
+-    # Re-assert the frozen fields: a decision must not be able to arm the item.
+-    item["expires_at_utc"] = NO_EXPIRY
+-    item["execution_state"] = EXECUTION_STATE_NOT_EXECUTED
+-    item["execution_allowed_by_this_routine"] = EXECUTION_ALLOWED_BY_THIS_ROUTINE
++    # MUTATION r4-b: an approved item is armed with a live expiry.
++    if decision == "approve":
++        item["expires_at_utc"] = paths.iso_utc(now)
++        item["execution_state"] = "EXECUTION_ARMED"
++        item["execution_allowed_by_this_routine"] = True
++    else:
++        item["expires_at_utc"] = NO_EXPIRY
++        item["execution_state"] = EXECUTION_STATE_NOT_EXECUTED
++        item["execution_allowed_by_this_routine"] = EXECUTION_ALLOWED_BY_THIS_ROUTINE
+     save_document(doc, now=now)
+     paths.append_jsonl(
+         paths.decided_path(),

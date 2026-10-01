@@ -1,0 +1,169 @@
+[
+  {
+    "tag": "baseline-pristine",
+    "target": "D:/AgenticOS/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py D:\\AgenticOS\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\baseline-pristine.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "PASS",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/baseline-pristine.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/baseline-pristine.json"
+  },
+  {
+    "tag": "ctl-newline-lf-only",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/ctl-newline-lf-only/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\ctl-newline-lf-only\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\ctl-newline-lf-only.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "PASS",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/ctl-newline-lf-only.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/ctl-newline-lf-only.json",
+    "rule_under_test": "control",
+    "mutation": "no mutation: identical text re-written with LF newlines"
+  },
+  {
+    "tag": "m1-r1-remove-daylock",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/m1-r1-remove-daylock/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\m1-r1-remove-daylock\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\m1-r1-remove-daylock.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "PASS",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m1-r1-remove-daylock.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m1-r1-remove-daylock.json",
+    "rule_under_test": "R1",
+    "mutation": "remove the atomic day-lock acquisition and replace it with a non-atomic read-then-write existence check (two same-day runs both pass it)",
+    "diff_lines": 168
+  },
+  {
+    "tag": "m1b-r1-disable-daylock",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/m1b-r1-disable-daylock/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\m1b-r1-disable-daylock\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\m1b-r1-disable-daylock.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "PASS",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m1b-r1-disable-daylock.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m1b-r1-disable-daylock.json",
+    "rule_under_test": "R1",
+    "mutation": "disable the day lock completely (acquired = True): a second same-day run reads again and the day lock denies nothing",
+    "diff_lines": 167
+  },
+  {
+    "tag": "m2-r2-post-cashout",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/m2-r2-post-cashout/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\m2-r2-post-cashout\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\m2-r2-post-cashout.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 2/4 rule(s) violated: R1, R2",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "FAIL",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m2-r2-post-cashout.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m2-r2-post-cashout.json",
+    "rule_under_test": "R2",
+    "mutation": "add a POST to \"http://localhost:3001/api/v1/cashout\" on the read client path",
+    "diff_lines": 407
+  },
+  {
+    "tag": "m3-r3-save-before-load",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/m3-r3-save-before-load/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\m3-r3-save-before-load\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\m3-r3-save-before-load.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 2/4 rule(s) violated: R1, R3",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "PASS",
+      "R3": "FAIL",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m3-r3-save-before-load.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m3-r3-save-before-load.json",
+    "rule_under_test": "R3",
+    "mutation": "restore the save-before-load ordering bug: the new snapshot is written first and the comparison then loads today's own file",
+    "diff_lines": 4
+  },
+  {
+    "tag": "m4-r4-auto-execute-approved",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/m4-r4-auto-execute-approved/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\m4-r4-auto-execute-approved\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\m4-r4-auto-execute-approved.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=FAIL",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 3/4 rule(s) violated: R1, R2, R4",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "FAIL",
+      "R3": "PASS",
+      "R4": "FAIL"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m4-r4-auto-execute-approved.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/m4-r4-auto-execute-approved.json",
+    "rule_under_test": "R4",
+    "mutation": "add a code path that executes a queued APPROVED approval automatically, with no --by and no human in the loop",
+    "diff_lines": 254
+  },
+  {
+    "tag": "ctl-r1-inline-atomic",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/ctl-r1-inline-atomic/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\ctl-r1-inline-atomic\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\ctl-r1-inline-atomic.json",
+    "exit_code": 0,
+    "summary_line": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: COMPLIANT -- 4/4 rules structurally enforced with cited evidence",
+    "rules": {
+      "R1": "PASS",
+      "R2": "PASS",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/ctl-r1-inline-atomic.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/ctl-r1-inline-atomic.json",
+    "rule_under_test": "R1-control",
+    "mutation": "put the whole R1 mechanism (O_CREAT|O_EXCL day lock + calendar-day key) INSIDE run_daily_check.py, matching the gate's single-file scope",
+    "diff_lines": 166
+  },
+  {
+    "tag": "ctl-r1-inline-noatomic",
+    "target": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/ctl-r1-inline-noatomic/monitoring/freecash/run_daily_check.py",
+    "command": "C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\ctl-r1-inline-noatomic\\monitoring\\freecash\\run_daily_check.py --json-out C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-gate-mutation-2026-09-21\\logs\\ctl-r1-inline-noatomic.json",
+    "exit_code": 1,
+    "summary_line": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict_line": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "rules": {
+      "R1": "FAIL",
+      "R2": "PASS",
+      "R3": "PASS",
+      "R4": "PASS"
+    },
+    "raw_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/ctl-r1-inline-noatomic.gate.txt",
+    "json_log": "C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/logs/ctl-r1-inline-noatomic.json",
+    "rule_under_test": "R1-control",
+    "mutation": "same in-file version but with the atomic exclusive create replaced by a read-then-write existence check",
+    "diff_lines": 169
+  }
+]

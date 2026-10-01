@@ -1,0 +1,15 @@
+--- a/approval_queue.py
++++ b/approval_queue.py
+@@ -150,11 +150,7 @@
+     who = (name or "").strip()
+     if not who:
+         raise NotHumanError("--by is required: a decision must name the human who made it")
+-    if who.lower() in NON_HUMAN_DECIDERS:
+-        raise NotHumanError(
+-            "refused: %r is not a human identity; this routine may only record a "
+-            "decision made by a person" % who
+-        )
++    # MUTATION r4-a: any non-empty string is accepted as the decider.
+     return who
+ 
+ 

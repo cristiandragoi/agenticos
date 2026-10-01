@@ -1,0 +1,220 @@
+$ cd D:/AgenticOS/monitoring/freecash && nl -ba paths.py
+     1	"""paths.py -- state layout, atomic file helpers and clock helpers.
+     2	
+     3	Free Cash daily status-monitoring routine (rules R1-R4).
+     4	Python 3.14 standard library only.  No third-party imports.
+     5	
+     6	This module performs NO network access and contains no earning action.
+     7	It only knows where the routine keeps its state and how to read/write files
+     8	without ever leaving a half-written JSON file behind.
+     9	
+    10	State layout (ROUTINE-DESIGN.md section 1.2)::
+    11	
+    12	    <data root>/
+    13	    |-- state/
+    14	    |   |-- last-run.json            single source of truth for R1 + missed-day math
+    15	    |   |-- day-locks/<YYYY-MM-DD>.lock      exclusive-create; presence == day consumed
+    16	    |   |-- notified-keys.json       dedupe_key index for R3
+    17	    |   `-- operator-state.json      operator-entered daily figures (see README.md)
+    18	    |-- snapshots/<YYYY-MM-DD>.json  one immutable snapshot per successful day
+    19	    |-- approvals/pending.json       approval queue (R4)
+    20	    |-- approvals/decided.jsonl      append-only human decision trail (R4)
+    21	    |-- alerts/alerts.jsonl          APPEND-ONLY alert log (canonical evidence record)
+    22	    `-- logs/                        run logs / forced-recheck audit
+    23	"""
+    24	
+    25	import json
+    26	import os
+    27	import uuid
+    28	from datetime import datetime, timezone
+    29	from pathlib import Path
+    30	
+    31	SCHEMA_VERSION = 1
+    32	
+    33	#: Default state root.  Override with the FREECASH_DATA_ROOT environment variable
+    34	#: (tests point this at a throwaway directory so the real state is never touched).
+    35	DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+    36	
+    37	_SUBDIRS = ("state", "state/day-locks", "snapshots", "approvals", "alerts", "logs")
+    38	
+    39	ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+    40	
+    41	
+    42	# --------------------------------------------------------------------------- layout
+    43	
+    44	
+    45	def data_root() -> Path:
+    46	    """Return the routine's data root (never creates it)."""
+    47	    raw = os.environ.get("FREECASH_DATA_ROOT") or DEFAULT_DATA_ROOT
+    48	    return Path(raw)
+    49	
+    50	
+    51	def state_dir() -> Path:
+    52	    return data_root() / "state"
+    53	
+    54	
+    55	def day_locks_dir() -> Path:
+    56	    return state_dir() / "day-locks"
+    57	
+    58	
+    59	def snapshots_dir() -> Path:
+    60	    return data_root() / "snapshots"
+    61	
+    62	
+    63	def approvals_dir() -> Path:
+    64	    return data_root() / "approvals"
+    65	
+    66	
+    67	def alerts_dir() -> Path:
+    68	    return data_root() / "alerts"
+    69	
+    70	
+    71	def logs_dir() -> Path:
+    72	    return data_root() / "logs"
+    73	
+    74	
+    75	def alerts_path() -> Path:
+    76	    return alerts_dir() / "alerts.jsonl"
+    77	
+    78	
+    79	def ledger_path() -> Path:
+    80	    return state_dir() / "last-run.json"
+    81	
+    82	
+    83	def notified_keys_path() -> Path:
+    84	    return state_dir() / "notified-keys.json"
+    85	
+    86	
+    87	def operator_state_path() -> Path:
+    88	    return state_dir() / "operator-state.json"
+    89	
+    90	
+    91	def pending_path() -> Path:
+    92	    return approvals_dir() / "pending.json"
+    93	
+    94	
+    95	def decided_path() -> Path:
+    96	    return approvals_dir() / "decided.jsonl"
+    97	
+    98	
+    99	def ensure_layout() -> list:
+   100	    """Create every state directory (idempotent).  Returns the paths created."""
+   101	    created = []
+   102	    for rel in _SUBDIRS:
+   103	        p = data_root() / rel
+   104	        if not p.exists():
+   105	            p.mkdir(parents=True, exist_ok=True)
+   106	            created.append(str(p))
+   107	    return created
+   108	
+   109	
+   110	# --------------------------------------------------------------------------- clock
+   111	
+   112	#: Test/simulation seam: when set, every "now" in the routine resolves to it.
+   113	#: The routine itself only sets this while a run is in progress with an injected
+   114	#: clock (see run_daily_check.run and watchdog.check); production runs never set it.
+   115	_clock_override = None
+   116	
+   117	
+   118	def set_clock(moment) -> None:
+   119	    global _clock_override
+   120	    _clock_override = moment
+   121	
+   122	
+   123	def clear_clock() -> None:
+   124	    global _clock_override
+   125	    _clock_override = None
+   126	
+   127	
+   128	def now_utc() -> datetime:
+   129	    if _clock_override is not None:
+   130	        return _clock_override
+   131	    return datetime.now(timezone.utc)
+   132	
+   133	
+   134	def iso_utc(moment=None) -> str:
+   135	    moment = moment or now_utc()
+   136	    if moment.tzinfo is None:
+   137	        moment = moment.replace(tzinfo=timezone.utc)
+   138	    return moment.astimezone(timezone.utc).strftime(ISO_FORMAT)
+   139	
+   140	
+   141	def parse_iso(value):
+   142	    """Parse an ISO-8601 'Z' timestamp; return None when unparsable."""
+   143	    if not isinstance(value, str) or not value:
+   144	        return None
+   145	    try:
+   146	        return datetime.strptime(value, ISO_FORMAT).replace(tzinfo=timezone.utc)
+   147	    except ValueError:
+   148	        return None
+   149	
+   150	
+   151	# --------------------------------------------------------------------------- files
+   152	
+   153	
+   154	def read_json(path, default=None):
+   155	    """Read JSON, returning *default* when the file is absent or corrupt.
+   156	
+   157	    A corrupt state file must never raise at import/startup time -- the routine
+   158	    has to be able to run and report the problem.
+   159	    """
+   160	    p = Path(path)
+   161	    try:
+   162	        with open(p, "r", encoding="utf-8") as fh:
+   163	            return json.load(fh)
+   164	    except (OSError, ValueError):
+   165	        return default
+   166	
+   167	
+   168	def write_json_atomic(path, obj) -> Path:
+   169	    """Write JSON via a unique temp file + os.replace (never a partial file)."""
+   170	    p = Path(path)
+   171	    p.parent.mkdir(parents=True, exist_ok=True)
+   172	    tmp = p.parent / (".%s.%d.%s.tmp" % (p.name, os.getpid(), uuid.uuid4().hex))
+   173	    payload = json.dumps(obj, indent=2, sort_keys=False, ensure_ascii=False)
+   174	    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+   175	        fh.write(payload)
+   176	        fh.write("\n")
+   177	        fh.flush()
+   178	        os.fsync(fh.fileno())
+   179	    os.replace(tmp, p)
+   180	    return p
+   181	
+   182	
+   183	def append_jsonl(path, obj) -> Path:
+   184	    """Append one JSON object as a single line, using one O_APPEND write.
+   185	
+   186	    Append mode means the file is never rewritten, so an existing line can
+   187	    never be lost -- the alert log is the routine's evidence record.
+   188	    """
+   189	    p = Path(path)
+   190	    p.parent.mkdir(parents=True, exist_ok=True)
+   191	    line = json.dumps(obj, sort_keys=True, ensure_ascii=False) + "\n"
+   192	    blob = line.encode("utf-8")
+   193	    fd = os.open(str(p), os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o644)
+   194	    try:
+   195	        written = os.write(fd, blob)
+   196	        if written != len(blob):
+   197	            raise OSError("short append to %s (%d of %d bytes)" % (p, written, len(blob)))
+   198	    finally:
+   199	        os.close(fd)
+   200	    return p
+   201	
+   202	
+   203	def read_jsonl(path) -> list:
+   204	    """Read a JSONL file, skipping unparsable lines."""
+   205	    out = []
+   206	    p = Path(path)
+   207	    if not p.exists():
+   208	        return out
+   209	    with open(p, "r", encoding="utf-8") as fh:
+   210	        for raw in fh:
+   211	            raw = raw.strip()
+   212	            if not raw:
+   213	                continue
+   214	            try:
+   215	                out.append(json.loads(raw))
+   216	            except ValueError:
+   217	                continue
+   218	    return out
+exit=0

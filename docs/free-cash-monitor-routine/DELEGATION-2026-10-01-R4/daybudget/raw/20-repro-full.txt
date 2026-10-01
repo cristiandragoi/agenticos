@@ -1,0 +1,116 @@
+=== repro_daybudget.sh ===============================================
+repo root        : D:/AgenticOS
+interpreter      : C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe  (Python 3.11.9)
+patch            : /d/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/daybudget/remedy/daybudget-r2-floor.patch
+throwaway workdir: C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193
+host clock       : Do,  1. Okt 2026 11:58:41
+
+-rw-r--r-- 1 cd-pr 197609 19516 Okt  1 11:57 /d/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/daybudget/remedy/daybudget-r2-floor.patch
+-rw-r--r-- 1 cd-pr 197609  8180 Okt  1 09:44 D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/daybudget/failing-test-first/test_daybudget_data_less.py
+--- 1. apply the delivered diff to the COPY (never to the shipped tree) ---
+error: can't open patch '/d/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/daybudget/remedy/daybudget-r2-floor.patch': No such file or directory
+patching file monitoring/freecash/gate.py
+patching file monitoring/freecash/run_daily_check.py
+patching file monitoring/freecash/tests/test_r5_smoke.py
+applied with: patch -p1
+shipped gate.py sha256 (must be unchanged by this script):
+1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7 *D:/AgenticOS/monitoring/freecash/gate.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *D:/AgenticOS/monitoring/freecash/run_daily_check.py
+780a2fd2d02ddc603e4358d5a7e1d20b1c9aa55b81b437a580f3d70cd109f937 *D:/AgenticOS/monitoring/freecash/tests/test_r5_smoke.py
+copy gate.py sha256 (differs -- the remedy):
+0ddadce57290b9865c1d50dd833a96203a0b998237d01e734010afb8e3ee84ab *C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/gate.py
+4be1d550273fcfe73db431425e51fda6c7cc87e49a2cca5f4bba7c553d43c52c *C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/run_daily_check.py
+67f574bae80b8089dc4af09766d13c285ec54d306107c39b4e3fc752e3cd89a7 *C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/tests/test_r5_smoke.py
+diff summary:
+  Only in D:/AgenticOS/monitoring/freecash: __pycache__
+  Files D:/AgenticOS/monitoring/freecash/gate.py and C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/gate.py differ
+  Files D:/AgenticOS/monitoring/freecash/run_daily_check.py and C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/run_daily_check.py differ
+  Only in D:/AgenticOS/monitoring/freecash/tests: __pycache__
+  Files D:/AgenticOS/monitoring/freecash/tests/test_r5_smoke.py and C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/tests/test_r5_smoke.py differ
+
+--- 2. ACCEPTANCE TEST, ONE RUN: RED (shipped) then GREEN (remedied) ---
+### COMMAND: FREECASH_ROUTINE_DIR=D:/AgenticOS/monitoring/freecash "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/daybudget/failing-test-first/test_daybudget_data_less.py -v
+  RED  Ran 7 tests in 0.205s
+  RED  FAILED (failures=6)
+  RED  exit=1
+CHECK PASS  shipped package is RED (6 failures of 7)
+CHECK PASS  shipped package reports 'FAILED (failures=6)'
+### COMMAND: FREECASH_ROUTINE_DIR=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/daybudget/failing-test-first/test_daybudget_data_less.py -v
+  GREEN test_data_less_run_consumes_no_day_lock (__main__.DataLessRunBudgetTest.test_data_less_run_consumes_no_day_lock) ... ok
+  GREEN test_data_less_run_does_not_advance_last_success_day (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_advance_last_success_day) ... ok
+  GREEN test_data_less_run_does_not_reset_consecutive_missed_days (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_reset_consecutive_missed_days) ... ok
+  GREEN test_data_less_run_is_reported_as_watchdog_missed_day (__main__.DataLessRunBudgetTest.test_data_less_run_is_reported_as_watchdog_missed_day) ... ok
+  GREEN test_data_less_run_writes_no_snapshot (__main__.DataLessRunBudgetTest.test_data_less_run_writes_no_snapshot) ... ok
+  GREEN test_the_day_is_still_usable_after_a_data_less_run (__main__.DayStaysUsableTest.test_the_day_is_still_usable_after_a_data_less_run) ... ok
+  GREEN test_reading_present_run_consumes_one_day_and_duplicate_skips (__main__.ReadingPresentBudgetTest.test_reading_present_run_consumes_one_day_and_duplicate_skips) ... ok
+  GREEN Ran 7 tests in 0.173s
+  GREEN OK
+  GREEN exit=0
+CHECK PASS  remedied copy is GREEN (7 of 7, exit 0)
+CHECK PASS  remedied copy ran 7 tests and printed OK
+
+--- 3. package's own offline suite, remedied copy, throwaway root ---
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-suite "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/tests/run_all.py
+  run_all: tests=52 failures=1 errors=0 skipped=0
+  exit=1
+CHECK FAIL  remedied suite: 52 tests, failures=0 errors=0, exit 0
+
+--- 4. scratch-root behaviour (day key 2026-10-01) ---
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-less "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/run_daily_check.py
+  RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=NOT_TAKEN last_success_day=2026-09-30 consecutive_missed_days=9 reminders=0
+  exit=0
+CHECK PASS  data-less run exits 0
+CHECK PASS  data-less run prints RUN_NO_DATA
+  state/day-locks/ lock count = 0 ; snapshots/ json count = 0
+CHECK PASS  state/day-locks/ is EMPTY after a data-less run
+CHECK PASS  no snapshot written by a data-less run
+  ledger sha256 before=b9dc57474d24b48f69c295d39debc89ea5deb4697fca407f4aade950d437005e after=b9dc57474d24b48f69c295d39debc89ea5deb4697fca407f4aade950d437005e
+CHECK PASS  last-run.json is byte-identical (no attempt, no success, no counter)
+  last_success_day=2026-09-30 consecutive_missed_days=9
+CHECK PASS  last_success_day unchanged (2026-09-30)
+CHECK PASS  consecutive_missed_days preserved (9)
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-less "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/watchdog.py
+  WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=2026-09-30 last_outcome=MONITOR_DEGRADED coverage=NOTIFIED
+CHECK PASS  watchdog prints WATCHDOG_MISSED_DAY
+CHECK PASS  watchdog appended exactly one MISSED_DAY alert
+  alerts.jsonl (raw):
+    {"day_key": "2026-10-01", "dedupe_key": null, "event_id": "91962acf-7aea-4ba8-b57b-8ee418a182c5", "event_type": "MONITOR_DEGRADED", "message": "No reading for 2026-10-01 (no operator-entered record for 2026-10-01 in operator-state.json). Day key NOT_TAKEN: no snapshot written, no success booked, last_success_day and consecutive_missed_days untouched. The day stays available until a reading exists, and the watchdog reports it as missed. Nothing is compared and nothing is notified.", "observed": {"account_status": null, "balance_cents": null, "day_lock": "NOT_TAKEN", "degraded": true, "earnings_total_cents": null, "pending_cents": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T09:58:55Z"}
+    {"day_key": "2026-10-01", "dedupe_key": "31b83df0c9052aa5687909a057c5782f37c40001a2ccf25190d9c3096484c891", "event_id": "9884d6eb-aa0e-4039-86c5-cf07781e2c92", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-10-01\nNo successful status check recorded for 2026-10-01.\nLast success: 2026-09-30. consecutive_missed_days=0\nACTION:    No action taken. Investigate why no check ran (machine uptime, scheduler history, or a failed run).", "observed": {"field": "last_attempt_day", "new_value": "MONITOR_DEGRADED", "old_value": "2026-09-30", "prior_day_key": "2026-09-30"}, "severity": "alert", "ts_utc": "2026-10-01T09:58:56Z"}
+
+### same day, now WITH a reading: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-less "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/run_daily_check.py
+  RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+CHECK PASS  the day is still usable: the later reading-present run consumed it
+CHECK PASS  exactly one lock now exists
+CHECK PASS  exactly one snapshot now exists
+
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-read "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/run_daily_check.py
+  RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+CHECK PASS  reading-present run: RUN_OK outcome=INITIAL_BASELINE
+CHECK PASS  reading-present run consumed exactly one day (1 lock)
+CHECK PASS  reading-present run wrote exactly one snapshot
+### second run the same day (cap): FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-read "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash/run_daily_check.py
+  SKIP_DUPLICATE_DAY 2026-10-01
+CHECK PASS  second run prints SKIP_DUPLICATE_DAY
+CHECK PASS  second run changed neither ledger nor snapshot nor lock count
+  last_success_day=2026-10-01 consecutive_missed_days=0
+
+--- 5. residual fallback: probe finds a reading, the read finds none ---
+### COMMAND: FREECASH_ROUTINE_DIR=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/tree/monitoring/freecash FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193/root-fallback "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/daybudget/repro/fallback_probe_driver.py
+  RUN_NO_DATA 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=NONE day_lock=RELEASED last_success_day=2026-09-30 consecutive_missed_days=9 reminders=0
+  CHECK PASS  fallback: run exits 0
+  CHECK PASS  fallback: day lock released
+  CHECK PASS  fallback: no snapshot written
+  CHECK PASS  fallback: last_success_day unchanged
+  CHECK PASS  fallback: consecutive_missed_days preserved
+  CHECK PASS  fallback: outcome recorded as MONITOR_DEGRADED
+      watchdog said: WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=2026-10-01 last_outcome=MONITOR_DEGRADED coverage=NOTIFIED
+  CHECK PASS  fallback: watchdog reports the day as NOT covered
+  CHECK PASS  fallback: watchdog prints WATCHDOG_MISSED_DAY
+  fallback_probe_driver: OK
+CHECK PASS  fallback path holds every day-budget property
+
+=== summary ==========================================================
+AT LEAST ONE CHECK FAILED -- see 'CHECK FAIL' lines above
+scratch workdir kept for inspection: C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-repro-193
+shipped package untouched (this script wrote only under $WORK)
+### repro exit=1

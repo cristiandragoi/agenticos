@@ -78,14 +78,24 @@ export class WindowsApplicationResolver {
     const lower = cleanQuery.toLowerCase();
     const explicitTaskbar = options.explicitTaskbar || /\b(?:taskbar|pinned|on\s+my\s+taskbar|pinned\s+on\s+taskbar)\b/i.test(rawQuery);
 
+    const appQuery = cleanQuery
+      .replace(/\s+and\s+(?:create|make|write|open|start|type|new|navigate|show)\b.*$/i, '')
+      .trim();
+    const appLower = appQuery.toLowerCase();
+
     // 0. Check learned RepairKnowledge first
-    const learned = repairKnowledgeStore.lookupResolution(cleanQuery, options.actionType || 'open');
-    if (learned && (learned.executablePath || learned.surface === 'start_menu' || learned.surface === 'taskbar')) {
+    const learned = repairKnowledgeStore.lookupResolution(cleanQuery, options.actionType || 'open')
+      || (appQuery !== cleanQuery ? repairKnowledgeStore.lookupResolution(appQuery, options.actionType || 'open') : null);
+    const resolvedTarget = learned?.executablePath || learned?.parameters?.executablePath || learned?.parameters?.shortcutPath;
+    const resolvedShortcut = learned?.parameters?.shortcutPath || (learned?.surface === 'start_menu' || learned?.surface === 'taskbar' ? (learned?.executablePath || learned?.parameters?.shortcutPath) : undefined);
+    const appUserModelId = learned?.parameters?.appUserModelId;
+    if (learned && (resolvedTarget || resolvedShortcut || appUserModelId)) {
       return {
         name: learned.target,
         source: 'learned',
-        targetPath: learned.executablePath,
-        shortcutPath: learned.surface === 'start_menu' || learned.surface === 'taskbar' ? learned.executablePath : undefined,
+        targetPath: resolvedTarget,
+        shortcutPath: resolvedShortcut,
+        appUserModelId,
         score: 0.99,
         description: `Learned resolution from RepairKnowledge (${learned.surface})`,
       };
@@ -93,10 +103,17 @@ export class WindowsApplicationResolver {
 
     const candidates: ApplicationCandidate[] = [];
 
+    // Helper to score query against both full query and appQuery
+    const getBestScore = (candidateName: string, bonus: number = 0): number => {
+      const s1 = this.scoreMatch(lower, candidateName, bonus);
+      const s2 = appQuery !== cleanQuery ? this.scoreMatch(appLower, candidateName, bonus) : 0;
+      return Math.max(s1, s2);
+    };
+
     // 1. Taskbar Pinned Shortcuts
     const taskbarApps = await this.getTaskbarPinnedApps();
     for (const app of taskbarApps) {
-      const matchScore = this.scoreMatch(lower, app.name, explicitTaskbar ? 0.15 : 0.05);
+      const matchScore = getBestScore(app.name, explicitTaskbar ? 0.15 : 0.05);
       if (matchScore > 0.4) {
         const procName = app.targetPath
           ? path.basename(app.targetPath, path.extname(app.targetPath)).toLowerCase()
@@ -117,8 +134,8 @@ export class WindowsApplicationResolver {
     // 2. Running Visible Windows (active processes)
     const runningWindows = await this.getVisibleWindows();
     for (const win of runningWindows) {
-      const titleMatch = this.scoreMatch(lower, win.title, 0.02);
-      const procMatch = this.scoreMatch(lower, win.process, 0.02);
+      const titleMatch = getBestScore(win.title, 0.02);
+      const procMatch = getBestScore(win.process, 0.02);
       const bestWinScore = Math.max(titleMatch, procMatch);
       if (bestWinScore > 0.4) {
         candidates.push({
@@ -137,7 +154,7 @@ export class WindowsApplicationResolver {
     // 3. Start Menu & Desktop Shortcuts
     const allShortcuts = await this.getAllShortcuts();
     for (const sc of allShortcuts) {
-      const matchScore = this.scoreMatch(lower, sc.name, 0);
+      const matchScore = getBestScore(sc.name, 0);
       if (matchScore > 0.4) {
         candidates.push({
           name: sc.name,
@@ -153,22 +170,22 @@ export class WindowsApplicationResolver {
     // 4. Windows Store / UWP Applications (Get-StartApps)
     const startApps = await this.getStartApps();
     for (const app of startApps) {
-      const nameMatch = this.scoreMatch(lower, app.name, 0);
-      const idMatch = this.scoreMatch(lower, app.appUserModelId, -0.05);
+      const nameMatch = getBestScore(app.name, 0);
+      const idMatch = getBestScore(app.appUserModelId, -0.05);
       const bestUwpScore = Math.max(nameMatch, idMatch);
       if (bestUwpScore > 0.4) {
         candidates.push({
           name: app.name,
           source: 'uwp',
           appUserModelId: app.appUserModelId,
-          score: bestUwpScore * 0.92,
+          score: bestUwpScore >= 0.9 ? bestUwpScore * 0.98 : bestUwpScore * 0.92,
           description: `Windows App (UWP): ${app.name} (${app.appUserModelId})`,
         });
       }
     }
 
     // 5. Windows App Paths & Standard Executables
-    const exe = await this.findStandardExecutable(cleanQuery);
+    const exe = await this.findStandardExecutable(cleanQuery) || (appQuery !== cleanQuery ? await this.findStandardExecutable(appQuery) : null);
     if (exe) {
       candidates.push({
         name: cleanQuery,
@@ -412,11 +429,24 @@ export class WindowsApplicationResolver {
       rechner: ['calculator', 'calc'],
       editor: ['notepad'],
       terminal: ['powershell', 'cmd', 'wt'],
+      settings: ['einstellungen', 'systemeinstellungen', 'immersivecontrolpanel', 'ms-settings', 'systemsettings'],
+      'windows settings': ['einstellungen', 'systemeinstellungen', 'immersivecontrolpanel', 'ms-settings', 'systemsettings'],
+      einstellungen: ['settings', 'windows settings', 'systemeinstellungen', 'immersivecontrolpanel', 'systemsettings'],
+      comet: ['perplexity', 'comet perplexity'],
+      perplexity: ['comet', 'comet perplexity'],
+      'comet perplexity': ['comet', 'perplexity'],
+      hermes: ['hermes 1', 'hermes one'],
+      'hermes 1': ['hermes', 'hermes one'],
+      'hermes one': ['hermes', 'hermes 1'],
+      word: ['winword', 'microsoft word', 'word.application'],
+      'microsoft word': ['word', 'winword'],
+      winword: ['word', 'microsoft word'],
     };
 
     for (const [key, synList] of Object.entries(synonyms)) {
       if (q === key || q.includes(key)) {
-        if (synList.some(s => c.includes(s))) return 0.90 + bonus;
+        if (synList.some(s => c === s)) return 0.98 + bonus;
+        if (synList.some(s => c.includes(s))) return 0.85 + bonus;
       }
     }
 

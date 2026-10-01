@@ -72,13 +72,16 @@ export class CapabilityDiscovery {
     }
 
     // 0b. Check Camera Perception Capability (Section 13)
-    if (actionType === 'perceive' || lower.includes('see me') || lower.includes('holding') || lower.includes('look at') || lower.includes('describe me')) {
+    // 0b. Check Camera Capability (camera.perceive)
+    const isPerceiveAction = actionType === 'perceive' || actionType === 'perceive_camera';
+    const isVisualQuery = lower.includes('see me') || lower.includes('holding') || lower.includes('look at') || lower.includes('what do you see') || lower.includes('describe what i am showing');
+    if ((isPerceiveAction || isVisualQuery || (lower.includes('camera') && actionType !== 'open')) && actionType !== 'open') {
       candidates.push({
         id: 'cap-camera-perceive',
         name: 'Camera Perception',
         surface: 'camera',
         target: 'camera.perceive',
-        score: 0.99,
+        score: isPerceiveAction ? 1.0 : 0.99,
         description: 'Jarvis Camera Visual Perception: inspects active camera frame, grounded visual answers',
         parameters: { capability: 'camera.perceive', prompt: cleanTarget },
       });
@@ -97,14 +100,44 @@ export class CapabilityDiscovery {
       });
     }
 
+    // 0c1. Check Browser Live Perception Capability (browser_observe)
+    if (
+      actionType === 'observe_browser' ||
+      (actionType !== 'open' && actionType !== 'launch' && (
+        (actionType === 'observe' && (cleanTarget.toLowerCase().includes('comet') || cleanTarget.toLowerCase().includes('perplexity') || cleanTarget.toLowerCase().includes('browser') || cleanTarget.toLowerCase().includes('page'))) ||
+        lower.includes('on my comet') ||
+        lower.includes('on my browser') ||
+        lower.includes('what page am i looking at')
+      ))
+    ) {
+      candidates.push({
+        id: 'cap-browser-observe',
+        name: 'Browser Perception',
+        surface: 'browser_observe',
+        target: cleanTarget,
+        score: actionType === 'observe_browser' ? 1.0 : 0.99,
+        description: 'Jarvis Browser Perception: inspects active foreground browser or Comet Perplexity page',
+        parameters: { capability: 'browser.observe', target: cleanTarget },
+      });
+    }
+
     // 0d. Check Desktop Observation Capability (desktop.observe)
-    if (actionType === 'observe' || lower.includes('what is inside') || lower.includes('inside') || lower.includes('on my screen') || lower.includes('read what is inside') || lower.includes('inspect window')) {
+    if (
+      actionType === 'observe_desktop' ||
+      actionType === 'observe' ||
+      lower.includes('what is inside') ||
+      lower.includes('inside') ||
+      lower.includes('on my screen') ||
+      lower.includes('read what is inside') ||
+      lower.includes('inspect window') ||
+      lower.includes('on my desktop')
+    ) {
       candidates.push({
         id: 'cap-desktop-observe',
         name: 'Desktop Perception',
         surface: 'desktop_observe',
         target: cleanTarget,
-        score: 0.99,
+        score: actionType === 'observe_desktop' ? 1.0 : (actionType === 'observe' ? 0.98 : 0.95),
         description: 'Jarvis Desktop Perception: inspects active window and desktop content via UI Automation',
         parameters: { capability: 'desktop.observe', targetWindow: cleanTarget },
       });
@@ -259,6 +292,18 @@ export class CapabilityDiscovery {
         url: target,
         score: 0.95,
         description: `Direct Browser URL: ${target}`,
+      };
+    }
+    if (/julian\s+goldie/i.test(lower)) {
+      const url = 'https://www.youtube.com/@JulianGoldieSEO';
+      return {
+        id: 'web-youtube-juliangoldie',
+        name: 'Julian Goldie SEO - YouTube',
+        surface: 'browser',
+        target: url,
+        url,
+        score: 0.99,
+        description: 'Julian Goldie SEO YouTube Channel',
       };
     }
 

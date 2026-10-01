@@ -1,0 +1,235 @@
+{
+  "rows": [
+    {
+      "id": "CTRL",
+      "title": "POSITIVE CONTROL: repaired package (MONITOR_DEGRADED removed from SUCCESS_OUTCOMES; decider guard is an allowlist) -- the gate MUST pass",
+      "rule": "none",
+      "substitution": "1 substitution at gate.py (anchor len=28) | 1 substitution at approval_queue.py (anchor len=225)",
+      "my_gate_exit": 0,
+      "my_gate_summary": "1=PASS 2=PASS 3=PASS 4=PASS",
+      "my_gate_failed_checks": [],
+      "my_gate_all_failing_checks": [],
+      "caught": "NO",
+      "gate_0930_exit": 0,
+      "gate_0930_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+      "gate_0930_fail_lines": [],
+      "gate_1001_exit": 1,
+      "gate_1001_fail_lines": [
+        "R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]",
+        "[R4.2] FAIL  a machine identity cannot sign a decision and a decision never arms the item",
+        "R4  FAIL  (2/3 assertions)",
+        "[verify_freecash_rules] RESULT FAIL target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-CTRL failed_rules=R4 assertions=13/14"
+      ],
+      "gate_1001_result": [
+        "[verify_freecash_rules] RESULT FAIL target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-CTRL failed_rules=R4 assertions=13/14"
+      ],
+      "gate_1file": [
+        "(gate.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL",
+        "(approval_queue.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS"
+      ]
+    },
+    {
+      "id": "M-a",
+      "title": "R2: write/earning endpoint call added to the read path (HTTPConnection POST /api/v1/withdraw)",
+      "rule": "Rule 2",
+      "substitution": "1 substitution at run_daily_check.py (anchor len=43)",
+      "my_gate_exit": 1,
+      "my_gate_summary": "1=FAIL 2=FAIL 3=PASS 4=FAIL",
+      "my_gate_failed_checks": [
+        "R2.1",
+        "R2.4"
+      ],
+      "my_gate_all_failing_checks": [
+        "R1.3",
+        "R2.1",
+        "R2.4",
+        "R4.3b"
+      ],
+      "caught": "YES",
+      "gate_0930_exit": 1,
+      "gate_0930_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL",
+      "gate_0930_fail_lines": [
+        "FAIL  no HTTP write verb literal reaches any call",
+        "FAIL  no earning/write endpoint path appears as a string literal",
+        ">>> RULE 1 RESULT: FAIL",
+        "FAIL  the detector ran to completion"
+      ],
+      "gate_1001_exit": 1,
+      "gate_1001_fail_lines": [
+        "R1  at most one status check per Europe/Berlin calendar day  [FAIL]",
+        "[R1.1] FAIL  a second run on an already-consumed operator-local day performs no second read",
+        "[R1.3] FAIL  5 simultaneous runs yield exactly one reader",
+        "R2  zero automated earning / transaction actions (read-only verbs and paths only)  [FAIL]"
+      ],
+      "gate_1001_result": [
+        "[verify_freecash_rules] RESULT FAIL target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-M-a failed_rules=R1,R2,R3,R4 assertions=7/14"
+      ],
+      "gate_1file": [
+        "(run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=PASS"
+      ]
+    },
+    {
+      "id": "M-b",
+      "title": "R1: a status read is performed BEFORE the day lock is consumed (read-then-lock)",
+      "rule": "Rule 1",
+      "substitution": "insert substitution at run_daily_check.py (anchor len=46)",
+      "my_gate_exit": 1,
+      "my_gate_summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+      "my_gate_failed_checks": [
+        "R1.2"
+      ],
+      "my_gate_all_failing_checks": [
+        "R1.2",
+        "R1.3",
+        "R4.3b"
+      ],
+      "caught": "YES",
+      "gate_0930_exit": 1,
+      "gate_0930_summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+      "gate_0930_fail_lines": [
+        "FAIL  the day lock is acquired before the status read",
+        ">>> RULE 2 RESULT: FAIL",
+        "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS"
+      ],
+      "gate_1001_exit": 0,
+      "gate_1001_fail_lines": [],
+      "gate_1001_result": [
+        "[verify_freecash_rules] RESULT PASS target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-M-b rules=4/4 assertions=14/14"
+      ],
+      "gate_1file": [
+        "(run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+      ]
+    },
+    {
+      "id": "M-c",
+      "title": "R3: snapshot saved BEFORE the prior snapshot is loaded (kills change detection)",
+      "rule": "Rule 3",
+      "substitution": "1 substitution at run_daily_check.py (anchor len=279)",
+      "my_gate_exit": 1,
+      "my_gate_summary": "1=FAIL 2=PASS 3=FAIL 4=FAIL",
+      "my_gate_failed_checks": [
+        "R3.1"
+      ],
+      "my_gate_all_failing_checks": [
+        "R1.3",
+        "R3.1",
+        "R4.3b"
+      ],
+      "caught": "YES",
+      "gate_0930_exit": 1,
+      "gate_0930_summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS",
+      "gate_0930_fail_lines": [
+        "FAIL  the prior snapshot is loaded before the new one is written",
+        ">>> RULE 3 RESULT: FAIL",
+        "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS"
+      ],
+      "gate_1001_exit": 0,
+      "gate_1001_fail_lines": [],
+      "gate_1001_result": [
+        "[verify_freecash_rules] RESULT PASS target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-M-c rules=4/4 assertions=14/14"
+      ],
+      "gate_1file": [
+        "(run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS"
+      ]
+    },
+    {
+      "id": "M-d",
+      "title": "R1/R3: a data-less run advances last_success_day and zeroes consecutive_missed_days",
+      "rule": "Rule 1",
+      "substitution": "1 substitution at run_daily_check.py (anchor len=96)",
+      "my_gate_exit": 1,
+      "my_gate_summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+      "my_gate_failed_checks": [
+        "R1.4"
+      ],
+      "my_gate_all_failing_checks": [
+        "R1.3",
+        "R1.4",
+        "R4.3b"
+      ],
+      "caught": "YES",
+      "gate_0930_exit": 0,
+      "gate_0930_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+      "gate_0930_fail_lines": [],
+      "gate_1001_exit": 0,
+      "gate_1001_fail_lines": [],
+      "gate_1001_result": [
+        "[verify_freecash_rules] RESULT PASS target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-M-d rules=4/4 assertions=14/14"
+      ],
+      "gate_1file": [
+        "(run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+      ]
+    },
+    {
+      "id": "M-e",
+      "title": "R4: decider identity guard removed entirely (any label, including 'hermes-agent', signs a decision)",
+      "rule": "Rule 4",
+      "substitution": "1 substitution at approval_queue.py (anchor len=225)",
+      "my_gate_exit": 1,
+      "my_gate_summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+      "my_gate_failed_checks": [
+        "R4.3a"
+      ],
+      "my_gate_all_failing_checks": [
+        "R1.3",
+        "R4.3a",
+        "R4.3b"
+      ],
+      "caught": "YES",
+      "gate_0930_exit": 1,
+      "gate_0930_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+      "gate_0930_fail_lines": [
+        "FAIL  identity 'system' is refused",
+        "FAIL  identity 'routine' is refused",
+        "FAIL  identity 'automation' is refused",
+        "FAIL  identity 'agent' is refused"
+      ],
+      "gate_1001_exit": 1,
+      "gate_1001_fail_lines": [
+        "R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]",
+        "[R4.2] FAIL  a machine identity cannot sign a decision and a decision never arms the item",
+        "R4  FAIL  (2/3 assertions)",
+        "[verify_freecash_rules] RESULT FAIL target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-M-e failed_rules=R4 assertions=13/14"
+      ],
+      "gate_1001_result": [
+        "[verify_freecash_rules] RESULT FAIL target=C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq\\pkg-M-e failed_rules=R4 assertions=13/14"
+      ],
+      "gate_1file": [
+        "(approval_queue.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS"
+      ]
+    }
+  ],
+  "runtime_probes": {
+    "M-a_sink": {
+      "rc": 0,
+      "stdout_tail": "{'kind': 'operator_entered', 'read_ops': [], 'data_available': False, 'note': 'no operator-entered record for 2026-10-01 in operator-state.json', 'payload': None, 'raw_body': b''}",
+      "stderr_tail": "",
+      "sink_hits": [
+        [
+          "POST",
+          "/api/v1/withdraw",
+          "{\"amount_cents\":1}"
+        ]
+      ]
+    },
+    "identity_pristine": {
+      "rc": 0,
+      "result": "{\n \"hermes-agent\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\",\n \"assistant\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\",\n \"claude\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\",\n \"system\": \"REFUSED (refused: 'system' is not a human identity; this routine may only record a decision made by a person)\",\n \"routine\": \"REFUSED (refused: 'routine' is not a human identity; this routine may only record a decision made by a person)\",\n \"Alice Operator\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\"\n}",
+      "stderr": ""
+    },
+    "identity_ctrl": {
+      "rc": 0,
+      "result": "{\n \"hermes-agent\": \"REFUSED (refused: 'hermes-agent' is not an allowlisted human operator)\",\n \"assistant\": \"REFUSED (refused: 'assistant' is not an allowlisted human operator)\",\n \"claude\": \"REFUSED (refused: 'claude' is not an allowlisted human operator)\",\n \"system\": \"REFUSED (refused: 'system' is not an allowlisted human operator)\",\n \"routine\": \"REFUSED (refused: 'routine' is not an allowlisted human operator)\",\n \"Alice Operator\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\"\n}",
+      "stderr": ""
+    },
+    "mjs_verifier": {
+      "rc": 0,
+      "tail": [
+        "\u2713 Rule 4 (Human approval queue)  \u2192 PASSED",
+        "",
+        "[OK] All 4 operational rules verified (4/4 passed)"
+      ]
+    }
+  },
+  "sandbox": "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\r3-mutants-6nws46uq"
+}

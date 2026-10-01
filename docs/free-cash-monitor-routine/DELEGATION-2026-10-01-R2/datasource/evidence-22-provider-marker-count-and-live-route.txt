@@ -1,0 +1,59 @@
+$ grep -rn PROVIDER_ENDPOINT_UNKNOWN monitoring/freecash/
+monitoring/freecash/approval_queue.py:116:        "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase",
+monitoring/freecash/readonly_client.py:27:    PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase
+monitoring/freecash/readonly_client.py:48:    # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+monitoring/freecash/readonly_client.py:60:PROVIDER_ENDPOINT_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+monitoring/freecash/tests/test_r2_readonly.py:24:PROVIDER_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+monitoring/freecash/tests/test_r2_readonly.py:122:        self.assertEqual(readonly_client.PROVIDER_ENDPOINT_UNKNOWN, PROVIDER_UNKNOWN)
+Binary file monitoring/freecash/tests/__pycache__/test_r2_readonly.cpython-311.pyc matches
+Binary file monitoring/freecash/tests/__pycache__/test_r2_readonly.cpython-314.pyc matches
+Binary file monitoring/freecash/__pycache__/approval_queue.cpython-311.pyc matches
+Binary file monitoring/freecash/__pycache__/approval_queue.cpython-314.pyc matches
+Binary file monitoring/freecash/__pycache__/readonly_client.cpython-311.pyc matches
+Binary file monitoring/freecash/__pycache__/readonly_client.cpython-314.pyc matches
+exit=0
+
+$ grep -rc PROVIDER_ENDPOINT_UNKNOWN monitoring/freecash/*.py monitoring/freecash/tests/*.py
+monitoring/freecash/approval_queue.py:1
+monitoring/freecash/changedetect.py:0
+monitoring/freecash/gate.py:0
+monitoring/freecash/notify.py:0
+monitoring/freecash/operator_state.py:0
+monitoring/freecash/paths.py:0
+monitoring/freecash/readonly_client.py:3
+monitoring/freecash/run_daily_check.py:0
+monitoring/freecash/verify_readonly.py:0
+monitoring/freecash/watchdog.py:0
+monitoring/freecash/tests/_support.py:0
+monitoring/freecash/tests/run_all.py:0
+monitoring/freecash/tests/test_r1_gate.py:0
+monitoring/freecash/tests/test_r2_readonly.py:2
+monitoring/freecash/tests/test_r3_changedetect.py:0
+monitoring/freecash/tests/test_r4_approval.py:0
+monitoring/freecash/tests/test_r5_smoke.py:0
+exit=0
+
+$ grep -rn PROVIDER_ENDPOINT_UNKNOWN monitoring/freecash/ | wc -l
+12
+exit=0
+
+$ curl -s -m 5 -w '\nHTTP %{http_code}\n' 'http://localhost:4600/api/projects/does-not-exist/freecash/auth'
+{"service":"freecash","label":"FreeCash","sessionState":"unauthenticated","satisfied":false,"blocker":"FreeCash session evidence is stale (last live check 2026-09-23T15:32:31.406Z).","checkedAt":"2026-10-01T07:12:18.453Z","evidence":{"sessionValid":false,"credentialAvailable":true,"externalConnected":true},"goal":{"id":"goal-mufxonpl-ud6lj6","originalGoal":"Why you don't have to walk in free cash, you just have to become human, human like talking. That's all you have to do.","projectId":"proj-free-cash","service":"freecash","blocker":"FreeCash session evidence is stale (last live check 2026-09-23T15:32:31.406Z).","nextStep":"Sign in to the account in the managed browser window; the original goal resumes automatically once the session is detected.","status":"blocked_waiting_for_auth","conversationId":"conv-77ac54a7-","createdAt":"2026-09-24T19:37:30.633Z","updatedAt":"2026-09-27T09:17:09.862Z","clearedAt":null},"tasks":[]}
+HTTP 200
+exit=0
+
+$ sed -n '385,397p' server/src/routers/projects.ts
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET  /api/projects/:projectId/freecash/auth  → current safe auth/session state
+// POST /api/projects/:projectId/freecash/auth  → same (POST alias for clients)
+router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+
+// POST /api/projects/:projectId/freecash/auth/login
+// Opens the managed browser window ON the real sign-in page. The user types
+// their own credentials there; AgenticOS never sees them.
+router.post('/:projectId/freecash/auth/login', async (req, res) => {
+exit=0

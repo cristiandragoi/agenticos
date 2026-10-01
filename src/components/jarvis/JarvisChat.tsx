@@ -1247,28 +1247,14 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
         delete streamedTextByOpRef.current[operationId];
         delete opConversationRef.current[operationId];
         const isDelegatedRoute = data.route === 'codex' || data.route === 'delegated' || data.route === 'hermes';
-        const isSpokenRoute = !isDelegatedRoute && (
-          !data.route ||
-          data.route === 'direct' ||
-          data.route === 'investigate' ||
-          data.route === 'clarification_required' ||
-          data.route === 'system_attention' ||
-          data.route === 'system_event' ||
-          data.route === 'presence' ||
-          data.route === 'decision_statement' ||
-          data.route === 'task_control' ||
-          data.route === 'semantic_turn'
-        );
+        const isSpokenRoute = !isDelegatedRoute && data.route !== 'voice_stop';
 
         if (isSpokenRoute && hadStreamedText) {
-          // One-shot TTS only when the page did NOT take the progressive path.
-          if (!onStreamDeltaRef.current) {
-            const channel = pendingChannelRef.current || 'typed';
-            if (typeof currentTurnIdRef.current === 'number') {
-              onAssistantResponseRef.current?.(finalText, channel, currentTurnIdRef.current);
-            } else {
-              onAssistantResponseRef.current?.(finalText, channel);
-            }
+          const channel = pendingChannelRef.current || 'typed';
+          if (typeof currentTurnIdRef.current === 'number') {
+            onAssistantResponseRef.current?.(finalText, channel, currentTurnIdRef.current);
+          } else {
+            onAssistantResponseRef.current?.(finalText, channel);
           }
         }
         if (data.goalId) setCreatedGoalId(data.goalId);

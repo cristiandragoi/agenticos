@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "operators": [
+    "Erika Mustermann"
+  ],
+  "_comment": "R4 operator-owned allowlist for the Free Cash monitor approval queue (operator rule R4: 'human approval before ANY external action'). THIS FILE IS AN EXAMPLE. It lives at <data root>/state/human-deciders.json -- with the shipped default root that is D:/AgenticOS/data/freecash-monitor/state/human-deciders.json. The operator writes this file by hand and REPLACES the placeholder name below with their own real name; the routine only ever READS it. Every entry must be a real human's name. Machine-looking entries (agent / bot / monitor / routine / hermes / assistant / claude / gpt / llm / ...) are refused at load time, so a tampered allowlist cannot sign. If this file is missing, unreadable, malformed, empty, is not a JSON object, or has the wrong schema_version, EVERY decider is refused (fail closed, exit 4) and the refusal prints why. The placeholder 'Erika Mustermann' is the standard German fictitious name (the equivalent of 'Jane Doe'); it is NOT a real person.",
+  "_path_hint": "<FREECASH_DATA_ROOT>/state/human-deciders.json, e.g. D:/AgenticOS/data/freecash-monitor/state/human-deciders.json"
+}

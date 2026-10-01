@@ -1,0 +1,51 @@
+# SIMULATED tomorrow (pinned clock 2026-10-02T08:00:00Z via run_daily_check.run(now=...))
+# prior snapshot = the REAL production 2026-10-01.json (data_available=false, all figures null)
+$ cp /d/AgenticOS/data/freecash-monitor/snapshots/2026-10-01.json $FREECASH_DATA_ROOT/snapshots/
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:53:46Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+exit=0
+
+$ FREECASH_TOAST_STUB=1 python -c "... run([], now=datetime(2026,10,2,8,0,0,tzinfo=utc))"
+RUN_OK 2026-10-02 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-02.lock
+exit=0
+
+$ cat snapshots/2026-10-02.json
+{
+  "schema_version": 1,
+  "day_key": "2026-10-02",
+  "captured_at_utc": "2026-10-02T08:00:00Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": true,
+    "note": "operator-entered record for 2026-10-02"
+  },
+  "degraded": true,
+  "account_status": "Operativa",
+  "earnings_total_cents": 1340,
+  "balance_cents": 1340,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "82e8266737d1ed72adce6b5c1bf75d4a8d77cad8dcf1981245a439845d5945ba"
+}
+exit=0
+
+$ cat alerts/alerts.jsonl
+{"day_key": "2026-10-02", "dedupe_key": null, "event_id": "b9b2b950-4bfc-4660-b9b9-dbb50100fea8", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-10-02. No notification sent. Source DEGRADED (operator-entered record for 2026-10-02).", "observed": {"account_status": "Operativa", "balance_cents": 1340, "degraded": true, "earnings_total_cents": 1340, "pending_cents": 0, "prior_day_key": "2026-10-01", "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-02T08:00:00Z"}
+exit=0

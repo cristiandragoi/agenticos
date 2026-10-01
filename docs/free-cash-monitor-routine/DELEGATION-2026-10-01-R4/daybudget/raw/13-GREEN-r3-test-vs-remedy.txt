@@ -1,0 +1,17 @@
+### COMMAND: FREECASH_ROUTINE_DIR=D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/daybudget/remedy/tree/monitoring/freecash "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/daybudget/failing-test-first/test_daybudget_data_less.py -v
+### FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-green2/root
+### exit=0
+test_data_less_run_consumes_no_day_lock (__main__.DataLessRunBudgetTest.test_data_less_run_consumes_no_day_lock) ... ok
+test_data_less_run_does_not_advance_last_success_day (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_advance_last_success_day) ... ok
+test_data_less_run_does_not_reset_consecutive_missed_days (__main__.DataLessRunBudgetTest.test_data_less_run_does_not_reset_consecutive_missed_days) ... ok
+test_data_less_run_is_reported_as_watchdog_missed_day (__main__.DataLessRunBudgetTest.test_data_less_run_is_reported_as_watchdog_missed_day) ... ok
+test_data_less_run_writes_no_snapshot (__main__.DataLessRunBudgetTest.test_data_less_run_writes_no_snapshot) ... ok
+test_the_day_is_still_usable_after_a_data_less_run (__main__.DayStaysUsableTest.test_the_day_is_still_usable_after_a_data_less_run) ... ok
+test_reading_present_run_consumes_one_day_and_duplicate_skips (__main__.ReadingPresentBudgetTest.test_reading_present_run_consumes_one_day_and_duplicate_skips) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.180s
+
+OK
+Ran 7 tests in 0.180s
+OK

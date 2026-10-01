@@ -1,0 +1,3 @@
+== PROD HASHES BEFORE ==
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 */d/AgenticOS/data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 */d/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl

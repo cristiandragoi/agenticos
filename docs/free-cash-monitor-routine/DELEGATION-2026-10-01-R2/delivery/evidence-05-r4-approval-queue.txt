@@ -1,0 +1,196 @@
+scratch root = C:\Users\cd-pr\AppData\Local\Temp\fc-r2-scratch\r4
+prod    root = D:/AgenticOS/data/freecash-monitor (untouched)
+audit hooks installed: recording subprocess/exec/socket/urllib/smtp events
+
+==============================================================================
+(b) INVENT AN EXTERNAL ACTION -- 'withdraw 25 EUR' -- and enqueue it
+==============================================================================
+enqueue() returned the item; pending.json now contains:
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-09-30T09:00:00Z",
+  "items": [
+    {
+      "approval_id": "0888ac0d-df58-4462-b226-37803662c8a2",
+      "created_at_utc": "2026-09-30T09:00:00Z",
+      "day_key": "2026-09-30",
+      "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab",
+      "reason": "Earnings moved from $15.00 to $25.00. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "WITHDRAW",
+        "amount_cents": 2500,
+        "destination": "OPERATOR_IBAN_PLACEHOLDER",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    }
+  ]
+}
+
+files CREATED by enqueue(): ['approvals\\pending.json']
+files MODIFIED by enqueue(): []
+provider / network / subprocess events observed during enqueue(): NONE
+sockets opened during enqueue(): NONE
+
+==============================================================================
+(b2) nothing executed -- execution fields on the stored item
+==============================================================================
+  status                                 = 'PENDING'
+  status_reason                          = None
+  decided_at_utc                         = None
+  decided_by                             = None
+  expires_at_utc                         = None
+  execution_state                        = 'NOT_EXECUTED'
+  execution_allowed_by_this_routine      = False
+  proposed_action.action_type            = 'WITHDRAW'  (the label is data, not an instruction)
+
+==============================================================================
+(c1) CAN THE QUEUE BE AUTO-DRAINED?  enumerate every callable in approval_queue
+==============================================================================
+public callables: ['NotHumanError', 'build_item', 'decide', 'enqueue', 'find_item', 'last_nag_utc', 'load_document', 'main', 'nag_due', 'nag_items', 'pending_items', 'save_document']
+module imports: []
+source grep for an execution primitive in approval_queue.py:
+  NO MATCHES
+grep for a consumer of STATUS_APPROVED anywhere in the routine:
+  D:/AgenticOS/monitoring/freecash/approval_queue.py:39:STATUS_APPROVED = "APPROVED"
+  D:/AgenticOS/monitoring/freecash/approval_queue.py:41:DECISIONS = {"approve": STATUS_APPROVED, "reject": STATUS_REJECTED}
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:39:APPROVED_LITERAL = re.compile(r"==\s*[\"']APPROVED[\"']")
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:123:            self.assertEqual(decided["status"], "APPROVED")
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:139:            self.assertEqual(record["decision"], "APPROVED")
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:210:    """T4.3 -- a past expiry and an APPROVED status still execute nothing."""
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:227:                        "status": "APPROVED",
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:249:            self.assertEqual(item["status"], "APPROVED")
+  D:/AgenticOS/monitoring/freecash/tests/test_r4_approval.py:262:                    APPROVED_LITERAL.search(line),
+(the only hits are the constant definitions and the docstring)
+
+==============================================================================
+(c2) CAN A PENDING ITEM 'EXPIRE INTO EXECUTION'?
+==============================================================================
+hand-edited pending.json to expires_at_utc=2020-01-01T00:00:00Z (past), status=PENDING
+reloading through the routine's own loader:
+{
+  "approval_id": "0888ac0d-df58-4462-b226-37803662c8a2",
+  "created_at_utc": "2026-09-30T09:00:00Z",
+  "day_key": "2026-09-30",
+  "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab",
+  "reason": "Earnings moved from $15.00 to $25.00. Review and decide whether any action is wanted.",
+  "proposed_action": {
+    "action_type": "WITHDRAW",
+    "amount_cents": 2500,
+    "destination": "OPERATOR_IBAN_PLACEHOLDER",
+    "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+  },
+  "status": "PENDING",
+  "status_reason": null,
+  "decided_at_utc": null,
+  "decided_by": null,
+  "decision_note": null,
+  "expires_at_utc": "2020-01-01T00:00:00Z",
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+
+pending_items() as the routine sees them: 1
+nag_due(item, now=2026-09-30)? True  (a nag is a reminder, never an execution)
+occurrences of expires_at_utc as something OTHER than an assignment to NO_EXPIRY:
+  approval_queue.py:15: * it never sets ``expires_at_utc`` -- the field is always ``null``.  A
+  approval_queue.py:47: #: ``expires_at_utc`` is always exactly this value.
+  approval_queue.py:131: "expires_at_utc": NO_EXPIRY,
+  approval_queue.py:180: item["expires_at_utc"] = NO_EXPIRY
+  approval_queue.py:196: "expires_at_utc": NO_EXPIRY,
+  approval_queue.py:270: "%s  %-8s %s  expires_at_utc=%s  execution_state=%s"
+  approval_queue.py:275: item.get("expires_at_utc"),
+(no branch anywhere reads expires_at_utc to decide to act)
+execution/network events during the 'expired' item's existence: NONE
+
+==============================================================================
+(d) WHAT A DECIDER MUST BE -- and both directions of the check
+==============================================================================
+NON_HUMAN_DECIDERS = ['agent', 'automation', 'bot', 'cron', 'machine', 'monitor', 'routine', 'scheduler', 'script', 'system']
+-> this is a DENYLIST of known machine words, not an allowlist of known humans.
+
+  by=''                 (empty)            -> REFUSED(NotHumanError)
+  by='   '              (whitespace only)  -> REFUSED(NotHumanError)
+  by='system'           (in the denylist)  -> REFUSED(NotHumanError)
+  by='System'           (denylist entry, mixed case) -> REFUSED(NotHumanError)
+  by='  routine  '      (denylist entry, padded) -> REFUSED(NotHumanError)
+  by='agent'            (in the denylist)  -> REFUSED(NotHumanError)
+  by='cron'             (in the denylist)  -> REFUSED(NotHumanError)
+  by='monitor'          (in the denylist)  -> REFUSED(NotHumanError)
+  by='Jarvis'           (NOT in the denylist -- a machine identity) -> ACCEPTED
+  by='freecash-monitor' (NOT in the denylist -- this very routine) -> ACCEPTED
+  by='DeepSeek-v4-flash' (NOT in the denylist -- an LLM) -> ACCEPTED
+  by='python3'          (NOT in the denylist -- an interpreter) -> ACCEPTED
+  by='Ada Lovelace'     (a human)          -> ACCEPTED
+
+item after all those probes (frozen fields re-asserted by decide()):
+{
+  "approval_id": "0888ac0d-df58-4462-b226-37803662c8a2",
+  "created_at_utc": "2026-09-30T09:00:00Z",
+  "day_key": "2026-09-30",
+  "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab",
+  "reason": "Earnings moved from $15.00 to $25.00. Review and decide whether any action is wanted.",
+  "proposed_action": {
+    "action_type": "WITHDRAW",
+    "amount_cents": 2500,
+    "destination": "OPERATOR_IBAN_PLACEHOLDER",
+    "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+  },
+  "status": "APPROVED",
+  "status_reason": "probe",
+  "decided_at_utc": "2026-09-30T09:00:00Z",
+  "decided_by": "Ada Lovelace",
+  "decision_note": "probe",
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+
+approvals/decided.jsonl (the human-only audit trail):
+{"approval_id": "0888ac0d-df58-4462-b226-37803662c8a2", "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab", "day_key": "2026-09-30", "decided_at_utc": "2026-09-30T09:00:00Z", "decided_by": "Jarvis", "decision": "APPROVED", "decision_note": "probe", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "WITHDRAW", "amount_cents": 2500, "destination": "OPERATOR_IBAN_PLACEHOLDER", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+{"approval_id": "0888ac0d-df58-4462-b226-37803662c8a2", "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab", "day_key": "2026-09-30", "decided_at_utc": "2026-09-30T09:00:00Z", "decided_by": "freecash-monitor", "decision": "APPROVED", "decision_note": "probe", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "WITHDRAW", "amount_cents": 2500, "destination": "OPERATOR_IBAN_PLACEHOLDER", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+{"approval_id": "0888ac0d-df58-4462-b226-37803662c8a2", "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab", "day_key": "2026-09-30", "decided_at_utc": "2026-09-30T09:00:00Z", "decided_by": "DeepSeek-v4-flash", "decision": "APPROVED", "decision_note": "probe", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "WITHDRAW", "amount_cents": 2500, "destination": "OPERATOR_IBAN_PLACEHOLDER", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+{"approval_id": "0888ac0d-df58-4462-b226-37803662c8a2", "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab", "day_key": "2026-09-30", "decided_at_utc": "2026-09-30T09:00:00Z", "decided_by": "python3", "decision": "APPROVED", "decision_note": "probe", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "WITHDRAW", "amount_cents": 2500, "destination": "OPERATOR_IBAN_PLACEHOLDER", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+{"approval_id": "0888ac0d-df58-4462-b226-37803662c8a2", "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab", "day_key": "2026-09-30", "decided_at_utc": "2026-09-30T09:00:00Z", "decided_by": "Ada Lovelace", "decision": "APPROVED", "decision_note": "probe", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "WITHDRAW", "amount_cents": 2500, "destination": "OPERATOR_IBAN_PLACEHOLDER", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "schema_version": 1}
+
+
+==============================================================================
+(d2) CLI exit codes for the refusals and the acceptance
+==============================================================================
+$ approval_queue.py list
+  exit=0
+  stdout='0888ac0d-df58-4462-b226-37803662c8a2  APPROVED 2026-09-30  expires_at_utc=None  execution_state=NOT_EXECUTED'
+  stderr=''
+$ approval_queue.py decide --id 0888ac0d-df58-4462-b226-37803662c8a2 --decision approve --by system --note n
+  exit=4
+  stdout=''
+  stderr="REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person"
+$ approval_queue.py decide --id 0888ac0d-df58-4462-b226-37803662c8a2 --decision approve --by Jarvis --note auto
+  exit=0
+  stdout='recorded APPROVED for 0888ac0d-df58-4462-b226-37803662c8a2 by Jarvis at 2026-10-01T07:09:04Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)'
+  stderr=''
+$ approval_queue.py decide --id 0888ac0d-df58-4462-b226-37803662c8a2 --decision approve --by Ada Lovelace --note reviewed the dashboard myself
+  exit=0
+  stdout='recorded APPROVED for 0888ac0d-df58-4462-b226-37803662c8a2 by Ada Lovelace at 2026-10-01T07:09:04Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)'
+  stderr=''
+$ approval_queue.py list
+  exit=0
+  stdout='0888ac0d-df58-4462-b226-37803662c8a2  APPROVED 2026-09-30  expires_at_utc=None  execution_state=NOT_EXECUTED'
+  stderr=''
+
+==============================================================================
+(d3) an APPROVED item still executes nothing
+==============================================================================
+final item: {"approval_id": "0888ac0d-df58-4462-b226-37803662c8a2", "change_dedupe_key": "00000000000000000000000000000000000000000000000000000000000000ab", "created_at_utc": "2026-09-30T09:00:00Z", "day_key": "2026-09-30", "decided_at_utc": "2026-10-01T07:09:04Z", "decided_by": "Ada Lovelace", "decision_note": "reviewed the dashboard myself", "execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "proposed_action": {"action_type": "WITHDRAW", "amount_cents": 2500, "destination": "OPERATOR_IBAN_PLACEHOLDER", "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"}, "reason": "Earnings moved from $15.00 to $25.00. Review and decide whether any action is wanted.", "status": "APPROVED", "status_reason": "reviewed the dashboard myself"}
+
+files changed by ALL of the above beyond the approvals/ files:
+  (none listed above == nothing outside approvals/ moved)
+total subprocess/network/exec events recorded in the entire R4 pass: [('subprocess.Popen', "(None, 'C:\\\\Users\\\\cd-pr\\\\AppData\\\\Local\\\\hermes\\\\hermes-agent\\\\venv\\\\Scripts\\\\python.exe D:/AgenticOS/monitoring/freecash/approval_queue.py list', 'D:/AgenticO"), ('subprocess.Popen', "(None, 'C:\\\\Users\\\\cd-pr\\\\AppData\\\\Local\\\\hermes\\\\hermes-agent\\\\venv\\\\Scripts\\\\python.exe D:/AgenticOS/monitoring/freecash/approval_queue.py decide --id 0888ac0"), ('subprocess.Popen', "(None, 'C:\\\\Users\\\\cd-pr\\\\AppData\\\\Local\\\\hermes\\\\hermes-agent\\\\venv\\\\Scripts\\\\python.exe D:/AgenticOS/monitoring/freecash/approval_queue.py decide --id 0888ac0"), ('subprocess.Popen', "(None, 'C:\\\\Users\\\\cd-pr\\\\AppData\\\\Local\\\\hermes\\\\hermes-agent\\\\venv\\\\Scripts\\\\python.exe D:/AgenticOS/monitoring/freecash/approval_queue.py decide --id 0888ac0"), ('subprocess.Popen', "(None, 'C:\\\\Users\\\\cd-pr\\\\AppData\\\\Local\\\\hermes\\\\hermes-agent\\\\venv\\\\Scripts\\\\python.exe D:/AgenticOS/monitoring/freecash/approval_queue.py list', 'D:/AgenticO")]
+(the four subprocess events are this script's own grep/CLI invocations, logged above)

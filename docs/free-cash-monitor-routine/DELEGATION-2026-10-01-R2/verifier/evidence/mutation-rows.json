@@ -1,0 +1,710 @@
+[
+  {
+    "demos": {
+      "r1_concurrent": {
+        "exits": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "kind": "r1_concurrent",
+        "ok_runs": 5,
+        "outputs": [
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          }
+        ],
+        "skip_runs": 0,
+        "snapshots": [
+          "2026-10-01.json"
+        ],
+        "workers": 5
+      },
+      "r1_twice": {
+        "alert_event_types": [
+          "MONITOR_DEGRADED",
+          "MONITOR_DEGRADED"
+        ],
+        "day": "2026-10-01",
+        "kind": "r1_twice",
+        "ledger_last_outcome": "MONITOR_DEGRADED",
+        "run1_exit": 0,
+        "run1_first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "run2_exit": 0,
+        "run2_first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "run2_performed_a_read": true,
+        "snapshots": [
+          "2026-10-01.json"
+        ]
+      }
+    },
+    "file": "gate.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL",
+    "gate_a_rule": "RULE 2 (legacy R1)",
+    "id": "r1-a-lock-removed",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "R1 violation: the atomic exclusive-create day lock is removed, so every invocation of the same day is a winner and a second read happens.",
+    "rule": "R1"
+  },
+  {
+    "demos": {
+      "r1_concurrent": {
+        "exits": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "kind": "r1_concurrent",
+        "ok_runs": 5,
+        "outputs": [
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          }
+        ],
+        "skip_runs": 0,
+        "snapshots": [
+          "2026-10-01.json"
+        ],
+        "workers": 5
+      },
+      "r1_twice": {
+        "alert_event_types": [
+          "MONITOR_DEGRADED",
+          "MONITOR_DEGRADED"
+        ],
+        "day": "2026-10-01",
+        "kind": "r1_twice",
+        "ledger_last_outcome": "MONITOR_DEGRADED",
+        "run1_exit": 0,
+        "run1_first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "run2_exit": 0,
+        "run2_first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=False changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "run2_performed_a_read": true,
+        "snapshots": [
+          "2026-10-01.json"
+        ]
+      }
+    },
+    "file": "gate.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL",
+    "gate_a_rule": "RULE 2 (legacy R1)",
+    "id": "r1-b-lock-nonbinding",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "R1 violation: the O_CREAT|O_EXCL syscall is still there, but an existing lock no longer binds -- the day is re-read.",
+    "rule": "R1"
+  },
+  {
+    "demos": {
+      "r2_forbidden": {
+        "allowed_write_requests": [
+          {
+            "attempt": "POST http://localhost:3001/api/v1/transactions",
+            "outcome": "ALLOWED"
+          }
+        ],
+        "attempts": [
+          {
+            "attempt": "POST http://localhost:3001/api/v1/cashout",
+            "detail": "R2: path not allowlisted: '/api/v1/cashout'",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "POST http://localhost:3001/api/v1/transactions",
+            "outcome": "ALLOWED"
+          },
+          {
+            "attempt": "DELETE http://localhost:3001/api/v1/status/metrics",
+            "detail": "R2: method 'DELETE' is not read-only (allowed: GET, HEAD, POST)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "GET http://localhost:3001/api/v1/status/metrics",
+            "outcome": "ALLOWED"
+          }
+        ],
+        "body_on_read": "ForbiddenWriteError: R2: request bodies are forbidden ('json')",
+        "kind": "r2_forbidden",
+        "module_file": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R2\\verifier\\mutants\\r2-a-post-cashout-on-read-path\\pkg\\readonly_client.py",
+        "transport_reached": [
+          {
+            "method": "POST",
+            "url": "http://localhost:3001/api/v1/transactions"
+          },
+          {
+            "method": "GET",
+            "url": "http://localhost:3001/api/v1/status/metrics"
+          }
+        ]
+      }
+    },
+    "file": "readonly_client.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL",
+    "gate_a_rule": "RULE 1 (legacy R2)",
+    "id": "r2-a-post-cashout-on-read-path",
+    "readonly_scan_exit": 1,
+    "readonly_scan_line": "[verify_readonly] forbidden=3 exempt=28 missing_targets=0",
+    "reason": "R2 violation: POST is added to the method allowlist and a collection path to the path allowlist, plus a helper that submits an earning action.",
+    "rule": "R2"
+  },
+  {
+    "demos": {
+      "r2_bypass": {
+        "_submit_claim": {
+          "detail": "<urlopen error [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte>",
+          "outcome": "URLError"
+        },
+        "helpers_found": [
+          "_submit_claim"
+        ],
+        "kind": "r2_bypass"
+      },
+      "r2_forbidden": {
+        "allowed_write_requests": [],
+        "attempts": [
+          {
+            "attempt": "POST http://localhost:3001/api/v1/cashout",
+            "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "POST http://localhost:3001/api/v1/transactions",
+            "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "DELETE http://localhost:3001/api/v1/status/metrics",
+            "detail": "R2: method 'DELETE' is not read-only (allowed: GET, HEAD)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "GET http://localhost:3001/api/v1/status/metrics",
+            "outcome": "ALLOWED"
+          }
+        ],
+        "body_on_read": "ForbiddenWriteError: R2: request bodies are forbidden ('json')",
+        "kind": "r2_forbidden",
+        "module_file": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R2\\verifier\\mutants\\r2-b-urllib-write-path\\pkg\\readonly_client.py",
+        "transport_reached": [
+          {
+            "method": "GET",
+            "url": "http://localhost:3001/api/v1/status/metrics"
+          }
+        ]
+      }
+    },
+    "file": "run_daily_check.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=PASS",
+    "gate_a_rule": "RULE 1 (legacy R2)",
+    "id": "r2-b-urllib-write-path",
+    "readonly_scan_exit": 1,
+    "readonly_scan_line": "[verify_readonly] forbidden=7 exempt=28 missing_targets=0",
+    "reason": "R2 violation: an out-of-band POST /api/v1/claim is added to the read path with urllib, so the read-only client's allowlist is bypassed entirely.",
+    "rule": "R2"
+  },
+  {
+    "demos": {
+      "r3_two_days": {
+        "day1_alerts": [
+          "OK_NO_CHANGE"
+        ],
+        "day1_outcome": "OK_NO_CHANGE",
+        "day2_alerts_all": [
+          "OK_NO_CHANGE",
+          "OK_NO_CHANGE"
+        ],
+        "day2_exit": 0,
+        "day2_line": "RUN_OK 2026-10-01 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "day2_new_alert_types": [
+          "OK_NO_CHANGE"
+        ],
+        "day2_outcome": "OK_NO_CHANGE",
+        "kind": "r3_two_days",
+        "pending_items": [],
+        "snapshots": [
+          "2026-09-30.json",
+          "2026-10-01.json"
+        ]
+      }
+    },
+    "file": "run_daily_check.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS",
+    "gate_a_rule": "RULE 3",
+    "id": "r3-a-baseline-is-current",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "R3 violation: the prior-state load is dropped and the 'previous' baseline becomes the snapshot just built, so no change can ever be seen.",
+    "rule": "R3"
+  },
+  {
+    "demos": {
+      "r3_two_days": {
+        "day1_alerts": [
+          "INITIAL_BASELINE"
+        ],
+        "day1_outcome": "INITIAL_BASELINE",
+        "day2_alerts_all": [
+          "INITIAL_BASELINE",
+          "OK_NO_CHANGE"
+        ],
+        "day2_exit": 0,
+        "day2_line": "RUN_OK 2026-10-01 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "day2_new_alert_types": [
+          "OK_NO_CHANGE"
+        ],
+        "day2_outcome": "OK_NO_CHANGE",
+        "kind": "r3_two_days",
+        "pending_items": [],
+        "snapshots": [
+          "2026-09-30.json",
+          "2026-10-01.json"
+        ]
+      }
+    },
+    "file": "changedetect.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL",
+    "gate_a_rule": "RULE 3",
+    "id": "r3-b-sub-dollar-threshold",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "R3 violation: a sub-dollar threshold silently swallows real earnings moves (the comparison is no longer exact).",
+    "rule": "R3"
+  },
+  {
+    "demos": {
+      "r4_decide": {
+        "api": {
+          "  SYSTEM  ": "ACCEPTED",
+          "AI-Agent": "ACCEPTED",
+          "Alice Operator": "ACCEPTED",
+          "J. Schmidt": "ACCEPTED",
+          "RoutineBot": "ACCEPTED",
+          "agent": "ACCEPTED",
+          "agent-007": "ACCEPTED",
+          "automation": "ACCEPTED",
+          "automation-2": "ACCEPTED",
+          "bot": "ACCEPTED",
+          "bot:alpha": "ACCEPTED",
+          "cron": "ACCEPTED",
+          "cron-runner": "ACCEPTED",
+          "machine": "ACCEPTED",
+          "monitor": "ACCEPTED",
+          "report-machine": "ACCEPTED",
+          "routine": "ACCEPTED",
+          "scheduler": "ACCEPTED",
+          "scheduler.exe": "ACCEPTED",
+          "script": "ACCEPTED",
+          "system": "ACCEPTED"
+        },
+        "cli": {
+          "human": {
+            "by": "Alice Operator",
+            "exit": 0,
+            "stderr": "",
+            "stdout": "recorded APPROVED for 9aef88be-659b-422e-8f00-1ed28587c6ea by Alice Operator at 2026-10-01T07:18:26Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"
+          },
+          "machine": {
+            "by": "system",
+            "exit": 0,
+            "stderr": "",
+            "stdout": "recorded APPROVED for 9aef88be-659b-422e-8f00-1ed28587c6ea by system at 2026-10-01T07:18:25Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"
+          }
+        },
+        "frozen_fields": {
+          "after_decisions": {
+            "decided_by": "Alice Operator",
+            "execution_allowed_by_this_routine": false,
+            "execution_state": "NOT_EXECUTED",
+            "expires_at_utc": null,
+            "status": "APPROVED"
+          }
+        },
+        "item_created": {
+          "execution_allowed_by_this_routine": false,
+          "execution_state": "NOT_EXECUTED",
+          "expires_at_utc": null,
+          "status": "PENDING"
+        },
+        "kind": "r4_decide"
+      }
+    },
+    "file": "approval_queue.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS",
+    "gate_a_rule": "RULE 4",
+    "id": "r4-a-nonhuman-decider-accepted",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "R4 violation: the decider check is deleted, so any machine identity (e.g. 'system', 'agent-007') can sign an approval.",
+    "rule": "R4"
+  },
+  {
+    "demos": {
+      "r4_decide": {
+        "api": {
+          "  SYSTEM  ": "NotHumanError: refused: 'SYSTEM' is not a human identity; this routine may only record a decision made by a person",
+          "AI-Agent": "ACCEPTED",
+          "Alice Operator": "ACCEPTED",
+          "J. Schmidt": "ACCEPTED",
+          "RoutineBot": "ACCEPTED",
+          "agent": "NotHumanError: refused: 'agent' is not a human identity; this routine may only record a decision made by a person",
+          "agent-007": "ACCEPTED",
+          "automation": "NotHumanError: refused: 'automation' is not a human identity; this routine may only record a decision made by a person",
+          "automation-2": "ACCEPTED",
+          "bot": "NotHumanError: refused: 'bot' is not a human identity; this routine may only record a decision made by a person",
+          "bot:alpha": "ACCEPTED",
+          "cron": "NotHumanError: refused: 'cron' is not a human identity; this routine may only record a decision made by a person",
+          "cron-runner": "ACCEPTED",
+          "machine": "NotHumanError: refused: 'machine' is not a human identity; this routine may only record a decision made by a person",
+          "monitor": "NotHumanError: refused: 'monitor' is not a human identity; this routine may only record a decision made by a person",
+          "report-machine": "ACCEPTED",
+          "routine": "NotHumanError: refused: 'routine' is not a human identity; this routine may only record a decision made by a person",
+          "scheduler": "NotHumanError: refused: 'scheduler' is not a human identity; this routine may only record a decision made by a person",
+          "scheduler.exe": "ACCEPTED",
+          "script": "NotHumanError: refused: 'script' is not a human identity; this routine may only record a decision made by a person",
+          "system": "NotHumanError: refused: 'system' is not a human identity; this routine may only record a decision made by a person"
+        },
+        "cli": {
+          "human": {
+            "by": "Alice Operator",
+            "exit": 0,
+            "stderr": "",
+            "stdout": "recorded APPROVED for f5932d1d-0834-465e-8a63-d0461b5b002b by Alice Operator at 2026-10-01T07:18:36Z\nexecution_state=EXECUTION_ARMED (unchanged; this routine executes nothing)"
+          },
+          "machine": {
+            "by": "system",
+            "exit": 4,
+            "stderr": "REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person",
+            "stdout": ""
+          }
+        },
+        "frozen_fields": {
+          "after_decisions": {
+            "decided_by": "Alice Operator",
+            "execution_allowed_by_this_routine": true,
+            "execution_state": "EXECUTION_ARMED",
+            "expires_at_utc": "2026-10-01T07:18:36Z",
+            "status": "APPROVED"
+          }
+        },
+        "item_created": {
+          "execution_allowed_by_this_routine": false,
+          "execution_state": "NOT_EXECUTED",
+          "expires_at_utc": null,
+          "status": "PENDING"
+        },
+        "kind": "r4_decide"
+      }
+    },
+    "file": "approval_queue.py",
+    "gateA_exit": 1,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS",
+    "gate_a_rule": "RULE 4",
+    "id": "r4-b-arms-on-approve",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "R4 violation: an approved item is armed with a live expiry and EXECUTION_ARMED state -- 'expired' becomes 'execute'.",
+    "rule": "R4"
+  },
+  {
+    "copy_matches_source": true,
+    "copy_tree_sha256": "6ef4d87f3e4b57476ae44ca7d3ca1e4de0ad896785bbd1d23147bb566ef62fc3",
+    "demos": {
+      "r1_concurrent": {
+        "exits": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "kind": "r1_concurrent",
+        "ok_runs": 1,
+        "outputs": [
+          {
+            "exit": 0,
+            "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+            "tail": [
+              "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+            "tail": [
+              "SKIP_DUPLICATE_DAY 2026-10-01"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+            "tail": [
+              "SKIP_DUPLICATE_DAY 2026-10-01"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+            "tail": [
+              "SKIP_DUPLICATE_DAY 2026-10-01"
+            ]
+          },
+          {
+            "exit": 0,
+            "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+            "tail": [
+              "SKIP_DUPLICATE_DAY 2026-10-01"
+            ]
+          }
+        ],
+        "skip_runs": 4,
+        "snapshots": [
+          "2026-10-01.json"
+        ],
+        "workers": 5
+      },
+      "r1_twice": {
+        "alert_event_types": [
+          "MONITOR_DEGRADED",
+          "SKIP_DUPLICATE_DAY"
+        ],
+        "day": "2026-10-01",
+        "kind": "r1_twice",
+        "ledger_last_outcome": "MONITOR_DEGRADED",
+        "run1_exit": 0,
+        "run1_first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+        "run2_exit": 0,
+        "run2_first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+        "run2_performed_a_read": false,
+        "snapshots": [
+          "2026-10-01.json"
+        ]
+      },
+      "r2_bypass": {
+        "helpers_found": [],
+        "kind": "r2_bypass"
+      },
+      "r2_forbidden": {
+        "allowed_write_requests": [],
+        "attempts": [
+          {
+            "attempt": "POST http://localhost:3001/api/v1/cashout",
+            "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "POST http://localhost:3001/api/v1/transactions",
+            "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "DELETE http://localhost:3001/api/v1/status/metrics",
+            "detail": "R2: method 'DELETE' is not read-only (allowed: GET, HEAD)",
+            "outcome": "ForbiddenWriteError"
+          },
+          {
+            "attempt": "GET http://localhost:3001/api/v1/status/metrics",
+            "outcome": "ALLOWED"
+          }
+        ],
+        "body_on_read": "ForbiddenWriteError: R2: request bodies are forbidden ('json')",
+        "kind": "r2_forbidden",
+        "module_file": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R2\\verifier\\mutants\\canonical-control\\pkg\\readonly_client.py",
+        "transport_reached": [
+          {
+            "method": "GET",
+            "url": "http://localhost:3001/api/v1/status/metrics"
+          }
+        ]
+      },
+      "r3_two_days": {
+        "day1_alerts": [
+          "INITIAL_BASELINE"
+        ],
+        "day1_outcome": "INITIAL_BASELINE",
+        "day2_alerts_all": [
+          "INITIAL_BASELINE",
+          "APPROVAL_PENDING",
+          "EARNINGS_CHANGED"
+        ],
+        "day2_exit": 0,
+        "day2_line": "RUN_OK 2026-10-01 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-01.lock",
+        "day2_new_alert_types": [
+          "APPROVAL_PENDING",
+          "EARNINGS_CHANGED"
+        ],
+        "day2_outcome": "EARNINGS_CHANGED",
+        "kind": "r3_two_days",
+        "pending_items": [
+          {
+            "execution_state": "NOT_EXECUTED",
+            "expires_at_utc": null,
+            "status": "PENDING"
+          }
+        ],
+        "snapshots": [
+          "2026-09-30.json",
+          "2026-10-01.json"
+        ]
+      },
+      "r4_decide": {
+        "api": {
+          "  SYSTEM  ": "NotHumanError: refused: 'SYSTEM' is not a human identity; this routine may only record a decision made by a person",
+          "AI-Agent": "ACCEPTED",
+          "Alice Operator": "ACCEPTED",
+          "J. Schmidt": "ACCEPTED",
+          "RoutineBot": "ACCEPTED",
+          "agent": "NotHumanError: refused: 'agent' is not a human identity; this routine may only record a decision made by a person",
+          "agent-007": "ACCEPTED",
+          "automation": "NotHumanError: refused: 'automation' is not a human identity; this routine may only record a decision made by a person",
+          "automation-2": "ACCEPTED",
+          "bot": "NotHumanError: refused: 'bot' is not a human identity; this routine may only record a decision made by a person",
+          "bot:alpha": "ACCEPTED",
+          "cron": "NotHumanError: refused: 'cron' is not a human identity; this routine may only record a decision made by a person",
+          "cron-runner": "ACCEPTED",
+          "machine": "NotHumanError: refused: 'machine' is not a human identity; this routine may only record a decision made by a person",
+          "monitor": "NotHumanError: refused: 'monitor' is not a human identity; this routine may only record a decision made by a person",
+          "report-machine": "ACCEPTED",
+          "routine": "NotHumanError: refused: 'routine' is not a human identity; this routine may only record a decision made by a person",
+          "scheduler": "NotHumanError: refused: 'scheduler' is not a human identity; this routine may only record a decision made by a person",
+          "scheduler.exe": "ACCEPTED",
+          "script": "NotHumanError: refused: 'script' is not a human identity; this routine may only record a decision made by a person",
+          "system": "NotHumanError: refused: 'system' is not a human identity; this routine may only record a decision made by a person"
+        },
+        "cli": {
+          "human": {
+            "by": "Alice Operator",
+            "exit": 0,
+            "stderr": "",
+            "stdout": "recorded APPROVED for 4b4ce69a-7d7f-4af8-9449-186eaa55d1f1 by Alice Operator at 2026-10-01T07:18:47Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"
+          },
+          "machine": {
+            "by": "system",
+            "exit": 4,
+            "stderr": "REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person",
+            "stdout": ""
+          }
+        },
+        "frozen_fields": {
+          "after_decisions": {
+            "decided_by": "Alice Operator",
+            "execution_allowed_by_this_routine": false,
+            "execution_state": "NOT_EXECUTED",
+            "expires_at_utc": null,
+            "status": "APPROVED"
+          }
+        },
+        "item_created": {
+          "execution_allowed_by_this_routine": false,
+          "execution_state": "NOT_EXECUTED",
+          "expires_at_utc": null,
+          "status": "PENDING"
+        },
+        "kind": "r4_decide"
+      }
+    },
+    "file": "(none)",
+    "gateA_exit": 0,
+    "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "gateB_exit": 1,
+    "gateB_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "gate_a_rule": "control",
+    "id": "canonical-control",
+    "readonly_scan_exit": 0,
+    "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+    "reason": "unmutated copy",
+    "rule": "control",
+    "source_tree_sha256": "6ef4d87f3e4b57476ae44ca7d3ca1e4de0ad896785bbd1d23147bb566ef62fc3"
+  }
+]

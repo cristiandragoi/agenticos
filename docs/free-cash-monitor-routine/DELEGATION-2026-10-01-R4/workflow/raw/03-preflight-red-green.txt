@@ -1,0 +1,74 @@
+###############################################################################
+# 03 — PRE-FLIGHT WRAPPER: REFUSES ON A DATA-LESS DAY, PROCEEDS ON A DATA-CARRYING DAY
+# wrapper: D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/preflight_check.py
+# routine (a COPY, per the isolation contract): D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+# during:  2026-10-01T09:55:56Z  local 11:55:56 +0200
+# env:     FREECASH_DATA_ROOT=<throwaway> AGENT_TEAMS_DB_PATH/AGENTICOS_DATA_DIR pinned away
+###############################################################################
+
+=================================== RED =======================================
+# planted condition: a DATA-LESS day -- operator-state.json exists with records: []
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/make_root.py C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-dataless/root 2026-10-01 template D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+make_root: root=C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\preflight-dataless\root day=2026-10-01 mode=template records=0
+exit=0
+
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-dataless/root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/preflight_check.py --routine-dir D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+PREFLIGHT day_key=2026-10-01 tz=Europe/Berlin tz_kind=zoneinfo tz_available=True source=operator_state
+PREFLIGHT data_root=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-dataless/root
+PREFLIGHT REFUSED [operator R2 ONCE PER DAY]: no operator-entered record for 2026-10-01 in C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\preflight-dataless\root\state\operator-state.json.
+PREFLIGHT RESULT: entry_point_invocations=0 day_lock_created=False snapshot_written=False status_read_performed=False
+PREFLIGHT_EXIT=4
+
+--- throwaway root AFTER the refusal ---
+    locks:     []
+    snapshots: []
+    ledger:    
+
+RED   : preflight exits 4 on a data-less day and the entry point is NOT invoked
+        (day_lock_created=False, snapshot_written=False, status_read_performed=False)
+
+
+================================= RED (guard) =================================
+# planted condition: FREECASH_DATA_ROOT unset and no --allow-default-root override.
+# The wrapper must fail closed rather than fall through to the production root.
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/preflight_check.py --routine-dir D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+PREFLIGHT REFUSED: FREECASH_DATA_ROOT is not set. Refusing to run against the default root (D:/AgenticOS/data/freecash-monitor) unless --allow-default-root is given (production deployment only).
+PREFLIGHT_EXIT=4
+
+RED-guard: preflight exits 4 and names the default root it refused to touch.
+
+
+================================== GREEN ======================================
+# unmodified condition: a DATA-CARRYING day -- one operator-entered record for today
+$ C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/make_root.py C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root 2026-10-01 record D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+make_root: root=C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\preflight-data\root day=2026-10-01 mode=record records=1
+exit=0
+
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/preflight_check.py --routine-dir D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+PREFLIGHT day_key=2026-10-01 tz=Europe/Berlin tz_kind=zoneinfo tz_available=True source=operator_state
+PREFLIGHT data_root=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root
+PREFLIGHT OK: record for 2026-10-01 present (account_status=ACTIVE earnings_total_cents=1025 balance_cents=1025 pending_cents=0). Invoking the entry point.
+PREFLIGHT EXEC: C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\routine_copy\run_daily_check.py
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+PREFLIGHT entry_point_exit=0
+PREFLIGHT_EXIT=0
+
+--- throwaway root AFTER the proceeding run ---
+    locks:     [2026-10-01.lock ]
+    snapshots: [2026-10-01.json ]
+    ledger:    { "schema_version": 1, "last_attempt_day": "2026-10-01", "last_success_day": "2026-10-01", "last_attempt_at_utc": "2026-10-01T09:55:57Z", "last_success_at_utc": "2026-10-01T09:55:57Z", "last_outcome": "INITIAL_BASELINE", "consecutive_missed_days": 0, "timezone": "Europe/Berlin", "updated_at_utc": "2026-10-01T09:55:57Z"}
+    snapshot 2026-10-01.json: { "schema_version": 1, "day_key": "2026-10-01", "captured_at_utc": "2026-10-01T09:55:57Z", "source": { "kind": "operator_entered", "read_ops": [], "data_available": true, "note": "operator-entered record for 2026-10-01" }, "degraded": true, "account_status": "ACTIVE", "earnings_total_cents": 1025, "balance_cents": 1025, "pending_cents": 0, "currency": "USD", "raw_response_sha256": "d82f3328629d3567ae7781d61983fce7edee48b79ef6ddbfb5c8d533bb43b323"}
+
+GREEN : preflight exits 0 on a data-carrying day; the entry point ran and exit 0
+
+
+============================== GREEN (repeat) =================================
+# the SAME data-carrying root, run a second time on the same day: the wrapper must now
+# refuse with exit 5, because the day's single read is genuinely spent.
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/tools/preflight_check.py --routine-dir D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy
+PREFLIGHT day_key=2026-10-01 tz=Europe/Berlin tz_kind=zoneinfo tz_available=True source=operator_state
+PREFLIGHT data_root=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/preflight-data/root
+PREFLIGHT REFUSED [operator R2 ONCE PER DAY]: day lock C:\Users\cd-pr\AppData\Local\Temp\fc-r4-workflow\preflight-data\root\state\day-locks\2026-10-01.lock already exists. Today's single read is spent; the entry point was NOT invoked.
+PREFLIGHT_EXIT=5
+
+GREEN(repeat): exit 5 -- exactly one read for the day, and the refusal costs nothing.

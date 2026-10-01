@@ -1,0 +1,56 @@
+{
+  "demos": {
+    "r2_forbidden": {
+      "allowed_write_requests": [
+        {
+          "attempt": "POST http://localhost:3001/api/v1/transactions",
+          "outcome": "ALLOWED"
+        }
+      ],
+      "attempts": [
+        {
+          "attempt": "POST http://localhost:3001/api/v1/cashout",
+          "detail": "R2: path not allowlisted: '/api/v1/cashout'",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "POST http://localhost:3001/api/v1/transactions",
+          "outcome": "ALLOWED"
+        },
+        {
+          "attempt": "DELETE http://localhost:3001/api/v1/status/metrics",
+          "detail": "R2: method 'DELETE' is not read-only (allowed: GET, HEAD, POST)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "GET http://localhost:3001/api/v1/status/metrics",
+          "outcome": "ALLOWED"
+        }
+      ],
+      "body_on_read": "ForbiddenWriteError: R2: request bodies are forbidden ('json')",
+      "kind": "r2_forbidden",
+      "module_file": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R2\\verifier\\mutants\\r2-a-post-cashout-on-read-path\\pkg\\readonly_client.py",
+      "transport_reached": [
+        {
+          "method": "POST",
+          "url": "http://localhost:3001/api/v1/transactions"
+        },
+        {
+          "method": "GET",
+          "url": "http://localhost:3001/api/v1/status/metrics"
+        }
+      ]
+    }
+  },
+  "file": "readonly_client.py",
+  "gateA_exit": 1,
+  "gateA_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+  "gateB_exit": 1,
+  "gateB_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL",
+  "gate_a_rule": "RULE 1 (legacy R2)",
+  "id": "r2-a-post-cashout-on-read-path",
+  "readonly_scan_exit": 1,
+  "readonly_scan_line": "[verify_readonly] forbidden=3 exempt=28 missing_targets=0",
+  "reason": "R2 violation: POST is added to the method allowlist and a collection path to the path allowlist, plus a helper that submits an earning action.",
+  "rule": "R2"
+}

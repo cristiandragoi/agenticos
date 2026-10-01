@@ -1,0 +1,123 @@
+REGISTRATION COMMAND -- FreeCash-Daily-Monitor-R2
+=================================================
+DELEGATION-2026-10-01-R2 / DESIGN TRACK 2
+Written 2026-10-01.  Repo HEAD 8f7463a.
+
+STATUS: NOT EXECUTED.  This file records a command.  Running it is an external
+action and is therefore gated on human approval (rule R4).  No Windows scheduled
+task was created, modified or deleted by this track.
+
+
+0. PRE-CONDITIONS (all verified in evidence-10 and evidence-13)
+---------------------------------------------------------------
+  P1. No Free Cash task is registered.  `schtasks /Query /FO CSV /NH | grep -ic
+      freecash` = 0  (278 task rows, 200 distinct names on this host).
+  P2. The staged XML parses and its element order matches a task this Windows
+      build itself serialised (evidence-13, reference export of \cua-driver-serve).
+  P3. The wrapper is proven by execution on an asserted path-redirected copy
+      (evidence-11): quiet/duplicate day -> exit 0, stdout 0 bytes, stderr 0
+      bytes; no-tzdata interpreter -> exit 90, no day lock consumed.
+  P4. The interpreter of record exists and resolves Europe/Berlin:
+      C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+      (Python 3.11.9).
+  P5. StartBoundary in the XML is 2026-10-02T09:00:00, i.e. the day AFTER this
+      delegation date.  Do not register before then with that value: a past
+      StartBoundary plus StartWhenAvailable=true fires an immediate catch-up run.
+      If you register later than 2026-10-02, edit StartBoundary forward first.
+  P6. The read source will be DEGRADED until the operator enters figures into
+      data\freecash-monitor\state\operator-state.json (today's production run was
+      MONITOR_DEGRADED for exactly that reason).  Registering the task does not
+      populate the source.
+
+
+1. THE COMMAND (XML route -- the ONLY route that can set StartWhenAvailable)
+---------------------------------------------------------------------------
+Run as the ordinary user (do NOT elevate for the run; see note N2 below):
+
+    schtasks /Create /TN "FreeCash-Daily-Monitor-R2" /XML "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R2\scheduler\FreeCash-Daily-Monitor-R2.xml"
+
+Add /F only if you intend to overwrite an existing task of that name:
+
+    schtasks /Create /F /TN "FreeCash-Daily-Monitor-R2" /XML "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R2\scheduler\FreeCash-Daily-Monitor-R2.xml"
+
+Why the XML and not a one-liner: `schtasks /Create /?` on this host exposes
+/D /DELAY /DU /EC /ED /ET /F /HRESULT /I /IT /K /M /MO /NP /P /RI /RL /RP /RU /S
+/SC /SD /ST /TN /TR /U /V1 /XML /Z and NO switch for StartWhenAvailable.  The
+slept-machine catch-up therefore REQUIRES the XML (evidence-13).
+
+
+2. NOTES
+--------
+N1. The task is defined per-user with LogonType=InteractiveToken and
+    RunLevel=LeastPrivilege, UserId S-1-5-21-3435097649-250514390-3575566063-1001
+    (this operator's SID, read from `whoami /user` and from the live export).
+    InteractiveToken is required because the routine's R3 desktop-toast transport
+    needs a real desktop session.
+N2. Elevation was NOT tested.  Creating a per-user task with `schtasks /Create`
+    normally succeeds non-elevated, but this track was forbidden from registering
+    anything, so that claim is UNVERIFIED BY EXECUTION.  If the command returns
+    "Access is denied", re-run it from an elevated prompt -- but keep
+    RunLevel=LeastPrivilege in the XML.  If schtasks PROMPTS for a password, stop:
+    it means the UserId/LogonType were not accepted as written; do not type one.
+N3. Do not also register the sibling DELEGATION-2026-10-01 task
+    (\FreeCash-Daily-Monitor).  The two definitions share one state root and one
+    day-lock namespace; the second one to fire the same day prints
+    SKIP_DUPLICATE_DAY and does nothing, so it adds noise, not coverage.
+N4. Never point FREECASH_DATA_ROOT at a throwaway directory in a registered task.
+    The wrapper pins the root as a literal precisely so an ambient value cannot
+    redirect production state.
+
+
+3. READ-BACK VERIFICATION (read-only; run after registration)
+-------------------------------------------------------------
+    schtasks /Query /TN "FreeCash-Daily-Monitor-R2" /XML
+    schtasks /Query /TN "FreeCash-Daily-Monitor-R2" /V /FO LIST
+
+Confirm in the read-back:
+    StartWhenAvailable      true          <- the catch-up
+    MultipleInstancesPolicy IgnoreNew
+    RunLevel                LeastPrivilege
+    LogonType               InteractiveToken
+    StartBoundary           2026-10-02T09:00:00
+    Action                  cmd.exe /c "...\DELEGATION-2026-10-01-R2\scheduler\freecash-daily.cmd"
+
+Then, after the first real fire, verify R1 held -- read-only:
+    dir  D:\AgenticOS\data\freecash-monitor\state\day-locks
+    type D:\AgenticOS\data\freecash-monitor\state\last-run.json
+    type D:\AgenticOS\data\freecash-monitor\logs\daily-<today>.log
+
+Expect exactly ONE lock file per date and last_attempt_day == that date.
+
+
+4. ROLLBACK (not executed)
+--------------------------
+    schtasks /Delete /TN "FreeCash-Daily-Monitor-R2" /F
+
+Deleting the task does NOT undo any day already spent: the lock file is the
+record, and it is permanent by design.
+
+
+5. REJECTED ROUTES -- the exact commands, for the record.  None was executed.
+---------------------------------------------------------------------------
+ROUTE H -- Hermes cron.  Available (gateway running, ticker heartbeat live) but
+NO job exists today (`hermes cron list` -> "No scheduled jobs."; no jobs.json
+anywhere under HERMES_HOME; cron/executions.db has 0 rows; no "freecash" string
+anywhere in the cron store).  The zero-token form would have been:
+
+    hermes cron create "0 9 * * *" --name "FreeCash daily monitor" --no-agent --script freecash-daily.sh --workdir "D:\AgenticOS"
+
+Rejected: Hermes cron jobs are fired by the gateway's 60-second ticker thread and
+fire only while the gateway process is running; the documented behaviour for a
+machine that was off or asleep at the scheduled minute is "no catch-up" (jobs are
+"delayed or skipped"), so the day would be lost rather than caught up.  It also
+requires the script to live under ~/.hermes/scripts/ (absent on this host).
+
+ROUTE C -- the repo crontab.  Rejected as non-functional:
+    D:\AgenticOS\config\freecash-crontab exists but
+      * there is no crontab/cron binary on this host (`which crontab cron` -> exit 2),
+      * it points at scripts/make_freecash_check.py, a STUB whose
+        prepare_actions() builds a {"type": "withdraw", ...} action (an earning
+        action, R2 surface), and
+      * that stub uses a DIFFERENT state root (data\freecash\state.json), i.e. a
+        parallel monitor that does not enforce R1 at all.
+    Do not wire this route.

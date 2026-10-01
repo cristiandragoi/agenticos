@@ -1,0 +1,9 @@
+$ # same FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2-reading, same calendar day
+$ cd D:/AgenticOS/monitoring/freecash && FREECASH_TOAST_STUB=1 python run_daily_check.py --source operator_state
+SKIP_DUPLICATE_DAY 2026-10-01
+exit=0
+
+$ cat alerts/alerts.jsonl  # expect exactly one added SKIP_DUPLICATE_DAY line
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "f8cf9322-5666-4bf0-b1e6-612b5cad64ef", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-10-01. No notification sent. Source DEGRADED (operator-entered record for 2026-10-01).", "observed": {"account_status": "Operativa", "balance_cents": 1340, "degraded": true, "earnings_total_cents": 1340, "pending_cents": 0, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T07:05:36Z"}
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "33ed95ee-5374-4082-a6d9-a500fae99ab7", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-10-01 already consumed (lock 2026-10-01.lock). Duplicate run performed no read and wrote no snapshot.", "observed": {"lock": "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r2-reading\\state\\day-locks\\2026-10-01.lock"}, "severity": "info", "ts_utc": "2026-10-01T07:05:36Z"}
+exit=0

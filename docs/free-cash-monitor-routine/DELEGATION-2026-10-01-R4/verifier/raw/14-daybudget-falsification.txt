@@ -1,0 +1,3 @@
+E1 package: MONITOR_DEGRADED restored to SUCCESS_OUTCOMES -> exit=0  Ran 7 tests in 0.224s | OK
+E2 package: pre-lock data-less guard deleted (day spent again) -> exit=1  Ran 7 tests in 0.469s | FAILED (failures=4)
+E3 test-side: assertion in a COPY of the test corrupted -> exit=1  Ran 7 tests in 0.230s | FAILED (failures=1)

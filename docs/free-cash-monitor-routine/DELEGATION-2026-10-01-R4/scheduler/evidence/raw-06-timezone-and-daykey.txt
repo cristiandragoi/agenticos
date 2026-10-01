@@ -1,0 +1,21 @@
+### captured at
+Do,  1. Okt 2026 11:45:43
+
+### local offset
+2026-10-01 11:45:43 +0200
+
+### system local tz (python)
+system local now: 2026-10-01 11:45:44.032845+02:00
+system tz name: ('Mitteleuropäische Zeit', 'Mitteleuropäische Sommerzeit')
+
+### day key now (Europe/Berlin via ZoneInfo, pinned interpreter)
+day_key= 2026-10-01
+
+### DST boundary Europe/Berlin 2026
+2026-10-24 09:00 local -> 2:00:00 UTC 2026-10-24T07:00:00+00:00
+2026-10-25 09:00 local -> 1:00:00 UTC 2026-10-25T08:00:00+00:00
+2026-10-26 09:00 local -> 1:00:00 UTC 2026-10-26T08:00:00+00:00
+2027-03-28 09:00 local -> 2:00:00 UTC 2027-03-28T07:00:00+00:00
+
+### schtasks total task count (enumeration works; routine has none)
+278

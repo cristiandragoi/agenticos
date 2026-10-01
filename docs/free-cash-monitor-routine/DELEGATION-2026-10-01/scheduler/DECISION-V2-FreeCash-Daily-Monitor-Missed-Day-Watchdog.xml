@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml  :  Task B
+  (same-evening alarm if today's read-only status read never happened)
+
+  STATUS: *** PROPOSAL ONLY ***  Registers NOTHING. Registration is the
+  operator's approval step (rule R4); the approval string is in
+  SCHEDULER-DECISION-V2.md section 6.
+
+  FILE-NAME NOTE: the sibling FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml in
+  this directory belongs to track sa-3-6510f83b. This is the DECISION-V2 file.
+
+  WHY A SEPARATE TASK
+  The in-band missed-day detector in gate.py only notices an uncovered day at
+  the NEXT run, up to 24 h late. This task notices it the SAME EVENING. If it
+  shared Task A's trigger it would never examine a day independently of Task A.
+
+  IT CANNOT BECOME A SECOND RUN
+  watchdog.py opens no socket, never writes the ledger, never creates or clears
+  a day lock, never writes a snapshot, never touches the approval queue, never
+  runs the status check, always exits 0. Its only writes are
+  alerts/alerts.jsonl and state/notified-keys.json (dedupe index written BEFORE
+  dispatch, so at most one alarm per day). Proven today against throwaway roots
+  (evidence-04, evidence-05):
+      absent ledger         -> WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None
+                               last_outcome=None  coverage=NOTIFIED, then coverage=DEDUPED
+      interrupted prior day -> WATCHDOG_MISSED_DAY 2026-10-01
+                               last_attempt_day=2026-09-30 last_outcome=READ_FAILED
+                               coverage=NOTIFIED, then coverage=DEDUPED
+      ledger sha256 650c9a2c... identical across three runs.
+
+  Same pinned interpreter, same reasoning and the same unquoted cmd.exe action
+  form as Task A. Note: watchdog.py never dispatches OK_NO_CHANGE, but its
+  MISSED_DAY alarm IS a real toast; that is the intent.
+  ============================================================================
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash monitor watchdog: alarms the same evening if the day's read-only check never ran. Separate task; opens no socket, writes no ledger, creates no day lock, exits 0. PROPOSAL ONLY, registers nothing by itself.</Description>
+    <URI>\FreeCash-Daily-Monitor-Missed-Day-Watchdog</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T21:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\watchdog.py 1>> D:\AgenticOS\data\freecash-monitor\logs\task-b-watchdog.log 2&gt;&amp;1</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

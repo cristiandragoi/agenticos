@@ -1,0 +1,53 @@
+SKIP rep-mv4-r4-execute-without-by: anchor in approval_queue.py matched 0 (the CTRL repair rewrites the same lines)
+G1_shipped_1file rep-base                           exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-mv1-r1-post-cashout            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-mv2-r2-lock-removed            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-mv3-r3-save-before-load        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS
+G1_shipped_1file rep-adv1-r1-obfuscated-method      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-adv2-r2-lock-nonbinding        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-adv3-r4-getattr-exec           exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-adv4-r1-conditional-backdoor   exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-adv5-r3-compare-disabled       exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G1_shipped_1file rep-adv6-r1-new-socket-file        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G2_0930          rep-base                           exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G2_0930          rep-mv1-r1-post-cashout            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G2_0930          rep-mv2-r2-lock-removed            exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G2_0930          rep-mv3-r3-save-before-load        exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS
+G2_0930          rep-adv1-r1-obfuscated-method      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G2_0930          rep-adv2-r2-lock-nonbinding        exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G2_0930          rep-adv3-r4-getattr-exec           exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G2_0930          rep-adv4-r1-conditional-backdoor   exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G2_0930          rep-adv5-r3-compare-disabled       exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL
+G2_0930          rep-adv6-r1-new-socket-file        exit=1   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL
+G3_1001          rep-base                           exit=1   
+G3_1001          rep-mv1-r1-post-cashout            exit=1   
+G3_1001          rep-mv2-r2-lock-removed            exit=1   
+G3_1001          rep-mv3-r3-save-before-load        exit=1   
+G3_1001          rep-adv1-r1-obfuscated-method      exit=1   
+G3_1001          rep-adv2-r2-lock-nonbinding        exit=1   
+G3_1001          rep-adv3-r4-getattr-exec           exit=1   
+G3_1001          rep-adv4-r1-conditional-backdoor   exit=1   
+G3_1001          rep-adv5-r3-compare-disabled       exit=1   
+G3_1001          rep-adv6-r1-new-socket-file        exit=1   
+G4_r3gate        rep-base                           exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS
+G4_r3gate        rep-mv1-r1-post-cashout            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G4_r3gate        rep-mv2-r2-lock-removed            exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G4_r3gate        rep-mv3-r3-save-before-load        exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS
+G4_r3gate        rep-adv1-r1-obfuscated-method      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G4_r3gate        rep-adv2-r2-lock-nonbinding        exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS
+G4_r3gate        rep-adv3-r4-getattr-exec           exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL
+G4_r3gate        rep-adv4-r1-conditional-backdoor   exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS
+G4_r3gate        rep-adv5-r3-compare-disabled       exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL
+G4_r3gate        rep-adv6-r1-new-socket-file        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL
+G5_r3verifier    rep-base                           exit=0   1=PASS 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-mv1-r1-post-cashout            exit=1   1=PASS 2=FAIL 3=PASS 4=PASS
+G5_r3verifier    rep-mv2-r2-lock-removed            exit=1   1=FAIL 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-mv3-r3-save-before-load        exit=1   1=PASS 2=PASS 3=FAIL 4=PASS
+G5_r3verifier    rep-adv1-r1-obfuscated-method      exit=0   1=PASS 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-adv2-r2-lock-nonbinding        exit=0   1=PASS 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-adv3-r4-getattr-exec           exit=0   1=PASS 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-adv4-r1-conditional-backdoor   exit=0   1=PASS 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-adv5-r3-compare-disabled       exit=0   1=PASS 2=PASS 3=PASS 4=PASS
+G5_r3verifier    rep-adv6-r1-new-socket-file        exit=1   1=PASS 2=FAIL 3=PASS 4=PASS
+
+rows=50

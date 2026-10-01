@@ -1,0 +1,4 @@
+rule=1
+why=R1: an automated earning action (POST /cashout) added beside the read path
+edits=1
+  readonly_client.py: 1 change(s)

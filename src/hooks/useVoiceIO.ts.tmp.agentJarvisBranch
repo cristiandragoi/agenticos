@@ -1,0 +1,96 @@
+  // ============================================================================
+  // BRANCH: CONVERSATION (shared for all agents)
+  // ============================================================================
+
+  /** Activate conversation mode. Returns true when the mic opened. */
+  const startConversation = useCallback(async (): Promise<boolean> => {
+    if (agentId === 'agent-jarvis') {
+      console.log('[JarvisLiveKit] Starting LiveKit session...');
+      
+      const roomName = conversationIdRef.current || `jarvis-room-${Date.now()}`;
+      try {
+        await jarvisLiveKitSession.startSession(roomName);
+        
+        // Mirror LiveKit canonical state into existing UI-compatibility voiceState
+        const state = jarvisLiveKitSession.getState();
+        let uiVoiceState: VoiceState;
+        if (state.sessionState === 'connected') {
+          uiVoiceState = state.isListening ? 'listening' : 'idle';
+        } else if (state.sessionState === 'error') {
+          uiVoiceState = 'error';
+        } else {
+          uiVoiceState = 'idle'; // connecting/disconnected → idle
+        }
+        setVoiceState(uiVoiceState);
+
+        // Subscribe to LiveKit session state changes for live UI mirroring
+        const updateVoiceStateFromLiveKit = (latestState: JarvisLiveKitState) => {
+          let newState: VoiceState;
+          if (latestState.sessionState === 'connected') {
+            newState = latestState.isListening ? 'listening' : 'idle';
+          } else if (latestState.sessionState === 'error') {
+            newState = 'error';
+          } else {
+            newState = 'idle'; // connecting/disconnected → idle
+          }
+          if (newState !== uiVoiceState) {
+            setVoiceState(newState);
+            uiVoiceState = newState;
+          }
+        };
+
+        const unsubscribeSessionUpdates = jarvisLiveKitSession.subscribe(updateVoiceStateFromLiveKit);
+
+        console.log('[JarvisLiveKit] Session connected');
+        
+        // Legacy cleanup only (no acquisition — LiveKit manages its own mic session)
+        conversationActiveRef.current = true;
+        setConversationActive(true);
+        
+        // The legacy code that follows drops manual media pipeline refs so Jarvis'
+        // canonical stream can be acquired exclusively. It doesn't run getUserMedia()
+        // or start another VAD for agent-jarvis — just cleans up potential stale state.
+        const sessionId = `conv-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        conversationSessionIdRef.current = sessionId;
+        turnSeqRef.current += 1;
+        setConversationSessionId(sessionId);
+
+        // Manual-recording artifacts (if any) lack the Jarvis echo/noise suppressors.
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.onstop = null;
+          if (mediaRecorderRef.current.state === 'recording') {
+            try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+          }
+          mediaRecorderRef.current = null;
+        }
+        cleanupStream(); // stops manual stream tracks + closes its AudioContext
+
+        // Reset the suppression flag so Jarvis speaks from this session forward.
+        speechRunSuppressedRef.current = false;
+
+        return true;
+      } catch (err) {
+        // Cleanup on failure — but don't leave Jarvis half-started
+        try { 
+          await jarvisLiveKitSession.stopSession();
+        } catch { /* ignore stop failures */ }
+        console.error('[JarvisLiveKit] Session start failed:', err);
+        setVoiceState('error');
+        
+        // Legacy cleanup only
+        conversationActiveRef.current = false;
+        setConversationActive(false);
+        turnSeqRef.current += 1;
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.onstop = null;
+          if (mediaRecorderRef.current.state === 'recording') {
+            try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+          }
+          mediaRecorderRef.current = null;
+        }
+        cleanupStream();
+        speechRunSuppressedRef.current = false;
+        
+        return false;
+      }
+    }

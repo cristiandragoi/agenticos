@@ -1,0 +1,639 @@
+==============================================================================
+MUTATION TEST HARNESS
+  pristine source : D:\AgenticOS\monitoring\freecash
+  checker         : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01\verifier\verify_freecash_rules.py
+  interpreter     : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+  scratch root    : C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9
+==============================================================================
+
+##############################################################################
+# M01  rule=R1  file=gate.py
+# why: day lock never refuses: two same-day runs both proceed (R1.1, R1.3)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M01-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M01-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M01-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [FAIL]
+    [R1.1] FAIL  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2=None snapshots=1 rc=(0,0) stderr=
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] FAIL  5 simultaneous runs yield exactly one reader
+           runs=5 skips=0 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  FAIL  (1/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M01-copy failed_rules=R1 assertions=12/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R1   caught=True
+
+##############################################################################
+# M02  rule=R1  file=gate.py
+# why: day key is a constant, so the operator-local calendar day is not computed (R1.2)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M02-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M02-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M02-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [FAIL]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-01-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-01-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-01-01.lock' run2='SKIP_DUPLICATE_DAY 2026-01-01' snapshots=1 rc=(0,0)
+    [R1.2] FAIL  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-01-01  day_key(22:30Z, UTC)=2026-01-01
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [FAIL]
+    [R3.1] FAIL  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=0 EARNINGS_CHANGED=0 notifications=0 ({"EARNINGS_CHANGED": 0, "INITIAL_BASELINE": 0, "OK_NO_CHANGE": 0, "notifications": 0} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] FAIL  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=0 notifications=0 ({"EARNINGS_CHANGED": 0, "INITIAL_BASELINE": 0, "OK_NO_CHANGE": 0, "notifications": 0} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]
+    [R4.1] FAIL  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           probe produced no result (rc=1) stderr=    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-mutation-rn5rtif9\\M02-work\\data-08\\approvals\\pending.json'
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  FAIL  (2/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  FAIL  (1/3 assertions)
+R4  FAIL  (2/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M02-copy failed_rules=R1,R3,R4 assertions=10/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R1   caught=True
+
+##############################################################################
+# M03  rule=R2  file=readonly_client.py
+# why: POST is allowlisted and a withdraw path is added (R2.1, R2.2, R2.4)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M03-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M03-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M03-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [FAIL]
+    [R2.1] FAIL  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(False, True, True) body-refused=True transport-untouched=False allowlisted-GET-ok=True
+    [R2.2] FAIL  write/earning endpoint paths are refused
+           withdraw=False claim=True admin=True body=True transport-untouched=False
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] FAIL  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$', '^/api/v1/withdraw$'] methods=['GET', 'HEAD', 'POST'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  FAIL  (2/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M03-copy failed_rules=R2 assertions=11/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R2   caught=True
+
+##############################################################################
+# M04  rule=R2  file=readonly_client.py
+# why: the process audit guard is disabled (R2.3)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M04-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M04-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M04-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [FAIL]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] FAIL  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=False audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  FAIL  (4/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M04-copy failed_rules=R2 assertions=13/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R2   caught=True
+
+##############################################################################
+# M05  rule=R3  file=changedetect.py
+# why: the snapshot is compared against itself, so no change is ever detected (R3.1)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M05-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M05-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M05-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [FAIL]
+    [R3.1] FAIL  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=0 EARNINGS_CHANGED=0 notifications=0 ({"EARNINGS_CHANGED": 0, "INITIAL_BASELINE": 0, "OK_NO_CHANGE": 3, "notifications": 0} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] FAIL  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=3 notifications=0 ({"EARNINGS_CHANGED": 0, "INITIAL_BASELINE": 0, "OK_NO_CHANGE": 3, "notifications": 0} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]
+    [R4.1] FAIL  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           probe produced no result (rc=1) stderr=    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-mutation-rn5rtif9\\M05-work\\data-08\\approvals\\pending.json'
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  FAIL  (1/3 assertions)
+R4  FAIL  (2/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M05-copy failed_rules=R3,R4 assertions=11/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R3   caught=True
+
+##############################################################################
+# M06  rule=R3  file=changedetect.py
+# why: equality no longer suppresses a change, so a no-change day notifies (R3.3)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M06-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M06-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M06-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [FAIL]
+    [R3.1] FAIL  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=4 notifications=7 ({"EARNINGS_CHANGED": 4, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 0, "notifications": 7} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] FAIL  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=0 notifications=7 ({"EARNINGS_CHANGED": 4, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 0, "notifications": 7} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]
+    [R4.1] FAIL  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 3, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  FAIL  (1/3 assertions)
+R4  FAIL  (2/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M06-copy failed_rules=R3,R4 assertions=11/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R3   caught=True
+
+##############################################################################
+# M07  rule=R3  file=notify.py
+# why: the dedupe index always reads empty, so one key notifies twice (R3.2)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M07-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M07-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M07-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [FAIL]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] FAIL  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 3, "second": "NOTIFIED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  FAIL  (2/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M07-copy failed_rules=R3 assertions=13/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R3   caught=True
+
+##############################################################################
+# M08  rule=R4  file=approval_queue.py
+# why: a queued item is built already executed and auto-allowed (R4.1, R4.3)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M08-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M08-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M08-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]
+    [R4.1] FAIL  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": true, "execution_state": "EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] FAIL  no module carries an executable state token or treats APPROVED as a trigger
+           hits=['approval_queue.py:132 bare EXECUTED token: "execution_state": "EXECUTED",  # MUTATION-M08'] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  FAIL  (1/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M08-copy failed_rules=R4 assertions=12/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R4   caught=True
+
+##############################################################################
+# M09  rule=R4  file=approval_queue.py
+# why: the human-only decision check is removed, so a machine may sign (R4.2)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M09-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M09-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M09-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] FAIL  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": false, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  FAIL  (2/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M09-copy failed_rules=R4 assertions=13/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R4   caught=True
+
+##############################################################################
+# M10  rule=R2  file=operator_state.py
+# why: a provider host is hardcoded in the routine (R2.4)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M10-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M10-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M10-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [FAIL]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] FAIL  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['api.provider.example', 'localhost'] hardcoded_non_loopback=['api.provider.example'] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  FAIL  (4/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M10-copy failed_rules=R2 assertions=13/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R2   caught=True
+
+##############################################################################
+# M11  rule=R2  file=gate.py
+# why: a second module gains a socket-capable import (R2.5)
+# copy: C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M11-copy
+##############################################################################
+$ python verify_freecash_rules.py C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M11-copy
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M11-copy
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [FAIL]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] FAIL  only the single transport module (readonly_client.py) may name a socket library
+           violations=['gate.py: import socket'] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  FAIL  (4/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\fc-mutation-rn5rtif9\M11-copy failed_rules=R2 assertions=13/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.
+EXIT=1   expected_rule=R2   caught=True
+
+##############################################################################
+# PRISTINE CONTROL -- the same checker against the unmodified tree
+##############################################################################
+$ python verify_freecash_rules.py D:\AgenticOS\monitoring\freecash
+[verify_freecash_rules] target=D:\AgenticOS\monitoring\freecash
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [PASS]
+    [R1.1] PASS  a second run on an already-consumed operator-local day performs no second read
+           run1='RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock' run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=1 rc=(0,0)
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] PASS  5 simultaneous runs yield exactly one reader
+           runs=1 skips=4 rc=[0, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [PASS]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] PASS  only the single transport module (readonly_client.py) may name a socket library
+           violations=[] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [PASS]
+    [R3.1] PASS  an earnings change notifies exactly once; the baseline day notifies zero times
+           INITIAL_BASELINE=1 EARNINGS_CHANGED=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+    [R3.2] PASS  the same dedupe key is never delivered twice
+           {"first": "NOTIFIED", "keys_differ": true, "messages": 2, "second": "DEDUPED", "third": "NOTIFIED"}
+    [R3.3] PASS  a no-change day is OK_NO_CHANGE and log-only (zero notifications)
+           OK_NO_CHANGE=1 notifications=1 ({"EARNINGS_CHANGED": 1, "INITIAL_BASELINE": 1, "OK_NO_CHANGE": 1, "notifications": 1} rc=(0,0,0))
+R4  no external action without human approval (queue is written, never auto-executed)  [PASS]
+    [R4.1] PASS  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "items": 1, "status": "PENDING"}
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  PASS  (3/3 assertions)
+R2  PASS  (5/5 assertions)
+R3  PASS  (3/3 assertions)
+R4  PASS  (3/3 assertions)
+[verify_freecash_rules] RESULT PASS target=D:\AgenticOS\monitoring\freecash rules=4/4 assertions=14/14
+[verify_freecash_rules] PASS - every rule assertion held on the inspected tree.
+EXIT=0   pristine_pass=True
+
+==============================================================================
+MUTATION SUMMARY   id   rule file                     exit   caught
+                   M01  R1   gate.py                  1      True
+                   M02  R1   gate.py                  1      True
+                   M03  R2   readonly_client.py       1      True
+                   M04  R2   readonly_client.py       1      True
+                   M05  R3   changedetect.py          1      True
+                   M06  R3   changedetect.py          1      True
+                   M07  R3   notify.py                1      True
+                   M08  R4   approval_queue.py        1      True
+                   M09  R4   approval_queue.py        1      True
+                   M10  R2   operator_state.py        1      True
+                   M11  R2   gate.py                  1      True
+------------------------------------------------------------------------------
+mutations=11 caught_as_expected=11 pristine_checker_pass=True
+==============================================================================
+[run_mutation_tests] OK - every mutation was detected and the pristine tree passed.

@@ -1,0 +1,10 @@
+id	rule	gate_a_rule	file	gateA_exit	gateA_summary	gateB_exit	gateB_summary	readonly_scan_exit	readonly_scan_line
+r1-a-lock-removed	R1	RULE 2 (legacy R1)	gate.py	1	SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS	1	SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+r1-b-lock-nonbinding	R1	RULE 2 (legacy R1)	gate.py	1	SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS	1	SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+r2-a-post-cashout-on-read-path	R2	RULE 1 (legacy R2)	readonly_client.py	1	SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS	1	SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL	1	[verify_readonly] forbidden=3 exempt=28 missing_targets=0
+r2-b-urllib-write-path	R2	RULE 1 (legacy R2)	run_daily_check.py	1	SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL	1	SUMMARY: R1=FAIL  R2=FAIL  R3=PASS  R4=PASS	1	[verify_readonly] forbidden=7 exempt=28 missing_targets=0
+r3-a-baseline-is-current	R3	RULE 3	run_daily_check.py	1	SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL	1	SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+r3-b-sub-dollar-threshold	R3	RULE 3	changedetect.py	1	SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL	1	SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+r4-a-nonhuman-decider-accepted	R4	RULE 4	approval_queue.py	1	SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL	1	SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+r4-b-arms-on-approve	R4	RULE 4	approval_queue.py	1	SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL	1	SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0
+canonical-control	control	control	(none)	0	SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS	1	SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS	0	[verify_readonly] forbidden=0 exempt=28 missing_targets=0

@@ -1,0 +1,7 @@
+=== date ===
+Do,  1. Okt 2026 11:45:08
+=== powershell availability + NotifyIcon mechanism (no balloon shown) ===
+NotifyIcon type OK: System.Windows.Forms.NotifyIcon
+Icon set OK: System.Drawing.Icon
+disposed
+exit=0

@@ -1,0 +1,109 @@
+== run at Do,  1. Okt 2026 11:48:25 ==
+== interpreter ==
+Python 3.11.9
+
+== app-path evidence dir (mtime, size) ==
+total 29
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-20 21:15:01.771197000 +0200 .
+drwxr-xr-x 1 cd-pr 197609   0 2026-10-01 11:46:06.401806700 +0200 ..
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-23 17:32:51.500791500 +0200 evidence
+-rw-r--r-- 1 cd-pr 197609 329 2026-09-23 17:32:50.438252800 +0200 session-evidence.json
+-- evidence/ --
+total 77
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-23 17:32:51.500791500 +0200 .
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-20 21:15:01.771197000 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-20 21:15:04.550726400 +0200 inspect-work-mua74eee-4244543c.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-20 21:34:41.726185200 +0200 inspect-work-mua7tmpp-778add8b.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-20 21:37:57.889979800 +0200 inspect-work-mua7xu2o-9b9d808a.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-21 08:23:12.198305600 +0200 inspect-work-muauzm85-f5343106.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-21 08:24:12.111435800 +0200 inspect-work-muav0wgf-16e2e5b1.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-21 09:06:17.929977000 +0200 inspect-work-muawj1e1-d3026102.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-21 09:07:08.725876100 +0200 inspect-work-muawk4l4-07c1b577.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-21 21:06:49.456926400 +0200 inspect-work-mubm9n1t-76b70fc4.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 07:57:04.000180000 +0200 inspect-work-muc9huv3-092d6adb.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 09:23:20.916585600 +0200 inspect-work-mucckteb-85456fa8.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 09:57:53.494115400 +0200 inspect-work-mucdt8ly-82ef0b43.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 09:58:50.294402400 +0200 inspect-work-mucdugfp-fc6fbe77.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 10:49:29.731642200 +0200 inspect-work-mucfnloi-55aed239.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 10:50:37.084604300 +0200 inspect-work-mucfp1ng-1908b558.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 10:51:54.149621900 +0200 inspect-work-mucfqp44-12018106.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 10:53:25.513927400 +0200 inspect-work-mucfsnm1-b07ea255.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 10:54:33.607207400 +0200 inspect-work-mucfu45i-47208715.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 10:57:56.257900200 +0200 inspect-work-mucfygip-e88e8030.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-22 14:40:50.479665600 +0200 inspect-work-mucnx44v-07b69cb2.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 07:06:15.443395300 +0200 inspect-work-mudn4d8y-c9218f74.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 08:54:56.727224000 +0200 inspect-work-mudr053r-4d27bcce.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 10:34:15.164935500 +0200 inspect-work-mudujunw-fec00420.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 10:38:25.516463400 +0200 inspect-work-mudup7u3-a263b537.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 15:27:57.417596400 +0200 inspect-work-mue51k2w-7ed6121f.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 17:25:08.598216500 +0200 inspect-work-mue989di-0df4b930.json
+-rw-r--r-- 1 cd-pr 197609 175 2026-09-23 17:32:51.500791500 +0200 inspect-work-mue9i6jw-b0ec83de.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-20 21:15:01.770117700 +0200 session-authenticated-mua74c95-ccaa2987.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-20 21:15:03.062557100 +0200 session-authenticated-mua74d92-0cc07bba.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-20 21:34:40.298429300 +0200 session-authenticated-mua7tlm1-36debf21.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-20 21:37:56.536520700 +0200 session-authenticated-mua7xt13-e9097758.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-21 08:23:10.872829300 +0200 session-authenticated-muauzl7c-ceedae06.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-21 08:24:10.922251500 +0200 session-authenticated-muav0vjd-61cdb342.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-21 09:06:16.595892000 +0200 session-authenticated-muawj0cz-56986302.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-21 09:07:07.598905700 +0200 session-authenticated-muawk3pr-3179d5c6.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-21 21:06:47.665149300 +0200 session-authenticated-mubm9lo0-4c95dade.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 07:57:01.898268200 +0200 session-authenticated-muc9ht8p-5b26698d.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 09:23:19.468935300 +0200 session-authenticated-muccksa5-cc09f241.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 09:57:51.974389500 +0200 session-authenticated-mucdt7fq-ec0f4df6.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 09:58:48.612414200 +0200 session-authenticated-mucduf4z-27ee959f.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 10:49:28.269271500 +0200 session-authenticated-mucfnkjw-526f110a.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 10:50:36.140297800 +0200 session-authenticated-mucfp0x7-26afb1ab.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 10:51:53.169318400 +0200 session-authenticated-mucfqocw-6b0bc358.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 10:53:24.541923200 +0200 session-authenticated-mucfsmv1-19dba7f9.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 10:54:32.519496300 +0200 session-authenticated-mucfu3bb-95eb87e5.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 10:57:55.250589200 +0200 session-authenticated-mucfyfqq-3fc85aad.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-22 14:40:48.032115900 +0200 session-authenticated-mucnx28v-5a68090c.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 07:06:13.771431200 +0200 session-authenticated-mudn4byi-58edf43d.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 08:54:55.504966600 +0200 session-authenticated-mudr045r-2928a57d.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 10:34:13.805006300 +0200 session-authenticated-mudujtm4-5f1dbf6e.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 10:38:23.849494500 +0200 session-authenticated-mudup6js-0a08f5ab.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 15:27:55.807922500 +0200 session-authenticated-mue51iu7-e02f41a2.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 17:25:07.155349800 +0200 session-authenticated-mue9889f-078a3e45.json
+-rw-r--r-- 1 cd-pr 197609 265 2026-09-23 17:32:50.438252800 +0200 session-authenticated-mue9i5qd-3b0799d2.json
+
+== session-evidence.json (full content) ==
+{
+  "service": "freecash",
+  "authenticated": true,
+  "verifiedAt": "2026-09-23T15:32:31.406Z",
+  "evidencePath": "C:\\Users\\cd-pr\\AppData\\Roaming\\AgenticOS\\data\\freecash\\evidence\\session-authenticated-mue9i5qd-3b0799d2.json",
+  "detail": "final_url=https://freecash.com/en; cookie_count=8; session_cookie_present=true"
+}
+
+== newest session-authenticated artefact (full content) ==
+PATH: C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/evidence/session-authenticated-mue9i5qd-3b0799d2.json
+{
+  "kind": "session-authenticated",
+  "payload": {
+    "observed": [
+      "final_url=https://freecash.com/en",
+      "cookie_count=8",
+      "session_cookie_present=true"
+    ],
+    "url": "https://freecash.com/en"
+  },
+  "writtenAt": "2026-09-23T15:32:50.437Z"
+}
+
+== newest inspect-work artefact (full content) ==
+PATH: C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/evidence/inspect-work-mue9i6jw-b0ec83de.json
+{
+  "kind": "inspect-work",
+  "payload": {
+    "state": "authenticated",
+    "items": [],
+    "url": "https://freecash.com/en"
+  },
+  "writtenAt": "2026-09-23T15:32:51.500Z"
+}
+
+== inspect-account artefacts (expected: NONE) ==
+ls: cannot access 'C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/evidence/inspect-account-*.json': No such file or directory
+
+== login-verified artefacts (expected: NONE) ==
+ls: cannot access 'C:\Users\cd-pr\AppData\Roaming/AgenticOS/data/freecash/evidence/login-verified-*.json': No such file or directory

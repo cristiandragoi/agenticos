@@ -1,0 +1,38 @@
+=== 1. syntax check both probe scripts ===
+py_compile_exit=0
+
+=== 2. probe_source_candidates.py (read-only transport probe) ===
+ALLOWED_METHODS = ['GET', 'HEAD']
+ALLOWED_HOSTS   = ['127.0.0.1', '::1', '[::1]', 'localhost']
+ALLOWED_PATHS   = ['^/api/v1/status/metrics$', '^/api/v1/status$']
+DEFAULT_BASE_URL= http://localhost:3001
+METRICS_PATH    = /api/v1/status/metrics
+STATUS_PATH     = /api/v1/status
+----------------------------------------------------------------------
+READERR| W1 read_metrics base=4600 (allowlisted path, live server)              -> ReadError: GET /api/v1/status/metrics returned HTTP 404
+READERR| W1 read_metrics base=3001 (default base, nothing listening)            -> ReadError: GET /api/v1/status/metrics failed: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+OK   | W2 probe_status base=4600                                              -> HTTP 404
+BLOCK| GET /api/health on 4600 (NOT allowlisted)                              -> ForbiddenWriteError: R2: path not allowlisted: '/api/health'
+BLOCK| GET /api/projects/proj-free-cash/freecash/auth on 4600 (NOT allowlisted) -> ForbiddenWriteError: R2: path not allowlisted: '/api/projects/proj-free-cash/freecash/auth'
+ERR  | GET /api/v1/status/metrics on 3001 (allowlisted, conn refused)         -> ConnectionRefusedError: [WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte
+transport_probe_exit=0
+
+=== 3. probe_operator_source.py empty (throwaway root) ===
+mode = empty  THROWAWAY root = C:\Users\cd-pr\AppData\Local/Temp/fc-r3-verify-empty-867/root
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit = 0
+empty_exit=0
+
+=== 4. probe_operator_source.py present (throwaway root) ===
+mode = present  THROWAWAY root = C:\Users\cd-pr\AppData\Local/Temp/fc-r3-verify-present-867/root
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit = 0
+  "account_status": "ACTIVE",
+  "earnings_total_cents": 1340,
+alerts = {"day_key": "2026-10-01", "dedupe_key": null, "event_id": "14445b50-75ce-4d31-a257-38e84b7dca07", "event_type": "INITIAL_BASELINE", "message": "First run: baseline recorded for 2026-10-01. No notification sent. Source DEGRADED (operator-entered record for 2026-10-01).", "observed": {"account_status": "ACTIVE", "balance_cents": 1340, "degraded": true, "earnings_total_cents": 1340, "pending_cents": 0, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T07:36:21Z"}
+present_exit=0
+
+=== 5. production state root untouched? (latest mtime) ===
+2026-10-01 08:53 /d/AgenticOS/data/freecash-monitor/snapshots/2026-10-01.json
+2026-10-01 08:53 /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-10-01.lock
+2026-10-01 08:53 /d/AgenticOS/data/freecash-monitor/state/last-run.json

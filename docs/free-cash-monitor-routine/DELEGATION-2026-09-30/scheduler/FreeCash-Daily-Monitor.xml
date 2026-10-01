@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FreeCash-Daily-Monitor.xml : Task A definition (daily read-only status read)
+
+  STATUS: INERT TEMPLATE. This file registers nothing. It becomes a scheduled
+  task only when a human runs the approval command in SCHEDULER-PLAN.md.
+  Rule R4: human approval before any external action.
+
+  Element order below deliberately mirrors a real task already registered on
+  THIS host (\cua-driver-serve), exported with
+  `schtasks /Query /TN "cua-driver-serve" /XML`, so the Task Scheduler schema
+  sequence matches the one this Windows build produced itself.
+
+  Chosen semantics and why:
+    StartWhenAvailable=true           => a missed 09:00 (machine asleep/off) is
+                                         fired once when the machine is next
+                                         available, instead of being lost.
+    MultipleInstancesPolicy=IgnoreNew => a slow run can never be stacked by the
+                                         next trigger.
+    RunLevel=LeastPrivilege           => the /RL LIMITED equivalent. NEVER
+                                         HighestAvailable: nothing here needs
+                                         elevation, and asking for it would
+                                         defeat the point.
+    LogonType=InteractiveToken        => per user, interactive session only. The
+                                         toast transport needs a real desktop
+                                         session; S4U or PASSWORD would run
+                                         without one and the balloon would go
+                                         nowhere.
+    ExecutionTimeLimit=PT10M          => the whole run is a few seconds of file
+                                         I/O; ten minutes is a generous ceiling.
+
+  NOTE: StartWhenAvailable=true plus a StartBoundary in the past means the first
+  registration can fire one catch-up run on the registration day. Set
+  StartBoundary to the day AFTER the intended first run, or expect (and accept)
+  one immediate run.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash daily read-only status monitor (R1: exactly one status read per operator-local day). Non-elevated, per-user, LeastPrivilege, IgnoreNew, StartWhenAvailable. Registers nothing by itself.</Description>
+    <URI>\FreeCash-Daily-Monitor</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-01T09:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\scheduler\freecash-task-a.cmd"</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

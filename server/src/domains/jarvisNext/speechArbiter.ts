@@ -34,6 +34,14 @@ export interface SpeechRequest {
   priority: SpeechPriority;
   /** The turn ID this speech was generated for. Required for background callers. */
   turnId?: number;
+  originTurnId?: number;
+  voiceSessionId?: string;
+  utteranceId?: string;
+  operationId?: string;
+  responseId?: string;
+  responseType?: string;
+  createdAt?: number;
+  deliveryStatus?: 'admitted' | 'rejected' | 'queued' | 'dropped_stale';
   /** Descriptive source label for logging (e.g. 'hermes', 'revenue_operator'). */
   source?: string;
   /** Semantic event type (e.g. 'user_response', 'gate_notification', 'worker_event'). */
@@ -108,12 +116,27 @@ class SpeechArbiterImpl {
    */
   async request(req: SpeechRequest): Promise<boolean> {
     const { text, priority, turnId, source = 'unknown' } = req;
-    const eventType = req.eventType || (priority === SpeechPriority.P1_USER_TURN ? 'user_turn_answer' : priority <= SpeechPriority.P3_APPROVAL ? 'human_action_gate' : 'background_progress');
     const currentTurn = this.getCurrentTurnId ? this.getCurrentTurnId() : (turnId ?? 0);
+    const originTurnId = req.originTurnId ?? (turnId ?? currentTurn);
+    const voiceSessionId = req.voiceSessionId || 'session-live';
+    const utteranceId = req.utteranceId || `utt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const operationId = req.operationId || `op-${Date.now()}`;
+    const responseId = req.responseId || `resp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const responseType = req.responseType || (priority === SpeechPriority.P1_USER_TURN ? 'direct_answer' : 'operational_status');
+    const createdAt = req.createdAt || Date.now();
+    const eventType = req.eventType || (priority === SpeechPriority.P1_USER_TURN ? 'user_turn_answer' : priority <= SpeechPriority.P3_APPROVAL ? 'human_action_gate' : 'background_progress');
 
     const logArbiterDecision = (admitted: boolean, reason: string) => {
       const trace = [
         `SPEECH_ARBITER_TRACE:`,
+        `VOICE_SESSION_ID=${voiceSessionId}`,
+        `UTTERANCE_ID=${utteranceId}`,
+        `ORIGIN_TURN_ID=${originTurnId}`,
+        `OPERATION_ID=${operationId}`,
+        `RESPONSE_ID=${responseId}`,
+        `RESPONSE_TYPE=${responseType}`,
+        `CREATED_AT=${createdAt}`,
+        `DELIVERY_STATUS=${admitted ? 'admitted' : 'rejected'}`,
         `SOURCE=${source}`,
         `EVENT_TYPE=${eventType}`,
         `PRIORITY=P${priority}`,
@@ -138,10 +161,10 @@ class SpeechArbiterImpl {
       return false;
     }
 
-    // ── Stale turn check ────────────────────────────────────────────────────
-    if (turnId !== undefined && this.getCurrentTurnId) {
-      if (turnId !== currentTurn) {
-        logArbiterDecision(false, `stale_turn (req=${turnId} active=${currentTurn})`);
+    // ── Stale turn check: obsolete speech from superseded turn is discarded ───
+    if (this.getCurrentTurnId) {
+      if (originTurnId < currentTurn || (turnId !== undefined && turnId < currentTurn)) {
+        logArbiterDecision(false, `superseded_stale_turn (origin=${originTurnId} active=${currentTurn})`);
         return false;
       }
     }
@@ -213,6 +236,13 @@ class SpeechArbiterImpl {
    */
   async onUserTurnComplete(): Promise<void> {
     if (this.queue.length === 0 || !this.speakFn) return;
+    const currentTurn = this.getCurrentTurnId ? this.getCurrentTurnId() : undefined;
+    // Discard any items from older turns (stale-turn leakage prevention)
+    this.queue = this.queue.filter(
+      (item) => item.turnId === undefined || currentTurn === undefined || item.turnId === currentTurn
+    );
+    if (this.queue.length === 0) return;
+
     // Sort ascending by priority (P2 before P3)
     this.queue.sort((a, b) => a.priority - b.priority);
     const next = this.queue.shift();

@@ -1,0 +1,45 @@
+############ ACCEPTANCE BAR: RED / GREEN ############
+rule under test: R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+
+=== [1] RED  : gate_allowlists.py on the PLANTED violation (host+path widened) ===
+  VIOLATION [R1 (NO EARNING ACTION) -- the routine performs no write/earning action] hosts drifted: ['127.0.0.1', '::1', '[::1]', 'api.freecash.com', 'localhost'] (expected ['127.0.0.1', '::1', '[::1]', 'localhost'])
+  VIOLATION [R1 (NO EARNING ACTION) -- the routine performs no write/earning action] non-loopback host allowlisted: 'api.freecash.com'
+  VIOLATION [R1 (NO EARNING ACTION) -- the routine performs no write/earning action] provider-looking host allowlisted: 'api.freecash.com'
+  VIOLATION [R1 (NO EARNING ACTION) -- the routine performs no write/earning action] path allowlist drifted: ['^/api/v1/status/metrics$', '^/api/v1/status$', '^/api/v1/withdraw$'] (expected ['^/api/v1/status/metrics$', '^/api/v1/status$'])
+  VIOLATION [R1 (NO EARNING ACTION) -- the routine performs no write/earning action] unexpected path regex allowlisted: '^/api/v1/withdraw$'
+[gate] FAIL: 5 violation(s) against R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+[gate] target: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\source\probe\mutants\allowlist_widened.py
+[gate] rule  : R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+[gate] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'api.freecash.com', 'localhost'] paths=['^/api/v1/status/metrics$', '^/api/v1/status$', '^/api/v1/withdraw$']
+EXIT=1
+
+=== [2] GREEN: gate_allowlists.py on the UNMODIFIED shipped module ===
+[gate] target: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\source\probe\readonly_client.py
+[gate] rule  : R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+[gate] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] paths=['^/api/v1/status/metrics$', '^/api/v1/status$']
+[gate] PASS: allowlists are exactly the loopback-only read allowlists for R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+EXIT=0
+
+=== [3] RED  : check_audit_hook.py on the shipped module (real defect, not planted) ===
+  DEFECT [R1 (NO EARNING ACTION) -- the routine performs no write/earning action] socket.getaddrinfo for non-loopback host is NOT aborted (args[0] is a str; the hook only accepts a tuple)
+[hook] FAIL: 1 layer-B defect(s)
+[hook] target: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\source\probe\readonly_client.py
+[hook] rule  : R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+[hook] connect(nonloopback)    raises ForbiddenWriteError: True
+[hook] getaddrinfo(nonloopback) raises ForbiddenWriteError: False
+[hook] connect(loopback)        ignored: True
+[hook] getaddrinfo(loopback)    ignored: True
+EXIT=1
+
+=== [4] GREEN: check_audit_hook.py on the REPAIRED copy (proves detector is not a tautology) ===
+[hook] target: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\source\probe\repaired\readonly_client_hook_fixed.py
+[hook] rule  : R1 (NO EARNING ACTION) -- the routine performs no write/earning action
+[hook] connect(nonloopback)    raises ForbiddenWriteError: True
+[hook] getaddrinfo(nonloopback) raises ForbiddenWriteError: True
+[hook] connect(loopback)        ignored: True
+[hook] getaddrinfo(loopback)    ignored: True
+[hook] PASS: both documented connect/getaddrinfo shapes are aborted
+EXIT=0
+
+=== [5] py_compile the exact artifacts the gates certify ===
+py_compile exit=0 (all artifacts parse)

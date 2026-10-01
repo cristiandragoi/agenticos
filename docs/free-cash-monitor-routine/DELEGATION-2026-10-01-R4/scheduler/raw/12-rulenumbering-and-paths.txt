@@ -1,0 +1,85 @@
+=== gate.py:1-10 ===
+"""gate.py -- R1: exactly one status read per operator-local calendar day.
+
+Two layers, and only the first one is the gate:
+
+1. **Atomic day lock.**  ``os.open(lock, O_CREAT | O_EXCL | O_WRONLY)`` on
+   ``state/day-locks/<YYYY-MM-DD>.lock``.  That is a single atomic syscall on
+   NTFS: two simultaneous processes cannot both create the same path, so there
+   is no read-then-write window and no "if it exists" check to race on.  The
+   filename *is* the day key; the file is zero bytes, so a partial write can
+   never be misread.
+
+=== readonly_client.py:1-10 ===
+"""readonly_client.py -- R2: the routine's ONLY network path.
+
+Deny-by-default transport:
+
+* method allowlist -- ``GET`` and ``HEAD`` only, everything else refused;
+* path allowlist -- a fixed tuple of compiled regexes, everything else refused;
+* host allowlist -- loopback only, so an unresolved provider host cannot be
+  reached even if a caller passed a hostname;
+* request-body rejection -- ``data`` / ``json`` / ``files`` / ``body`` /
+  ``content`` are refused, and so is any unknown keyword argument.
+
+=== run_daily_check.py:1-40 (docstring) ===
+"""run_daily_check.py -- the routine's single entry point (rules R1-R4).
+
+One run does, in this order:
+
+1. **R1** -- consume today's operator-local day with an atomic exclusive-create
+   lock.  If the day is already consumed, print ``SKIP_DUPLICATE_DAY``, append
+   exactly one ``SKIP_DUPLICATE_DAY`` line to the alert log, and exit 0 having
+   performed no read, no snapshot write and no ledger write.
+2. record the attempt, emit in-band ``MISSED_DAY`` lines for uncovered days
+   (never back-filling them), and flag a timezone change as ``MONITOR_DEGRADED``.
+3. **R2** -- acquire today's figures through one of two read-only sources:
+   the operator-entered state file (default) or the local metrics substitute
+   (``GET``/``HEAD`` through :mod:`readonly_client`, allowlisted paths only).
+4. **R3** -- compare against the prior snapshot (loaded *before* the new one is
+   written), emit exactly one line per distinct change, and notify at most once
+   per change via a dedupe key recorded before dispatch.  ``OK_NO_CHANGE`` is
+   log-only.  More than five changes coalesce into one summary notification.
+5. **R4** -- enqueue an approval item for each notified change.  Enqueueing is a
+   notification with a handle: nothing in this file (or anywhere else in the
+   routine) acts on an approved status.  There is no execution code path here at
+   all.
+
+Exit codes::
+
+    0  ran, or the day was already consumed (a duplicate is not an error)
+    2  usage error
+    3  --force-recheck refused (a second status read in one day is forbidden)
+    5  the status read failed; the day lock stays in place, no automatic re-run
+
+Manual re-check is deliberately **not** implemented.  ROUTINE-DESIGN 2.3
+describes a human ``--force-recheck`` that consumes a second, distinct lock
+suffix and writes a second snapshot for the same day.  That is a second status
+read on a day that already had one, and this implementation is required to
+enforce "exactly one status read per operator-local calendar day" without
+exception, so the flag is accepted only to be refused -- and the refusal is
+written to ``logs/forced-recheck-requests.jsonl`` so the request itself is still
+auditable.
+"""
+
+import argparse
+
+=== paths.py: env vars + DEFAULT_DATA_ROOT ===
+33:#: Default state root.  Override with the FREECASH_DATA_ROOT environment variable
+35:DEFAULT_DATA_ROOT = "D:/AgenticOS/data/freecash-monitor"
+45:def data_root() -> Path:
+47:    raw = os.environ.get("FREECASH_DATA_ROOT") or DEFAULT_DATA_ROOT
+
+=== files in monitoring/freecash ===
+__pycache__
+approval_queue.py
+changedetect.py
+gate.py
+notify.py
+operator_state.py
+paths.py
+readonly_client.py
+run_daily_check.py
+tests
+verify_readonly.py
+watchdog.py

@@ -1,0 +1,18 @@
+This is a placeholder - actual Excel file would need to be created with proper formatting, formulas, and German localization. The template includes:
+
+1. Income Statement Tracker (Einnahmenüberschussrechnung)
+2. Balance Sheet Template (Bilanz)
+3. VAT Tracking (Umsatzsteuer-Voranmeldung)
+4. Cash Flow Forecast (Liquiditätsplanung)
+5. Profit by Product/Service Line
+6. Budget vs Actual Comparison
+7. Expense Category Breakdown
+8. Monthly Closing Checklist
+
+For actual deployment, create proper .xlsx file with:
+- Named ranges for easy formula linking
+- Data validation dropdowns
+- Conditional formatting for variances
+- Protected cells for formulas
+- German column headers and units (€)
+- VLOOKUP tables for tax rates

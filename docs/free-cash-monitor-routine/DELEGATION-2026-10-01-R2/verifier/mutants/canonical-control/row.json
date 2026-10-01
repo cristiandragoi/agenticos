@@ -1,0 +1,210 @@
+{
+  "copy_matches_source": true,
+  "copy_tree_sha256": "6ef4d87f3e4b57476ae44ca7d3ca1e4de0ad896785bbd1d23147bb566ef62fc3",
+  "demos": {
+    "r1_concurrent": {
+      "exits": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "kind": "r1_concurrent",
+      "ok_runs": 1,
+      "outputs": [
+        {
+          "exit": 0,
+          "first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+          "tail": [
+            "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock"
+          ]
+        },
+        {
+          "exit": 0,
+          "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+          "tail": [
+            "SKIP_DUPLICATE_DAY 2026-10-01"
+          ]
+        },
+        {
+          "exit": 0,
+          "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+          "tail": [
+            "SKIP_DUPLICATE_DAY 2026-10-01"
+          ]
+        },
+        {
+          "exit": 0,
+          "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+          "tail": [
+            "SKIP_DUPLICATE_DAY 2026-10-01"
+          ]
+        },
+        {
+          "exit": 0,
+          "first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+          "tail": [
+            "SKIP_DUPLICATE_DAY 2026-10-01"
+          ]
+        }
+      ],
+      "skip_runs": 4,
+      "snapshots": [
+        "2026-10-01.json"
+      ],
+      "workers": 5
+    },
+    "r1_twice": {
+      "alert_event_types": [
+        "MONITOR_DEGRADED",
+        "SKIP_DUPLICATE_DAY"
+      ],
+      "day": "2026-10-01",
+      "kind": "r1_twice",
+      "ledger_last_outcome": "MONITOR_DEGRADED",
+      "run1_exit": 0,
+      "run1_first_line": "RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock",
+      "run2_exit": 0,
+      "run2_first_line": "SKIP_DUPLICATE_DAY 2026-10-01",
+      "run2_performed_a_read": false,
+      "snapshots": [
+        "2026-10-01.json"
+      ]
+    },
+    "r2_bypass": {
+      "helpers_found": [],
+      "kind": "r2_bypass"
+    },
+    "r2_forbidden": {
+      "allowed_write_requests": [],
+      "attempts": [
+        {
+          "attempt": "POST http://localhost:3001/api/v1/cashout",
+          "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "POST http://localhost:3001/api/v1/transactions",
+          "detail": "R2: method 'POST' is not read-only (allowed: GET, HEAD)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "DELETE http://localhost:3001/api/v1/status/metrics",
+          "detail": "R2: method 'DELETE' is not read-only (allowed: GET, HEAD)",
+          "outcome": "ForbiddenWriteError"
+        },
+        {
+          "attempt": "GET http://localhost:3001/api/v1/status/metrics",
+          "outcome": "ALLOWED"
+        }
+      ],
+      "body_on_read": "ForbiddenWriteError: R2: request bodies are forbidden ('json')",
+      "kind": "r2_forbidden",
+      "module_file": "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R2\\verifier\\mutants\\canonical-control\\pkg\\readonly_client.py",
+      "transport_reached": [
+        {
+          "method": "GET",
+          "url": "http://localhost:3001/api/v1/status/metrics"
+        }
+      ]
+    },
+    "r3_two_days": {
+      "day1_alerts": [
+        "INITIAL_BASELINE"
+      ],
+      "day1_outcome": "INITIAL_BASELINE",
+      "day2_alerts_all": [
+        "INITIAL_BASELINE",
+        "APPROVAL_PENDING",
+        "EARNINGS_CHANGED"
+      ],
+      "day2_exit": 0,
+      "day2_line": "RUN_OK 2026-10-01 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-01.lock",
+      "day2_new_alert_types": [
+        "APPROVAL_PENDING",
+        "EARNINGS_CHANGED"
+      ],
+      "day2_outcome": "EARNINGS_CHANGED",
+      "kind": "r3_two_days",
+      "pending_items": [
+        {
+          "execution_state": "NOT_EXECUTED",
+          "expires_at_utc": null,
+          "status": "PENDING"
+        }
+      ],
+      "snapshots": [
+        "2026-09-30.json",
+        "2026-10-01.json"
+      ]
+    },
+    "r4_decide": {
+      "api": {
+        "  SYSTEM  ": "NotHumanError: refused: 'SYSTEM' is not a human identity; this routine may only record a decision made by a person",
+        "AI-Agent": "ACCEPTED",
+        "Alice Operator": "ACCEPTED",
+        "J. Schmidt": "ACCEPTED",
+        "RoutineBot": "ACCEPTED",
+        "agent": "NotHumanError: refused: 'agent' is not a human identity; this routine may only record a decision made by a person",
+        "agent-007": "ACCEPTED",
+        "automation": "NotHumanError: refused: 'automation' is not a human identity; this routine may only record a decision made by a person",
+        "automation-2": "ACCEPTED",
+        "bot": "NotHumanError: refused: 'bot' is not a human identity; this routine may only record a decision made by a person",
+        "bot:alpha": "ACCEPTED",
+        "cron": "NotHumanError: refused: 'cron' is not a human identity; this routine may only record a decision made by a person",
+        "cron-runner": "ACCEPTED",
+        "machine": "NotHumanError: refused: 'machine' is not a human identity; this routine may only record a decision made by a person",
+        "monitor": "NotHumanError: refused: 'monitor' is not a human identity; this routine may only record a decision made by a person",
+        "report-machine": "ACCEPTED",
+        "routine": "NotHumanError: refused: 'routine' is not a human identity; this routine may only record a decision made by a person",
+        "scheduler": "NotHumanError: refused: 'scheduler' is not a human identity; this routine may only record a decision made by a person",
+        "scheduler.exe": "ACCEPTED",
+        "script": "NotHumanError: refused: 'script' is not a human identity; this routine may only record a decision made by a person",
+        "system": "NotHumanError: refused: 'system' is not a human identity; this routine may only record a decision made by a person"
+      },
+      "cli": {
+        "human": {
+          "by": "Alice Operator",
+          "exit": 0,
+          "stderr": "",
+          "stdout": "recorded APPROVED for 4b4ce69a-7d7f-4af8-9449-186eaa55d1f1 by Alice Operator at 2026-10-01T07:18:47Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"
+        },
+        "machine": {
+          "by": "system",
+          "exit": 4,
+          "stderr": "REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person",
+          "stdout": ""
+        }
+      },
+      "frozen_fields": {
+        "after_decisions": {
+          "decided_by": "Alice Operator",
+          "execution_allowed_by_this_routine": false,
+          "execution_state": "NOT_EXECUTED",
+          "expires_at_utc": null,
+          "status": "APPROVED"
+        }
+      },
+      "item_created": {
+        "execution_allowed_by_this_routine": false,
+        "execution_state": "NOT_EXECUTED",
+        "expires_at_utc": null,
+        "status": "PENDING"
+      },
+      "kind": "r4_decide"
+    }
+  },
+  "file": "(none)",
+  "gateA_exit": 0,
+  "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+  "gateB_exit": 1,
+  "gateB_summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+  "gate_a_rule": "control",
+  "id": "canonical-control",
+  "readonly_scan_exit": 0,
+  "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+  "reason": "unmutated copy",
+  "rule": "control",
+  "source_tree_sha256": "6ef4d87f3e4b57476ae44ca7d3ca1e4de0ad896785bbd1d23147bb566ef62fc3"
+}

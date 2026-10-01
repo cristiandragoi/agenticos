@@ -68,10 +68,13 @@ def main():
     try:
         import wave
         with wave.open(args.output, 'wb') as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)  # 16-bit PCM
-            wav_file.setframerate(sample_rate)
-            voice.synthesize(args.text.strip(), wav_file, sentence_silence=0.3)
+            if hasattr(voice, 'synthesize_wav'):
+                voice.synthesize_wav(args.text.strip(), wav_file)
+            else:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)  # 16-bit PCM
+                wav_file.setframerate(sample_rate)
+                voice.synthesize(args.text.strip(), wav_file)
     except Exception as e:
         if os.path.exists(args.output):
             os.remove(args.output)

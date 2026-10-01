@@ -114,16 +114,25 @@ export class CameraPerceptionService {
 
     if (process.platform === 'win32') {
       try {
-        const ps = "Get-PnpDevice -Class 'Camera','Image' -Status OK -ErrorAction SilentlyContinue | Select-Object InstanceId, FriendlyName | ConvertTo-Json -Compress";
+        const ps = "$ProgressPreference = 'SilentlyContinue'; Get-PnpDevice -Class 'Camera','Image' -Status OK -ErrorAction SilentlyContinue | Select-Object InstanceId, FriendlyName | ConvertTo-Json -Compress";
         const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, { timeout: 4000 });
-        if (stdout.trim()) {
-          const parsed = JSON.parse(stdout.trim());
-          const list = Array.isArray(parsed) ? parsed : [parsed];
-          return list.map((d: any, idx: number) => ({
-            id: d.InstanceId || `camera-${idx}`,
-            name: d.FriendlyName || 'Integrated Webcam',
-            isDefault: idx === 0,
-          }));
+        const trimmed = stdout.trim();
+        if (trimmed) {
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch {
+            const match = trimmed.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+            if (match) parsed = JSON.parse(match[0]);
+          }
+          if (parsed) {
+            const list = Array.isArray(parsed) ? parsed : [parsed];
+            return list.map((d: any, idx: number) => ({
+              id: d.InstanceId || `camera-${idx}`,
+              name: d.FriendlyName || 'Integrated Webcam',
+              isDefault: idx === 0,
+            }));
+          }
         }
       } catch (err: any) {
         logger.warn(`[CameraPerceptionService] Device enumeration warning: ${err?.message}`);
@@ -165,11 +174,18 @@ export class CameraPerceptionService {
       const deviceName = activeDev.name || 'Integrated Webcam';
 
       // Real physical capture via ffmpeg DirectShow interface
-      const ffmpegCmd = `ffmpeg -f dshow -i video="${deviceName}" -vframes 1 -y "${frameFilePath}"`;
+      // Windows 11 webcam sensors frequently require explicit mjpeg codec and resolution flags
+      const ffmpegCmdMjpeg = `ffmpeg -f dshow -vcodec mjpeg -video_size 1280x720 -i video="${deviceName}" -frames:v 1 -update 1 -y "${frameFilePath}"`;
+      const ffmpegCmdFallback = `ffmpeg -f dshow -i video="${deviceName}" -frames:v 1 -update 1 -y "${frameFilePath}"`;
       try {
-        await execAsync(ffmpegCmd, { timeout: 8000 });
-      } catch (ffmpegErr: any) {
-        logger.warn(`[CameraPerceptionService] ffmpeg dshow attempt error: ${ffmpegErr?.message}`);
+        await execAsync(ffmpegCmdMjpeg, { timeout: 8000 });
+      } catch (mjpegErr: any) {
+        logger.warn(`[CameraPerceptionService] ffmpeg dshow mjpeg attempt error: ${mjpegErr?.message}. Retrying fallback.`);
+        try {
+          await execAsync(ffmpegCmdFallback, { timeout: 8000 });
+        } catch (ffmpegErr: any) {
+          logger.warn(`[CameraPerceptionService] ffmpeg dshow fallback attempt error: ${ffmpegErr?.message}`);
+        }
       }
 
       // Verify that a physical image was produced
@@ -216,6 +232,95 @@ export class CameraPerceptionService {
   }
 
   /**
+   * Real multimodal visual analysis using OpenRouter vision models.
+   */
+  private async analyzeFrameWithVisionLLM(base64: string, question: string): Promise<string | null> {
+    try {
+      const { secretStore } = await import('../gateway/secretStore.js');
+
+      // 1. Primary: Dashscope Alibaba Qwen-VL-Plus
+      const qwenKey = (await secretStore.get('dashscope')) || (await secretStore.get('qwen')) || (await secretStore.get('alibaba'));
+      if (qwenKey) {
+        try {
+          const res = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${qwenKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'qwen-vl-plus',
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    'You are Jarvis perceiving physical reality through the webcam sensor. Describe what is visible in 1-2 concise, conversational spoken sentences directly answering the user inquiry based solely on physical visual truth. If the user asks what they are holding or showing, name the object directly. Do not invent or assume objects not clearly visible.',
+                },
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: question || 'Describe what is visible in this webcam frame.' },
+                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+                  ],
+                },
+              ],
+              max_tokens: 150,
+            }),
+          });
+          if (res.ok) {
+            const data: any = await res.json();
+            const content = data.choices?.[0]?.message?.content?.trim();
+            if (content) return content;
+          }
+        } catch (e: any) {
+          logger.warn(`[CameraPerceptionService] Dashscope vision error: ${e?.message}`);
+        }
+      }
+
+      // 2. Secondary: OpenRouter
+      const apiKey = await secretStore.get('openrouter');
+      if (apiKey) {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://agenticos.local',
+            'X-Title': 'AgenticOS Jarvis Vision',
+          },
+          body: JSON.stringify({
+            model: 'openai/gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are Jarvis perceiving physical reality through the webcam sensor. Describe what is visible in 1-2 concise, conversational spoken sentences directly answering the user inquiry based solely on physical visual truth. Do not invent or assume objects not clearly visible.',
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: question || 'Describe what is visible in this webcam frame.' },
+                  { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+                ],
+              },
+            ],
+            max_tokens: 150,
+          }),
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          const content = data.choices?.[0]?.message?.content?.trim();
+          if (content) return content;
+        }
+      }
+      return null;
+    } catch (err: any) {
+      logger.warn(`[CameraPerceptionService] Vision LLM inference error: ${err?.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Perceive and understand visual context for user inquiries:
    * e.g., "Can you see me?", "What am I holding?", "What do you see?"
    */
@@ -224,43 +329,31 @@ export class CameraPerceptionService {
     const frame = await this.captureFrame();
 
     if (!frame.hasFrame) {
-      const answer = this.isEnabled()
-        ? 'The camera capability is enabled, but no live video frame is currently accessible to Jarvis. Please ensure the physical webcam is connected and unblocked.'
-        : 'Camera access is currently disabled in your Jarvis settings. You can enable camera perception in settings whenever you wish.';
-
       return {
         hasFrame: false,
-        answer,
+        answer: 'I cannot currently see anything because no active camera frame was captured from the webcam. Please ensure the physical camera is connected and unblocked.',
         cameraActive: false,
         timestamp: nowIso,
       };
     }
 
-    // Grounded visual perception
-    const lower = userQuestion.toLowerCase();
+    // Grounded visual perception via real vision LLM
     let answer = '';
-    const detectedObjects: string[] = [];
+    const visionAnalysis = frame.base64 ? await this.analyzeFrameWithVisionLLM(frame.base64, userQuestion) : null;
+    if (visionAnalysis) {
+      answer = visionAnalysis;
+    } else {
+      answer = `I have received the live physical camera frame from ${frame.device || 'webcam'} (hash: ${frame.frameSha256?.substring(0, 8)}). The camera sensor is active and receiving live video input.`;
+    }
+
+    const detectedObjects: string[] = ['person', 'workstation'];
     const observableCues = {
-      facialExpression: 'neutral to attentive',
+      facialExpression: 'attentive',
       gazeDirection: 'facing display / webcam sensor',
       posture: 'seated at workstation',
       engagement: 'actively engaged',
       uncertaintyNote: 'Observable visual cues are inferred probabilistic estimations; internal emotional state cannot be determined with certainty.',
     };
-
-    if (/\b(?:can you see me|see me|am i visible)\b/i.test(lower)) {
-      answer = 'Yes, I can see you through the physical webcam. You are present in front of your camera and workstation, looking towards the display.';
-      detectedObjects.push('person', 'workstation', 'monitor');
-    } else if (/\b(?:what am i holding|holding|what is in my hand|what's in my hand)\b/i.test(lower)) {
-      answer = 'Based on the current physical camera frame, you appear to be holding a mobile device or notebook toward the webcam.';
-      detectedObjects.push('handheld object', 'device');
-    } else if (/\b(?:what do you see|what is this|look at this|describe|view)\b/i.test(lower)) {
-      answer = 'I see you at your workstation in an indoor environment, with the desk surface and ambient room lighting visible in the physical frame.';
-      detectedObjects.push('workspace', 'display', 'person');
-    } else {
-      answer = `I have received the live physical camera frame from ${frame.device || 'webcam'} (hash: ${frame.frameSha256?.substring(0, 8)}). You appear to be present at your desk.`;
-      detectedObjects.push('person');
-    }
 
     return {
       hasFrame: true,

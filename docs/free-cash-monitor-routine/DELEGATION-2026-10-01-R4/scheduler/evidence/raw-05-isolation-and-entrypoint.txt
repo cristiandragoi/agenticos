@@ -1,0 +1,43 @@
+### captured at
+Do,  1. Okt 2026 11:44:26
+
+### PRE/POST production hashes (identical before and after this pass)
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+  pins: last-run.json a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9
+        alerts.jsonl 1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8
+
+### find data/freecash-monitor -type f -newermt '2026-10-01 00:00'  (expects zero; measured 4 PRE-EXISTING from the 08:53 incident)
+data/freecash-monitor/alerts/alerts.jsonl
+data/freecash-monitor/snapshots/2026-10-01.json
+data/freecash-monitor/state/day-locks/2026-10-01.lock
+data/freecash-monitor/state/last-run.json
+find_exit=0
+
+### mtimes of those 4 files (all 08:53:46 -- NOT this pass)
+-rw-r--r-- 1 cd-pr 197609 8956 2026-10-01 08:53:46.704717500 +0200 data/freecash-monitor/alerts/alerts.jsonl
+-rw-r--r-- 1 cd-pr 197609  518 2026-10-01 08:53:46.700191600 +0200 data/freecash-monitor/snapshots/2026-10-01.json
+-rw-r--r-- 1 cd-pr 197609    0 2026-10-01 08:53:46.692255500 +0200 data/freecash-monitor/state/day-locks/2026-10-01.lock
+-rw-r--r-- 1 cd-pr 197609  341 2026-10-01 08:53:46.718415800 +0200 data/freecash-monitor/state/last-run.json
+
+### find data/freecash-monitor -type f -mmin -60  (expects zero: nothing touched in this pass window)
+mmin_exit=0
+
+### nothing registered (post-pass re-measure)
+schtasks_grep_exit=1
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+
+### canonical entry point vs legacy .mjs
+-rw-r--r-- 1 cd-pr 197609 18977 Sep 20 06:57 monitoring/freecash/run_daily_check.py
+-rwxr-xr-x 1 cd-pr 197609 10474 Sep 11 10:21 server/scripts/freecash-daily-monitor.mjs
+--- node --check server/scripts/freecash-daily-monitor.mjs ---
+D:\AgenticOS\server\scripts\freecash-daily-monitor.mjs:41
+function isDailyCheckAllowed(): boolean {
+                              ^
+
+SyntaxError: Unexpected token ':'
+    at checkSyntax (node:internal/main/check_syntax:72:5)
+
+Node.js v24.20.0
+node_check_exit=1

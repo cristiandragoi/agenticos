@@ -1,0 +1,210 @@
+== timestamp (UTC): 2026-10-01T06:47:57Z
+== interpreter: C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe
+== cwd: /d/AgenticOS/monitoring/freecash
+== $FREECASH_DATA_ROOT = [C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/repro-queue]   (throwaway)
+== $FREECASH_TOAST_STUB = [1]  (stub sender; no real toast)
+
+--------------------------------------------------------------
+CASE: MACHINE LABEL 1: --by "Hermes Agent"
+seeded approval_id = 2340bac0-0c55-4ac0-911f-8b6b2e63598e
+$ python approval_queue.py decide --id 2340bac0-0c55-4ac0-911f-8b6b2e63598e --decision approve --by Hermes Agent --note probe
+recorded APPROVED for 2340bac0-0c55-4ac0-911f-8b6b2e63598e by Hermes Agent at 2026-10-01T06:47:58Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+--- pending.json item state:
+{
+  "status": "APPROVED",
+  "decided_by": "Hermes Agent",
+  "decided_at_utc": "2026-10-01T06:47:58Z",
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+{
+  "approval_id": "2340bac0-0c55-4ac0-911f-8b6b2e63598e",
+  "change_dedupe_key": "probe-defect",
+  "day_key": "2026-10-01",
+  "decided_at_utc": "2026-10-01T06:47:58Z",
+  "decided_by": "Hermes Agent",
+  "decision": "APPROVED",
+  "decision_note": "probe",
+  "execution_allowed_by_this_routine": false,
+  "execution_state": "NOT_EXECUTED",
+  "expires_at_utc": null,
+  "proposed_action": {
+    "action_type": "REQUEST_PAYOUT",
+    "amount_cents": null,
+    "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+    "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+  },
+  "schema_version": 1
+}
+
+--------------------------------------------------------------
+CASE: MACHINE LABEL 2: --by "FreeCash Monitor Bot"
+seeded approval_id = ec710904-0380-4301-9060-686781e388d1
+$ python approval_queue.py decide --id ec710904-0380-4301-9060-686781e388d1 --decision approve --by FreeCash Monitor Bot --note probe
+recorded APPROVED for ec710904-0380-4301-9060-686781e388d1 by FreeCash Monitor Bot at 2026-10-01T06:47:58Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+--- pending.json item state:
+{
+  "status": "APPROVED",
+  "decided_by": "FreeCash Monitor Bot",
+  "decided_at_utc": "2026-10-01T06:47:58Z",
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+{
+  "approval_id": "ec710904-0380-4301-9060-686781e388d1",
+  "change_dedupe_key": "probe-defect",
+  "day_key": "2026-10-01",
+  "decided_at_utc": "2026-10-01T06:47:58Z",
+  "decided_by": "FreeCash Monitor Bot",
+  "decision": "APPROVED",
+  "decision_note": "probe",
+  "execution_allowed_by_this_routine": false,
+  "execution_state": "NOT_EXECUTED",
+  "expires_at_utc": null,
+  "proposed_action": {
+    "action_type": "REQUEST_PAYOUT",
+    "amount_cents": null,
+    "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+    "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+  },
+  "schema_version": 1
+}
+
+--------------------------------------------------------------
+CASE: MACHINE LABEL 3: --by "agent-1"
+seeded approval_id = 87ab18a2-bd98-4afd-bcae-b31bc4df6d7e
+$ python approval_queue.py decide --id 87ab18a2-bd98-4afd-bcae-b31bc4df6d7e --decision approve --by agent-1 --note probe
+recorded APPROVED for 87ab18a2-bd98-4afd-bcae-b31bc4df6d7e by agent-1 at 2026-10-01T06:47:59Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+--- pending.json item state:
+{
+  "status": "APPROVED",
+  "decided_by": "agent-1",
+  "decided_at_utc": "2026-10-01T06:47:59Z",
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+{
+  "approval_id": "87ab18a2-bd98-4afd-bcae-b31bc4df6d7e",
+  "change_dedupe_key": "probe-defect",
+  "day_key": "2026-10-01",
+  "decided_at_utc": "2026-10-01T06:47:59Z",
+  "decided_by": "agent-1",
+  "decision": "APPROVED",
+  "decision_note": "probe",
+  "execution_allowed_by_this_routine": false,
+  "execution_state": "NOT_EXECUTED",
+  "expires_at_utc": null,
+  "proposed_action": {
+    "action_type": "REQUEST_PAYOUT",
+    "amount_cents": null,
+    "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+    "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+  },
+  "schema_version": 1
+}
+
+--------------------------------------------------------------
+CASE: REFUSAL: --by omitted entirely
+seeded approval_id = 8dda009a-a195-4e29-9cb7-6f81a9b7b3ab
+$ python approval_queue.py decide --id 8dda009a-a195-4e29-9cb7-6f81a9b7b3ab --decision approve --note probe
+usage: approval_queue.py decide [-h] --id ID --decision {approve,reject} --by
+                                BY --note NOTE
+approval_queue.py decide: error: the following arguments are required: --by
+exit_code = 2
+--- pending.json item state:
+{
+  "status": "PENDING",
+  "decided_by": null,
+  "decided_at_utc": null,
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+
+--------------------------------------------------------------
+CASE: REFUSAL: --by "" (empty string)
+seeded approval_id = 9732bc34-f8be-4d8b-92e2-28be38736d93
+$ python approval_queue.py decide --id 9732bc34-f8be-4d8b-92e2-28be38736d93 --decision approve --by  --note probe
+REFUSED: --by is required: a decision must name the human who made it
+exit_code = 4
+--- pending.json item state:
+{
+  "status": "PENDING",
+  "decided_by": null,
+  "decided_at_utc": null,
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+
+--------------------------------------------------------------
+CASE: REFUSAL: --by "agent" (literal denylist word)
+seeded approval_id = 44c8582d-6629-4f0f-895a-8b8a9216576c
+$ python approval_queue.py decide --id 44c8582d-6629-4f0f-895a-8b8a9216576c --decision approve --by agent --note probe
+REFUSED: refused: 'agent' is not a human identity; this routine may only record a decision made by a person
+exit_code = 4
+--- pending.json item state:
+{
+  "status": "PENDING",
+  "decided_by": null,
+  "decided_at_utc": null,
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+
+--------------------------------------------------------------
+CASE: ACCEPT (the case the gate is FOR): --by "Christian Doppler"
+seeded approval_id = dc6e9a5b-8d9f-46af-bedc-745d07c93677
+$ python approval_queue.py decide --id dc6e9a5b-8d9f-46af-bedc-745d07c93677 --decision approve --by Christian Doppler --note operator decision
+recorded APPROVED for dc6e9a5b-8d9f-46af-bedc-745d07c93677 by Christian Doppler at 2026-10-01T06:48:02Z
+execution_state=NOT_EXECUTED (unchanged; this routine executes nothing)
+exit_code = 0
+--- pending.json item state:
+{
+  "status": "APPROVED",
+  "decided_by": "Christian Doppler",
+  "decided_at_utc": "2026-10-01T06:48:02Z",
+  "expires_at_utc": null,
+  "execution_state": "NOT_EXECUTED",
+  "execution_allowed_by_this_routine": false
+}
+--- decided.jsonl line:
+{
+  "approval_id": "dc6e9a5b-8d9f-46af-bedc-745d07c93677",
+  "change_dedupe_key": "probe-defect",
+  "day_key": "2026-10-01",
+  "decided_at_utc": "2026-10-01T06:48:02Z",
+  "decided_by": "Christian Doppler",
+  "decision": "APPROVED",
+  "decision_note": "operator decision",
+  "execution_allowed_by_this_routine": false,
+  "execution_state": "NOT_EXECUTED",
+  "expires_at_utc": null,
+  "proposed_action": {
+    "action_type": "REQUEST_PAYOUT",
+    "amount_cents": null,
+    "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+    "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+  },
+  "schema_version": 1
+}
+
+== done; final throwaway root tree:
+C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/repro-queue/approvals/decided.jsonl
+C:/Users/cd-pr/AppData/Local/Temp/freecash-deleg-2026-10-01/repro-queue/approvals/pending.json

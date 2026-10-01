@@ -1,0 +1,10 @@
+const fs = require('fs');
+const Database = require('better-sqlite3');
+const p1 = 'D:/AgenticOS/server/data/agentic-os.db';
+const p2 = process.env.APPDATA + '/agenticos/data/agentic-os.db';
+console.log('p1:', fs.existsSync(p1), 'p2:', fs.existsSync(p2));
+const dbPath = fs.existsSync(p2) ? p2 : p1;
+console.log('Using:', dbPath);
+const db = new Database(dbPath);
+console.log('repair_incidents columns:', db.prepare('PRAGMA table_info(repair_incidents)').all().map(c => c.name));
+console.log('goal_runs columns:', db.prepare('PRAGMA table_info(goal_runs)').all().map(c => c.name));

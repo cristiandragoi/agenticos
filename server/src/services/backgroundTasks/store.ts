@@ -186,6 +186,55 @@ export const backgroundTaskRepo = {
     ensureBackgroundTaskTables();
     const existing = this.getTask(taskId);
     if (!existing) return null;
+    // Invariant: Eliminate all verification & completion bypasses.
+    // Setting verificationState = 'verified' or status = 'completed' on engineering repairs
+    // requires authoritative Argus physical evidence and original goal retry.
+    const mergedMeta = { ...(existing.metadata || {}), ...(patch.metadata || {}) };
+    const isEngineeringRepair =
+      existing.worker === 'antigravity' ||
+      existing.worker === 'codex' ||
+      Boolean(mergedMeta.preserveOriginalGoalRun) ||
+      Boolean(mergedMeta.requiresLiveValidation);
+
+    if ((patch.verificationState as any) === 'verified' || patch.verificationState === 'passed') {
+      let hasArgusEvidence = Boolean(mergedMeta.argusVerified || mergedMeta.argusVerificationRecord);
+      if (!hasArgusEvidence) {
+        try {
+          const row = rawDb.prepare(
+            `SELECT * FROM argus_verifications 
+             WHERE (goal_id = ? OR contract_id = ?) 
+               AND (status IN ('verified_complete', 'VERIFIED') OR verdict LIKE '%"passed":true%') 
+             ORDER BY created_at DESC LIMIT 1`
+          ).get(existing.linkedRunId || '', taskId);
+          if (row) hasArgusEvidence = true;
+        } catch {}
+      }
+      if (!hasArgusEvidence && isEngineeringRepair) {
+        // Block illegitimate bypass
+        delete patch.verificationState;
+      }
+    }
+
+    if (patch.status === 'completed' && isEngineeringRepair) {
+      let hasArgus = Boolean(mergedMeta.argusVerified || mergedMeta.argusVerificationRecord);
+      if (!hasArgus) {
+        try {
+          const row = rawDb.prepare(
+            `SELECT * FROM argus_verifications 
+             WHERE (goal_id = ? OR contract_id = ?) 
+               AND (status IN ('verified_complete', 'VERIFIED') OR verdict LIKE '%"passed":true%') 
+             ORDER BY created_at DESC LIMIT 1`
+          ).get(existing.linkedRunId || '', taskId);
+          if (row) hasArgus = true;
+        } catch {}
+      }
+      const retried = Boolean(mergedMeta.originalGoalRetried || mergedMeta.cameraEvidence || mergedMeta.originatingGoalRetriedAt);
+      if (!hasArgus || !retried) {
+        delete patch.status;
+        delete patch.completedAt;
+      }
+    }
+
     const merged: BackgroundTaskRecord = {
       ...existing,
       ...patch,

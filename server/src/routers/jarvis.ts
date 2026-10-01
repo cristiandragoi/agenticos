@@ -162,7 +162,7 @@ async function buildRecentConversationText(conversationId: string): Promise<stri
       .filter((m: any) => {
         const content = typeof m?.content === 'string' ? m.content : '';
         if (m.messageType === 'system_status' || m.message_type === 'system_status') return false;
-        if (content.includes('QUEUED behind') || content.includes('no worker activity for') || content.includes('confirmed stalled') || content.includes("I'm back.")) return false;
+        if (content.includes('QUEUED behind') || content.includes('no worker activity for') || content.includes('confirmed stalled') || content.includes("I'm back.") || content.includes('AgenticOS runtime status') || content.includes('runtime status:')) return false;
         return true;
       })
       .map((m: any) => `${m.role || 'system'}: ${typeof m.content === 'string' ? m.content : ''}`)
@@ -967,6 +967,95 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return res.end();
     }
 
+    // ── Explicit Engineering Delegation Intercept (AntiGravity - HIGHEST PRECEDENCE) ──
+    // Must execute strictly BEFORE language preference, operational controller, browser, desktop, or normal routing.
+    const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('../domains/controlPlane/ExplicitEngineeringDelegation.js');
+    const explicitEngineering = parseExplicitEngineeringDelegation(prompt);
+    if (explicitEngineering) {
+      logStreamStage(normalizedOperationId, 'explicit engineering delegation requested', { action: explicitEngineering.action, task: explicitEngineering.task });
+
+      writeSse(res, 'intent', {
+        type: 'engineering_delegation',
+        route: 'engineering_delegation',
+        mode: 'operational_execution',
+        confidence: 1.0,
+        worker: 'antigravity',
+        action: explicitEngineering.action,
+        operationId: normalizedOperationId,
+      });
+
+      let immediateAck = "Understood. I'm delegating that engineering task to AntiGravity now.";
+      if (explicitEngineering.action === 'continue') {
+        immediateAck = "Understood. I'm continuing the current AntiGravity task now.";
+      } else if (explicitEngineering.action === 'resume') {
+        immediateAck = `Understood. I'm resuming AntiGravity task ${explicitEngineering.taskId || ''} now.`;
+      }
+      streamTextAsChunks(res, immediateAck, normalizedOperationId);
+
+      const delRes = await executeEngineeringDelegation(explicitEngineering, {
+        conversationId: req.params.id,
+        workspace: workspacePath || 'D:\\AgenticOS',
+        speakFn: async (textToSpeak) => {
+          try {
+            const { jarvisNextAgent } = await import('../domains/jarvisNext/jarvisNextAgent.js');
+            await jarvisNextAgent.speak(textToSpeak);
+          } catch {}
+        },
+        broadcastFn: (data) => {
+          writeSse(res, 'action_status', {
+            ...data,
+            operationId: normalizedOperationId,
+          });
+        },
+      });
+
+      if (delRes.text && delRes.text !== immediateAck) {
+        streamTextAsChunks(res, '\n\n' + delRes.text, normalizedOperationId);
+      }
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'user',
+        content: prompt,
+        metadata: { ...(requestMetadata || {}) },
+      });
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: delRes.text,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'antigravity-delegation',
+          worker: 'antigravity',
+          intent: { type: 'engineering_delegation', confidence: 1.0 },
+          taskId: delRes.taskId,
+          sessionId: delRes.sessionId,
+          goalId: delRes.goalId,
+        },
+      });
+
+      writeSse(res, 'done', {
+        route: 'engineering_delegation',
+        category: 'engineering',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'antigravity-delegation',
+        taskId: delRes.taskId,
+        sessionId: delRes.sessionId,
+        goalId: delRes.goalId,
+        verified: delRes.success,
+        executed: delRes.success,
+        firstTokenMs: 0,
+        totalMs: Date.now() - streamStartedAt,
+      });
+
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', delRes.text);
+      return res.end();
+    }
+
     // ── Operational Controller Intercept (Evidence-First Grounding) ──
     const { OperationalController } = await import('../domains/jarvis/operationalEvidence.js');
     const opIntercept = await OperationalController.handleOperationalRequest(prompt, req.params.id);
@@ -1008,7 +1097,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     const langReq = detectLanguageSwitchRequest(prompt);
     if (langReq.isLanguageSwitch && langReq.targetLanguage) {
       logStreamStage(normalizedOperationId, 'language switch requested', { target: langReq.targetLanguage });
-      const mutationResult = setConversationLanguage(req.params.id, langReq.targetLanguage);
+      const mutationResult = setConversationLanguage(req.params.id, langReq.targetLanguage, true);
+      const { voiceRuntimeState } = await import('../services/voice/VoiceRuntimeState.js');
+      voiceRuntimeState.setLanguage(mutationResult.activeLanguage, mutationResult.activeLanguage === 'de' ? 'de-DE' : undefined, true);
       const reply = mutationResult.success
         ? buildLanguageSwitchConfirmation(mutationResult.activeLanguage)
         : `Failed to switch language to ${langReq.targetLanguage}. Current language is ${mutationResult.activeLanguage}.`;
@@ -2847,6 +2938,44 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       });
       completed = true;
       return res.end();
+    }
+
+    // Authoritative Ingress Gate: CanonicalTurnExecutionService handles critical actions
+    // (Telegram app & bot navigation, memory storage, screenshots, Comet Perplexity, Git, delegation)
+    // with strict verification and single-owner speech execution before intentRouter fallthrough.
+    try {
+      const canonicalStartedAt = Date.now();
+      const { canonicalTurnExecutionService } = await import('../domains/jarvis/canonicalTurnExecutionService.js');
+      const canonicalRes = await canonicalTurnExecutionService.execute({
+        conversationId: req.params.id,
+        prompt,
+        modality: 'desktop_chat',
+        workspacePath: workspacePath || undefined,
+      });
+
+      if (canonicalRes && canonicalRes.assistantText) {
+        logStreamStage(normalizedOperationId, 'handled by canonicalTurnExecutionService', {
+          route: canonicalRes.route,
+          status: canonicalRes.status,
+          verified: canonicalRes.verified,
+        });
+        streamTextAsChunks(res, canonicalRes.assistantText, normalizedOperationId);
+        writeSse(res, 'done', {
+          route: canonicalRes.route,
+          category: 'canonical_control_plane',
+          operationId: normalizedOperationId,
+          provider: 'agentic-os',
+          model: 'control-plane',
+          firstTokenMs: 0,
+          totalMs: Date.now() - canonicalStartedAt,
+        });
+        completed = true;
+        updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+        endStreamExecution(canonicalRes.status === 'completed' ? 'COMPLETED' : 'FAILED', canonicalRes.assistantText.slice(0, 500));
+        return res.end();
+      }
+    } catch (canonicalErr: any) {
+      logger.warn('[JarvisRouter] canonicalTurnExecutionService error, falling through to intentRouter:', canonicalErr);
     }
 
     const classified = await intentRouter.routeIntent(prompt, {

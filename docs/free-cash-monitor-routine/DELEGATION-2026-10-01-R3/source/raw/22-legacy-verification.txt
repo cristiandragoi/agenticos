@@ -1,0 +1,78 @@
+=== make_freecash_check.py resolved DATA_DIR ===
+file = D:\AgenticOS\scripts\make_freecash_check.py
+parents[2] = D:\
+DATA_DIR = D:\data\freecash
+exists = False
+
+=== freecashMonitorAdapter import sites ===
+server/src/domains/jarvisNext/operator/operatorController.ts:4:import { freeCashMonitorAdapter } from '../../../adapters/freecashMonitorAdapter.js';
+server/src/domains/jarvisV2/turnController.ts:24:import { freeCashMonitorAdapter } from '../../adapters/freecashMonitorAdapter.js';
+
+=== finance-monitor/wait_gate random / consent ===
+20:    - Wait for explicit user confirmation (APPROVE/REJECT/MODIFY)
+47:            "event_type": event_type,  # APPROVED/REJECTED/TIMEOUT
+67:        3. Wait for user response (APPROVE/REJECT/MODIFY)
+95:            import random
+97:                ("APPROVE", True),       # User approves action (60% chance)
+102:            user_response, result = random.choice(simulated_responses)
+121:        Returns False to indicate failure/abortion (not approved).
+145:        Returns True if approved after modification, False otherwise.
+153:        # In sandbox, simulate this as approved on first retry
+
+=== finance-monitor __init__ tail (main guard?) ===
+    Returns:
+        Dictionary with execution results, status, and audit entries
+        
+    Usage:
+        python -m finance_monitor  # Runs daily check entry point
+    """
+
+    orchestrator = MonitorOrchestrator(
+        Path(config_path) if config_path else Path("config/monitor.json")
+    )
+    
+    return orchestrator.run_daily_check()
+
+
+if __name__ == "__main__":
+    import logging
+    
+    # Configure debug/logging for prototype runs
+    logging.basicConfig(
+        level=logging.INFO if "--debug" in sys.argv else logging.WARNING,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+    )
+    
+    result = run_orchestrator()
+    print(f"\nDaily check completed: {result['status']}", flush=True)
+
+=== finance-monitor .VERIFIED.md head ===
+## Verification Evidence - Daily Monitoring Routine
+
+### Files Verified (Code Review Passed)
+
+| File | Size | Lines | Rules Enforced | Status |
+|------|------|-------|----------------|--------|
+| `docs/architecture.md` | 5,660 B | 95 | All 4 rules documented | ✓ Validated |
+| `docs/rules.md` | 3,600 B | - | Rule definitions | ✓ Validated |
+| `src/orchestrator.py` | 3,218 B | - | Rule #2 integration | ✓ Verified |
+| `src/rule_engine.py` | 5,719 B | 178 | Rules #1-#4 engine | ✓ Verified |
+| `src/wait_gate.py` | 5,665 B | 159 | Rule #4 approval gate | ✓ Verified |
+| `src/notify_manager.py` | 7,465 B | - | Rule #3 notifications | ✓ Validated |
+| `src/api_client.py` | 5,737 B | 159 | Sandbox API calls | ✓ Verified |
+| `src/action_executor.py` | 1,449 B | - | Safe execution wrapper | ✓ Simplified |
+
+### Code Review Findings
+
+**No blocking issues found.** All modules pass:
+
+1. **Rule compliance documented** - Each method has rule-specific docstrings
+
+=== git tracked? legacy artefacts ===
+UNTRACKED server/scripts/freecash-daily-monitor.mjs
+UNTRACKED server/scripts/verify-freecash-rules.mjs
+UNTRACKED server/src/adapters/freecashMonitorAdapter.ts
+UNTRACKED scripts/monitoring/free-cash-daily-check.py
+UNTRACKED scripts/make_freecash_check.py
+UNTRACKED server/tasks/daily-finance-monitor.py
+UNTRACKED config/freecash-crontab

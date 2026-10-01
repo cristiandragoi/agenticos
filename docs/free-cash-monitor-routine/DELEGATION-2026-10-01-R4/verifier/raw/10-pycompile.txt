@@ -1,0 +1,18 @@
+=== 10-pycompile.txt : py_compile of the artifacts ===
+
+--- gate + harness ---
+exit=0
+
+--- ORIGINAL package in place (D:/AgenticOS/monitoring/freecash), 8 core modules ---
+exit=0
+
+--- certified BASELELINE copy, 8 core modules ---
+exit=0
+
+=== GREEN re-run on the ORIGINAL package in place (read-only scan) ===
+R1 NO EARNING ACTION .......... OK (no detector fired)
+R2 ONCE PER DAY .......... OK (no detector fired)
+R3 NOTIFY ON CHANGE .......... OK (no detector fired)
+R4 APPROVAL BEFORE EXTERNAL ACTION .......... OK (no detector fired)
+RULE GATE: PASS -- D:\AgenticOS\monitoring\freecash satisfies R1 NO EARNING ACTION, R2 ONCE PER DAY, R3 NOTIFY ON CHANGE, R4 APPROVAL BEFORE EXTERNAL ACTION (10 source files scanned)
+exit=0

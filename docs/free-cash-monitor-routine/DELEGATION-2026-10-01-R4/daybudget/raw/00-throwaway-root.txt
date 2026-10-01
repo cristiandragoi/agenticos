@@ -1,0 +1,3 @@
+ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-1342/root
+Do,  1. Okt 2026 11:50:19
+Python 3.11.9

@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-09-21T20:01:40.904Z",
+  "backendBuildId": "d14253df-dirty-20260921-195937",
+  "scenarios": {
+    "scenarioA": [
+      {
+        "step": "Open YouTube",
+        "reply": "I've opened YouTube.",
+        "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_a_turn_1_open_youtube.png"
+      },
+      {
+        "step": "Search for Moritz Jarvis",
+        "reply": "Typed \"Moritz Jarvis\" into the YouTube search box and ran the search.",
+        "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_a_turn_2_search_moritz.png"
+      },
+      {
+        "step": "Open the first result",
+        "reply": "Done. I clicked \"Musik\" and navigated to https://www.youtube.com/channel/UC-9-kyTW8ZkZNDHQJ6FgpwQ, and the page is usable now.",
+        "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_a_turn_3_open_first_result.png"
+      }
+    ],
+    "scenarioB": {
+      "prompt": "Search YouTube for AI agents",
+      "reply": "Typed \"AI agents\" into the YouTube search box and ran the search.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_b_search_youtube_ai_agents.png"
+    },
+    "scenarioC": {
+      "prompt": "Search Google for Agentic AI",
+      "reply": "Typed \"Agentic AI\" into the Google search box and ran the search.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_c_search_google_override.png"
+    },
+    "scenarioD": {
+      "agenticosFolder": {
+        "prompt": "Open the AgenticOS folder",
+        "reply": "Opened AgenticOS folder in File Explorer.",
+        "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_d1_open_agenticos_folder.png"
+      },
+      "directPath": {
+        "prompt": "Open D:\\AgenticOS",
+        "reply": "Opened D:\\AgenticOS in File Explorer.",
+        "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_d2_open_direct_path.png"
+      }
+    },
+    "scenarioE": {
+      "prompt": "Open Free Cash",
+      "reply": "CodeX Task goal-856bd900-\n\nCompleted — Task completed.\n\nOpen in CodeX Studio\nTask: Fix the problem the user is referring to. Original request: So you did not understand. I said we create a new project quick free cache.\nCODEX RESULT\nCopy Result\n\nFailed to clone 'free-cache' repository because it could not fetch 'https://github.com/nitrogear/free-cache'. Please ensure the correct repository URL is available and try again with 'npx degit <owner>/<repo> <path>'. Alternatively, if you intended a local template, please provide the exact path or zip file to extract.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\cross_turn_acceptance\\scenario_e_open_free_cash.png"
+    }
+  }
+}

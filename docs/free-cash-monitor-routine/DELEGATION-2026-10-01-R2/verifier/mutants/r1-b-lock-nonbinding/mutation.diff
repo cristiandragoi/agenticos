@@ -1,0 +1,12 @@
+--- a/gate.py
++++ b/gate.py
+@@ -127,7 +127,8 @@
+     try:
+         fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+     except FileExistsError:
+-        return False, lock
++        # MUTATION r1-b: an existing lock no longer binds.
++        return True, lock
+     try:
+         os.close(fd)
+     except OSError:

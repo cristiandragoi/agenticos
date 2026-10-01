@@ -1,0 +1,30 @@
+### captured at
+2026-10-01 08:48:48 +02:00
+
+### PROOF (a) -- two runs of the entry point on ONE calendar day
+### command form used for every run below:
+###   echo "FREECASH_DATA_ROOT=$FREECASH_DATA_ROOT"; FREECASH_DATA_ROOT=<throwaway> ./freecash-guarded-run.sh <check|watchdog>; echo exit=$?
+
+### RUN a-1 (first run today)
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday mode=check entry=D:/AgenticOS/monitoring/freecash/run_daily_check.py
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit=0
+
+### RUN a-2 (SECOND run, same calendar day 2026-10-01)
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday mode=check entry=D:/AgenticOS/monitoring/freecash/run_daily_check.py
+SKIP_DUPLICATE_DAY 2026-10-01
+exit=0
+
+### state root listing after a-2:  find C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday -type f | sort
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday/alerts/alerts.jsonl
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday/logs/guarded-run.log
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday/snapshots/2026-10-01.json
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday/state/day-locks/2026-10-01.lock
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday/state/last-run.json
+C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-a-sameday/state/operator-state.json
+
+### the duplicate's own alert line
+      1 "event_type": "MONITOR_DEGRADED"
+      1 "event_type": "SKIP_DUPLICATE_DAY"

@@ -1,0 +1,50 @@
+=== approval_queue.py ===
+  imports: ['import argparse', 'import os', 'import sys', 'import uuid', 'import paths']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 6
+=== changedetect.py ===
+  imports: ['import hashlib', 'import json', 'from datetime import datetime,timedelta,timezone', 'import paths']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 5
+=== gate.py ===
+  imports: ['import os', 'from datetime import date,datetime,timedelta,timezone,tzinfo', 'from zoneinfo import ZoneInfo,ZoneInfoNotFoundError', 'import paths']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 1
+=== notify.py ===
+  imports: ['import os', 'import subprocess', 'import time', 'import uuid', 'import paths', 'import changedetect']
+  call-callee-is-call: <none>
+  dynamic-name sites : ["223: getattr(Name(id='sender', ctx=Load()), Constant(value='delivery_label'), Name(id='DELIVERY_TOAST_OK', ctx=Load()))"]
+  str assignments    : 9
+=== operator_state.py ===
+  imports: ['import json', 'import os', 'import paths']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 1
+=== paths.py ===
+  imports: ['import json', 'import os', 'import uuid', 'from datetime import datetime,timezone', 'from pathlib import Path']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 2
+=== readonly_client.py ===
+  imports: ['import json', 'import os', 'import re', 'import sys', 'from http.client import HTTPConnection', 'from urllib.parse import urlparse']
+  call-callee-is-call: <none>
+  dynamic-name sites : ["44: compile(Constant(value='^/api/v1/status/metrics$'))", "45: compile(Constant(value='^/api/v1/status$'))"]
+  str assignments    : 4
+=== run_daily_check.py ===
+  imports: ['import argparse', 'import os', 'import sys', 'import approval_queue', 'import changedetect', 'import gate', 'import notify', 'import operator_state', 'import paths', 'import readonly_client']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 5
+=== verify_readonly.py ===
+  imports: ['import argparse', 'import os', 'import re', 'import sys', 'from pathlib import Path']
+  call-callee-is-call: <none>
+  dynamic-name sites : ["42: compile(Constant(value='\\\\b(POST|PUT|PATCH|DELETE)\\\\b'), Attribute(value=Name(id='re', ctx=Load()), attr='IGNORECASE', ctx=Load()", "45: compile(Constant(value='\\\\.post\\\\(|\\\\.put\\\\(|\\\\.patch\\\\(|\\\\.delete\\\\(|requests\\\\.post|requests\\\\.put|requests\\\\.patch|requests\\\\)", "58: compile(Constant(value='\\\\b(claim|withdraw|withdrawal|cashout|cash_out|cash-out|redeem|payout|pay_out|transfer|wager|bet|spin|de)", "66: compile(Constant(value='(submit_offer|complete_survey|complete_task|start_task|accept_offer|claim_reward|redeem_reward|request_p)", "74: compile(Constant(value='/(claim|withdraw|withdrawal|cashout|redeem|payout|transfer|bet|spin|deposit|checkout)\\\\b|/offers/[^/]+/c)", "83: compile(Constant(value='(update_balance|set_balance|credit_account|debit_account)'), Attribute(value=Name(id='re', ctx=Load()), )"]
+  str assignments    : 3
+=== watchdog.py ===
+  imports: ['import sys', 'import changedetect', 'import gate', 'import notify', 'import paths']
+  call-callee-is-call: <none>
+  dynamic-name sites : <none>
+  str assignments    : 0

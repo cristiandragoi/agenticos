@@ -1,0 +1,80 @@
+==============================================================================
+rule-gate-verify :: executable rule gate for the Free Cash daily monitor
+==============================================================================
+target : D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/verifier/mutants/r1-a-lock-removed/pkg/gate.py
+exists : True   kind: python
+parse  : OK -- python ast.parse OK
+
+------------------------------------------------------------------------------
+R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+------------------------------------------------------------------------------
+  FAIL  atomic same-day guard (double-run barrier)
+        evidence: no O_CREAT|O_EXCL / 'x'-mode create / atomic mkdir anywhere in the file
+  PASS  day key is a calendar day  [line 102]
+        evidence: line 102: return now.astimezone(zone(tz)).date().isoformat()
+  FAIL  no rolling 24h window used as the daily gate  [line 213]
+        evidence: line 213: cursor = last + timedelta(days=1) -- a rolling window permits two runs inside one calendar day (00:30 then 23:30)
+  PASS  duplicate-run path is side-effect free
+        evidence: no state write found inside the already-ran early-exit branch
+  PASS  missed day is detectable  [line 138]
+        evidence: line 138: "last_success_day": None,
+  PASS  guard fails CLOSED on error
+        evidence: no except/catch branch was found returning a permissive value from a *ran()*/*allowed()* style guard
+  >>> R1 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R2: NO automated earning action (no POST/PUT/PATCH/DELETE; no claim/withdraw/payout/redeem/survey/offer execution)
+------------------------------------------------------------------------------
+  PASS  no write/earning call shape or endpoint path
+        evidence: 0 unexempted decisive hits in 228 lines (0 exempted by 'readonly-exempt:', 0 prose-only 'earning-verb' hits in the known false-positive class)
+  PASS  no non-GET/HEAD HTTP method is used
+        evidence: no POST/PUT/PATCH/DELETE call or method literal found
+  FAIL  deny-by-default allowlist exists (structural barrier)
+        evidence: no ALLOWED_METHODS/ALLOWED_PATHS/ForbiddenWriteError: read-only-ness is a convention here, not an enforced denial, so one added line can become a write with no barrier to trip
+  PASS  no invented/unresolved provider endpoint
+        evidence: every URL literal is localhost/127.0.0.1 or explicitly marked PROVIDER_ENDPOINT_UNKNOWN
+  PASS  no earning-action execution path in the monitor
+        evidence: no run_action/execute_*/perform_action/simulate_action call site found
+  >>> R2 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R3: operator notified when earnings/account status CHANGES (prior-state load BEFORE snapshot write; dedupe = one change = one notification)
+------------------------------------------------------------------------------
+  FAIL  prior state is loaded BEFORE the new snapshot is written
+        evidence: no prior-state load call found at all (snapshot writes present at lines: []) -- so no change can ever be compared
+  FAIL  exactly-one-notification dedupe key exists
+        evidence: no dedupe/notified-keys/seen-keys token in code: the same change re-notifies, and a same-day re-entry has nothing to suppress it
+  PASS  change comparison is exact (no threshold can swallow it)
+        evidence: no relative/percentage threshold found next to a balance/earnings field
+  FAIL  notification is a delivery path, not a print stub
+        evidence: no smtplib/toast/webhook/notify_manager/dispatch/alerts.jsonl write found; the only outputs are 0 print() call(s) (first at line n/a) -- stdout of a scheduled task is not a notification
+  >>> R3 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R4: human approval before ANY external action (may enqueue; no execution path; timeout never converts pending -> executed)
+------------------------------------------------------------------------------
+  FAIL  the routine may enqueue a request for a human
+        evidence: no approval queue / PENDING item is produced in code: a detected change has no route to a human decision
+  PASS  consent is not fabricated by RNG
+        evidence: no random.choice/random.random in the approval path
+  PASS  consent is not hardcoded
+        evidence: no success=True / approved=True / {'approved': True} literal found
+  PASS  the routine contains NO execution path
+        evidence: no action-executing call site found
+  PASS  an APPROVED item is not auto-executed
+        evidence: nothing reads an APPROVED status and executes it
+  PASS  a timeout cannot convert pending -> executed
+        evidence: no timeout/expiry branch that proceeds or executes
+  PASS  the approval gate is actually reachable
+        evidence: no approve/decide/consent function is defined in this file (there is no gate here to be unreachable) -- the queue/enqueue check above is the binding one
+  >>> R4 RESULT: FAIL
+
+------------------------------------------------------------------------------
+RUNTIME PROBE (temp-dir copy of the target; cwd = temp)
+------------------------------------------------------------------------------
+  - skipped (pass --run to enable; nothing was executed)
+
+==============================================================================
+SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+VERDICT: NOT COMPLIANT -- 4/4 rule(s) violated: R1, R2, R3, R4
+==============================================================================

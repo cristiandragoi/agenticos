@@ -1,0 +1,70 @@
+EVIDENCE-10 -- EFFORT BASIS: measured inputs behind the estimates in DELIVERY-FINDINGS.md
+run 2026-10-01T07:14:06Z
+
+### CMD: size of the staged hardening diff (added / removed lines)
+72
+18
+
+### CMD: which files the staged diff touches
+--- a/monitoring/freecash/notify.py
++++ b/monitoring/freecash/notify.py
+--- a/monitoring/freecash/run_daily_check.py
++++ b/monitoring/freecash/run_daily_check.py
+
+### CMD: how small the coalescing hunk is (run_daily_check missed-day loop, lines 331-347)
+    for missed_day in missed:
+        change = {
+            "change_type": "MISSED_DAY",
+            "field": "last_success_day",
+            "old_value": missed_day,
+            "new_value": ledger.get("last_success_day"),
+            "prior_day_key": ledger.get("last_success_day"),
+        }
+        key = changedetect.dedupe_key(day, "MISSED_DAY", "last_success_day", missed_day, ledger.get("last_success_day"))
+        notify.notify_change(
+            day,
+            change,
+            notify.message_missed_day(missed_day, ledger.get("last_success_day"), len(missed)),
+            key,
+            sender=sender,
+            sleep_seconds=0,
+        )
+
+### CMD: the writer tag is a 2-line hook in notify.py (import + one dict entry)
+24:import sys
+55:_WRITER = {
+79:        "writer": dict(_WRITER),
+
+### CMD: the chat wiring does not exist today -- lines needing change in notify.py
+201:def get_sender():
+202-    if _sender_override is not None:
+203-        return _sender_override
+204-    if os.environ.get("FREECASH_TOAST_STUB") == "1":
+205-        return _stub_send
+206-    return _toast_send
+207-
+208-
+
+### CMD: the transport a chat sink would reuse (already installed, no new dependency)
+/c/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/hermes
+Available messaging targets:
+
+Telegram:
+  (no channels discovered yet — send directly with telegram:<chat_id>, or bare 'telegram' for the home channel)
+
+Use these as the "target" parameter when sending.
+
+### CMD: current alert surface, for the "candidate options" table
+36:_ALERT_EVENTS = frozenset({"READ_FAILED", "RUN_FAILED", "MISSED_DAY", "DELIVERY_FAILED", "MONITOR_DEGRADED"})
+37:_NOTIFY_EVENTS = frozenset(
+41:MAX_MESSAGE = 500
+42:MAX_ATTEMPTS = 2
+53:    if event_type in _ALERT_EVENTS:
+55:    if event_type in _NOTIFY_EVENTS:
+66:    if len(text) > MAX_MESSAGE:
+67:        text = text[: MAX_MESSAGE - 3] + "..."
+228:    while attempts < MAX_ATTEMPTS:
+236:            if attempts < MAX_ATTEMPTS and sleep_for:
+
+### CMD: number of production alerts.jsonl lines a writer tag would have disambiguated
+15 data/freecash-monitor/alerts/alerts.jsonl

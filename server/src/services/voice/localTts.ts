@@ -5,6 +5,7 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../../utils/logger.js';
+import { sanitizeMarkdownForSpeech } from './speechMarkdownSanitizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,11 +97,13 @@ export function isVoiceCompatible(voice?: string, lang?: string): boolean {
 
 export function resolveVoiceForLanguage(lang?: string, requestedVoice?: string): string {
   const l = (lang || '').toLowerCase().trim().slice(0, 2);
+  const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
   if (requestedVoice && requestedVoice.trim()) {
     const trimmed = requestedVoice.trim();
     if (trimmed.startsWith('aura-')) {
       if (l === 'de') return GERMAN_NEURAL_VOICE;
       if (l === 'ro') return ROMANIAN_NEURAL_VOICE;
+      if (deepgramKey) return trimmed;
       return AURA_TO_NEURAL_FALLBACK[trimmed] || DEFAULT_NEURAL_VOICE;
     }
     if (trimmed.endsWith('Neural') && isVoiceCompatible(trimmed, l || 'en')) {
@@ -145,9 +148,13 @@ export async function verifySpeechSynthesisAvailability(voice: string = DEFAULT_
   }
 }
 
+import { voiceStudioService } from './VoiceStudioService.js';
+import { voiceRuntimeState } from './VoiceRuntimeState.js';
+
 export interface SynthesisOptions {
   rate?: string;
   pitch?: string;
+  provider?: string;
 }
 
 export async function synthesizeLocally(
@@ -155,6 +162,27 @@ export async function synthesizeLocally(
   voice: string = DEFAULT_NEURAL_VOICE,
   options?: SynthesisOptions,
 ): Promise<Buffer> {
+  const cleanText = sanitizeMarkdownForSpeech(text) || text;
+
+  // If VoiceStudio is healthy/available, use it as first-class local real-time provider
+  const vsHealth = await voiceStudioService.checkHealth().catch(() => ({ healthy: false } as any));
+  if (vsHealth.healthy || options?.provider === 'voicestudio' || voice.toLowerCase().includes('voicestudio')) {
+    try {
+      const vsAudio = await voiceStudioService.synthesize(cleanText, voice);
+      if (vsAudio && vsAudio.byteLength > 0) {
+        voiceRuntimeState.recordTtsSynthesis({
+          provider: 'voicestudio',
+          voice,
+          model: 'tts-1',
+          fallbackReason: null,
+        });
+        return vsAudio;
+      }
+    } catch (vsErr: any) {
+      logger.warn('[LocalTTS] VoiceStudio synthesis failed, falling back to next provider:', vsErr?.message);
+    }
+  }
+
   // If voice is an Aura voice, attempt to synthesize via Deepgram API first
   if (voice && voice.startsWith('aura-')) {
     const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
@@ -166,10 +194,16 @@ export async function synthesizeLocally(
             'Authorization': `Token ${deepgramKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text: cleanText }),
         });
         if (response.ok) {
           const ab = await response.arrayBuffer();
+          voiceRuntimeState.recordTtsSynthesis({
+            provider: 'deepgram',
+            voice,
+            model: voice,
+            fallbackReason: vsHealth.healthy ? null : 'VoiceStudio is currently unavailable, so Deepgram is the active fallback.',
+          });
           return Buffer.from(ab);
         }
         logger.warn('[LocalTTS] Deepgram speak returned non-ok:', response.status);
@@ -181,11 +215,34 @@ export async function synthesizeLocally(
     voice = AURA_TO_NEURAL_FALLBACK[voice] || DEFAULT_NEURAL_VOICE;
   }
 
+  // If German voice or language requested, prioritize local Piper neural model
+  if (voice.startsWith('de') || voice.includes('thorsten') || voice.includes('Killian')) {
+    try {
+      const { synthesizeWithPiper, hasPiperVoiceForLanguage, LANGUAGE_TO_PIPER_VOICE } = await import('./piperTts.js');
+      if (hasPiperVoiceForLanguage('de')) {
+        const piperVoice = LANGUAGE_TO_PIPER_VOICE.de || 'de_DE-thorsten-high';
+        const pRes = await synthesizeWithPiper(cleanText, 'de', piperVoice);
+        if (pRes && pRes.audio && pRes.audio.length > 0) {
+          voiceRuntimeState.recordTtsSynthesis({
+            provider: 'piper',
+            voice: pRes.voice,
+            model: pRes.voice,
+            fallbackReason: null,
+          });
+          return pRes.audio;
+        }
+      }
+    } catch (pErr: any) {
+      logger.warn('[LocalTTS] Piper German synthesis failed, using edge-tts:', pErr?.message);
+    }
+    voice = 'de-DE-KillianNeural';
+  }
+
   const tmpFile = path.join(os.tmpdir(), `tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);
   const pythonExe = resolvePythonExecutable();
 
   return new Promise((resolve, reject) => {
-    const args = [SCRIPT_PATH, '--text', text, '--voice', voice, '--output', tmpFile];
+    const args = [SCRIPT_PATH, '--text', cleanText, '--voice', voice, '--output', tmpFile];
     if (options?.rate) {
       args.push('--rate', options.rate);
     }
@@ -213,6 +270,12 @@ export async function synthesizeLocally(
       try {
         const audioBuffer = await fs.readFile(tmpFile);
         try { await fs.unlink(tmpFile); } catch { /* ignore */ }
+        voiceRuntimeState.recordTtsSynthesis({
+          provider: 'edge-tts',
+          voice,
+          model: 'neural-tts',
+          fallbackReason: vsHealth.healthy ? null : 'VoiceStudio is currently unavailable, so Edge-TTS is the active fallback.',
+        });
         resolve(audioBuffer);
       } catch (err: any) {
         reject(new Error(`Failed to read generated TTS audio: ${err.message}`));

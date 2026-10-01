@@ -1,0 +1,241 @@
+$ cd D:/AgenticOS/monitoring/freecash && nl -ba readonly_client.py
+     1	"""readonly_client.py -- R2: the routine's ONLY network path.
+     2	
+     3	Deny-by-default transport:
+     4	
+     5	* method allowlist -- ``GET`` and ``HEAD`` only, everything else refused;
+     6	* path allowlist -- a fixed tuple of compiled regexes, everything else refused;
+     7	* host allowlist -- loopback only, so an unresolved provider host cannot be
+     8	  reached even if a caller passed a hostname;
+     9	* request-body rejection -- ``data`` / ``json`` / ``files`` / ``body`` /
+    10	  ``content`` are refused, and so is any unknown keyword argument.
+    11	
+    12	Every refusal raises :class:`ForbiddenWriteError` **before** ``_transport`` is
+    13	reached, and ``_transport`` is the single place in the whole routine that opens
+    14	a socket.  One place to audit, one place a network capture could ever see.
+    15	
+    16	Read operations (ROUTINE-DESIGN.md section 3.1)::
+    17	
+    18	    W1  GET   /api/v1/status/metrics    local substitute metrics (degraded)
+    19	    W2  HEAD  /api/v1/status            local health probe
+    20	    W3  GET   <provider balance/earnings status>   UNKNOWN
+    21	    W4  GET   <provider account status>            UNKNOWN
+    22	
+    23	W3/W4 are deliberately absent from the allowlist: no provider read path is
+    24	known, and an invented one must never be added.  The placeholder literal is
+    25	kept verbatim so the gap stays greppable::
+    26	
+    27	    PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase
+    28	"""
+    29	
+    30	import json
+    31	import os
+    32	import re
+    33	import sys
+    34	from http.client import HTTPConnection  # readonly-exempt: the single socket library, used only inside _transport()
+    35	from urllib.parse import urlparse
+    36	
+    37	# --- the allowlists -------------------------------------------------------------
+    38	
+    39	ALLOWED_METHODS = frozenset({"GET", "HEAD"})
+    40	
+    41	ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+    42	
+    43	ALLOWED_PATHS = (
+    44	    re.compile(r"^/api/v1/status/metrics$"),
+    45	    re.compile(r"^/api/v1/status$"),
+    46	    # Provider paths are added here ONLY after research resolves them, one line
+    47	    # each, with a justification comment.  Nothing provider-facing is allowlisted
+    48	    # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+    49	)
+    50	
+    51	#: Request keywords that carry a body.  Never accepted, on any method.
+    52	BODY_KEYWORDS = ("data", "json", "files", "body", "content")
+    53	
+    54	DEFAULT_BASE_URL = "http://localhost:3001"
+    55	METRICS_PATH = "/api/v1/status/metrics"
+    56	STATUS_PATH = "/api/v1/status"
+    57	DEFAULT_TIMEOUT = 10.0
+    58	
+    59	#: Not a URL, and deliberately never one: the provider read contract is unknown.
+    60	PROVIDER_ENDPOINT_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+    61	
+    62	_GUARD_INSTALLED = False
+    63	
+    64	
+    65	class ForbiddenWriteError(RuntimeError):
+    66	    """Raised when a caller asks this routine for anything but an allowlisted read."""
+    67	
+    68	
+    69	class ReadError(RuntimeError):
+    70	    """Raised when an allowlisted read could not be completed or parsed."""
+    71	
+    72	
+    73	# --- the single socket site -----------------------------------------------------
+    74	
+    75	
+    76	def _transport(method, url, timeout=None, headers=None):
+    77	    """Open the connection, send the request, return the raw response.
+    78	
+    79	    This is the ONLY function in the routine that opens a socket.  It is never
+    80	    called unless the guards in :func:`request` have already passed.
+    81	    """
+    82	    parts = urlparse(url)
+    83	    host = parts.hostname
+    84	    if not host:
+    85	        raise ReadError("R2: no host in url: %s" % url)
+    86	    target = parts.path or "/"
+    87	    if parts.query:
+    88	        target = target + "?" + parts.query
+    89	    port = parts.port or (443 if parts.scheme == "https" else 80)
+    90	    conn = HTTPConnection(host, port, timeout=timeout or DEFAULT_TIMEOUT)
+    91	    try:
+    92	        conn.request(method, target, headers=dict(headers or {}))
+    93	        response = conn.getresponse()
+    94	        body = response.read()
+    95	        return {
+    96	            "method": method,
+    97	            "url": url,
+    98	            "status": int(response.status),
+    99	            "reason": response.reason,
+   100	            "headers": dict(response.getheaders()),
+   101	            "body": body,
+   102	        }
+   103	    finally:
+   104	        try:
+   105	            conn.close()
+   106	        except OSError:
+   107	            pass
+   108	
+   109	
+   110	def request(method, url, transport=None, timeout=None, headers=None, **kw):
+   111	    """Guard, then read.  Raises :class:`ForbiddenWriteError` on anything else."""
+   112	    if not isinstance(method, str):
+   113	        raise ForbiddenWriteError("R2: method must be a string, got %r" % (method,))
+   114	    verb = method.strip().upper()
+   115	    if verb not in ALLOWED_METHODS:
+   116	        raise ForbiddenWriteError(
+   117	            "R2: method %r is not read-only (allowed: %s)"
+   118	            % (method, ", ".join(sorted(ALLOWED_METHODS)))
+   119	        )
+   120	    for key in kw:
+   121	        if key in BODY_KEYWORDS:
+   122	            raise ForbiddenWriteError("R2: request bodies are forbidden ('%s')" % key)
+   123	    if kw:
+   124	        raise ForbiddenWriteError(
+   125	            "R2: unsupported request keyword(s): %s" % ", ".join(sorted(kw))
+   126	        )
+   127	    if not isinstance(url, str) or not url:
+   128	        raise ForbiddenWriteError("R2: url must be a non-empty string")
+   129	    parts = urlparse(url)
+   130	    if parts.scheme not in ("http", "https"):
+   131	        raise ForbiddenWriteError("R2: scheme not allowed: %r" % (parts.scheme,))
+   132	    host = (parts.hostname or "").lower()
+   133	    if host not in ALLOWED_HOSTS:
+   134	        raise ForbiddenWriteError("R2: host not allowlisted: %r" % host)
+   135	    path = parts.path or "/"
+   136	    if not any(pattern.match(path) for pattern in ALLOWED_PATHS):
+   137	        raise ForbiddenWriteError("R2: path not allowlisted: %r" % path)
+   138	    if headers is not None and not isinstance(headers, dict):
+   139	        raise ForbiddenWriteError("R2: headers must be a mapping")
+   140	    return (transport or _transport)(verb, url, timeout=timeout, headers=headers)
+   141	
+   142	
+   143	# --- process-level guard (layer B) ----------------------------------------------
+   144	
+   145	
+   146	def _audit_hook(event, args):
+   147	    """Abort a connect/getaddrinfo aimed anywhere but the loopback allowlist."""
+   148	    if event not in ("socket.connect", "socket.getaddrinfo"):
+   149	        return
+   150	    try:
+   151	        first = args[0] if args else None
+   152	    except Exception:  # pragma: no cover - defensive
+   153	        return
+   154	    if isinstance(first, tuple):
+   155	        address = first
+   156	    elif len(args) > 1 and isinstance(args[1], tuple):
+   157	        address = args[1]
+   158	    else:
+   159	        address = None
+   160	    if address and isinstance(address[0], str):
+   161	        host = address[0].lower()
+   162	        if host and host not in ALLOWED_HOSTS:
+   163	            raise ForbiddenWriteError("R2: connect to non-allowlisted host: %r" % host)
+   164	
+   165	
+   166	def install_audit_guard():
+   167	    """Install the process-wide guard once.  Idempotent and never raises."""
+   168	    global _GUARD_INSTALLED
+   169	    if _GUARD_INSTALLED:
+   170	        return False
+   171	    try:
+   172	        sys.addaudithook(_audit_hook)
+   173	        _GUARD_INSTALLED = True
+   174	        return True
+   175	    except Exception:
+   176	        return False
+   177	
+   178	
+   179	# --- the read operations --------------------------------------------------------
+   180	
+   181	
+   182	def base_url() -> str:
+   183	    return os.environ.get("FREECASH_READ_BASE_URL") or DEFAULT_BASE_URL
+   184	
+   185	
+   186	def _timeout():
+   187	    raw = os.environ.get("FREECASH_HTTP_TIMEOUT")
+   188	    try:
+   189	        return float(raw) if raw else DEFAULT_TIMEOUT
+   190	    except ValueError:
+   191	        return DEFAULT_TIMEOUT
+   192	
+   193	
+   194	def read_metrics(base=None, transport=None) -> dict:
+   195	    """W1 -- GET the local metrics snapshot.  Returns a result dict."""
+   196	    url = (base or base_url()).rstrip("/") + METRICS_PATH
+   197	    try:
+   198	        response = request("GET", url, transport=transport, timeout=_timeout())
+   199	    except ForbiddenWriteError:
+   200	        raise
+   201	    except Exception as exc:
+   202	        raise ReadError("GET %s failed: %s" % (METRICS_PATH, exc))
+   203	    if response["status"] != 200:
+   204	        raise ReadError("GET %s returned HTTP %s" % (METRICS_PATH, response["status"]))
+   205	    raw = response["body"]
+   206	    try:
+   207	        payload = json.loads(raw.decode("utf-8"))
+   208	    except (UnicodeDecodeError, ValueError) as exc:
+   209	        raise ReadError("GET %s returned unparsable JSON: %s" % (METRICS_PATH, exc))
+   210	    if not isinstance(payload, dict):
+   211	        raise ReadError("GET %s did not return a JSON object" % METRICS_PATH)
+   212	    result = dict(response)
+   213	    result["json"] = payload
+   214	    return result
+   215	
+   216	
+   217	def probe_status(base=None, transport=None) -> dict:
+   218	    """W2 -- HEAD the local health route.  A non-200 is reported, not raised."""
+   219	    url = (base or base_url()).rstrip("/") + STATUS_PATH
+   220	    try:
+   221	        response = request("HEAD", url, transport=transport, timeout=_timeout())
+   222	    except ForbiddenWriteError:
+   223	        raise
+   224	    except Exception as exc:
+   225	        raise ReadError("HEAD %s failed: %s" % (STATUS_PATH, exc))
+   226	    return response
+   227	
+   228	
+   229	def read_status_source(base=None, transport=None) -> dict:
+   230	    """Run W1 then W2 and return the raw material for one day's snapshot."""
+   231	    metrics = read_metrics(base=base, transport=transport)
+   232	    probe = probe_status(base=base, transport=transport)
+   233	    return {
+   234	        "kind": "agenticos_local_metrics",
+   235	        "read_ops": ["W1", "W2"],
+   236	        "payload": metrics["json"],
+   237	        "raw_body": metrics["body"],
+   238	        "probe_status": probe["status"],
+   239	    }
+exit=0

@@ -1,0 +1,27 @@
+S2 RESEARCH — VERIFICATION RE-RUN (post-edit, 2026-10-01 ~11:53 Europe/Berlin)
+Purpose: confirm the S2 repro/evidence scripts are valid and that re-running them still
+proves the finding WITHOUT touching the production root.
+
+No npm project applies to this stream (it is docs/research, not app build code); the
+relevant runtime check is the source proof itself.
+
+1) python -m py_compile (venv 3.11.9) over cleanup.py, corpus_inventory.py, corpus_abstracts.py
+   -> exit 0  ("py_compile OK exit=0")
+
+2) bash -n run_source_proof.sh
+   -> exit 0  ("bash -n OK exit=0")
+
+3) bash run_source_proof.sh  (re-run; throwaway roots only)
+   -> VERDICT LINES
+      RED  : empty records -> "data_available": false
+      GREEN: one record    -> "data_available": true
+   (identical to the first run captured in 03-source-proof-redgreen.txt)
+
+4) production digests AFTER the re-run (must equal the 01-isolation-before.txt pin):
+   a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+   1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+   -> ISOLATION OK: still byte-identical to the pre-run pin
+
+5) cleanup.py re-run (idempotent): removed the throwaway roots; D:/c empty (as found).
+
+RESULT: all S2 scripts parse, the RED/GREEN proof reproduces, and isolation holds.

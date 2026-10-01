@@ -1,0 +1,145 @@
+=== date ===
+Do,  1. Okt 2026 11:45:59
+=== FREECASH_DATA_ROOT = C:\Users\cd-pr\AppData\Local/Temp/fc-r4-source-1084/root ===
+=== command: python e2e_r3_two_day.py ===
+
+========================================================================
+== 0. environment
+========================================================================
+python          = 3.11.9
+package         = D:/AgenticOS/monitoring/freecash
+FREECASH_DATA_ROOT = C:\Users\cd-pr\AppData\Local\Temp\fc-r4-source-1084\root
+FREECASH_TOAST_STUB = 1
+day1 now(Berlin) = 2026-10-01T10:00:00+02:00 -> day_key 2026-10-01
+day2 now(Berlin) = 2026-10-02T10:00:00+02:00 -> day_key 2026-10-02
+tz report       = {'configured': 'Europe/Berlin', 'kind': 'zoneinfo', 'available': True, 'offset_now': '+0200'}
+
+========================================================================
+== 1. DAY 1 -- operator enters the first reading
+========================================================================
+record written for 2026-10-01 = ACTIVE, earnings 1340, balance 1340, pending 0 USD
+exit = 0
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+alerts.jsonl lines = 1
+notified-keys.json = {
+  "schema_version": 1,
+  "keys": {}
+}
+approval items     = 0
+
+========================================================================
+== 2. DAY 2 -- operator enters a CHANGED earnings figure (1340 -> 2540)
+========================================================================
+record written for 2026-10-02 = ACTIVE, earnings 2540, balance 2540, pending 0 USD
+exit = 0
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-10-02.lock
+EARNINGS_CHANGED alert lines = 1
+toast-stub.log lines         = 1
+
+========================================================================
+== 2a. the exact notification payload delivered for the day-2 change
+========================================================================
+--- notification message (what the toast channel would carry) ---
+[FreeCash] EARNINGS CHANGE 2026-10-02
+Earnings:  $13.40 -> $25.40  (+$12.00)
+Balance:   $25.40 (changed too)
+Pending:   $0.00
+Status:    ACTIVE (unchanged)
+Source:    DEGRADED (operator-entered record for 2026-10-02)
+Detail:    alerts.jsonl dedupe=8341abccc4ac2b8c
+ACTION:    No action taken. Review and approve anything you want done.
+--- delivery label from the stub sender ---
+STUB_OK (FREECASH_TOAST_STUB=1); stubbed runs are never labelled TOAST_OK
+--- toast-stub.log content (the offline delivery record) ---
+[STUB TOAST 2026-10-02T08:00:00Z] [FreeCash] EARNINGS CHANGE 2026-10-02 | Earnings:  $13.40 -> $25.40  (+$12.00) | Balance:   $25.40 (changed too) | Pending:   $0.00 | Status:    ACTIVE (unchanged) | Source:    DEGRADED (operator-entered record for 2026-10-02) | Detail:    alerts.jsonl dedupe=8341abccc4ac2b8c | ACTION:    No action taken. Review and approve anything you want done. | Approval:  5fa696de-b648-4bec-81b3-26d23105e259 (PENDING - yours to decide, nothing executes)
+
+========================================================================
+== 2b. dedupe key persisted in state/notified-keys.json
+========================================================================
+dedupe key = 8341abccc4ac2b8ca19f3571961293f83e2e514e1085541453d3103e58379d5c
+subject    = sha256('2026-10-02|EARNINGS_CHANGED|earnings_total_cents|1340|2540')
+{
+  "schema_version": 1,
+  "keys": {
+    "8341abccc4ac2b8ca19f3571961293f83e2e514e1085541453d3103e58379d5c": {
+      "first_notified_at_utc": "2026-10-02T08:00:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-10-02T08:00:00Z"
+    }
+  }
+}
+key_delivery(key) = STUB_OK
+
+========================================================================
+== 3. REPLAY of the day-2 command (same day) -- R2 must refuse a second read
+========================================================================
+exit = 0
+SKIP_DUPLICATE_DAY 2026-10-02
+EARNINGS_CHANGED alert lines = 1 (unchanged)
+toast-stub.log lines         = 1 (unchanged)
+notified-keys count          = 1 (unchanged)
+
+========================================================================
+== 4. REPLAY of the SAME detected change -- R3 dedupe (key_seen) must suppress the toast
+========================================================================
+dispatch_change(...) returned = DEDUPED
+expected DEDUPED; keys_before=1 keys_after=1 toast_before=1 toast_after=1
+last alerts.jsonl line = {"day_key": "2026-10-02", "dedupe_key": "8341abccc4ac2b8ca19f3571961293f83e2e514e1085541453d3103e58379d5c", "event_id": "01d7d73f-05c5-48c0-ba02-be82316c371c", "event_type": "EARNINGS_CHANGED", "message": "[FreeCash] EARNINGS CHANGE 2026-10-02\nEarnings:  $13.40 -> $25.40  (+$12.00)\nBalance:   $25.40 (changed too)\nPending:   $0.00\nStatus:    ACTIVE (unchanged)\nSource:    DEGRADED (operator-entered record for 2026-10-02)\nDetail:    alerts.jsonl dedupe=8341abccc4ac2b8c\nACTION:    No action taken. Review and approve anything you want done.", "observed": {"already_notified": true, "field": "earnings_total_cents", "new_value": 2540, "old_value": 1340}, "severity": "info", "ts_utc": "2026-10-01T09:45:59Z"}
+
+========================================================================
+== 5. final state ledger + approval queue
+========================================================================
+last-run.json = {
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-02",
+  "last_success_day": "2026-10-02",
+  "last_attempt_at_utc": "2026-10-02T08:00:00Z",
+  "last_success_at_utc": "2026-10-02T08:00:00Z",
+  "last_outcome": "EARNINGS_CHANGED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-02T08:00:00Z"
+}
+pending.json exists = True
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-10-02T08:00:00Z",
+  "items": [
+    {
+      "approval_id": "5fa696de-b648-4bec-81b3-26d23105e259",
+      "created_at_utc": "2026-10-02T08:00:00Z",
+      "day_key": "2026-10-02",
+      "change_dedupe_key": "8341abccc4ac2b8ca19f3571961293f83e2e514e1085541453d3103e58379d5c",
+      "reason": "earnings_total_cents moved from $13.40 to $25.40. Review and decide whether any action is wanted.",
+      "proposed_action": {
+        "action_type": "REQUEST_PAYOUT",
+        "amount_cents": 2540,
+        "destination": "OPERATOR_SPECIFIED - not stored by the routine",
+        "provider_endpoint": "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+      },
+      "status": "PENDING",
+      "status_reason": null,
+      "decided_at_utc": null,
+      "decided_by": null,
+      "decision_note": null,
+      "expires_at_utc": null,
+      "execution_state": "NOT_EXECUTED",
+      "execution_allowed_by_this_routine": false
+    }
+  ]
+}
+
+========================================================================
+== 6. state tree
+========================================================================
+alerts/alerts.jsonl
+approvals/pending.json
+logs/toast-stub.log
+snapshots/2026-10-01.json
+snapshots/2026-10-02.json
+state/last-run.json
+state/notified-keys.json
+state/operator-state.json
+state/day-locks/2026-10-01.lock
+state/day-locks/2026-10-02.lock
+exit=0

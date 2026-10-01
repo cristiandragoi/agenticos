@@ -382,15 +382,35 @@ export function resolveSingleInstanceConflict(options: {
   const respondingMain = mainProcesses.find((p) => p.responding !== false);
 
   if (respondingMain) {
-    log(`[watchdog] Healthy existing AgenticOS main process confirmed (PID: ${respondingMain.pid}). Exiting second launcher.`);
-    return {
-      action: 'EXIT_HEALTHY_INSTANCE_EXISTS',
-      evidence: { mainPid: respondingMain.pid, responding: respondingMain.responding },
-    };
+    // Check if the existing process actually has an active, visible desktop window
+    let hasActiveDesktopWindow = false;
+    try {
+      const desktopRuntimePath = path.join(options.userDataDir, 'desktop-runtime.json');
+      if (fs.existsSync(desktopRuntimePath)) {
+        const state = JSON.parse(fs.readFileSync(desktopRuntimePath, 'utf8'));
+        const ageMs = Date.now() - new Date(state.updatedAt || 0).getTime();
+        if (state.mainWindowExists && state.mainWindowVisible && state.hwnd && ageMs < 45000) {
+          hasActiveDesktopWindow = true;
+        }
+      }
+    } catch {
+      // If reading fails, fall through
+    }
+
+    if (hasActiveDesktopWindow) {
+      log(`[watchdog] Healthy existing AgenticOS main process with visible desktop confirmed (PID: ${respondingMain.pid}). Exiting second launcher.`);
+      return {
+        action: 'EXIT_HEALTHY_INSTANCE_EXISTS',
+        evidence: { mainPid: respondingMain.pid, responding: respondingMain.responding, hasActiveDesktopWindow: true },
+      };
+    }
+
+    log(`[watchdog] Existing AgenticOS main process (PID: ${respondingMain.pid}) has NO visible desktop window or is headless/stale. Recovering...`);
+    killProcessTree(respondingMain.pid);
   }
 
-  // If no responding main process exists, any surviving helper processes are orphaned
-  log(`[watchdog] Stale AgenticOS process lock detected. Found ${processes.length} matching processes (0 responding main processes).`);
+  // If no responding main process exists, or if stale headless process was killed, clean remaining
+  log(`[watchdog] Stale AgenticOS process lock detected. Found ${processes.length} matching processes.`);
   const evidence = {
     foundProcesses: processes.map((p) => ({
       pid: p.pid,
@@ -405,20 +425,18 @@ export function resolveSingleInstanceConflict(options: {
     killProcessTree(proc.pid);
   }
 
-  // If 0 processes are running at all, clean any dangling Chromium singleton lock artifacts safely
-  if (processes.length === 0) {
-    try {
-      const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
-      for (const lf of lockFiles) {
-        const p = path.join(options.userDataDir, lf);
-        if (fs.existsSync(p)) {
-          fs.unlinkSync(p);
-          log(`[watchdog] Cleaned stale Chromium lock artifact: ${lf}`);
-        }
+  // Clean dangling Chromium singleton lock artifacts safely
+  try {
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    for (const lf of lockFiles) {
+      const p = path.join(options.userDataDir, lf);
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        log(`[watchdog] Cleaned stale Chromium lock artifact: ${lf}`);
       }
-    } catch {
-      // Ignore
     }
+  } catch {
+    // Ignore
   }
 
   return {
@@ -426,3 +444,4 @@ export function resolveSingleInstanceConflict(options: {
     evidence,
   };
 }
+

@@ -62,7 +62,7 @@ const YELLOW: [number, number, number] = [250, 204, 21];
 const PINK: [number, number, number] = [236, 72, 153];
 const ORANGE: [number, number, number] = [249, 115, 22];
 const PURPLE: [number, number, number] = [168, 85, 247];
-const TURQUOISE: [number, number, number] = [20, 184, 166];
+const TURQUOISE: [number, number, number] = [0, 229, 255];
 const RED: [number, number, number] = [239, 68, 68];
 const LOCKED_PALETTE: [number, number, number][] = [YELLOW, PINK, ORANGE, PURPLE, TURQUOISE, RED];
 
@@ -108,7 +108,7 @@ export function sphericalToCartesian(r: number, elevation: number, azimuth: numb
 /** Central-core color per blob state */
 function coreColor(st: BlobVisualState): [number, number, number] {
   switch (st) {
-    case 'LISTENING':  return YELLOW;
+    case 'LISTENING':  return TURQUOISE;
     case 'THINKING':   return PURPLE;
     case 'ACTING':     return ORANGE;
     case 'DELEGATING': return PINK;

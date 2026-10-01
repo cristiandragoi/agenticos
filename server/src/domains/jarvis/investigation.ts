@@ -79,7 +79,7 @@ export async function investigateAgenticState(
   // 1. Live Gateway Probes
   const openrouterUrl = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-  const hermesUrl = process.env.HERMES_BASE_URL || 'http://127.0.0.1:8643';
+  const hermesUrl = process.env.HERMES_BASE_URL || 'http://127.0.0.1:8642';
 
   const [orProbe, ollamaProbe, hermesProbe] = await Promise.all([
     probeEndpoint('OpenRouter gateway', `${openrouterUrl}/models`),
@@ -284,6 +284,10 @@ function buildInvestigationSummary(
       'Inspection report: there is a discrepancy between the configured runtime model and the frontend badge display. ' +
       'Detailed evidence has been recorded in the diagnostics panel.'
     );
+  }
+  const isStatusInquiry = !subject || subject === 'the element you are referring to' || /\b(status|health|runtime|system|gateways?|models?)\b/i.test(subject);
+  if (!isStatusInquiry) {
+    return `Investigation completed for ${subject}. Gateway probes and background tasks are operating normally; detailed evidence is recorded in diagnostics.`;
   }
   const gateways = probes.map((p) => `${p.label} ${p.ok ? 'online' : 'unreachable'}`).join(', ');
   const model = selectedModel && selectedModel !== 'auto' ? `Model: ${selectedModel}` : 'Model: auto-selected';

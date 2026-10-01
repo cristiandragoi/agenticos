@@ -1,0 +1,56 @@
+### date
+Do,  1. Okt 2026 11:50:00
+########## RED CASE: read route vs write route on HG.Cash (GET only) ##########
+=== GET https://hg.cash/api/v1/accounts ===
+HTTP/1.1 401 Unauthorized
+Age: 0
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: application/json
+Date: Thu, 01 Oct 2026 09:50:00 GMT
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Matched-Path: /api/v1/accounts
+X-Vercel-Cache: MISS
+X-Vercel-Id: fra1::iad1::x6rdt-1790848200774-5265b5b0dbe0
+Transfer-Encoding: chunked
+
+HTTP=401 SIZE=77
+shell_rc=0
+--- body (first 200) ---
+{"error":"Missing or invalid authorization header. Expected: Bearer <token>"}
+
+=== GET https://hg.cash/api/v1/transactions ===
+HTTP/1.1 401 Unauthorized
+Age: 0
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: application/json
+Date: Thu, 01 Oct 2026 09:50:01 GMT
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Matched-Path: /api/v1/transactions
+X-Vercel-Cache: MISS
+X-Vercel-Id: fra1::iad1::g6h8f-1790848201378-cb306a69d030
+Transfer-Encoding: chunked
+
+HTTP=401 SIZE=77
+shell_rc=0
+--- body (first 200) ---
+{"error":"Missing or invalid authorization header. Expected: Bearer <token>"}
+
+########## loopback :4600 / :3001 re-probe (BLOCKED candidate) ##########
+netstat async-listeners matching 4600 or 3001:
+0
+=== GET http://127.0.0.1:4600/api/health ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2037 ms: Could not connect to server
+HTTP=000 SIZE=0
+shell_rc=7
+--- body (first 200) ---
+
+
+=== GET http://127.0.0.1:3001/api/v1/status/metrics ===
+curl: (7) Failed to connect to 127.0.0.1:3001 after 2043 ms: Could not connect to server
+HTTP=000 SIZE=0
+shell_rc=7
+--- body (first 200) ---
+
+

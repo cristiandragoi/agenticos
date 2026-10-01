@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  DECISION-V2-FreeCash-Daily-Monitor.xml  :  Task A (daily read-only status read)
+
+  STATUS: *** PROPOSAL ONLY ***  This file registers NOTHING.
+  It becomes a scheduled task only when the operator runs the single approval
+  command printed in SCHEDULER-DECISION-V2.md section 6 (rule R4: registering a
+  scheduled task is an external, state-changing action).
+
+  FILE-NAME NOTE: this delegation's scheduler/ directory also contains
+  FreeCash-Daily-Monitor.xml, written by a SIBLING track (sa-3-6510f83b). This
+  file is the DECISION-V2 artifact and is deliberately named differently so
+  neither track overwrote the other. The approval string in
+  SCHEDULER-DECISION-V2.md names THIS file.
+
+  INTERPRETER, PINNED
+  Python 3.11.9 at ...\hermes-agent\venv\Scripts\python.exe, which HAS tzdata.
+  The system interpreter (py -3, 3.14) has no IANA database, so
+  ZoneInfo('Europe/Berlin') fails to resolve and gate.py degrades the R1 day key
+  to the machine-local zone while reporting MONITOR_DEGRADED. Verified today:
+      3.11.9 Europe/Berlin   (exit 0)
+
+  WHY NO .cmd WRAPPER, AND WHAT IT COSTS
+  schtasks cannot set environment variables. The production values the routine
+  needs are already its code defaults (paths.py:35 DEFAULT_DATA_ROOT,
+  gate.py:48 DEFAULT_TZ, run_daily_check.py:52 DEFAULT_SOURCE), and no
+  FREECASH_* variable exists at User or Machine scope (verified: all four report
+  User=[] Machine=[]), so a service-spawned task's environment is deterministic.
+  Cost: stdout is not captured as its own file, so this file redirects it into
+  logs\task-a.log from the Arguments string instead of via a wrapper process.
+
+  The unquoted action form below is FORM 2 of evidence-08, which executed
+  successfully through cmd.exe. FORM 1 (fully quoted) FAILED with
+  "Die Syntax fuer den Dateinamen ... ist falsch" and executed nothing; do not
+  "fix" this by adding quotes. No path on this host contains a space.
+
+  SETTINGS
+    StartWhenAvailable=true            a missed 09:00 fires ONCE on next
+                                       availability instead of being lost.
+    MultipleInstancesPolicy=IgnoreNew  a slow run is never stacked.
+    RunLevel=LeastPrivilege            never HighestAvailable (R2: nothing needs
+                                       elevation; the routine only reads).
+    LogonType=InteractiveToken         per-user interactive session; the toast
+                                       transport needs a real desktop.
+    ExecutionTimeLimit=PT10M           the run is seconds of file I/O.
+    No RestartOnFailure element        deliberate. A retry cannot produce a
+                                       second status read, because today's day
+                                       lock is already consumed, so the retry
+                                       prints SKIP_DUPLICATE_DAY and exits 0;
+                                       and a failed read (exit 5) must not be
+                                       retried automatically (run_daily_check.py
+                                       exit table: "5 ... no automatic re-run").
+
+  StartBoundary is set to the day after the earliest plausible approval date:
+  with StartWhenAvailable=true and a boundary already past, registration itself
+  fires one catch-up run.
+  ============================================================================
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>FreeCash daily read-only status monitor (R1: exactly one status read per operator-local day). LeastPrivilege, per-user, IgnoreNew, StartWhenAvailable. PROPOSAL ONLY, registers nothing by itself.</Description>
+    <URI>\FreeCash-Daily-Monitor</URI>
+  </RegistrationInfo>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-21-3435097649-250514390-3575566063-1001</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+  </Settings>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T09:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Windows\System32\cmd.exe</Command>
+      <Arguments>/c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state 1>> D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2&gt;&amp;1</Arguments>
+      <WorkingDirectory>D:\AgenticOS</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

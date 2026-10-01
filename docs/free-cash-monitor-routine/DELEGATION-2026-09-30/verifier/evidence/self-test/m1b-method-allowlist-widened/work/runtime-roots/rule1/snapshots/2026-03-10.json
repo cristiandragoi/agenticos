@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "day_key": "2026-03-10",
+  "captured_at_utc": "2026-03-10T12:00:00Z",
+  "source": {
+    "kind": "agenticos_local_metrics",
+    "read_ops": [
+      "W1",
+      "W2"
+    ],
+    "data_available": true,
+    "note": "local metrics substitute (health probe HTTP 200)"
+  },
+  "degraded": true,
+  "account_status": "ACTIVE",
+  "earnings_total_cents": 1025,
+  "balance_cents": 1025,
+  "pending_cents": 0,
+  "currency": "USD",
+  "raw_response_sha256": "da7bd45baf9c7e0f52123fdff392ed9f184ebee30831409a3fe4d9a2cf13503f"
+}

@@ -1,0 +1,85 @@
+==============================================================================
+rule-gate-verify :: executable rule gate for the Free Cash daily monitor
+==============================================================================
+target : D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R2/verifier/mutants/r2-a-post-cashout-on-read-path/pkg/readonly_client.py
+exists : True   kind: python
+parse  : OK -- python ast.parse OK
+token scan hits (informational, ROUTINE-DESIGN §3.3 false-positive class): 4
+    34: [write-call-shape] from http.client import HTTPConnection  # readonly-exempt: the single socket library, used only inside _transport()
+    39: [http-verb] ALLOWED_METHODS = frozenset({"GET", "HEAD", "POST"})  # MUTATION r2-a
+    232: [earning-verb] """MUTATION r2-a: submit the day's earnings claim automatically."""
+    234: [http-verb] return request("POST", url, transport=transport)
+
+------------------------------------------------------------------------------
+R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+------------------------------------------------------------------------------
+  FAIL  atomic same-day guard (double-run barrier)
+        evidence: no O_CREAT|O_EXCL / 'x'-mode create / atomic mkdir anywhere in the file
+  FAIL  day key is a calendar day
+        evidence: no calendar-day key derivation found (no %Y-%m-%d / toDateString / date().isoformat)
+  PASS  no rolling 24h window used as the daily gate
+        evidence: no 86400/24h/timedelta(days=1) daily-gate arithmetic found
+  PASS  duplicate-run path is side-effect free
+        evidence: no state write found inside the already-ran early-exit branch
+  FAIL  missed day is detectable
+        evidence: no last_success_day / MISSED_DAY / reconcile / watchdog token in code: a day with no run is indistinguishable from a day with nothing to report
+  PASS  guard fails CLOSED on error
+        evidence: no except/catch branch was found returning a permissive value from a *ran()*/*allowed()* style guard
+  >>> R1 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R2: NO automated earning action (no POST/PUT/PATCH/DELETE; no claim/withdraw/payout/redeem/survey/offer execution)
+------------------------------------------------------------------------------
+  PASS  no write/earning call shape or endpoint path
+        evidence: 0 unexempted decisive hits in 247 lines (1 exempted by 'readonly-exempt:', 1 prose-only 'earning-verb' hits in the known false-positive class)
+  PASS  no non-GET/HEAD HTTP method is used
+        evidence: no POST/PUT/PATCH/DELETE call or method literal found
+  PASS  deny-by-default allowlist exists (structural barrier)  [line 39]
+        evidence: line 39: ALLOWED_METHODS = frozenset({"GET", "HEAD", "POST"})  # MUTATION r2-a
+  PASS  no invented/unresolved provider endpoint
+        evidence: every URL literal is localhost/127.0.0.1 or explicitly marked PROVIDER_ENDPOINT_UNKNOWN
+  PASS  no earning-action execution path in the monitor
+        evidence: no run_action/execute_*/perform_action/simulate_action call site found
+  >>> R2 RESULT: PASS
+
+------------------------------------------------------------------------------
+R3: operator notified when earnings/account status CHANGES (prior-state load BEFORE snapshot write; dedupe = one change = one notification)
+------------------------------------------------------------------------------
+  FAIL  prior state is loaded BEFORE the new snapshot is written
+        evidence: no prior-state load call found at all (snapshot writes present at lines: []) -- so no change can ever be compared
+  FAIL  exactly-one-notification dedupe key exists
+        evidence: no dedupe/notified-keys/seen-keys token in code: the same change re-notifies, and a same-day re-entry has nothing to suppress it
+  PASS  change comparison is exact (no threshold can swallow it)
+        evidence: no relative/percentage threshold found next to a balance/earnings field
+  FAIL  notification is a delivery path, not a print stub
+        evidence: no smtplib/toast/webhook/notify_manager/dispatch/alerts.jsonl write found; the only outputs are 0 print() call(s) (first at line n/a) -- stdout of a scheduled task is not a notification
+  >>> R3 RESULT: FAIL
+
+------------------------------------------------------------------------------
+R4: human approval before ANY external action (may enqueue; no execution path; timeout never converts pending -> executed)
+------------------------------------------------------------------------------
+  FAIL  the routine may enqueue a request for a human
+        evidence: no approval queue / PENDING item is produced in code: a detected change has no route to a human decision
+  PASS  consent is not fabricated by RNG
+        evidence: no random.choice/random.random in the approval path
+  PASS  consent is not hardcoded
+        evidence: no success=True / approved=True / {'approved': True} literal found
+  PASS  the routine contains NO execution path
+        evidence: no action-executing call site found
+  PASS  an APPROVED item is not auto-executed
+        evidence: nothing reads an APPROVED status and executes it
+  PASS  a timeout cannot convert pending -> executed
+        evidence: no timeout/expiry branch that proceeds or executes
+  PASS  the approval gate is actually reachable
+        evidence: no approve/decide/consent function is defined in this file (there is no gate here to be unreachable) -- the queue/enqueue check above is the binding one
+  >>> R4 RESULT: FAIL
+
+------------------------------------------------------------------------------
+RUNTIME PROBE (temp-dir copy of the target; cwd = temp)
+------------------------------------------------------------------------------
+  - skipped (pass --run to enable; nothing was executed)
+
+==============================================================================
+SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=FAIL
+VERDICT: NOT COMPLIANT -- 3/4 rule(s) violated: R1, R3, R4
+==============================================================================

@@ -51,6 +51,9 @@ const KEY_ALIASES: Record<string, string[]> = {
   brave: ['brave', 'BRAVE_API_KEY'],
   deepgram: ['deepgram', 'DEEPGRAM_API_KEY'],
   resend: ['resend', 'RESEND_API_KEY'],
+  'telegram.bot_token': ['telegram.bot_token', 'TELEGRAM_BOT_TOKEN', 'telegram_bot_token', 'telegram_token'],
+  'telegram.allowed_user_ids': ['telegram.allowed_user_ids', 'TELEGRAM_ALLOWED_USER_IDS', 'telegram_allowed_user_ids'],
+  'telegram.allowed_chat_ids': ['telegram.allowed_chat_ids', 'TELEGRAM_ALLOWED_CHAT_IDS', 'telegram_allowed_chat_ids'],
 };
 
 function normalizeKey(key: string): string {

@@ -1,0 +1,12 @@
+# Free Cash Daily Check — Cron Schedule
+# Edit: config/freecash-crontab
+# Location: D:/AgenticOS/config/freecash-crontab
+
+# Run daily at 05:05 UTC (adjust time as needed)
+# Format: minute hour dayOfMonth month dayOfWeek command
+0 5 * * * /usr/bin/env python3 /path/to/AgenticOS/scripts/make_freecash_check.py >> /path/to/AgenticOS/logs/freecashioc_$(date +\%Y-\%m-\%d).log 2>&1
+
+# Notes:
+# - Path to script must be absolute or adjusted to your setup.
+# - Output log directory is configured internally by the script.
+# - To change time, edit line above; no code changes needed.

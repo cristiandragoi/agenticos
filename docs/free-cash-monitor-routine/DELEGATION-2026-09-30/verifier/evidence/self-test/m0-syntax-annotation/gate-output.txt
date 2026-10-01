@@ -1,0 +1,36 @@
+==============================================================================
+freecash rule-gate  ::  AST layer + runtime layer, per operator rule 1-4
+==============================================================================
+gate      : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\verifier\rule_gate.py
+gate sha  : 4d4c488dbc6dee1160b9cfff2a9b6f2c06cdbc4ee2eb5a82cfdc6931ad8d06e7
+package   : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\verifier\evidence\self-test\m0-syntax-annotation\pkg
+python    : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe (3.11.9)
+utc now   : 2026-09-30T19:07:18Z
+workdir   : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-09-30\verifier\evidence\self-test\m0-syntax-annotation\work
+data root : throwaway roots under <workdir>/runtime-roots (production root D:/AgenticOS/data/freecash-monitor never touched)
+runtime   : on (detectors are executed)
+
+target sha256 (what this report is about):
+  approval_queue.py      0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506
+  changedetect.py        296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b
+  gate.py                ac101862ed48814308c9396612adc73a1b05fa3907a3682b6bd79a90c060d676
+  notify.py              9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22
+  operator_state.py      32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7
+  paths.py               a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938
+  readonly_client.py     5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27
+  run_daily_check.py     bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c
+  verify_readonly.py     2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0
+  watchdog.py            11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd
+
+------------------------------------------------------------------------------
+G0: the target can actually run (parse gate, whole package)
+------------------------------------------------------------------------------
+  FAIL  gate.py does not parse
+        evidence: SyntaxError at line 47: expected ':' | 'def tz_name() str:  # MUTATION: TypeScript-style annotation in a .py file'
+  FAIL  a green rule report for code that cannot run is not possible in this gate
+        evidence: 1 of 17 files failed to parse; no rule can be certified
+
+==============================================================================
+SUMMARY: R1=NOT_VERIFIABLE  R2=NOT_VERIFIABLE  R3=NOT_VERIFIABLE  R4=NOT_VERIFIABLE
+VERDICT: NOT VERIFIABLE -- the target does not parse; no rule can be certified
+==============================================================================

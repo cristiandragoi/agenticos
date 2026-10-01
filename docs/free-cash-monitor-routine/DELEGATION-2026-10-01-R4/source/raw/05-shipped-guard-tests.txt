@@ -1,0 +1,15 @@
+=== shipped TransportGuardTests run from the COPY (throwaway data root) ===
+test_allowlisted_get_is_allowed_through (test_r2_readonly.TransportGuardTests.test_allowlisted_get_is_allowed_through) ... ok
+test_audit_guard_refuses_a_non_loopback_connect (test_r2_readonly.TransportGuardTests.test_audit_guard_refuses_a_non_loopback_connect) ... ok
+test_bare_get_reaches_the_loopback_stub (test_r2_readonly.TransportGuardTests.test_bare_get_reaches_the_loopback_stub) ... ok
+test_body_carrying_get_is_refused (test_r2_readonly.TransportGuardTests.test_body_carrying_get_is_refused) ... ok
+test_every_non_read_method_is_refused (test_r2_readonly.TransportGuardTests.test_every_non_read_method_is_refused) ... ok
+test_non_allowlisted_path_is_refused (test_r2_readonly.TransportGuardTests.test_non_allowlisted_path_is_refused) ... ok
+test_non_loopback_host_is_refused (test_r2_readonly.TransportGuardTests.test_non_loopback_host_is_refused) ... ok
+test_write_method_is_refused_before_any_socket_opens (test_r2_readonly.TransportGuardTests.test_write_method_is_refused_before_any_socket_opens) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.527s
+
+OK
+EXIT=0

@@ -1,0 +1,31 @@
+### date
+Do,  1. Okt 2026 11:48:09
+=== freecash.com terms (status + monitoring clause grep) ===
+
+HTTP=200 SIZE=420307
+shell_rc=0
+--- lines mentioning monitoring/automatic/robot/spider ---
+a href="/en/policies/terms#:~:text=19.-,Monitoring%20and%20Enforcement%3B%20Termination,-We%20have"
+Monitoring and Enforcement; Termination
+3. All valid Tickets granted during a given weekly lottery period are automatically entered into that week's draw. Each Ticket counts as one (1) separate entry, and a user's chance of winning increases in proportion to the number of valid Tickets held for tha
+You may store files that are automatically cached by your Web browser for display enhancement purposes.
+To use macros, bots, scripts, or any other automation tools designed to simulate or replicate human user activity, including but not limited to automating clicks, movements, or tasks within offers or apps. Such behavior is strictly prohibi
+Use any robot, spider or other automatic device, process or means to access the Website for any purpose, including monitoring or copying any of the material on the Website.
+19. Monitoring and Enforcement; Termination
+t=18.-,User%20Contributions,-The%20Website\"\u003eUser Contributions\u003c/a\u003e\u003c/li\u003e\n\u003cli\u003e\u003ca href=\"https://freecash.com/en/policies/terms#:~:text=19.-,Monitoring%20and%20Enforcement%3B%20Termination,-We%20have\"\u003eMonitoring and Enforcement; Termination\u003c/a\u003e\u003c/li\u003e\n\u003cli\u003e\u003ca href=\"https://freecash.com/en/p
+rtisements does not constitute consideration for participation.\u003c/li\u003e\n\u003c/ul\u003e\n\u003cp\u003e3. All valid Tickets granted during a given weekly lottery period are automatically entered into that week's draw. Each Ticket counts as one (1) separate entry, and a user's chance of winning increases in proportion to the number of valid Tickets held for tha
+computer may temporarily store copies of such materials in RAM incidental to your accessing and viewing those materials.\u003c/li\u003e\n\u003cli\u003eYou may store files that are automatically cached by your Web browser for display enhancement purposes.\u003c/li\u003e\n\u003cli\u003eYou may print or download one copy of a reasonable number of pages of the Website fo
+g or attempting to redeem Rewards through false or fraudulent means, and tampering with surveys or Offers.\u003c/li\u003e\n\u003cli\u003eTo use macros, bots, scripts, or any other automation tools designed to simulate or replicate human user activity, including but not limited to automating clicks, movements, or tasks within offers or apps. Such behavior is strictly prohibi
+e site or interfere with any other party's use of t
+=== freecash.com help: avoid a ban ===
+
+HTTP=200 SIZE=314595
+shell_rc=0
+a-borders-1px:1px solid;--chakra-borders-2px:2px solid;--chakra-borders-4px:4px solid;--chakra-borders-8px:8px solid;--chakra-fonts-heading:var(--font-poppins),Roboto,sans-serif;--chakra-fonts-body:var(--font-poppins),Roboto,-apple-system,Ubuntu,Cantarell,Helvetica Neue,sans-serif;--chakra-fonts-mono:SFMono-Regular,Menlo,Mo
+naco,Consolas,"Liberation Mono","Courier New",monospace;--chakra-fonts-Poppins:var(--font-poppins),Roboto,-apple-system,Ubuntu,Cantarell,Helvetica Neue,sans-serif;--chakra-fonts-Cookie:var(--font-cookie),Roboto,sans-serif;--chakra-fontSizes-3xs:0.45rem;--chakra-fo
+personal and non-commercial purposes only
+Do not use any automatic device
+ like a robot or spider to access the site. 
+nd\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":{\"fontFamily\":\"system-ui,\\\"Segoe UI\\\",Roboto,Helvetica,Arial,sans-serif,\\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\"\",\"height\":\"100vh\",\"textAlign\":\"center\",\"display\":\"flex\",\"flexDirecti
+ou may only create \u003cstrong\u003eone account per household.\u003c/strong\u003e\u003c/li\u003e\n\u003cli\u003eFreecash is for \u003cstrong\u003epersonal and non-commercial purposes only\u003c/strong\u003e.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eVPNs are strictly prohibited\u003c/strong\u003e, including iCloud private rel
+eDo not misuse the website\u003c/strong\u003e in any way that could disable or impair the site. \u003c/li\u003e\n\u003cli\u003e

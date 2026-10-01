@@ -1,0 +1,135 @@
+==============================================================================
+S4 EMPIRICAL READ-ONLY ENFORCEMENT PROBE
+==============================================================================
+python        : 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
+module copy   : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\source\probe\readonly_client.py
+copy sha256   : 5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27
+orig sha256   : 5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27
+MODULE FIDELITY: IDENTICAL (copy is byte-for-byte the shipped file)
+
+------------------------------------------------------------------------------
+SECTION 1 -- ALLOWLISTS, ENUMERATED FROM THE LIVE OBJECTS
+------------------------------------------------------------------------------
+ALLOWED_METHODS   = ['GET', 'HEAD']
+ALLOWED_HOSTS     = ['127.0.0.1', '::1', '[::1]', 'localhost']
+ALLOWED_PATHS     = [
+    re.compile('^/api/v1/status/metrics$'),
+    re.compile('^/api/v1/status$'),
+]
+BODY_KEYWORDS     = ('data', 'json', 'files', 'body', 'content')
+DEFAULT_BASE_URL  = 'http://localhost:3001'
+PROVIDER_ENDPOINT_UNKNOWN = 'PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase'
+provider-facing path allowlisted? False
+
+------------------------------------------------------------------------------
+SECTION 2 -- ATTEMPTED VIOLATIONS (each must raise; spy must stay empty)
+------------------------------------------------------------------------------
+[V1] non-allowlisted METHOD (POST) to an allowlisted loopback path
+  ATTEMPT : rc.request('POST', 'http://127.0.0.1:3001/api/v1/status/metrics', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: method 'POST' is not read-only (allowed: GET, HEAD)
+  REPR    : ForbiddenWriteError("R2: method 'POST' is not read-only (allowed: GET, HEAD)")
+
+[V1b] non-allowlisted METHOD (DELETE)
+  ATTEMPT : rc.request('DELETE', 'http://127.0.0.1:3001/api/v1/status/metrics', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: method 'DELETE' is not read-only (allowed: GET, HEAD)
+  REPR    : ForbiddenWriteError("R2: method 'DELETE' is not read-only (allowed: GET, HEAD)")
+
+[V2] non-allowlisted HOST (public provider hostname) -- refused BEFORE any connection
+  ATTEMPT : rc.request('GET', 'https://api.freecash.com/api/v1/status/metrics', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: host not allowlisted: 'api.freecash.com'
+  REPR    : ForbiddenWriteError("R2: host not allowlisted: 'api.freecash.com'")
+
+[V2b] non-allowlisted HOST (documentation TLD .invalid)
+  ATTEMPT : rc.request('GET', 'http://provider.invalid/api/v1/status/metrics', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: host not allowlisted: 'provider.invalid'
+  REPR    : ForbiddenWriteError("R2: host not allowlisted: 'provider.invalid'")
+
+[V2c] non-loopback host that is NOT in the allowlist despite being numeric loopback range
+  ATTEMPT : rc.request('GET', 'http://127.0.0.2:3001/api/v1/status/metrics', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: host not allowlisted: '127.0.0.2'
+  REPR    : ForbiddenWriteError("R2: host not allowlisted: '127.0.0.2'")
+
+[V3] request BODY on an otherwise-allowed call (GET + json=)
+  ATTEMPT : rc.request('GET', 'http://127.0.0.1:3001/api/v1/status/metrics', json={'x':1}, transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: request bodies are forbidden ('json')
+  REPR    : ForbiddenWriteError("R2: request bodies are forbidden ('json')")
+
+[V3b] request BODY via data=
+  ATTEMPT : rc.request('GET', 'http://127.0.0.1:3001/api/v1/status/metrics', data=b'x', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: request bodies are forbidden ('data')
+  REPR    : ForbiddenWriteError("R2: request bodies are forbidden ('data')")
+
+[V3c] unknown keyword argument (closed kwarg surface)
+  ATTEMPT : rc.request('GET', 'http://127.0.0.1:3001/api/v1/status/metrics', stream=b'x', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: unsupported request keyword(s): stream
+  REPR    : ForbiddenWriteError('R2: unsupported request keyword(s): stream')
+
+[V4] non-allowlisted PATH
+  ATTEMPT : rc.request('GET', 'http://127.0.0.1:3001/api/v1/status/claim', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: path not allowlisted: '/api/v1/status/claim'
+  REPR    : ForbiddenWriteError("R2: path not allowlisted: '/api/v1/status/claim'")
+
+[V5] non-http scheme
+  ATTEMPT : rc.request('GET', 'file:///etc/passwd', transport=spy)
+  OUTCOME : RAISED
+  EXACT   : readonly_client.ForbiddenWriteError
+  MESSAGE : R2: scheme not allowed: 'file'
+  REPR    : ForbiddenWriteError("R2: scheme not allowed: 'file'")
+
+SPY TRANSPORT CALLS RECORDED: []
+=> layer-A guard reached no transport on any refused request: CONFIRMED (0 calls)
+
+------------------------------------------------------------------------------
+SECTION 3 -- AUDIT HOOK (layer B): DOCUMENTED ARGUMENT SHAPES
+------------------------------------------------------------------------------
+rc.install_audit_guard() -> True (True == hook newly installed this process)
+  connect(('provider.invalid',443)) [connect shape]          RAISED ForbiddenWriteError: R2: connect to non-allowlisted host: 'provider.invalid'
+  connect(('127.0.0.1',3001)) [connect shape]                NO RAISE (hook ignored the event)
+  -- getaddrinfo shape (host is a STRING, not a tuple) --
+  getaddrinfo(('provider.invalid',443,0,1,0))                NO RAISE (hook ignored the event)
+  getaddrinfo(('93.184.216.34',80,0,1,0))                    NO RAISE (hook ignored the event)
+  getaddrinfo(('127.0.0.1',3001,0,1,0))                      NO RAISE (hook ignored the event)
+
+------------------------------------------------------------------------------
+SECTION 4 -- AUDIT HOOK LIVE (loopback only; no external host contacted)
+------------------------------------------------------------------------------
+LIVE getaddrinfo('127.0.0.2', 9) -> RETURNED 1 addr(s); hook did NOT abort
+LIVE connect(('127.0.0.2', 9)) -> RAISED ForbiddenWriteError: R2: connect to non-allowlisted host: '127.0.0.2'
+
+------------------------------------------------------------------------------
+SECTION 5 -- POSITIVE CONTROL: an allowlisted loopback GET must SUCCEED
+------------------------------------------------------------------------------
+throwaway loopback server at http://127.0.0.1:58658
+GET  /api/v1/status/metrics -> status=200 body={"account_status": "ACTIVE", "earnings_total_cents": 1025, "balance_cents": 1025, "pending_cents": 0, "currency": "USD"}
+     parsed earnings_total_cents=1025 currency='USD'
+HEAD /api/v1/status -> status=200
+SERVER RECORDED VERBS: [('GET', '/api/v1/status/metrics'), ('HEAD', '/api/v1/status')]
+
+==============================================================================
+VERDICT SUMMARY
+==============================================================================
+layer-A refusals left transport untouched : True
+allowlisted loopback GET succeeded        : True
+allowlisted loopback HEAD succeeded       : True
+audit hook aborts live non-loopback connect: True
+audit hook aborts getaddrinfo (live)       : False
+  -> the getaddrinfo branch of _audit_hook is DEAD CODE: args[0] is a str,
+     and the code only accepts a tuple; the docstring claim is unenforced.

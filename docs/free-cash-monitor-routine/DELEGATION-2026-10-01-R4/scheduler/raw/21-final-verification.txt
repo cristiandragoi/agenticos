@@ -1,0 +1,38 @@
+=== FINAL VERIFICATION — 2026-10-01T11:55:34+02:00 ===
+
+--- artifact digests (must match SCHEDULER-DECISION.md section 5/11) ---
+e8471630aab0f8f3ed091169eb958d19b0de09172f375b42d027121d12dbe319 *docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/scheduler/FreeCash-Daily-Monitor-R4.xml
+35fb53c96c446d0cb6ad7f7a123ddb5a714c5d09e0eb555553de236877995a8f *docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/scheduler/xml_gate.py
+2f591b7bfcb2e78751e0d580da3001dd7f8b29fedd5a0af785a3654cf8d78054 *docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/scheduler/run_xml_gate_redgreen.py
+
+--- doc claims these: XML e8471630aab0f8f3ed091169eb958d19b0de09172f375b42d027121d12dbe319 ---
+---                   gate 35fb53c96c446d0cb6ad7f7a123ddb5a714c5d09e0eb555553de236877995a8f ---
+
+--- final parse proof on the shipped artifact ---
+XML PARSE OK
+parse exit=0
+
+--- STILL NOTHING REGISTERED ---
+FEHLER: Das System kann die angegebene Datei nicht finden.
+exit=1 (1 = does not exist)
+0
+^ count of freecash-matching tasks
+No scheduled jobs.
+Create one with 'hermes cron create ...' or the /cron command in chat.
+
+--- production root, final hash ---
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+files: 12  (expected 12)
+
+--- stream deliverables ---
+total 100
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:55 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:50 ..
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:45 evidence
+-rw-r--r-- 1 cd-pr 197609  6379 Okt  1 11:53 FreeCash-Daily-Monitor-R4.xml
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:55 raw
+-rwxr-xr-x 1 cd-pr 197609  6066 Okt  1 11:52 run_xml_gate_redgreen.py
+-rw-r--r-- 1 cd-pr 197609 26306 Okt  1 11:55 SCHEDULER-DECISION.md
+-rw-r--r-- 1 cd-pr 197609 26681 Okt  1 11:45 TRIGGER-DECISION-PACKET.md
+-rwxr-xr-x 1 cd-pr 197609 11241 Okt  1 11:52 xml_gate.py

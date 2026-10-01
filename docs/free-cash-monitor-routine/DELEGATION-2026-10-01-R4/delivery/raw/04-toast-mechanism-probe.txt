@@ -1,0 +1,4 @@
+=== SAFE toast-mechanism probe: construct NotifyIcon, DO NOT show a balloon ===
+Do,  1. Okt 2026 11:48:01
+NOTIFYICON_CONSTRUCTED_OK (no balloon shown)
+rc=0

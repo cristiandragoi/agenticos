@@ -1,0 +1,82 @@
+COMMAND: "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python" docs/.../evidence/driver_backward_clock_and_catchup.py
+INTERPRETER: Python 3.11.9
+RUN AT: Do,  1. Okt 2026 09:08:41
+================================================================================
+==========================================================================
+SCENARIO C1 -- clock jumps FORWARD to a new day, then BACKWARD to the
+               previous (never-run) calendar day, then forward again
+==========================================================================
+
+-- step 1: run with clock at 2026-10-05T00:05:00+02:00 (day_key=2026-10-05) --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/backclock]
+RUN_OK 2026-10-05 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-05.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-05.lock
+  exit=0
+  after step 1: locks=['2026-10-05.lock'] snapshots=['2026-10-05.json'] alert_lines=1
+  after step 1: ledger={   "schema_version": 1,   "last_attempt_day": "2026-10-05",   "last_success_day": "2026-10-05",   "last_attempt_at_utc": "2026-10-04T22:05:00Z",   "last_success_at_utc": "2026-10-04T22:05:00Z",   "last_outcome": "MONITOR_DEGRADED",   "consecutive_missed_days": 0,   "timezone": "Europe/Berlin",   "updated_at_utc": "2026-10-04T22:05:00Z" }
+
+-- step 2: CLOCK MOVES BACKWARDS to 2026-10-04T23:30:00+02:00 (day_key=2026-10-04, an EARLIER day) --
+   ledger before step 2 records last_attempt_day=2026-10-05
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/backclock]
+RUN_OK 2026-10-04 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-04.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-04.lock
+  exit=0
+  after step 2: locks=['2026-10-04.lock', '2026-10-05.lock'] snapshots=['2026-10-04.json', '2026-10-05.json'] alert_lines=2
+  after step 2: ledger={   "schema_version": 1,   "last_attempt_day": "2026-10-04",   "last_success_day": "2026-10-04",   "last_attempt_at_utc": "2026-10-04T21:30:00Z",   "last_success_at_utc": "2026-10-04T21:30:00Z",   "last_outcome": "MONITOR_DEGRADED",   "consecutive_missed_days": 0,   "timezone": "Europe/Berlin",   "updated_at_utc": "2026-10-04T21:30:00Z" }
+
+-- step 3: clock returns to 2026-10-05T01:00:00+02:00 (day_key=2026-10-05) --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/backclock]
+SKIP_DUPLICATE_DAY 2026-10-05
+  exit=0
+  after step 3: locks=['2026-10-04.lock', '2026-10-05.lock'] snapshots=['2026-10-04.json', '2026-10-05.json'] alert_lines=3
+  after step 3: ledger={   "schema_version": 1,   "last_attempt_day": "2026-10-04",   "last_success_day": "2026-10-04",   "last_attempt_at_utc": "2026-10-04T21:30:00Z",   "last_success_at_utc": "2026-10-04T21:30:00Z",   "last_outcome": "MONITOR_DEGRADED",   "consecutive_missed_days": 0,   "timezone": "Europe/Berlin",   "updated_at_utc": "2026-10-04T21:30:00Z" }
+
+-- step 4: clock jumps back AGAIN onto the ALREADY-CONSUMED day 2026-10-04 --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/backclock]
+SKIP_DUPLICATE_DAY 2026-10-04
+  exit=0
+  after step 4: locks=['2026-10-04.lock', '2026-10-05.lock'] snapshots=['2026-10-04.json', '2026-10-05.json'] alert_lines=4
+  after step 4: ledger={   "schema_version": 1,   "last_attempt_day": "2026-10-04",   "last_success_day": "2026-10-04",   "last_attempt_at_utc": "2026-10-04T21:30:00Z",   "last_success_at_utc": "2026-10-04T21:30:00Z",   "last_outcome": "MONITOR_DEGRADED",   "consecutive_missed_days": 0,   "timezone": "Europe/Berlin",   "updated_at_utc": "2026-10-04T21:30:00Z" }
+
+==========================================================================
+SCENARIO C2 -- clock moves backwards but stays inside the SAME calendar day
+==========================================================================
+
+-- run at 2026-10-06T12:00:00+02:00 (day_key=2026-10-06) --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/backclock-sameday]
+RUN_OK 2026-10-06 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-06.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-06.lock
+  exit=0
+
+-- clock jumps back to 2026-10-06T07:00:00+02:00, same day_key=2026-10-06 --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/backclock-sameday]
+SKIP_DUPLICATE_DAY 2026-10-06
+  exit=0
+  after same-day rewind: locks=['2026-10-06.lock'] snapshots=['2026-10-06.json'] alert_lines=2
+  after same-day rewind: ledger={   "schema_version": 1,   "last_attempt_day": "2026-10-06",   "last_success_day": "2026-10-06",   "last_attempt_at_utc": "2026-10-06T10:00:00Z",   "last_success_at_utc": "2026-10-06T10:00:00Z",   "last_outcome": "MONITOR_DEGRADED",   "consecutive_missed_days": 0,   "timezone": "Europe/Berlin",   "updated_at_utc": "2026-10-06T10:00:00Z" }
+
+==========================================================================
+SCENARIO D1 -- machine ASLEEP / OFF for a gap: next run's catch-up behaviour
+==========================================================================
+seeded ledger: last_success_day=2026-09-25
+-- first run after waking at 2026-10-01T05:05:00+02:00 (day_key=2026-10-01) --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/asleep-gap]
+  gate.missed_days('2026-10-01', seeded_ledger) = ['2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30']
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/asleep-gap]
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+  exit=0
+  after wake run: locks=['2026-10-01.lock'] snapshots=['2026-10-01.json'] alert_lines=6
+  after wake run: ledger={   "schema_version": 1,   "last_attempt_day": "2026-10-01",   "last_success_day": "2026-10-01",   "last_attempt_at_utc": "2026-10-01T03:05:00Z",   "last_success_at_utc": "2026-10-01T03:05:00Z",   "last_outcome": "MONITOR_DEGRADED",   "consecutive_missed_days": 5,   "timezone": "Europe/Berlin",   "updated_at_utc": "2026-10-01T03:05:00Z" }
+
+-- SECOND run the same day, to show the watchdog's view --
+  [FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/asleep-gap]
+  watchdog.evaluate(now=2026-10-01T05:05:00+02:00) = {'day_key': '2026-10-01', 'covered': True, 'last_attempt_day': '2026-10-01', 'last_success_day': '2026-10-01', 'last_outcome': 'MONITOR_DEGRADED', 'consecutive_missed_days': 0, 'ledger_missing': False}
+  -> covered=True ; a data-less MONITOR_DEGRADED run reports the day COVERED
+
+  MISSED_DAY lines emitted to alerts.jsonl on the wake run:
+    2026-10-01  [FreeCash] MISSED DAY 2026-09-26
+    2026-10-01  [FreeCash] MISSED DAY 2026-09-27
+    2026-10-01  [FreeCash] MISSED DAY 2026-09-28
+    2026-10-01  [FreeCash] MISSED DAY 2026-09-29
+    2026-10-01  [FreeCash] MISSED DAY 2026-09-30
+
+  NOTE: the gap days were NOT re-read -- the routine never back-fills
+  (gate.missed_days docstring: 'The routine never back-fills a missed day').
+exit=0

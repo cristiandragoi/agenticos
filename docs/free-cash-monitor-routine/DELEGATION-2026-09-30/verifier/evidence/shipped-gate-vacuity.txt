@@ -1,0 +1,34 @@
+SHIPPED GATE PREDICATES EVALUATED (verbatim copies from verify-freecash-rules.mjs)
+
+input : the real monitor (does not parse)   (length 10474)
+  rule 2 -> PASSED
+  rule 3 -> PASSED
+  rule 4 -> PASSED
+
+input : the real adapter (rule 1 target)   (length 6426)
+  rule 1 -> PASSED
+
+input : empty file ""   (length 0)
+  rule 1 -> FAILED
+  rule 2 -> FAILED
+  rule 3 -> PASSED
+  rule 4 -> FAILED
+
+input : the 9 characters "read-only"   (length 9)
+  rule 1 -> PASSED
+
+input : a claim-reward function, no approval code at all   (length 106)
+  rule 3 -> PASSED
+
+input : the 22 characters "approval-request.json"   (length 21)
+  rule 4 -> PASSED
+
+input : the three Rule-2 tokens, no lock and no day boundary   (length 107)
+  rule 2 -> PASSED
+
+Which disjunct fires on the real monitor?
+  monitor includes checkForChanges  : true
+  monitor includes ".log("          : true
+  monitor includes requiresApproval : true
+  monitor includes prepareAction... : true
+  monitor includes approval-request : true

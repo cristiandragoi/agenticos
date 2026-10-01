@@ -1,0 +1,61 @@
+[verify_freecash_rules] target=C:\Users\cd-pr\AppData\Local\Temp\r3-mutants-6nws46uq\pkg-M-a
+[verify_freecash_rules] checker=1.0.0  interpreter=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+------------------------------------------------------------------------------
+R1  at most one status check per Europe/Berlin calendar day  [FAIL]
+    [R1.1] FAIL  a second run on an already-consumed operator-local day performs no second read
+           run1=None run2='SKIP_DUPLICATE_DAY 2026-10-01' snapshots=0 rc=(1,0) stderr=1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\socket.py", line 848, in create_connection
+    sock.connect(sa)
+TimeoutError: timed out
+    [R1.2] PASS  the day key is the operator-local calendar day (Europe/Berlin by default)
+           day_key(22:30Z, Europe/Berlin)=2026-09-18  day_key(22:30Z, UTC)=2026-09-17
+    [R1.3] FAIL  5 simultaneous runs yield exactly one reader
+           runs=0 skips=4 rc=[1, 0, 0, 0, 0]
+R2  zero automated earning / transaction actions (read-only verbs and paths only)  [FAIL]
+    [R2.1] PASS  write verbs (POST/PUT/DELETE) are refused before the transport is reached
+           POST/PUT/DELETE refused=(True, True, True) body-refused=True transport-untouched=True allowlisted-GET-ok=True
+    [R2.2] PASS  write/earning endpoint paths are refused
+           withdraw=True claim=True admin=True body=True transport-untouched=True
+    [R2.3] PASS  non-loopback host is refused and the audit hook aborts a remote connect
+           nonloopback=True bad-scheme=True audit-refuses-remote=True audit-allows-loopback=True
+    [R2.4] PASS  no provider host is hardcoded; the unresolved provider contract keeps its literal
+           allowlists=paths=['^/api/v1/status/metrics$', '^/api/v1/status$'] methods=['GET', 'HEAD'] hosts=['127.0.0.1', '::1', '[::1]', 'localhost'] | hosts=['localhost'] hardcoded_non_loopback=[] PROVIDER_ENDPOINT_UNKNOWN_present=True
+    [R2.5] FAIL  only the single transport module (readonly_client.py) may name a socket library
+           violations=['run_daily_check.py: http.client'] transport_present=True
+R3  notification fires on an earnings/status change and is deduplicated  [FAIL]
+    [R3.1] FAIL  an earnings change notifies exactly once and a baseline notifies zero times
+           probe produced no result (rc=1) stderr=y", line 863, in create_connection
+    raise exceptions[0]
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\socket.py", line 848, in create_connection
+    sock.connect(sa)
+TimeoutError: timed out
+    [R3.2] FAIL  the same dedupe key is never delivered twice
+           probe produced no result (rc=1) stderr=y", line 863, in create_connection
+    raise exceptions[0]
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\socket.py", line 848, in create_connection
+    sock.connect(sa)
+TimeoutError: timed out
+    [R3.3] FAIL  a no-change day is log-only
+           probe produced no result (rc=1) stderr=y", line 863, in create_connection
+    raise exceptions[0]
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\socket.py", line 848, in create_connection
+    sock.connect(sa)
+TimeoutError: timed out
+R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]
+    [R4.1] FAIL  a detected change enqueues exactly one frozen PENDING item (no expiry, NOT_EXECUTED)
+           probe produced no result (rc=1) stderr=y", line 863, in create_connection
+    raise exceptions[0]
+  File "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\.hermes-runtime\python\generation-1790015424-32580-8f84d8bb\cpython-3.11-windows-x86_64-none\Lib\socket.py", line 848, in create_connection
+    sock.connect(sa)
+TimeoutError: timed out
+    [R4.2] PASS  a machine identity cannot sign a decision and a decision never arms the item
+           {"execution_allowed_by_this_routine": false, "execution_state": "NOT_EXECUTED", "expires_at_utc": null, "machine_refused": true, "status": "APPROVED"}
+    [R4.3] PASS  no module carries an executable state token or treats APPROVED as a trigger
+           hits=[] NOT_EXECUTED_present=True
+------------------------------------------------------------------------------
+--- per-rule summary ---
+R1  FAIL  (1/3 assertions)
+R2  FAIL  (4/5 assertions)
+R3  FAIL  (0/3 assertions)
+R4  FAIL  (2/3 assertions)
+[verify_freecash_rules] RESULT FAIL target=C:\Users\cd-pr\AppData\Local\Temp\r3-mutants-6nws46uq\pkg-M-a failed_rules=R1,R2,R3,R4 assertions=7/14
+[verify_freecash_rules] FAIL - a rule violation exists in the inspected tree.

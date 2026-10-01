@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "keys": {
+    "db5b769692da3039994bdaead4b82dba20e2fd9e16712291e0ba4a8777581111": {
+      "first_notified_at_utc": "2026-03-11T09:00:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-03-11T09:00:00Z"
+    },
+    "nochange:2026-03-12": {
+      "first_notified_at_utc": "2026-03-12T09:00:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-03-12T09:00:00Z"
+    },
+    "ec11e6fa3cc831b2782c7b271c5e7ed2577a04187f0160df8b027a457b63736a": {
+      "first_notified_at_utc": "2026-03-13T09:00:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-03-13T09:00:00Z"
+    }
+  }
+}

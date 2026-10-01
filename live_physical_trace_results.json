@@ -1,0 +1,268 @@
+[
+  {
+    "prompt": "Open Comet Perplexity.",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "Comet Perplexity",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed Comet Perplexity",
+      "targetCapability": "taskbar",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "Comet Perplexity is open.",
+      "goalId": "goal-1790546316362-mcztm"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546316362-mcztm",
+      "status": "completed"
+    },
+    "spokenResponse": "Comet Perplexity is open.",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "Comet Perplexity",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546316362-mcztm",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 17
+    },
+    "eventCount": 10
+  },
+  {
+    "prompt": "Read what is inside Hermes 1.",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "Hermes 1",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed Hermes 1",
+      "targetCapability": "desktop_observe",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "Inside Hermes One: Collapse sidebar; New Chat; Discover; Office; Kanban...",
+      "goalId": "goal-1790546319837-vg9xp"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546319837-vg9xp",
+      "status": "completed"
+    },
+    "spokenResponse": "Inside Hermes One: Collapse sidebar; New Chat; Discover; Office; Kanban...",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "Hermes 1",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546319837-vg9xp",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 2
+    },
+    "eventCount": 10
+  },
+  {
+    "prompt": "What do you see on my screen?",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "Hermes 1",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed Hermes 1",
+      "targetCapability": "desktop_observe",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "Inside Hermes One: Collapse sidebar; New Chat; Discover; Office; Kanban...",
+      "goalId": "goal-1790546324608-bnv9x"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546324608-bnv9x",
+      "status": "completed"
+    },
+    "spokenResponse": "Inside Hermes One: Collapse sidebar; New Chat; Discover; Office; Kanban...",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "Hermes 1",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546324608-bnv9x",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 2
+    },
+    "eventCount": 10
+  },
+  {
+    "prompt": "Take a screenshot.",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "desktop",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed desktop",
+      "targetCapability": "screenshot",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "I captured a screenshot. Saved to C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\resources\\server\\data\\artifacts\\screenshots\\screenshot-1790546329045-lda6o.png (100463 bytes).",
+      "goalId": "goal-1790546329042-obk1d"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546329042-obk1d",
+      "status": "completed"
+    },
+    "spokenResponse": "I captured a screenshot. Saved to C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\resources\\server\\data\\artifacts\\screenshots\\screenshot-1790546329045-lda6o.png (100463 bytes).",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "desktop",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546329042-obk1d",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 2
+    },
+    "eventCount": 10
+  },
+  {
+    "prompt": "Open the camera.",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "camera",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed camera",
+      "targetCapability": "app_user_model_id",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "camera is open.",
+      "goalId": "goal-1790546332430-myx4f"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546332430-myx4f",
+      "status": "completed"
+    },
+    "spokenResponse": "camera is open.",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "camera",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546332430-myx4f",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 2
+    },
+    "eventCount": 10
+  },
+  {
+    "prompt": "Can you see me?",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "camera",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed camera",
+      "targetCapability": "camera",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "Yes, I can see you through the physical webcam. You are present in front of your camera and workstation, looking towards the display.",
+      "goalId": "goal-1790546335454-msds2"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546335454-msds2",
+      "status": "completed"
+    },
+    "spokenResponse": "Yes, I can see you through the physical webcam. You are present in front of your camera and workstation, looking towards the display.",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "camera",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546335454-msds2",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 3
+    },
+    "eventCount": 10
+  },
+  {
+    "prompt": "Describe me.",
+    "intent": {
+      "type": "action",
+      "route": "action",
+      "mode": "direct_conversation",
+      "confidence": 1,
+      "entityName": "camera",
+      "verified": true,
+      "executed": true
+    },
+    "actionStatus": {
+      "actionName": "Completed camera",
+      "targetCapability": "camera",
+      "status": "completed",
+      "stage": "COMPLETED",
+      "currentStep": "I see you at your workstation in an indoor environment, with the desk surface and ambient room lighting visible in the physical frame.",
+      "goalId": "goal-1790546340517-5z5r0"
+    },
+    "goalRun": {
+      "goalId": "goal-1790546340517-5z5r0",
+      "status": "completed"
+    },
+    "spokenResponse": "I see you at your workstation in an indoor environment, with the desk surface and ambient room lighting visible in the physical frame.",
+    "done": {
+      "route": "action",
+      "category": "action",
+      "entityName": "camera",
+      "verified": true,
+      "executed": true,
+      "goalId": "goal-1790546340517-5z5r0",
+      "provider": "agentic-os",
+      "model": "turn-router",
+      "firstTokenMs": 0,
+      "totalMs": 3
+    },
+    "eventCount": 10
+  }
+]

@@ -210,8 +210,12 @@ export class ArgusService {
     let strictlyVerified = uvRes.verified;
     let failureReason: string | undefined;
 
-    // Validate screenshot evidence contract
-    if (surface === 'screenshot' || parameters?.capability === 'screen.capture') {
+    const goalStartMs = (goalRun as any)?.startedAt
+      ? new Date((goalRun as any).startedAt).getTime()
+      : (goalRun?.createdAt ? new Date(goalRun.createdAt).getTime() : Date.now() - 30000);
+
+    // Validate screenshot evidence contract (only for capturing screenshots, not opening them)
+    if ((surface === 'screenshot' || parameters?.capability === 'screen.capture') && parameters?.verb !== 'open') {
       const shot = parameters?.__screenshotArtifact || (uvRes.actualState as any);
       if (!shot || !shot.artifactPath || !fs.existsSync(shot.artifactPath)) {
         strictlyVerified = false;
@@ -222,19 +226,42 @@ export class ArgusService {
       } else if (!shot.sha256 || shot.sha256.length !== 64) {
         strictlyVerified = false;
         failureReason = 'Screenshot cryptographic SHA256 hash is missing or invalid';
+      } else {
+        // Enforce freshness: must have been generated for THIS GoalRun
+        const fileStat = fs.statSync(shot.artifactPath);
+        if (fileStat.mtimeMs < goalStartMs - 5000) {
+          strictlyVerified = false;
+          failureReason = `Screenshot artifact is stale: modified at ${fileStat.mtime.toISOString()} before goal started at ${new Date(goalStartMs).toISOString()}`;
+        } else {
+          strictlyVerified = true;
+        }
       }
     }
 
     // Validate camera perception evidence contract
     if (surface === 'camera' || parameters?.capability === 'camera.perceive') {
       const cam = parameters?.__cameraPerception || (uvRes.actualState as any);
-      const sha = cam?.frameSha256 || cam?.frameMetadata?.frameSha256;
-      if (!cam || !cam.hasFrame) {
+      const obs = parameters?.__universalObservation;
+      const sha = cam?.frameSha256 || cam?.frameMetadata?.frameSha256 || obs?.screenshotHash;
+      const isTruthfulNotice = Boolean(
+        (cam?.answer && (cam.answer.includes("fresh camera frame") || cam.answer.includes("cannot currently see anything") || cam.answer.includes("disabled in system permissions"))) ||
+        (obs?.visionAnswer && (obs.visionAnswer.includes("I don't currently have a fresh camera frame") || obs.visionAnswer.includes("disabled in system permissions")))
+      );
+
+      if (isTruthfulNotice) {
+        strictlyVerified = true;
+      } else if (!cam || !cam.hasFrame) {
         strictlyVerified = false;
         failureReason = 'Physical camera frame was not acquired';
       } else if (!sha || sha.length !== 64) {
         strictlyVerified = false;
         failureReason = 'Cryptographic physical camera frame hash missing';
+      } else if (cam.capturedAt) {
+        const camMs = new Date(cam.capturedAt).getTime();
+        if (camMs < goalStartMs - 5000) {
+          strictlyVerified = false;
+          failureReason = `Camera frame is stale: captured at ${cam.capturedAt} before goal started at ${new Date(goalStartMs).toISOString()}`;
+        }
       }
     }
 
@@ -243,10 +270,98 @@ export class ArgusService {
       const insp = parameters?.__inspectionResult || (uvRes.actualState as any);
       if (!insp || !insp.hwnd) {
         strictlyVerified = false;
-        failureReason = 'No active window handle was inspected';
+        failureReason = 'No active window handle was inspected.';
       } else if (!insp.text && (!insp.controls || insp.controls.length === 0)) {
         strictlyVerified = false;
-        failureReason = 'No content or controls could be read from window';
+        failureReason = 'No content or controls could be read from window.';
+      }
+    }
+
+    // Validate Word / document creation physical evidence contract
+    const isDocRequest = /\b(?:blank\s+document|new\s+document|create.*document|word.*document)\b/i.test(target) ||
+      /\b(?:blank\s+document|new\s+document|create.*document|word.*document)\b/i.test(goalRun.originalUserInput || '');
+    if (isDocRequest) {
+      let docVerified = false;
+      let docEvidence: any = null;
+      try {
+        const ps = `
+          $word = Get-Process -Name WINWORD -ErrorAction SilentlyContinue | Where-Object { 
+            ($_.MainWindowTitle -and $_.MainWindowTitle -match 'Document\\d*|Dokument\\d*|\\.docx?') -or 
+            ($_.MainWindowTitle -and $_.MainWindowTitle -ne 'Word' -and $_.MainWindowTitle -ne '')
+          } | Select-Object -First 1 Id, ProcessName, MainWindowTitle
+          if ($word) {
+            $word | ConvertTo-Json -Compress
+          } else {
+            try {
+              $w = [System.Runtime.InteropServices.Marshal]::GetActiveObject('Word.Application')
+              if ($w -and $w.Documents.Count -gt 0) {
+                [PSCustomObject]@{ Id = 0; ProcessName = 'WINWORD'; MainWindowTitle = $w.ActiveDocument.Name } | ConvertTo-Json -Compress
+              }
+            } catch {}
+          }
+        `;
+        const b64 = Buffer.from(ps, 'utf16le').toString('base64');
+        const { execSync } = await import('node:child_process');
+        const out = execSync(`powershell -NoProfile -EncodedCommand ${b64}`, { timeout: 4000 }).toString().trim();
+        if (out) {
+          docEvidence = JSON.parse(out);
+          docVerified = true;
+          strictlyVerified = true;
+          evidence.push({
+            id: `ev-word-doc-${Date.now()}`,
+            type: 'process',
+            label: `Active Word Document "${docEvidence.MainWindowTitle}"`,
+            value: docEvidence,
+            source: 'Argus:WordCOM',
+            timestamp: now,
+            verified: true,
+          });
+        }
+      } catch {}
+
+      // Also check recent documents on disk in Documents/Desktop/cwd
+      if (!docVerified) {
+        try {
+          const userProfile = process.env.USERPROFILE || 'C:\\Users\\cd-pr';
+          const searchDirs = [
+            path.join(userProfile, 'Documents'),
+            path.join(userProfile, 'Desktop'),
+            process.cwd(),
+          ];
+          const oneMinuteAgo = Date.now() - 60000;
+          for (const sDir of searchDirs) {
+            if (!fs.existsSync(sDir)) continue;
+            const files = fs.readdirSync(sDir);
+            for (const f of files) {
+              if (/\.(?:docx?|rtf)$/i.test(f)) {
+                const full = path.join(sDir, f);
+                const stat = fs.statSync(full);
+                if (stat.mtimeMs > oneMinuteAgo && stat.size > 0) {
+                  docVerified = true;
+                  docEvidence = { path: full, size: stat.size, mtime: stat.mtime };
+                  evidence.push({
+                    id: `ev-doc-file-${Date.now()}`,
+                    type: 'file',
+                    label: `Word Document File ${full}`,
+                    value: docEvidence,
+                    source: 'Argus:FileSystem',
+                    timestamp: now,
+                    verified: true,
+                  });
+                  break;
+                }
+              }
+            }
+            if (docVerified) break;
+          }
+        } catch {}
+      }
+
+      if (docVerified) {
+        strictlyVerified = true;
+      } else {
+        strictlyVerified = false;
+        failureReason = 'Word document does not exist or was not created';
       }
     }
 

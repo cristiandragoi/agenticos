@@ -1,0 +1,25 @@
+=== session/interactivity probes ===
+Do,  1. Okt 2026 11:45:31
+--- which powershell ---
+/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell
+--- [Environment]::UserInteractive ---
+True
+rc=0
+--- explorer.exe present? ---
+
+   Id SessionId
+   -- ---------
+10136         1
+21044         1
+
+
+
+rc=0
+--- qwinsta / query session ---
+ SITZUNGSNAME               BENUTZERNAME                 ID  STATUS   TYP        GERŽT 
+ services                                            0  Getr.                       
+>console                   cd-pr                     1  Aktiv                       
+ SITZUNGSNAME               BENUTZERNAME                 ID  STATUS   TYP        GERŽT 
+ services                                            0  Getr.                       
+>console                   cd-pr                     1  Aktiv                       
+rc=0

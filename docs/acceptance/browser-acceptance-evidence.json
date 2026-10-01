@@ -1,0 +1,156 @@
+{
+  "timestamp": "2026-09-26T09:13:52.680Z",
+  "executablePath": "C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\AgenticOS.exe",
+  "buildId": "d2d892c1-dirty-20260926-091202",
+  "allPassed": true,
+  "results": {
+    "TEST_1_OPEN_CHANNEL": {
+      "name": "TEST 1: Open YouTube and locate channel Julian Goldie SEO",
+      "utterance": "Jarvis, open YouTube and locate the channel Julian Goldie SEO.",
+      "response": "Opened the Julian Goldie SEO channel on YouTube.",
+      "browserUrl": "https://www.youtube.com/@JulianGoldieSEO",
+      "isChannelPage": true,
+      "hasProgressEvents": true,
+      "completionState": "COMPLETED",
+      "passed": true
+    },
+    "TEST_2_CONVERSATIONAL_CONSTRAINT": {
+      "name": "TEST 2: That's good. Don't do anything else. Keep Julian Goldie open.",
+      "utterance": "That’s good. Don’t do anything else. Keep Julian Goldie open.",
+      "response": "Understood, keeping Julian Goldie SEO open.",
+      "browserInputAuthorized": false,
+      "newTypingAttempts": 0,
+      "searchBoxValue": "",
+      "urlMaintained": true,
+      "passed": true
+    },
+    "TEST_3_STATUS_QUERY": {
+      "name": "TEST 3: What status does AgenticOS have right now?",
+      "utterance": "What status does AgenticOS have right now?",
+      "response": "AgenticOS runtime is operational and all core services are healthy.",
+      "browserInputAuthorized": false,
+      "newTypingAttempts": 0,
+      "searchBoxValue": "",
+      "passed": true
+    },
+    "TEST_4_CONVERSATIONAL_REFLECTION": {
+      "name": "TEST 4: Why did you previously move away from this page?",
+      "utterance": "Why did you previously move away from this page?",
+      "response": "I remained on the requested channel without navigating away. If any unintended navigation occurred earlier, I have held the current page and will not move.",
+      "browserInputAuthorized": false,
+      "newTypingAttempts": 0,
+      "passed": true
+    },
+    "TEST_5_EXPLICIT_SEARCH": {
+      "name": "TEST 5: Search YouTube for Fireship.",
+      "utterance": "Search YouTube for Fireship.",
+      "response": "Typed \"Fireship.\" into the YouTube search box and ran the search.",
+      "browserInputAuthorized": true,
+      "attemptAuthorized": true,
+      "browserUrl": "https://www.youtube.com/results?search_query=Fireship.",
+      "passed": true
+    },
+    "TEST_6_LEAVE_IT_THERE": {
+      "name": "TEST 6: Good, leave it there.",
+      "utterance": "Good, leave it there.",
+      "response": "Understood, leaving it there.",
+      "browserInputAuthorized": false,
+      "newTypingAttempts": 0,
+      "stability15s": true,
+      "finalUrl": "https://www.youtube.com/results?search_query=Fireship.",
+      "passed": true
+    }
+  },
+  "auditTraces": [
+    {
+      "voiceEventId": "vevent-1790413955125-xug1e",
+      "turnId": "turn-1790413955124",
+      "rawStt": "Jarvis, open YouTube and locate the channel Julian Goldie SEO.",
+      "normalizedStt": "open YouTube and locate the channel Julian Goldie SEO.",
+      "conversationMode": "COMMAND",
+      "parsedIntent": "browser_open_channel",
+      "executionId": "exec-1790413955125",
+      "activeTool": "browserOperator",
+      "browserInputAuthorized": true,
+      "targetElement": "searchField",
+      "textToType": "Julian Goldie SEO.",
+      "reasonForTyping": "search_and_open_channel",
+      "completionState": "COMPLETED"
+    },
+    {
+      "voiceEventId": "vevent-1790413987794-yc2nu",
+      "turnId": "turn-1790413987794",
+      "rawStt": "That’s good. Don’t do anything else. Keep Julian Goldie open.",
+      "normalizedStt": "That’s good. Don’t do anything else. Keep Julian Goldie open.",
+      "conversationMode": "CONVERSATION",
+      "parsedIntent": "conversational_constraint_stay",
+      "executionId": "exec-1790413987794",
+      "activeTool": "none",
+      "browserInputAuthorized": false,
+      "targetElement": null,
+      "textToType": null,
+      "reasonForTyping": null,
+      "completionState": "COMPLETED"
+    },
+    {
+      "voiceEventId": "vevent-1790413992064-9yjfc",
+      "turnId": "turn-1790413992064",
+      "rawStt": "What status does AgenticOS have right now?",
+      "normalizedStt": "What status does AgenticOS have right now?",
+      "conversationMode": "CONVERSATION",
+      "parsedIntent": "system_status_query",
+      "executionId": "exec-1790413992064",
+      "activeTool": "systemIntrospection",
+      "browserInputAuthorized": false,
+      "targetElement": null,
+      "textToType": null,
+      "reasonForTyping": null,
+      "completionState": "COMPLETED"
+    },
+    {
+      "voiceEventId": "vevent-1790413995817-qqdkx",
+      "turnId": "turn-1790413995817",
+      "rawStt": "Why did you previously move away from this page?",
+      "normalizedStt": "Why did you previously move away from this page?",
+      "conversationMode": "CONVERSATION",
+      "parsedIntent": "conversational_reflection",
+      "executionId": "exec-1790413995817",
+      "activeTool": "none",
+      "browserInputAuthorized": false,
+      "targetElement": null,
+      "textToType": null,
+      "reasonForTyping": null,
+      "completionState": "COMPLETED"
+    },
+    {
+      "voiceEventId": "vevent-1790413999543-qzyte",
+      "turnId": "turn-1790413999543",
+      "rawStt": "Search YouTube for Fireship.",
+      "normalizedStt": "Search YouTube for Fireship.",
+      "conversationMode": "COMMAND",
+      "parsedIntent": "browser_search",
+      "executionId": "exec-1790413999543",
+      "activeTool": "browserOperator",
+      "browserInputAuthorized": true,
+      "targetElement": "searchField",
+      "textToType": "Fireship.",
+      "reasonForTyping": "explicit_search_intent",
+      "completionState": "COMPLETED"
+    },
+    {
+      "voiceEventId": "vevent-1790414013792-li2v0",
+      "turnId": "turn-1790414013792",
+      "rawStt": "Good, leave it there.",
+      "normalizedStt": "Good, leave it there.",
+      "conversationMode": "CONVERSATION",
+      "parsedIntent": "conversational_constraint_stay",
+      "executionId": "exec-1790414013792",
+      "activeTool": "none",
+      "browserInputAuthorized": false,
+      "targetElement": null,
+      "textToType": null,
+      "reasonForTyping": null,
+      "completionState": "COMPLETED"
+    }
+  ]
+}

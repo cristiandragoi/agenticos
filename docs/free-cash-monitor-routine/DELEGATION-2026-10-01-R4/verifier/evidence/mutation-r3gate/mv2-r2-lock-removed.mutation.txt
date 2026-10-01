@@ -1,0 +1,4 @@
+rule=2
+why=R2: the O_CREAT|O_EXCL day lock is removed, so a second same-day run reads again
+edits=1
+  gate.py: 1 change(s)

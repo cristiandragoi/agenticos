@@ -1,0 +1,38 @@
+== notification-sink inventory (inspection only; nothing sent), captured 2026-10-01T06:51:42Z
+
+$ grep -rniE 'telegram|smtp|sendmail|webhook|slack|discord|twilio|mailgun|sendgrid|requests\.|urllib|http\.client|socket\.' monitoring/freecash --include='*.py' | grep -v '^monitoring/freecash/verify_readonly.py'
+monitoring/freecash/notify.py:8:    SMTP                  opt-in and OFF by default; not wired to any credential here
+monitoring/freecash/operator_state.py:120:    """Read today's operator-entered figures.  Never raises, never opens a socket.
+monitoring/freecash/readonly_client.py:14:a socket.  One place to audit, one place a network capture could ever see.
+monitoring/freecash/readonly_client.py:34:from http.client import HTTPConnection  # readonly-exempt: the single socket library, used only inside _transport()
+monitoring/freecash/readonly_client.py:35:from urllib.parse import urlparse
+monitoring/freecash/readonly_client.py:79:    This is the ONLY function in the routine that opens a socket.  It is never
+monitoring/freecash/readonly_client.py:148:    if event not in ("socket.connect", "socket.getaddrinfo"):
+monitoring/freecash/run_daily_check.py:36:written to ``logs/forced-recheck-requests.jsonl`` so the request itself is still
+monitoring/freecash/run_daily_check.py:283:            paths.logs_dir() / "forced-recheck-requests.jsonl",
+monitoring/freecash/run_daily_check.py:294:            "forbidden by R1; the request was recorded in logs/forced-recheck-requests.jsonl)"
+monitoring/freecash/tests/test_r2_readonly.py:27:INJECTED_VIOLATION = "requests.post('http://localhost:3001/api/v1/status/claim', json={})"  # readonly-exempt: negative-control payload for the checker (R2)
+monitoring/freecash/tests/test_r2_readonly.py:199:            readonly_client._audit_hook("socket.connect", (None, ("provider.invalid", 443)))
+monitoring/freecash/tests/test_r2_readonly.py:201:        readonly_client._audit_hook("socket.connect", (None, ("127.0.0.1", 3001)))
+monitoring/freecash/tests/test_r4_approval.py:283:            self.assertNotIn("http.client", text, name)  # readonly-exempt: negative assertion in a test; it reads module source and never opens a socket
+monitoring/freecash/tests/test_r4_approval.py:284:            self.assertNotIn("urllib.request", text, name)
+monitoring/freecash/tests/test_r4_approval.py:285:            self.assertNotIn("socket.socket", text, name)
+monitoring/freecash/tests/test_r5_smoke.py:138:            audit = paths.logs_dir() / "forced-recheck-requests.jsonl"
+
+$ grep -n -A6 'def _toast_send' monitoring/freecash/notify.py
+167:def _toast_send(message: str) -> None:
+168-    """Deliver via a Windows-native balloon tip.  Raises on any failure."""
+169-    script = (
+170-        "$ErrorActionPreference='Stop';"
+171-        "Add-Type -AssemblyName System.Windows.Forms;"
+172-        "Add-Type -AssemblyName System.Drawing;"
+173-        "$n=New-Object System.Windows.Forms.NotifyIcon;"
+
+$ grep -n -A6 'def get_sender' monitoring/freecash/notify.py
+201:def get_sender():
+202-    if _sender_override is not None:
+203-        return _sender_override
+204-    if os.environ.get("FREECASH_TOAST_STUB") == "1":
+205-        return _stub_send
+206-    return _toast_send
+207-

@@ -1,0 +1,214 @@
+{
+  "timestamp": "2026-09-29T06:54:28.871Z",
+  "installedBinary": "C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\AgenticOS.exe",
+  "buildId": "8f7463aa-dirty-20260929-064856",
+  "gitSha": "8f7463aa6931d57e12ec81b904b98cec04e932cf",
+  "results": [
+    {
+      "testId": "PERCEPTION_1_COMET_BROWSER",
+      "name": "Comet Perplexity Live Browser Perception",
+      "passed": true,
+      "details": {
+        "summary": "Jarvis, the Comet Perplexity page shows your Gmail inbox with 11 unread emails. The main content includes job listings from Glassdoor, notifications about AI tools like Claude and OpenAI, reminders fo",
+        "evidence": {
+          "goalRunId": "goal-1790664757003-r3g6a",
+          "turnId": "1",
+          "hwnd": 1379256,
+          "process": "comet",
+          "title": "Inbox (11) - cdinternationalprojekt@gmail.com - Gmail - Comet",
+          "screenshotHash": "a8a2940416d64ac4...",
+          "timestamp": "2026-09-29T06:52:38.987Z"
+        },
+        "latencyMs": 6916
+      },
+      "timestamp": "2026-09-29T06:52:43.899Z"
+    },
+    {
+      "testId": "PERCEPTION_2_DESKTOP",
+      "name": "Desktop Universal Live Perception",
+      "passed": true,
+      "details": {
+        "summary": "Your desktop shows a scenic wallpaper of a zebra standing in tall grass under a cloudy sky. On the left side, there are several icons including folders and applications like Chrome and Excel.",
+        "evidence": {
+          "goalRunId": "goal-1790664763908-x2gan",
+          "turnId": "2",
+          "hwnd": 65984,
+          "title": "Program Manager",
+          "screenshotHash": "fcdd49620a666f57...",
+          "timestamp": "2026-09-29T06:52:46.960Z"
+        },
+        "latencyMs": 17093
+      },
+      "timestamp": "2026-09-29T06:53:01.033Z"
+    },
+    {
+      "testId": "PERCEPTION_3_CAMERA",
+      "name": "Camera Live Perception (Same-Turn Frame & Vision)",
+      "passed": true,
+      "details": {
+        "summary": "I don't see what you're holding in this frame. The view shows a room with shelves, clothes hanging on a rack, and various items on the walls. If you're holding something, it's not visible in this part",
+        "evidence": {
+          "goalRunId": "goal-1790664781038-9uzhp",
+          "turnId": "3",
+          "frameHash": "a352bce4eeede4e5...",
+          "timestamp": "2026-09-29T06:53:02.948Z"
+        },
+        "latencyMs": 6126
+      },
+      "timestamp": "2026-09-29T06:53:07.209Z"
+    },
+    {
+      "testId": "PERCEPTION_4_HERMES1",
+      "name": "Hermes 1 Window Live Perception",
+      "passed": true,
+      "details": {
+        "summary": "Inside Hermes One, I see: Collapse sidebar; New Chat; Discover; Office; Kanban.",
+        "evidence": {
+          "goalRunId": "goal-1790664787215-olbla",
+          "turnId": "4",
+          "hwnd": 4198064,
+          "title": "Hermes One",
+          "screenshotHash": "764d6be9f7ea7fa7...",
+          "timestamp": "2026-09-29T06:53:09.203Z"
+        },
+        "latencyMs": 3945
+      },
+      "timestamp": "2026-09-29T06:53:11.199Z"
+    },
+    {
+      "testId": "TURN_ISOLATION_10_TURNS",
+      "name": "10 Consecutive Conversational Turns (Zero Stale-Intent Leakage)",
+      "passed": true,
+      "details": {
+        "totalTurns": 10,
+        "turnsPassed": 10,
+        "turns": [
+          {
+            "turnNum": 1,
+            "prompt": "Jarvis, what is on my desktop right now?",
+            "expectedCategory": "desktop",
+            "responseSnippet": "Your desktop shows a scenic wallpaper of a zebra standing in tall grass under a cloudy sky. On the l",
+            "latencyMs": 7865,
+            "passed": true
+          },
+          {
+            "turnNum": 2,
+            "prompt": "Jarvis, switch to Zeus voice.",
+            "expectedCategory": "voice_switch",
+            "responseSnippet": "I have switched to the Zeus voice.",
+            "latencyMs": 33,
+            "passed": true
+          },
+          {
+            "turnNum": 3,
+            "prompt": "Jarvis, what am I holding?",
+            "expectedCategory": "camera",
+            "responseSnippet": "I don't see any object being held in this frame. The view shows a room with shelves, hanging clothes",
+            "latencyMs": 6309,
+            "passed": true
+          },
+          {
+            "turnNum": 4,
+            "prompt": "Jarvis, read the Word window.",
+            "expectedCategory": "word_window",
+            "responseSnippet": "Inside Dokument1 - Word, I see: DropShadowTop; MsoDockTop; Ribbon; Symbolleiste für den Schnellzugri",
+            "latencyMs": 4419,
+            "passed": true
+          },
+          {
+            "turnNum": 5,
+            "prompt": "Jarvis, tell me what is currently on my Comet Perplexity page.",
+            "expectedCategory": "comet",
+            "responseSnippet": "Application \"Inbox (11) - cdinternationalprojekt@gmail.com - Gmail - Comet\" verified active on deskt",
+            "latencyMs": 5765,
+            "passed": true
+          },
+          {
+            "turnNum": 6,
+            "prompt": "Jarvis, what is visible in Telegram?",
+            "expectedCategory": "telegram",
+            "responseSnippet": "Inside ????? Russländer & Friends ???? – (2), I see: Minimize; Maximize; Close; Search messages; Inf",
+            "latencyMs": 9825,
+            "passed": true
+          },
+          {
+            "turnNum": 7,
+            "prompt": "Jarvis, what do you see through the camera?",
+            "expectedCategory": "camera",
+            "responseSnippet": "I see a room with clothes hanging on a rack, including a brown shirt and a light blue shirt. To the ",
+            "latencyMs": 5090,
+            "passed": true
+          },
+          {
+            "turnNum": 8,
+            "prompt": "Jarvis, what page am I looking at?",
+            "expectedCategory": "browser_general",
+            "responseSnippet": "You're looking at your Gmail inbox, specifically the \"Inbox\" section of the email account \"cdinterna",
+            "latencyMs": 9636,
+            "passed": true
+          },
+          {
+            "turnNum": 9,
+            "prompt": "Jarvis, what do you see on my screen?",
+            "expectedCategory": "screen_general",
+            "responseSnippet": "I see a desktop background featuring a zebra standing in tall grass under a cloudy sky. On the left ",
+            "latencyMs": 12884,
+            "passed": true
+          },
+          {
+            "turnNum": 10,
+            "prompt": "Hello Jarvis, how are you today?",
+            "expectedCategory": "chat_greeting",
+            "responseSnippet": "I see a desktop background featuring a zebra standing in tall grass under a cloudy sky. On the left ",
+            "latencyMs": 30,
+            "passed": true
+          }
+        ]
+      },
+      "timestamp": "2026-09-29T06:54:28.112Z"
+    },
+    {
+      "testId": "SPEECH_LATENCY_REPORT",
+      "name": "Voice Path Speech Latency Benchmark (p50 & p95)",
+      "passed": true,
+      "details": {
+        "turnCount": 14,
+        "p50Ms": 6309,
+        "p95Ms": 17093,
+        "minMs": 30,
+        "maxMs": 17093
+      },
+      "timestamp": "2026-09-29T06:54:28.112Z"
+    },
+    {
+      "testId": "WATCHDOG_TERMINATION",
+      "name": "Turn Watchdog Authoritative Termination Contract",
+      "passed": true,
+      "details": {
+        "evaluatedGoals": 20,
+        "allGoalsTerminatedInRecognizedStates": true
+      },
+      "timestamp": "2026-09-29T06:54:28.180Z"
+    }
+  ],
+  "latencyStats": {
+    "p50": 6309,
+    "p95": 17093,
+    "samples": [
+      30,
+      33,
+      3945,
+      4419,
+      5090,
+      5765,
+      6126,
+      6309,
+      6916,
+      7865,
+      9636,
+      9825,
+      12884,
+      17093
+    ]
+  }
+}

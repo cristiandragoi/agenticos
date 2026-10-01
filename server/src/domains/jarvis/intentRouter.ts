@@ -544,6 +544,8 @@ export function isLiveSystemInvestigationRequest(prompt: string): boolean {
   // Conversational model questions ("What model are you using?", "Which model are you running?", "What provider is this?") are direct conversation
   if (/\b(?:what|which)\s+(?:model|provider|llm|engine|architecture)\s+(?:and\s+(?:model|provider)\s+)?(?:are|am|is|do)\s+(?:you|i|we|it)\s+(?:actually\s+|currently\s+)?(?:using|running|on|configured with|have)\b/i.test(p) || /\b(?:what|which)\s+model\s+are\s+you\s+(?:using|running)\b/i.test(p)) return false;
   if (/\b(?:who\s+are\s+you|what\s+are\s+you|how\s+are\s+you|what\s+is\s+\d+\s*[\+\-\*\/]|what's\s+\d+\s*[\+\-\*\/])\b/i.test(p)) return false;
+  // Explicit operational actions (application open, screenshot, memory save) must never be hijacked into live system investigation
+  if (/\b(?:open|launch|save|screenshot|snapshot|screen\s+capture|comet|telegram|memory)\b/i.test(p)) return false;
   const hasLiveVerb = LIVE_STATE_VERB_RE.test(p) || /^(check|inspect|verify|investigate|diagnose|trace|probe|why is)\b/.test(p) || /\b(health|status)\b/.test(p) || LIVE_STATE_PREDICATE_RE.test(p);
   if (!hasLiveVerb) return false;
   if (!LIVE_STATE_TARGET_RE.test(p)) return false;
@@ -854,20 +856,21 @@ export class IntentRouter {
     const isBrowserInspect = /\b(open|browse|navigate|visit|inspect|scrape|read|check|view|fetch|tell me what is on|what is on)\b/i.test(p) &&
       (/\b(page|site|website|webpage|web page|url|dom|web)\b/i.test(p) || hasUrl || hasBareDomain);
 
-    if (!delegationSignals.prohibitedWorkers.includes('magnitude')) {
-      if (mentionsMagnitude || (hasUrl && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on)\b/i.test(p)) || (hasBareDomain && /\b(open|browse|navigate|visit|inspect|read|tell me what|check|what is on|look up|look at)\b/i.test(p)) || (hasUrl && isBrowserInspect)) {
-        return operational(
-          'magnitude',
-          'browser_automation',
-          0.96,
-          'Browser automation and web inspection request routed to Magnitude',
-          'Jarvis',
-          ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
-          false,
-          false,
-          'magnitude'
-        );
-      }
+    // ── MAGNITUDE BROWSER & WEB INSPECTION CHECK ──
+    // Autonomous routing to Magnitude is disabled per architectural directive until audit.
+    // Magnitude may ONLY be selected if the user explicitly requests magnitude by name.
+    if (!delegationSignals.prohibitedWorkers.includes('magnitude') && mentionsMagnitude) {
+      return operational(
+        'magnitude',
+        'browser_automation',
+        0.96,
+        'Browser automation request explicitly routed to Magnitude',
+        'Jarvis',
+        ['Validate target URL', 'Launch headless Chromium browser', 'Navigate and extract page content', 'Deliver structured result to Jarvis'],
+        false,
+        false,
+        'magnitude'
+      );
     }
 
     // 1. Memory checks — only genuine memory QUERIES route to memory.

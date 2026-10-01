@@ -1,0 +1,70 @@
+{
+  "demos": {
+    "r4_decide": {
+      "api": {
+        "  SYSTEM  ": "NotHumanError: refused: 'SYSTEM' is not a human identity; this routine may only record a decision made by a person",
+        "AI-Agent": "ACCEPTED",
+        "Alice Operator": "ACCEPTED",
+        "J. Schmidt": "ACCEPTED",
+        "RoutineBot": "ACCEPTED",
+        "agent": "NotHumanError: refused: 'agent' is not a human identity; this routine may only record a decision made by a person",
+        "agent-007": "ACCEPTED",
+        "automation": "NotHumanError: refused: 'automation' is not a human identity; this routine may only record a decision made by a person",
+        "automation-2": "ACCEPTED",
+        "bot": "NotHumanError: refused: 'bot' is not a human identity; this routine may only record a decision made by a person",
+        "bot:alpha": "ACCEPTED",
+        "cron": "NotHumanError: refused: 'cron' is not a human identity; this routine may only record a decision made by a person",
+        "cron-runner": "ACCEPTED",
+        "machine": "NotHumanError: refused: 'machine' is not a human identity; this routine may only record a decision made by a person",
+        "monitor": "NotHumanError: refused: 'monitor' is not a human identity; this routine may only record a decision made by a person",
+        "report-machine": "ACCEPTED",
+        "routine": "NotHumanError: refused: 'routine' is not a human identity; this routine may only record a decision made by a person",
+        "scheduler": "NotHumanError: refused: 'scheduler' is not a human identity; this routine may only record a decision made by a person",
+        "scheduler.exe": "ACCEPTED",
+        "script": "NotHumanError: refused: 'script' is not a human identity; this routine may only record a decision made by a person",
+        "system": "NotHumanError: refused: 'system' is not a human identity; this routine may only record a decision made by a person"
+      },
+      "cli": {
+        "human": {
+          "by": "Alice Operator",
+          "exit": 0,
+          "stderr": "",
+          "stdout": "recorded APPROVED for f5932d1d-0834-465e-8a63-d0461b5b002b by Alice Operator at 2026-10-01T07:18:36Z\nexecution_state=EXECUTION_ARMED (unchanged; this routine executes nothing)"
+        },
+        "machine": {
+          "by": "system",
+          "exit": 4,
+          "stderr": "REFUSED: refused: 'system' is not a human identity; this routine may only record a decision made by a person",
+          "stdout": ""
+        }
+      },
+      "frozen_fields": {
+        "after_decisions": {
+          "decided_by": "Alice Operator",
+          "execution_allowed_by_this_routine": true,
+          "execution_state": "EXECUTION_ARMED",
+          "expires_at_utc": "2026-10-01T07:18:36Z",
+          "status": "APPROVED"
+        }
+      },
+      "item_created": {
+        "execution_allowed_by_this_routine": false,
+        "execution_state": "NOT_EXECUTED",
+        "expires_at_utc": null,
+        "status": "PENDING"
+      },
+      "kind": "r4_decide"
+    }
+  },
+  "file": "approval_queue.py",
+  "gateA_exit": 1,
+  "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+  "gateB_exit": 1,
+  "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS",
+  "gate_a_rule": "RULE 4",
+  "id": "r4-b-arms-on-approve",
+  "readonly_scan_exit": 0,
+  "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+  "reason": "R4 violation: an approved item is armed with a live expiry and EXECUTION_ARMED state -- 'expired' becomes 'execute'.",
+  "rule": "R4"
+}

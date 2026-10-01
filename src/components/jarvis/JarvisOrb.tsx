@@ -35,21 +35,8 @@ import React, { useEffect, useRef, useState } from 'react';
  *    prop changes never restart the rAF loop (no extra React rerenders).
  */
 
-export type JarvisVisualState =
-  | 'idle'
-  | 'listening'
-  | 'transcribing'
-  | 'thinking'
-  | 'speaking'
-  | 'error'
-  | 'offline'
-  // Extended semantic states (spec §13)
-  | 'reasoning'   // cyan/white — model processing/routing
-  | 'executing'   // strong cyan — operational/running agent
-  | 'delegated'   // pink — secondary agent active
-  | 'repairing'   // purple (distinct from speaking) — corrective work
-  | 'warning'     // yellow — diagnostic/attention
-  | 'completed';  // green — success
+import { type JarvisVisualState, JARVIS_ORB_COLORS, JARVIS_VISUAL_COLORS } from './JarvisVisualState';
+export { type JarvisVisualState, JARVIS_ORB_COLORS, JARVIS_VISUAL_COLORS };
 
 export interface JarvisOrbProps {
   state: JarvisVisualState;
@@ -82,23 +69,7 @@ export const JARVIS_ORB_LABELS: Record<JarvisVisualState, string> = {
   completed: 'Completed',
 };
 
-/** Colour contract (hex) for each visual state. */
-export const JARVIS_ORB_COLORS: Record<JarvisVisualState, string> = {
-  idle: '#00e5ff', // cyan / soft white core
-  listening: '#3b82f6', // blue
-  transcribing: '#22c55e', // green
-  thinking: '#f5b50a', // yellow / amber
-  speaking: '#a855f7', // purple
-  error: '#ef4444', // red
-  offline: '#7f1d1d', // dark red
-  // Extended semantic states
-  reasoning: '#e0f2fe', // cyan-white — model reasoning/processing
-  executing: '#00d4ff', // strong cyan — operational/running
-  delegated: '#ec4899', // pink — secondary agent activity
-  repairing: '#9333ea', // deeper purple — corrective work
-  warning: '#f59e0b', // amber/yellow — diagnostic attention
-  completed: '#22c55e', // green — success
-};
+
 
 /* Per-state motion tuning. Everything is a deterministic function of time
    and the real level props — no fake randomness anywhere. */

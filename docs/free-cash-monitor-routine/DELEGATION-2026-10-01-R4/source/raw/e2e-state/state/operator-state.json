@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "note": "Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.",
+  "how_to": [
+    "Open your own account dashboard in a browser and log in yourself.",
+    "Note four figures: account status, total earnings, current balance, pending amount.",
+    "Append one record to the records list with today's local date as day_key.",
+    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them."
+  ],
+  "records": [
+    {
+      "day_key": "2026-10-01",
+      "entered_at_utc": "2026-10-01T07:55:00Z",
+      "account_status": "ACTIVE",
+      "earnings_total_cents": 1340,
+      "balance_cents": 1340,
+      "pending_cents": 0,
+      "currency": "USD"
+    },
+    {
+      "day_key": "2026-10-02",
+      "entered_at_utc": "2026-10-02T07:58:00Z",
+      "account_status": "ACTIVE",
+      "earnings_total_cents": 2540,
+      "balance_cents": 2540,
+      "pending_cents": 0,
+      "currency": "USD"
+    }
+  ],
+  "template_record": {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD"
+  }
+}

@@ -1,0 +1,361 @@
+=== TOP-LEVEL FILES (one line each) ===
+AUDIT-RULE-COMPLIANCE.md                                                    37245  2026-09-17  | Free Cash Daily-Monitor — Rule-Compliance Audit (R1–R4)
+DAILY-MONITORING-WORKFLOW-AND-RESEARCH-PLAN.md                              56058  2026-09-19  | DAILY-MONITORING-WORKFLOW-AND-RESEARCH-PLAN.md — Free Cash Finance Automation daily status routine
+DELEGATED-WORKFLOW-PLAN.md                                                  17265  2026-09-18  | DELEGATED-WORKFLOW-PLAN.md — delegation, workflow and research plan
+DELEGATION-DISPATCH-2026-09-20-R2.md                                        11653  2026-09-20  | DELEGATION DISPATCH R2 — Free Cash Finance Automation daily status-monitoring routine
+DELEGATION-DISPATCH-2026-09-20.md                                           12809  2026-09-20  | DELEGATION DISPATCH — Free Cash Finance Automation daily status-monitoring routine
+DELEGATION-RESEARCH-PLAN.md                                                  9318  2026-09-18  | DELEGATION-RESEARCH-PLAN.md — research plan delegated to Hermes for the Free Cash daily status monitor
+DELEGATION-WORKFLOW-PLAN.md                                                 16935  2026-09-18  | DELEGATION-WORKFLOW-PLAN.md — Hermes execution workflow for the Free Cash daily status-monitoring routine
+IMPLEMENTATION-PLAN-V3.md                                                   47748  2026-09-18  | IMPLEMENTATION-PLAN-V3.md — Phased build plan + capability verification
+OPERATIONS-WORKFLOW-PLAN-2026-09-20.md                                      55929  2026-09-20  | OPERATIONS-WORKFLOW-PLAN-2026-09-20.md — Operator-facing daily status-monitoring workflow
+OPERATIONS-WORKFLOW-PLAN.md                                                 16368  2026-09-20  | OPERATIONS-WORKFLOW-PLAN.md — Free Cash Finance Automation, the daily status-monitoring routine
+PROVIDER-API-RESEARCH.md                                                    18015  2026-09-17  | Provider API Research — Read-Only Status/Balance for "Free Cash Finance Automation"
+PROVIDER-CONTRACT-RESEARCH-V2.md                                            46494  2026-09-18  | PROVIDER-CONTRACT-RESEARCH-V2.md — Read-Only Status/Earnings Contract for "Free Cash Finance Automation"
+PROVIDER-DECISION-PACKET-2026-09-20-v2.md                                   34287  2026-09-20  | PROVIDER DECISION PACKET v2 — Free Cash daily status-monitoring routine
+PROVIDER-DECISION-PACKET-2026-09-20.md                                      38763  2026-09-20  | PROVIDER DECISION PACKET — 2026-09-20 — Free Cash daily status-monitoring routine: which read source is author
+PROVIDER-FINDINGS-REVERIFIED.md                                             35356  2026-09-18  | PROVIDER-FINDINGS-REVERIFIED.md — live re-verification of the facts that decide whether an automated daily sta
+RESEARCH-PLAN-2026-09-21.md                                                 52346  2026-09-21  | RESEARCH PLAN — 2026-09-21 — once-a-day, read-only Free Cash status monitor
+RESEARCH-PLAN-FC-FINANCE-AUTOMATION-V11-2026-10-01.md                       59936  2026-10-01  | RESEARCH PLAN — Free Cash Finance Automation, daily status-monitoring routine (V11)
+RESEARCH-PLAN-V4.md                                                         57323  2026-09-20  | RESEARCH-PLAN-V4.md — Research plan (design document) for the Free Cash Finance Automation daily status-monito
+RESEARCH-PLAN.md                                                            29039  2026-09-17  | Research Plan — Read-Only Daily Status Monitor for "Free Cash Finance Automation"
+ROUTINE-DESIGN.md                                                           49144  2026-09-17  | ROUTINE-DESIGN.md — Canonical Daily Status-Monitoring Routine
+RULE-GATE-CHECKLIST.md                                                       6932  2026-09-17  | RULE-GATE-CHECKLIST.md — pre-flight, to be completed by the implementer
+WORKFLOW-PLAN-2026-09-21.md                                                 47129  2026-09-21  | WORKFLOW PLAN — Daily Status Monitoring Routine, Free Cash Finance Automation
+WORKFLOW-PLAN-CONSOLIDATED-2026-09-20.md                                    23005  2026-09-20  | WORKFLOW PLAN — Free Cash Finance Automation (consolidated, constraint-complete)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V10-2026-10-01.md                       36807  2026-10-01  | WORKFLOW PLAN — Free Cash Finance Automation (V10, 2026-10-01 09:0x local)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V11-2026-10-01.md                       53831  2026-10-01  | WORKFLOW PLAN — Free Cash Finance Automation (V11, 2026-10-01)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V11B-2026-10-01.md                      42215  2026-10-01  | WORKFLOW PLAN — Free Cash Finance Automation (V11B, 2026-10-01 09:25–09:42 local)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V12-2026-10-01.md                       40567  2026-10-01  | WORKFLOW PLAN — Free Cash Finance Automation (V12, 2026-10-01 11:36–11:43 local)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V5.md                                   19145  2026-09-20  | WORKFLOW PLAN — Free Cash Finance Automation (V5, consolidated)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V6.md                                   19022  2026-09-20  | WORKFLOW PLAN — Free Cash Finance Automation (V6)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7-ADDENDUM-BRIDGE-2026-09-21.md        13520  2026-09-21  | WORKFLOW PLAN ADDENDUM — Free Cash Finance Automation · the missing bridge (2026-09-21)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7.md                                   32481  2026-09-21  | WORKFLOW PLAN — Free Cash Finance Automation (V7)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8-2026-09-30.md                        30315  2026-09-30  | WORKFLOW PLAN — Free Cash Finance Automation (V8, 2026-09-30)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8.md                                   35372  2026-09-30  | WORKFLOW PLAN — Free Cash Finance Automation (V8)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-2026-10-01.md                        43429  2026-10-01  | WORKFLOW PLAN — Free Cash Finance Automation (V9, 2026-10-01)
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-ADDENDUM-2026-10-01-GATE-SCOPE-AND-FALSE-COMPLIANCE.md    16988  2026-10-01  | ADDENDUM — Free Cash Finance Automation workflow plan (2026-10-01): gate scope + false compliance
+WORKFLOW-PLAN-FC-FINANCE-AUTOMATION.md                                      19891  2026-09-20  | Free Cash Finance Automation — Workflow Plan (grounded, 2026-09-20)
+WORKFLOW-PLAN-V4.md                                                         75688  2026-09-20  | WORKFLOW-PLAN-V4.md — Daily Operational Workflow Plan
+WORKFLOW-PLAN-V5.md                                                         17242  2026-09-20  | Free Cash Finance Automation — Workflow Plan V5 (grounded, live re-verification 2026-09-20 21:34–21:42 local)
+delegation-manifest.json                                                     6394  2026-09-18  | (no heading)
+verify-readonly.sh                                                           3443  2026-09-17  | !/usr/bin/env bash
+
+=== RULE-NUMBERING PROBE (R1/R2 definitions anywhere in the tree) ===
+-- AUDIT-RULE-COMPLIANCE.md
+    | R1 | Exactly one status check per calendar day (no double runs) |
+    | R2 | ZERO automated earning actions (no write/withdraw/transfer/cashout/claim/bet endpoint) |
+    ### R1 — exactly one status check per calendar day
+-- DAILY-MONITORING-WORKFLOW-AND-RESEARCH-PLAN.md
+    - **Method allowlist:** `ALLOWED_METHODS = frozenset({"GET","HEAD"})`; anything else → `ForbiddenWriteError("R2: method %r is not read-only …")`.
+    | VT-06 | R2 | delete `ALLOWED_METHODS`/`ALLOWED_PATHS` and the `ForbiddenWriteError` raise from `request()` | same | `FAIL  deny-by-default allowlist exists (s
+    -Settings $settings -Principal $principal -Description "Free Cash read-only daily status monitor (R1-R4). One run per operator-local calendar day."
+-- DELEGATED-WORKFLOW-PLAN.md
+    | **R1** | Check status **once per day**, no double runs, missed day detectable | Atomic exclusive-create day lock (`os.open(O_CREAT\|O_EXCL)`) + ledger for aud
+    | **R2** | **Zero** automated earning actions (no claim/withdraw/payout/redeem/survey/offer/bet/spin/deposit) | Deny-by-default transport: method allowlist `{GE
+    **P2 — R2 read-only client + static CI grep.**
+-- DELEGATION-2026-09-20-R2\PROVIDER-READ-SOURCE-RESEARCH.md
+    **Rules used to filter every option (R1–R4):** R1 one status check per operator-local calendar day · R2 zero automated earning actions (read-only `GET`/`HEAD`, 
+    | S14 | **Cashfree** — read-only key scope | `.../payouts/v1/end-points.md` (**200, 1,018 B**): *"Cashfree uses API keys… Once you have signed up at our merchan
+    | **Dependencies** | (a) written operator statement that the entity holds an HG.Cash account; (b) a dashboard-generated token in `%LOCALAPPDATA%\hermes\.env` on
+    | **Rule status** | **CONDITIONAL.** *Strict reading of R2:* because no read-only credential scope is documented and the token can move money, it is **DISQUALIF
+    | **Rule status** | **DISQUALIFIED under R2 as a directly-wired source**, because the read token is minted by `POST /payout/v1/authorize` (a write verb the rout
+    | Wired source with an unscoped credential | **R2 (strict)** | S9/S14 — no read-only scope documented for either provider |
+-- DELEGATION-2026-09-20-R2\RESEARCH-PLAN.md
+    | **Rules served** | R1 one status check per operator-local calendar day · R2 zero automated earning actions (GET/HEAD, allowlisted loopback paths, no execution
+    **The routine has exactly one blocker: no read source is simultaneously (a) permitted by R2/R4 and (b) populated with real data.**
+-- DELEGATION-2026-09-20-R2\RULE-GATE-VERIFICATION.md
+    | R1 "no auto-earning" | `!includes('/transactions') && !includes('/cashout') && /read-only/.test(content)` | The word `read-only` appears in the file's own doc
+    | R2 "once per day" | `includes('isDailyCheckAllowed') && /toDateString/ && includes('lastCheck.date !== today')` | A text grep over the file that does not pars
+    | **R1** once per operator-local day | 2nd run same day; 5 concurrent runs; `--force-recheck`; (INFO) lock deleted | `exit=0 stdout="SKIP_DUPLICATE_DAY 2026-09-
+    | **R2** zero earning actions, read-only transport | injected `session.post("…/v1/cashout")` source file; POST/PUT/DELETE; GET `/api/v1/cashout`; GET with body;
+    ### R1 — exactly one status read per operator-local calendar day
+    ### R2 — zero automated earning actions, read-only transport
+-- DELEGATION-2026-09-20-R2\WORKFLOW-PLAN.md
+    | **R2** | zero automated earning actions | `readonly_client.py` (sole socket holder), `verify_readonly.py` + `verify-readonly.sh` (static gate) |
+    **⚠ Numbering trap, and the correction it forces.** `docs/free-cash-monitor-routine/DELEGATION-2026-09-20/DELIVERY-PLAN-OPTIONS.md` §1.1 asserts a "rule-numberi
+    | `docs/free-cash-monitor-routine/DELEGATION-2026-09-20/RULE-GATES.md` | The rule numbering (**R1 = once/day, R2 = no earning, R3 = notify, R4 = approval**) and
+    | **R2** zero automated earning actions | `readonly_client.py` sole socket holder; loopback-only; GET-only; no body; `verify_readonly.py` / `verify-readonly.sh`
+-- DELEGATION-2026-09-20\DELIVERY-PLAN-OPTIONS.md
+    | No automated earning / write action | **R1** | R2 (`### R2 — zero automated earning actions`) |
+    | At most one check per day | **R2** | R1 (`### R1 — exactly one status check per operator-local calendar day`) |
+    **This document uses the task-brief numbering** (R1 = no earning) and marks repository-numbering references as `repo-Rn`. Confirmed by literal read of the headi
+    `grep -n "^#\{1,3\} " docs/free-cash-monitor-routine/DELEGATION-2026-09-20/RULE-GATES.md` → `### R1 — exactly one status check per operator-local calendar day` 
+    | `monitoring/freecash/` (`run_daily_check.py` + 9 modules + `verify_readonly.py` + `watchdog.py`) | **YES.** `cd monitoring/freecash && python tests/run_all.py
+    | `scripts/make_freecash_check.py` | **COMPILES, UNSAFE.** `python -m py_compile` → `COMPILES_OK`. But the shipped R2 gate on it → `FORBIDDEN [earning-verb] :20
+-- DELEGATION-2026-09-20\RESEARCH-PLAN.md
+    | **Rules served** | R1 one status check per operator-local day · R2 zero automated earning actions (GET/HEAD, allowlisted paths) · R3 notify on earnings/status
+    | **Dependencies** | (a) A written operator statement naming **which platform holds the monitored balance** — this single fact is unresolved and gates everythin
+    - **A3** Can the credential be scoped read-only, or can the same credential also move money? **If read-only scoping does not exist, record it explicitly**, beca
+-- DELEGATION-2026-09-20\RULE-GATES.md
+    ### R1 — exactly one status check per operator-local calendar day
+    **Pass signal:** exit code `0` and the final line `run_all: tests=52 failures=0 errors=0 skipped=0`. R1-specific: inside the suite, `test_r1_gate.DoubleRunTests
+    ### R2 — zero automated earning actions
+    **Observed:** `forbidden=4 exempt=28 missing_targets=0` then `[verify-readonly] FAIL — R2 violation: an earning/write action path exists in a read-only routine.
+    | **R1** | `state/day-locks/<day>.lock`, one per day, **0 bytes** | `2026-10-01.lock`, `2026-10-02.lock`, `2026-10-03.lock`; production twin `2026-09-20.lock` =
+    | **R1** | duplicate-run line | `SKIP_DUPLICATE_DAY 2026-09-20` on stdout **and** exactly one `SKIP_DUPLICATE_DAY` line in `alerts.jsonl` (production lines for 
+-- DELEGATION-2026-09-20\WORKFLOW-CANONICAL.md
+    | **R2** | At most one status check per calendar day | `gate.acquire_day_lock(day)` — `os.open(lock, O_CREAT\|O_EXCL\|O_WRONLY)` on `state/day-locks/<YYYY-MM-DD
+    # gate.py — R2: exactly one status read per operator-local calendar day.
+    | **`server/src/services/freeCash/freeCashExecutor.ts`** (419 lines) | **NOT PROVEN.** Not executed — it drives a browser page (`withFreeCashPage`, `detectSessi
+-- DELEGATION-2026-09-20\WORKFLOW.md
+    | **R1** | Exactly one status check per operator-local calendar day |
+    | **R2** | Zero automated earning actions — no claim/withdraw/cashout/redeem/payout/transfer/bet/deposit, no POST/PUT/PATCH/DELETE to any provider, ever |
+    | **R1** exactly one check per local day | `gate.acquire_day_lock()`: atomic `os.open(..., O_CREAT\|O_EXCL\|O_WRONLY)` on `state/day-locks/<YYYY-MM-DD>.lock` (z
+    | **R2** zero automated earning actions | `readonly_client.py` permits only `GET`/`HEAD`, only hosts `{localhost, 127.0.0.1, ::1}`, only an allowlisted path set
+-- DELEGATION-2026-09-21\E2E-RULE-FLIGHT.md
+    ## 3. R1 — exactly one status read per operator-local calendar day
+    ## 6. R2 — zero automated earning/withdrawal action, read-only transport
+    {"decision": "REFUSED", "reason": "operator wants to re-read after a dashboard refresh", "requested_day": "2026-09-27", "ts_utc": "2026-09-27T08:00:00Z", "why":
+    | **R1** exactly one status read per operator-local calendar day | **YES** (mechanism, refusal and atomicity) | one `.lock` per consumed day for 10 days; `SKIP_
+    | **R2** zero automated earning/withdrawal action; read-only transport | **YES** | `verify_readonly.py`: `forbidden=0 exempt=28 missing_targets=0` PASS, identic
+    {"decision": "REFUSED", "reason": "operator wants to re-read after a dashboard refresh", "requested_day": "2026-09-27", "ts_utc": "2026-09-27T08:00:00Z", "why":
+-- DELEGATION-2026-09-21\GATE-FALSIFICATION.md
+    | **R2** zero write/earning action | `m2` | PASS | **FAIL** | 1 → 1 | **PROVEN** |
+    R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+    R2: NO automated earning action (no POST/PUT/PATCH/DELETE; no claim/withdraw/payout/redeem/survey/offer execution)
+    R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+    R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+    R1: status check at most ONCE per calendar day (atomic same-day guard, no double run, missed day detectable)
+-- DELEGATION-2026-09-30\DELEGATION-BRIEF.md
+    Note: the repo also contains an **inverted numbering** (a prior plan labels "R1 = no earning action, R2 = once per day"). This brief uses the operator's numberi
+-- DELEGATION-2026-09-30\scheduler\SCHEDULER-PLAN.md
+    :311        # R1 duplicate: exactly one log line, no read, no snapshot, no ledger write.
+-- DELEGATION-2026-10-01-R2\DELEGATION-BRIEF-R2.md
+    | **R1** | **Once-per-day check** | at most one status check per `Europe/Berlin` calendar day; a second same-day invocation must no-op **without reading** and w
+    | **R2** | **Zero automated earning actions** | no claim, click, withdraw, transact or any write verb/path — enforced by an interceptor in code plus a static sc
+    **Current standing:** R1 is *partially* satisfied (the lock is real and atomic — P3/P6 show a duplicate same-day run was refused), but the lock is taken **befor
+-- DELEGATION-2026-10-01-R2\datasource\DATASOURCE-FINDINGS.md
+    | R2.3 | `readonly_client.request("POST","http://localhost:4600/api/v1/status/metrics")` | `ForbiddenWriteError: R2: method 'POST' is not read-only (allowed: GE
+-- DELEGATION-2026-10-01-R2\scheduler\SCHEDULER-FINDINGS.md
+    | R1 | At most one status read per Europe/Berlin calendar day is enforced by an atomic lock | **PASS — proven by execution.** 5 simultaneous processes × 10 roun
+    | R2 | The scheduled artifact performs no earning action | PASS for the staged wrapper (read-only, one `--source operator_state` read). The **repo crontab route
+    **Bottom line:** R1 is genuinely enforced — the lock is a single atomic `O_CREAT|O_EXCL` syscall and 50 racing processes produced exactly one read every time. W
+    311          # R1 duplicate: exactly one log line, no read, no snapshot, no ledger write.
+    > `1. **R1** -- consume today's operator-local day with an atomic exclusive-create lock. If the day is already consumed, print SKIP_DUPLICATE_DAY, append exactl
+    | R2/R4 risk | None — read-only wrapper | A prompt-mode job would run an LLM with tools; only the `--no-agent` form is acceptable | **HIGH** — its target `scrip
+-- DELEGATION-2026-10-01-R2\workflow\WORKFLOW-PLAN.md
+    Detection is in-band at the next run: `gate.missed_days(day, ledger)` returns every local calendar day strictly between `last_success_day` and today, and `run_d
+-- DELEGATION-2026-10-01-R3\DELEGATION-BRIEF-R3.md
+    | **R1** | no earning action is ever taken automatically | `R?` (not labelled) | `R2` | `RULE 1` ✅ agrees |
+    | **R2** | status is checked at most once per operator-local calendar day | `R1` | — | `RULE 2` ✅ agrees |
+    `gate.py:1` says *"R1: exactly one status read per day"* and `readonly_client.py:1` says *"R2: the routine's ONLY network path"* — i.e. the shipped code's inter
+-- DELEGATION-2026-10-01-R3\research\RESEARCH-PLAN.md
+    | at most one status read per Europe/Berlin calendar day | **Rule 1 (once-per-day check)** | `gate.py:1` → "**R1**: exactly one status read per operator-local c
+    | zero earning/withdrawal/transaction actions; read-only transport only | **Rule 2 (zero automated earning actions)** | `readonly_client.py:1` → "**R2**: the ro
+    Verified today: `head -8 monitoring/freecash/gate.py` → first line `"""gate.py -- R1: exactly one status read per operator-local calendar day.`; `head -8 monito
+-- DELEGATION-2026-10-01-R3\workflow\WORKFLOW-PLAN.md
+    **The inversion, stated exactly:** `gate.py:1` says *"R1: exactly one status read per operator-local calendar day"* and `readonly_client.py:1` says *"R2: the ro
+    | **Rule 1 — once-per-day check** (at most one status read per Europe/Berlin calendar day) | B2 "Once per day check" | `gate.py:96-102` `day_key()`; `gate.py:11
+    | **Rule 2 — zero automated earning actions** (read-only transport only) | B1 "No auto-earning actions" | `readonly_client.py:39` `ALLOWED_METHODS={'GET','HEAD'
+    | **S0′** | **Rule-gate scope** (blocking only for a *COMPLIANT* claim, not for a reading) | 3–5 h | none | the delivered `DELEGATION-2026-09-30/verifier/` arte
+    REFUSED  POST /api/v1/status/metrics (loopback) -> R2: method 'POST' is not read-only (allowed: GET, HEAD)
+-- DELEGATION-2026-10-01-R4\DELEGATION-BRIEF-R4.md
+    | **R1** | **No earning action automatically.** The routine observes only. | Deny-by-default interceptor: `ALLOWED_METHODS={GET,HEAD}`, loopback hosts, path all
+    | **R2** | **Check status once per day.** At most one status read per operator-local calendar day. | Atomic `O_CREAT\|O_EXCL` day lock keyed on the Europe/Berli
+    The same four rules carry **two different numberings** in this repo. The *operator* numbering above (R1 = no earning action, R2 = once per day) is binding for t
+    | R1 no earning action | *(unlabelled)* | labels it **R2** | `RULE 1` ✅ agrees |
+    | R2 once per day | labels it **R1** | — | `RULE 2` ✅ agrees |
+    Every artifact produced under this brief must print the rule **title plus both numberings** on first use. A reader who takes "R2 = once per day" from this brief
+-- DELEGATION-2026-10-01-R4\DELEGATION-BRIEF.md
+    | R1 | NO EARNING ACTION | the routine never performs an earning/withdraw/claim transaction |
+    | R2 | ONCE PER DAY | exactly one status read per calendar day, operator-local |
+    - `monitoring/freecash/gate.py:1` says `R1: exactly one status read per day` (= operator R2)
+    - `monitoring/freecash/readonly_client.py:1` says `R2: the routine's ONLY network path` (= operator R1)
+    A reader who takes "R2 = zero earning actions" from this brief and then reads the
+    So R1's read-only claim is ENFORCED IN CODE, and simultaneously the routine CANNOT
+-- DELEGATION-2026-10-01-R4\PARENT-BRIEF-R4.md
+    | **R1 — zero automated earning actions** | observe only; no claim, cash-out, withdraw, redeem, offer or survey execution; no write-capable transport | `readonl
+    | **R2 — exactly one status read per operator-local (Europe/Berlin) calendar day** | one read per calendar day; a second run the same day performs **no read** |
+    **Numbering hazard (measured today, not inherited):** the *shipped* gate's output prints `R1 = status check at most ONCE per calendar day` and `R2 = NO automate
+    | 10 | Static read-only gate green | `verify_readonly.py` → `forbidden=0 exempt=28 missing_targets=0`, exit **0** | R1 has a real interceptor with a 28-entry ba
+    | **P — provider read-only contract** | `provider/` | Is there a **documented read-only** path to real account state (balance/earnings/status) that R1 permits? 
+-- DELEGATION-2026-10-01-R4\RESEARCH-PLAN.md
+    **Rules under research:** R1 no earning action automatically · R2 check status once per day · R3 notify on earnings or status change · R4 human approval before 
+-- DELEGATION-2026-10-01-R4\research\RESEARCH-PLAN-R4.md
+    **R1** zero automated earning actions — no stream may POST to a provider, mint a token, or exercise a write-scoped endpoint, **including** "to see what happens"
+    | Q2 | Is a **payout-balance** route usable without minting a token via a POST? | the only known route family needs a minted token, which R1 refuses | a read-on
+    **For each candidate, record:** endpoint, HTTP method, auth requirement, what it returns, whether a read is possible **without** a write scope, and an **R1 verd
+-- DELEGATION-2026-10-01-R4\scheduler\TRIGGER-DECISION-PACKET.md
+    > The **operator numbering** is binding for this packet and it is the *inverse* of the shipped code docstrings (`gate.py:1` labels "once per day" as R1; `readon
+    > **R1 — no earning action automatically** · **R2 — check status once per day** · **R3 — notify on earnings or status change** · **R4 — human approval before an
+    **Verdict:** the expectation holds — **nothing triggers the routine today.** `schtasks` enumerates **278** registered tasks on this host (`[A]`), so the enumera
+-- DELEGATION-2026-10-01-R4\workflow\WORKFLOW-PLAN-R4.md
+    **Rule numbering is printed with the title** because the shipped gate inverts it: operator **R1 = zero earning actions**, **R2 = exactly one status read per Eur
+    **Exit:** `python scripts/monitoring/rule_gate_verify.py monitoring/freecash --package` → exit **0**, `R1=R2=R3=R4=PASS`, **and** exit non-zero on every mutant 
+-- DELEGATION-2026-10-01\DELEGATION-BRIEF.md
+    | R1 | Once-per-day check | At most one status check per Europe/Berlin calendar day. Day-key must be DST-safe. A second same-day invocation must no-op without c
+    | R2 | Zero automated earning actions | No click/claim/withdraw/transact. Read-only HTTP verbs and path allowlist only, enforced in code plus a CI grep for forb
+-- DELEGATION-2026-10-01\RESEARCH-PLAN.md
+    | **Q8** | P1 | Does the routine have a scheduler that can meet "once per day"? | R1 is enforced as an upper bound by the day-lock, but **nothing invokes the ro
+    | **Q11** | P0 | Does anything in the repo already *propose* a write/earning action against the provider (which R2 forbids)? | R2 is a hard exclusion; a dormant
+    Boundary rule for **R2 = zero automated earning actions**: the monitor may use `GET`/`HEAD` only, against a path that provably *reads* and never *creates, mutat
+-- DELEGATION-2026-10-01\WORKFLOW-PLAN-V2.md
+    | **RULE-1** | No automated earning action, ever — read-only verbs and path allowlist only | R2 |
+    | **RULE-2** | Exactly one status check per operator-local calendar day, DST-safe | R1 |
+    **Operational consequence:** a bare sentence like "R1 PASS" in this workspace is unreadable. Any verdict quoted into the operator's record must state its scheme
+-- DELEGATION-2026-10-01\WORKFLOW-PLAN.md
+    | 5 | 08:35:02 | **Read** today's figures from the selected read-only source (default `operator_state`; optional loopback `metrics_http`). | `run_daily_check.re
+    | S7 | Read (operator-entered) | `operator_state.read_source(day)` (`operator_state.py:119-151`) — reads only today's exact `day_key` record | none (read only) 
+    | S7b | Read (loopback metrics, opt-in) | `readonly_client.read_status_source` → `read_metrics` (`GET`) + `probe_status` (`HEAD`) (`readonly_client.py:194-239`)
+    | S10 | Static read-only gate | `verify_readonly.run()` (`verify_readonly.py:139-185`) | stdout report; exit 0/1/2 | R2 |
+    | **R1** | At most one status check per Europe/Berlin calendar day; DST-safe day-key; a second same-day invocation no-ops. | `gate.py :: acquire_day_lock` (`:11
+    | **R2** | Zero automated earning actions; read-only HTTP verbs + path allowlist only. | `readonly_client.py :: request` (`:110-140`, `ALLOWED_METHODS={GET,HEAD
+-- DELEGATION-2026-10-01\datasource\DATASOURCE-RESEARCH-PLAN-V2.md
+    - **Write requirement — the read itself is `GET`-only, but the credential is not scoped:** one token, generated in account settings, both reads accounts and can
+-- DELEGATION-2026-10-01\scheduler\SCHEDULER-DECISION-V2.md
+    <Description>FreeCash daily read-only status monitor (R1: exactly one status read per operator-local day). LeastPrivilege, per-user, IgnoreNew, StartWhenAvailab
+    no read — but R2 ("checked once per day — not more") reads best with one registered trigger and one
+-- DELEGATION-2026-10-01\verifier\VERIFIER-PLAN-V2.md
+    | no automated earning action | **R1** | R2 | R2 |
+    | once per operator-local day | **R2** | R1 | R1 |
+    The gate prints `RULE n: <title> (legacy label Rm)` — but its "legacy label" is the **pre-2026-09-30** design numbering, and it is *inverted* relative to the 20
+    | **R1** no automated earning action | **YES** — `mv1` → R1=FAIL (static: write-verb literal + forbidden path literal), and the runtime wire check also fires | 
+    | **R2** once per operator-local day | **YES** — `mv2` → R2=FAIL (static: no exclusive-create barrier left); `adv2` → R2=FAIL (runtime: second same-day run read
+-- DELEGATION-2026-10-01\verifier\rules-detector-map.md
+    Numbering: **operator numbering** — R1 = no automated earning action · R2 = exactly one status check per operator-local day · R3 = notify on earnings/status cha
+    | **R1** no automated earning action | `readonly_client.py`: `ALLOWED_METHODS = {GET,HEAD}`, loopback `ALLOWED_HOSTS`, path allowlist, body-keyword rejection, s
+    | **R2** once per operator-local day | `gate.py`: `os.open(lock, O_CREAT|O_EXCL|O_WRONLY)` at `state/day-locks/<YYYY-MM-DD>.lock`; `run_daily_check._run` acquir
+-- DELEGATION-DISPATCH-2026-09-20-R2.md
+    | **R2** No earning action automatically | deny-by-default transport: GET/HEAD only, path allowlist, `ForbiddenWriteError` otherwise; no claim/withdraw/cashout/
+-- DELEGATION-DISPATCH-2026-09-20.md
+    | R2 "Don't perform earning actions automatically" | deny-by-default transport: `ALLOWED_METHODS` = GET/HEAD, `ALLOWED_PATHS` allowlist, `ForbiddenWriteError` r
+    **Honest status in one line:** the four rules are structurally enforced in code and R1/R3/R4 mechanisms have been observed firing in a temp data root; the suite
+-- DELEGATION-RESEARCH-PLAN.md
+    **Rules the research serves:** R1 one check/day · R2 zero automated earning actions · R3 notify on earnings/status-change · R4 human approval before any externa
+-- DELEGATION-WORKFLOW-PLAN.md
+    | **R1** | once-per-day check | exactly one *status read* per operator-local calendar day; duplicate/concurrent/second invocation performs no I/O and cannot not
+    | **R2** | zero automated earning actions | no request that mutates remote account state is reachable from the routine; `GET`/`HEAD` to allowlisted paths only |
+    | **W1** | Implement R1–R4 core offline: day-lock gate, read-only client, change detector, notify, approval queue, watchdog, static checker wiring | `ROUTINE-DE
+    **Time-to-Revenue is interpreted honestly:** a monitoring routine cannot *create* earnings (R2 forbids automated earning actions), so the column below reports *
+-- IMPLEMENTATION-PLAN-V3.md
+    ### P2 — R2: read-only client (method/path allowlist) + static CI grep
+-- OPERATIONS-WORKFLOW-PLAN-2026-09-20.md
+    | R1–R4 are enforced in code by construction (atomic day lock, read-only transport, dedupe index, enqueue-only queue) | **VERIFIED** (test suite + source, §2) |
+    | **R2** zero automated earning actions | the routine has **one** socket library, reached only through `readonly_client`, allowlisted `GET`/`HEAD` paths, loopba
+    3. Scheduling changes nothing about R1–R4: the day lock still allows exactly one read per local day no matter how many times a task fires (`IgnoreNew`, `StartWh
+    | Daily ~08:35 | `python monitoring/freecash/run_daily_check.py --source operator_state` | one check per local day; a second invocation is refused and logged (R
+-- OPERATIONS-WORKFLOW-PLAN.md
+    | C1 | **R1** — exactly one status read per operator-local calendar day | atomic `O_CREAT\|O_EXCL` day lock; second run prints `SKIP_DUPLICATE_DAY` and does no 
+    1. **R1 gate** — atomic exclusive-create of `<data_root>/locks/<day>.lock` on the operator-local day key. Already-consumed day → `SKIP_DUPLICATE_DAY`, exactly o
+    3. **R2 read** — one read-only acquisition: operator-entered state file (default) or the local metrics substitute through `readonly_client.request` (GET/HEAD, a
+-- PROVIDER-CONTRACT-RESEARCH-V2.md
+    **Rule compatibility (R1–R4).** Nothing in this document creates, proposes, or implies a code path that performs an earning action, checks status more than once
+    | `.hermes/plans/2026-09-17_213843-free-cash-finance-automation.md` | `39`, `57`, `211-212` | Measured 404; R2 read-only constraint; B1/B2 recorded **OPEN — ext
+    | **Read-only in the verb sense?** | **YES — `GET` only.** No token-exchange `POST` is required; the dashboard-issued bearer token is sent directly on the `GET`
+    | **Read-only in the verb sense?** | **NO — not cleanly.** Obtaining the token requires `POST /payout/v1/authorize`. A monitor that honours R2's "deny-by-defaul
+    | **Cashfree Payouts** | (a) Written confirmation of a Cashfree merchant account; (b) **Payouts API enabled** (activation request — unentitled accounts get 403 
+    | # | Alternative | Effort (h) | Read-only? | R1–R4 fit | Dependencies | Verdict |
+-- PROVIDER-DECISION-PACKET-2026-09-20-v2.md
+    | **Verdict** | **RECOMMENDED** — authorised now, R1–R4-compliant by construction (no execution path, no socket, no earning action), zero ToS exposure, and it i
+-- PROVIDER-DECISION-PACKET-2026-09-20.md
+    | **Expected Effort** | **3–5 h builder** (2–3 h to build and stand up a loopback-only read-only service that actually serves `GET /api/v1/status/metrics` — no 
+    | **Dependencies** | Cashfree merchant account; **Payouts API enabled** (the documented unentitled state is `403 {"status":"ERROR","subCode":"403","message":"AP
+    4. **If HG.Cash is confirmed → O2** is the first provider-authoritative upgrade (4 h build on a documented read-only GET; 0 h of R2 widening). Its blocker is ow
+-- PROVIDER-FINDINGS-REVERIFIED.md
+    **Rules the findings serve:** R1 one check/day · R2 zero automated earning actions · R3 notify on earnings/status change · R4 human approval before any external
+-- RESEARCH-PLAN-2026-09-21.md
+    | **What it is** | Documented, read-only, **`GET`-only** (no token-exchange `POST` needed, so it fits R2's `GET`/`HEAD`-only transport without an exemption). Re
+    6. **The routine is launched from a shell with `FREECASH_DATA_ROOT` set** (true in this pass's shell `[EXEC-21]`). Then the frozen-root decision is violated in 
+-- RESEARCH-PLAN-FC-FINANCE-AUTOMATION-V11-2026-10-01.md
+    These are the **operator's** rule numbers, as given for this task. **The shipped package's own docstrings use inverted labels** (`readonly_client.py:1` says "R2
+    | **R1** | **ZERO AUTOMATED EARNING / WITHDRAWAL ACTIONS — READ-ONLY TRANSPORT ONLY** | No earning, claim, withdrawal, payout or any write-verb action may ever 
+    | **R2** | **EXACTLY ONE STATUS READ PER Europe/Berlin CALENDAR DAY** | One status read, one snapshot, per operator-local calendar day. No back-fill, no forced 
+    | 5 | **U5** | **No provider read path is allowlisted.** `ALLOWED_HOSTS` is loopback-only (`readonly_client.py:41`) and the audit hook aborts any non-loopback c
+    - **Today's spent key is not an emergency** for the *routine's* R2 (exactly one read/day) — it is only an emergency for *acquiring a reading for today*. The cle
+    7. **Credential scope**: neither HG.Cash nor Cashfree publishes a read-only scope. HG.Cash's documented `POST /transactions` cash-out is reachable on the **same
+-- RESEARCH-PLAN-V4.md
+    | **R1** | Exactly one status read per operator-local calendar day | `gate.py`: `os.open(state/day-locks/<Y-M-D>.lock, O_CREAT|O_EXCL|O_WRONLY)`; `state/last-ru
+    | **R2** | Zero automated earning actions | `readonly_client.py`: method allowlist `{GET, HEAD}`, host allowlist loopback-only, path allowlist of two local rege
+    - **How the answer changes the design:** (i) *a provider with a verb-pure GET surface* → add exactly one `ALLOWED_PATHS` regex **and** widen `ALLOWED_HOSTS` bey
+    4. **Credential scope** — neither provider publishes a read-only scope. HG.Cash's own documentation, as read in the prior artifacts, describes one user token th
+    5. Any **automated earning action** — out of scope permanently under R2 and R4: the approval queue records decisions and nothing in the routine acts on an appro
+    | R2 zero earning actions | **Yes, trivially** — the source opens no socket (operator file) or only a loopback socket | A widened allowlist would need RQ3's pro
+-- RESEARCH-PLAN.md
+    **Rules the design must obey:** R1 one check/day · R2 zero automated earning actions · R3 notify on earnings/account-status change · R4 human approval before an
+    Deliverable at end of Day 1: one JSONL record per day, appended by the operator, containing the fields the design needs (`balance`, `available_to_withdraw`, `ac
+-- ROUTINE-DESIGN.md
+    | **R1** | Check status **once per day**, no double runs, missed-day detected | **Atomic OS-level mutual exclusion** (exclusive-create day lock) + independent w
+    | **R2** | **Never** take an earning action automatically | **Deny-by-default network transport** (verb+path allowlist in code) + **static CI grep** over the so
+    **Duplicate same-day invocation exits with no side effects:** the second invocation writes exactly one `SKIP_DUPLICATE_DAY` info line to `alerts.jsonl`, prints 
+    ## 3. R2 — Read-only status acquisition
+    raise ForbiddenWriteError(f"R2: method {method} is not read-only")
+    | **T1.2** | R1 | Launch 5 copies simultaneously (`&` in bash); wait for all. | Exactly one snapshot file exists for the day; `alerts.jsonl` has exactly 4 `SKIP
+-- RULE-GATE-CHECKLIST.md
+    | **R1** once per day | `monitoring/freecash/gate.py::acquire_day_lock()` — `os.open(lock, O_CREAT\|O_EXCL\|O_WRONLY)` | Atomic exclusive-create on a per-day pa
+    | **R2** no earning action (transport) | `monitoring/freecash/readonly_client.py::request()` — `ALLOWED_METHODS={GET,HEAD}`, `ALLOWED_PATHS` regex, rejects `dat
+    | **R2** no earning action (static) | `monitoring/freecash/verify_readonly.py` — invoked as `docs/free-cash-monitor-routine/verify-readonly.sh` | CI grep over t
+    | **R2** reads are read-only (observed) | `monitoring/freecash/readonly_client.py::_transport()` (the single socket site) | Only one place opens a socket → one 
+-- WORKFLOW-PLAN-2026-09-21.md
+    | V13 | transport-spy call into `readonly_client.request` (temp root) | `REFUSED POST method -> R2: method 'POST' is not read-only (allowed: GET, HEAD)`; `REFUS
+    | **R1 — no earning action is ever taken automatically** | any claim / withdraw / payout / redeem / survey / offer / transfer / bet / deposit call, any non-GET 
+    | **R2 — exactly one status check per day** | a second status read on any operator-local calendar day, by any caller, including the scheduler, a retry, a timer,
+    | 9 | 23:50 local (Task B, after approval) | `watchdog.py` — reads the ledger only; opens no socket, locks nothing, runs no check | `alerts/alerts.jsonl` + `not
+    | **Duplicate run attempted** (scheduler retry, second trigger, a human running it again) | stops at the R1 gate: exactly one `SKIP_DUPLICATE_DAY` line, exit **
+-- WORKFLOW-PLAN-CONSOLIDATED-2026-09-20.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` — atomic `O_CREAT\|O_EXCL` on `state/day-locks/<day>.lock`; a c
+    | **R2** | zero automated earning/withdrawal action; read-only transport | `readonly_client.py::request` deny-by-default `{GET,HEAD}`, path allowlist, no `data`
+    3. **R2 read** — one read-only acquisition through `readonly_client.request` (GET/HEAD, allowlisted paths only).
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V10-2026-10-01.md
+    Adopted unchanged from V9 §1: **R1** one status read per Europe/Berlin calendar day · **R2** zero earning/withdrawal actions, read-only transport · **R3** notif
+    Exit: `python scripts/monitoring/rule_gate_verify.py monitoring/freecash --package` → exit **0**, `R1=R2=R3=R4=PASS`, **and** exit non-zero on every mutant in t
+    Exit: a data-less run leaves `day-locks/` empty, `last_success_day` unchanged, the miss counter preserved, watchdog `WATCHDOG_MISSED_DAY`; a day with a reading 
+    1. `python scripts/monitoring/rule_gate_verify.py monitoring/freecash --package` → exit **0**, `R1=R2=R3=R4=PASS`, **and** exit non-zero on every mutant in `mut
+    9. No credential anywhere (C6); no unrelated uncommitted path modified (C7); no earning action performed by anything (R2).
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V11-2026-10-01.md
+    | **R1** | **zero automated earning/withdrawal actions, read-only transport only** |
+    | **R2** | **exactly one status read per Europe/Berlin calendar day** |
+    > **Numbering warning (measured, not recalled).** The shipped code's own docstrings use **inverted** numbering: `monitoring/freecash/gate.py:1` opens `"""gate.p
+    | **R1** | **zero automated earning/withdrawal actions, read-only transport only** | Use only an allowlisted read transport. Refuse every non-allowlisted verb, 
+    | **R2** | **exactly one status read per Europe/Berlin calendar day** | Derive the day key from `Europe/Berlin`, consume it with one atomic exclusive-create loc
+    10. **Read-only fetch (R1 transport).** `read_source(...)` (`run_daily_check.py:64-84`, called at `:372`). Default source `operator_state` reads `state/operator
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V11B-2026-10-01.md
+    | R1 | no automated earning action — zero earning/withdrawal calls, read-only transport |
+    | R2 | exactly one status read per operator-local (Europe/Berlin) calendar day |
+    Exit: `python scripts/monitoring/rule_gate_verify.py monitoring/freecash --package` → exit **0**, `R1=R2=R3=R4=PASS`, **and** exit non-zero on every mutant with
+    No rewrite, move or deletion of any legacy or parallel monitor — disable and label, never delete. No live financial write path, in any option. No compliance cla
+    1. `python scripts/monitoring/rule_gate_verify.py monitoring/freecash --package` → exit **0**, `R1=R2=R3=R4=PASS`, **and** exit non-zero on every mutant in the 
+    9. No credential anywhere (C6); no unrelated dirty path modified (C7); no earning action performed by anything (R1).
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V12-2026-10-01.md
+    | **R1** | **no earning action automatically** — observe only; read-only transport | `readonly_client.py:1` calls it **R2** | `RULE 1` ✅ agrees |
+    | **R2** | **check status once per operator-local day** (Europe/Berlin) | `gate.py:1` calls it **R1** | `RULE 2` ✅ agrees |
+    9. No credential anywhere (C6); no unrelated dirty path modified (C7); no earning action performed by anything (R1); the production root's hash pair is quoted u
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V5.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` (`O_CREAT\|O_EXCL` on `state/day-locks/<day>.lock`) + watchdog 
+    | **R2** | zero earning/withdrawal actions; read-only transport | `readonly_client.py::request` deny-by-default (`GET,HEAD` only, loopback allowlist, no body) +
+    First Concrete Action: archive, per day: run-log line, snapshot hash, `verify_readonly` counts, alerts/approvals line counts — and pin `exempt=28` as the drift 
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V6.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` (`O_CREAT\|O_EXCL` on `state/day-locks/<day>.lock`) + 23:50 wat
+    | **R2** | zero earning/withdrawal actions; read-only transport | `readonly_client.py::request` deny-by-default (`GET,HEAD` only, loopback allowlist, no body) +
+    First Concrete Action: archive per day the run-log line, snapshot hash, `verify_readonly` counts and alerts/approvals line counts; pin `exempt=28` as the erodin
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` (`O_CREAT\|O_EXCL`) + 23:50 watchdog as a second detector | 2 r
+    | **R2** | zero earning/withdrawal actions; read-only transport | `readonly_client.py::request` deny-by-default (`GET,HEAD`, loopback allowlist, no body) + 2 st
+    First Concrete Action: archive, per day: run-log line, snapshot hash, both scanners' counts, alerts/approvals line counts, and the real-root hash set (V23 patte
+    Trade-off to state in the decision record: this deliberately weakens "one read per day" to "one *successful* read per day"; on a day where the source is reachab
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8-2026-09-30.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py:119-135 AcquireDayLock` — `os.open(O_CREAT\|O_EXCL\|O_WRONLY)` at `:128`; `gate.py
+    | **R2** | zero earning/withdrawal actions; read-only transport | `readonly_client.py` deny-by-default (`GET/HEAD`, loopback allowlist, no body) + two static sc
+    Options: **O-1 pre-flight guard in the `.cmd` wrapper (~1 h, defence in depth, R1 untouched)** · **O-2 two-phase lock inside the routine (3–5 h, durable; delibe
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` (`O_CREAT\|O_EXCL`), 23:50 watchdog as second detector | 2 runs
+    | **R2** | zero earning/withdrawal actions; read-only transport | `readonly_client.py::request` deny-by-default + 2 static scanners | both scanners exit 0 at `e
+    **O2 — documented provider read-only contract.** Effort: 2–4 h **if** a KYC-complete account exists, else an onboarding project. Time-to-Revenue: 3 days–2 weeks
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-2026-10-01.md
+    | **R1** | exactly one status read per operator-local calendar day | `gate.py:119-135 AcquireDayLock` — `os.open(O_CREAT\|O_EXCL\|O_WRONLY)`; `gate.py:96 day_ke
+    | **R2** | zero earning/withdrawal actions; read-only transport | `readonly_client.py` deny-by-default (`GET/HEAD`, loopback allowlist, no body) + two static sc
+    Options: **O-1 two-phase accounting only (~40 min, the honest minimum — stop scoring `MONITOR_DEGRADED` as a success; smallest change that makes the watchdog tr
+    9. No credential anywhere in code, state, logs or plans (C6); no unrelated uncommitted path modified (C7); no earning action performed by anything (R2).
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-ADDENDUM-2026-10-01-GATE-SCOPE-AND-FALSE-COMPLIANCE.md
+    Exit: `python scripts/monitoring/rule_gate_verify.py monitoring/freecash --package` → exit **0**, `R1=R2=R3=R4=PASS`, **and** exit non-zero on a mutant copy (th
+-- WORKFLOW-PLAN-FC-FINANCE-AUTOMATION.md
+    | R1 | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` — `O_CREAT\|O_EXCL` on `state/day-locks/<day>.lock` | two runs same
+    | R2 | no earning/withdrawal action; read-only transport | `readonly_client.py::request` deny-by-default `{GET,HEAD}`, no body/files; `verify_readonly.py` stati
+-- WORKFLOW-PLAN-V4.md
+    | **R1** | **Exactly one status check per day. Zero automated earning actions.** | Atomic OS-level mutual exclusion (exclusive-create day lock) + two independen
+    **Step 3 — R1 duplicate path.** If the lock was not acquired: exactly one `SKIP_DUPLICATE_DAY` line is appended to `alerts/alerts.jsonl`, `SKIP_DUPLICATE_DAY <d
+    | **R1** | one check per operator-local calendar day | Atomic exclusive-create day lock — a single `O_CREAT\|O_EXCL` syscall on a per-day path; the filename *is
+    | **R1** | a failed read does not become a retry loop | Failure records `READ_FAILED`, leaves the lock, exits 5, and `last_success_day` is not advanced | `run_d
+    | **F2** | **Duplicate run** — Task Scheduler fires twice, an operator runs it by hand, a wrapper retries | Day lock exists | Exactly one `SKIP_DUPLICATE_DAY` l
+-- WORKFLOW-PLAN-V5.md
+    | R1 | exactly one status read per operator-local calendar day | `gate.py::acquire_day_lock` — `O_CREAT\|O_EXCL` on `state/day-locks/<day>.lock` | two runs same
+    | R2 | no earning/withdrawal action; read-only transport | `readonly_client.py::request` deny-by-default `{GET,HEAD}`, no `data`/`json`/`files`; `verify_readonl

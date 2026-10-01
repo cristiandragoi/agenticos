@@ -1,0 +1,42 @@
+=== date ===
+Do,  1. Okt 2026 11:42:28
+
+=== curl -m5 GET http://127.0.0.1:4600/api/health (IPv4 form) ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2023 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://[::1]:4600/api/health (IPv6 form) ===
+curl: (7) Failed to connect to ::1:4600 after 2041 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://127.0.0.1:4600/api/v1/status/metrics ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2044 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://127.0.0.1:4600/api/projects/proj-free-cash/freecash/auth ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2051 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== netstat -ano | grep -E '4600|3001' LISTENING ===
+(netstat rc=1)
+
+=== tasklist | grep -iE 'node|electron|AgenticOS' ===
+node.exe                      1504 Console                    1        49.152 K
+node.exe                     10276 Console                    1        48.120 K
+node.exe                     14484 Console                    1        49.912 K
+node.exe                     15704 Console                    1        49.028 K
+node.exe                     11640 Console                    1        47.648 K
+node.exe                      8520 Console                    1        47.748 K
+node.exe                      2888 Console                    1        47.828 K
+node.exe                      3604 Console                    1        61.820 K
+node.exe                     12372 Console                    1        61.680 K
+node.exe                     35404 Console                    1        61.584 K
+(tasklist grep rc=0)

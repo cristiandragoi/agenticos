@@ -1,0 +1,63 @@
+EVIDENCE-08 -- PRODUCTION alerts.jsonl characterisation (READ-ONLY) + burst timing (run 2026-10-01T07:11:00Z)
+
+### CMD: sha256sum data/freecash-monitor/alerts/alerts.jsonl
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 *data/freecash-monitor/alerts/alerts.jsonl
+exit=0
+
+### CMD: wc -l data/freecash-monitor/alerts/alerts.jsonl
+15 data/freecash-monitor/alerts/alerts.jsonl
+
+### CMD: python -c "..." -- key set on every line, event_type counts, and the ABSENCE of a writer tag
+distinct key-sets across all lines:
+  x15 ['day_key', 'dedupe_key', 'event_id', 'event_type', 'message', 'observed', 'severity', 'ts_utc']
+
+event_type counts:
+  MISSED_DAY             10
+  MONITOR_DEGRADED       3
+  SKIP_DUPLICATE_DAY     2
+
+any line with pid / writer / entry_point / start_time / process / host?
+  0 lines  -> NONE (no provenance field exists)
+
+distinct observed-key sets:
+  x3 ['account_status', 'balance_cents', 'degraded', 'earnings_total_cents', 'pending_cents', 'prior_day_key', 'source']
+  x2 ['lock']
+  x10 ['field', 'new_value', 'old_value', 'prior_day_key']
+exit=0
+
+### CMD: per-alert spacing of the MISSED_DAY burst on 2026-09-30
+  2026-09-30T19:01:05Z  +  0.0s  [FreeCash] MISSED DAY 2026-09-21
+  2026-09-30T19:01:11Z  +  6.0s  [FreeCash] MISSED DAY 2026-09-22
+  2026-09-30T19:01:18Z  +  7.0s  [FreeCash] MISSED DAY 2026-09-23
+  2026-09-30T19:01:24Z  +  6.0s  [FreeCash] MISSED DAY 2026-09-24
+  2026-09-30T19:01:31Z  +  7.0s  [FreeCash] MISSED DAY 2026-09-25
+  2026-09-30T19:01:37Z  +  6.0s  [FreeCash] MISSED DAY 2026-09-26
+  2026-09-30T19:01:44Z  +  7.0s  [FreeCash] MISSED DAY 2026-09-27
+  2026-09-30T19:01:51Z  +  7.0s  [FreeCash] MISSED DAY 2026-09-28
+  2026-09-30T19:01:58Z  +  7.0s  [FreeCash] MISSED DAY 2026-09-29
+  burst length=9  span=53.0s  mean spacing=6.62s
+
+the whole 2026-09-30 run, in order:
+  2026-09-30T19:01:05Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-21
+  2026-09-30T19:01:11Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-22
+  2026-09-30T19:01:18Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-23
+  2026-09-30T19:01:24Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-24
+  2026-09-30T19:01:31Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-25
+  2026-09-30T19:01:37Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-26
+  2026-09-30T19:01:44Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-27
+  2026-09-30T19:01:51Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-28
+  2026-09-30T19:01:58Z MISSED_DAY             [FreeCash] MISSED DAY 2026-09-29
+  2026-09-30T19:02:05Z MONITOR_DEGRADED       No data for 2026-09-30 (no operator-entered record for 2026-09-30 in o
+  2026-09-30T19:02:06Z SKIP_DUPLICATE_DAY     Day 2026-09-30 already consumed (lock 2026-09-30.lock). Duplicate run 
+  2026-10-01T06:53:46Z MONITOR_DEGRADED       No data for 2026-10-01 (no operator-entered record for 2026-10-01 in o
+exit=0
+
+### CMD: total producer sleep per toast (notify.py line 179) -- the sole source of the 6-7s spacing
+179:        "Start-Sleep -Seconds 6;"
+43:DEFAULT_RETRY_SLEEP_SECONDS = 5.0
+212:        return float(raw) if raw is not None else DEFAULT_RETRY_SLEEP_SECONDS
+214:        return DEFAULT_RETRY_SLEEP_SECONDS
+
+### CMD: did the 2026-09-30 run coalesce? search for a summary line in production
+0
+grep -c exit=1 (0 matches = no summary line was ever written)

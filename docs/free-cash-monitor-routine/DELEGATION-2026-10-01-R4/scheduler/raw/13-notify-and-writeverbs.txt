@@ -1,0 +1,67 @@
+=== day-of-week for candidate StartBoundary dates ===
+2026-10-01 Thursday
+2026-10-02 Friday
+2026-10-05 Monday
+2026-10-06 Tuesday
+
+=== notify transport (what a R3 notification actually does) ===
+1:"""notify.py -- R3 delivery: append-only alert log + Windows toast (cap 2 tries).
+6:    Windows toast         default delivery channel; a stub sender is available for
+23:import subprocess
+52:def default_severity(event_type: str) -> str:
+63:def alert(event_type, day_key, message, severity=None, dedupe_key=None, observed=None) -> dict:
+82:def zero_notifications_message(prior_day=None, source_note=None) -> str:
+91:def emit_no_change(day, prior_day=None, observed=None, source_note=None, sender=None) -> dict:
+102:def emit_initial_baseline(day, observed=None, source_note=None) -> dict:
+116:def load_notified_keys() -> dict:
+123:def key_seen(key: str) -> bool:
+127:def key_delivery(key: str):
+132:def record_notified_key(key: str, delivery: str) -> dict:
+148:# --------------------------------------------------------------------------- toast
+151:def _stub_send(message: str) -> None:
+152:    """Offline stand-in for the toast channel (test/host without a desktop).
+158:    path = paths.logs_dir() / "toast-stub.log"
+167:def _toast_send(message: str) -> None:
+168:    """Deliver via a Windows-native balloon tip.  Raises on any failure."""
+184:    completed = subprocess.run(
+185:        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+192:        raise RuntimeError("toast exited %s: %s" % (completed.returncode, stderr[:200]))
+195:def set_sender(sender) -> None:
+201:def get_sender():
+206:    return _toast_send
+209:def retry_sleep_seconds() -> float:
+220:def dispatch(message, dedupe_key, day_key, event_type, sender=None, sleep_seconds=None) -> str:
+264:def notify_change(day, change, message, dedupe_key, sender=None, sleep_seconds=None) -> str:
+308:def _source_line(source_note=None):
+313:def _action_line():
+317:def _detail_line(dedupe_key):
+321:def message_for_change(day, change, current, prior, source_note=None) -> str:
+372:def message_summary(day, count, source_note=None) -> str:
+384:def message_run_failed(day, reason, ledger) -> str:
+399:def message_missed_day(day, last_success, consecutive) -> str:
+411:def message_approval_pending(item) -> str:
+
+=== approval_queue + gate write verbs (is the entry point write-capable?) ===
+monitoring/freecash/notify.py:23:import subprocess
+monitoring/freecash/notify.py:184:    completed = subprocess.run(
+monitoring/freecash/operator_state.py:12:This module reads (a).  It opens no socket, requests nothing, and holds no
+monitoring/freecash/operator_state.py:120:    """Read today's operator-entered figures.  Never raises, never opens a socket.
+monitoring/freecash/readonly_client.py:14:a socket.  One place to audit, one place a network capture could ever see.
+monitoring/freecash/readonly_client.py:34:from http.client import HTTPConnection  # readonly-exempt: the single socket library, used only inside _transport()
+monitoring/freecash/readonly_client.py:35:from urllib.parse import urlparse
+monitoring/freecash/readonly_client.py:73:# --- the single socket site -----------------------------------------------------
+monitoring/freecash/readonly_client.py:79:    This is the ONLY function in the routine that opens a socket.  It is never
+monitoring/freecash/readonly_client.py:148:    if event not in ("socket.connect", "socket.getaddrinfo"):
+monitoring/freecash/run_daily_check.py:36:written to ``logs/forced-recheck-requests.jsonl`` so the request itself is still
+monitoring/freecash/run_daily_check.py:283:            paths.logs_dir() / "forced-recheck-requests.jsonl",
+monitoring/freecash/run_daily_check.py:294:            "forbidden by R1; the request was recorded in logs/forced-recheck-requests.jsonl)"
+monitoring/freecash/verify_readonly.py:42:    ("http-verb", re.compile(r"\b(POST|PUT|PATCH|DELETE)\b", re.IGNORECASE)),  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:49:            r"|fetch\([^)]*method:\s*[\"'](POST|PUT|PATCH|DELETE)"  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:50:            r"|http\.client|urllib\.request\.urlopen|urlopen\(|socket\.socket\("  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:51:            r"|curl\s+[^|]*-X\s*(POST|PUT|DELETE)"  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:59:            r"\b(claim|withdraw|withdrawal|cashout|cash_out|cash-out|redeem|payout"  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:68:            r"|claim_reward|redeem_reward|request_payout)",  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:75:            r"/(claim|withdraw|withdrawal|cashout|redeem|payout|transfer|bet|spin|deposit|checkout)\b"  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:76:            r"|/offers/[^/]+/claim|/surveys/[^/]+/complete"  # readonly-exempt: scanner pattern table
+monitoring/freecash/verify_readonly.py:77:            r"|/tasks/[^/]+/complete|/rewards/claim",  # readonly-exempt: scanner pattern table
+monitoring/freecash/watchdog.py:9:* it opens **no** socket (it does not import :mod:`readonly_client` at all);

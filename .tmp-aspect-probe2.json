@@ -1,0 +1,242 @@
+ASPECTPROBE {
+ "shapes": {
+  "1600x900": {
+   "measure": {
+    "viewport": {
+     "w": 1600,
+     "h": 900,
+     "dpr": 1
+    },
+    "rects": {
+     "stage": {
+      "w": 1020,
+      "h": 887.3
+     },
+     "region": {
+      "w": 1020,
+      "h": 749.3
+     },
+     "core": {
+      "w": 1020,
+      "h": 578.8
+     },
+     "shell": {
+      "w": 1020,
+      "h": 560
+     },
+     "canvas": {
+      "w": 1020,
+      "h": 560
+     }
+    },
+    "aspect": {
+     "coreBox": 1.762,
+     "shellBox": 1.821,
+     "canvasBox": 1.821,
+     "canvasBuffer": 1.821
+    },
+    "canvasAttr": {
+     "width": 1020,
+     "height": 560,
+     "clientW": 1020,
+     "clientH": 560
+    },
+    "shellInline": {
+     "height": "560px",
+     "width": "100%"
+    },
+    "coreInline": {
+     "height": "",
+     "width": "100%"
+    },
+    "hasCanvas": true,
+    "screen": "jarvis-mounted"
+   },
+   "shape": {
+    "captureW": 1020,
+    "captureH": 560,
+    "lit": {
+     "bboxW": 1020,
+     "bboxH": 560,
+     "bboxWoverH": 1.821,
+     "maxRowWidth": 1020,
+     "maxColHeight": 560,
+     "circleCheck_maxRowWidth_over_maxColHeight": 1.821,
+     "widestRowAtFrac": 0,
+     "tallestColAtFrac": 0,
+     "coverageFrac": 1
+    },
+    "solid": {
+     "bboxW": 1020,
+     "bboxH": 560,
+     "bboxWoverH": 1.821,
+     "maxRowWidth": 1020,
+     "maxColHeight": 560,
+     "circleCheck_maxRowWidth_over_maxColHeight": 1.821,
+     "widestRowAtFrac": 0,
+     "tallestColAtFrac": 0,
+     "coverageFrac": 1
+    }
+   }
+  },
+  "1280x800": {
+   "measure": {
+    "viewport": {
+     "w": 1280,
+     "h": 800,
+     "dpr": 1
+    },
+    "rects": {
+     "stage": {
+      "w": 700,
+      "h": 887.3
+     },
+     "region": {
+      "w": 700,
+      "h": 749.3
+     },
+     "core": {
+      "w": 700,
+      "h": 578.8
+     },
+     "shell": {
+      "w": 700,
+      "h": 560
+     },
+     "canvas": {
+      "w": 700,
+      "h": 560
+     }
+    },
+    "aspect": {
+     "coreBox": 1.209,
+     "shellBox": 1.25,
+     "canvasBox": 1.25,
+     "canvasBuffer": 1.25
+    },
+    "canvasAttr": {
+     "width": 700,
+     "height": 560,
+     "clientW": 700,
+     "clientH": 560
+    },
+    "shellInline": {
+     "height": "560px",
+     "width": "100%"
+    },
+    "coreInline": {
+     "height": "",
+     "width": "100%"
+    },
+    "hasCanvas": true,
+    "screen": "jarvis-mounted"
+   },
+   "shape": {
+    "captureW": 700,
+    "captureH": 560,
+    "lit": {
+     "bboxW": 700,
+     "bboxH": 560,
+     "bboxWoverH": 1.25,
+     "maxRowWidth": 700,
+     "maxColHeight": 560,
+     "circleCheck_maxRowWidth_over_maxColHeight": 1.25,
+     "widestRowAtFrac": 0,
+     "tallestColAtFrac": 0,
+     "coverageFrac": 1
+    },
+    "solid": {
+     "bboxW": 700,
+     "bboxH": 560,
+     "bboxWoverH": 1.25,
+     "maxRowWidth": 700,
+     "maxColHeight": 560,
+     "circleCheck_maxRowWidth_over_maxColHeight": 1.25,
+     "widestRowAtFrac": 0,
+     "tallestColAtFrac": 0,
+     "coverageFrac": 1
+    }
+   }
+  },
+  "1920x1080": {
+   "measure": {
+    "viewport": {
+     "w": 1920,
+     "h": 1080,
+     "dpr": 1
+    },
+    "rects": {
+     "stage": {
+      "w": 1340,
+      "h": 856.8
+     },
+     "region": {
+      "w": 1340,
+      "h": 749.3
+     },
+     "core": {
+      "w": 1340,
+      "h": 578.8
+     },
+     "shell": {
+      "w": 1340,
+      "h": 560
+     },
+     "canvas": {
+      "w": 1340,
+      "h": 560
+     }
+    },
+    "aspect": {
+     "coreBox": 2.315,
+     "shellBox": 2.393,
+     "canvasBox": 2.393,
+     "canvasBuffer": 2.393
+    },
+    "canvasAttr": {
+     "width": 1340,
+     "height": 560,
+     "clientW": 1340,
+     "clientH": 560
+    },
+    "shellInline": {
+     "height": "560px",
+     "width": "100%"
+    },
+    "coreInline": {
+     "height": "",
+     "width": "100%"
+    },
+    "hasCanvas": true,
+    "screen": "jarvis-mounted"
+   },
+   "shape": {
+    "captureW": 1340,
+    "captureH": 560,
+    "lit": {
+     "bboxW": 1340,
+     "bboxH": 560,
+     "bboxWoverH": 2.393,
+     "maxRowWidth": 1340,
+     "maxColHeight": 560,
+     "circleCheck_maxRowWidth_over_maxColHeight": 2.393,
+     "widestRowAtFrac": 0,
+     "tallestColAtFrac": 0,
+     "coverageFrac": 1
+    },
+    "solid": {
+     "bboxW": 1340,
+     "bboxH": 560,
+     "bboxWoverH": 2.393,
+     "maxRowWidth": 1340,
+     "maxColHeight": 560,
+     "circleCheck_maxRowWidth_over_maxColHeight": 2.393,
+     "widestRowAtFrac": 0,
+     "tallestColAtFrac": 0,
+     "coverageFrac": 1
+    }
+   }
+  }
+ },
+ "errors": []
+}

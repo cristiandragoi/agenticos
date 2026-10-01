@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "keys": {
+    "8341abccc4ac2b8ca19f3571961293f83e2e514e1085541453d3103e58379d5c": {
+      "first_notified_at_utc": "2026-10-02T08:00:00Z",
+      "delivery": "STUB_OK",
+      "updated_at_utc": "2026-10-02T08:00:00Z"
+    }
+  }
+}

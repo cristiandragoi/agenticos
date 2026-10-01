@@ -43,6 +43,29 @@ export class GoalLifecycleManager extends EventEmitter {
   }
 
   /**
+   * Initialize a goal (alias for startGoal with flexible options).
+   */
+  public initializeGoal(opts: {
+    rawPrompt?: string;
+    userInput?: string;
+    normalizedGoal?: string;
+    category?: string;
+    target?: string;
+    clientTurnId?: number | string;
+    turnId?: string;
+    conversationId?: string;
+    workspacePath?: string;
+  }): GoalRun {
+    return this.startGoal({
+      conversationId: opts.conversationId || `conv-${Date.now()}`,
+      turnId: opts.turnId || (opts.clientTurnId !== undefined ? String(opts.clientTurnId) : undefined),
+      userInput: opts.userInput || opts.rawPrompt || 'Engineering Goal',
+      normalizedGoal: opts.normalizedGoal,
+      target: opts.target,
+    });
+  }
+
+  /**
    * Start a new durable GoalRun from user input.
    */
   public startGoal(opts: {
@@ -122,6 +145,14 @@ export class GoalLifecycleManager extends EventEmitter {
 
     const previousStatus = run.status;
     const now = new Date().toISOString();
+
+    if (nextStatus === 'COMPLETED') {
+      const verified = run.finalVerification?.verified === true || (opts.detail?.verified === true && opts.actor === 'Argus');
+      if (!verified) {
+        logger.warn(`[GoalLifecycle] Rejected transition to COMPLETED for goal ${goalId}: Argus physical verification is required and unverified.`);
+        throw new Error(`[GoalLifecycle] Cannot complete Goal ${goalId}: Argus physical verification has not certified this goal.`);
+      }
+    }
 
     run.status = nextStatus;
     run.updatedAt = now;

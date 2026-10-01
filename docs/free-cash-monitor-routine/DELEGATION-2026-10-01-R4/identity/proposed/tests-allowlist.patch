@@ -1,0 +1,39 @@
+--- a/monitoring/freecash/tests/_support.py
++++ b/monitoring/freecash/tests/_support.py
+@@ -19,6 +19,8 @@
+ HERE = Path(__file__).resolve().parent
+ ROUTINE_DIR = HERE.parent
+ REPO_ROOT = ROUTINE_DIR.parent.parent
++#: The single human identity this suite decides as (see TempDataRoot.__enter__).
++OPERATOR_IDENTITY = "Operator Jane"
+ RUN_DAILY = ROUTINE_DIR / "run_daily_check.py"
+ SHELL_CHECKER = REPO_ROOT / "docs" / "free-cash-monitor-routine" / "verify-readonly.sh"
+ 
+@@ -33,6 +35,10 @@
+     "FREECASH_READ_SOURCE",
+     "FREECASH_READ_BASE_URL",
+     "FREECASH_HTTP_TIMEOUT",
++    #: R4 identity (allowlist proposal): the decider guard fails CLOSED when no
++    #: operator identity is configured, so the suite must configure one.  Saved
++    #: and restored with the other keys.
++    "FREECASH_OPERATOR_IDENTITY",
+ )
+ 
+ 
+@@ -59,6 +65,16 @@
+                 os.environ.pop(key, None)
+             else:
+                 os.environ[key] = str(value)
++        #: R4 identity (allowlist proposal): the decider guard is an
++        #: operator-owned allowlist that fails CLOSED when unconfigured.  This
++        #: suite decides as 'Operator Jane', so seed the allowlist for the
++        #: throwaway root.  It exercises the FILE source, not the env override.
++        allowlist = self.root / "state" / "human-deciders.json"
++        allowlist.parent.mkdir(parents=True, exist_ok=True)
++        allowlist.write_text(
++            json.dumps({"schema_version": 1, "operators": [OPERATOR_IDENTITY]}, indent=2),
++            encoding="utf-8",
++        )
+         return self
+ 
+     def env(self, **extra):

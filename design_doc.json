@@ -1,0 +1,239 @@
+{
+  "design_doc": {
+    "project_name": "Free Cash Finance Automation Daily Monitoring Agent",
+    "version": "1.0.0",
+    "operational_constraints_enforcement": [
+      {
+        "constraint_1": "No earning action automatically",
+        "implementation": "Detection-only mode: System identifies potential earnings/signals but queues for trigger rather than executing actions. All action paths must have explicit 'trigger' flag in request payload.",
+        "guardrail": "Action queue with dry-run validation before any external interaction"
+      },
+      {
+        "constraint_2": "Check status once per day",
+        "implementation": "Cron-based scheduler executes exactly one validation cycle per 24h period. Lock file prevents duplicate runs. Historical timestamp tracked for compliance.",
+        "guardrail": "Idempotency tokens ensure single-record updates on duplicate-trigger conditions"
+      },
+      {
+        "constraint_3": "Notify on earnings/status changes",
+        "implementation": "Alert-only channel: Notifications sent via configured channels (email/SMS/Slack) describing detected events. No processing of notifications occurs; they are human-facing informational only.",
+        "guardrail": "All notifications route to alert inbox, never trigger downstream automations"
+      },
+      {
+        "constraint_4": "Human approval before external action",
+        "implementation": "Approval queue with configurable timeout (default 7d). Actions await explicit human confirmation via approved channel. System provides context: event summary, recommended response, risk level.",
+        "guardrail": "Hard gate on all payment/invoice/vendor actions; even low-value items require manual approval"
+      }
+    ],
+    "architecture_diagram": "+------------------+    +---------------+    +-------------+\n|                   |    |               |    |             |\n|  DATA SOURCES     |--> |  MONITOR AGENT|--> | ALERT QUEUE |\n|                   |    |              |    |             |\n| - Bank API        |    | - Polling     |    | - Email     |\n| - Finance API     |    |   (daily)    |    | - SMS/Slack |\n| - Invoice Mgmt    |    | - Validation  |    |             |\n| - Transaction DB  |    | - Queue       |    +----+--------+\n|                   |    |   Manager     |         |\n+------------------+    +-------+--------+        |<-\n                                |          +------+\n                                v            v\n                        +---------------+    +-------------+\n                        | APPROVAL REQ  |--> | NOTIFIED TO |\n                        | QUEUE        |    | HUMAN       |\n                        +-------+-------+    | WORKSPACE   |\n                                |            +-------------+\n                                v                       \n                        +---------------+    +-----------+\n                        |   ACTION     |<---| CONSUMED BY|\n                        | ENGINE       |    | APPROVAL UI|\n                        +---------------+    +-----------+\n\n  Legend:\n  [Data Sources]       = External APIs/feeds (no action capability)\n  [Monitor Agent]      = Core scheduler with polling orchestration (detection only)\n  [Alert Queue]        = Notification channel aggregator\n  [Approval Request]   = Human-in-the-loop approval queue\n  [Notified To Human]  = Actionable workspace for decision makers",
+    "daily_check_workflow": [
+      {
+        "step": "step1",
+        "title": "Daily Cycle Initialization",
+        "actions": [
+          "Acquire cycle lock file to prevent duplicate execution",
+          "Record start timestamp and validate within maintenance window",
+          "Increment daily_run counter for audit trail"
+        ],
+        "conditions": "Cycle must trigger exactly once per 24h based on scheduled cron/timer",
+        "exceptions": [
+          "If locked: Exit early, log 'cycle already executed'",
+          "If outside maintenance window: Skip with warning logged"
+        ]
+      },
+      {
+        "step": "step2",
+        "title": "Data Fetching and Validation",
+        "actions": [
+          "Fetch latest status from all configured data sources",
+          "Validate response integrity and API health for each source",
+          "Compare new data against last valid snapshot for change detection"
+        ],
+        "conditions": "All sources must respond successfully; mark as partial if minor failures occur",
+        "exceptions": [
+          "On critical source failure: Alert immediately, continue with available data",
+          "On transient error (timeout): Retry 3x with exponential backoff before failing"
+        ]
+      },
+      {
+        "step": "step3",
+        "title": "Detection and Alerting",
+        "actions": [
+          "Apply detection logic to identify earnings/signals/opportunities",
+          "Create alert record for each change detected (do NOT create action)",
+          "Generate human-readable notification with full context",
+          "Route notifications through configured channels per user preference"
+        ],
+        "conditions": "Detect-only mode: no actions queued at this stage, alerts informational only",
+        "exceptions": [
+          "On detection without data source error: Proceed to alert generation",
+          "On partial detection (some sources missing): Document gap, proceed with available data"
+        ]
+      }
+    ],
+    "alert_format": {
+      "type": "structured human-readable",
+      "trigger": "earnings_detected | status_changed | anomaly_flagged",
+      "schema": {
+        "header": {
+          "title_pattern": "[ALERT] {{EVENT_TYPE}}: {{SOURCE_NAME}}",
+          "severity_levels": ["info", "warning", "critical"]
+        },
+        "body": {
+          "sections": [
+            {
+              "name": "event_summary",
+              "fields": [
+                {"field": "event_id", "type": "unique identifier"},
+                {"field": "timestamp", "type": "ISO8601 UTC"},
+                {"field": "event_type", "enum": ["earnings_available", "status_update", "exception_routed"]},
+                {"field": "source", "type": "external_system_name"}
+              ]
+            },
+            {
+              "name": "details",
+              "fields": [
+                {"field": "description", "type": "free_text with structured template"},
+                {"field": "amount", "optional": true, "type": "currency value if applicable"},
+                {"field": "transaction_id", "optional": true, "type": "reference id"}
+              ]
+            },
+            {
+              "name": "context",
+              "fields": [
+                {"field": "data_source_details", "type": "last_response_summary"},
+                {"field": "previous_status", "optional": true, "type": "historical snapshot reference"},
+                {"field": "detection_confidence", "optional": true, "type": "0.0-1.0 range"}
+              ]
+            },
+            {
+              "name": "action_request",
+              "fields": [
+                {"field": "available_options", "type": ["approve", "reject", "escalate"]},
+                {"field": "recommended_action", "type": "AI suggestion optional"},
+                {"field": "approval_timeout", "default": "7 days from alert timestamp"},
+                {"field": "action_required", "constant": true, "type": "requires_explicit_confirmation"}
+              ]
+            },
+            {
+              "name": "metadata",
+              "fields": [
+                {"field": "agent_version", "type": "semver"},
+                {"field": "daily_run_index", "type": "counter_value_for_dedup"},
+                {"field": "run_start_time", "type": "ISO8601 UTC"},
+                {"field": "contact_info", "type": "approver_email|slack_id"}
+              ]
+            }
+          ]
+        },
+        "footer": {
+          "reference_pattern": "{{EVENT_ID}} - approved via {{CONTACT_INFO}}",
+          "help_link": "internal wiki or SLA policy document"
+        }
+      },
+      "examples": [
+        {
+          "example_type": "earnings_detected",
+          "sample_output": "=\\n[ALERT] EARNINGS_AVAILABLE: bank_api_primary\\n\\nevent_id: ECN-20260910-0057  timestamp: 2026-09-10T08:42:15Z  event_type: earnings_available\\ndescription: Free cash deposit detected from automated sweep  amount: USD +$4,293.12  transaction_id: TRX-SWEEP-20260910-08542\\ndata_source_details: Bank API v2.3 - response OK latency=47ms  previous_status: $0.00 (no active sweep pending)  detection_confidence: 0.98\\nAVAILABLE_OPTIONS: approve, reject, escalate\\nRECOMMENDED_ACTION: approve (AI confidence high, source verified)\\nACTION_REQUIRED: true - requires explicit approval before ledger update"
+        }
+      ]
+    },
+    "approval_protocol": [
+      {
+        "stage": "check_required_conditions",
+        "description": "Validate prerequisites before processing approval request",
+        "actions": [
+          "Verify approver authorization level matches alert severity",
+          "Confirm approver workspace available (email/slack channel active)",
+          "Check approval timeout not exceeded for alert event_id",
+          "Load historical context: similar past decisions logged for reference"
+        ],
+        "fail_conditions": [
+          "If unauthorized: Reject immediately, log with reason"
+        ]
+      },
+      {
+        "stage": "present_options",
+        "description": "Display actionable options to human approver",
+        "actions": [
+          "Render alert in approved interface (email template, dashboard card, or Slack format)",
+          "Show event summary with full context as defined in alert_format",
+          "Present choice: approve, reject, escalate",
+          "If reject: require reason code from drop-down list"
+        ],
+        "guidance": "Display recommended action but let human override; provide override justification field for audit trail"
+      },
+      {
+        "stage": "await_confirmation",
+        "description": "Wait for explicit human confirmation and log outcome",
+        "actions": [
+          "Capture approval timestamp and user identity",
+          "Record decision type plus any rationale provided",
+          "On approve: Queue corresponding action for execution engine",
+          "On reject/escalate: Terminate current request flow, optionally notify escalation contact"
+        ],
+        "timeout_handling": [
+          "If timeout exceeded without approval: Send reminder notification to approver",
+          "After extended grace period: Auto-escalate to supervisor or mark as time-expired",
+          "All timeouts logged with final decision"
+        ]
+      },
+      {
+        "stage": "record_decision_and_trigger_action",
+        "description": "Log approval outcome and optionally trigger downstream action on confirm",
+        "actions": [
+          "Append decision record to audit log (event_id + user + timestamp + decision)",
+          "If approved: Create action job in action queue for processing",
+          "If rejected/escalated: Close request, notify of termination reason"
+        ]
+      }
+    ],
+    "monitoring_architecture": "Event-driven design with clear separation between detection (unattended) and actions (human-gated). Detection path pulls data from all sources daily while action path requires explicit human confirmation. Notifications serve only to inform humans, never trigger downstream automations.",
+    "data_sources_to_monitor": [
+      {
+        "source_name": "bank_api",
+        "type": "financial_institution_api",
+        "poll_strategy": "Full account reconciliation plus transaction list on daily cycle",
+        "detection_logic": "Identify deposits, cash inflows against expected revenue cycles"
+      },
+      {
+        "source_name": "finance_platform",
+        "type": "erp_or_finance_cloud_api",
+        "poll_strategy": "Invoices due for payment, invoice status updates, payment confirmations",
+        "detection_logic": "New free cash availability thresholds crossed"
+      },
+      {
+        "source_name": "invoice_management_system",
+        "type": "ar_portal_or_saas_api",
+        "poll_strategy": "Check incoming invoices, approved-for-pay status, payment run readiness",
+        "detection_logic": "Invoice batches ready for processing, cash flow impact events"
+      },
+      {
+        "source_name": "transaction_ledger",
+        "type": "internal_database_or_oss",
+        "poll_strategy": "Query pending items from previous daily cycle, reconcile against feeds",
+        "detection_logic": "Unreconciled items flagged as exceptions requiring manual review"
+      }
+    ],
+    "pseudocode": {
+      "description": "Monitoring agent pseudocode with constraint enforcement",
+      "code": "# FREE CASH FINANCE AUTOMATION MONITORING AGENT\n# Constraint Enforcement:\n#   1. Detection only - no auto action on earnings\n#   2. Single daily cycle via lock-based scheduling\n#   3. Notifications informational only\n#   4. Human approval gate for all external actions\n\nclass FreeCashMonitorAgent:\n    __init__(self, config):\n        self.lock_dir = config['lock_directory']\n        self.alert_channels = config['alert_channels']\n        self.data_sources = [\n            config['bank_api_config'],\n            config['finance_platform_config'],\n            config['invoice_mgmt_config'],\n            config['transaction_ledger_config']\n        ]\n        self.daily_run_counter = 0\n        \n    def acquire_cycle_lock(self):\n        \"\"\"Prevent duplicate daily runs\"\"\"\n        lock_file = os.path.join(self.lock_dir, f'cycle_{datetime.now().date()}.lock')\n        if os.path.exists(lock_file):\n            raise CycleAlreadyExecutedError(f'Duplicate run blocked: {lock_file}')\n        fd, _ = tempfile.mkstemp(dir=self.lock_dir)\n        try:\n            os.fsync(fd)\n            return True\n        finally:\n            os.close(fd)\n    \n    def release_cycle_lock(self):\n        \"\"\"Release lock after daily cycle complete\"\"\"\n        lock_file = os.path.join(self.lock_dir, f'cycle_{datetime.now().date()}.lock')\n        if os.path.exists(lock_file):\n            os.remove(lock_file)\n    \n    def run_daily_cycle(self):\n        \"\"\"Execute single validation cycle - Constraint #2\"\"\"\n        print('Starting daily check cycle...')\n        self.daily_run_counter += 1\n        \n        try:\n            self.acquire_cycle_lock()\n            cycle_start = datetime.utcnow()\n            \n            # Step 1: Fetch all source data\n            source_data = {}\n            for source_config in self.data_sources:\n                response = self.fetch_source(\n                    source_name=source_config['name'],\n                    config=source_config\n                )\n                source_data[source_config['name']] = response\n            \n            # Step 2: Detect changes - Constraint #1: detection only\n            events_detected = []\n            for source_name, data in source_data.items():\n                detected_events = self.detect_changes(\n                    source=source_name,\n                    current=data,\n                    historical=self.historical_snapshots[source_name]\n                )\n                \n                # Constraint #1 & #3: Generate alerts only, NO actions yet\n                for event in detected_events:\n                    alert_record = AlertRecord(\n                        event_id=f'{{ECN-{cycle_start.month:02d}{cycle_start.day:02d}+{self.daily_run_counter}-{len(events_detected)}}}',\n                        source=source_name,\n                        details=event,\n                        timestamp=datetime.utcnow().isoformat()+'Z'\n                    )\n                    events_detected.append(alert_record)\n            \n            # Step 3: Send notifications - Constraint #3: informative only\n            for alert in events_detected:\n                self.notify_channels(\n                    channels=self.alert_channels,\n                    alert=alert\n                )\n                # NOTE: Do NOT queue action here\n                # All actions require explicit human trigger later\n            \n            self.historical_snapshots.update(source_data)\n            \n        finally:\n            self.release_cycle_lock()\n        \n    def notify_channels(self, channels, alert):\n        \"\"\"Send informative notifications via all configured channels\"\"\"\n        message = f\"[ALERT] {{alert.event_type}}: {{alert.source}}\\n{{alert.details}}\\nACTION_REQUIRED: Human review needed\"\n        for channel in channels:\n            send_notification(\n                target=channel.address,\n                type=channel.type,\n                content=message\n            )\n    \n    def trigger_action(self, event_id):\n        \"\"\"Explicit action trigger - ONLY called after human approval (Constraint #4)\"\"\"\n        alert = self.alert_queue.get(event_id)\n        if alert.status != 'APPROVED':\n            raise ActionBlockedError(f'Event {{event_id}} not approved or pending')\n        \n        # Now safe to execute action only after human approval\n        return self.execute_approve(\n            event=alert.event,\n            user_id=approver_user_identity  # from audit trail\n        )\n    \n    def check_status(self):\n        \"\"\"Main entry point - delegates to run_daily_cycle\"\"\"\n        try:\n            self.run_daily_cycle()\n        except CycleAlreadyExecutedError as e:\n            print(f'{e} - skipping redundant execution')",
+      "notes": [
+        "Class uses lock file per date for single daily execution",
+        "Detection methods only populate alert records, never actions queue",
+        "Notifications sent but do not trigger any automatic processing",
+        "Explicit trigger method enforces approval requirement before action"
+      ]
+    },
+    "estimated_implementation_effort": {
+      "total_time_estimate_hours": 40,
+      "breakdown": [
+        {"task": "Define and validate constraint enforcement logic", "hours": 8},
+        {"task": "Implement polling scheduler with cycle lock", "hours": 6},
+        {"task": "Integrate alert notification channels (email, SMS)", "hours": 4},
+        {"task": "Develop human approval UI template workflow hooks", "hours": 8},
+        {"task": "Implement detection logic stubs for data sources", "hours": 12},
+        {"task": "Add audit logging timeout handling test scenarios", "hours": 2}
+      ]
+    }
+  }
+}

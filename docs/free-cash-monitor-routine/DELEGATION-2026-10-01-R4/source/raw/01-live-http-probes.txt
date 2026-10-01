@@ -1,0 +1,38 @@
+=== date ===
+Do,  1. Okt 2026 11:42:05
+
+=== curl -m5 GET http://localhost:4600/api/health ===
+curl: (7) Failed to connect to localhost:4600 after 2255 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://localhost:4600/api/v1/status/metrics (expect 404) ===
+curl: (7) Failed to connect to localhost:4600 after 2238 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://localhost:4600/api/v1/status (HEAD-path sibling) ===
+curl: (7) Failed to connect to localhost:4600 after 2235 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://localhost:3001/api/v1/status/metrics (default base, expect refused) ===
+curl: (7) Failed to connect to localhost:3001 after 2252 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://localhost:3001/api/health (default base) ===
+curl: (7) Failed to connect to localhost:3001 after 2253 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7
+
+=== curl -m5 GET http://localhost:4600/api/projects/proj-free-cash/freecash/auth ===
+curl: (7) Failed to connect to localhost:4600 after 2251 ms: Could not connect to server
+
+HTTP 000
+curl_exit=7

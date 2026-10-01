@@ -1,0 +1,44 @@
+=== production state-root mtimes (should all predate this pass ~09:2x) ===
+2026-09-20 21:08  /d/AgenticOS/data/freecash-monitor/snapshots/2026-09-20.json
+2026-09-20 21:08  /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-09-20.lock
+2026-09-20 21:08  /d/AgenticOS/data/freecash-monitor/state/operator-state.json
+2026-09-30 21:01  /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-09-30.lock
+2026-09-30 21:02  /d/AgenticOS/data/freecash-monitor/logs/task-a.log
+2026-09-30 21:02  /d/AgenticOS/data/freecash-monitor/logs/task-b-watchdog.log
+2026-09-30 21:02  /d/AgenticOS/data/freecash-monitor/snapshots/2026-09-30.json
+2026-09-30 21:02  /d/AgenticOS/data/freecash-monitor/state/notified-keys.json
+2026-10-01 08:53  /d/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl
+2026-10-01 08:53  /d/AgenticOS/data/freecash-monitor/snapshots/2026-10-01.json
+2026-10-01 08:53  /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-10-01.lock
+2026-10-01 08:53  /d/AgenticOS/data/freecash-monitor/state/last-run.json
+
+=== throwaway roots (all under Temp) ===
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-34640
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-daybudget-1741
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-daybudget-2134
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-daybudget-340
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-daybudget-357
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-daybudget-625
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-gate-harness
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-gate-probe
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-20624
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-23716
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-31628
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-allowlist-cmd
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-gatecopy-1854
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-gatecopy2-1999
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-identity-live-defect
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-probe
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-src-empty-1411
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-src-present-1411
+C:\Users\cd-pr\AppData\Local/Temp/fc-r3-src-present-1453
+
+=== deliverable dir ===
+total 56
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:35 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:33 ..
+-rw-r--r-- 1 cd-pr 197609 14317 Okt  1 09:35 EVIDENCE.md
+-rw-r--r-- 1 cd-pr 197609  1321 Okt  1 09:33 probe_operator_source.py
+-rw-r--r-- 1 cd-pr 197609  1974 Okt  1 09:32 probe_source_candidates.py
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 09:35 raw
+-rw-r--r-- 1 cd-pr 197609 20824 Okt  1 09:35 SOURCE-DECISION.md

@@ -1,0 +1,3 @@
+OK: FreeCash-Daily-Monitor-R4.xml is observe-only (single daily read of the canonical entry point, pinned tzdata interpreter, no write verb, boundary in the future)
+VERDICT: OBSERVE-ONLY (gate exit 0)
+exit=0

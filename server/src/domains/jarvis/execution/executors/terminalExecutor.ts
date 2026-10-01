@@ -10,6 +10,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import { assertSideEffectOwnership } from '../../perception/turnOwnership.js';
 import path from 'node:path';
 import { logger } from '../../../../utils/logger.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
@@ -40,6 +41,33 @@ export class TerminalExecutor {
   private activeProcesses = new Map<number, ChildProcess>();
 
   public async runCommand(opts: TerminalRunOptions): Promise<TerminalExecutionData> {
+    // ── P0 turn-ownership enforcement ────────────────────────────────────────
+    // This is the terminal / PowerShell boundary — the point where a stale turn
+    // would physically spawn a process or open a visible window. The ownership
+    // check runs HERE, immediately before the spawn, so there is no work between
+    // validation and the side effect.
+    {
+      const gate = assertSideEffectOwnership('terminal', 'terminal / PowerShell command');
+      if (!gate.ok) {
+        logger.warn('[TerminalExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description,
+        });
+        return {
+          command: opts.command,
+          cwd: opts.cwd ?? process.cwd(),
+          shell: opts.shell ?? 'powershell',
+          exitCode: null,
+          stdout: '',
+          stderr: `rejected:${gate.reason}`,
+          durationMs: 0,
+          timedOut: false,
+        };
+      }
+    }
+
     const {
       command,
       cwd = process.cwd(),

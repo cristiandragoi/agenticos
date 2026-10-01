@@ -1,0 +1,56 @@
+WEB-FETCH EVIDENCE LOG  (DESIGN TRACK 1, option C)
+Pass date: 2026-10-01, 09:07-09:09 local (07:07-07:09 UTC)
+Tool: web_search / web_extract (no authenticated call to any provider was made; no credential exists on this host)
+
+[W1] https://freecash.com/en/policies/terms
+     fetched via web_search result snippet (title "Freecash: Get Paid for Games & Surveys | Earn Real Cash",
+     operator named as Almedia GmbH). Section 17 "Restrictions and Prohibited Uses" quoted verbatim:
+     "You agree not to use the Website: * To use macros, bots, scripts, or any other automation tools
+      designed to simulate or replicate human user activity, including but not limited to automating
+      clicks, movements, or tasks within offers or apps. Such behavior is strictly prohibited, as it
+      undermines the integrity of the platform and results in unfair advantages over other users."
+     Also: "* Tickets were obtained through fraud, automation, bots, scripts, VPN/proxy misuse, or
+      technical manipulation;" (lottery eligibility clause)
+
+[W2] https://freecash.com/academy/en/support/account/restrictions/how-can-i-ensure-that-my-freecash-account-will-not-be-banned
+     fetched via web_extract (full page, "Updated Nov 13, 2025"). Verbatim bullets:
+       "- You may only create one account per household."
+       "- Freecash is for personal and non-commercial purposes only."
+       "- Do not misuse the website in any way that could disable or impair the site."
+       "- Do not use any automatic device like a robot or spider to access the site."
+
+[W3] https://docs.hg.cash/api-reference/accounts/get-user-accounts
+     fetched via web_extract (200). Verbatim contract:
+       curl --request GET --url https://hg.cash/api/v1/accounts --header 'Authorization: Bearer <token>'
+       "Returns the authenticated user's accounts, including ledger balance, pending fees, net available
+        balance (balance minus pending fees), and account status."
+       200 body: {"data":[{"id","name","balance":123,"pendingFees":123,"netBalance":123,
+                  "status":"Operativa","currency","number","alias","platform{...}","company{...}"}],"count":123}
+       Authorizations: "User API authentication token with format `cash_<64-char-hex>`."
+     Also retrieved in the same pass by web_search:
+       - https://docs.hg.cash/api-reference/accounts/get-account-balance
+         (GET /account/{id}/balance -> id, balance, currency, pendingFees, netBalance, status)
+         enum: [Operativa, Bloqueada, Cerrada]
+       - https://docs.hg.cash/openapi  (servers: https://hg.cash/api/v1 , http://dev.hg.cash/api/v1)
+       - https://docs.hg.cash/introduction  ("Platform access requires a registered user record tied to
+         your email ... after HG.cash has engaged with you and completed required compliance checks,
+         typically including KYC ... There is no substitute for completing this stage with our team")
+       - https://docs.hg.cash/api-reference/transactions/create-transaction-request-cash-out
+         (POST /transactions = cash out; same bearerAuth security scheme as the read endpoints --
+          no read-only scope is documented)
+       - https://www.hg.cash/en  ("REST API. Single Bearer Token.", iGaming payouts LATAM)
+       - GET-only statement: "check with GET /api/v1/accounts or GET /api/v1/account/{id}/balance"
+         (docs.hg.cash/countries/argentina/bank-transfers)
+
+[W4] https://www.cashfree.com/docs/api-reference/payouts/v1/get-balance
+     fetched via web_search snippet. Documented read-only balance endpoint, but a DIFFERENT vendor/product
+     (Cashfree Payments payouts): path /payout/v1/getBalance, headers Authorization + Content-Type,
+     server https://payout-api.cashfree.com, returns {status, subCode, message, data{balance,
+     availableBalance}}. Not the monitored account.
+
+[W5] Non-findings recorded for completeness: https://freecasher.com/terms, https://www.freecash.ink/terms.html,
+     https://freecash.live/terms, https://tikwatcher.com/ are unrelated/affiliate sites, not the platform.
+
+NO provider call with a token or key was made in this pass. No credential was found on the host:
+  env | grep -i '^FREECASH'  -> FACTS ONLY, no credential key (evidence-19)
+  grep freecash .env server/.env (names redacted) -> no output (evidence-20)

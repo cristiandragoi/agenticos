@@ -1,0 +1,111 @@
+import { Router, Request, Response } from 'express';
+import { generateClientToken } from '../domains/jarvisNext/tokenService.js';
+import { jarvisNextAgent } from '../domains/jarvisNext/jarvisNextAgent.js';
+import { logger } from '../utils/logger.js';
+
+const router = Router();
+
+// Endpoint for Electron/React client to acquire LiveKit token
+router.post('/token', async (req: Request, res: Response) => {
+  try {
+    const { roomName, identity, name } = req.body || {};
+    const tokenInfo = await generateClientToken({ roomName, identity, name });
+
+    // Auto-ensure JarvisNext agent is connected to the room to greet and assist
+    jarvisNextAgent.start(tokenInfo.roomName).catch((err) => {
+      logger.warn('[JarvisNextRouter] Failed to auto-start agent:', err);
+    });
+
+    res.json(tokenInfo);
+  } catch (error: any) {
+    logger.error('[JarvisNextRouter] Error generating token:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate token' });
+  }
+});
+
+// Endpoint to query current JarvisNext and voice ownership status
+router.get('/status', (_req: Request, res: Response) => {
+  try {
+    const status = jarvisNextAgent.getStatus();
+    res.json({
+      success: true,
+      data: status,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Explicit control endpoints
+router.post('/agent/start', async (req: Request, res: Response) => {
+  try {
+    const { roomName } = req.body || {};
+    await jarvisNextAgent.start(roomName);
+    res.json({ success: true, status: jarvisNextAgent.getStatus() });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/agent/stop', async (_req: Request, res: Response) => {
+  try {
+    await jarvisNextAgent.stop();
+    res.json({ success: true, status: jarvisNextAgent.getStatus() });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/agent/interrupt', (_req: Request, res: Response) => {
+  try {
+    jarvisNextAgent.interrupt();
+    res.json({ success: true, status: jarvisNextAgent.getStatus() });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/agent/speak', async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'Missing text to speak' });
+    }
+    jarvisNextAgent.speak(text).catch((err) => {
+      logger.error('[JarvisNextRouter] Speak error:', err);
+    });
+    res.json({ success: true, message: 'Speech triggered' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Operator Execution & Mission Endpoints
+router.post('/operate', async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'Missing user text' });
+    }
+    const { operatorController } = await import('../domains/jarvisNext/operator/operatorController.js');
+    const result = await operatorController.handleIntent(text);
+    res.json({ success: true, result });
+  } catch (error: any) {
+    logger.error('[JarvisNextRouter] Operator error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/mission', async (_req: Request, res: Response) => {
+  try {
+    const { missionPlanner } = await import('../domains/jarvisNext/operator/missionPlanner.js');
+    const { buildGroundedStatus } = await import('../domains/jarvisNext/operator/statusReporter.js');
+    const mission = missionPlanner.getActiveMission();
+    const status = buildGroundedStatus(mission);
+    res.json({ success: true, mission, status });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;

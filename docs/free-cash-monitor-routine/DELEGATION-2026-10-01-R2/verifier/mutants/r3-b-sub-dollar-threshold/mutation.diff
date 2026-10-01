@@ -1,0 +1,12 @@
+--- a/changedetect.py
++++ b/changedetect.py
+@@ -263,6 +263,9 @@
+         new = current.get(field)
+         if old == new:
+             continue
++        # MUTATION r3-b: do not bother the operator about sub-dollar moves.
++        if isinstance(old, int) and isinstance(new, int) and abs(new - old) < 100:
++            continue
+         change = {
+             "change_type": change_type,
+             "field": field,

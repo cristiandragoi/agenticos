@@ -1,0 +1,400 @@
+--- a/monitoring/freecash/gate.py
++++ b/monitoring/freecash/gate.py
+@@ -1,4 +1,16 @@
+-"""gate.py -- R1: exactly one status read per operator-local calendar day.
++"""gate.py -- the day budget: one status read per operator-local calendar day.
++
++RULE NUMBERING.  The docstrings shipped with this package INVERT the operator's
++list, so both numberings are carried here permanently:
++
++    operator R1 "no earning action automatically"   -> readonly_client (only path)
++    operator R2 "check status once per day"         -> THIS MODULE: the day budget,
++                                                       a cap AND a floor
++    operator R3 "notify on earnings/status change"  -> changedetect + notify
++    operator R4 "human approval before any external -> approval_queue
++                 action"
++
++Everything this file used to label "R1" is the operator's **R2**.
+ 
+ Two layers, and only the first one is the gate:
+ 
+@@ -28,7 +40,15 @@
+ #: Zone names that need no IANA database: they are exact by definition.
+ _TZ_ALIASES = {"UTC": timezone.utc, "GMT": timezone.utc, "Z": timezone.utc}
+ 
+-#: Outcomes that mean "today's check happened and produced a snapshot".
++#: Outcomes that mean "today's check happened AND today's figures were acquired".
++#:
++#: ``MONITOR_DEGRADED`` is deliberately NOT a member.  It is the outcome of a run
++#: that read nothing (``data_available == False``).  While it was a member, a null
++#: read was booked as a success day (``record_outcome`` advanced
++#: ``last_success_day``) and ``watchdog.evaluate`` -- which consults exactly this
++#: set for its ``covered`` predicate -- reported the day as covered: a machine
++#: that was awake but had no reading burned every day silently, reset its own
++#: miss counter and silenced its own alarm.
+ SUCCESS_OUTCOMES = frozenset(
+     {
+         "OK_NO_CHANGE",
+@@ -36,7 +56,6 @@
+         "EARNINGS_CHANGED",
+         "STATUS_CHANGED",
+         "BALANCE_CHANGED",
+-        "MONITOR_DEGRADED",
+     }
+ )
+ 
+@@ -135,6 +154,23 @@
+     return True, lock
+ 
+ 
++def release_day_lock(day: str) -> bool:
++    """Give the day key back, because the run that took it acquired no reading.
++
++    Operator R2 ("check status once per day") is a cap *and* a floor: a day with
++    no reading must stay open, so a later run that day can still read.  This is
++    only ever called by a run that has already been shown to hold no reading.
++    The atomic exclusive-create above still serialises concurrent runs, so a
++    release can never authorise two simultaneous status reads -- any run refused
++    while the key was held never read anything at all.
++    """
++    try:
++        lock_path(day).unlink()
++        return True
++    except OSError:
++        return False
++
++
+ # --------------------------------------------------------------------------- ledger
+ 
+ 
+@@ -190,14 +226,20 @@
+ 
+     ``last_success_*`` is only advanced for outcomes in SUCCESS_OUTCOMES; a
+     failed read leaves the previous success day in place so the watchdog and the
+-    next run both see the day as *uncovered*.
++    next run both see the day as *uncovered*.  ``consecutive_missed_days`` is
++    likewise only recomputed for a covered outcome: a run that acquired nothing
++    must leave the miss counter exactly as it found it.
+     """
+     ledger = dict(ledger) if ledger is not None else load_ledger()
+     ledger["last_outcome"] = outcome
+-    ledger["consecutive_missed_days"] = int(missed)
+     if outcome in SUCCESS_OUTCOMES:
+         ledger["last_success_day"] = day
+         ledger["last_success_at_utc"] = paths.iso_utc(now)
++        # Only a covered day recomputes the gap.  A day that acquired nothing
++        # left the stored counter alone -- the operator-visible damage was a
++        # stored 9 being reset to 0 by a run that read nothing while
++        # last_success_day stood still.
++        ledger["consecutive_missed_days"] = int(missed)
+     save_ledger(ledger, now)
+     return ledger
+ 
+--- a/monitoring/freecash/run_daily_check.py
++++ b/monitoring/freecash/run_daily_check.py
+@@ -1,14 +1,29 @@
+ """run_daily_check.py -- the routine's single entry point (rules R1-R4).
+ 
++RULE NUMBERING (operator list; the docstrings shipped with this package label the
++day budget "R1", which is NOT the operator's numbering):
++
++    R1 no earning action automatically            -> readonly_client is the only path
++    R2 check status once per day                  -> the day budget, here + gate.py
++    R3 notify on earnings/status change           -> changedetect + notify
++    R4 human approval before any external action  -> approval_queue (enqueue only)
++
+ One run does, in this order:
+ 
+-1. **R1** -- consume today's operator-local day with an atomic exclusive-create
+-   lock.  If the day is already consumed, print ``SKIP_DUPLICATE_DAY``, append
+-   exactly one ``SKIP_DUPLICATE_DAY`` line to the alert log, and exit 0 having
+-   performed no read, no snapshot write and no ledger write.
++1. **R2, the day budget** -- is there a reading for today at all?  The
++   operator-entered source is a local file, so it is probed *before* anything is
++   consumed.  **No reading**: take no lock, write no ledger row, write no
++   snapshot, print ``RUN_NO_DATA`` and leave the day open for a later run today
++   (the floor).  **A reading**: consume today's operator-local day with an atomic
++   exclusive-create lock.  If the day is already consumed, print
++   ``SKIP_DUPLICATE_DAY``, append exactly one ``SKIP_DUPLICATE_DAY`` line to the
++   alert log, and exit 0 having performed no read, no snapshot write and no
++   ledger write (the cap).
+ 2. record the attempt, emit in-band ``MISSED_DAY`` lines for uncovered days
+    (never back-filling them), and flag a timezone change as ``MONITOR_DEGRADED``.
+-3. **R2** -- acquire today's figures through one of two read-only sources:
++   This step is reached only by a covered run; the no-reading path above returns
++   first, leaving the ledger, the miss counter and the day key untouched.
++3. **R2, the read** -- acquire today's figures through one of two read-only sources:
+    the operator-entered state file (default) or the local metrics substitute
+    (``GET``/``HEAD`` through :mod:`readonly_client`, allowlisted paths only).
+ 4. **R3** -- compare against the prior snapshot (loaded *before* the new one is
+@@ -22,7 +37,9 @@
+ 
+ Exit codes::
+ 
+-    0  ran, or the day was already consumed (a duplicate is not an error)
++    0  ran, or the day was already consumed (a duplicate is not an error), or
++       there was no reading for today -- nothing was consumed and the day stays
++       open, which is not a failure of the routine
+     2  usage error
+     3  --force-recheck refused (a second status read in one day is forbidden)
+     5  the status read failed; the day lock stays in place, no automatic re-run
+@@ -245,6 +262,110 @@
+     return count
+ 
+ 
++# --------------------------------------------------------------------------- day budget
++
++
++def probe_reading(source_kind, day):
++    """Availability pre-flight for *day*, performed BEFORE the day is consumed.
++
++    Operator R2 ("check status once per day") is a cap *and* a floor: a run that
++    can acquire no reading must leave the day open so a later run that day can
++    still read.  The operator-entered source is a local file read -- no socket,
++    no credential, no request -- so probing it here is not the day's status read
++    and cannot race the day lock.
++
++    The metrics source is deliberately **not** probed: its read *is* the network
++    operation, so the day lock must stay ahead of it (the cap).  A metrics read
++    that turns out to hold no figures is handled after the lock by the fallback
++    in ``_run``.
++
++    Returns the probe result, or ``None`` when the source cannot be probed.
++    """
++    if source_kind == "operator_state":
++        return operator_state.read_source(day)
++    return None
++
++
++def announce_unspent_day(day, source, lock=None, released=None, now=None, sender=None) -> None:
++    """Audit and report a run that acquired no reading and therefore spent no day.
++
++    The append-only alert log is the routine's evidence record, and the day is
++    left otherwise untouched: no day lock (or the key is given back), no ledger
++    row, no snapshot, no approval item.
++
++    The R4 reminder pass still runs.  A reminder is time-based -- it exists so a
++    pending approval cannot rot unnoticed -- and it neither reads the status nor
++    consumes the day, so a day without a reading must not silence it.
++    """
++    key_state = "NOT_TAKEN" if lock is None else ("RELEASED" if released else "HELD_RELEASE_FAILED")
++    ledger = gate.load_ledger()
++    notify.alert(
++        "MONITOR_DEGRADED",
++        day,
++        "No reading for %s (%s). Day key %s: no snapshot written, no success booked, "
++        "last_success_day and consecutive_missed_days untouched. The day stays available "
++        "until a reading exists, and the watchdog reports it as missed. Nothing is "
++        "compared and nothing is notified." % (day, source.get("note"), key_state),
++        severity=notify.SEVERITY_INFO,
++        observed={
++            "account_status": None,
++            "earnings_total_cents": None,
++            "balance_cents": None,
++            "pending_cents": None,
++            "source": source.get("kind"),
++            "degraded": True,
++            "day_lock": key_state,
++        },
++    )
++    reminders = nag_pending(day, now, sender, 0)
++    if now is None:
++        changedetect.prune_old_artifacts(now)
++    print(
++        "RUN_NO_DATA %s outcome=MONITOR_DEGRADED source=%s(data_available=False) snapshot=NONE "
++        "day_lock=%s last_success_day=%s consecutive_missed_days=%s reminders=%d"
++        % (
++            day,
++            source.get("kind"),
++            key_state,
++            ledger.get("last_success_day"),
++            ledger.get("consecutive_missed_days"),
++            reminders,
++        )
++    )
++
++
++def report_timezone(day, ledger, now=None) -> bool:
++    """Emit the timezone-change / unresolvable-zone warnings.  Never blocks a run.
++
++    Called on the covered path *and* on the no-reading path: a timezone problem
++    must be visible even on a day the routine could not read.
++    """
++    changed = gate.timezone_changed(ledger)
++    if changed:
++        notify.alert(
++            "MONITOR_DEGRADED",
++            day,
++            "Timezone changed since the last run (ledger=%s, now=%s). Day-key boundaries may "
++            "show a gap or an extra day." % (ledger.get("timezone"), gate.tz_name()),
++            severity=notify.SEVERITY_ALERT,
++            observed={"ledger_timezone": ledger.get("timezone"), "current_timezone": gate.tz_name()},
++        )
++    tz_report = gate.timezone_report()
++    if tz_report["kind"] == "system-local":
++        notify.alert(
++            "MONITOR_DEGRADED",
++            day,
++            "Configured timezone %r is not resolvable on this host (no local IANA database); "
++            "using the machine's own local zone (offset %s), which is the operator wall clock. "
++            "Install the tzdata package to honour the configured name exactly."
++            % (tz_report["configured"], tz_report["offset_now"]),
++            severity=notify.SEVERITY_INFO,
++            observed=dict(tz_report, condition="timezone_unavailable"),
++        )
++        print("WARNING timezone_unavailable configured=%s offset=%s" % (tz_report["configured"], tz_report["offset_now"]))
++    return changed
++
++
+ # --------------------------------------------------------------------------- run
+ 
+ 
+@@ -306,9 +427,25 @@
+ 
+     source_kind = resolve_source(args.source)
+     day = gate.day_key(now)
++
++    # ------------------------------------------------------------------ R2 floor
++    # Operator rule R2 ("check status once per day"; the docstrings shipped with
++    # this package label it "R1") is a cap AND a floor.  Decide on the reading
++    # *before* consuming the day: a run with nothing to read consumed nothing, so
++    # it must leave the day key exactly where it found it, available to a later
++    # run today.  probe_reading() is a local file read for the operator-entered
++    # source (no socket, no credential) and returns None for a source that must
++    # not be read before the lock -- the metrics source's lock stays ahead of its
++    # read, so the cap holds for the one operation that costs a network call.
++    probe = probe_reading(source_kind, day)
++    if probe is not None and not probe.get("data_available"):
++        report_timezone(day, gate.load_ledger(), now)
++        announce_unspent_day(day, probe, lock=None, now=now, sender=sender)
++        return 0
++
+     acquired, lock = gate.acquire_day_lock(day)
+     if not acquired:
+-        # R1 duplicate: exactly one log line, no read, no snapshot, no ledger write.
++        # R2 cap duplicate: exactly one log line, no read, no snapshot, no ledger write.
+         notify.alert(
+             "SKIP_DUPLICATE_DAY",
+             day,
+@@ -322,7 +459,6 @@
+ 
+     ledger = gate.load_ledger()
+     missed = gate.missed_days(day, ledger)
+-    timezone_changed = gate.timezone_changed(ledger)
+     # record_attempt() works on a copy and returns it; the returned ledger must
+     # be kept, otherwise record_outcome() below persists the pre-attempt copy
+     # and the ledger loses last_attempt_day (the watchdog's coverage signal).
+@@ -345,28 +481,7 @@
+             sender=sender,
+             sleep_seconds=0,
+         )
+-    if timezone_changed:
+-        notify.alert(
+-            "MONITOR_DEGRADED",
+-            day,
+-            "Timezone changed since the last run (ledger=%s, now=%s). Day-key boundaries may "
+-            "show a gap or an extra day." % (ledger.get("timezone"), gate.tz_name()),
+-            severity=notify.SEVERITY_ALERT,
+-            observed={"ledger_timezone": ledger.get("timezone"), "current_timezone": gate.tz_name()},
+-        )
+-    tz_report = gate.timezone_report()
+-    if tz_report["kind"] == "system-local":
+-        notify.alert(
+-            "MONITOR_DEGRADED",
+-            day,
+-            "Configured timezone %r is not resolvable on this host (no local IANA database); "
+-            "using the machine's own local zone (offset %s), which is the operator wall clock. "
+-            "Install the tzdata package to honour the configured name exactly."
+-            % (tz_report["configured"], tz_report["offset_now"]),
+-            severity=notify.SEVERITY_INFO,
+-            observed=dict(tz_report, condition="timezone_unavailable"),
+-        )
+-        print("WARNING timezone_unavailable configured=%s offset=%s" % (tz_report["configured"], tz_report["offset_now"]))
++    report_timezone(day, ledger, now)
+ 
+     try:
+         raw = read_source(source_kind, day, base=args.base_url or base, transport=transport)
+@@ -402,22 +517,27 @@
+     prior = changedetect.load_prior_snapshot(day)
+     snapshot = changedetect.build_snapshot(day, metrics, source, raw.get("raw_body") or b"", now=now)
+     verdict = changedetect.compare(prior, snapshot)
+-    snapshot_file, written = changedetect.save_snapshot(snapshot, now=now)
++    snapshot_file, written = changedetect.snapshot_path(day), False
+     observed = observed_for(snapshot, source, prior)
+ 
+     notifications = 0
+     approvals = 0
+     if not source["data_available"]:
+-        outcome = "MONITOR_DEGRADED"
+-        notify.alert(
+-            "MONITOR_DEGRADED",
+-            day,
+-            "No data for %s (%s). Snapshot written with null fields; nothing is compared "
+-            "and nothing is notified until a reading exists." % (day, source.get("note")),
+-            severity=notify.SEVERITY_INFO,
+-            observed=observed,
+-        )
+-    elif verdict["baseline"]:
++        # Fallback, reached only when the pre-flight probe found a reading and the
++        # read itself then found none (the record was removed in between -- see
++        # probe_reading).  The day still must not be spent: give the key back,
++        # write no snapshot (a null snapshot would block the real one later today
++        # through save_snapshot's exists-check) and book no success.  The outcome
++        # is recorded truthfully; MONITOR_DEGRADED is not in gate.SUCCESS_OUTCOMES,
++        # so last_success_day and consecutive_missed_days stand still and the
++        # watchdog reports the day as missed rather than covered.
++        released = gate.release_day_lock(day)
++        gate.record_outcome(day, "MONITOR_DEGRADED", now, ledger, missed=len(missed))
++        announce_unspent_day(day, source, lock=lock, released=released, now=now, sender=sender)
++        return 0
++
++    snapshot_file, written = changedetect.save_snapshot(snapshot, now=now)
++    if verdict["baseline"]:
+         outcome = "INITIAL_BASELINE"
+         notify.emit_initial_baseline(day, observed=observed, source_note=source.get("note"))
+     elif not verdict["changes"]:
+--- a/monitoring/freecash/tests/test_r5_smoke.py
++++ b/monitoring/freecash/tests/test_r5_smoke.py
+@@ -42,7 +42,15 @@
+             self.assertEqual(_support.pending_document(root)["items"], [])
+             self.assertEqual(_support.day_locks(root), ["%s.lock" % today])
+ 
+-    def test_first_run_without_data_records_the_day_and_says_so(self):
++    def test_first_run_without_data_spends_no_day_and_reports_no_data(self):
++        """A fresh install with no reading must not spend the day key.
++
++        CHANGED by stream D (day budget, operator rule R2 "check status once per
++        day").  The shipped expectation was ``run without data -> the day is
++        consumed, a null snapshot exists and a success day is booked`` -- which is
++        exactly the defect: a run that acquired nothing spent the day, advanced
++        ``last_success_day`` and silenced the watchdog.
++        """
+         with TempDataRoot() as env:
+             root = env.root
+             today = gate.day_key()
+@@ -52,17 +60,16 @@
+             degraded = events(root, "MONITOR_DEGRADED")
+             self.assertEqual(len(degraded), 1, [record["message"] for record in degraded])
+             self.assertEqual(degraded[0]["severity"], "info")
+-            self.assertEqual(_support.ledger(root)["last_success_day"], today)
+-            snapshot = json.loads(
+-                (paths.snapshots_dir() / ("%s.json" % today)).read_text(encoding="utf-8")
+-            )
+-            self.assertFalse(snapshot["source"]["data_available"])
+-            self.assertIsNone(snapshot["earnings_total_cents"])
+-            self.assertTrue(snapshot["degraded"])
++            # no reading -> no day spent, no snapshot, no ledger row at all
++            self.assertEqual(_support.day_locks(root), [], "the day %s must not be consumed" % today)
++            self.assertEqual(_support.snapshot_files(root), [])
++            self.assertFalse(paths.ledger_path().exists(), "a run that acquired nothing books nothing")
++            self.assertEqual(_support.ledger(root), {})
+             self.assertEqual(_support.pending_document(root)["items"], [])
+-            # the day is consumed, so a second run is still a duplicate
++            # the day is still free, so a second data-less run is no-data again
+             self.assertEqual(run_daily_check.run([], sender=sender), 0)
+-            self.assertEqual(len(events(root, "SKIP_DUPLICATE_DAY")), 1)
++            self.assertEqual(len(events(root, "SKIP_DUPLICATE_DAY")), 0)
++            self.assertEqual(_support.day_locks(root), [])
+ 
+ 
+ class DeliveryFailureTests(unittest.TestCase):

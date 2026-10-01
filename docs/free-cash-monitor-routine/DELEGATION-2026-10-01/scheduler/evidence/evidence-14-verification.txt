@@ -1,0 +1,45 @@
+### captured at
+2026-10-01 09:09:41 +02:00
+
+### V1  bash -n freecash-guarded-run.sh
+PASS bash_syntax
+
+### V2  XML well-formed + invariants (both proposals)
+FAIL DECISION-V2-FreeCash-Daily-Monitor.xml -> pinned_interpreter
+FAIL DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml -> pinned_interpreter
+
+### V3  guard refuses (unset, production, backslash+trailing) and accepts a throwaway root
+PASS refuse_unset(9)
+PASS refuse_production(9)
+PASS refuse_production_backslash(9)
+PASS accepts_throwaway(RUN_OK, rc=0)
+PASS same_day_duplicate
+FAIL watchdog_dedupe
+state written to the throwaway root only:
+[THROWAWAY]/alerts/alerts.jsonl
+[THROWAWAY]/logs/guarded-run.log
+[THROWAWAY]/snapshots/2026-10-01.json
+[THROWAWAY]/state/day-locks/2026-10-01.lock
+[THROWAWAY]/state/last-run.json
+[THROWAWAY]/state/operator-state.json
+
+### V4  the approval string in the doc is present verbatim and names files that exist
+PASS approval_string_A
+PASS approval_string_B
+PASS rollback_string
+OK exists DECISION-V2-FreeCash-Daily-Monitor.xml
+OK exists DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+OK exists DECISION-V2-HERMES-CRON-SCRIPTS-PROPOSAL.md
+
+### V5  still nothing registered
+PASS no_task
+PASS no_cron_job
+
+### V6  production state root untouched by this verification
+2026-09-20.lock
+2026-09-30.lock
+2026-10-01.lock
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 *D:/AgenticOS/data/freecash-monitor/state/last-run.json
+0f28d5699b30c6d7b48224f9fa6da26113938c66fafc99e16f391dbedd60e9dd *D:/AgenticOS/data/freecash-monitor/state/notified-keys.json
+
+RESULT: CHECKS_FAILED

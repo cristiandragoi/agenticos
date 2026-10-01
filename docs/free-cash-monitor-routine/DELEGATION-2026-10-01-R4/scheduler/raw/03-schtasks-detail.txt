@@ -1,0 +1,75 @@
+=== schtasks /query /tn \AgenticOS_Desktop /fo LIST /v ===
+
+Ordner: \
+Hostname:                                                    CDINTERNATIONAL
+Aufgabenname:                                                \AgenticOS_Desktop
+NÑchste Laufzeit:                                            Nicht zutreffend
+Status:                                                      Bereit
+Anmeldemodus:                                                Nur interaktiv
+Letzte Laufzeit:                                             29.09.2026 19:56:07
+Letztes Ergebnis:                                            0
+Autor:                                                       CDINTERNATIONAL\cd-pr
+AuszufÅhrende Aufgabe:                                       C:\Users\cd-pr\AppData\Local\Programs\AgenticOS\AgenticOS.exe 
+Starten in:                                                  Nicht zutreffend
+Kommentar:                                                   Nicht zutreffend
+Status der geplanten Aufgabe:                                Aktiviert
+Leerlaufzeit:                                                Deaktiviert
+Energieverwaltung:                                           Bei Batteriebetrieb beenden, Bei Batteriebetrieb nicht starten
+Als Benutzer ausfÅhren:                                      cd-pr
+Aufgabe lîschen, falls nicht verlegt:                        Deaktiviert
+Aufgabe beenden, falls sie X St. und X Min. ausgefÅhrt wird: 72:00:00
+Zeitplan:                                                    Zeitplaninformationen sind in diesem Format nicht verfÅgbar.
+Zeitplantyp:                                                 Einmal
+Startzeit:                                                   00:00:00
+Startdatum:                                                  29.09.2026
+Enddatum:                                                    Nicht zutreffend
+Tage:                                                        Nicht zutreffend
+Monate:                                                      Nicht zutreffend
+Wiederholung: Jede(n):                                       Deaktiviert
+Wiederholung: Bis: Zeit:                                     Deaktiviert
+Wiederholung: Bis: Dauer:                                    Deaktiviert
+Wiederholung: Beenden, falls immer noch ausgefÅhrt:          Deaktiviert
+
+=== schtasks /query /tn \AgenticOS_Launch /fo LIST /v ===
+
+Ordner: \
+Hostname:                                                    CDINTERNATIONAL
+Aufgabenname:                                                \AgenticOS_Launch
+NÑchste Laufzeit:                                            Nicht zutreffend
+Status:                                                      Bereit
+Anmeldemodus:                                                Nur interaktiv
+Letzte Laufzeit:                                             29.09.2026 19:55:26
+Letztes Ergebnis:                                            -1
+Autor:                                                       CDINTERNATIONAL\cd-pr
+AuszufÅhrende Aufgabe:                                       C:\Users\cd-pr\AppData\Local\Programs\AgenticOS\AgenticOS.exe 
+Starten in:                                                  Nicht zutreffend
+Kommentar:                                                   Nicht zutreffend
+Status der geplanten Aufgabe:                                Aktiviert
+Leerlaufzeit:                                                Deaktiviert
+Energieverwaltung:                                           Bei Batteriebetrieb beenden, Bei Batteriebetrieb nicht starten
+Als Benutzer ausfÅhren:                                      cd-pr
+Aufgabe lîschen, falls nicht verlegt:                        Deaktiviert
+Aufgabe beenden, falls sie X St. und X Min. ausgefÅhrt wird: 72:00:00
+Zeitplan:                                                    Zeitplaninformationen sind in diesem Format nicht verfÅgbar.
+Zeitplantyp:                                                 Einmal
+Startzeit:                                                   00:00:00
+Startdatum:                                                  29.09.2026
+Enddatum:                                                    Nicht zutreffend
+Tage:                                                        Nicht zutreffend
+Monate:                                                      Nicht zutreffend
+Wiederholung: Jede(n):                                       Deaktiviert
+Wiederholung: Bis: Zeit:                                     Deaktiviert
+Wiederholung: Bis: Dauer:                                    Deaktiviert
+Wiederholung: Beenden, falls immer noch ausgefÅhrt:          Deaktiviert
+
+=== schtasks /query /tn '<the prior claimed FreeCash name>' /fo LIST ===
+FEHLER: Das System kann die angegebene Datei nicht finden.
+exit=1
+
+=== schtasks /query /tn 'DECISION-V2-FreeCash-Daily-Monitor' ===
+FEHLER: Das System kann die angegebene Datei nicht finden.
+exit=1
+
+=== schtasks /query /tn '\FreeCash' ===
+FEHLER: Das System kann die angegebene Datei nicht finden.
+exit=1

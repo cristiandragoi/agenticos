@@ -1,0 +1,9 @@
+### The remedied package run against the UNCHANGED shipped test_r5_smoke.py (scratch tree, shipped test file copied over):
+### scratch=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-shippedtest-21221
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-shippedtest-root/root "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-shippedtest-21221/monitoring/freecash/tests/run_all.py
+### exit=1
+ERROR: test_first_run_without_data_records_the_day_and_says_so (test_r5_smoke.FreshInstallTests.test_first_run_without_data_records_the_day_and_says_so)
+FAIL: test_pending_item_survives_a_ninety_day_clock_advance (test_r4_approval.PendingForeverTests.test_pending_item_survives_a_ninety_day_clock_advance)
+Ran 52 tests in 10.145s
+FAILED (failures=1, errors=1)
+run_all: tests=52 failures=1 errors=1 skipped=0

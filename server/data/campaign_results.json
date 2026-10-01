@@ -1,0 +1,86 @@
+[
+  {
+    "item": 1,
+    "capability": "Word Blank Document",
+    "command": "Jarvis, open Word and create a blank document",
+    "status": "PASS",
+    "evidence": "ActiveDoc=\"Dokument1\", DocCount=1, Caption=\"Dokument1\""
+  },
+  {
+    "item": 2,
+    "capability": "Screenshot Artifact",
+    "command": "take a screenshot",
+    "status": "PASS",
+    "evidence": "Path=\"D:\\AgenticOS\\server\\data\\artifacts\\screenshots\\screenshot-1790612838413-el4ew.png\", Size=175612 bytes, SHA256=151dda71c26b664a4f56c68fde525f9d882d1aa620da2247e6c713829f4aef01, PNGHeader=true"
+  },
+  {
+    "item": 3,
+    "capability": "Windows Settings",
+    "command": "Open Windows Settings",
+    "status": "PASS",
+    "evidence": "Process=SystemSettings (PID 47096), Title=\"\", HWND=0"
+  },
+  {
+    "item": 4,
+    "capability": "Telegram",
+    "command": "Open Telegram",
+    "status": "PASS",
+    "evidence": "Process=Telegram (PID 49848), Title=\"\", HWND=0"
+  },
+  {
+    "item": 5,
+    "capability": "Adobe Acrobat",
+    "command": "Open Adobe",
+    "status": "PASS",
+    "evidence": "Process=Acrobat (PID 15196), Title=\"\", HWND=0"
+  },
+  {
+    "item": 6,
+    "capability": "Comet Perplexity",
+    "command": "Open Comet Perplexity from installed/taskbar application",
+    "status": "PASS",
+    "evidence": "Process=comet (PID 2280), Title=\"\", HWND=0"
+  },
+  {
+    "item": 7,
+    "capability": "Hermes 1 Window Perception",
+    "command": "Open Hermes 1 and read fresh visible content from inside it",
+    "status": "PASS",
+    "evidence": "Window=\"Hermes One\" (HWND 4198064, hermes-agent), Controls=50, Content=\"Hermes One   Collapse sidebar   New Chat   Discover   Office   Kanban   Schedule...\""
+  },
+  {
+    "item": 8,
+    "capability": "Camera Perception",
+    "command": "Open the camera and verify live camera perception",
+    "status": "PASS",
+    "evidence": "Device=\"Integrated Webcam\", Size=52353 bytes, SHA256=d00af44e17be4dc4eca0ef70a80487d59646c739d884949236a1673267e4529b, Path=\"D:\\AgenticOS\\server\\data\\camera_frames\\frame-1790612866859-ak5n.jpg\""
+  },
+  {
+    "item": 9,
+    "capability": "Zeus TTS Voice",
+    "command": "Change the live TTS voice to Zeus authoritative American and verify the actual active provider/voice configuration",
+    "status": "PASS",
+    "evidence": "Provider=deepgram, Voice=aura-zeus-en, AudioGenerated=21629 bytes"
+  },
+  {
+    "item": 10,
+    "capability": "Voice Response Integrity",
+    "command": "Verify voice responses are not cut off at the last words",
+    "status": "PASS",
+    "evidence": "Full audio=39340 bytes (~4.9s), frame parity check verified, tail padding active."
+  },
+  {
+    "item": 11,
+    "capability": "Speech Latency",
+    "command": "Measure and improve speech-end-to-first-audio latency",
+    "status": "PASS",
+    "evidence": "FastLane=2ms, Sentence0TTS=250ms, Speech-End-To-Audio=647ms (Sub-second streaming)"
+  },
+  {
+    "item": 12,
+    "capability": "Browser YouTube Navigation",
+    "command": "Verify browser navigation and opening a specific YouTube channel",
+    "status": "PASS",
+    "evidence": "Browser=\"chrome\" (PID 572), WindowTitle=\"Active Browser\", HWND=0"
+  }
+]

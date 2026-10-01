@@ -1,0 +1,880 @@
+{
+  "timestamp": "2026-09-29T08:40:07.886Z",
+  "installedBinary": "C:\\Users\\cd-pr\\AppData\\Local\\Programs\\AgenticOS\\AgenticOS.exe",
+  "buildId": "8f7463aa-dirty-20260929-083323",
+  "gitSha": "8f7463aa6931d57e12ec81b904b98cec04e932cf",
+  "results": [
+    {
+      "testId": "VOICESTUDIO_HEALTH_DETECTION",
+      "name": "VoiceStudio Provider Health Detection & Endpoint Inspection",
+      "passed": true,
+      "details": {
+        "success": true,
+        "status": {
+          "healthy": true,
+          "endpoint": "http://127.0.0.1:3900",
+          "latencyMs": 4,
+          "models": [
+            "tts-1",
+            "whisper-1",
+            "omnivox-studio"
+          ],
+          "lastChecked": 1790671066319
+        }
+      }
+    },
+    {
+      "testId": "VOICESTUDIO_OPENAI_COMPATIBLE",
+      "name": "VoiceStudio OpenAI-Compatible Speech Endpoint Wiring",
+      "passed": true,
+      "details": {
+        "configured": true,
+        "activeLanguage": "en",
+        "requestedLocale": "en-GB",
+        "effectiveProvider": "voicestudio",
+        "effectiveVoice": "en-GB-RyanNeural",
+        "availability": true,
+        "speechAvailable": true,
+        "fallbackReason": null,
+        "endpoint": "/api/voice/tts",
+        "locale": "en-GB",
+        "jarvisVoice": "en-GB-RyanNeural",
+        "engine": "voicestudio",
+        "voiceStudio": {
+          "healthy": true,
+          "endpoint": "http://127.0.0.1:3900",
+          "latencyMs": 4,
+          "models": [
+            "tts-1",
+            "whisper-1",
+            "omnivox-studio"
+          ],
+          "lastChecked": 1790671066319
+        },
+        "interpreter": "D:\\AgenticOS\\server\\.venv\\Scripts\\python.exe",
+        "supportedLanguages": [
+          "en",
+          "de",
+          "ro"
+        ]
+      }
+    },
+    {
+      "testId": "VOICESTUDIO_FALLBACK_ON_DISCONNECT",
+      "name": "Automatic Graceful Fallback when VoiceStudio is Offline",
+      "passed": true,
+      "details": {
+        "fallbackStatus": {
+          "success": true,
+          "status": {
+            "healthy": false,
+            "endpoint": "http://127.0.0.1:3900",
+            "error": "fetch failed",
+            "latencyMs": 119,
+            "lastChecked": 1790671068077
+          }
+        },
+        "fallbackTtsStatus": {
+          "configured": true,
+          "activeLanguage": "en",
+          "requestedLocale": "en-GB",
+          "effectiveProvider": "edge-tts",
+          "effectiveVoice": "en-GB-RyanNeural",
+          "availability": true,
+          "speechAvailable": true,
+          "fallbackReason": null,
+          "endpoint": "/api/voice/tts",
+          "locale": "en-GB",
+          "jarvisVoice": "en-GB-RyanNeural",
+          "engine": "edge-tts",
+          "voiceStudio": {
+            "healthy": false,
+            "endpoint": "http://127.0.0.1:3900",
+            "error": "fetch failed",
+            "latencyMs": 119,
+            "lastChecked": 1790671068077
+          },
+          "interpreter": "D:\\AgenticOS\\server\\.venv\\Scripts\\python.exe",
+          "supportedLanguages": [
+            "en",
+            "de",
+            "ro"
+          ]
+        }
+      }
+    },
+    {
+      "testId": "VOICESTUDIO_AUTOMATIC_RECONNECT",
+      "name": "Seamless Auto-Reconnect without Application Restart",
+      "passed": true,
+      "details": {
+        "reconnectedStatus": {
+          "success": true,
+          "status": {
+            "healthy": true,
+            "endpoint": "http://127.0.0.1:3900",
+            "latencyMs": 2,
+            "models": [
+              "tts-1",
+              "whisper-1",
+              "omnivox-studio"
+            ],
+            "lastChecked": 1790671072267
+          }
+        },
+        "reconnectedTtsStatus": {
+          "configured": true,
+          "activeLanguage": "en",
+          "requestedLocale": "en-GB",
+          "effectiveProvider": "voicestudio",
+          "effectiveVoice": "en-GB-RyanNeural",
+          "availability": true,
+          "speechAvailable": true,
+          "fallbackReason": null,
+          "endpoint": "/api/voice/tts",
+          "locale": "en-GB",
+          "jarvisVoice": "en-GB-RyanNeural",
+          "engine": "voicestudio",
+          "voiceStudio": {
+            "healthy": true,
+            "endpoint": "http://127.0.0.1:3900",
+            "latencyMs": 2,
+            "models": [
+              "tts-1",
+              "whisper-1",
+              "omnivox-studio"
+            ],
+            "lastChecked": 1790671072267
+          },
+          "interpreter": "D:\\AgenticOS\\server\\.venv\\Scripts\\python.exe",
+          "supportedLanguages": [
+            "en",
+            "de",
+            "ro"
+          ]
+        }
+      }
+    },
+    {
+      "testId": "DYNAMIC_VOICE_SWITCHING",
+      "name": "Dynamic Voice Switching without Application Restart",
+      "passed": true,
+      "details": {
+        "voiceConf1": {
+          "success": true,
+          "voiceConfig": {
+            "voiceId": "aura-zeus-en",
+            "voiceProfile": "zeus"
+          }
+        },
+        "voiceConf2": {
+          "success": true,
+          "voiceConfig": {
+            "voiceId": "voicestudio-default",
+            "voiceProfile": "voicestudio"
+          }
+        },
+        "turn1": "I have switched to the Zeus voice.",
+        "turn2": "I have switched to the VoiceStudio voice."
+      }
+    },
+    {
+      "testId": "TWENTY_CONSECUTIVE_TURNS",
+      "name": "20 Consecutive Production Voice Turns without Audio Truncation",
+      "passed": true,
+      "details": {
+        "totalTurns": 20,
+        "allPassed": true,
+        "allFinalWordsPreserved": true,
+        "turns": [
+          {
+            "turnNum": 1,
+            "prompt": "Hello Jarvis, how are you today?",
+            "type": "fast_chat",
+            "response": "I have switched to the VoiceStudio voice.",
+            "durationMs": 216,
+            "passed": true
+          },
+          {
+            "turnNum": 2,
+            "prompt": "What is on my desktop right now?",
+            "type": "slow_perception_desktop",
+            "response": "Your desktop shows a scenic wallpaper of a zebra in tall grass under a cloudy sky. On the left side,",
+            "durationMs": 12108,
+            "passed": true
+          },
+          {
+            "turnNum": 3,
+            "prompt": "Jarvis, tell me what is currently on my Comet Perplexity page.",
+            "type": "slow_perception_browser",
+            "response": "Jarvis, the Comet Perplexity page you're viewing is Julian Goldie's YouTube channel. The main conten",
+            "durationMs": 4306,
+            "passed": true
+          },
+          {
+            "turnNum": 4,
+            "prompt": "Jarvis, what am I holding?",
+            "type": "slow_perception_camera",
+            "response": "You are holding your hand to your forehead, with your fingers resting on your temple.",
+            "durationMs": 7444,
+            "passed": true
+          },
+          {
+            "turnNum": 5,
+            "prompt": "Jarvis, read the Word window.",
+            "type": "slow_perception_word",
+            "response": "Autonomous recovery exhausted for \"Jarvis, read the Word window.\". No active window handle was inspe",
+            "durationMs": 10581,
+            "passed": true
+          },
+          {
+            "turnNum": 6,
+            "prompt": "Jarvis, switch to Helios voice.",
+            "type": "fast_voice",
+            "response": "I have switched to the Helios voice.",
+            "durationMs": 916,
+            "passed": true
+          },
+          {
+            "turnNum": 7,
+            "prompt": "Who are you?",
+            "type": "fast_chat",
+            "response": "I have switched to the Helios voice.",
+            "durationMs": 87,
+            "passed": true
+          },
+          {
+            "turnNum": 8,
+            "prompt": "What is visible in Telegram?",
+            "type": "slow_perception_telegram",
+            "response": "Inside ?Dr Joe Dispenza Meditations – (3), I see: Minimize; Maximize; Close; Search messages; Info.",
+            "durationMs": 5375,
+            "passed": true
+          },
+          {
+            "turnNum": 9,
+            "prompt": "Jarvis, what do you see through the camera?",
+            "type": "slow_perception_camera",
+            "response": "I see a person wearing glasses and a blue shirt, with their hand on their forehead. Behind them is a",
+            "durationMs": 10101,
+            "passed": true
+          },
+          {
+            "turnNum": 10,
+            "prompt": "What page am I looking at in the browser?",
+            "type": "slow_perception_browser",
+            "response": "You're on the YouTube channel page for \"Julian Goldie SEO.\" The main content features a variety of v",
+            "durationMs": 11117,
+            "passed": true
+          },
+          {
+            "turnNum": 11,
+            "prompt": "Jarvis, inspect the active screen.",
+            "type": "slow_perception_desktop",
+            "response": "I attempted to process active screen, but physical verification could not be confirmed: Desktop obse",
+            "durationMs": 937,
+            "passed": true
+          },
+          {
+            "turnNum": 12,
+            "prompt": "Hello Jarvis, are you ready for more commands?",
+            "type": "fast_chat",
+            "response": "I am standing by. What would you like me to focus on first today?",
+            "durationMs": 5725,
+            "passed": true
+          },
+          {
+            "turnNum": 13,
+            "prompt": "Jarvis, switch to Zeus voice.",
+            "type": "fast_voice",
+            "response": "I have switched to the Zeus voice.",
+            "durationMs": 127,
+            "passed": true
+          },
+          {
+            "turnNum": 14,
+            "prompt": "What is on my desktop?",
+            "type": "slow_perception_desktop",
+            "response": "Your desktop background shows a zebra standing in tall grass under a cloudy sky. On the left side, t",
+            "durationMs": 7861,
+            "passed": true
+          },
+          {
+            "turnNum": 15,
+            "prompt": "Jarvis, what am I showing the camera?",
+            "type": "slow_perception_camera",
+            "response": "You're showing the camera your face, wearing a blue shirt and glasses. The background includes shelv",
+            "durationMs": 6443,
+            "passed": true
+          },
+          {
+            "turnNum": 16,
+            "prompt": "Jarvis, check the Comet browser page.",
+            "type": "slow_perception_browser",
+            "response": "Application \"Julian Goldie SEO - YouTube - Comet\" verified active on desktop (HWND 1379256, PID 1327",
+            "durationMs": 3350,
+            "passed": true
+          },
+          {
+            "turnNum": 17,
+            "prompt": "Good morning Jarvis.",
+            "type": "fast_chat",
+            "response": "Application \"Julian Goldie SEO - YouTube - Comet\" verified active on desktop (HWND 1379256, PID 1327",
+            "durationMs": 792,
+            "passed": true
+          },
+          {
+            "turnNum": 18,
+            "prompt": "Jarvis, read the Hermes One window.",
+            "type": "slow_perception_hermes",
+            "response": "Hermes One window is open.",
+            "durationMs": 1770,
+            "passed": true
+          },
+          {
+            "turnNum": 19,
+            "prompt": "Jarvis, what is on my screen right now?",
+            "type": "slow_perception_desktop",
+            "response": "Your screen shows a desktop background with a zebra standing in tall grass under a cloudy sky. On th",
+            "durationMs": 8956,
+            "passed": true
+          },
+          {
+            "turnNum": 20,
+            "prompt": "Thank you Jarvis, that was great.",
+            "type": "fast_chat",
+            "response": "Anything else you'd like to tackle before we move on?",
+            "durationMs": 7323,
+            "passed": true
+          }
+        ]
+      }
+    },
+    {
+      "testId": "BARGE_IN_RESILIENCE",
+      "name": "Barge-In Halts Current Playback and Next Turn Succeeds",
+      "passed": true,
+      "details": {
+        "interruptRes": {
+          "success": true,
+          "status": {
+            "connected": false,
+            "roomName": null,
+            "isSpeaking": false,
+            "isListening": false,
+            "isSuspended": false,
+            "state": "idle",
+            "totalBargeIns": 1,
+            "lastUserText": "Tell me a long story about space exploration.",
+            "lastAssistantText": "Anything else you'd like to tackle before we move on?",
+            "legacyVoiceActive": false,
+            "activeMicOwners": 1,
+            "activeVoiceOwners": 0
+          }
+        },
+        "nextTurnResponse": "Anything else you'd like to tackle before we move on?"
+      }
+    },
+    {
+      "testId": "LATENCY_BENCHMARK_8_STAGE",
+      "name": "8-Stage Latency Benchmarks & Dual p50/p95 Reporting",
+      "passed": true,
+      "details": {
+        "success": true,
+        "count": 34,
+        "speechEndToFirstAudio": {
+          "p50": 6483,
+          "p95": 12392,
+          "min": 311,
+          "max": 12392
+        },
+        "totalTurn": {
+          "p50": 6533,
+          "p95": 12442,
+          "min": 361,
+          "max": 12442
+        },
+        "recent": [
+          {
+            "turnId": 7,
+            "speechEnd": 1790671101968,
+            "finalTranscript": 1790671102268,
+            "toolStart": 1790671102267,
+            "firstLlmToken": 1790671102678,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671112738,
+            "playbackFirstAudio": 1790671112814,
+            "playbackComplete": 1790671112864,
+            "playbackCompleteAt": 1790671112864,
+            "generationCompleteAt": 1790671112814,
+            "voiceProvider": "voicestudio",
+            "speechEndToFirstAudioMs": 10846,
+            "totalTurnMs": 10896,
+            "status": "ANSWERED",
+            "intentReady": 1790671112537,
+            "route": "action"
+          },
+          {
+            "turnId": 8,
+            "speechEnd": 1790671114011,
+            "finalTranscript": 1790671114311,
+            "toolStart": 1790671114311,
+            "intentReady": 1790671114314,
+            "route": "action",
+            "firstLlmToken": 1790671114314,
+            "ttsFirstChunk": 1790671114516,
+            "playbackFirstAudio": 1790671114733,
+            "playbackComplete": 1790671114783,
+            "playbackCompleteAt": 1790671114783,
+            "generationCompleteAt": 1790671114733,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 722,
+            "totalTurnMs": 772,
+            "status": "ANSWERED"
+          },
+          {
+            "turnId": 10,
+            "speechEnd": 1790671117021,
+            "finalTranscript": 1790671117321,
+            "toolStart": 1790671117320,
+            "firstLlmToken": 1790671117867,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671122216,
+            "playbackFirstAudio": 1790671122216,
+            "playbackComplete": 1790671122266,
+            "playbackCompleteAt": 1790671122266,
+            "generationCompleteAt": 1790671122216,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 5195,
+            "totalTurnMs": 5245,
+            "status": "ANSWERED",
+            "intentReady": 1790671122098,
+            "route": "action"
+          },
+          {
+            "turnId": 10,
+            "speechEnd": 1790671117021,
+            "finalTranscript": 1790671117321,
+            "toolStart": 1790671117320,
+            "firstLlmToken": 1790671117867,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671122216,
+            "playbackFirstAudio": 1790671122216,
+            "playbackComplete": 1790671122266,
+            "playbackCompleteAt": 1790671122266,
+            "generationCompleteAt": 1790671122216,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 5195,
+            "totalTurnMs": 5245,
+            "status": "ANSWERED",
+            "intentReady": 1790671122098,
+            "route": "action"
+          },
+          {
+            "turnId": 11,
+            "speechEnd": 1790671123126,
+            "finalTranscript": 1790671123426,
+            "toolStart": 1790671123424,
+            "firstLlmToken": 1790671124174,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671133327,
+            "playbackFirstAudio": 1790671133327,
+            "playbackComplete": 1790671133377,
+            "playbackCompleteAt": 1790671133377,
+            "generationCompleteAt": 1790671133327,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 10201,
+            "totalTurnMs": 10251,
+            "status": "ANSWERED",
+            "intentReady": 1790671133220,
+            "route": "action"
+          },
+          {
+            "turnId": 11,
+            "speechEnd": 1790671123126,
+            "finalTranscript": 1790671123426,
+            "toolStart": 1790671123424,
+            "firstLlmToken": 1790671124174,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671133327,
+            "playbackFirstAudio": 1790671133327,
+            "playbackComplete": 1790671133377,
+            "playbackCompleteAt": 1790671133377,
+            "generationCompleteAt": 1790671133327,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 10201,
+            "totalTurnMs": 10251,
+            "status": "ANSWERED",
+            "intentReady": 1790671133220,
+            "route": "action"
+          },
+          {
+            "turnId": 12,
+            "speechEnd": 1790671134290,
+            "finalTranscript": 1790671134590,
+            "toolStart": 1790671134590,
+            "firstLlmToken": 1790671138663,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671145454,
+            "playbackFirstAudio": 1790671145454,
+            "playbackComplete": 1790671145504,
+            "playbackCompleteAt": 1790671145504,
+            "generationCompleteAt": 1790671145454,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 11164,
+            "totalTurnMs": 11214,
+            "status": "ANSWERED",
+            "intentReady": 1790671145355,
+            "route": "action"
+          },
+          {
+            "turnId": 12,
+            "speechEnd": 1790671134290,
+            "finalTranscript": 1790671134590,
+            "toolStart": 1790671134590,
+            "firstLlmToken": 1790671138663,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671145454,
+            "playbackFirstAudio": 1790671145454,
+            "playbackComplete": 1790671145504,
+            "playbackCompleteAt": 1790671145504,
+            "generationCompleteAt": 1790671145454,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 11164,
+            "totalTurnMs": 11214,
+            "status": "ANSWERED",
+            "intentReady": 1790671145355,
+            "route": "action"
+          },
+          {
+            "turnId": 13,
+            "speechEnd": 1790671146179,
+            "finalTranscript": 1790671146479,
+            "toolStart": 1790671146478,
+            "firstLlmToken": 1790671147279,
+            "immediateAckSpoken": true,
+            "intentReady": 1790671147291,
+            "route": "browser",
+            "ttsFirstChunk": 1790671147397,
+            "playbackFirstAudio": 1790671147397,
+            "playbackComplete": 1790671147447,
+            "playbackCompleteAt": 1790671147447,
+            "generationCompleteAt": 1790671147397,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 1218,
+            "totalTurnMs": 1268,
+            "status": "ANSWERED"
+          },
+          {
+            "turnId": 13,
+            "speechEnd": 1790671146179,
+            "finalTranscript": 1790671146479,
+            "toolStart": 1790671146478,
+            "firstLlmToken": 1790671147279,
+            "immediateAckSpoken": true,
+            "intentReady": 1790671147291,
+            "route": "browser",
+            "ttsFirstChunk": 1790671147397,
+            "playbackFirstAudio": 1790671147397,
+            "playbackComplete": 1790671147447,
+            "playbackCompleteAt": 1790671147447,
+            "generationCompleteAt": 1790671147397,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 1218,
+            "totalTurnMs": 1268,
+            "status": "ANSWERED"
+          },
+          {
+            "turnId": 14,
+            "speechEnd": 1790671148132,
+            "finalTranscript": 1790671148432,
+            "toolStart": 1790671148432,
+            "firstLlmToken": 1790671150433,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671154126,
+            "playbackFirstAudio": 1790671154126,
+            "playbackComplete": 1790671154176,
+            "playbackCompleteAt": 1790671154176,
+            "generationCompleteAt": 1790671154126,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 5994,
+            "totalTurnMs": 6044,
+            "status": "ANSWERED",
+            "intentReady": 1790671153998,
+            "route": "deep_supervisor"
+          },
+          {
+            "turnId": 14,
+            "speechEnd": 1790671148132,
+            "finalTranscript": 1790671148432,
+            "toolStart": 1790671148432,
+            "firstLlmToken": 1790671150433,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671154126,
+            "playbackFirstAudio": 1790671154126,
+            "playbackComplete": 1790671154176,
+            "playbackCompleteAt": 1790671154176,
+            "generationCompleteAt": 1790671154126,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 5994,
+            "totalTurnMs": 6044,
+            "status": "ANSWERED",
+            "intentReady": 1790671153998,
+            "route": "deep_supervisor"
+          },
+          {
+            "turnId": 15,
+            "speechEnd": 1790671154901,
+            "finalTranscript": 1790671155201,
+            "toolStart": 1790671155201,
+            "intentReady": 1790671155201,
+            "route": "action",
+            "firstLlmToken": 1790671155201,
+            "ttsFirstChunk": 1790671155265,
+            "playbackFirstAudio": 1790671155265,
+            "playbackComplete": 1790671155315,
+            "playbackCompleteAt": 1790671155315,
+            "generationCompleteAt": 1790671155265,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 364,
+            "totalTurnMs": 414,
+            "status": "ANSWERED"
+          },
+          {
+            "turnId": 16,
+            "speechEnd": 1790671156091,
+            "finalTranscript": 1790671156391,
+            "toolStart": 1790671156391,
+            "firstLlmToken": 1790671156777,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671164130,
+            "playbackFirstAudio": 1790671164130,
+            "playbackComplete": 1790671164180,
+            "playbackCompleteAt": 1790671164180,
+            "generationCompleteAt": 1790671164130,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 8039,
+            "totalTurnMs": 8089,
+            "status": "ANSWERED",
+            "intentReady": 1790671164126,
+            "route": "action"
+          },
+          {
+            "turnId": 16,
+            "speechEnd": 1790671156091,
+            "finalTranscript": 1790671156391,
+            "toolStart": 1790671156391,
+            "firstLlmToken": 1790671156777,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671164130,
+            "playbackFirstAudio": 1790671164130,
+            "playbackComplete": 1790671164180,
+            "playbackCompleteAt": 1790671164180,
+            "generationCompleteAt": 1790671164130,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 8039,
+            "totalTurnMs": 8089,
+            "status": "ANSWERED",
+            "intentReady": 1790671164126,
+            "route": "action"
+          },
+          {
+            "turnId": 17,
+            "speechEnd": 1790671165097,
+            "finalTranscript": 1790671165397,
+            "toolStart": 1790671165397,
+            "firstLlmToken": 1790671165757,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671171580,
+            "playbackFirstAudio": 1790671171580,
+            "playbackComplete": 1790671171630,
+            "playbackCompleteAt": 1790671171630,
+            "generationCompleteAt": 1790671171580,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 6483,
+            "totalTurnMs": 6533,
+            "status": "ANSWERED",
+            "intentReady": 1790671171568,
+            "route": "action"
+          },
+          {
+            "turnId": 17,
+            "speechEnd": 1790671165097,
+            "finalTranscript": 1790671165397,
+            "toolStart": 1790671165397,
+            "firstLlmToken": 1790671165757,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671171580,
+            "playbackFirstAudio": 1790671171580,
+            "playbackComplete": 1790671171630,
+            "playbackCompleteAt": 1790671171630,
+            "generationCompleteAt": 1790671171580,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 6483,
+            "totalTurnMs": 6533,
+            "status": "ANSWERED",
+            "intentReady": 1790671171568,
+            "route": "action"
+          },
+          {
+            "turnId": 18,
+            "speechEnd": 1790671172332,
+            "finalTranscript": 1790671172632,
+            "toolStart": 1790671172632,
+            "firstLlmToken": 1790671173030,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671175935,
+            "playbackFirstAudio": 1790671175935,
+            "playbackComplete": 1790671175985,
+            "playbackCompleteAt": 1790671175985,
+            "generationCompleteAt": 1790671175935,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 3603,
+            "totalTurnMs": 3653,
+            "status": "ANSWERED",
+            "intentReady": 1790671175835,
+            "route": "action"
+          },
+          {
+            "turnId": 18,
+            "speechEnd": 1790671172332,
+            "finalTranscript": 1790671172632,
+            "toolStart": 1790671172632,
+            "firstLlmToken": 1790671173030,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671175935,
+            "playbackFirstAudio": 1790671175935,
+            "playbackComplete": 1790671175985,
+            "playbackCompleteAt": 1790671175985,
+            "generationCompleteAt": 1790671175935,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 3603,
+            "totalTurnMs": 3653,
+            "status": "ANSWERED",
+            "intentReady": 1790671175835,
+            "route": "action"
+          },
+          {
+            "turnId": 20,
+            "speechEnd": 1790671178491,
+            "finalTranscript": 1790671178791,
+            "toolStart": 1790671178790,
+            "firstLlmToken": 1790671179364,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671180505,
+            "playbackFirstAudio": 1790671180505,
+            "playbackComplete": 1790671180555,
+            "playbackCompleteAt": 1790671180555,
+            "generationCompleteAt": 1790671180505,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 2014,
+            "totalTurnMs": 2064,
+            "status": "ANSWERED",
+            "intentReady": 1790671180490,
+            "route": "action"
+          },
+          {
+            "turnId": 20,
+            "speechEnd": 1790671178491,
+            "finalTranscript": 1790671178791,
+            "toolStart": 1790671178790,
+            "firstLlmToken": 1790671179364,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671180505,
+            "playbackFirstAudio": 1790671180505,
+            "playbackComplete": 1790671180555,
+            "playbackCompleteAt": 1790671180555,
+            "generationCompleteAt": 1790671180505,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 2014,
+            "totalTurnMs": 2064,
+            "status": "ANSWERED",
+            "intentReady": 1790671180490,
+            "route": "action"
+          },
+          {
+            "turnId": 21,
+            "speechEnd": 1790671181291,
+            "finalTranscript": 1790671181591,
+            "toolStart": 1790671181591,
+            "firstLlmToken": 1790671181994,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671190475,
+            "playbackFirstAudio": 1790671190475,
+            "playbackComplete": 1790671190525,
+            "playbackCompleteAt": 1790671190525,
+            "generationCompleteAt": 1790671190475,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 9184,
+            "totalTurnMs": 9234,
+            "status": "ANSWERED",
+            "intentReady": 1790671190471,
+            "route": "action"
+          },
+          {
+            "turnId": 21,
+            "speechEnd": 1790671181291,
+            "finalTranscript": 1790671181591,
+            "toolStart": 1790671181591,
+            "firstLlmToken": 1790671181994,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671190475,
+            "playbackFirstAudio": 1790671190475,
+            "playbackComplete": 1790671190525,
+            "playbackCompleteAt": 1790671190525,
+            "generationCompleteAt": 1790671190475,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 9184,
+            "totalTurnMs": 9234,
+            "status": "ANSWERED",
+            "intentReady": 1790671190471,
+            "route": "action"
+          },
+          {
+            "turnId": 22,
+            "speechEnd": 1790671191256,
+            "finalTranscript": 1790671191556,
+            "toolStart": 1790671191556,
+            "firstLlmToken": 1790671193637,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671198805,
+            "playbackFirstAudio": 1790671198805,
+            "playbackComplete": 1790671198855,
+            "playbackCompleteAt": 1790671198855,
+            "generationCompleteAt": 1790671198805,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 7549,
+            "totalTurnMs": 7599,
+            "status": "ANSWERED",
+            "intentReady": 1790671198698,
+            "route": "deep_supervisor"
+          },
+          {
+            "turnId": 22,
+            "speechEnd": 1790671191256,
+            "finalTranscript": 1790671191556,
+            "toolStart": 1790671191556,
+            "firstLlmToken": 1790671193637,
+            "immediateAckSpoken": true,
+            "ttsFirstChunk": 1790671198805,
+            "playbackFirstAudio": 1790671198805,
+            "playbackComplete": 1790671198855,
+            "playbackCompleteAt": 1790671198855,
+            "generationCompleteAt": 1790671198805,
+            "voiceProvider": "deepgram",
+            "speechEndToFirstAudioMs": 7549,
+            "totalTurnMs": 7599,
+            "status": "ANSWERED",
+            "intentReady": 1790671198698,
+            "route": "deep_supervisor"
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 8,
+    "passed": 8,
+    "failed": 0
+  }
+}

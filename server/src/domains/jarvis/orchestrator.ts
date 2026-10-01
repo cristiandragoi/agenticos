@@ -44,6 +44,8 @@ export interface OrchestratorResult {
   model?: string;
   fallbackProvider?: string;
   fallbackModel?: string;
+  sessionId?: string;
+  message?: string;
 }
 
 export class JarvisOrchestrator {
@@ -67,7 +69,53 @@ export class JarvisOrchestrator {
       metadata: requestMetadata
     });
 
-    // 1a. Explicit Language Preference / Switch Command (HIGHEST PRIORITY)
+    // 1.0 Explicit Engineering Delegation (AntiGravity - HIGHEST PRECEDENCE)
+    // Must execute BEFORE language preference, maintenance supervisor,
+    // conversational-turn resolution, intent routing, or worker dispatch.
+    const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('../controlPlane/ExplicitEngineeringDelegation.js');
+    const explicitEngineering = parseExplicitEngineeringDelegation(prompt);
+    if (explicitEngineering) {
+      const delRes = await executeEngineeringDelegation(explicitEngineering, {
+        conversationId,
+        workspace: workspacePath || 'D:\\AgenticOS',
+        speakFn: async (textToSpeak) => {
+          try {
+            const { jarvisNextAgent } = await import('../jarvisNext/jarvisNextAgent.js');
+            await jarvisNextAgent.speak(textToSpeak);
+          } catch {}
+        },
+      });
+
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: delRes.text,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(operationId ? { operationId } : {}),
+          provider: 'agentic-os',
+          model: 'antigravity-delegation',
+          worker: 'antigravity',
+          intent: { type: 'engineering_delegation', confidence: 1.0 },
+          taskId: delRes.taskId,
+          sessionId: delRes.sessionId,
+          goalId: delRes.goalId,
+          actionVerified: delRes.success,
+        },
+      });
+
+      return {
+        route: 'engineering_delegation',
+        status: delRes.success ? 'delegated' : 'failed',
+        taskId: delRes.taskId,
+        sessionId: delRes.sessionId,
+        goalId: delRes.goalId,
+        message: delRes.text,
+        operationId,
+      };
+    }
+
+    // 1a. Explicit Language Preference / Switch Command
     //     Must execute BEFORE conversational-turn resolution, contextual interpretation,
     //     LLM prompting, delegation, grounding guardrails, or maintenance turns.
     const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('./conversationLanguage.js');
@@ -91,6 +139,66 @@ export class JarvisOrchestrator {
         },
       });
       return { route: 'direct', status: 'language_changed', operationId };
+    }
+
+    // 1a2. Telegram Telemetry Introspection (Desktop Jarvis & Remote query)
+    if (/\b(?:did\s+you\s+receive|any|check|show)\s+(?:my\s+)?(?:last\s+)?telegram\s+(?:message|update|chat)\b/i.test(prompt) || /\btelegram\s+message\b/i.test(prompt)) {
+      const { telegramAdapter } = await import('../../adapters/telegramAdapter.js');
+      const telemetry = telegramAdapter.getInboundTelemetry();
+      let reply: string;
+      if (telemetry && telemetry.lastInboundMessageAt) {
+        const timeStr = new Date(telemetry.lastInboundMessageAt).toLocaleTimeString();
+        reply = `Yes. I received your Telegram message "${telemetry.lastInboundTextPreview || ''}" at ${timeStr} from User ID ${telemetry.lastInboundUserId} (Chat ID ${telemetry.lastInboundChatId}) and replied through conversation ${telemetry.mappedConversationId}.`;
+      } else {
+        reply = 'I have not received a Telegram message in the current runtime.';
+      }
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(operationId ? { operationId } : {}),
+          provider: 'agentic-os',
+          model: 'telegram-introspection',
+        },
+      });
+      return { route: 'direct', status: 'telegram_introspection', message: reply, operationId };
+    }
+
+    // 1a3. AntiGravity / Worker State Inspection
+    if (/\b(?:what\s+is\s+anti[- ]?gravity\s+doing|what\s+is\s+jarvis\s+doing|current\s+worker\s+state|what\s+are\s+you\s+doing)\b/i.test(prompt)) {
+      const { canonicalTurnExecutionService } = await import('./canonicalTurnExecutionService.js');
+      const reply = (canonicalTurnExecutionService as any).buildWorkerStatusReply();
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(operationId ? { operationId } : {}),
+          provider: 'agentic-os',
+          model: 'worker-status',
+        },
+      });
+      return { route: 'direct', status: 'worker_status', message: reply, operationId };
+    }
+
+    // 1a4. Simple presence / greeting
+    if (/^\s*(?:(?:hey|hi|hello|ok|okay)?\s*jarvis[,:\s]*)?(?:are\s+you\s+there|you\s+there|you\s+online)[.?!]?\s*$/i.test(prompt)) {
+      const reply = "I'm here.";
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: reply,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(operationId ? { operationId } : {}),
+          provider: 'agentic-os',
+          model: 'direct-presence',
+        },
+      });
+      return { route: 'direct', status: 'presence', message: reply, operationId };
     }
 
     // 1b. Maintenance Supervisor (Phase 4.1): route self-maintenance

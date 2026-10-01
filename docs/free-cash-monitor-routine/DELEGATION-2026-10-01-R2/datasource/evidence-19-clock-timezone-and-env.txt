@@ -1,0 +1,26 @@
+$ env | grep -i '^FREECASH'   # ambient/inherited environment of this shell
+FREECASH_DATA_ROOT=C:\Users\cd-pr\AppData\Local/Temp/fc-r2-scratch
+FREECASH_TOAST_RETRY_SLEEP_SECONDS=0
+FREECASH_REPO_ROOT=D:/AgenticOS
+FREECASH_TZ=UTC
+FREECASH_READ_SOURCE=operator_state
+FREECASH_TOAST_STUB=1
+exit=0
+
+$ python -c "import gate; print(gate.timezone_report())"   # FREECASH_TZ as inherited
+{'configured': 'UTC', 'kind': 'utc', 'available': True, 'offset_now': '+0000'}
+exit=0
+
+$ FREECASH_TZ=Europe/Berlin python -c "import gate; print(gate.timezone_report()); print('day_key=', gate.day_key())"
+{'configured': 'Europe/Berlin', 'kind': 'zoneinfo', 'available': True, 'offset_now': '+0200'}
+day_key= 2026-10-01
+exit=0
+
+$ FREECASH_TZ=UTC python -c "import gate; print(gate.timezone_report()); print('day_key=', gate.day_key())"
+{'configured': 'UTC', 'kind': 'utc', 'available': True, 'offset_now': '+0000'}
+day_key= 2026-10-01
+exit=0
+
+$ python -c "import zoneinfo, zoneinfo._common; print('tzdata module:', __import__('importlib.util', fromlist=['x']).find_spec('tzdata'))"
+tzdata module spec: ModuleSpec(name='tzdata', loader=<_frozen_importlib_external.SourceFileLoader object at 0x00000210FDE26050>, origin='C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Lib\\site-packages\\tzdata\\__init__.py', submodule_search_locations=['C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Lib\\site-packages\\tzdata'])
+exit=0

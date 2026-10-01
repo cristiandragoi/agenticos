@@ -1,0 +1,41 @@
+### date
+Do,  1. Okt 2026 11:46:04
+### netstat listeners 4600/3001
+(netstat rc=0)
+
+########## loopback app API :4600 (unauthenticated GET) ##########
+=== GET http://127.0.0.1:4600/api/health ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2044 ms: Could not connect to server
+HTTP=000 CT= SIZE=0
+shell_rc=7
+--- body (first 800 bytes) ---
+
+
+=== GET http://127.0.0.1:4600/api/projects ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2038 ms: Could not connect to server
+HTTP=000 CT= SIZE=0
+shell_rc=7
+--- body (first 800 bytes) ---
+
+
+=== GET http://127.0.0.1:4600/api/v1/status/metrics ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2047 ms: Could not connect to server
+HTTP=000 CT= SIZE=0
+shell_rc=7
+--- body (first 800 bytes) ---
+
+
+=== GET http://127.0.0.1:4600/api/v1/status ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2046 ms: Could not connect to server
+HTTP=000 CT= SIZE=0
+shell_rc=7
+--- body (first 800 bytes) ---
+
+
+=== GET http://127.0.0.1:4600/api/projects/freecash/freecash/auth ===
+curl: (7) Failed to connect to 127.0.0.1:4600 after 2024 ms: Could not connect to server
+HTTP=000 CT= SIZE=0
+shell_rc=7
+--- body (first 800 bytes) ---
+
+

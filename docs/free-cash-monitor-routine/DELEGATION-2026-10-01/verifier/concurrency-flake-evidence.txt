@@ -1,0 +1,25 @@
+=== full-suite run that failed (concurrency flake) ===
+test_first_run_with_operator_data_is_a_silent_baseline (test_r5_smoke.FreshInstallTests.test_first_run_with_operator_data_is_a_silent_baseline) ... ok
+test_first_run_without_data_records_the_day_and_says_so (test_r5_smoke.FreshInstallTests.test_first_run_without_data_records_the_day_and_says_so) ... ok
+test_force_recheck_is_refused_and_recorded (test_r5_smoke.RefusalTests.test_force_recheck_is_refused_and_recorded) ... ok
+test_print_state_is_read_only (test_r5_smoke.RefusalTests.test_print_state_is_read_only) ... ok
+test_unknown_read_source_is_rejected (test_r5_smoke.RefusalTests.test_unknown_read_source_is_rejected) ... ok
+test_healthy_day_raises_no_alarm (test_r5_smoke.WatchdogTests.test_healthy_day_raises_no_alarm) ... ok
+test_missing_check_raises_one_alarm_and_changes_no_state (test_r5_smoke.WatchdogTests.test_missing_check_raises_one_alarm_and_changes_no_state) ... ok
+
+======================================================================
+FAIL: test_five_concurrent_runs_yield_one_winner (test_r1_gate.ConcurrencyTests.test_five_concurrent_runs_yield_one_winner)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\AgenticOS\monitoring\freecash\tests\test_r1_gate.py", line 121, in test_five_concurrent_runs_yield_one_winner
+    self.assertEqual(len(events(root, "SKIP_DUPLICATE_DAY")), 4)
+AssertionError: 3 != 4
+
+----------------------------------------------------------------------
+Ran 52 tests in 14.953s
+
+FAILED (failures=1)
+RUN_OK 2026-11-24 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-11-24.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-11-24.lock
+
+=== isolated 5-way concurrency harness, 12 iterations ===
+(see VERIFIER-SPEC.md section 7)

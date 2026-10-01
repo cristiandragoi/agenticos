@@ -1,0 +1,120 @@
+{
+  "timestamp": "2026-09-21T20:28:11.768Z",
+  "backendBuildId": "d14253df-dirty-20260921-202611",
+  "scenarios": {
+    "scenarioA": [
+      {
+        "step": "Open YouTube",
+        "reply": "I've opened YouTube.",
+        "card": {
+          "badge": "COMPLETED",
+          "summary": "YouTube (browser) COMPLETED EXECUTED STEPS Navigate browser to YouTube ✓ OK"
+        }
+      },
+      {
+        "step": "Search for Python agents",
+        "reply": "Typed \"Python agents\" into the YouTube search box and ran the search.",
+        "card": {
+          "badge": "COMPLETED",
+          "summary": "YouTube (browser) COMPLETED EXECUTED STEPS Search YouTube for \"Python agents\" ✓ OK"
+        }
+      },
+      {
+        "step": "Open the first result",
+        "reply": "Done. I clicked \"8:08 8:08 Läuft gerade\" and navigated to https://www.youtube.com/watch?v=ByWCsa8DbF8, and the page is usable now.",
+        "card": {
+          "badge": "COMPLETED",
+          "summary": "Open the first result (browser) COMPLETED"
+        }
+      },
+      {
+        "step": "Go back",
+        "reply": "Human action required — Gate gate-8b60c74d-, Shopify task expt-e0a307e6-: Shopify authentication required before publishing \"Based on my research into the DE/EU digital product market, here are 3 concrete digital product opportunities for your revenue mission:\n\nProduct Opportunity 1: \".. Other independent work is continuing.",
+        "card": {
+          "badge": "COMPLETED",
+          "summary": "Open the first result (browser) COMPLETED"
+        }
+      },
+      {
+        "step": "Open the second result",
+        "reply": "Opened result #2, \"37:25\".",
+        "card": {
+          "badge": "COMPLETED",
+          "summary": "Open the second result (browser) COMPLETED"
+        }
+      },
+      {
+        "step": "Scroll down",
+        "reply": "Human action required — Gate gate-71ff9058-, Shopify task expt-e0a307e6-: Shopify authentication required before publishing \"Based on my research into the DE/EU digital product market, here are 3 concrete digital product opportunities for your revenue mission:\n\nProduct Opportunity 1: \".. Other independent work is continuing.",
+        "card": {
+          "badge": "COMPLETED",
+          "summary": "Open the second result (browser) COMPLETED"
+        }
+      }
+    ],
+    "scenarioB": [
+      {
+        "step": "Open YouTube",
+        "reply": "I've opened YouTube."
+      },
+      {
+        "step": "No, Google",
+        "reply": "I've opened Google."
+      },
+      {
+        "step": "Search for Agentic AI",
+        "reply": "Typed \"Agentic AI\" into the Google search box and ran the search."
+      }
+    ],
+    "scenarioC": [
+      {
+        "step": "Search for AI agents",
+        "reply": "Typed \"AI agents\" into the Google search box and ran the search."
+      },
+      {
+        "step": "No, I meant AI coding agents",
+        "reply": "Updated search on Google for \"AI coding agents\"."
+      }
+    ],
+    "scenarioD": [
+      {
+        "step": "Open Notepad",
+        "reply": "Notepad is open."
+      },
+      {
+        "step": "Close it",
+        "reply": "Closed Notepad."
+      },
+      {
+        "step": "Open it again",
+        "reply": "CodeX Task goal-856bd900-\n\nCompleted — Task completed.\n\nOpen in CodeX Studio\nTask: Fix the problem the user is referring to. Original request: So you did not understand. I said we create a new project quick free cache.\nCODEX RESULT\nCopy Result\n\nFailed to clone 'free-cache' repository because it could not fetch 'https://github.com/nitrogear/free-cache'. Please ensure the correct repository URL is available and try again with 'npx degit <owner>/<repo> <path>'. Alternatively, if you intended a local template, please provide the exact path or zip file to extract."
+      }
+    ],
+    "scenarioE": [
+      {
+        "step": "Open the AgenticOS folder",
+        "reply": "Opened AgenticOS folder in File Explorer."
+      },
+      {
+        "step": "What did you just open?",
+        "reply": "Opened AgenticOS folder in File Explorer."
+      },
+      {
+        "step": "Open it again",
+        "reply": "CodeX Task goal-856bd900-\n\nReviewing — Reviewing the previous result and deciding the next step\n\nOpen in CodeX Studio\nTask: Fix the problem the user is referring to. Original request: So you did not understand. I said we create a new project quick free cache.\nTool:\nfinish\nFile:\n—\nNext: Select the next tool to run.\n[tool_started]\nrunCommand\nRunning tool: runCommand\n[retrying]\nThe last tool failed. CodeX will attempt to retry.\n[planning]\nPreparing modifications...\n[checkpoint_written]\nCheckpoint generated for final answer\n[agent_completed]\nfinish\nCodeX finished the task successfully.\nCancel Goal"
+      }
+    ],
+    "scenarioF": {
+      "prompt": "Open YouTube, search for Python AI agents, and open the first result",
+      "reply": "I've opened Notepad.",
+      "card": {
+        "badge": "COMPLETED",
+        "summary": "What did you open query (chat_trivial) COMPLETED"
+      }
+    },
+    "scenarioH": {
+      "expandedVerified": true,
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\operational_matrix\\scenario_h_action_center_expanded.png"
+    }
+  }
+}

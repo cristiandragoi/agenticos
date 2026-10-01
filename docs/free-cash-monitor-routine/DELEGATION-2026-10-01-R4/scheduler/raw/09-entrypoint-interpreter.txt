@@ -1,0 +1,19 @@
+=== entry point exists ===
+-rw-r--r-- 1 cd-pr 197609 18977 Sep 20 06:57 monitoring/freecash/run_daily_check.py
+
+=== py_compile the exact artifact (RED/GREEN substrate) ===
+py_compile exit=0 OK
+
+=== interpreter identity + tzdata ===
+3.11.9
+zoneinfo OK Europe/Berlin
+
+=== the OTHER interpreters (to re-verify the tzdata claim) ===
+--- py -3.11 ---
+  File "C:\Users\cd-pr\AppData\Local\Programs\Python\Python311\Lib\zoneinfo\_common.py", line 24, in load_tzdata
+    raise ZoneInfoNotFoundError(f"No time zone found with key {key}")
+zoneinfo._common.ZoneInfoNotFoundError: 'No time zone found with key Europe/Berlin'
+--- py -3.14 ---
+  File "C:\Python314\Lib\zoneinfo\_common.py", line 29, in load_tzdata
+    raise ZoneInfoNotFoundError(f"No time zone found with key {key}")
+zoneinfo._common.ZoneInfoNotFoundError: 'No time zone found with key Europe/Berlin'

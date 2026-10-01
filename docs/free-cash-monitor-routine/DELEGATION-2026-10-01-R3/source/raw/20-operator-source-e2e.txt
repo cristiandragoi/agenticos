@@ -1,0 +1,39 @@
+########## CASE 1: wired default source, EMPTY records ##########
+mode = empty  THROWAWAY root = C:\Users\cd-pr\AppData\Local/Temp/fc-r3-src-empty-1411/root
+operator-local day_key = 2026-10-01
+paths.data_root() = C:\Users\cd-pr\AppData\Local\Temp\fc-r3-src-empty-1411\root
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+exit = 0
+snapshot = {
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T07:33:21Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+alerts = {"day_key": "2026-10-01", "dedupe_key": null, "event_id": "54bdf9f7-9dcf-4db9-9b11-1e68b977d09c", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-10-01 (no operator-entered record for 2026-10-01 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T07:33:21Z"}
+
+case1_exit=0
+
+########## CASE 2: wired source, ONE record for today ##########
+mode = present  THROWAWAY root = C:\Users\cd-pr\AppData\Local/Temp/fc-r3-src-present-1411/root
+operator-local day_key = 2026-10-01
+paths.data_root() = C:\Users\cd-pr\AppData\Local\Temp\fc-r3-src-present-1411\root
+Traceback (most recent call last):
+  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R3\source\probe_operator_source.py", line 28, in <module>
+    doc["records"] = [{
+    ~~~^^^^^^^^^^^
+TypeError: 'NoneType' object does not support item assignment
+case2_exit=1

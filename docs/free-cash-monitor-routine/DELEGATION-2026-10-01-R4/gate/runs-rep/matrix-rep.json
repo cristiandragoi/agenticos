@@ -1,0 +1,302 @@
+[
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-base",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-mv1-r1-post-cashout",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-mv2-r2-lock-removed",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-mv3-r3-save-before-load",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-adv1-r1-obfuscated-method",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-adv3-r4-getattr-exec",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-adv4-r1-conditional-backdoor",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-adv5-r3-compare-disabled",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "rep-adv6-r1-new-socket-file",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-base",
+    "exit": 0,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-mv1-r1-post-cashout",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-mv2-r2-lock-removed",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-mv3-r3-save-before-load",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-adv1-r1-obfuscated-method",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-adv3-r4-getattr-exec",
+    "exit": 0,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-adv4-r1-conditional-backdoor",
+    "exit": 0,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-adv5-r3-compare-disabled",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL"
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "rep-adv6-r1-new-socket-file",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL"
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-base",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-mv1-r1-post-cashout",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-mv2-r2-lock-removed",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-mv3-r3-save-before-load",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-adv1-r1-obfuscated-method",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-adv3-r4-getattr-exec",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-adv4-r1-conditional-backdoor",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-adv5-r3-compare-disabled",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "rep-adv6-r1-new-socket-file",
+    "exit": 1,
+    "summary": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-base",
+    "exit": 0,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-mv1-r1-post-cashout",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-mv2-r2-lock-removed",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-mv3-r3-save-before-load",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-adv1-r1-obfuscated-method",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-adv3-r4-getattr-exec",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-adv4-r1-conditional-backdoor",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-adv5-r3-compare-disabled",
+    "exit": 1,
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL"
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "rep-adv6-r1-new-socket-file",
+    "exit": 1,
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-base",
+    "exit": 0,
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-mv1-r1-post-cashout",
+    "exit": 1,
+    "summary": "1=PASS 2=FAIL 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-mv2-r2-lock-removed",
+    "exit": 1,
+    "summary": "1=FAIL 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-mv3-r3-save-before-load",
+    "exit": 1,
+    "summary": "1=PASS 2=PASS 3=FAIL 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-adv1-r1-obfuscated-method",
+    "exit": 0,
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-adv2-r2-lock-nonbinding",
+    "exit": 0,
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-adv3-r4-getattr-exec",
+    "exit": 0,
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-adv4-r1-conditional-backdoor",
+    "exit": 0,
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-adv5-r3-compare-disabled",
+    "exit": 0,
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "rep-adv6-r1-new-socket-file",
+    "exit": 1,
+    "summary": "1=PASS 2=FAIL 3=PASS 4=PASS"
+  }
+]

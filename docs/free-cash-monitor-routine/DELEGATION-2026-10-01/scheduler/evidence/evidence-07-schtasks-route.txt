@@ -1,0 +1,73 @@
+### CMD-RW1: schtasks /create /? (option inventory, German host) | grep for StartWhenAvailable switch
+    [/RU Benutzer [/RP Kennwort]] /SC Zeitplan [/MO Wert] [/D Tag]
+    [/RI Intervall] [ {/ET Endzeit | /DU Dauer} [/K] [/XML XML-Datei] [/V1]]
+    [/SD Startdatum] [/ED Enddatum] [/IT | /NP] [/Z] [/F] [/HRESULT] [/?]
+    /RU  Benutzername  Gibt das Benutzerkonto für "Ausführen als"
+                       der Option /RU oder /XML kombiniert werden.
+    /IT                Ermöglicht das interaktive Ausführen der Aufgaben nur, 
+                       wenn der Benutzer /RU zum Zeitpunkt der Auftragsaus-
+    /XML  XML-Datei    Erstellt eine Aufgabe aus der Aufgaben-XML, die in 
+                       Kann mit den Optionen /RU und /RP kombiniert, oder nur
+                       mit /RP verwendet werden, wenn das Aufgaben-XML bereits
+                       sichtbar ist. Nicht kompatibel mit /XML.
+    /RL   Ebene        Legt die Ausführungsebene für den Auftrag fest. Gültige
+                 /RU AusführenalsBenutzer                 /RP AusführenalsKennwort /SC STÜNDLICH /TN Dok /TR notepad 
+                 /SD 06/06/2006 /ED 06/06/2006 /RU AusführenalsBenutzer
+                 /RU AusführenalsBenutzer
+                 /RU AusführenalsBenutzer /RP
+           \"c:\Protokolldaten\heute.xml\"" ... 
+grep_exit=0
+
+### CMD-RW2: Task Scheduler service (identity that actually runs the task)
+
+
+Name      : Schedule
+Status    : Running
+StartType : Automatic
+
+
+
+
+### CMD-RW3: current user SID (for the XML Principal UserId)
+whoami: extra operand ‘/user’
+Try 'whoami --help' for more information.
+
+### CMD-RW4: schtasks free|cash check, verbatim (same command the operator would re-run)
+grep_exit=1  (1 == no match)
+### CMD-RW3b: identity SID (corrected: MSYS_NO_PATHCONV=1)
+whoami: extra operand ‘/user’
+Try 'whoami --help' for more information.
+
+### CMD-RW1b: is there ANY /SWA or catch-up switch in schtasks /create /? (expect NO match)
+grep_exit=1 (1 == no catch-up switch exists)
+
+### CMD-RW1c: the /XML-only switches per the live help (evidence that /XML is the reliable form)
+    [/RI Intervall] [ {/ET Endzeit | /DU Dauer} [/K] [/XML XML-Datei] [/V1]]
+    /XML  XML-Datei    Erstellt eine Aufgabe aus der Aufgaben-XML, die in 
+
+### CMD-RW5: Task Scheduler run-history capability (files-backed, so it survives a reboot)
+
+
+Name   : Get-ScheduledTaskInfo
+Source : ScheduledTasks
+
+
+
+### CMD-RW3c: identity SID (Windows whoami.exe by absolute path; MSYS shadows 'whoami')
+
+BENUTZERINFORMATIONEN
+---------------------
+
+Benutzername          SID                                          
+===================== =============================================
+cdinternational\cd-pr S-1-5-21-3435097649-250514390-3575566063-1001
+
+### CMD-RW6: hostname + OS build (Task Scheduler schema host)
+Microsoft Windows 11 Pro for Workstations build 26200
+CDInternational
+
+### CMD-RW7: is FREECASH_* pinned at the USER PROFILE level (what a Task-Scheduler-spawned process would inherit)?
+FREECASH_DATA_ROOT: User=[] Machine=[]
+FREECASH_TZ: User=[] Machine=[]
+FREECASH_READ_SOURCE: User=[] Machine=[]
+FREECASH_TOAST_STUB: User=[] Machine=[]

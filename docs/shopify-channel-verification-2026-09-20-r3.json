@@ -1,0 +1,213 @@
+{
+  "task": "Shopify channel verification, storefront inspection and product inventory sync",
+  "run": {
+    "executedAt": "2026-09-20T19:40:50Z",
+    "finishedAt": "2026-09-20T19:45:40Z",
+    "repository": "D:\\AgenticOS",
+    "workspace": "D:\\AgenticOS",
+    "repoBranch": "hermes-rescue-20260908",
+    "runtimeDb": "C:/Users/cd-pr/AppData/Roaming/agenticos/data/agentic-os.db",
+    "runtimeDbNote": "Live DB has an active 4,140,632-byte WAL beside a 16,990,208-byte main file — any snapshot must copy db + -wal + -shm together",
+    "sandboxDb": "D:/AgenticOS/.tmp/shopify-verify-r4/agentic-os.db (+ -wal, -shm; consistent copy of the live runtime DB; all writes isolated)",
+    "backendApi": "AgenticOS backend LISTENING this run — 127.0.0.1:4600 /api/health -> http=200 status=healthy version=9.0.0 git=d14253df-dirty buildTimestamp=2026-09-20T19:37:00Z",
+    "scriptsRun": [
+      "curl GET http://127.0.0.1:4600/api/revenue-operator/channels (live runtime, over HTTP)",
+      "server/scripts/shopify-inventory-scan.mjs (read-only scan of live + repo-legacy DBs)",
+      "server/scripts/shopify-credential-probe.mjs (read-only credential-store + myshopify context probe)",
+      "server/scripts/shopify-evidence-drilldown.mjs (read-only task/event drill-down)",
+      "server/scripts/shopify-channel-verification.mjs (channel contract + publish path, sandbox DB)",
+      "node_modules/.bin/vitest run src/__tests__/distributionService.test.ts (contract test)",
+      "curl egress checks to www.shopify.com / admin.shopify.com / accounts.shopify.com / admin.shopify.com/oauth/authorize",
+      "browser tooling probe (storefront inspection attempt)"
+    ],
+    "liveDbMutatedByThisRun": false
+  },
+  "channelVerification": {
+    "verdict": "FAILED_AT_AUTHENTICATION",
+    "liveHttpCheck": {
+      "url": "http://127.0.0.1:4600/api/revenue-operator/channels",
+      "http": 200,
+      "body": "{\"channels\":[]}",
+      "note": "The running backend itself reports an empty channel registry — SHOPIFY is unregistered at runtime, not merely in a snapshot."
+    },
+    "registryRowsBeforeSeed": 0,
+    "shopifyChannelBeforeSeed": null,
+    "seededChannelCount": 10,
+    "shopifyChannelAfterSeed": {
+      "channel": "SHOPIFY",
+      "status": "auth_required",
+      "humanGateRequired": true,
+      "automationAllowed": true,
+      "capabilities": {
+        "authenticate": true, "catalog": true, "product": true, "listing": true,
+        "publish": true, "checkout": true, "orders": true, "analytics": true,
+        "revenue": true, "inventory": true
+      }
+    },
+    "publishAttempt": {
+      "experimentId": "expt-e0a307e6-",
+      "experimentStatus": "APPROVED",
+      "published": false,
+      "blocked": true,
+      "reason": "SHOPIFY_AUTH_REQUIRED",
+      "gateCreated": "gate-8e66c4ad-",
+      "gateType": "SHOPIFY_AUTH_REQUIRED",
+      "gateStatus": "open",
+      "branchPaused": true,
+      "gateWrittenTo": "sandbox DB only (D:/AgenticOS/.tmp/shopify-verify-r4)"
+    },
+    "fabricationCheck": {
+      "ledgerEntriesInSandboxAfterBlockedPublish": 0,
+      "verifiedRevenueInSandboxAfterBlockedPublish": 0,
+      "liveLedgerEntries": 0,
+      "note": "The blocked publish path claimed no publication, sale or revenue — no fabricated success."
+    },
+    "contractTest": {
+      "command": "cd D:/AgenticOS/server && ../node_modules/.bin/vitest run src/__tests__/distributionService.test.ts",
+      "result": "1 file passed, 2/2 tests passed, 1.14s (vitest 4.1.10)",
+      "executedAt": "2026-09-20T19:44:18Z"
+    },
+    "credentialInventory": {
+      "shopifySdkDependencies": [],
+      "shopifyNodeModulesDir": "absent (node_modules/@shopify, server/node_modules/@shopify not found)",
+      "envKeys": "no SHOPIFY_* key in .env or server/.env (case-insensitive grep over both)",
+      "adminApiCallSites": "none — the only SHOPIFY* strings in server/src are gate-type names (SHOPIFY_AUTH_REQUIRED) plus actionResolver's SHOPIFY_PUBLISH_NOT_IMPLEMENTED",
+      "providerCredentials": "2 rows, 0 containing 'shopify'",
+      "systemSecrets": "2 rows, 0 containing 'shopify'",
+      "storeDomainConfigured": false,
+      "myshopifyOccurrencesInLiveDb": {
+        "count": 1,
+        "where": "execution_results.exr-1142be46-c.structured_output",
+        "context": "agent planning prose — \"utilize Shopify's default .myshopify.com initially to save time\"",
+        "isRealStore": false
+      }
+    },
+    "egressChecks": [
+      { "url": "https://www.shopify.com/", "http": 200, "seconds": 0.226, "body": "724,116-byte marketing site" },
+      { "url": "https://admin.shopify.com/", "http": 403, "seconds": 0.081, "body": "9,175-byte edge page titled 'Verifying your connection...' (bot/WAF interstitial)" },
+      { "url": "https://accounts.shopify.com/", "http": 403, "seconds": 0.097, "body": "9,093-byte edge rejection" },
+      { "url": "https://admin.shopify.com/oauth/authorize", "http": 403, "seconds": 0.055, "body": "9,241-byte edge rejection" }
+    ],
+    "egressNote": "Status codes for the admin/accounts hosts flip between 200 (JS no_cookie_session redirect) and 403 (WAF interstitial) across runs, so status alone is not a stable signal. The stable signal is that no authenticated merchant session is obtainable: every admin-side response is either an edge interstitial or a JS redirect to login. www.shopify.com is reachable and returns the real marketing site.",
+    "networkVerdict": "PATH_OK_NO_SESSION"
+  },
+  "storefrontInspection": {
+    "verdict": "BLOCKED_NO_TARGET",
+    "storeDomainConfigured": false,
+    "projectRecord": {
+      "id": "proj-shopify",
+      "name": "Shopify",
+      "status": "active",
+      "workspacePath": null,
+      "revenueVertical": "shopify"
+    },
+    "onlyShopifyWebSurfaceInCode": {
+      "id": "shopify_web",
+      "displayName": "Shopify website",
+      "url": "https://www.shopify.com",
+      "expectedHost": "shopify.com",
+      "file": "server/src/services/browser/browserOperator.ts:101-106",
+      "note": "Platform marketing site registered as a browser target, not a merchant storefront"
+    },
+    "unauthenticatedStorefrontProbe": {
+      "url": "https://example.myshopify.com",
+      "http": 200,
+      "body": "9,175-byte page titled 'Verifying your connection...' — Shopify bot/WAF interstitial",
+      "note": "Even with a store domain, plain HTTP fetching of a *.myshopify.com storefront is intercepted; DOM-level inspection needs the browser tooling."
+    },
+    "browserInspectionTooling": {
+      "attemptsThisRun": 1,
+      "result": "FAILED",
+      "error": "uv trampoline failed to spawn Python child process — uncategorized error (os error 4551)",
+      "diagnosis": {
+        "hermesVenvInterpreter": "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe — runs, Python 3.11.9, exit 0",
+        "venvBaseInterpreter": "C:/Users/cd-pr/AppData/Local/Programs/Python/Python311/python.exe — present",
+        "uv": "0.12.15 (d35f1f270, 2026-09-15, x86_64-pc-windows-msvc)",
+        "workspaceState": "the browser-use run workspace was created and left empty — the child never started",
+        "conclusion": "Not a missing-interpreter problem: interpreter and uv are healthy, so the failure is internal to the browser-use spawn path. Reproduced identically across three separate runs (2 in the previous run, 1 now), i.e. deterministic."
+      },
+      "impact": "No live DOM inspection of any Shopify surface — storefront, admin, or post-auth — was possible from this session."
+    }
+  },
+  "productInventorySync": {
+    "verdict": "BLOCKED_NOT_IMPLEMENTED",
+    "syncClientInCodebase": "none — the channel contract declares inventory:true but no Shopify Admin REST/GraphQL client exists anywhere in the repository",
+    "syncPerformed": false,
+    "localCatalog": {
+      "source": "revenue_experiments (live runtime DB)",
+      "count": 49,
+      "statusBreakdown": { "APPROVED": 49 },
+      "withSales": 0,
+      "verifiedRevenueEur": 0,
+      "note": "Count was 47 in the 19:28:58Z sandbox snapshot, 48 at 19:30:11Z, and 49 at 19:43Z — the runtime keeps appending APPROVED experiments that no channel consumes."
+    },
+    "diskArtifacts": {
+      "path": "D:/AgenticOS/digital_products",
+      "count": 17,
+      "subdirectory": "digital_products/products (present)",
+      "fileTypes": "7 xlsx, 6 md, 1 subdirectory + summary docs"
+    },
+    "channelAssignedExperiments": "n/a — revenue_experiments has no 'channel' column in the current schema (distribution_channels is a text field)",
+    "reason": "Requires an authenticated Shopify store (Admin API token + store domain). Neither exists, so no product was listed, updated or pushed anywhere. Nothing was pushed to any third party this run."
+  },
+  "runtimeIntegrityFindings": [
+    {
+      "id": "SHOPIFY-CHAN-001",
+      "severity": "high",
+      "status": "REPRODUCED",
+      "finding": "revenue_distribution_channels is still empty in the live runtime DB — and the live backend itself returns {\"channels\":[]} on GET /api/revenue-operator/channels. seedChannels() writes 10 channels only when invoked (POST /channels/seed or tests), so SHOPIFY remains unregistered at runtime.",
+      "evidence": "HTTP 200 {\"channels\":[]}; sandbox step1=0 rows; seeded=10; repo-legacy DB=10 rows"
+    },
+    {
+      "id": "SHOPIFY-CHAN-002",
+      "severity": "medium",
+      "status": "REPRODUCED",
+      "finding": "Two divergent runtime DBs. Live (APPDATA, 104 tables): 0 channels, 0 gates, 49 experiments, 0 ledger entries, EUR 0 verified revenue. Repo legacy (server/data/agentic-os.db, 104 tables): 10 channels (SHOPIFY=auth_required), 16 SHOPIFY gates (12 resolved), 68 experiments, 11 ledger entries, 5 experiments with sales, EUR 38 verified revenue. All Shopify history is invisible to the running app.",
+      "evidence": ".tmp/shopify-verify-r4/db-scan.json"
+    },
+    {
+      "id": "SHOPIFY-CHAN-003",
+      "severity": "medium",
+      "status": "UNCHANGED",
+      "finding": "Task registry holds five Shopify-related tasks: three 'Run Shopify channel verification, storefront inspection and product inventory sync' rows blocked with verification_state=failed (blocker = SHOPIFY_AUTH_REQUIRED), one blocked on an unrecoverable backend restart, and one completed/passed read-only market-research task. No Shopify task has produced store-side evidence.",
+      "evidence": ".tmp/shopify-verify-r4/drilldown.json"
+    },
+    {
+      "id": "SHOPIFY-CHAN-004",
+      "severity": "high",
+      "status": "UNCHANGED",
+      "finding": "Acceptance criterion 1 ('Shopify store configuration and channel connectivity verified') remains unachievable as configured: no store domain, no credentials, no Admin API client. Reachability to www.shopify.com is not channel connectivity.",
+      "evidence": "credential inventory + full-text DB scan + egress checks"
+    },
+    {
+      "id": "SHOPIFY-CHAN-005",
+      "severity": "medium",
+      "status": "REPRODUCED (3rd run)",
+      "finding": "Browser automation tooling is deterministically broken in this environment (uv trampoline spawn failure, os error 4551) while the underlying Python/uv stack is healthy. Any Shopify surface inspection — storefront, admin, or post-auth publish — is blocked on this defect, independently of the missing credentials.",
+      "evidence": "browser probe failed this run; venv python exits 0 with Python 3.11.9; uv 0.12.15"
+    },
+    {
+      "id": "SHOPIFY-CHAN-006",
+      "severity": "medium",
+      "status": "NEW",
+      "finding": "Evidence-integrity hazard for this verification: the live DB runs with a 4.1 MB pending WAL. Copying only agentic-os.db produces a snapshot that is not the live state, and leaving a stale -wal/-shm beside a freshly copied .db lets SQLite replay foreign frames — an early attempt in this run read back 10 channels plus a human gate created at 19:34:30Z (a previous run's write) and would have reported a seeded registry as the pre-seed state. Only the db + -wal + -shm co-copy reproduced the live state exactly (0 channels).",
+      "evidence": ".tmp/shopify-verify-r3/ (contaminated snapshot: 10 channels, gates b7388e18 from 19:34:30Z and 1126f0fb) vs .tmp/shopify-verify-r4/ (consistent snapshot: 0 channels)"
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "criterion": "Shopify store configuration and channel connectivity verified.",
+      "met": false,
+      "reason": "No store configuration exists and the live channel registry has no SHOPIFY row (confirmed both in DB and over the live HTTP API). Network reachability was verified, which is not channel connectivity."
+    },
+    {
+      "criterion": "Execution leaves evidence in project task registry.",
+      "met": true,
+      "note": "This run appended a fresh evidence event to each Shopify verification task in the live runtime DB, after a timestamped backup."
+    }
+  ],
+  "blockingHumanGate": {
+    "type": "SHOPIFY_AUTH_REQUIRED",
+    "nextStep": "Supply a Shopify store domain plus Admin API access (custom-app token or OAuth app). Then seed the channel registry (POST /channels/seed) and set SHOPIFY to active. Storefront inspection additionally requires the browser-use spawn defect (os error 4551) to be fixed."
+  }
+}

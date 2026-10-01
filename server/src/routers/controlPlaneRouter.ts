@@ -104,6 +104,45 @@ controlPlaneRouter.get('/production-readiness', async (_req: Request, res: Respo
   }
 });
 
+// POST /api/control-plane/certification/start — Start autonomous capability certification
+controlPlaneRouter.post('/certification/start', async (req: Request, res: Response) => {
+  try {
+    const { autonomousCapabilityCertificationRunner } = await import('../domains/controlPlane/AutonomousCapabilityCertificationRunner.js');
+    const suiteId = autonomousCapabilityCertificationRunner.startCertification({ conversationId: req.body?.conversationId });
+    res.json({ started: true, suiteId, message: 'Autonomous capability certification started' });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/certification/status — Status of autonomous capability certification
+controlPlaneRouter.get('/certification/status', async (_req: Request, res: Response) => {
+  try {
+    const { autonomousCapabilityCertificationRunner } = await import('../domains/controlPlane/AutonomousCapabilityCertificationRunner.js');
+    const isRunning = autonomousCapabilityCertificationRunner.isCertificationRunning();
+    const latestResult = autonomousCapabilityCertificationRunner.getLatestSuiteResult();
+    const registry = autonomousCapabilityCertificationRunner.getCapabilityRegistry();
+    res.json({ isRunning, latestResult, totalRegistered: registry.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/certification/matrix — Matrix artifact content
+controlPlaneRouter.get('/certification/matrix', async (_req: Request, res: Response) => {
+  try {
+    const jsonPath = path.resolve(process.cwd(), 'data', 'capability-certification-matrix.json');
+    const mdPath = path.resolve(process.cwd(), 'data', 'capability-certification-matrix.md');
+    let jsonContent = null;
+    let mdContent = null;
+    if (fs.existsSync(jsonPath)) jsonContent = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    if (fs.existsSync(mdPath)) mdContent = fs.readFileSync(mdPath, 'utf8');
+    res.json({ json: jsonContent, markdown: mdContent });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
 // POST /api/control-plane/incidents/reconcile — Authoritative incident lifecycle reconciliation
 controlPlaneRouter.post('/incidents/reconcile', async (_req: Request, res: Response) => {
   try {
@@ -292,11 +331,149 @@ controlPlaneRouter.get('/engineering-dashboard', async (_req: Request, res: Resp
 });
 
 // GET /api/control-plane/engineering/console — Phase 5: Live Engineering Console State
-controlPlaneRouter.get('/engineering/console', (req: Request, res: Response) => {
+controlPlaneRouter.get('/engineering/console', async (req: Request, res: Response) => {
   try {
     const workerId = typeof req.query.worker === 'string' ? req.query.worker : 'antigravity';
     const consoleState = engineeringWorkerRegistry.getLiveConsoleState(workerId);
-    res.json(consoleState);
+
+    // Query live AntiGravity discovery status & queue status
+    let antigravityHealth: any = {
+      status: 'OFFLINE',
+      desktopRunning: false,
+      activeConversationId: undefined,
+      isolationMode: 'serialized_queue_strict_correlation',
+      note: 'Strict Queue Correlation: Task execution is strictly correlated and serialized to preserve context boundaries.',
+    };
+
+    try {
+      const { discoverAntigravityDesktopSession, getAntigravityQueueStatus } = await import('../services/backgroundTasks/antigravityAdapter.js');
+      const discovery = discoverAntigravityDesktopSession();
+      const queue = getAntigravityQueueStatus();
+
+      const workerStatus = discovery.ok && discovery.isDesktopRunning ? 'ONLINE' : 'OFFLINE';
+      antigravityHealth = {
+        status: workerStatus,
+        desktopRunning: Boolean(discovery.isDesktopRunning),
+        activeConversationId: discovery.activeConversationId,
+        agentapiAvailable: Boolean(discovery.agentapiPath),
+        isolationMode: 'serialized_queue_strict_correlation',
+        note: 'Strict Queue Correlation: Task execution is strictly correlated and serialized to preserve context boundaries.',
+        queueStatus: queue,
+        error: discovery.error,
+      };
+
+      // Keep registry worker status in sync
+      if (workerId === 'antigravity') {
+        engineeringWorkerRegistry.updateWorkerStatus('antigravity', consoleState.activeSession?.status === 'BUSY' ? 'BUSY' : workerStatus);
+      }
+    } catch { /* best-effort telemetry */ }
+
+    res.json({
+      ...consoleState,
+      antigravityHealth,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/open-antigravity — Focus or launch AntiGravity Desktop (Requirement 7)
+controlPlaneRouter.post('/engineering/open-antigravity', async (_req: Request, res: Response) => {
+  try {
+    const { openOrFocusAntigravity } = await import('../services/backgroundTasks/antigravityAdapter.js');
+    const result = await openOrFocusAntigravity();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/reconnect — Reconnect listeners to existing AntiGravity sessions (Requirement 4 & 8)
+controlPlaneRouter.post('/engineering/reconnect', async (_req: Request, res: Response) => {
+  try {
+    const { reconnectAntigravitySessions } = await import('../services/backgroundTasks/antigravityAdapter.js');
+    const result = await reconnectAntigravitySessions();
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/resume — Resume a stalled task in the active AntiGravity session
+controlPlaneRouter.post('/engineering/resume', async (req: Request, res: Response) => {
+  try {
+    const { taskId } = req.body || {};
+    if (!taskId) {
+      res.status(400).json({ error: 'taskId is required' });
+      return;
+    }
+    const { engineeringDelegationService } = await import('../domains/controlPlane/EngineeringDelegationService.js');
+    const result = await engineeringDelegationService.resumeTask(taskId);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/continue — Continue the selected existing task (never creates new task ID)
+controlPlaneRouter.post('/engineering/continue', async (req: Request, res: Response) => {
+  try {
+    const { taskId, instruction, context, workspacePath } = req.body || {};
+    if (!taskId) {
+      res.status(400).json({ error: 'taskId is required' });
+      return;
+    }
+    const { engineeringDelegationService } = await import('../domains/controlPlane/EngineeringDelegationService.js');
+    const result = await engineeringDelegationService.continueTask({
+      taskId,
+      instruction,
+      context,
+      workspacePath,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+// POST /api/control-plane/engineering/cancel — Cancel the active engineering task cleanly
+controlPlaneRouter.post('/engineering/cancel', async (req: Request, res: Response) => {
+  try {
+    const { taskId, reason } = req.body || {};
+    if (!taskId) {
+      res.status(400).json({ error: 'taskId is required' });
+      return;
+    }
+    const { engineeringDelegationService } = await import('../domains/controlPlane/EngineeringDelegationService.js');
+    const result = await engineeringDelegationService.cancelTask(taskId, reason);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
+// GET /api/control-plane/engineering/sessions — All durable engineering sessions (Requirement 3 & 5)
+controlPlaneRouter.get('/engineering/sessions', (_req: Request, res: Response) => {
+  try {
+    const sessions = engineeringWorkerRegistry.getAllSessions(100);
+    res.json({ sessions, count: sessions.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// GET /api/control-plane/engineering/sessions/:taskId — Single task session & execution events
+controlPlaneRouter.get('/engineering/sessions/:taskId', (req: Request, res: Response) => {
+  try {
+    const taskId = req.params.taskId;
+    const session = engineeringWorkerRegistry.getSession(taskId);
+    if (!session) {
+      res.status(404).json({ error: `Session for task ${taskId} not found` });
+      return;
+    }
+    const events = engineeringWorkerRegistry.getWorkerEvents(undefined, 200).filter(e => e.taskId === taskId);
+    res.json({ session, events });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
@@ -328,58 +505,26 @@ controlPlaneRouter.get('/engineering/worker-events', (req: Request, res: Respons
   }
 });
 
-// POST /api/control-plane/engineering/delegate — Direct first-class engineering delegation
+// POST /api/control-plane/engineering/delegate — Direct first-class engineering delegation (converged with Jarvis)
 controlPlaneRouter.post('/engineering/delegate', async (req: Request, res: Response) => {
   try {
     const { objective, worker, context, workspacePath, goalId } = req.body || {};
-    if (!objective || typeof objective !== 'string') {
+    if (!objective || typeof objective !== 'string' || !objective.trim()) {
       res.status(400).json({ error: 'objective is required' });
       return;
     }
 
-    const requestedWorker = (worker || 'antigravity').toLowerCase();
-    const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
-    const { dispatchTask } = await import('../services/backgroundTasks/adapters.js');
-    const { getWorkspaceRoot } = await import('../services/workspaceStore.js');
-
-    const effectiveWorkspace = workspacePath || getWorkspaceRoot() || 'D:\\AgenticOS';
-    const title = objective.length > 64 ? `${objective.slice(0, 61)}…` : objective;
-
-    const { task, error } = backgroundTaskManager.createTask({
-      title,
-      objective,
-      originalRequest: objective,
-      route: 'engineering',
-      selectedAgent: requestedWorker === 'antigravity' ? 'AntiGravity' : (requestedWorker === 'codex' ? 'CodeX' : 'Hermes'),
-      worker: requestedWorker as any,
-      resumable: true,
-      workspaceRoot: effectiveWorkspace,
-      metadata: {
-        goalId,
-        delegatedBy: 'control-plane-api',
-        context: context || null,
-      },
+    const { engineeringDelegationService } = await import('../domains/controlPlane/EngineeringDelegationService.js');
+    const result = await engineeringDelegationService.delegateTask({
+      objective: objective.trim(),
+      worker: worker || 'antigravity',
+      context,
+      workspacePath,
+      goalId,
+      delegatedBy: 'workspace-composer',
     });
 
-    if (!task || error) {
-      res.status(500).json({ error: error || 'Failed to create background task' });
-      return;
-    }
-
-    // Dispatch the task asynchronously
-    const dispatchPromise = dispatchTask(task, effectiveWorkspace);
-    dispatchPromise.catch((dispatchErr: any) => {
-      logger.error(`[controlPlaneRouter] Direct delegation failed for ${task.taskId}: ${dispatchErr?.message}`);
-    });
-
-    res.json({
-      success: true,
-      taskId: task.taskId,
-      worker: requestedWorker,
-      status: 'dispatched',
-      workspace: effectiveWorkspace,
-      message: `${task.selectedAgent} task ${task.taskId} dispatched.`,
-    });
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }

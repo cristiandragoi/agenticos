@@ -7,6 +7,8 @@
  *   exec probes never run on every UI poll; ?refresh=1 forces re-detection.
  *   Never returns environment variables or secrets.
  */
+import fs from 'node:fs';
+import path from 'node:path';
 import { Router } from 'express';
 import { getHardwareProfile } from '../services/system/hardwareProfiler.js';
 import { llmChat } from '../services/llmGateway.js';
@@ -99,6 +101,46 @@ Tools:
   }
 });
 
+router.get('/desktop-runtime', (req, res) => {
+  const userDataDir = process.env.AGENTICOS_USER_DATA_DIR || (process.env.APPDATA ? path.join(process.env.APPDATA, 'AgenticOS') : '');
+  const runtimeFile = userDataDir ? path.join(userDataDir, 'desktop-runtime.json') : '';
+
+  let desktopState: any = null;
+  if (runtimeFile && fs.existsSync(runtimeFile)) {
+    try {
+      desktopState = JSON.parse(fs.readFileSync(runtimeFile, 'utf8'));
+    } catch {
+      // Ignore parse failure
+    }
+  }
+
+  const isHealthyBackend = true;
+  const isFresh = desktopState?.updatedAt ? (Date.now() - new Date(desktopState.updatedAt).getTime() < 60000) : false;
+  const isDesktopReady = Boolean(
+    desktopState &&
+    desktopState.mainWindowExists &&
+    desktopState.mainWindowVisible &&
+    desktopState.rendererLoaded &&
+    desktopState.hwnd &&
+    isFresh
+  );
+
+  res.json({
+    processRunning: desktopState?.processRunning ?? false,
+    backendHealthy: isHealthyBackend,
+    mainWindowExists: desktopState?.mainWindowExists ?? false,
+    mainWindowVisible: desktopState?.mainWindowVisible ?? false,
+    rendererLoaded: desktopState?.rendererLoaded ?? false,
+    rendererResponsive: desktopState?.rendererResponsive ?? false,
+    hwnd: desktopState?.hwnd ?? null,
+    windowTitle: desktopState?.windowTitle ?? 'AgenticOS',
+    bounds: desktopState?.bounds ?? null,
+    desktopReady: isDesktopReady,
+    status: isDesktopReady ? 'DESKTOP_READY' : 'BACKEND_HEALTHY',
+    updatedAt: desktopState?.updatedAt ?? null,
+  });
+});
+
 router.post('/restart', (req, res) => {
   res.json({ status: 'restarting' });
 
@@ -108,3 +150,4 @@ router.post('/restart', (req, res) => {
 });
 
 export default router;
+

@@ -1,0 +1,265 @@
+CARESHAPE {
+ "report": {
+  "1600x900": {
+   "dom": {
+    "stage": {
+     "w": 1020,
+     "h": 887.3
+    },
+    "region": {
+     "w": 1020,
+     "h": 749.3
+    },
+    "shell": {
+     "w": 1020,
+     "h": 560
+    },
+    "canvas": {
+     "w": 1020,
+     "h": 560
+    },
+    "canvasAttr": {
+     "width": 1020,
+     "height": 560,
+     "clientW": 1020,
+     "clientH": 560,
+     "cssW": "1020px",
+     "cssH": "560px"
+    },
+    "glBuffer": {
+     "w": 1020,
+     "h": 560
+    },
+    "dpr": 1
+   },
+   "shape": {
+    "captureW": 1020,
+    "captureH": 560,
+    "captureAspect": 1.821,
+    "glow": {
+     "litPixels": 73053,
+     "coverageFrac": 0.128,
+     "centroid": {
+      "x": 528.1,
+      "y": 289.1
+     },
+     "bbox": {
+      "x": 247,
+      "y": 0,
+      "w": 533,
+      "h": 560,
+      "wOverH": 0.952
+     },
+     "moments": {
+      "sigmaXoverSigmaY": 1.067,
+      "principalAxisRatio": 1.151,
+      "principalAngleDeg": -31.3
+     },
+     "silhouetteEllipseFit": {
+      "semiAxisA": 60561.06,
+      "semiAxisB": 128455.87,
+      "ratio": 0.471,
+      "angleDeg": 46.4,
+      "polarity": "hyperbola/saddle"
+     },
+     "centerRowWidth": 526,
+     "centerColHeight": 544,
+     "centerRatio_w_over_h": 0.967,
+     "radialMin": 114,
+     "radialMax": 256
+    },
+    "body": {
+     "litPixels": 57843,
+     "coverageFrac": 0.101,
+     "centroid": {
+      "x": 512.5,
+      "y": 301.1
+     },
+     "bbox": {
+      "x": 289,
+      "y": 0,
+      "w": 447,
+      "h": 543,
+      "wOverH": 0.823
+     },
+     "moments": {
+      "sigmaXoverSigmaY": 0.957,
+      "principalAxisRatio": 1.047,
+      "principalAngleDeg": -83.9
+     },
+     "silhouetteEllipseFit": {
+      "semiAxisA": 58856.92,
+      "semiAxisB": 99587.34,
+      "ratio": 0.591,
+      "angleDeg": 44.7,
+      "polarity": "hyperbola/saddle"
+     },
+     "centerRowWidth": 260,
+     "centerColHeight": 542,
+     "centerRatio_w_over_h": 0.48,
+     "radialMin": 125,
+     "radialMax": 133
+    },
+    "core": {
+     "litPixels": 3539,
+     "coverageFrac": 0.006,
+     "centroid": {
+      "x": 515.4,
+      "y": 285.7
+     },
+     "bbox": {
+      "x": 303,
+      "y": 0,
+      "w": 413,
+      "h": 513,
+      "wOverH": 0.805
+     },
+     "moments": {
+      "sigmaXoverSigmaY": 0.71,
+      "principalAxisRatio": 1.412,
+      "principalAngleDeg": -86.1
+     },
+     "silhouetteEllipseFit": {
+      "error": "Error: singular"
+     },
+     "centerRowWidth": 3,
+     "centerColHeight": 513,
+     "centerRatio_w_over_h": 0.006,
+     "radialMin": 0,
+     "radialMax": 0
+    }
+   }
+  },
+  "1920x1080": {
+   "dom": {
+    "stage": {
+     "w": 1340,
+     "h": 856.8
+    },
+    "region": {
+     "w": 1340,
+     "h": 749.3
+    },
+    "shell": {
+     "w": 1340,
+     "h": 560
+    },
+    "canvas": {
+     "w": 1340,
+     "h": 560
+    },
+    "canvasAttr": {
+     "width": 1340,
+     "height": 560,
+     "clientW": 1340,
+     "clientH": 560,
+     "cssW": "1340px",
+     "cssH": "560px"
+    },
+    "glBuffer": {
+     "w": 1340,
+     "h": 560
+    },
+    "dpr": 1
+   },
+   "shape": {
+    "captureW": 1340,
+    "captureH": 560,
+    "captureAspect": 2.393,
+    "glow": {
+     "litPixels": 81383,
+     "coverageFrac": 0.108,
+     "centroid": {
+      "x": 700.7,
+      "y": 284.9
+     },
+     "bbox": {
+      "x": 407,
+      "y": 17,
+      "w": 561,
+      "h": 526,
+      "wOverH": 1.067
+     },
+     "moments": {
+      "sigmaXoverSigmaY": 1.3,
+      "principalAxisRatio": 1.307,
+      "principalAngleDeg": 5.6
+     },
+     "silhouetteEllipseFit": {
+      "semiAxisA": 82661.08,
+      "semiAxisB": 132303.08,
+      "ratio": 0.625,
+      "angleDeg": 55.9,
+      "polarity": "hyperbola/saddle"
+     },
+     "centerRowWidth": 553,
+     "centerColHeight": 523,
+     "centerRatio_w_over_h": 1.057,
+     "radialMin": 112,
+     "radialMax": 259
+    },
+    "body": {
+     "litPixels": 60819,
+     "coverageFrac": 0.081,
+     "centroid": {
+      "x": 672.6,
+      "y": 282.1
+     },
+     "bbox": {
+      "x": 449,
+      "y": 87,
+      "w": 447,
+      "h": 434,
+      "wOverH": 1.03
+     },
+     "moments": {
+      "sigmaXoverSigmaY": 1.029,
+      "principalAxisRatio": 1.03,
+      "principalAngleDeg": -4.8
+     },
+     "silhouetteEllipseFit": {
+      "semiAxisA": 62395.72,
+      "semiAxisB": 106054.85,
+      "ratio": 0.588,
+      "angleDeg": 44.4,
+      "polarity": "hyperbola/saddle"
+     },
+     "centerRowWidth": 268,
+     "centerColHeight": 377,
+     "centerRatio_w_over_h": 0.711,
+     "radialMin": 128,
+     "radialMax": 140
+    },
+    "core": {
+     "litPixels": 2915,
+     "coverageFrac": 0.004,
+     "centroid": {
+      "x": 666.1,
+      "y": 300.3
+     },
+     "bbox": {
+      "x": 463,
+      "y": 87,
+      "w": 413,
+      "h": 404,
+      "wOverH": 1.022
+     },
+     "moments": {
+      "sigmaXoverSigmaY": 0.959,
+      "principalAxisRatio": 1.043,
+      "principalAngleDeg": -89.4
+     },
+     "silhouetteEllipseFit": {
+      "error": "Error: singular"
+     },
+     "centerRowWidth": 265,
+     "centerColHeight": 341,
+     "centerRatio_w_over_h": 0.777,
+     "radialMin": 0,
+     "radialMax": 0
+    }
+   }
+  }
+ },
+ "errors": []
+}

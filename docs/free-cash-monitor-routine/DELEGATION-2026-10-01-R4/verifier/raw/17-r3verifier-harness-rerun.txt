@@ -1,0 +1,43 @@
+id    rule    caught  my_gate_newly_failed_checks   gate_0930        gate_1001        shipped_1file
+------------------------------------------------------------------------------------------------------------------------
+CTRL  none    NO      -                              rc=0 PASS        rc=1 FAIL        (gate.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+CTRL2 none    NO      -                              rc=0 PASS        rc=0 PASS        (gate.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=FAIL
+M-a   Rule 2  YES     R2.1,R2.4                      rc=1 FAIL        rc=1 FAIL        (run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=PA
+M-b   Rule 1  YES     R1.2                           rc=1 FAIL        rc=1 FAIL        (run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=PASS  R3=PA
+M-c   Rule 3  YES     R3.1                           rc=1 FAIL        rc=0 PASS        (run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=PASS  R3=FA
+M-d   Rule 1  YES     R1.4                           rc=0 PASS        rc=0 PASS        (run_daily_check.py rc=1) SUMMARY: R1=FAIL  R2=PASS  R3=PA
+M-e   Rule 4  YES     R4.3a                          rc=1 FAIL        rc=1 FAIL        (approval_queue.py rc=1) SUMMARY: R1=FAIL  R2=FAIL  R3=FAI
+
+MY GATE: rule verdict per mutant (newly-failed check ids in brackets):
+  CTRL  1=PASS 2=PASS 3=PASS 4=PASS   newly_failed=NONE
+  CTRL2 1=PASS 2=PASS 3=PASS 4=FAIL   newly_failed=NONE
+  M-a   1=FAIL 2=FAIL 3=PASS 4=FAIL   newly_failed=['R2.1', 'R2.4']
+  M-b   1=FAIL 2=PASS 3=PASS 4=FAIL   newly_failed=['R1.2']
+  M-c   1=FAIL 2=PASS 3=FAIL 4=FAIL   newly_failed=['R3.1']
+  M-d   1=FAIL 2=PASS 3=PASS 4=FAIL   newly_failed=['R1.4']
+  M-e   1=FAIL 2=PASS 3=PASS 4=FAIL   newly_failed=['R4.3a']
+
+DELIVERED-GATE FAIL LINES (first 4):
+  CTRL  09-30 ['(none)']
+  CTRL  10-01 ['R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]', '[R4.2] FAIL  a machine identity cannot sign a decision and a decision never arms the item']
+  CTRL2 09-30 ['(none)']
+  CTRL2 10-01 ['(none)']
+  M-a   09-30 ['FAIL  no HTTP write verb literal reaches any call', 'FAIL  no earning/write endpoint path appears as a string literal']
+  M-a   10-01 ['R1  at most one status check per Europe/Berlin calendar day  [FAIL]', '[R1.1] FAIL  a second run on an already-consumed operator-local day performs no second read']
+  M-b   09-30 ['FAIL  the day lock is acquired before the status read', '>>> RULE 2 RESULT: FAIL']
+  M-b   10-01 ['R1  at most one status check per Europe/Berlin calendar day  [FAIL]', '[R1.3] FAIL  5 simultaneous runs yield exactly one reader']
+  M-c   09-30 ['FAIL  the prior snapshot is loaded before the new one is written', '>>> RULE 3 RESULT: FAIL']
+  M-c   10-01 ['(none)']
+  M-d   09-30 ['(none)']
+  M-d   10-01 ['(none)']
+  M-e   09-30 ["FAIL  identity 'system' is refused", "FAIL  identity 'routine' is refused"]
+  M-e   10-01 ['R4  no external action without human approval (queue is written, never auto-executed)  [FAIL]', '[R4.2] FAIL  a machine identity cannot sign a decision and a decision never arms the item']
+
+RUNTIME PROBES:
+  M-a_sink: {"rc": 0, "stdout_tail": "{'kind': 'operator_entered', 'read_ops': [], 'data_available': False, 'note': 'no operator-entered record for 2026-10-01 in operator-state.json', 'payload': None, 'raw_body': b''}", "stderr_tail": "", "sink_hits": [["POST", "/api/v1/withdraw", "{\"amount_cents\":1}"]]}
+  identity_pristine: {"rc": 0, "result": "{\n \"hermes-agent\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\",\n \"assistant\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\",\n \"claude\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\",\n \"system\": \"REFUSED (refused: 'system' is not a human identity; this routine may only record a decision made by a person)\",\n \"routine\": \"REFUSED (refused: 'routine' is not a human identity; this routine may only record a decision made by a person)\",\n \"Alice Operator\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\"\n}", "stderr": ""}
+  identity_ctrl: {"rc": 0, "result": "{\n \"hermes-agent\": \"REFUSED (refused: 'hermes-agent' is not an allowlisted human operator)\",\n \"assistant\": \"REFUSED (refused: 'assistant' is not an allowlisted human operator)\",\n \"claude\": \"REFUSED (refused: 'claude' is not an allowlisted human operator)\",\n \"system\": \"REFUSED (refused: 'system' is not an allowlisted human operator)\",\n \"routine\": \"REFUSED (refused: 'routine' is not an allowlisted human operator)\",\n \"Alice Operator\": \"ACCEPTED status=APPROVED execution_state=NOT_EXECUTED\"\n}", "stderr": ""}
+  mjs_verifier: {"rc": 0, "tail": ["\u2713 Rule 4 (Human approval queue)  \u2192 PASSED", "", "[OK] All 4 operational rules verified (4/4 passed)"]}
+
+sandbox=C:\Users\cd-pr\AppData\Local\Temp\r3-mutants-b65_f5w0
+exit=0

@@ -1,0 +1,40 @@
+=== did this stream write ANY src/ or monitoring/ file? ===
+src/build-identity.json
+src_rc=0 (empty above = none)
+mon_rc=0 (empty above = none)
+--- only paths this stream created live under delivery/ : ---
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/harness/sink_harness.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/approval_queue.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/changedetect.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/gate.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/notify.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/operator_state.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/paths.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/readonly_client.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/run_daily_check.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/run_all.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/test_r1_gate.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/test_r2_readonly.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/test_r3_changedetect.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/test_r4_approval.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/test_r5_smoke.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/tests/_support.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/verify_readonly.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/pkg/watchdog.py
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/00-scratch-root.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/01-isolation-before.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/02-sink-imports-and-credentials.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/03-session-probes.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/04-toast-mechanism-probe.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/05-harness-run.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/06-shipped-suite-on-copy.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/07-citations.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/08-isolation-after.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/09-mtimes-and-scope-check.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/10-isolation-final.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/11-verify-rerun.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/12-isolation-final-verify.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/13-hermes-detect.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/14-npm-test.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/raw/15-scope-proof.txt
+docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/delivery/SINK-INVENTORY-R4.md

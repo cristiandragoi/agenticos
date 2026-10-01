@@ -1,0 +1,14 @@
+import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+import puppeteer from 'puppeteer-core';
+const ROOT='D:/AgenticOS/dist', PORT=4401;
+const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon','.json':'application/json'};
+const server=http.createServer((req,res)=>{const u=decodeURIComponent(req.url.split('?')[0]);let f=path.join(ROOT,u==='/'?'index.html':u);if(!fs.existsSync(f)||fs.statSync(f).isDirectory())f=path.join(ROOT,'index.html');res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream'});fs.createReadStream(f).pipe(res);});
+await new Promise(r=>server.listen(PORT,'127.0.0.1',r));
+const b=await puppeteer.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:'new',args:['--no-sandbox','--enable-unsafe-swiftshader']});
+const p=await b.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(String(e).slice(0,200))); p.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text().slice(0,200));});
+await p.setViewport({width:1600,height:900});
+await p.goto(`http://127.0.0.1:${PORT}/#/jarvis`,{waitUntil:'networkidle2',timeout:45000});
+await new Promise(r=>setTimeout(r,6000));
+const out=await p.evaluate(()=>({href:location.href,title:document.title,testids:[...document.querySelectorAll('[data-testid]')].map(e=>e.getAttribute('data-testid')).slice(0,60),text:(document.body.innerText||'').slice(0,400),rootChildren:document.getElementById('root')?.children.length}));
+console.log(JSON.stringify({out,errs},null,1));
+await b.close(); server.close(); process.exit(0);

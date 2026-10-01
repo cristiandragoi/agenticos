@@ -1,0 +1,106 @@
+### date
+Do,  1. Okt 2026 11:45:32
+### host resolution
+(getent unavailable)
+
+=== GET https://freecash.io/llms.txt ===
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Date: Thu, 01 Oct 2026 09:45:32 GMT
+Content-Length: 571
+
+HTTP=200 CT=text/plain SIZE=571 REDIR=
+shell_rc=0
+--- body (first 400 bytes) ---
+# freecash.io
+
+> freecash.io is a domain name currently listed for sale on GoDaddy's aftermarket. It is available via Buy-It-Now, Make-an-Offer, or Lease-to-Own, depending on the listing's current configuration.
+
+## Status
+- For sale: Yes
+- Listed on: GoDaddy (aftermarket)
+- Marketplace listing: https://forsale.godaddy.com/forsale/freecash.io
+- Escrow / transfer: GoDaddy-backed, typical 5–7 busi
+
+=== GET https://freecash.io/ ===
+HTTP/1.1 200 OK
+Content-Type: text/html
+Date: Thu, 01 Oct 2026 09:45:33 GMT
+Content-Length: 114
+
+HTTP=200 CT=text/html SIZE=114 REDIR=
+shell_rc=0
+--- body (first 400 bytes) ---
+<!DOCTYPE html><html><head><script>window.onload=function(){window.location.href="/lander"}</script></head></html>
+
+=== GET https://api.freecash.com/v1/status ===
+HTTP/1.1 404 Not Found
+Date: Thu, 01 Oct 2026 09:45:34 GMT
+Content-Length: 0
+Connection: keep-alive
+cf-cache-status: DYNAMIC
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=OrngJO8VLP2cjTsjRcun5gCvwdBTg%2BbGO%2BMNzFfSUG3sOplT1Quw7gdiwvBBf7EOHfPj%2B8sxKhWjs8hRk9UvThqqaD9C7OFpMUWN68kmnks4oUz9S9XKJn8fHCxq3KhGu83pmstNBOPwBHOS7R0%3D"}]}
+Server: cloudflare
+CF-RAY: a43a8907ab4df51f-FRA
+
+HTTP=404 CT= SIZE=0 REDIR=
+shell_rc=0
+--- body (first 400 bytes) ---
+
+
+=== GET https://api.freecash.com/ ===
+HTTP/1.1 404 Not Found
+Date: Thu, 01 Oct 2026 09:45:35 GMT
+Content-Length: 0
+Connection: keep-alive
+cf-cache-status: DYNAMIC
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=pz2cY5xkN3T4Q%2FfIcYgmSQpeFSbMaFIZCczXAggq%2Bx2gwdGmW%2Fh%2F8GMQZEBkq1%2BRj%2BPuiUj%2Fca5gX9zXuE02vnHsF502E6pJroTBaiv3RWfnVh0btwP%2Fy7x6nerV9%2BlduNgv4FBSXg3zHhxPizQ%3D"}]}
+Server: cloudflare
+CF-RAY: a43a890bbaf63410-FRA
+
+HTTP=404 CT= SIZE=0 REDIR=
+shell_rc=0
+--- body (first 400 bytes) ---
+
+
+=== GET https://freecash.com/robots.txt ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:45:36 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Server: cloudflare
+set-cookie: __cflb=0H28uvkgyopw4X2BpRVj4Vba3ugBj2XXntsHjVRsqXi; HttpOnly; SameSite=None; Secure; Path=/; Expires=Fri, 02 Oct 2026 09:45:36 GMT
+Vary: Accept-Encoding
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+Cross-Origin-Opener-Policy: same-origin-allow-popups
+Cache-Control: public, max-age=14400, must-revalidate
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+last-modified: Thu, 01 Oct 2026 09:45:36 GMT
+cf-cache-status: EXPIRED
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=oOj5WB0gf%2Fs96YkYVrI16d5BEYP83DpIFC0bwI%2FKj3sS7R1%2FtIJHJ3Fkpyosf4jvfkoy0KrcKhpphKF9bnPaHjQye7T0NdZ2Y4x7a2AFC%2BFvs1dw7rCfJ%2BtTWRpqatw59TCLV26k45HHog%3D%3D"}]}
+CF-RAY: a43a890fa8509781-FRA
+
+HTTP=200 CT=text/plain SIZE=298 REDIR=
+shell_rc=0
+--- body (first 400 bytes) ---
+User-Agent: *
+Allow: /
+Allow: /r/*?worldcupbet=*
+Disallow: /user/
+Disallow: /myprofile
+Disallow: /r/
+Disallow: /_next/
+Disallow: /_ipx/
+Disallow: /offer/
+Disallow: /fc-api/
+Disallow: /scd-cgi/
+Disallow: /w/
+Disallow: /dev-playground/
+Disallow: /*mailto:*
+
+Sitemap: https://freecash.com/sitemap.xml
+
+

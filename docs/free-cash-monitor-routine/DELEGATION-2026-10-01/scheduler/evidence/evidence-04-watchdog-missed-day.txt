@@ -1,0 +1,35 @@
+### PROOF (b) -- watchdog MISSED_DAY coverage
+
+### B1: ABSENT prior day (ledger file does not exist at all)
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b1-absent
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b1-absent mode=watchdog entry=D:/AgenticOS/monitoring/freecash/watchdog.py
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+exit=0
+
+### B1 again (same day) -- must DEDUPE, add nothing
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b1-absent
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b1-absent mode=watchdog entry=D:/AgenticOS/monitoring/freecash/watchdog.py
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+exit=0
+
+### B1 alert log after two watchdog runs
+      1 "event_type": "MISSED_DAY"
+### B1 notified-keys deliveries
+      1 "delivery": "STUB_OK"
+
+### B2: INTERRUPTED prior day (ledger: last_attempt_day=2026-09-30, last_outcome=READ_FAILED)
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b2-interrupted
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b2-interrupted mode=watchdog entry=D:/AgenticOS/monitoring/freecash/watchdog.py
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=2026-09-30 last_outcome=READ_FAILED coverage=NOTIFIED
+exit=0
+
+### B2 again (same day)
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b2-interrupted
+SANDBOX_RUN root=C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b2-interrupted mode=watchdog entry=D:/AgenticOS/monitoring/freecash/watchdog.py
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=2026-09-30 last_outcome=READ_FAILED coverage=DEDUPED
+exit=0
+
+### B2 alert log after two runs
+      1 "event_type": "MISSED_DAY"
+### B2 watchdog did NOT write the ledger (sha before/after) -- watchdog must never touch it
+650c9a2c5787e57df48b677130770c71846e6212e194076185fa2ca46f36af79 *C:/Users/cd-pr/AppData/Local/Temp/freecash-sched-proof-20261001/proof-b2-interrupted/state/last-run.json

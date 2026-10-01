@@ -1,0 +1,91 @@
+
+==============================================================================
+R1 RUNTIME: 5 simultaneous same-day invocations (fresh root each)
+==============================================================================
+--- pristine  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r1-pristine)
+    proc1: exit=0 last_stdout='RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json writte'
+    proc2: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc3: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc4: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc5: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    => RUN_OK(reads)=1  SKIP_DUPLICATE_DAY=4  locks=['2026-09-21.lock']
+    => snapshots written: ['2026-09-21.json']
+--- m1-r1-remove-daylock  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r1-m1-r1-remove-daylock)
+    proc1: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc2: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc3: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc4: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    proc5: exit=0 last_stdout='RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json writte'
+    => RUN_OK(reads)=1  SKIP_DUPLICATE_DAY=4  locks=['2026-09-21.lock']
+    => snapshots written: ['2026-09-21.json']
+
+==============================================================================
+R1 RUNTIME: two SEQUENTIAL same-day runs, same root (does the lock deny the second?)
+==============================================================================
+--- pristine  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r1seq-pristine)
+    run#1: exit=0 last_stdout='RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json written=True cha'
+    run#2: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    => snapshots: ['2026-09-21.json']
+--- m1-r1-remove-daylock  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r1seq-m1-r1-remove-daylock)
+    run#1: exit=0 last_stdout='RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json written=True cha'
+    run#2: exit=0 last_stdout='SKIP_DUPLICATE_DAY 2026-09-21'
+    => snapshots: ['2026-09-21.json']
+--- m1b-r1-disable-daylock  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r1seq-m1b-r1-disable-daylock)
+    run#1: exit=0 last_stdout='RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json written=True cha'
+    run#2: exit=0 last_stdout='RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json written=False ch'
+    => snapshots: ['2026-09-21.json']
+
+==============================================================================
+R3 RUNTIME: two consecutive day runs with a real earnings move (1000 -> 1500 cents)
+==============================================================================
+--- pristine  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r3-pristine)
+    day=2026-09-15 earnings=1000 | RUN_OK 2026-09-15 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-15.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-15.lock
+    day=2026-09-15 earnings=1000 | DRIVER rc=0
+    day=2026-09-16 earnings=1500 | RUN_OK 2026-09-16 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-16.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-16.lock
+    day=2026-09-16 earnings=1500 | DRIVER rc=0
+    => alerts.jsonl event_types: ['INITIAL_BASELINE', 'APPROVAL_PENDING', 'EARNINGS_CHANGED']
+--- m3-r3-save-before-load  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r3-m3-r3-save-before-load)
+    day=2026-09-15 earnings=1000 | RUN_OK 2026-09-15 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-09-15.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-15.lock
+    day=2026-09-15 earnings=1000 | DRIVER rc=0
+    day=2026-09-16 earnings=1500 | RUN_OK 2026-09-16 outcome=OK_NO_CHANGE source=operator_entered(data_available=True) snapshot=2026-09-16.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-16.lock
+    day=2026-09-16 earnings=1500 | DRIVER rc=0
+    => alerts.jsonl event_types: ['OK_NO_CHANGE', 'OK_NO_CHANGE']
+
+==============================================================================
+R2 RUNTIME: the unmutated transport's deny-by-default guard (stub transport, no socket)
+==============================================================================
+--- pristine
+    REFUSED   POST  http://localhost:3001/api/v1/cashout               -> ForbiddenWriteError: R2: method 'POST' is not read-only (allowed: GET, HEAD)
+    REFUSED   PUT   http://localhost:3001/api/v1/status/metrics        -> ForbiddenWriteError: R2: method 'PUT' is not read-only (allowed: GET, HEAD)
+    REFUSED   GET   http://localhost:3001/api/v1/cashout               -> ForbiddenWriteError: R2: path not allowlisted: '/api/v1/cashout'
+    REFUSED   GET   http://example.com/api/v1/status/metrics           -> ForbiddenWriteError: R2: host not allowlisted: 'example.com'
+--- m2-r2-post-cashout
+    REFUSED   POST  http://localhost:3001/api/v1/cashout               -> ForbiddenWriteError: R2: method 'POST' is not read-only (allowed: GET, HEAD)
+    REFUSED   PUT   http://localhost:3001/api/v1/status/metrics        -> ForbiddenWriteError: R2: method 'PUT' is not read-only (allowed: GET, HEAD)
+    REFUSED   GET   http://localhost:3001/api/v1/cashout               -> ForbiddenWriteError: R2: path not allowlisted: '/api/v1/cashout'
+    REFUSED   GET   http://example.com/api/v1/status/metrics           -> ForbiddenWriteError: R2: host not allowlisted: 'example.com'
+
+--- gate --run against the R2 mutant (verifier's own write-call guard)
+    - REFUSED by the verifier's own R2 guard: line 71 contains a write-call shape ("http://localhost:3001/api/v1/cashout", method="POST", data=b"{}"). Executing this file could send a write request; withheld.
+    gate --run exit=1
+
+==============================================================================
+R4 RUNTIME: one APPROVED queue item, routine entry point run with no human --by
+==============================================================================
+--- pristine  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r4-pristine)
+    RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json written=True changes=0 notifications=0 approva
+    entry-point exit=0
+    logs/executed.jsonl: NOT CREATED (nothing was executed)
+    queue item after the run: {'approval_id': '11111111-1111-1111-1111-111111111111', 'status': 'APPROVED', 'execution_state': 'NOT_EXECUTED', 'expires_at_utc': None, 'decided_by': 'Operator Name'}
+--- m4-r4-auto-execute-approved  (root C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/roots/r4-m4-r4-auto-execute-approved)
+    RUN_OK 2026-09-21 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-09-21.json written=True changes=0 notifications=0 approva
+    entry-point exit=0
+    logs/executed.jsonl EXISTS: '{"by": "routine", "executed": "11111111-1111-1111-1111-111111111111", "human_approval": null}'
+    queue item after the run: {'approval_id': '11111111-1111-1111-1111-111111111111', 'status': 'APPROVED', 'execution_state': 'EXECUTED', 'expires_at_utc': None, 'decided_by': 'Operator Name'}
+
+--- pristine: the human-decision CLI refuses a machine identity (R4 mechanism)
+    --by 'routine' exit=4 stdout='' stderr="REFUSED: refused: 'routine' is not a human identity; this routine may only record a decision made by a person"
+    --by 'Operator Name' exit=0 stdout='recorded APPROVED for 11111111-1111-1111-1111-111111111111 by Operator Name at 2026-09-21T07:42:05Z\nexecution_state=NOT_EXECUTED (unchanged; this routine execut' stderr=''
+    queue item after both attempts: {'approval_id': '11111111-1111-1111-1111-111111111111', 'status': 'APPROVED', 'execution_state': 'NOT_EXECUTED', 'expires_at_utc': None, 'decided_by': 'Operator Name'}
+
+[written] C:/Users/cd-pr/AppData/Local/Temp/fc-gate-mutation-2026-09-21/runtime/runtime-probe-output.txt

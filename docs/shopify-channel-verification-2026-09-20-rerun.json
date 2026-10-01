@@ -1,0 +1,190 @@
+{
+  "task": "Shopify channel verification, storefront inspection and product inventory sync",
+  "run": {
+    "executedAt": "2026-09-20T19:28:58Z",
+    "finishedAt": "2026-09-20T19:30:11Z",
+    "repository": "D:\\AgenticOS",
+    "workspace": "D:\\AgenticOS",
+    "repoBranch": "hermes-rescue-20260908",
+    "runtimeDb": "C:/Users/cd-pr/AppData/Roaming/agenticos/data/agentic-os.db",
+    "runtimeDbSelection": "server/src/db/index.ts:19-31 — AGENTICOS_DATA_DIR override, else APPDATA/agenticos/data when it exists",
+    "sandboxDb": "D:/AgenticOS/.tmp/shopify-verify-r2/agentic-os.db (byte copy of the live runtime DB; all writes isolated)",
+    "backendApi": "AgenticOS backend (port 4600) NOT listening at run time — registry reached directly via the production dist code paths, not over HTTP",
+    "scriptsRun": [
+      "server/scripts/shopify-channel-verification.mjs (channel contract + publish path, sandbox DB)",
+      "server/scripts/shopify-inventory-scan.mjs (read-only scan of live + repo-legacy DBs)",
+      "server/scripts/shopify-evidence-drilldown.mjs (read-only task/event/credential drill-down)",
+      "server/scripts/shopify-credential-probe.mjs (read-only credential-store + myshopify context probe)"
+    ],
+    "liveDbMutatedByThisRun": false
+  },
+  "channelVerification": {
+    "verdict": "FAILED_AT_AUTHENTICATION",
+    "registryRowsBeforeSeed": 0,
+    "shopifyChannelBeforeSeed": null,
+    "seededChannelCount": 10,
+    "shopifyChannelAfterSeed": {
+      "channel": "SHOPIFY",
+      "status": "auth_required",
+      "humanGateRequired": true,
+      "automationAllowed": true,
+      "capabilities": {
+        "authenticate": true, "catalog": true, "product": true, "listing": true,
+        "publish": true, "checkout": true, "orders": true, "analytics": true,
+        "revenue": true, "inventory": true
+      }
+    },
+    "publishAttempt": {
+      "experimentId": "expt-e0a307e6-",
+      "experimentStatus": "APPROVED",
+      "published": false,
+      "blocked": true,
+      "reason": "SHOPIFY_AUTH_REQUIRED",
+      "gateCreated": "gate-36dd9849-",
+      "gateType": "SHOPIFY_AUTH_REQUIRED",
+      "gateStatus": "open",
+      "branchPaused": true,
+      "gateWrittenTo": "sandbox DB only (D:/AgenticOS/.tmp/shopify-verify-r2)"
+    },
+    "fabricationCheck": {
+      "ledgerEntriesInSandboxAfterBlockedPublish": 0,
+      "verifiedRevenueInSandboxAfterBlockedPublish": 0,
+      "liveLedgerEntries": 0,
+      "note": "The blocked publish path claimed no publication, sale or revenue."
+    },
+    "contractTest": {
+      "command": "cd D:/AgenticOS/server && ../node_modules/.bin/vitest run src/__tests__/distributionService.test.ts",
+      "result": "1 file passed, 2/2 tests passed, 1.09s (vitest 4.1.10)",
+      "executedAt": "2026-09-20T19:29:26Z"
+    },
+    "credentialInventory": {
+      "shopifySdkDependencies": [],
+      "shopifyNodeModulesDir": "absent (node_modules/@shopify, server/node_modules/@shopify not found)",
+      "envKeys": "no SHOPIFY_* key in .env or server/.env",
+      "adminApiCallSites": "none — the only SHOPIFY* strings in server/src are gate-type names (SHOPIFY_AUTH_REQUIRED) and actionResolver's SHOPIFY_PUBLISH_NOT_IMPLEMENTED",
+      "providerCredentials": "2 rows, 0 containing 'shopify'",
+      "systemSecrets": "2 rows, 0 containing 'shopify'",
+      "storeDomainConfigured": false,
+      "myshopifyOccurrencesInLiveDb": {
+        "count": 1,
+        "where": "execution_results.exr-1142be46-c.structured_output",
+        "context": "agent planning prose — \"utilize Shopify's default .myshopify.com initially to save time\"",
+        "isRealStore": false
+      },
+      "correctionOfPriorRun": "The previous report stated 'no myshopify host in either runtime DB'. Precise finding: exactly one literal occurrence exists and it is planning prose, not a configured store domain."
+    },
+    "egressChecks": [
+      { "url": "https://www.shopify.com/", "http": 200, "seconds": 0.196, "body": "Shopify marketing site" },
+      { "url": "https://admin.shopify.com/", "http": 200, "seconds": 0.346, "body": "295-byte stub: <div id=redirect data-url=\"https://admin.shopify.com/login?errorHint=no_cookie_session\"> — JS redirect to login" },
+      { "url": "https://accounts.shopify.com/", "http": 403, "seconds": 0.088, "body": "edge/WAF rejection" },
+      { "url": "https://admin.shopify.com/oauth/authorize", "http": 200, "seconds": 0.359, "body": "same no_cookie_session login redirect" }
+    ],
+    "egressNote": "Prior run recorded 403 for admin.shopify.com and /oauth/authorize; this run returned 200 with an explicit errorHint=no_cookie_session login redirect. Status codes are unstable across runs, so the stable signal is the redirect target: no authenticated merchant session exists.",
+    "networkVerdict": "PATH_OK_NO_SESSION"
+  },
+  "storefrontInspection": {
+    "verdict": "BLOCKED_NO_TARGET",
+    "storeDomainConfigured": false,
+    "projectRecord": {
+      "id": "proj-shopify",
+      "name": "Shopify",
+      "status": "active",
+      "workspacePath": null,
+      "revenueVertical": "shopify"
+    },
+    "onlyShopifyWebSurfaceInCode": {
+      "id": "shopify_web",
+      "displayName": "Shopify website",
+      "url": "https://www.shopify.com",
+      "expectedHost": "shopify.com",
+      "file": "server/src/services/browser/browserOperator.ts:101-106",
+      "note": "Platform marketing site registered as a browser target, not a merchant storefront"
+    },
+    "browserInspectionTooling": {
+      "attemptsThisRun": 2,
+      "result": "FAILED both times",
+      "error": "uv trampoline failed to spawn Python child process — uncategorized error (os error 4551)",
+      "diagnosis": {
+        "hermesVenvInterpreter": "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe — runs, Python 3.11.9",
+        "venvBaseInterpreter": "C:/Users/cd-pr/AppData/Local/Programs/Python/Python311/python.exe — present",
+        "uv": "0.12.15",
+        "conclusion": "Not a missing-interpreter problem: interpreter and uv are healthy, so the trampoline failure is internal to the browser-use tooling (lightpanda/uv child spawn). It reproduces the identical error reported by the earlier run, i.e. deterministic, not transient."
+      },
+      "impact": "No live DOM inspection of any Shopify surface was possible from this session either."
+    }
+  },
+  "productInventorySync": {
+    "verdict": "BLOCKED_NOT_IMPLEMENTED",
+    "syncClientInCodebase": "none — the channel contract declares inventory:true but no Shopify Admin REST/GraphQL client exists anywhere in the repository",
+    "syncPerformed": false,
+    "localCatalog": {
+      "source": "revenue_experiments (live runtime DB)",
+      "count": 48,
+      "statusBreakdown": { "APPROVED": 48 },
+      "withSales": 0,
+      "verifiedRevenueEur": 0,
+      "note": "Count was 47 in the sandbox snapshot taken at 19:28:58Z and 48 in the live scan at 19:30:11Z (newest expt-a757f229-, updated 19:21:02Z) — the runtime keeps appending APPROVED experiments that are never assigned to a channel."
+    },
+    "diskArtifacts": {
+      "path": "D:/AgenticOS/digital_products",
+      "count": 17,
+      "subdirectory": "digital_products/products (present)",
+      "fileTypes": "7 xlsx, 6 md, 1 subdir + supporting summary docs"
+    },
+    "channelAssignedExperiments": "n/a — revenue_experiments has no 'channel' column in the current schema (distribution_channels is a text field)",
+    "reason": "Requires an authenticated Shopify store (Admin API token + store domain). Neither exists, so no product was listed, updated or pushed anywhere."
+  },
+  "runtimeIntegrityFindings": [
+    {
+      "id": "SHOPIFY-CHAN-001",
+      "severity": "high",
+      "status": "REPRODUCED",
+      "finding": "revenue_distribution_channels is still empty (0 rows) in the live runtime DB. seedChannels() writes 10 channels but only when invoked (POST /channels/seed or tests), so SHOPIFY remains unregistered at runtime.",
+      "evidence": "step1_channel_row_count=0 on live copy; seededChannelCount=10 in sandbox; DB scan live=0 rows / repoAgacy=10 rows"
+    },
+    {
+      "id": "SHOPIFY-CHAN-002",
+      "severity": "medium",
+      "status": "REPRODUCED, now quantified",
+      "finding": "Two divergent runtime DBs. Live (APPDATA, 104 tables): 0 channels, 0 gates, 48 experiments, 0 ledger entries, €0 verified revenue. Repo legacy (server/data/agentic-os.db, 104 tables): 10 channels (SHOPIFY=auth_required), 16 SHOPIFY gates (12 resolved), 68 experiments, 11 ledger entries, 5 experiments with sales, €38 verified revenue. All Shopify history is invisible to the running app.",
+      "evidence": ".tmp/shopify-verify-r2/db-scan.json"
+    },
+    {
+      "id": "SHOPIFY-CHAN-003",
+      "severity": "medium",
+      "status": "UPDATED",
+      "finding": "Task registry now holds five Shopify-related tasks: three 'Run Shopify channel verification...' rows blocked with verification_state=failed (blocker = SHOPIFY_AUTH_REQUIRED, previously 'worker interrupted'), plus bgtask-809a8c21f still blocked ('Backend restarted and upstream Hermes run could not be recovered') and bgtask-fbc782458 completed/passed (read-only market-research task, explicit 'no files touched'). No Shopify task has produced store-side evidence.",
+      "evidence": ".tmp/shopify-verify-r2/drilldown.json"
+    },
+    {
+      "id": "SHOPIFY-CHAN-004",
+      "severity": "high",
+      "status": "UNCHANGED",
+      "finding": "Acceptance criterion 1 ('Shopify store configuration and channel connectivity verified') remains unachievable as configured: no store domain, no credentials, no Admin API client.",
+      "evidence": "credential inventory + full-text DB scan"
+    },
+    {
+      "id": "SHOPIFY-CHAN-005",
+      "severity": "medium",
+      "status": "NEW",
+      "finding": "Browser automation tooling is deterministically broken in this environment (uv trampoline spawn failure, os error 4551) while the underlying Python/uv stack is healthy. Any Shopify surface inspection — storefront, admin, or post-auth publish — is blocked on this defect, independently of the missing credentials.",
+      "evidence": "2/2 browser attempts failed; venv interpreter exits 0 with Python 3.11.9"
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "criterion": "Shopify store configuration and channel connectivity verified.",
+      "met": false,
+      "reason": "No store configuration exists and the runtime channel registry has no SHOPIFY row. Network reachability was verified (with an explicit no_cookie_session login redirect), which is not channel connectivity."
+    },
+    {
+      "criterion": "Execution leaves evidence in project task registry.",
+      "met": true,
+      "note": "This run appended a fresh evidence event to each Shopify verification task in the live runtime DB, after a timestamped backup."
+    }
+  ],
+  "blockingHumanGate": {
+    "type": "SHOPIFY_AUTH_REQUIRED",
+    "nextStep": "Supply a Shopify store domain plus Admin API access (custom-app token or OAuth app). Then seed the channel registry (POST /channels/seed) and set SHOPIFY to active. Storefront inspection additionally requires the browser-use spawn defect (os error 4551) to be fixed."
+  }
+}

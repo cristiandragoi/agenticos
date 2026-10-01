@@ -1,0 +1,97 @@
+=== PRODUCTION STATE (read-only) Do,  1. Okt 2026 11:47:56 ===
+--- snapshots dir ---
+total 3
+drwxr-xr-x 1 cd-pr 197609   0 2026-10-01 08:53:46.704717500 +0200 .
+drwxr-xr-x 1 cd-pr 197609   0 2026-09-20 21:08:00.673099100 +0200 ..
+-rw-r--r-- 1 cd-pr 197609 518 2026-09-20 21:08:00.723437700 +0200 2026-09-20.json
+-rw-r--r-- 1 cd-pr 197609 518 2026-09-30 21:02:05.634694500 +0200 2026-09-30.json
+-rw-r--r-- 1 cd-pr 197609 518 2026-10-01 08:53:46.700191600 +0200 2026-10-01.json
+--- 2026-10-01 snapshot ---
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:53:46Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+--- operator-state.json records count ---
+records = 0
+note = Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.
+--- approvals dir ---
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:08 .
+drwxr-xr-x 1 cd-pr 197609 0 Sep 20 21:08 ..
+--- alerts line count ---
+15 data/freecash-monitor/alerts/alerts.jsonl
+
+=== readonly_client.py allowlists (verbatim) ===
+import json
+import os
+import re
+import sys
+from http.client import HTTPConnection  # readonly-exempt: the single socket library, used only inside _transport()
+from urllib.parse import urlparse
+
+# --- the allowlists -------------------------------------------------------------
+
+ALLOWED_METHODS = frozenset({"GET", "HEAD"})
+
+ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+ALLOWED_PATHS = (
+    re.compile(r"^/api/v1/status/metrics$"),
+    re.compile(r"^/api/v1/status$"),
+    # Provider paths are added here ONLY after research resolves them, one line
+    # each, with a justification comment.  Nothing provider-facing is allowlisted
+    # today -- see PROVIDER_ENDPOINT_UNKNOWN below.
+)
+
+#: Request keywords that carry a body.  Never accepted, on any method.
+BODY_KEYWORDS = ("data", "json", "files", "body", "content")
+
+DEFAULT_BASE_URL = "http://localhost:3001"
+METRICS_PATH = "/api/v1/status/metrics"
+STATUS_PATH = "/api/v1/status"
+DEFAULT_TIMEOUT = 10.0
+
+#: Not a URL, and deliberately never one: the provider read contract is unknown.
+PROVIDER_ENDPOINT_UNKNOWN = "PROVIDER_ENDPOINT_UNKNOWN - resolve in research phase"
+--- head of readonly_client.py ---
+"""readonly_client.py -- R2: the routine's ONLY network path.
+
+Deny-by-default transport:
+
+--- head of gate.py ---
+"""gate.py -- R1: exactly one status read per operator-local calendar day.
+
+
+=== 2026-10-01 R4 tree (streams present) ===
+total 88
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:46 .
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:47 ..
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:44 apppath
+-rw-r--r-- 1 cd-pr 197609 16149 Okt  1 11:39 DELEGATION-BRIEF.md
+-rw-r--r-- 1 cd-pr 197609 18149 Okt  1 11:39 DELEGATION-BRIEF-R4.md
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:44 delivery
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:47 gate
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:47 identity
+-rw-r--r-- 1 cd-pr 197609 14488 Okt  1 11:42 PARENT-BRIEF-R4.md
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:45 provider
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:45 research
+-rw-r--r-- 1 cd-pr 197609 14049 Okt  1 11:39 RESEARCH-PLAN.md
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:45 scheduler
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:45 source
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:47 verifier
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:39 verify
+drwxr-xr-x 1 cd-pr 197609     0 Okt  1 11:43 workflow

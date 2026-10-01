@@ -1,0 +1,69 @@
+--- monitoring/freecash/approval_queue.py	2026-09-20 06:57:40.024218500 +0200
++++ D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01/delivery/proposed/approval_queue.py	2026-10-01 08:53:45.484598000 +0200
+@@ -28,6 +28,7 @@
+ 
+ import argparse
+ import os
++import re
+ import sys
+ import uuid
+ 
+@@ -51,11 +52,28 @@
+ #: an instruction this routine carries out.
+ ACTION_LABEL_FOR_HUMAN_REVIEW = "REQUEST_PAYOUT"  # readonly-exempt: design-schema label for a human decision; no code executes it
+ 
+-#: A machine may not sign a decision.
++#: A machine may not sign a decision.  Kept as a cheap floor: it catches the
++#: bare words, but it is NOT the control (see OPERATOR_IDENTITY_ENV below).
+ NON_HUMAN_DECIDERS = frozenset(
+     {"system", "routine", "automation", "agent", "cron", "scheduler", "monitor", "bot", "script", "machine"}
+ )
+ 
++#: --- PROPOSED CONTROL (smallest change that makes identity provenance, not a
++#: --- self-declared label).  The host operator sets this once; the routine never
++#: --- writes it.  A decision is only recorded when it names that exact identity,
++#: --- and the configured identity itself must not look machine-generated.
++OPERATOR_IDENTITY_ENV = "FREECASH_OPERATOR_IDENTITY"
++
++MACHINE_LABEL_PATTERN = re.compile(
++    r"(?i)\b(agent|bot|automation|automated|system|scheduler|cron|daemon|service|"
++    r"machine|script|monitor|routine|worker|pipeline|hermes|assistant|ai)\b"
++)
++
++
++def operator_identity() -> str:
++    """The identity configured for this host, or "" when none is set."""
++    return (os.environ.get(OPERATOR_IDENTITY_ENV) or "").strip()
++
+ NAG_INTERVAL_DAYS = 7
+ NAG_EVENT = "APPROVAL_PENDING"
+ 
+@@ -155,6 +173,28 @@
+             "refused: %r is not a human identity; this routine may only record a "
+             "decision made by a person" % who
+         )
++    # --- PROVENANCE CHECK (proposed): the decision must name the identity that
++    # --- was configured for this host.  A self-declared label is no longer
++    # --- enough, and a machine-looking label is refused even if it were set.
++    expected = operator_identity()
++    if not expected:
++        raise NotHumanError(
++            "refused: no operator identity is configured. Set %s=\"<your name>\" in "
++            "the host environment; a decision that cannot be attributed to the "
++            "configured operator is not recorded." % OPERATOR_IDENTITY_ENV
++        )
++    if MACHINE_LABEL_PATTERN.search(expected):
++        raise NotHumanError(
++            "refused: the configured operator identity %r matches a machine-label "
++            "pattern; fix %s before deciding" % (expected, OPERATOR_IDENTITY_ENV)
++        )
++    if who.casefold() != expected.casefold():
++        raise NotHumanError(
++            "refused: %r is not the configured operator identity %r (%s)"
++            % (who, expected, OPERATOR_IDENTITY_ENV)
++        )
++    if MACHINE_LABEL_PATTERN.search(who):
++        raise NotHumanError("refused: %r matches a machine-label pattern" % who)
+     return who
+ 
+ 

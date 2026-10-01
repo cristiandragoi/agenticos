@@ -1,0 +1,62 @@
+G1_shipped_1file shipped                        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file repaired                       exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file mv1-r1-post-cashout            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file mv2-r2-lock-removed            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file mv3-r3-save-before-load        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS | VERDICT: NOT COMPLIANT -- 2/4 rule(s) violated: R1, R3
+G1_shipped_1file mv4-r4-execute-without-by      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file adv1-r1-obfuscated-method      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file adv2-r2-lock-nonbinding        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file adv3-r4-getattr-exec           exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file adv4-r1-conditional-backdoor   exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file adv5-r3-compare-disabled       exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G1_shipped_1file adv6-r1-new-socket-file        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1
+G2_0930          shipped                        exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS | VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST 
+G2_0930          repaired                       exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS | VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST 
+G2_0930          mv1-r1-post-cashout            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1
+G2_0930          mv2-r2-lock-removed            exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2
+G2_0930          mv3-r3-save-before-load        exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R3
+G2_0930          mv4-r4-execute-without-by      exit=1   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R4
+G2_0930          adv1-r1-obfuscated-method      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1
+G2_0930          adv2-r2-lock-nonbinding        exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2
+G2_0930          adv3-r4-getattr-exec           exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS | VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST 
+G2_0930          adv4-r1-conditional-backdoor   exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS | VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST 
+G2_0930          adv5-r3-compare-disabled       exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL | VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R3,
+G2_0930          adv6-r1-new-socket-file        exit=1   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R4
+G3_1001          shipped                        exit=0    | 
+G3_1001          repaired                       exit=1    | 
+G3_1001          mv1-r1-post-cashout            exit=1    | 
+G3_1001          mv2-r2-lock-removed            exit=1    | 
+G3_1001          mv3-r3-save-before-load        exit=0    | 
+G3_1001          mv4-r4-execute-without-by      exit=1    | 
+G3_1001          adv1-r1-obfuscated-method      exit=1    | 
+G3_1001          adv2-r2-lock-nonbinding        exit=1    | 
+G3_1001          adv3-r4-getattr-exec           exit=1    | 
+G3_1001          adv4-r1-conditional-backdoor   exit=0    | 
+G3_1001          adv5-r3-compare-disabled       exit=1    | 
+G3_1001          adv6-r1-new-socket-file        exit=1    | 
+G4_r3gate        shipped                        exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS | VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST 
+G4_r3gate        repaired                       exit=0   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS | VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST 
+G4_r3gate        mv1-r1-post-cashout            exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1
+G4_r3gate        mv2-r2-lock-removed            exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2
+G4_r3gate        mv3-r3-save-before-load        exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R3
+G4_r3gate        mv4-r4-execute-without-by      exit=1   SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R4
+G4_r3gate        adv1-r1-obfuscated-method      exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1
+G4_r3gate        adv2-r2-lock-nonbinding        exit=1   SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2
+G4_r3gate        adv3-r4-getattr-exec           exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL | VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R1,
+G4_r3gate        adv4-r1-conditional-backdoor   exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS | VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1
+G4_r3gate        adv5-r3-compare-disabled       exit=1   SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL | VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R3,
+G4_r3gate        adv6-r1-new-socket-file        exit=1   SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL | VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R1,
+G5_r3verifier    shipped                        exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    repaired                       exit=0   1=PASS 2=PASS 3=PASS 4=PASS | 
+G5_r3verifier    mv1-r1-post-cashout            exit=1   1=FAIL 2=FAIL 3=PASS 4=FAIL | 
+G5_r3verifier    mv2-r2-lock-removed            exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    mv3-r3-save-before-load        exit=1   1=FAIL 2=PASS 3=FAIL 4=FAIL | 
+G5_r3verifier    mv4-r4-execute-without-by      exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    adv1-r1-obfuscated-method      exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    adv2-r2-lock-nonbinding        exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    adv3-r4-getattr-exec           exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    adv4-r1-conditional-backdoor   exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    adv5-r3-compare-disabled       exit=1   1=FAIL 2=PASS 3=PASS 4=FAIL | 
+G5_r3verifier    adv6-r1-new-socket-file        exit=1   1=FAIL 2=FAIL 3=PASS 4=FAIL | 
+
+rows=60

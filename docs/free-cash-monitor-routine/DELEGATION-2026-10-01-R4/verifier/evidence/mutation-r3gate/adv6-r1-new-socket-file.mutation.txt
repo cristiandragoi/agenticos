@@ -1,0 +1,3 @@
+rule=1
+why=R1 evasion: a NEW module that imports a socket client and can POST -- FORBIDDEN_IMPORTS has no http.client and PINNED_IMPORTS only pins readonly_client.py
+edits=0

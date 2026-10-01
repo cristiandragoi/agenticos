@@ -1,0 +1,49 @@
+### captured at
+Do,  1. Okt 2026 11:44:18
+
+### throwaway root
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-scheduler-10070/root
+
+### env exported into the child
+FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-scheduler-10070/root
+FREECASH_TOAST_RETRY_SLEEP_SECONDS=0
+FREECASH_TZ=Europe/Berlin
+FREECASH_READ_SOURCE=operator_state
+FREECASH_TOAST_STUB=1
+
+### CHOSEN COMMAND (Route W, DECISION-V2 Task A shape, unquoted cmd.exe form)
+MSYS_NO_PATHCONV=1 cmd.exe /c "C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state 1>> <ROOT>/logs/task-a.log 2>&1"
+
+### DRY-RUN 1
+RUN1_EXIT=0
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+
+### DRY-RUN 2 (same calendar day)
+RUN2_EXIT=0
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+SKIP_DUPLICATE_DAY 2026-10-01
+
+### day-locks
+total 4
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 11:44 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 11:44 ..
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 11:44 2026-10-01.lock
+
+### state/last-run.json
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T09:44:18Z",
+  "last_success_at_utc": "2026-10-01T09:44:18Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T09:44:18Z"
+}
+
+### alerts/alerts.jsonl
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "f4d36065-2941-44e4-bdda-e2e627684996", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-10-01 (no operator-entered record for 2026-10-01 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": null, "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T09:44:18Z"}
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "09f0460a-26b9-4433-87eb-434cda31705d", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-10-01 already consumed (lock 2026-10-01.lock). Duplicate run performed no read and wrote no snapshot.", "observed": {"lock": "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-scheduler-10070\\root\\state\\day-locks\\2026-10-01.lock"}, "severity": "info", "ts_utc": "2026-10-01T09:44:19Z"}
+
+### NOTE: data-less run => MONITOR_DEGRADED, yet last_success_day=2026-10-01 and consecutive_missed_days=0 (day-budget defect, reproduced)

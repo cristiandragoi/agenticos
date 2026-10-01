@@ -163,11 +163,14 @@ export interface DelegateHermesInput {
 export interface DelegateHermesOutput {
   taskId: string;
   worker: 'hermes' | 'codex' | 'antigravity' | string;
-  status: 'queued' | 'running' | 'blocked';
+  status: 'queued' | 'running' | 'blocked' | 'pending' | 'failed';
   objective: string;
   context?: string;
   message: string;
   error?: string;
+  accepted?: boolean;
+  runId?: string;
+  hasWorkerAccepted?: boolean;
 }
 
 export async function delegateHermesTask(input: DelegateHermesInput): Promise<DelegateHermesOutput> {
@@ -291,81 +294,23 @@ export interface DelegateAntigravityInput {
 }
 
 export async function delegateAntigravityTask(input: DelegateAntigravityInput): Promise<DelegateHermesOutput> {
-  const { objective, context, conversationId, workspacePath, envelope } = input;
-  if (!objective || typeof objective !== 'string') {
-    throw new Error('delegate_antigravity_task requires a non-empty "objective" parameter.');
-  }
-
-  const effectiveWorkspace = workspacePath || (await getWorkspaceRoot()) || 'D:\\AgenticOS';
-  const fullObjective = context ? `${objective.trim()}\n\nRelevant Context:\n${context.trim()}` : objective.trim();
-  const title = objective.length > 64 ? `${objective.slice(0, 61)}…` : objective;
-
-  const delegationEnvelope: DelegationEnvelope = {
-    pendingActionId: envelope?.pendingActionId,
-    target: envelope?.target,
-    objective: envelope?.objective || objective,
-    acceptanceCriteria: envelope?.acceptanceCriteria,
-    constraints: envelope?.constraints,
-    relevantInstruction: envelope?.relevantInstruction || context,
-    relatedTaskIds: envelope?.relatedTaskIds,
-    relatedResultIds: envelope?.relatedResultIds,
-    parentGoal: envelope?.parentGoal,
+  const { engineeringDelegationService } = await import('../controlPlane/EngineeringDelegationService.js');
+  const res = await engineeringDelegationService.delegateTask({
+    ...input,
     worker: 'antigravity',
-  };
-
-  const { task, error } = backgroundTaskManager.createTask({
-    title,
-    objective: fullObjective,
-    originalRequest: objective,
-    route: 'engineering',
-    selectedAgent: 'AntiGravity',
-    worker: 'antigravity',
-    conversationId: conversationId || null,
-    resumable: true,
-    workspaceRoot: effectiveWorkspace,
-    metadata: {
-      delegatedBy: 'jarvis-supervisor',
-      context: context || null,
-      delegationEnvelope,
-    },
+    delegatedBy: 'jarvis-supervisor',
+    envelope: input.envelope as any,
   });
-
-  if (!task || error) {
-    throw new Error(error || 'Failed to create AntiGravity background task.');
-  }
-
-  const { dispatchTask } = await import('../../services/backgroundTasks/adapters.js');
-  try {
-    await dispatchTask(task, effectiveWorkspace);
-  } catch (err: any) {
-    logger.error(`[supervisorTools] dispatch error for ${task.taskId}: ${err?.message}`);
-  }
-
-  const updatedTask = backgroundTaskRepo.getTask(task.taskId);
-  const { engineeringWorkerRegistry } = await import('../controlPlane/EngineeringWorkerRegistry.js');
-  const events = engineeringWorkerRegistry.getWorkerEvents('antigravity').filter(e => e.taskId === task.taskId);
-  const convId = updatedTask?.linkedRunId;
-  const isAccepted = updatedTask && (updatedTask.status === 'executing' || updatedTask.status === 'worker_accepted' || updatedTask.status === 'completed');
-
-  if (isAccepted && convId && events.length > 0) {
-    const firstEvent = events[0].eventType;
-    return {
-      taskId: task.taskId,
-      worker: 'antigravity',
-      status: 'running',
-      objective,
-      context,
-      message: `AntiGravity has accepted task ${task.taskId.slice(0, 8)} (session ${convId}) and started execution in ${effectiveWorkspace}. Initial event: ${firstEvent}.`,
-    };
-  }
-
   return {
-    taskId: task.taskId,
+    taskId: res.taskId,
     worker: 'antigravity',
-    status: updatedTask?.status === 'blocked' ? 'blocked' : 'queued',
-    objective,
-    context,
-    message: `AntiGravity task ${task.taskId.slice(0, 8)} is pending startup: ${updatedTask?.blocker || 'waiting for session verification'}.`,
+    status: res.status as any,
+    accepted: res.accepted,
+    runId: res.runId,
+    hasWorkerAccepted: res.hasWorkerAccepted,
+    objective: res.objective,
+    context: res.context,
+    message: res.message,
   };
 }
 

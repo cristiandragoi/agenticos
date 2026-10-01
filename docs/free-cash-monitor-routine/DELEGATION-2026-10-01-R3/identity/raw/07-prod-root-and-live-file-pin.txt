@@ -1,0 +1,19 @@
+== utc: 2026-10-01T07:34:21Z
+== production root tree (name + mtime + size) ==
+2026-09-20+21:08:00.7001879000           0  data/freecash-monitor/state/day-locks/2026-09-20.lock
+2026-09-20+21:08:00.7189663000         879  data/freecash-monitor/state/operator-state.json
+2026-09-20+21:08:00.7234377000         518  data/freecash-monitor/snapshots/2026-09-20.json
+2026-09-30+21:01:05.5325622000           0  data/freecash-monitor/state/day-locks/2026-09-30.lock
+2026-09-30+21:02:05.6301726000        2172  data/freecash-monitor/state/notified-keys.json
+2026-09-30+21:02:05.6346945000         518  data/freecash-monitor/snapshots/2026-09-30.json
+2026-09-30+21:02:06.5210720000         230  data/freecash-monitor/logs/task-a.log
+2026-09-30+21:02:08.6695385000         136  data/freecash-monitor/logs/task-b-watchdog.log
+2026-10-01+08:53:46.6922555000           0  data/freecash-monitor/state/day-locks/2026-10-01.lock
+2026-10-01+08:53:46.7001916000         518  data/freecash-monitor/snapshots/2026-10-01.json
+2026-10-01+08:53:46.7047175000        8956  data/freecash-monitor/alerts/alerts.jsonl
+2026-10-01+08:53:46.7184158000         341  data/freecash-monitor/state/last-run.json
+== live approval_queue.py sha256 (must equal the gate baseline 0a2c982f...) ==
+0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506 *monitoring/freecash/approval_queue.py
+== grep the LIVE file for the allowlist control (expect none) ==
+0
+(grep exit=1)

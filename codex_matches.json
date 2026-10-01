@@ -1,0 +1,428 @@
+[
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\codingRuntime\\codexRuntimeAdapter.ts",
+    "line": 8,
+    "pattern": "codex exec",
+    "text": "*   codex exec --json --ephemeral -s <sandbox> -C <workdir> <prompt>"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\codingRuntime\\codexRuntimeAdapter.ts",
+    "line": 162,
+    "pattern": "codex exec",
+    "text": "logger.info(`[CodexRuntimeAdapter] spawn codex exec in ${opts.workdir} sandbox=${opts.sandboxMode || 'workspace-write'} timeout=${opts.timeoutMs || 300000}`);"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\codingRuntime\\providerPolicy.ts",
+    "line": 11,
+    "pattern": "codex exec",
+    "text": "*    (codex exec --json succeeded, command execution + usage captured)."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 7,
+    "pattern": "CODEX_INVOCATION_DISABLED",
+    "text": "* - CODEX_INVOCATION_DISABLED=true (never uses Codex or OpenAI)"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 39,
+    "pattern": "codex exec",
+    "text": "2. CODEX_INVOCATION_DISABLED=true. Never invoke codex, codex exec, OpenAI CLI, or any OpenAI-backed worker."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 39,
+    "pattern": "OpenAI CLI",
+    "text": "2. CODEX_INVOCATION_DISABLED=true. Never invoke codex, codex exec, OpenAI CLI, or any OpenAI-backed worker."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 39,
+    "pattern": "CODEX_INVOCATION_DISABLED",
+    "text": "2. CODEX_INVOCATION_DISABLED=true. Never invoke codex, codex exec, OpenAI CLI, or any OpenAI-backed worker."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 40,
+    "pattern": "delegate_hermes_task",
+    "text": "3. If delegating independent subtasks (e.g. parallel inspection or test investigation), use delegate_hermes_task."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 47,
+    "pattern": "delegate_hermes_task",
+    "text": "- delegate_hermes_task: Concurrently delegate independent subtasks to local workers."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\hermes\\hermesOrchestrator.ts",
+    "line": 419,
+    "pattern": "delegate_hermes_task",
+    "text": "IMPORTANT: You are the autonomous engineering orchestrator. Never delegate to CodeX or OpenAI. Perform all necessary work directly or delegate independent subtasks using delegate_hermes_task.`;"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\currentWorkContext.ts",
+    "line": 80,
+    "pattern": "codex exec",
+    "text": "// it\", \"what next? have Hermes plan and CodeX execute it\") must route to"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\execution\\executors\\engineeringExecutor.ts",
+    "line": 42,
+    "pattern": "delegate_hermes_task",
+    "text": "const toolName = 'delegate_hermes_task';"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorLoop.ts",
+    "line": 353,
+    "pattern": "delegate_codex_goal",
+    "text": "'8. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it. Never say you are \"starting\" or \"initiating\" an implementation unless you have successfully called the delegate_codex_goal or delegate_hermes_task tool.',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorLoop.ts",
+    "line": 353,
+    "pattern": "delegate_hermes_task",
+    "text": "'8. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it. Never say you are \"starting\" or \"initiating\" an implementation unless you have successfully called the delegate_codex_goal or delegate_hermes_task tool.',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorLoop.ts",
+    "line": 372,
+    "pattern": "delegate_hermes_task",
+    "text": "'- delegate_hermes_task({ objective: string, context?: string }): Queue deep planning or research to Hermes',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorLoop.ts",
+    "line": 373,
+    "pattern": "delegate_codex_goal",
+    "text": "'- delegate_codex_goal({ goal: string, context?: string, targetFiles?: string[], approvalRequired?: boolean }): Queue code inspection, debugging, or fixes to CodeX',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorLoop.ts",
+    "line": 790,
+    "pattern": "delegate_codex_goal",
+    "text": "if (toolCall.name === 'delegate_codex_goal') {"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorLoop.ts",
+    "line": 799,
+    "pattern": "delegate_hermes_task",
+    "text": "} else if (toolCall.name === 'delegate_hermes_task') {"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 149,
+    "pattern": "delegate_hermes_task",
+    "text": "* Tool 2: delegate_hermes_task"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 174,
+    "pattern": "delegate_hermes_task",
+    "text": "throw new Error('delegate_hermes_task requires a non-empty \"objective\" parameter.');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 261,
+    "pattern": "delegate_codex_goal",
+    "text": "* Tool 3: delegate_codex_goal"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 290,
+    "pattern": "delegate_codex_goal",
+    "text": "throw new Error('delegate_codex_goal requires a non-empty \"goal\" parameter.');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 516,
+    "pattern": "delegate_hermes_task",
+    "text": "name: 'delegate_hermes_task',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 538,
+    "pattern": "delegate_codex_goal",
+    "text": "name: 'delegate_codex_goal',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 607,
+    "pattern": "delegate_hermes_task",
+    "text": "case 'delegate_hermes_task':"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 609,
+    "pattern": "delegate_codex_goal",
+    "text": "case 'delegate_codex_goal':"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 616,
+    "pattern": "delegate_codex_goal",
+    "text": "throw new Error(`Unknown supervisor tool: \"${toolName}\". Available tools: get_system_health, delegate_hermes_task, delegate_codex_goal, recall_memory, get_current_work.`);"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvis\\supervisorTools.ts",
+    "line": 616,
+    "pattern": "delegate_hermes_task",
+    "text": "throw new Error(`Unknown supervisor tool: \"${toolName}\". Available tools: get_system_health, delegate_hermes_task, delegate_codex_goal, recall_memory, get_current_work.`);"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\domains\\jarvisNext\\turnRouter.ts",
+    "line": 1204,
+    "pattern": "delegate_codex_goal",
+    "text": "'delegate_codex_goal',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\loops\\codexLoop.backup.ts",
+    "line": 357,
+    "pattern": "codex exec",
+    "text": "pushEventToWriter(writer, 'failed', 'CodeX Execution Circuit Breaker Open. Failing loop immediately.', undefined, undefined, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX stopped because the provider is unresponsive.', eventType: 'task_failed', provider: currentProvider, model: currentModel });"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\loops\\codexLoop.ts",
+    "line": 802,
+    "pattern": "codex exec",
+    "text": "// Memory retrieval must never break CodeX execution."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\loops\\codexLoop.ts",
+    "line": 860,
+    "pattern": "codex exec",
+    "text": "pushEventToWriter(writer, 'failed', 'CodeX Execution Circuit Breaker Open. Failing loop immediately.', undefined, undefined, { normalizedStatus: 'failed', lifecycleState: 'failed', userMessage: 'CodeX stopped because the provider is unresponsive.', eventType: 'task_failed', provider: currentProvider, model: currentModel });"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\loops\\codexLoop.ts",
+    "line": 1032,
+    "pattern": "codex exec",
+    "text": "`fallback provider/model: none for direct CodeX execution; ` +"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\agent\\tools\\delegationTool.ts",
+    "line": 4,
+    "pattern": "delegate_hermes_task",
+    "text": "* Exposes delegate_hermes_task to the agent loop."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\agent\\tools\\delegationTool.ts",
+    "line": 6,
+    "pattern": "CODEX_INVOCATION_DISABLED",
+    "text": "* - CODEX_INVOCATION_DISABLED=true (never invokes codex/OpenAI)."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\agent\\tools\\delegationTool.ts",
+    "line": 14,
+    "pattern": "delegate_hermes_task",
+    "text": "name: 'delegate_hermes_task',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\backgroundTasks\\adapters.ts",
+    "line": 1398,
+    "pattern": "codex exec",
+    "text": "* must NOT funnel CodeX execution through the external Hermes One api_server"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\backgroundTasks\\adapters.ts",
+    "line": 1492,
+    "pattern": "codex exec",
+    "text": "mgr.transition(task.taskId, 'running', { currentStage: 'running', progressMessage: 'CodeX executing in-repo plan…' });"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\backgroundTasks\\adapters.ts",
+    "line": 1588,
+    "pattern": "CODEX_INVOCATION_DISABLED",
+    "text": "// CODEX_INVOCATION_DISABLED=true: Route engineering requests to Hermes Closed-Loop Orchestrator"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\hermes\\resourceManager.ts",
+    "line": 270,
+    "pattern": "codex exec",
+    "text": "reason = 'Task requires scoped repository code editing/refactoring; CodeX executor selected.';"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\hermes\\resourceManager.ts",
+    "line": 574,
+    "pattern": "codex exec",
+    "text": "* Check whether the CodeX execution adapter is usable."
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\services\\maintenance\\realAdapters.ts",
+    "line": 7,
+    "pattern": "codex exec",
+    "text": "*   - repair → real CodeX execution (codexService.createGoal → reconcile)"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\currentWorkActionRouting.test.ts",
+    "line": 19,
+    "pattern": "codex exec",
+    "text": "'have CodeX execute it',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\currentWorkActionRouting.test.ts",
+    "line": 45,
+    "pattern": "codex exec",
+    "text": "'What should we do next? Have Hermes plan it and CodeX execute it.',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\fastConversationLane.test.ts",
+    "line": 73,
+    "pattern": "delegate_hermes_task",
+    "text": "expect(prompt).not.toContain('delegate_hermes_task');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\fastConversationLane.test.ts",
+    "line": 74,
+    "pattern": "delegate_codex_goal",
+    "text": "expect(prompt).not.toContain('delegate_codex_goal');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\jarvisDelegationRouting.test.ts",
+    "line": 3,
+    "pattern": "codex exec",
+    "text": "// delegation (so the canonical in-repo CodeX executes real work), never routed"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 56,
+    "pattern": "delegate_codex_goal",
+    "text": "const text = '```json\\n{\"tool\": \"delegate_codex_goal\", \"parameters\": {\"goal\": \"Inspect layout\"}}\\n```';"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 59,
+    "pattern": "delegate_codex_goal",
+    "text": "name: 'delegate_codex_goal',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 81,
+    "pattern": "delegate_codex_goal",
+    "text": "expect(prompt).toContain('delegate_codex_goal');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 82,
+    "pattern": "delegate_hermes_task",
+    "text": "expect(prompt).toContain('delegate_hermes_task');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 291,
+    "pattern": "delegate_codex_goal",
+    "text": "it('Scenario D: \"Do that.\" with prior turn context -> delegate_codex_goal receives RESOLVED objective (never literal \"Do that.\")', async () => {"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 300,
+    "pattern": "delegate_codex_goal",
+    "text": "const resolvedToolCall = '<tool_call>{\"name\": \"delegate_codex_goal\", \"parameters\": {\"goal\": \"Inspect why the Jarvis 3D core is visually stretched into an oval and correct the scaling factor\", \"targetFiles\": [\"src/components/jarvis/JarvisNeuralBlob.tsx\"], \"approvalRequired\": true}}</tool_call>';"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 343,
+    "pattern": "delegate_codex_goal",
+    "text": "reply: `<tool_call>{\"name\": \"delegate_codex_goal\", \"parameters\": {\"goal\": \"${capturedGoal}\"}}</tool_call>`,"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 424,
+    "pattern": "delegate_hermes_task",
+    "text": "reply: '<tool_call>{\"name\": \"delegate_hermes_task\", \"parameters\": {}}</tool_call>', // missing required objective"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorLoop.test.ts",
+    "line": 452,
+    "pattern": "delegate_codex_goal",
+    "text": "reply: '<tool_call>{\"name\": \"delegate_codex_goal\", \"parameters\": {\"goal\": \"Optimize LCP rendering in index.html\"}}</tool_call>',"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorTools.test.ts",
+    "line": 34,
+    "pattern": "delegate_hermes_task",
+    "text": "expect(names).toContain('delegate_hermes_task');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorTools.test.ts",
+    "line": 35,
+    "pattern": "delegate_codex_goal",
+    "text": "expect(names).toContain('delegate_codex_goal');"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorTools.test.ts",
+    "line": 58,
+    "pattern": "delegate_hermes_task",
+    "text": "it('delegate_hermes_task creates a structured Hermes delegation payload when Hermes is reachable', async () => {"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorTools.test.ts",
+    "line": 79,
+    "pattern": "delegate_hermes_task",
+    "text": "it('delegate_hermes_task transitions to blocked with diagnostic when Hermes is offline', async () => {"
+  },
+  {
+    "file": "D:\\AgenticOS\\server\\src\\__tests__\\supervisorTools.test.ts",
+    "line": 103,
+    "pattern": "delegate_codex_goal",
+    "text": "it('delegate_codex_goal creates a structured CodeX delegation payload', async () => {"
+  },
+  {
+    "file": "D:\\AgenticOS\\src\\components\\codex\\StudioChat.tsx",
+    "line": 590,
+    "pattern": "codex exec",
+    "text": "<div className=\"text-slate-200\">{normalizedEvents.at(-1)?.userMessage || normalizedEvents.at(-1)?.message || 'Continue CodeX execution'}</div>"
+  },
+  {
+    "file": "D:\\AgenticOS\\src\\components\\codex\\WhatCodexIsDoingPanel.tsx",
+    "line": 184,
+    "pattern": "codex exec",
+    "text": "let whatIdid = 'Codex executed the goal loop and verified all steps.';"
+  },
+  {
+    "file": "D:\\AgenticOS\\src\\components\\jarvis\\JarvisGoalCard.tsx",
+    "line": 114,
+    "pattern": "codex exec",
+    "text": "* Compact CodeX execution card for the Jarvis conversation."
+  },
+  {
+    "file": "D:\\AgenticOS\\src\\__tests__\\JarvisTypedChat.test.tsx",
+    "line": 213,
+    "pattern": "codex exec",
+    "text": "it('renders operational intent, plan, approval, and CodeX execution events in the same chat', async () => {"
+  },
+  {
+    "file": "D:\\AgenticOS\\.agents\\rules\\hermes-autonomous-engineering-orchestrator.md",
+    "line": 31,
+    "pattern": "delegate_hermes_task",
+    "text": "- Engineering delegation must use `delegate_hermes_task` or another explicitly configured local/non-OpenAI AgenticOS worker."
+  },
+  {
+    "file": "D:\\AgenticOS\\.agents\\rules\\hermes-autonomous-engineering-orchestrator.md",
+    "line": 33,
+    "pattern": "delegate_codex_goal",
+    "text": "- `delegate_codex_goal`"
+  },
+  {
+    "file": "D:\\AgenticOS\\.agents\\rules\\hermes-autonomous-engineering-orchestrator.md",
+    "line": 35,
+    "pattern": "codex exec",
+    "text": "- `codex exec`"
+  },
+  {
+    "file": "D:\\AgenticOS\\.agents\\rules\\hermes-autonomous-engineering-orchestrator.md",
+    "line": 36,
+    "pattern": "OpenAI CLI",
+    "text": "- OpenAI CLI / ChatGPT CLI"
+  },
+  {
+    "file": "D:\\AgenticOS\\.agents\\rules\\hermes-autonomous-engineering-orchestrator.md",
+    "line": 36,
+    "pattern": "ChatGPT CLI",
+    "text": "- OpenAI CLI / ChatGPT CLI"
+  },
+  {
+    "file": "D:\\AgenticOS\\.agents\\rules\\hermes-autonomous-engineering-orchestrator.md",
+    "line": 87,
+    "pattern": "CODEX_INVOCATION_DISABLED",
+    "text": "CODEX_INVOCATION_DISABLED=true"
+  }
+]

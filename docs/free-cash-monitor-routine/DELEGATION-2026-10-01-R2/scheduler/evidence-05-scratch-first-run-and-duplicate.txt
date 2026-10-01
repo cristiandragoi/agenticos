@@ -1,0 +1,64 @@
+=== scratch root: C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA (FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA) ===
+=== interpreter: C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python ===
+Python 3.11.9
+=== cwd: /d/AgenticOS/monitoring/freecash ===
+
+### PHASE A0 -- BEFORE any run: file inventory + mtimes
+snapshot_count_before=0
+ledger_sha_before=ABSENT
+
+### PHASE A1 -- FIRST RUN of the day
+run1_exit=0   (measured without a pipe)
+--- run1 stdout ---
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+--- run1 stderr ---
+(stderr bytes: 0)
+
+### PHASE A2 -- state AFTER first run
+2026-10-01 09:06:44.5463076000 0 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/day-locks/2026-10-01.lock
+2026-10-01 09:06:44.5483843000 879 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/operator-state.json
+2026-10-01 09:06:44.5514389000 518 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/snapshots/2026-10-01.json
+2026-10-01 09:06:44.5534336000 580 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/alerts/alerts.jsonl
+2026-10-01 09:06:44.5634303000 341 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/last-run.json
+snapshot_count_after_run1=1
+--- lock dir ---
+total 4
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 09:06 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 09:06 ..
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 09:06 2026-10-01.lock
+--- ledger after run1 ---
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T07:06:44Z",
+  "last_success_at_utc": "2026-10-01T07:06:44Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T07:06:44Z"
+}
+
+### PHASE A3 -- IMMEDIATE SECOND RUN, same day, ARMED with an unreachable read source
+(if a read were attempted, metrics_http to 127.0.0.1:1 would print RUN_FAILED/exit 5 instead of SKIP)
+snapshot_count_before_run2=1
+run2_exit=0   (measured without a pipe)
+--- run2 stdout ---
+SKIP_DUPLICATE_DAY 2026-10-01
+--- run2 stderr ---
+(stderr bytes: 0)
+
+### PHASE A4 -- state AFTER second run (must be identical to A2)
+2026-10-01 09:06:44.5463076000 0 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/day-locks/2026-10-01.lock
+2026-10-01 09:06:44.5483843000 879 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/operator-state.json
+2026-10-01 09:06:44.5514389000 518 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/snapshots/2026-10-01.json
+2026-10-01 09:06:44.5634303000 341 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/last-run.json
+2026-10-01 09:06:45.5815524000 1010 C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/alerts/alerts.jsonl
+snapshot_count_after_run2=1
+snapshot_listing_unchanged=YES
+ledger_before=e2cf24d0be1c7119c9d897617a5bf2488afa8d33cb659a9795a37e282a753ed8 *C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/last-run.json
+ledger_after =e2cf24d0be1c7119c9d897617a5bf2488afa8d33cb659a9795a37e282a753ed8 *C:/Users/cd-pr/AppData/Local/Temp/fc-r2/scratchA/state/last-run.json
+ledger_unchanged=YES
+alerts_lines_before=1 alerts_lines_after=2 (delta=1 line appended by the duplicate run)
+--- last alert line (the duplicate-run record) ---
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "60f02f88-91fc-4f0e-898c-0d40e30fb686", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-10-01 already consumed (lock 2026-10-01.lock). Duplicate run performed no read and wrote no snapshot.", "observed": {"lock": "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r2\\scratchA\\state\\day-locks\\2026-10-01.lock"}, "severity": "info", "ts_utc": "2026-10-01T07:06:45Z"}

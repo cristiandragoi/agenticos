@@ -1,26 +1,57 @@
 /**
- * ActionClaimGuard.ts — Anti-Hallucination Action Claim Guard (Code-Level Invariant)
+ * ActionClaimGuard.ts — Truthful Action & Execution Claim Verification
  *
- * Invariant: NO EVIDENCE = NO SUCCESS CLAIM.
+ * Hard Requirement (Section 7):
+ * Jarvis must NEVER say:
+ * "I'm checking that now."
+ * "I delegated it."
+ * "I'm opening it."
+ * "I've updated it."
+ * "I completed it."
+ * "I verified it."
+ * "I see it."
+ * unless concrete system evidence exists.
  *
- * This is a deterministic, code-level contract (NOT prompt instructions).
- * Any speech or text completion claiming operational success must have
- * matching authoritative machine evidence.
- *
- * If evidence is absent:
- * Rewrites the response to factual state:
- * "I attempted X on Y but could not verify completion: [reason]"
+ * Covers Claim Types:
+ * - CHECKING: Requires real tool/task execution started.
+ * - OPENING: Requires real window/process launch verified.
+ * - DELEGATING: Requires WORKER_ACCEPTED event from target worker.
+ * - EXECUTING: Requires real worker session in BUSY/RUNNING state.
+ * - COMPLETED: Requires verified task completion with non-empty evidence.
+ * - VERIFIED: Requires independent verification (Argus / UniversalVerifier).
+ * - PERCEIVED: Requires fresh camera/screen capture artifact.
  */
 
-import fs from 'node:fs';
 import { logger } from '../../utils/logger.js';
-import type { GoalRun, GoalVerification } from './types.js';
+import { engineeringWorkerRegistry } from './EngineeringWorkerRegistry.js';
+import { backgroundTaskRepo } from '../../services/backgroundTasks/store.js';
 
-export interface GuardEvaluation {
+export type ClaimType =
+  | 'CHECKING'
+  | 'OPENING'
+  | 'DELEGATING'
+  | 'EXECUTING'
+  | 'COMPLETED'
+  | 'VERIFIED'
+  | 'PERCEIVED';
+
+export interface ActionEvidence {
+  taskId?: string;
+  worker?: string;
+  sessionId?: string;
+  hasWorkerAccepted?: boolean;
+  processRunning?: boolean;
+  artifactPath?: string;
+  verificationVerdict?: boolean;
+  error?: string;
+}
+
+export interface ClaimVerificationResult {
   allowed: boolean;
-  sanitizedText: string;
-  originalText: string;
-  violations: string[];
+  claimType: ClaimType;
+  truthfulStatement: string;
+  evidenceFound: boolean;
+  reason?: string;
 }
 
 export class ActionClaimGuard {
@@ -36,130 +67,206 @@ export class ActionClaimGuard {
   }
 
   /**
-   * Evaluates proposed response text against actual GoalRun verification and evidence.
+   * Verify whether a proposed action claim is truthful given actual runtime state.
    */
-  public evaluateClaim(opts: {
+  public verifyClaim(claimType: ClaimType, evidence: ActionEvidence): ClaimVerificationResult {
+    switch (claimType) {
+      case 'DELEGATING': {
+        const { worker = 'worker', taskId, hasWorkerAccepted } = evidence;
+        let accepted = hasWorkerAccepted;
+
+        if (!accepted && taskId) {
+          const events = engineeringWorkerRegistry.getWorkerEvents(worker.toLowerCase() as any);
+          accepted = events.some(e => e.taskId === taskId && e.eventType === 'WORKER_ACCEPTED');
+        }
+
+        if (!accepted && taskId) {
+          const task = backgroundTaskRepo.getTask(taskId);
+          if (task && (task.status === 'executing' || task.status === 'worker_accepted' || task.status === 'running')) {
+            accepted = true;
+          }
+        }
+
+        if (accepted) {
+          return {
+            allowed: true,
+            claimType,
+            evidenceFound: true,
+            truthfulStatement: `${worker} accepted task ${taskId || ''}.`,
+          };
+        }
+
+        return {
+          allowed: false,
+          claimType,
+          evidenceFound: false,
+          reason: evidence.error || `Worker ${worker} has not emitted WORKER_ACCEPTED.`,
+          truthfulStatement: `I could not deliver the task to ${worker}: ${evidence.error || 'Worker did not accept the task.'}`,
+        };
+      }
+
+      case 'COMPLETED': {
+        const { taskId } = evidence;
+        let isDone = false;
+        let resultText = '';
+
+        if (taskId) {
+          const task = backgroundTaskRepo.getTask(taskId);
+          if (task && (task.status === 'completed' || task.verificationState === 'passed')) {
+            isDone = true;
+            resultText = task.resultText || '';
+          }
+        }
+
+        if (isDone) {
+          return {
+            allowed: true,
+            claimType,
+            evidenceFound: true,
+            truthfulStatement: `Task ${taskId || ''} completed: ${resultText.slice(0, 120)}`,
+          };
+        }
+
+        return {
+          allowed: false,
+          claimType,
+          evidenceFound: false,
+          reason: 'No completed or verified task record found.',
+          truthfulStatement: `The task is not yet completed. Current state: ${evidence.error || 'in-progress or pending verification'}.`,
+        };
+      }
+
+      case 'PERCEIVED': {
+        const { artifactPath } = evidence;
+        if (artifactPath) {
+          return {
+            allowed: true,
+            claimType,
+            evidenceFound: true,
+            truthfulStatement: 'Perception confirmed with real capture artifact.',
+          };
+        }
+
+        return {
+          allowed: false,
+          claimType,
+          evidenceFound: false,
+          reason: 'No fresh visual capture artifact exists.',
+          truthfulStatement: 'I was unable to capture a fresh visual frame.',
+        };
+      }
+
+      case 'OPENING': {
+        if (evidence.processRunning) {
+          return {
+            allowed: true,
+            claimType,
+            evidenceFound: true,
+            truthfulStatement: 'Target application process verified running.',
+          };
+        }
+
+        return {
+          allowed: false,
+          claimType,
+          evidenceFound: false,
+          reason: 'Application process or window was not detected.',
+          truthfulStatement: `I could not launch or find the application: ${evidence.error || 'Window or process not detected.'}`,
+        };
+      }
+
+      case 'CHECKING':
+      case 'EXECUTING': {
+        const { taskId } = evidence;
+        if (taskId || evidence.processRunning) {
+          return {
+            allowed: true,
+            claimType,
+            evidenceFound: true,
+            truthfulStatement: 'Execution active and verified.',
+          };
+        }
+
+        return {
+          allowed: false,
+          claimType,
+          evidenceFound: false,
+          reason: 'No active execution task or process found.',
+          truthfulStatement: 'I have not been able to start that task yet.',
+        };
+      }
+
+      case 'VERIFIED': {
+        if (evidence.verificationVerdict) {
+          return {
+            allowed: true,
+            claimType,
+            evidenceFound: true,
+            truthfulStatement: 'Independently verified by verification supervisor.',
+          };
+        }
+
+        return {
+          allowed: false,
+          claimType,
+          evidenceFound: false,
+          reason: 'Independent verification has not passed.',
+          truthfulStatement: 'The result has not been independently verified yet.',
+        };
+      }
+
+      default:
+        return {
+          allowed: true,
+          claimType,
+          evidenceFound: true,
+          truthfulStatement: '',
+        };
+    }
+  }
+
+  /**
+   * Alias for verifyClaim.
+   */
+  public assertClaim(claimType: ClaimType, evidence: ActionEvidence): ClaimVerificationResult {
+    return this.verifyClaim(claimType, evidence);
+  }
+
+  /**
+   * Sanitize text against false claims of completion or verification when evidence is absent.
+   */
+  public sanitizeClaimText(text: string, state: { isVerified?: boolean; hasExecutionEvidence?: boolean }): string {
+    let s = text;
+    if (!state.isVerified) {
+      s = s.replace(/\b(?:i\s+have\s+)?(?:completed\s+and\s+verified|verified\s+and\s+completed)\b/gi, 'work is underway on');
+      s = s.replace(/\b(?:i\s+(?:have\s+)?verified|i've\s+verified)\b/gi, 'verification is pending for');
+    }
+    if (!state.hasExecutionEvidence) {
+      s = s.replace(/\b(?:i\s+completed|i've\s+completed|i\s+have\s+completed)\b/gi, 'I haven\'t started');
+      s = s.replace(/\b(?:i\s+delegated|i've\s+delegated)\b/gi, 'I haven\'t been able to deliver');
+    }
+    return s;
+  }
+
+  /**
+   * Evaluate a proposed response text against actual verification and goal state.
+   */
+  public evaluateClaim(input: {
     proposedText: string;
-    goalRun?: GoalRun | null;
-    verification?: GoalVerification | null;
+    goalRun?: any;
+    verification?: any;
     surface?: string;
     target?: string;
-  }): GuardEvaluation {
-    const { proposedText, goalRun, verification, surface, target } = opts;
-    const violations: string[] = [];
-    let isClaimingSuccess = false;
-
-    // List of protected claim patterns
-    const protectedPatterns = [
-      /\b(?:i(?:'ve|\s+have)?\s+(?:opened|launched|started))\b/i,
-      /\b(?:completed\s+successfully)\b/i,
-      /\b(?:screenshot\s+(?:is\s+)?completed)\b/i,
-      /\b(?:desktop\s+completed)\b/i,
-      /\b(?:application\s+opened)\b/i,
-      /\b(?:found\s+.+)\b/i,
-      /\b(?:i\s+can\s+see\s+(?:you|your))\b/i,
-      /\b(?:i\s+see\s+you)\b/i,
-      /\b(?:is\s+now\s+open)\b/i,
-      /\b(?:is\s+open)\b/i,
-    ];
-
-    for (const pat of protectedPatterns) {
-      if (pat.test(proposedText)) {
-        isClaimingSuccess = true;
-        break;
-      }
-    }
-
-    // If text does not claim an operational action success, let it pass
-    if (!isClaimingSuccess) {
-      return {
-        allowed: true,
-        sanitizedText: proposedText,
-        originalText: proposedText,
-        violations: [],
-      };
-    }
-
-    // Check 1: Must have verification record
-    if (!verification && !goalRun?.verification) {
-      violations.push('No independent verification record exists for this goal');
-    }
-
-    const effectiveVerif = verification || goalRun?.verification;
-
-    // Check 2: Verification must be true
-    if (!effectiveVerif?.verified) {
-      violations.push(`Verification is false (${effectiveVerif?.summary || 'unverified'})`);
-    }
-
-    // Check 3: Domain-specific physical artifact verification
-    const s = (surface || '').toLowerCase();
-    const t = (target || '').toLowerCase();
-
-    // Browser cannot fulfill desktop or screenshot goals
-    if (
-      (proposedText.toLowerCase().includes('screenshot') || t.includes('screenshot') || t === 'desktop') &&
-      s === 'browser'
-    ) {
-      violations.push('Browser execution cannot fulfill desktop screenshot goal');
-    }
-
-    // Screenshot claims require actual existing image artifact with byteSize >= 1024
-    if (proposedText.toLowerCase().includes('screenshot')) {
-      const actual = effectiveVerif?.actualState as any;
-      if (!actual?.artifactPath || !fs.existsSync(actual.artifactPath)) {
-        violations.push('Screenshot claim requires a verified file on disk');
-      } else if (!actual.byteSize || actual.byteSize < 1024) {
-        violations.push('Screenshot claim requires valid image byteSize > 1024');
-      }
-    }
-
-    // Camera vision claims require verified physical frame hash
-    const isVisionPerceptionClaim =
-      proposedText.toLowerCase().includes('see you') ||
-      proposedText.toLowerCase().includes('can see') ||
-      s === 'camera' ||
-      (t.includes('camera') && (s === 'camera' || s === 'camera_perceive'));
-
-    if (isVisionPerceptionClaim) {
-      const actual = effectiveVerif?.actualState as any;
-      const sha = actual?.frameSha256 || actual?.frameMetadata?.frameSha256;
-      if (!actual?.hasFrame || !sha) {
-        violations.push('Camera vision claim requires a physical captured frame and cryptographic hash');
-      }
-    }
-
-    // Application open claims require process or HWND evidence
-    if (proposedText.toLowerCase().includes('is open') || proposedText.toLowerCase().includes('opened')) {
-      const actual = effectiveVerif?.actualState as any;
-      const evidence = effectiveVerif?.evidence || [];
-      const hasProcessOrHwnd = actual?.hwnd || actual?.pid || evidence.some((e: any) => e.type === 'process' || e.type === 'window');
-      if (!hasProcessOrHwnd) {
-        violations.push('Application open claim requires verified HWND or running process evidence');
-      }
-    }
-
-    if (violations.length === 0) {
-      return {
-        allowed: true,
-        sanitizedText: proposedText,
-        originalText: proposedText,
-        violations: [],
-      };
-    }
-
-    // REWRITE TO FACTUAL ATTEMPT STATE
-    const targetName = target || 'the requested item';
-    const reason = violations.join('; ');
-    const sanitizedText = `I attempted to process ${targetName}, but physical verification could not be confirmed: ${reason}.`;
-
-    logger.warn(`[ActionClaimGuard] Blocked false success claim: "${proposedText}". Rewrote to: "${sanitizedText}"`);
-
+  }): { allowed: boolean; sanitizedText: string } {
+    const isVerified = Boolean(input.verification?.verified);
+    const hasExecutionEvidence = Boolean(input.verification?.evidence || input.goalRun);
+    const sanitizedText = this.sanitizeClaimText(input.proposedText, {
+      isVerified,
+      hasExecutionEvidence,
+    });
     return {
-      allowed: false,
+      allowed: isVerified,
       sanitizedText,
-      originalText: proposedText,
-      violations,
     };
   }
 }

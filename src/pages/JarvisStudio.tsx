@@ -278,6 +278,7 @@ export default function JarvisStudio() {
     setLatestActionRecord,
     activeChatRef,
     turnSeqRef,
+    beginOutput,
     stopSpeaking,
     cancelRequest,
     endConversation,
@@ -2108,8 +2109,7 @@ export default function JarvisStudio() {
               if (channel !== 'voice') {
                 setVoiceInterimTranscript('');
               }
-              const turnId = ++turnSeqRef.current;
-              voiceRef.current?.armSpeech?.(turnId);
+              const turnId = beginOutput();
               setLastUserPrompt(text);
               chatRef.current?.sendMessage(text, channel ?? 'typed', turnId, attachments);
             }}

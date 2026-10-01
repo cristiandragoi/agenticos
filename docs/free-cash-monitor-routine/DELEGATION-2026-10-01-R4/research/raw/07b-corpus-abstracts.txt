@@ -1,0 +1,78 @@
+### AUDIT-RULE-COMPLIANCE.md
+    Scope: every existing "Free Cash / finance daily monitor" artifact in `D:/AgenticOS`. Repo branch `hermes-rescue-20260908`, HEAD `d14253d`. Method: static read of every candidate + bounded, non-mutating execution checks only (`node --check`, `ast.parse`, runni
+### DAILY-MONITORING-WORKFLOW-AND-RESEARCH-PLAN.md
+    **Written:** 2026-09-19, by a delegated subagent, against **executed** evidence only. **Deliverable of this task:** this one new file. No other file was created, modified, deleted or committed; every command below is read-only or ran against a throwaway copy u
+### DELEGATED-WORKFLOW-PLAN.md
+    **Project:** Free Cash Finance Automation — daily status monitoring routine **Repo:** `D:/AgenticOS` · **Branch:** `hermes-rescue-20260908` (pre-existing uncommitted work left untouched) **Written:** 2026-09-18, by the orchestrating agent, against *executed* e
+### DELEGATION-DISPATCH-2026-09-20-R2.md
+    **Routine under design:** `D:/AgenticOS/monitoring/freecash/` (canonical implementation) **Delegation id:** `deleg_254504e3` — 3 parallel subagents, dispatched 2026-09-20 ~21:35 local (Europe/Berlin) **Predecessor round:** `deleg_462be34a` + `docs/free-cash-mo
+### DELEGATION-DISPATCH-2026-09-20.md
+    **Branch / HEAD:** `hermes-rescue-20260908` @ `d14253d` (2026-09-08) — 40+ modified tracked files uncommitted; `monitoring/` and `docs/free-cash-monitor-routine/` are **untracked** (`git ls-files monitoring/ | wc -l` = 0) **Host:** Windows 11, git-bash, non-el
+### DELEGATION-RESEARCH-PLAN.md
+    **Project:** Free Cash Finance Automation — daily status monitoring **Workspace (repository):** `D:\AgenticOS` · **Branch:** `hermes-rescue-20260908` · **HEAD:** `d14253d` · **Date:** 2026-09-18 **Scope:** research only. No credential is created or used, no pr
+### DELEGATION-WORKFLOW-PLAN.md
+    **Project:** Free Cash Finance Automation — daily status monitoring **Workspace (repository):** `D:\AgenticOS` · **Branch:** `hermes-rescue-20260908` · **HEAD:** `d14253d` **Delegator:** Hermes orchestrator (this session) · **Executors:** Hermes subagents (iso
+### IMPLEMENTATION-PLAN-V3.md
+    **Companion to:** `docs/free-cash-monitor-routine/ROUTINE-DESIGN.md` (the design; make no changes to it), `docs/free-cash-monitor-routine/RULE-GATE-CHECKLIST.md` (pre-flight gate table), `docs/free-cash-monitor-routine/PROVIDER-API-RESEARCH.md` (provider contr
+### OPERATIONS-WORKFLOW-PLAN-2026-09-20.md
+    **Routine:** Free Cash Finance Automation — daily status-monitoring routine **Implementation under this plan:** `D:/AgenticOS/monitoring/freecash/` (the canonical tree; `verify_readonly.py` / `verify-readonly.sh` scan it) **Production state root:** `D:/Agentic
+### OPERATIONS-WORKFLOW-PLAN.md
+    **Branch / HEAD:** `hermes-rescue-20260908` @ `d14253d` (2026-09-08). `monitoring/` and `docs/free-cash-monitor-routine/` are **untracked** (`git status --porcelain` → `?? monitoring/`, `?? docs/free-cash-monitor-routine/`); 40+ other tracked files are modifie
+### PROVIDER-API-RESEARCH.md
+    **Date of empirical testing:** 2026-09-17 (Europe/Berlin) **Scope:** documentation and public unauthenticated probes only. No login, no signup, no account access, no credentials used or requested. **Question:** does a real read-only status/balance API exist fo
+### PROVIDER-CONTRACT-RESEARCH-V2.md
+    **Repo:** `D:/AgenticOS` · **Branch:** `hermes-rescue-20260908` · **Date of this pass:** 2026-09-18 (Europe/Berlin) **Supersedes nothing.** This is an additive V2 research artifact. It builds on `PROVIDER-API-RESEARCH.md` (2026-09-17) and `RESEARCH-PLAN.md` (2
+### PROVIDER-DECISION-PACKET-2026-09-20-v2.md
+    **Date:** 2026-09-20 (Europe/Berlin) · **Host:** Windows 11, git-bash, non-elevated, `cd-pr` · **Interpreter:** `python` = 3.11.9 **Supersedes (additively):** `PROVIDER-DECISION-PACKET-2026-09-20.md` (v1, unmodified — this file is the only repo file created by
+### PROVIDER-DECISION-PACKET-2026-09-20.md
+    **Routine:** `monitoring/freecash/` (entry point `run_daily_check.py`, read source selectable with `--source operator_state|metrics_http`) **Written:** 2026-09-20 by the research/decision subagent (`deleg_462be34a` / W2) · **Gate:** G2 **Supersedes nothing.** 
+### PROVIDER-FINDINGS-REVERIFIED.md
+    **Project:** Free Cash Finance Automation — daily status monitoring (workflow stage **W2**, research) **Executed:** 2026-09-18 · **Host:** Windows 11 workstation (`D:\AgenticOS`, branch `hermes-rescue-20260908`) · **Shell:** git-bash/MSYS **Scope actually perf
+### RESEARCH-PLAN-2026-09-21.md
+    **Subject:** "Free Cash Finance Automation" — a routine that checks the operator's Free Cash / payouts account status **once per operator-local day**, alerts on earnings or account-status change, **never** takes an earning or withdrawal action, and asks the hu
+### RESEARCH-PLAN-FC-FINANCE-AUTOMATION-V11-2026-10-01.md
+    **Written:** 2026-10-01, 09:25–09:4x operator-local (`date` → `Do, 1. Okt 2026 09:25:33`; Europe/Berlin, UTC+02:00) **Interpreter of record:** `C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python` → `Python 3.11.9`; `zoneinfo.ZoneInfo("Europe/
+### RESEARCH-PLAN-V4.md
+    **Status:** research design document. **This file is the only artifact written by this pass.** **Repo:** `D:/AgenticOS` · **Host:** Windows 11, git-bash (MSYS), `python` = 3.11.9 (`python3` = Windows Store stub, broken), `node` = v24.20.0, PowerShell 5.1.26100
+### RESEARCH-PLAN.md
+    **Date:** 2026-09-17 · **Host:** Windows 11 workstation, `D:\AgenticOS` · **Target dir:** `D:\AgenticOS\docs\free-cash-monitor-routine\` **Approval of scope:** This document is research only. It creates no scheduled task, stores no credential, and calls no pro
+### ROUTINE-DESIGN.md
+    **Project:** Free Cash Finance Automation — daily status monitoring **Repo:** `D:/AgenticOS` · **Branch:** `hermes-rescue-20260908` **Status:** design complete, deployment-ready; implementation files named below are **to be created** (nothing in this document 
+### RULE-GATE-CHECKLIST.md
+    **Companion to:** `docs/free-cash-monitor-routine/ROUTINE-DESIGN.md` (section numbers refer to it) **How to use:** fill every **File / function** cell with the exact enforcing path+symbol, run the cited test, then sign. A rule is **not** cleared until its test
+### WORKFLOW-PLAN-2026-09-21.md
+    **Written:** 2026-09-21, ~18:45 operator-local (`date` → `Mo, 21. Sep 2026 18:40:18`, UTC+02:00) **Subject:** the daily status-monitoring routine for *Free Cash Finance Automation*, canonical implementation `D:/AgenticOS/monitoring/freecash/` **Interpreter of 
+### WORKFLOW-PLAN-CONSOLIDATED-2026-09-20.md
+    **Written:** 2026-09-20 ~21:40 operator-local (`date` → `So, 20. Sep 2026 21:34:52`, `Europe/Berlin`) **Interpreter of record:** `python` = 3.11.9 (Hermes venv, `tzdata` present) — resolves `Europe/Berlin`. `py -3` = 3.14.x — does **not** (`ZoneInfoNotFoundErr
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V10-2026-10-01.md
+    **Written:** 2026-10-01, 08:58–09:0x operator-local (`date` → `Do, 1. Okt 2026 08:58:59`; Europe/Berlin, UTC+02:00) **Supersedes:** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8*.md` (stale) **and consolidates** `…-V9-2026-10-01.md` + `…-V9-ADDENDUM-2026-10-01-GATE-
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V11-2026-10-01.md
+    **Host:** Windows 11 (German-localised), git-bash (MSYS), non-elevated · **Date of this pass:** `Do, 1. Okt 2026 09:25:33` (Europe/Berlin, UTC+02:00) **Today (from `date`):** **2026-10-01** **Subject:** the operational daily status-monitoring routine for Free 
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V11B-2026-10-01.md
+    **Written:** 2026-10-01, evidence window `09:25:43` → `09:42` operator-local (`date` → `Do, 1. Okt 2026 09:25:43`; Europe/Berlin, UTC+02:00) **Relationship to the other documents (additive, nothing superseded):** - **Companion, not a replacement:** `WORKFLOW-P
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V12-2026-10-01.md
+    **Clock of this pass:** `date` → `Do, 1. Okt 2026 11:39:12` … `11:43:00` (Europe/Berlin, UTC+02:00) **Interpreter of record:** `C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe` — `3.11.9`, `tzdata 2025.3`, `ZoneInfo("Europe/Berlin")` r
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V12B-2026-10-01.md
+    **Companion to `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V12-2026-10-01.md`, not a replacement for it.** That file (40 567 B, **mtime 11:44**) was written by a concurrent session into the name this pass first tried to take; it is **read as an input and left untouch
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V5.md
+    **Written:** 2026-09-20 ~21:37 local (19:37Z), against **executed** evidence only. **Routine under plan:** `monitoring/freecash/` (stdlib-only Python; entry point `run_daily_check.py`). **Delta vs `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION.md` (§7, 21:10):** gate re
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V6.md
+    **Written:** 2026-09-20 ~21:47 operator-local (`date` → `So, 20. Sep 2026 21:41:09`, `Europe/Berlin`) **Route under plan:** `monitoring/freecash/` (stdlib-only Python; entry point `run_daily_check.py`) **Evidence standard (C5):** every claim below is a command
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7-ADDENDUM-BRIDGE-2026-09-21.md
+    **Companion to:** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7.md` (same directory; written 18:38–18:45 local by a concurrent session — **not** modified by this pass) **Written:** 2026-09-21, 18:38–18:55 local (Europe/Berlin), interpreter `python` = `…/hermes-agent
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7.md
+    **Written:** 2026-09-21 ~18:38–18:45 local (`date` → `Mo, 21. Sep 2026 18:38:18`, `Europe/Berlin`, UTC+02:00) **Supersedes:** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V6.md` (2026-09-20 21:47) — V6's §0 row V12 is **wrong** and is corrected in §1/C12 below. **Rout
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8-2026-09-30.md
+    **Written:** 2026-09-30 ~20:50–20:58 operator-local (`date` → `Mi, 30. Sep 2026 20:50:51`, Europe/Berlin, UTC+02:00) **Supersedes:** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7.md` (2026-09-21 18:43) and `…-V7-ADDENDUM-BRIDGE-2026-09-21.md` (18:49) — V7's rows V14
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8.md
+    **Written:** 2026-09-30, 20:50–21:05 local (`Europe/Berlin`, UTC+02:00) **Supersedes:** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7.md` + `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V7-ADDENDUM-BRIDGE-2026-09-21.md` (both 2026-09-21). V7's R1–R4 / C5–C15 and the addendum
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-2026-10-01.md
+    **Written:** 2026-10-01 ~08:40–08:46 operator-local (`date` → `Do, 1. Okt 2026 08:40:46`; Europe/Berlin, UTC+02:00) — i.e. **~11 h after V8** **Supersedes:** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V8-2026-09-30.md`. V8's D-2 ("app down, `:4600` refuses") is **no
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-ADDENDUM-2026-10-01-GATE-SCOPE-AND-FALSE-COMPLIANCE.md
+    **Written:** 2026-10-01, 08:40–09:0x operator-local (`date` → `Do, 1. Okt 2026 08:40:32`, Europe/Berlin, UTC+02:00) **Relation to other plans:** **supplements** `WORKFLOW-PLAN-FC-FINANCE-AUTOMATION-V9-2026-10-01.md` (written by a parallel session in the same h
+### WORKFLOW-PLAN-FC-FINANCE-AUTOMATION.md
+    Repository: `D:\AgenticOS` Branch: `hermes-rescue-20260908` (large body of pre-existing uncommitted work present) Additive only: this file is new. No existing file was modified, moved, deleted or committed. Evidence basis: every number below comes from a comma
+### WORKFLOW-PLAN-V4.md
+    **Project:** Free Cash Finance Automation — daily status-monitoring routine **Repo:** `D:/AgenticOS` · **Branch:** `hermes-rescue-20260908` · HEAD `d14253d` **Written:** 2026-09-20, 07:02 Europe/Berlin (UTC+02:00), by a delegated subagent, against **executed**
+### WORKFLOW-PLAN-V5.md
+    Repository: `D:\AgenticOS` Branch: `hermes-rescue-20260908` (524 entries in `git status --short`; pre-existing uncommitted work — must be preserved) Additive only: this file is new under `docs/free-cash-monitor-routine/`. No existing file was modified, moved, 

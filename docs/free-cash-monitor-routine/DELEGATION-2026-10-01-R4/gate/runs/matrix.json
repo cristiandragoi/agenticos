@@ -1,0 +1,902 @@
+[
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "shipped",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "repaired",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "mv1-r1-post-cashout",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "mv2-r2-lock-removed",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "mv3-r3-save-before-load",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=FAIL  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 2/4 rule(s) violated: R1, R3",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "mv4-r4-execute-without-by",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "adv1-r1-obfuscated-method",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "adv3-r4-getattr-exec",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "adv4-r1-conditional-backdoor",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "adv5-r3-compare-disabled",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G1_shipped_1file",
+    "tree": "adv6-r1-new-socket-file",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\scripts\\monitoring\\rule_gate_verify.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file/run_daily_check.py"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "shipped",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-shipped/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "repaired",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-repaired/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "mv1-r1-post-cashout",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-mv1-r1-post-cashout/g2"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "mv2-r2-lock-removed",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-mv2-r2-lock-removed/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "mv3-r3-save-before-load",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-mv3-r3-save-before-load/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R3",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "mv4-r4-execute-without-by",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-mv4-r4-execute-without-by/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "adv1-r1-obfuscated-method",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-adv1-r1-obfuscated-method/g2"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-adv2-r2-lock-nonbinding/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "adv3-r4-getattr-exec",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-adv3-r4-getattr-exec/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "adv4-r1-conditional-backdoor",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-adv4-r1-conditional-backdoor/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "adv5-r3-compare-disabled",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-adv5-r3-compare-disabled/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R3, R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G2_0930",
+    "tree": "adv6-r1-new-socket-file",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-09-30\\verifier\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G2_0930-adv6-r1-new-socket-file/g2"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "shipped",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-shipped/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT PASS target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped rules=4/4 assertions=14/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "repaired",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-repaired/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired failed_rules=R4 assertions=13/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "mv1-r1-post-cashout",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-mv1-r1-post-cashout/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout failed_rules=R2 assertions=11/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "mv2-r2-lock-removed",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-mv2-r2-lock-removed/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed failed_rules=R1 assertions=12/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "mv3-r3-save-before-load",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-mv3-r3-save-before-load/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT PASS target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load rules=4/4 assertions=14/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "mv4-r4-execute-without-by",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-mv4-r4-execute-without-by/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by failed_rules=R4 assertions=12/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "adv1-r1-obfuscated-method",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-adv1-r1-obfuscated-method/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method failed_rules=R2 assertions=11/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-adv2-r2-lock-nonbinding/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding failed_rules=R1 assertions=12/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "adv3-r4-getattr-exec",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-adv3-r4-getattr-exec/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec failed_rules=R4 assertions=13/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "adv4-r1-conditional-backdoor",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-adv4-r1-conditional-backdoor/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT PASS target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor rules=4/4 assertions=14/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "adv5-r3-compare-disabled",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-adv5-r3-compare-disabled/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled failed_rules=R3,R4 assertions=11/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G3_1001",
+    "tree": "adv6-r1-new-socket-file",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01\\verifier\\verify_freecash_rules.py",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G3_1001-adv6-r1-new-socket-file/g3"
+    ],
+    "summary": "",
+    "verdict": "",
+    "result": "[verify_freecash_rules] RESULT FAIL target=D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file failed_rules=R2 assertions=13/14",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "shipped",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-shipped/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "repaired",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-repaired/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "mv1-r1-post-cashout",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-mv1-r1-post-cashout/g4"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "mv2-r2-lock-removed",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-mv2-r2-lock-removed/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "mv3-r3-save-before-load",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-mv3-r3-save-before-load/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R3",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "mv4-r4-execute-without-by",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-mv4-r4-execute-without-by/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "adv1-r1-obfuscated-method",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-adv1-r1-obfuscated-method/g4"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-adv2-r2-lock-nonbinding/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=FAIL  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R2",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "adv3-r4-getattr-exec",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-adv3-r4-getattr-exec/g4"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R1, R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "adv4-r1-conditional-backdoor",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-adv4-r1-conditional-backdoor/g4"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=PASS",
+    "verdict": "VERDICT: NOT COMPLIANT -- 1/4 operator rule(s) violated: R1",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "adv5-r3-compare-disabled",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-adv5-r3-compare-disabled/g4"
+    ],
+    "summary": "SUMMARY: R1=PASS  R2=PASS  R3=FAIL  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R3, R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G4_r3gate",
+    "tree": "adv6-r1-new-socket-file",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\gate\\rule_gate.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file",
+      "--workdir",
+      "C:\\Users\\cd-pr\\AppData\\Local\\Temp\\fc-r4-gate-matrix\\G4_r3gate-adv6-r1-new-socket-file/g4"
+    ],
+    "summary": "SUMMARY: R1=FAIL  R2=PASS  R3=PASS  R4=FAIL",
+    "verdict": "VERDICT: NOT COMPLIANT -- 2/4 operator rule(s) violated: R1, R4",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "shipped",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\shipped",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "repaired",
+    "exit": 0,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\repaired",
+      "--json"
+    ],
+    "summary": "1=PASS 2=PASS 3=PASS 4=PASS",
+    "verdict": "",
+    "result": "",
+    "failed_rules": ""
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "mv1-r1-post-cashout",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv1-r1-post-cashout",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=FAIL 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,2,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "mv2-r2-lock-removed",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv2-r2-lock-removed",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "mv3-r3-save-before-load",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv3-r3-save-before-load",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=FAIL 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,3,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "mv4-r4-execute-without-by",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\mv4-r4-execute-without-by",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "adv1-r1-obfuscated-method",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv1-r1-obfuscated-method",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "adv2-r2-lock-nonbinding",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv2-r2-lock-nonbinding",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "adv3-r4-getattr-exec",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv3-r4-getattr-exec",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "adv4-r1-conditional-backdoor",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv4-r1-conditional-backdoor",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "adv5-r3-compare-disabled",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv5-r3-compare-disabled",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=PASS 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,4"
+  },
+  {
+    "gate": "G5_r3verifier",
+    "tree": "adv6-r1-new-socket-file",
+    "exit": 1,
+    "argv": [
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R3\\verifier\\rule_gate_r3.py",
+      "--package",
+      "D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\gate\\trees\\adv6-r1-new-socket-file",
+      "--json"
+    ],
+    "summary": "1=FAIL 2=FAIL 3=PASS 4=FAIL",
+    "verdict": "",
+    "result": "",
+    "failed_rules": "1,2,4"
+  }
+]

@@ -1,0 +1,51 @@
+COMMAND: "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python" docs/.../evidence/probe_daykey_edge_cases.py
+INTERPRETER: Python 3.11.9  exe=C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+RUN AT: Do,  1. Okt 2026 09:08:40
+================================================================================
+gate.__file__ = D:\AgenticOS/monitoring/freecash\gate.py
+gate.DEFAULT_TZ = Europe/Berlin | gate.tz_name() = Europe/Berlin
+gate.resolve_tz('Europe/Berlin') kind = zoneinfo
+gate.timezone_report() = {'configured': 'Europe/Berlin', 'kind': 'zoneinfo', 'available': True, 'offset_now': '+0200'}
+
+========================================================================
+3(b) DST -- Europe/Berlin transitions of 2026, at hourly resolution
+========================================================================
+transitions found in 2026 (UTC instants):
+  2026-03-29T01:00:00+00:00 UTC  1:00:00 -> 2:00:00  (Berlin local 2026-03-29T03:00:00+02:00)
+  2026-10-25T01:00:00+00:00 UTC  2:00:00 -> 1:00:00  (Berlin local 2026-10-25T02:00:00+01:00)
+
+spring-forward local date: 2026-03-29
+autumn-back local date   : 2026-10-25
+
+-- spring forward (2026-03-29, 02:00 CET -> 03:00 CEST) --
+  before jump: 2026-03-29T01:30+01:00            -> day_key=2026-03-29  (utcoffset=+0100, tzname=UTC+01:00)
+  after  jump: 2026-03-29T03:30+02:00            -> day_key=2026-03-29  (utcoffset=+0200, tzname=UTC+02:00)
+  UTC 00:30Z on that date                        -> day_key=2026-03-29  (utcoffset=+0000, tzname=UTC)
+
+-- autumn back (2026-10-25, 03:00 CEST -> 02:00 CET; local 02:00-03:00 repeats) --
+  first  01:30 (CEST, +02:00)                    -> day_key=2026-10-25  (utcoffset=+0200, tzname=UTC+02:00)
+  second 01:30 (CET,  +01:00) [the repeated hour] -> day_key=2026-10-25  (utcoffset=+0100, tzname=UTC+01:00)
+  local 04:00 same day                           -> day_key=2026-10-25  (utcoffset=+0100, tzname=CET)
+  day after, local 00:30                         -> day_key=2026-10-26  (utcoffset=+0100, tzname=CET)
+
+spring-forward day: 145 sample instants across a 36h window -> distinct day_keys=['2026-03-28', '2026-03-29', '2026-03-30']
+   distinct keys covering the transition date itself: ['2026-03-28', '2026-03-29', '2026-03-30']
+autumn-back day: 145 sample instants across a 36h window -> distinct day_keys=['2026-10-24', '2026-10-25', '2026-10-26']
+   distinct keys covering the transition date itself: ['2026-10-24', '2026-10-25', '2026-10-26']
+
+VERDICT: day_key is the operator-local CALENDAR date. During the autumn
+repeated hour both 01:30 instants map to the same date, so the atomic
+lock name is identical and the second one is refused by the lock -- no
+second read is possible. Across the spring gap the date never skips.
+
+========================================================================
+3(c) CLOCK MOVES BACKWARDS -- key arithmetic
+========================================================================
+ledger.last_success_day = 2026-10-05
+clock now says           = 2026-10-04T23:30:00+02:00 -> day_key = 2026-10-04
+gate.clock_moved_backwards('2026-10-04', ledger) = True
+gate.missed_days('2026-10-04', ledger)           = []   # empty: today < last_success
+gate.consecutive_missed_days(...)       = 0
+NOTE: clock_moved_backwards() is DEFINED but never CALLED anywhere in
+      monitoring/freecash/ (grep: definition only). Verified separately.
+exit=0

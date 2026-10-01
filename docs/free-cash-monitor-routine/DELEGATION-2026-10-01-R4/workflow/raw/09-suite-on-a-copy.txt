@@ -1,0 +1,56 @@
+###############################################################################
+# 09 — THE 52-TEST SUITE ON A COPY: a relocation artifact, and the green run
+# during: 2026-10-01T09:53:36Z
+###############################################################################
+
+=== RUN 1: flat copy at <stream>/routine_copy (package dir NOT under <root>/monitoring/) ===
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/suite-root C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/routine_copy/tests/run_all.py
+exit=1
+--- the two failures, raw ---
+237:FAIL: test_shipped_shell_checker_fails_on_a_planted_violation (test_r2_readonly.StaticCheckerTests.test_shipped_shell_checker_fails_on_a_planted_violation)
+238-----------------------------------------------------------------------
+239-Traceback (most recent call last):
+240-  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\routine_copy\tests\test_r2_readonly.py", line 87, in test_shipped_shell_checker_fails_on_a_planted_violation
+241-    self.assertIn("FORBIDDEN", process.stderr)
+242-AssertionError: 'FORBIDDEN' not found in 'bash: D:\\AgenticOS\\docs\\free-cash-monitor-routine\\DELEGATION-2026-10-01-R4\\docs\\free-cash-monitor-routine\\verify-readonly.sh: No such file or directory\n'
+243-
+244-======================================================================
+245:FAIL: test_shipped_shell_checker_passes_on_the_routine_tree (test_r2_readonly.StaticCheckerTests.test_shipped_shell_checker_passes_on_the_routine_tree)
+246-----------------------------------------------------------------------
+247-Traceback (most recent call last):
+248-  File "D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\workflow\routine_copy\tests\test_r2_readonly.py", line 73, in test_shipped_shell_checker_passes_on_the_routine_tree
+249-    self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+250-AssertionError: 127 != 0 : bash: D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\docs\free-cash-monitor-routine\verify-readonly.sh: No such file or directory
+251-
+252-
+253-----------------------------------------------------------------------
+--- summary ---
+352:run_all: tests=52 failures=2 errors=0 skipped=0
+
+CAUSE: _support.py computes REPO_ROOT = ROUTINE_DIR.parent.parent and SHELL_CHECKER =
+REPO_ROOT/docs/free-cash-monitor-routine/verify-readonly.sh. In a flat copy the parent of
+the parent is the stream dir, where that script does not exist, so two static-checker
+tests fail with 'No such file or directory' (bash exit 127). This is a property of the
+test harness resolving the repository by directory depth, not a defect in the routine.
+
+=== RUN 2: the same copy in the repository's shape (<stream>/relocated/monitoring/freecash) ===
+$ FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-workflow/suite-root-relocated C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/workflow/relocated/monitoring/freecash/tests/run_all.py
+exit=0
+335:run_all: tests=52 failures=0 errors=0 skipped=0
+--- last 4 lines of that run ---
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=INITIAL_BASELINE
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+run_all: tests=52 failures=0 errors=0 skipped=0
+
+=== identity of the two trees (proves the copy is the shipped package) ===
+SAME  gate.py  1c726b27e0f6d577c28454e66530d297925fd83d23de2313a3c15d13120608e7
+SAME  paths.py  a38ab2e73d25d88fb0512b6e42d2877465f5a2329a73c5973999e77fc0ef1938
+SAME  operator_state.py  32f0fd7201e0f2179c434d67fb48bffe14e3adf54a69d603d4436f8c3cd1d4a7
+SAME  readonly_client.py  5426b56c11d20fbe65aa197a4f11660536e6371d585c31f827914d2930aecc27
+SAME  changedetect.py  296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b
+SAME  notify.py  9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22
+SAME  approval_queue.py  0a2c982fbcfb9ca4f3371c309e308046f37976ccdb6b54e587912790fd42d506
+SAME  run_daily_check.py  bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c
+SAME  watchdog.py  11dfa88bff930be0886a1006190d72a72da051c8a57515029e9cdfabb7d3acdd
+SAME  verify_readonly.py  2c91a1fc0179a486a07b550cdbc60aa69cafa96641a6a1d3205db7062b590aa0

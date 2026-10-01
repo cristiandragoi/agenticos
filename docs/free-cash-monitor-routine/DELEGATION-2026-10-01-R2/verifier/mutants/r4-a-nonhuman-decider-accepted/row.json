@@ -1,0 +1,70 @@
+{
+  "demos": {
+    "r4_decide": {
+      "api": {
+        "  SYSTEM  ": "ACCEPTED",
+        "AI-Agent": "ACCEPTED",
+        "Alice Operator": "ACCEPTED",
+        "J. Schmidt": "ACCEPTED",
+        "RoutineBot": "ACCEPTED",
+        "agent": "ACCEPTED",
+        "agent-007": "ACCEPTED",
+        "automation": "ACCEPTED",
+        "automation-2": "ACCEPTED",
+        "bot": "ACCEPTED",
+        "bot:alpha": "ACCEPTED",
+        "cron": "ACCEPTED",
+        "cron-runner": "ACCEPTED",
+        "machine": "ACCEPTED",
+        "monitor": "ACCEPTED",
+        "report-machine": "ACCEPTED",
+        "routine": "ACCEPTED",
+        "scheduler": "ACCEPTED",
+        "scheduler.exe": "ACCEPTED",
+        "script": "ACCEPTED",
+        "system": "ACCEPTED"
+      },
+      "cli": {
+        "human": {
+          "by": "Alice Operator",
+          "exit": 0,
+          "stderr": "",
+          "stdout": "recorded APPROVED for 9aef88be-659b-422e-8f00-1ed28587c6ea by Alice Operator at 2026-10-01T07:18:26Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"
+        },
+        "machine": {
+          "by": "system",
+          "exit": 0,
+          "stderr": "",
+          "stdout": "recorded APPROVED for 9aef88be-659b-422e-8f00-1ed28587c6ea by system at 2026-10-01T07:18:25Z\nexecution_state=NOT_EXECUTED (unchanged; this routine executes nothing)"
+        }
+      },
+      "frozen_fields": {
+        "after_decisions": {
+          "decided_by": "Alice Operator",
+          "execution_allowed_by_this_routine": false,
+          "execution_state": "NOT_EXECUTED",
+          "expires_at_utc": null,
+          "status": "APPROVED"
+        }
+      },
+      "item_created": {
+        "execution_allowed_by_this_routine": false,
+        "execution_state": "NOT_EXECUTED",
+        "expires_at_utc": null,
+        "status": "PENDING"
+      },
+      "kind": "r4_decide"
+    }
+  },
+  "file": "approval_queue.py",
+  "gateA_exit": 1,
+  "gateA_summary": "SUMMARY: R1=PASS  R2=PASS  R3=PASS  R4=FAIL",
+  "gateB_exit": 1,
+  "gateB_summary": "SUMMARY: R1=FAIL  R2=FAIL  R3=FAIL  R4=PASS",
+  "gate_a_rule": "RULE 4",
+  "id": "r4-a-nonhuman-decider-accepted",
+  "readonly_scan_exit": 0,
+  "readonly_scan_line": "[verify_readonly] forbidden=0 exempt=28 missing_targets=0",
+  "reason": "R4 violation: the decider check is deleted, so any machine identity (e.g. 'system', 'agent-007') can sign an approval.",
+  "rule": "R4"
+}

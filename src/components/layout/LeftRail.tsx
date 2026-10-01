@@ -100,21 +100,39 @@ const LeftRail: React.FC = () => {
           {!collapsed && <span className="font-medium text-cyan-500/90 tracking-wide">MEMORY</span>}
         </NavLink>
 
-        {/* WORKERS section */}
+        {/* WORKERS / ENGINEERING section */}
         <div className="nav-section-label" style={{ marginTop: 4 }}>
           {collapsed ? <Cpu size={14} /> : 'WORKERS'}
         </div>
+        <NavLink
+          to="/engineering"
+          data-testid="nav-antigravity"
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          title="AntiGravity Engineering Workspace"
+        >
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-cyan-500/40 bg-cyan-500/20 shadow-[0_0_8px_rgba(6,182,212,0.3)]">
+            <Cpu size={12} className="text-cyan-400" />
+          </div>
+          {!collapsed && (
+            <div className="flex items-center justify-between" style={{ flex: 1 }}>
+              <span className="font-semibold text-cyan-400 tracking-wide">
+                ANTIGRAVITY
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1" title="AntiGravity Active" />
+            </div>
+          )}
+        </NavLink>
         <NavLink
           to="/workers"
           data-testid="nav-local-workers"
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           title="Local Workers"
         >
-          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-cyan-500/30 bg-cyan-500/10">
-            <Cpu size={12} className="text-cyan-400" />
+          <div className="w-6 h-6 rounded flex items-center justify-center shrink-0 border border-slate-700 bg-slate-800">
+            <Layers size={12} className="text-slate-400" />
           </div>
           {!collapsed && (
-            <span className="font-medium text-cyan-400/90 tracking-wide" style={{ flex: 1 }}>
+            <span className="font-medium text-slate-400 tracking-wide" style={{ flex: 1 }}>
               LOCAL WORKERS
             </span>
           )}

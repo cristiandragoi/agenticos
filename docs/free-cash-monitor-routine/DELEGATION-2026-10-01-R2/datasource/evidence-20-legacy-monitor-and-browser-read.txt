@@ -1,0 +1,50 @@
+# the LEGACY/second FreeCash monitor that already exists in the repo (documented, NOT run, NOT forked)
+$ ls -la server/scripts/freecash-daily-monitor.mjs server/scripts/verify-freecash-rules.mjs
+-rwxr-xr-x 1 cd-pr 197609 10474 Sep 11 10:21 server/scripts/freecash-daily-monitor.mjs
+-rwxr-xr-x 1 cd-pr 197609  3034 Sep 11 11:52 server/scripts/verify-freecash-rules.mjs
+exit=0
+
+$ grep -n 'STATUS_API_URL' server/scripts/freecash-daily-monitor.mjs
+32:  STATUS_API_URL: process.env.FREECASH_STATUS_API || 'https://api.freecash.com/v1/status',
+92:  const url = config.STATUS_API_URL;
+exit=0
+
+$ ls -la server/scripts/inspect_freecash_*.ts server/scripts/check_freecash_session.ts
+-rw-r--r-- 1 cd-pr 197609 2953 Sep 22 11:06 server/scripts/check_freecash_session.ts
+-rw-r--r-- 1 cd-pr 197609 3275 Sep 22 11:11 server/scripts/inspect_freecash_dashboard.ts
+-rw-r--r-- 1 cd-pr 197609  448 Sep 22 08:47 server/scripts/inspect_freecash_detail.ts
+-rw-r--r-- 1 cd-pr 197609 2668 Sep 22 11:12 server/scripts/inspect_freecash_earn.ts
+-rw-r--r-- 1 cd-pr 197609 1965 Sep 22 11:06 server/scripts/inspect_freecash_login.ts
+-rw-r--r-- 1 cd-pr 197609 1923 Sep 22 11:05 server/scripts/inspect_freecash_state.ts
+-rw-r--r-- 1 cd-pr 197609 1535 Sep 22 08:47 server/scripts/inspect_freecash_task.ts
+exit=0
+
+$ grep -n "goto('https://freecash\|connectOverCDP" server/scripts/inspect_freecash_dashboard.ts
+5:  const browser = await chromium.connectOverCDP('http://127.0.0.1:9223');
+11:    await page.goto('https://freecash.com/earn', { waitUntil: 'domcontentloaded' });
+21:    await page.goto('https://freecash.com/earn', { waitUntil: 'domcontentloaded' });
+exit=0
+
+$ curl -s -m 3 -o /dev/null -w 'CDP 9223 HTTP %{http_code}\n' http://127.0.0.1:9223/json/version
+CDP 9223 HTTP 000
+exit=7
+
+$ find . -name storage_state.json   # managed-browser sign-in state
+exit=0
+
+$ grep -rniE 'freecash|free-cash' .env server/.env 2>/dev/null | sed -E 's/=.*/=[REDACTED]/'
+exit=0
+
+$ sed -n '430,440p' server/src/index.ts
+  } catch (e: any) {
+    logger.warn(`[IncidentReconciler] Periodic run error: ${e?.message}`);
+  }
+}, 5 * 60 * 1000);
+
+// FreeCash is no longer our objective. Do not resume its tasks on startup; preserve existing records.
+// import { reconcileGoalsOnStartup } from './services/freeCash/freeCashExecutor.js';
+// void reconcileGoalsOnStartup().catch(...);
+
+// CodeX goals: reconcile orphaned goals (backend restarted while their loop
+// ran and the worker lease expired) so they never show "Waiting for local
+exit=0

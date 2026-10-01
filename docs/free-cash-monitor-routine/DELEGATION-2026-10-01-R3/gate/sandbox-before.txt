@@ -1,0 +1,24 @@
+=== BEFORE: production state root hash pin (2026-10-01T07:34:48Z) ===
+a287a902579cb468bb5bf05635fdc882e7d8071bbc9e1d71167bf6ef2a293bf9 */d/AgenticOS/data/freecash-monitor/state/last-run.json
+1b9c7c07868b31cb6cc62bb6dcaa943eb5038a9c1f53ce958c9f5c02799399a8 */d/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl
+be8becc30e04fa24623ae426c06348f60380788fa758b9dcf3a7029963eca59c */d/AgenticOS/data/freecash-monitor/state/operator-state.json
+--- day-locks ---
+total 0
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 .
+drwxr-xr-x 1 cd-pr 197609 0 Okt  1 08:53 ..
+-rw-r--r-- 1 cd-pr 197609 0 Sep 20 21:08 2026-09-20.lock
+-rw-r--r-- 1 cd-pr 197609 0 Sep 30 21:01 2026-09-30.lock
+-rw-r--r-- 1 cd-pr 197609 0 Okt  1 08:53 2026-10-01.lock
+--- full tree w/ mtimes ---
+2026-09-20T21:08:00.7001879000Z /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-09-20.lock
+2026-09-20T21:08:00.7189663000Z /d/AgenticOS/data/freecash-monitor/state/operator-state.json
+2026-09-20T21:08:00.7234377000Z /d/AgenticOS/data/freecash-monitor/snapshots/2026-09-20.json
+2026-09-30T21:01:05.5325622000Z /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-09-30.lock
+2026-09-30T21:02:05.6301726000Z /d/AgenticOS/data/freecash-monitor/state/notified-keys.json
+2026-09-30T21:02:05.6346945000Z /d/AgenticOS/data/freecash-monitor/snapshots/2026-09-30.json
+2026-09-30T21:02:06.5210720000Z /d/AgenticOS/data/freecash-monitor/logs/task-a.log
+2026-09-30T21:02:08.6695385000Z /d/AgenticOS/data/freecash-monitor/logs/task-b-watchdog.log
+2026-10-01T08:53:46.6922555000Z /d/AgenticOS/data/freecash-monitor/state/day-locks/2026-10-01.lock
+2026-10-01T08:53:46.7001916000Z /d/AgenticOS/data/freecash-monitor/snapshots/2026-10-01.json
+2026-10-01T08:53:46.7047175000Z /d/AgenticOS/data/freecash-monitor/alerts/alerts.jsonl
+2026-10-01T08:53:46.7184158000Z /d/AgenticOS/data/freecash-monitor/state/last-run.json

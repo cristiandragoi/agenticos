@@ -1,0 +1,24 @@
+=== provenance of monitoring/freecash/__pycache__/run_daily_check.cpython-311.pyc ===
+mtime: 2026-10-01 11:42:25.476650000 +0200
+my first python execution (raw/02-enforcement-probe.txt):  2026-10-01 11:43:56.718383700 +0200
+my bridge_proof run (raw/06-bridge-proof.txt):            2026-10-01 11:47:38.861208400 +0200
+=> the .pyc (11:42:25) PREDATES every python process this run started (11:43+). NOT MINE.
+
+=== my run cached into MY OWN copy, and did NOT produce a run_daily_check .pyc there ===
+(run_daily_check.py was __main__ in my subprocess; CPython does not cache __main__)
+approval_queue.cpython-311.pyc
+changedetect.cpython-311.pyc
+gate.cpython-311.pyc
+notify.cpython-311.pyc
+operator_state.cpython-311.pyc
+paths.cpython-311.pyc
+readonly_client.cpython-311.pyc
+verify_readonly.cpython-311.pyc
+run_daily_check.pyc present in my copy? NO
+
+=== the source file the .pyc caches is UNCHANGED ===
+2026-09-20 06:57:40.273090900 +0200 monitoring/freecash/run_daily_check.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *monitoring/freecash/run_daily_check.py
+
+=== no module SOURCE under monitoring/ or scripts/monitoring/ was modified since my session start ===
+(blank above == no source file touched)

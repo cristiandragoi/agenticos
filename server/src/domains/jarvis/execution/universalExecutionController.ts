@@ -34,6 +34,7 @@ function boundTasks(
 }
 import { semanticGoalParser } from './semanticGoalParser.js';
 import { terminalExecutor } from './executors/terminalExecutor.js';
+import { runWithTurnOwnership } from '../perception/turnOwnership.js';
 import { browserExecutor } from './executors/browserExecutor.js';
 import { desktopExecutor } from './executors/desktopExecutor.js';
 import { gitExecutor } from './executors/gitExecutor.js';
@@ -134,8 +135,27 @@ export class UniversalExecutionController {
 
   /**
    * Main entrypoint for all user turns (Voice, Text Chat, UI, API).
+   *
+   * P0 turn-ownership entry point: establishes the ambient turn frame for the
+   * WHOLE dispatch subtree, so every executor, browser-operator and terminal call
+   * reached from this turn carries real ownership identity. The frame is
+   * established here rather than at individual call sites because the gate is
+   * fail-closed — wrapping call sites one by one left the rest unprotected.
    */
-  public async handleUserTurn(input: {
+  public async handleUserTurn(
+    input: Parameters<UniversalExecutionController['handleUserTurnInner']>[0],
+  ): Promise<TurnExecutionResult> {
+    return runWithTurnOwnership(
+      {
+        conversationId: input.conversationId,
+        turnId: input.turnId ?? `turn-${Date.now()}`,
+        capability: 'user_turn',
+      },
+      () => this.handleUserTurnInner(input),
+    );
+  }
+
+  public async handleUserTurnInner(input: {
     prompt: string;
     conversationId: string;
     turnId?: string;
@@ -194,6 +214,20 @@ export class UniversalExecutionController {
   }): Promise<TurnExecutionResult> {
     const t0 = Date.now();
     const { prompt, conversationId, turnId = `turn-${Date.now()}` } = input;
+
+    // ── P0 turn-ownership ────────────────────────────────────────────────────
+    // Register the active turn for this conversation so any older in-flight
+    // operation is marked superseded, and establish the ambient turn frame that
+    // every executor reads at its OS boundary (see perception/turnOwnership.ts).
+    {
+      const { noteConversationTurn } = await import('../perception/perceptionOperation.js');
+      const superseded = noteConversationTurn(conversationId, turnId);
+      if (superseded.length) {
+        logger.info('[UniversalExecutionController] SUPERSEDED_OPERATIONS_CANCELLED', {
+          conversationId, turnId, cancelled: superseded.map((o) => o.operationId),
+        });
+      }
+    }
     bump('turns');
     const sttConfidence = input.sttConfidence ?? 1.0;
     const rawStt = input.rawStt || prompt;
@@ -879,7 +913,10 @@ SPOKEN: "${finalSpokenResponse}"`);
         text: `I'm opening ${targetApp}.`,
       });
 
-      const res = await desktopExecutor.openApplication(targetApp);
+      const res = await runWithTurnOwnership(
+        { conversationId, turnId, capability: 'desktop_launch' },
+        () => desktopExecutor.openApplication(targetApp),
+      );
       const isVerified = res.success === true;
       let speech = '';
       if (isVerified) {
@@ -1931,7 +1968,10 @@ SPOKEN: "${finalSpokenResponse}"`);
           text: `I'm opening ${displayName}.`,
         });
 
-        const navRes = await browserExecutor.navigate(displayName, { conversationId, rawStt });
+        const navRes = await runWithTurnOwnership(
+          { conversationId, turnId, capability: 'browser_navigation' },
+          () => browserExecutor.navigate(displayName, { conversationId, rawStt }),
+        );
         const verification = await browserExecutor.verify(navRes);
         const page = browserOperator.getPage();
         const activeHost = page ? new URL(page.url()).hostname.toLowerCase().replace(/^www\./, '') : '';
@@ -2229,10 +2269,15 @@ SPOKEN: "${finalSpokenResponse}"`);
     // "That's good. Don't do anything else. Keep Julian Goldie open.",
     // "Stay on this page.", "Don't move.", "Don't do anything.", "Leave this open.",
     // "Good, leave it there." must NEVER leak into page typing or trigger new actions.
+    const isQuestionOrChat =
+      /\b(?:what|which|who|where|when|why|how|tell\s+me|switch|change|speak|good\s+morning|hello|hey|hi)\b/i.test(commandText);
+
     const isHoldOrConstraint =
-      /^(?:that'?s\s+good|you\s+don'?t\s+have\s+to\s+do\s+anything|just\s+keep|keep\s+.+\s+open|leave\s+.+\s+open|stay\s+on\s+this\s+page|don'?t\s+move|don'?t\s+do\s+anything|good,?\s+leave\s+it\s+there|leave\s+it\s+there)\b/i.test(commandText) ||
-      /\b(?:keep\s+(?:julian\s+goldie|the\s+channel|this|it)\s+open|leave\s+this\s+open|stay\s+on\s+this\s+page|don'?t\s+move|don'?t\s+do\s+anything\s+else)\b/i.test(commandText) ||
-      resolveConversationalCorrection(commandText, browserStateStore.get(conversationId)).kind === 'stay_page';
+      !isQuestionOrChat && (
+        /^(?:that'?s\s+good|you\s+don'?t\s+have\s+to\s+do\s+anything|just\s+keep|keep\s+.+\s+open|leave\s+.+\s+open|stay\s+on\s+this\s+page|don'?t\s+move|don'?t\s+do\s+anything|good,?\s+leave\s+it\s+there|leave\s+it\s+there)\b/i.test(commandText) ||
+        /\b(?:keep\s+(?:julian\s+goldie|the\s+channel|this|it)\s+open|leave\s+this\s+open|stay\s+on\s+this\s+page|don'?t\s+move|don'?t\s+do\s+anything\s+else)\b/i.test(commandText) ||
+        resolveConversationalCorrection(commandText, browserStateStore.get(conversationId)).kind === 'stay_page'
+      );
 
     if (isHoldOrConstraint) {
       await browserOperator.blurActiveElement();
@@ -2571,7 +2616,10 @@ SPOKEN: "${finalSpokenResponse}"`);
         target: resolvedExplicitBrowserTarget.displayName,
         commandText,
       });
-      const navRes = await browserExecutor.navigate(resolvedExplicitBrowserTarget.displayName, { conversationId, rawStt });
+      const navRes = await runWithTurnOwnership(
+        { conversationId, turnId, capability: 'browser_navigation' },
+        () => browserExecutor.navigate(resolvedExplicitBrowserTarget.displayName, { conversationId, rawStt }),
+      );
       const verification = await browserExecutor.verify(navRes);
       const isVerified = verification.verified === true;
       let spokenText = navRes.output;
@@ -5020,8 +5068,12 @@ SPOKEN: "${finalSpokenResponse}"`);
         })),
       });
 
-      // Execute step
-      let execRes: ExecutionResult = await executor.executeStep(step, context);
+      // Execute step — inside the turn frame so the executor can refuse a
+      // superseded/cancelled turn at its own OS boundary.
+      let execRes: ExecutionResult = await runWithTurnOwnership(
+        { conversationId, turnId, capability: String(step.action || 'universal_action') },
+        () => executor.executeStep(step, context),
+      );
 
       // Verify reality
       let verifyRes: VerificationResult = await executor.verify(execRes, context);

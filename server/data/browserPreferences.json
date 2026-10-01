@@ -1,0 +1,14 @@
+[
+  {
+    "id": "youtube.com",
+    "domain": "youtube.com",
+    "preference": "ask",
+    "aliases": [
+      "google.com",
+      "consent.youtube.com",
+      "accounts.google.com"
+    ],
+    "source": "operator",
+    "updatedAt": 1790847389806
+  }
+]

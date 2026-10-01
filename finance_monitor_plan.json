@@ -1,0 +1,42 @@
+{
+  "workflow_name": "Free Cash Finance Daily Monitor",
+  "description": "Daily status monitoring routine for Free Cash Finance Automation that enforces zero automated earnings, once-per-day checks, immediate notifications on activity, and mandatory human approval before ALL external actions.",
+  "daily_check_schedule": "08:00 UTC daily via cron/scheduled job with idempotency guard (last_run timestamp enforced)",
+  "approval_flow": "Monitor-only mode -> Notification triggers when earnings/status changes detected -> User receives alert via SMS+Email+Push -> Manual review of activity details presented -> User approves/rejects/modifies action via secure channel -> Post-approve logging and execution if allowed",
+  "constraints_validation": [
+    "Never auto-earn: System runs in READ-ONLY monitor mode only; ALL write/transfer/invest actions are queued but require explicit human signature before any external API calls or wallet transactions.",
+    "Once/day max: Idempotency token enforced - job checks current_time >= last_run_interval + 24h before executing; duplicate executions rejected and logged as error event",
+    "Notify immediately on earnings/status change: Pub/Sub triggers fire in <1s when activity detected; multi-channel alerts (SMS push email) sent without delay to registered contacts",
+    "Human approval required before ALL external actions: Approval gateway intercepts every queued action; request includes amount counterparty purpose risk-level and pre-approved-actions list; signature must match stored public key"
+  ],
+  "notification_channels": [
+    {
+      "type": "SMS/Urgent Push",
+      "provider": "Twilio or WhatsApp Business API",
+      "use_case": "Critical alerts: earnings detected status anomalies requiring immediate action",
+      "delivery_time": "<60 seconds"
+    },
+    {
+      "type": "Email Detailed Report",
+      "provider": "SMTP/Gmail API",
+      "use_case": "Full activity log approvals pending notifications, daily summary",
+      "delivery_time": "<2 minutes"
+    },
+    {
+      "type": "Mobile App Push",
+      "provider": "Native Firebase Cloud Messaging or Web3Modal",
+      "use_case": "Push-to-someone-approve actions status change digests",
+      "delivery_time": "immediate (<15s)"
+    }
+  ],
+  "script_implementation": "# Pseudocode implementation:\n\n# 1. Daily Run Guard\ndef check_daily_ready(last_run_timestamp, current_time):\n    if current_time < last_run_timestamp + timedelta(days=1):\n        return False\"Check already ran today\"\n    return True\n\n# 2. Monitor-Only Check\ndef run_monitor_only():\n    # Read-only access to finance APIs\n    balance = fetch_balance()  # No API key secrets exposed unnecessarily\n    transactions = fetch_transactions()\n    earnings_detected = check_unusual_income(transactions)\n    status_changed = detect_status_change()\n    \n    if earnings_detected or status_changed:\n        # Queue notification event - NO action taken yet\n        queue_notification_event(earnings_detected, status_changed)\n        return events\n    return []\n\n# 3. Notification Trigger\ndef notify_activity(events):\n    for event in events:\n        send_sms(f\"[ALERT] {event['type']}:{event.get('amount')}\")\n        send_email_with_report(event)\n        send_push_notification(event)\n        log_event_to_audit(event)\n\n# 4. Approval Request\ndef create_approval_request(action, event_details):\n    request = {\n        'action_type': action,\n        'counterparty': action.get('counterparty'),\n        'amount': action['amount'],\n        'purpose': event_details.get('purpose'),\n        'risk_level': calculate_risk_level(action),  # Low/Medium/High\n        'expires_at': current_time + timedelta(hours=24)\n    }\n    return request\n\n# 5. User Approval Gateway (Human-in-the-loop)\ndef handle_approval(user_input):\n    if user_input == 'approve_and_execute':\n        log_approval_event()\n        execute_queued_action_if_safe(action, risk_score)\n    elif user_input == 'approve_without_full_execution':\n        log_conditional_approval()\n    elif user_input == 'reject':  \n        log_rejection_reason()\n        cleanup_queued_action(action)\n\n# 6. Verification Checklist:\ndef verify_compliance():\n    assert no_auto_earn_triggered()  # All write attempts were human-gated\n    assert single_run_per_day()     # Idempotency token verified\n    assert immediate_notification_sent()  # Pub/Sub latency <1s\n    assert all_actions_human_approved()  # Audit log signature match",
+  "verification_steps": [
+    "Execute daily run in sandbox with fake API credentials",
+    "Verify idempotency guard allows only one execution per 24-hour window",
+    "Confirm notification triggers fire within <1 second of event detection",
+    "Test approval gateway presents correct user interface for approve/reject choices",
+    "Validate all queued actions have matching signatures in audit trail",
+    "Run compliance sweep: confirm no auto-earn events logged in last 30 days",
+    "Verify backup notification channel redundancy (email+SMS) on primary failure"
+  ]
+}

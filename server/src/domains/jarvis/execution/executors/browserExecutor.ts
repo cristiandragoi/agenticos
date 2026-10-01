@@ -24,6 +24,7 @@ import {
   parseOrdinalIndex,
   type ActiveBrowserEntityContext,
 } from '../../../../services/browser/browserActionContract.js';
+import { assertSideEffectOwnership } from '../../perception/turnOwnership.js';
 import { logger } from '../../../../utils/logger.js';
 import { activeInteractionContextStore } from '../../activeInteractionContext.js';
 import { voiceTurnAuditStore } from '../voiceTurnAuditStore.js';
@@ -78,6 +79,22 @@ export class BrowserExecutor {
   }
 
   public async navigate(targetInput: string, context?: TurnContext): Promise<ExecutionResult> {
+    // ── P0 turn-ownership enforcement ────────────────────────────────────────
+    // Opening/focusing a browser and navigating is an external side effect. A
+    // superseded or cancelled turn must not drive the browser at all, so the gate
+    // runs immediately before browserOperator.openTarget.
+    {
+      const gate = assertSideEffectOwnership('browser_navigation', 'open/focus browser and navigate');
+      if (!gate.ok) {
+        logger.warn('[BrowserExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, target: targetInput,
+        });
+        return { success: false, data: { reason: gate.reason }, output: '', error: `rejected:${gate.reason}` };
+      }
+    }
     const outcome = await browserOperator.openTarget(targetInput, {
       conversationId: context?.conversationId,
       goalText: targetInput,
@@ -1695,6 +1712,18 @@ export class BrowserExecutor {
   }
 
   public async executeStep(step: ActionPlanStep, context: TurnContext): Promise<ExecutionResult> {
+    {
+      const gate = assertSideEffectOwnership('browser_action', `browser action: ${step.action || 'navigate'}`);
+      if (!gate.ok) {
+        logger.warn('[BrowserExecutor] SIDE_EFFECT_REJECTED', {
+          reason: gate.reason, capability: gate.capability,
+          conversationId: gate.conversationId, turnId: gate.turnId,
+          operationId: gate.operationId, registered: gate.registered,
+          description: gate.description, step: step.action,
+        });
+        return { stepId: step.stepId, success: false, data: { reason: gate.reason }, output: '', error: `rejected:${gate.reason}` };
+      }
+    }
     const target = (step.parameters.target as string) || (step.parameters.url as string) || '';
     const action = step.action || 'navigate';
 

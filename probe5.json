@@ -1,0 +1,425 @@
+{
+ "results": {
+  "1600x900 dpr1": {
+   "geom": {
+    "clip": {
+     "x": 260,
+     "y": 172,
+     "width": 1020,
+     "height": 560
+    },
+    "cssW": 1020,
+    "cssH": 560,
+    "attrW": 1020,
+    "attrH": 560,
+    "bufW": 1020,
+    "bufH": 560,
+    "dpr": 1,
+    "shellH": 560,
+    "shellW": 1020,
+    "regionW": 1020,
+    "regionH": 749.3,
+    "canvasTransform": "none"
+   },
+   "silhouette": {
+    "W": 1020,
+    "H": 560,
+    "thr6": {
+     "drawn": 63567,
+     "centreRunX": 260,
+     "centreRunY": 263,
+     "centreOvalRatio_XoverY": 0.989,
+     "centreBoxBbox": {
+      "w": 528,
+      "h": 392,
+      "ratio": 1.347
+     }
+    },
+    "thr25": {
+     "drawn": 61899,
+     "centreRunX": 260,
+     "centreRunY": 263,
+     "centreOvalRatio_XoverY": 0.989,
+     "centreBoxBbox": {
+      "w": 526,
+      "h": 392,
+      "ratio": 1.342
+     }
+    },
+    "thr60": {
+     "drawn": 59695,
+     "centreRunX": 260,
+     "centreRunY": 263,
+     "centreOvalRatio_XoverY": 0.989,
+     "centreBoxBbox": {
+      "w": 448,
+      "h": 392,
+      "ratio": 1.143
+     }
+    },
+    "thr100": {
+     "drawn": 59038,
+     "centreRunX": 260,
+     "centreRunY": 263,
+     "centreOvalRatio_XoverY": 0.989,
+     "centreBoxBbox": {
+      "w": 447,
+      "h": 392,
+      "ratio": 1.14
+     }
+    }
+   }
+  },
+  "1600x900 dpr1.25": {
+   "geom": {
+    "clip": {
+     "x": 260,
+     "y": 172,
+     "width": 1020,
+     "height": 560
+    },
+    "cssW": 1020,
+    "cssH": 560,
+    "attrW": 1020,
+    "attrH": 560,
+    "bufW": 1020,
+    "bufH": 560,
+    "dpr": 1.25,
+    "shellH": 560,
+    "shellW": 1020,
+    "regionW": 1020,
+    "regionH": 749.3,
+    "canvasTransform": "none"
+   },
+   "silhouette": {
+    "W": 1275,
+    "H": 700,
+    "thr6": {
+     "drawn": 109210,
+     "centreRunX": 337,
+     "centreRunY": 346,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 659,
+      "h": 490,
+      "ratio": 1.345
+     }
+    },
+    "thr25": {
+     "drawn": 104234,
+     "centreRunX": 337,
+     "centreRunY": 346,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 657,
+      "h": 490,
+      "ratio": 1.341
+     }
+    },
+    "thr60": {
+     "drawn": 100376,
+     "centreRunX": 337,
+     "centreRunY": 346,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 560,
+      "h": 490,
+      "ratio": 1.143
+     }
+    },
+    "thr100": {
+     "drawn": 99323,
+     "centreRunX": 337,
+     "centreRunY": 346,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 559,
+      "h": 490,
+      "ratio": 1.141
+     }
+    }
+   }
+  },
+  "1920x1080 dpr1": {
+   "geom": {
+    "clip": {
+     "x": 260,
+     "y": 142,
+     "width": 1340,
+     "height": 560
+    },
+    "cssW": 1340,
+    "cssH": 560,
+    "attrW": 1340,
+    "attrH": 560,
+    "bufW": 1340,
+    "bufH": 560,
+    "dpr": 1,
+    "shellH": 560,
+    "shellW": 1340,
+    "regionW": 1340,
+    "regionH": 749.3,
+    "canvasTransform": "none"
+   },
+   "silhouette": {
+    "W": 1340,
+    "H": 560,
+    "thr6": {
+     "drawn": 66276,
+     "centreRunX": 264,
+     "centreRunY": 271,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 528,
+      "h": 392,
+      "ratio": 1.347
+     }
+    },
+    "thr25": {
+     "drawn": 64501,
+     "centreRunX": 264,
+     "centreRunY": 271,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 526,
+      "h": 392,
+      "ratio": 1.342
+     }
+    },
+    "thr60": {
+     "drawn": 62356,
+     "centreRunX": 264,
+     "centreRunY": 271,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 448,
+      "h": 392,
+      "ratio": 1.143
+     }
+    },
+    "thr100": {
+     "drawn": 61677,
+     "centreRunX": 264,
+     "centreRunY": 271,
+     "centreOvalRatio_XoverY": 0.974,
+     "centreBoxBbox": {
+      "w": 448,
+      "h": 392,
+      "ratio": 1.143
+     }
+    }
+   }
+  },
+  "2560x1440 dpr1": {
+   "geom": {
+    "clip": {
+     "x": 260,
+     "y": 142,
+     "width": 1980,
+     "height": 560
+    },
+    "cssW": 1980,
+    "cssH": 560,
+    "attrW": 1980,
+    "attrH": 560,
+    "bufW": 1980,
+    "bufH": 560,
+    "dpr": 1,
+    "shellH": 560,
+    "shellW": 1980,
+    "regionW": 1980,
+    "regionH": 749.3,
+    "canvasTransform": "none"
+   },
+   "silhouette": {
+    "W": 1980,
+    "H": 560,
+    "thr6": {
+     "drawn": 65009,
+     "centreRunX": 263,
+     "centreRunY": 267,
+     "centreOvalRatio_XoverY": 0.985,
+     "centreBoxBbox": {
+      "w": 528,
+      "h": 392,
+      "ratio": 1.347
+     }
+    },
+    "thr25": {
+     "drawn": 63244,
+     "centreRunX": 263,
+     "centreRunY": 267,
+     "centreOvalRatio_XoverY": 0.985,
+     "centreBoxBbox": {
+      "w": 526,
+      "h": 392,
+      "ratio": 1.342
+     }
+    },
+    "thr60": {
+     "drawn": 61135,
+     "centreRunX": 263,
+     "centreRunY": 267,
+     "centreOvalRatio_XoverY": 0.985,
+     "centreBoxBbox": {
+      "w": 448,
+      "h": 392,
+      "ratio": 1.143
+     }
+    },
+    "thr100": {
+     "drawn": 60436,
+     "centreRunX": 263,
+     "centreRunY": 267,
+     "centreOvalRatio_XoverY": 0.985,
+     "centreBoxBbox": {
+      "w": 448,
+      "h": 392,
+      "ratio": 1.143
+     }
+    }
+   }
+  },
+  "1024x768 dpr1": {
+   "geom": {
+    "clip": {
+     "x": 260,
+     "y": 203,
+     "width": 444,
+     "height": 380
+    },
+    "cssW": 444,
+    "cssH": 380,
+    "attrW": 444,
+    "attrH": 380,
+    "bufW": 444,
+    "bufH": 380,
+    "dpr": 1,
+    "shellH": 380,
+    "shellW": 444,
+    "regionW": 444,
+    "regionH": 569.3,
+    "canvasTransform": "none"
+   },
+   "silhouette": {
+    "W": 444,
+    "H": 380,
+    "thr6": {
+     "drawn": 32685,
+     "centreRunX": 189,
+     "centreRunY": 189,
+     "centreOvalRatio_XoverY": 1,
+     "centreBoxBbox": {
+      "w": 310,
+      "h": 266,
+      "ratio": 1.165
+     }
+    },
+    "thr25": {
+     "drawn": 31956,
+     "centreRunX": 189,
+     "centreRunY": 189,
+     "centreOvalRatio_XoverY": 1,
+     "centreBoxBbox": {
+      "w": 310,
+      "h": 266,
+      "ratio": 1.165
+     }
+    },
+    "thr60": {
+     "drawn": 30868,
+     "centreRunX": 189,
+     "centreRunY": 189,
+     "centreOvalRatio_XoverY": 1,
+     "centreBoxBbox": {
+      "w": 304,
+      "h": 266,
+      "ratio": 1.143
+     }
+    },
+    "thr100": {
+     "drawn": 30392,
+     "centreRunX": 188,
+     "centreRunY": 189,
+     "centreOvalRatio_XoverY": 0.995,
+     "centreBoxBbox": {
+      "w": 304,
+      "h": 266,
+      "ratio": 1.143
+     }
+    }
+   }
+  },
+  "1400x1000 dpr1": {
+   "geom": {
+    "clip": {
+     "x": 260,
+     "y": 172,
+     "width": 820,
+     "height": 560
+    },
+    "cssW": 820,
+    "cssH": 560,
+    "attrW": 820,
+    "attrH": 560,
+    "bufW": 820,
+    "bufH": 560,
+    "dpr": 1,
+    "shellH": 560,
+    "shellW": 820,
+    "regionW": 820,
+    "regionH": 749.3,
+    "canvasTransform": "none"
+   },
+   "silhouette": {
+    "W": 820,
+    "H": 560,
+    "thr6": {
+     "drawn": 64177,
+     "centreRunX": 262,
+     "centreRunY": 264,
+     "centreOvalRatio_XoverY": 0.992,
+     "centreBoxBbox": {
+      "w": 528,
+      "h": 392,
+      "ratio": 1.347
+     }
+    },
+    "thr25": {
+     "drawn": 62451,
+     "centreRunX": 262,
+     "centreRunY": 264,
+     "centreOvalRatio_XoverY": 0.992,
+     "centreBoxBbox": {
+      "w": 526,
+      "h": 392,
+      "ratio": 1.342
+     }
+    },
+    "thr60": {
+     "drawn": 60256,
+     "centreRunX": 262,
+     "centreRunY": 264,
+     "centreOvalRatio_XoverY": 0.992,
+     "centreBoxBbox": {
+      "w": 448,
+      "h": 392,
+      "ratio": 1.143
+     }
+    },
+    "thr100": {
+     "drawn": 59540,
+     "centreRunX": 262,
+     "centreRunY": 264,
+     "centreOvalRatio_XoverY": 0.992,
+     "centreBoxBbox": {
+      "w": 447,
+      "h": 392,
+      "ratio": 1.14
+     }
+    }
+   }
+  }
+ },
+ "errors": []
+}

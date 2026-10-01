@@ -1,0 +1,66 @@
+=== finance-monitor tree ===
+finance-monitor/.COMPLETION_REPORT.md  (7133 bytes)
+finance-monitor/.delivery_status.json  (164 bytes)
+finance-monitor/.VERIFIED.md  (2635 bytes)
+finance-monitor/config/README.md  (3451 bytes)
+finance-monitor/config/scheduler_setup.md  (4978 bytes)
+finance-monitor/docs/architecture.md  (5660 bytes)
+finance-monitor/docs/rules.md  (3600 bytes)
+finance-monitor/src/action_executor.py  (1449 bytes)
+finance-monitor/src/api_client.py  (5737 bytes)
+finance-monitor/src/notify_manager.py  (7465 bytes)
+finance-monitor/src/orchestrator.py  (3218 bytes)
+finance-monitor/src/rule_engine.py  (6719 bytes)
+finance-monitor/src/wait_gate.py  (5665 bytes)
+finance-monitor/tests/scenarios.md  (7419 bytes)
+finance-monitor/tests/test_rule_enforcement.py  (8524 bytes)
+finance-monitor/__init__.py  (15936 bytes)
+finance-monitor/__pycache__/__init__.cpython-311.pyc  (16502 bytes)
+=== finance-monitor/.delivery_status.json ===
+{
+  "name": "daily-monitoring-setup",
+  "type": "string",
+  "summary": "Daily Status Monitoring Routine for Free Cash Finance Automation - Audit-Ready Prototype"
+}
+
+=== search server route definitions for finance/status/metrics/health ===
+server/src/routers/agentic.ts:90:router.get('/tasks/status', (req, res) => {
+server/src/routers/antigravity.ts:29:router.get('/status', async (_req, res) => {
+server/src/routers/controlPlaneRouter.ts:69:controlPlaneRouter.get('/health', (_req: Request, res: Response) => {
+server/src/routers/controlPlaneRouter.ts:119:controlPlaneRouter.get('/certification/status', async (_req: Request, res: Response) => {
+server/src/routers/controlPlaneRouter.ts:158:controlPlaneRouter.get('/camera/status', async (_req: Request, res: Response) => {
+server/src/routers/gemini.ts:69:router.get('/research/status/:jobId', (req, res) => {
+server/src/routers/health.ts:11:router.get('/', (_req, res) => {
+server/src/routers/health.ts:51:router.post('/restart', (_req, res) => {
+server/src/routers/health.ts:123:router.get('/system', (_req, res) => {
+server/src/routers/health.ts:208:router.get('/gateway', async (_req, res) => {
+server/src/routers/health.ts:630:router.get('/behavioral', async (_req, res) => {
+server/src/routers/health.ts:642:router.post('/hermes-gateway/recover', async (_req, res) => {
+server/src/routers/health.ts:656:router.get('/hermes-gateway', async (_req, res) => {
+server/src/routers/health.ts:667:router.get('/incidents', (_req, res) => {
+server/src/routers/health.ts:683:router.post('/incidents/reconcile', async (req, res) => {
+server/src/routers/health.ts:695:router.get('/production-readiness', async (_req, res) => {
+server/src/routers/hermesApi.ts:54:hermesApiRouter.get('/status', async (_req, res) => {
+server/src/routers/jarvis.ts:711:router.post('/actions/:id/status', async (req, res) => {
+server/src/routers/jarvisNext.ts:30:router.get('/metrics', (_req: Request, res: Response) => {
+server/src/routers/jarvisNext.ts:38:router.post('/metrics/reset', (_req: Request, res: Response) => {
+server/src/routers/jarvisNext.ts:54:router.get('/voicestudio/status', async (_req: Request, res: Response) => {
+server/src/routers/jarvisNext.ts:194:router.get('/arbiter/status', (_req: Request, res: Response) => {
+server/src/routers/loops.ts:70:router.get('/:id/status', (req, res) => {
+server/src/routers/magnitude.ts:12:magnitudeRouter.get('/status', async (_req: Request, res: Response) => {
+server/src/routers/projects.ts:391:router.get('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+server/src/routers/projects.ts:392:router.post('/:projectId/freecash/auth', handleFreeCashAuthStatus);
+server/src/routers/projects.ts:397:router.post('/:projectId/freecash/auth/login', async (req, res) => {
+server/src/routers/projects.ts:413:router.post('/:projectId/freecash/auth/verify', async (req, res) => {
+server/src/routers/projects.ts:443:router.post('/:projectId/freecash/auth/clear', async (req, res) => {
+server/src/routers/providers.ts:94:router.get('/runtime-status', async (_req, res) => {
+server/src/routers/providerStatus.ts:19:providerStatusRouter.get('/status', async (req, res) => {
+server/src/routers/revenue.ts:390:router.get('/metrics', async (req, res) => {
+server/src/routers/revenueSupervisorRouter.ts:9:revenueSupervisorRouter.get('/status', async (_req, res) => {
+server/src/routers/runtimeIdentity.ts:161:router.get('/health', (_req: Request, res: Response) => {
+server/src/routers/selfHeal.ts:12:selfHealRouter.get('/status', async (req, res) => {
+server/src/routers/settings.ts:136:router.get('/provider-credentials/:providerId/status', async (req, res) => {
+server/src/routers/settings.ts:166:router.get('/gateway/credentials-status', async (req, res) => {
+server/src/routers/sync.ts:32:router.get('/status', (req, res) => {
+server/src/routers/telegramRouter.ts:24:telegramRouter.get('/status', (_req: Request, res: Response) => {
+server/src/routers/voice.ts:38:router.get('/tts/status', async (req, res) => {

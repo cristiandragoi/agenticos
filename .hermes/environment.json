@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "recipe": {
+    "name": "Vite",
+    "kind": "vite",
+    "bootstrap": [
+      "npm install"
+    ],
+    "build": [
+      "npm run build"
+    ],
+    "test": [
+      "npm run test",
+      "npm run lint"
+    ],
+    "start": "npm run dev",
+    "port": 5173,
+    "readinessPath": "/",
+    "evidence": [
+      "Detected package.json",
+      "Package manager: npm",
+      "Scripts: dev, dev:clean, dev:stop, test, prebuild:identity, build, verify:fast, verify:integration, verify:runtime, verify:acceptance, verify:all, diagnose:runtime, lint, preview, electron:build, package, deploy:local"
+    ]
+  },
+  "updatedAt": "2026-09-18T19:21:40.386891+00:00"
+}

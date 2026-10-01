@@ -1,0 +1,208 @@
+{
+ "buildId": "d14253df-dirty-20260919-064301",
+ "summary": "CORPUS LIVE PASS 11 passed / 0 failed / 5 skipped-live",
+ "passed": 11,
+ "failed": 0,
+ "skippedLive": 5,
+ "chains": [
+  {
+   "chain": "chain1_shopify_failure",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Jarvis, start the Shopify project.",
+     "reply": "I could not start work on Shopify."
+    },
+    {
+     "prompt": "Why not?",
+     "reply": "I couldn't start work on Shopify because there is currently no runnable task in that project."
+    },
+    {
+     "prompt": "What do you need?",
+     "reply": "Shopify is active, priority 2: 5 goals, 5 project tasks, 0 background tasks, 3 running, 0 blocked."
+    }
+   ]
+  },
+  {
+   "chain": "chain2_freecash_status",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Jarvis, open Free Cash.",
+     "reply": "I found Free Cash and made it the active project, but the project view didn't open."
+    },
+    {
+     "prompt": "Check its status.",
+     "reply": "Free Cash is active, priority 1: 95 goals, 95 project tasks, 50 background tasks, 18 running, 3 blocked."
+    }
+   ]
+  },
+  {
+   "chain": "chain3_freecash_need",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Jarvis, start working on Free Cash.",
+     "reply": "I've assigned Revenue Operator: Free Cash Mission (retry) to the Revenue Operator. One task is running now. 14 items are still blocked. I also found an older blocker about Missing external FreeCash API keys / credentials from September 11, but it hasn't been checked again yet."
+    },
+    {
+     "prompt": "What does it need?",
+     "reply": "Free Cash is active, priority 1: 96 goals, 96 project tasks, 50 background tasks, 20 running, 3 blocked."
+    }
+   ]
+  },
+  {
+   "chain": "chain4_switch_entity_same_action",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Jarvis, open Shopify.",
+     "reply": "I found Shopify and made it the active project, but the project view didn't open."
+    },
+    {
+     "prompt": "Now TikTok Shop.",
+     "reply": "I found TikTok Shop and made it the active project, but the project view didn't open."
+    }
+   ]
+  },
+  {
+   "chain": "chain5_youtube_target_preserved",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Jarvis, Seeadler TV on YouTube.",
+     "reply": "Do you want me to search YouTube for Seeadler TV?"
+    },
+    {
+     "prompt": "The channel.",
+     "reply": "Opened YouTube and searched for Seeadler TV channel on YouTube."
+    }
+   ]
+  },
+  {
+   "chain": "chain6_choice_yes_ambiguous",
+   "status": "SKIPPED-LIVE",
+   "reason": "needs injected conversation state; enforced by the deterministic corpus test"
+  },
+  {
+   "chain": "chain7_yesno_executes",
+   "status": "SKIPPED-LIVE",
+   "reason": "needs injected conversation state; enforced by the deterministic corpus test"
+  },
+  {
+   "chain": "chain8_try_again",
+   "status": "SKIPPED-LIVE",
+   "reason": "needs injected conversation state; enforced by the deterministic corpus test"
+  },
+  {
+   "chain": "chain9_why_without_recorded_reason",
+   "status": "SKIPPED-LIVE",
+   "reason": "needs injected conversation state; enforced by the deterministic corpus test"
+  },
+  {
+   "chain": "chain10_stop_interrupts",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Shut up.",
+     "reply": ""
+    }
+   ]
+  },
+  {
+   "chain": "chain11_low_confidence_keeps_action",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "and jump is start the free cash project.",
+     "reply": "I've assigned Revenue Operator: Free Cash Mission (retry) to the Revenue Operator. One task is running now. 14 items are still blocked. I also found an older blocker about Missing external FreeCash API keys / credentials from September 11, but it hasn't been checked again yet."
+    }
+   ]
+  },
+  {
+   "chain": "chain13_delegation_status",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "Jarvis, start working on Free Cash.",
+     "reply": "I've assigned Revenue Operator: Free Cash Mission (retry) to the Revenue Operator. One task is running now. 14 items are still blocked. I also found an older blocker about Missing external FreeCash API keys / credentials from September 11, but it hasn't been checked again yet."
+    },
+    {
+     "prompt": "What is Codex doing?",
+     "reply": "Codex isn't running anything on Free Cash right now. 2 items are blocked."
+    },
+    {
+     "prompt": "What is Codex doing on Free Cash?",
+     "reply": "Codex isn't running anything on Free Cash right now. 2 items are blocked."
+    },
+    {
+     "prompt": "Is anything running on Free Cash?",
+     "reply": "The Revenue Operator is running Revenue Operator: Free Cash Mission (retry) on Free Cash. 14 items are blocked by Backend restarted while this task was in progress. The worker\u2019s live state was lost"
+    },
+    {
+     "prompt": "Stop the current Free Cash task.",
+     "reply": "I've cancelled Revenue Operator: Free Cash Mission (retry) on Free Cash."
+    },
+    {
+     "prompt": "What failed?",
+     "reply": "Revenue Operator: Free Cash Mission (retry) failed: Worker stall (90s idle)."
+    },
+    {
+     "prompt": "Try that task again.",
+     "reply": "I've re-queued Revenue Operator: Free Cash Mission (retry) as a new task; it's waiting to start."
+    },
+    {
+     "prompt": "What is blocked?",
+     "reply": "14 tasks are blocked on Free Cash by Backend restarted while this task was in progress. The worker\u2019s live state was lost \u2014 resume or retry the task to continue."
+    }
+   ]
+  },
+  {
+   "chain": "chain14_correction_intent",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "No, you didn't.",
+     "reply": "You're right to flag that \u2014 I don't have a verified result for my last action, so I won't claim it worked. Tell me again what you want and I'll do it."
+    },
+    {
+     "prompt": "You know you did not.",
+     "reply": "You're right to flag that \u2014 I don't have a verified result for my last action, so I won't claim it worked. Tell me again what you want and I'll do it."
+    }
+   ]
+  },
+  {
+   "chain": "chain15_credential_question",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "What credentials do you need from me?",
+     "reply": "I don't have an account or access record for that account yet, so I can't tell you which credentials are required \u2014 I won't borrow another project's blocker for this. I need to inspect the that account integration before answering."
+    },
+    {
+     "prompt": "Do you need my email or password?",
+     "reply": "I don't have an account or access record for that account yet, so I can't tell you which credentials are required \u2014 I won't borrow another project's blocker for this. I need to inspect the that account integration before answering."
+    }
+   ]
+  },
+  {
+   "chain": "chain12_no_repeat_loop",
+   "status": "SKIPPED-LIVE",
+   "reason": "needs injected conversation state; enforced by the deterministic corpus test"
+  },
+  {
+   "chain": "chain16_account_binding",
+   "status": "PASS",
+   "transcript": [
+    {
+     "prompt": "What credentials do you need from me?",
+     "reply": "I don't have an account or access record for that account yet, so I can't tell you which credentials are required \u2014 I won't borrow another project's blocker for this. I need to inspect the that account integration before answering."
+    },
+    {
+     "prompt": "Why can't you log in?",
+     "reply": "I don't have an account or access record for that account yet, so I can't tell you which credentials are required \u2014 I won't borrow another project's blocker for this. I need to inspect the that account integration before answering."
+    }
+   ]
+  }
+ ]
+}

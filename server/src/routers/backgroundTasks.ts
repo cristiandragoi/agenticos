@@ -52,6 +52,19 @@ router.get('/approvals', (_req, res) => {
   }
 });
 
+router.get('/ledger', async (_req, res) => {
+  try {
+    const { unifiedOperationalContext } = await import('../domains/controlPlane/UnifiedOperationalContext.js');
+    res.json({
+      ownerId: unifiedOperationalContext.getOwnerId(),
+      activeReferent: unifiedOperationalContext.getActiveReferent(),
+      tasks: unifiedOperationalContext.getRecentTasks(100),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const {
@@ -63,7 +76,7 @@ router.post('/', async (req, res) => {
     if (!title || !worker) {
       return res.status(400).json({ error: 'title and worker are required' });
     }
-    if (!['hermes', 'codex', 'research', 'team', 'automation', 'revenue'].includes(worker)) {
+    if (!['hermes', 'codex', 'antigravity', 'research', 'team', 'automation', 'revenue'].includes(worker)) {
       return res.status(400).json({ error: `Unknown worker kind: ${worker}` });
     }
 

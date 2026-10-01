@@ -1,0 +1,119 @@
+==============================================================================
+freecash rule-gate SELF-TEST  ::  the gate must refuse to certify a seeded violation
+==============================================================================
+package : D:\AgenticOS\monitoring\freecash
+copies  : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test
+python  : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe (3.11.9)
+
+------------------------------------------------------------------------------
+CONTROL (unmutated copy -- the identical command the mutants get)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\control\pkg
+  exit      : 0
+  RULE 1    : PASS
+  RULE 2    : PASS
+  RULE 3    : PASS
+  RULE 4    : PASS
+  verdict   : VERDICT: COMPLIANT -- 4/4 operator rules enforced by an AST layer and a runtime layer
+
+------------------------------------------------------------------------------
+MUTANT m0-syntax-annotation  (rule G0: the exact defect that made the shipped .mjs monitor certifiable: it does not parse)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m0-syntax-annotation\pkg
+  mutation  : gate.py
+  exit      : 2   rule result: NOT_VERIFIABLE   flagged: True
+  first FAIL line: FAIL  gate.py does not parse
+
+------------------------------------------------------------------------------
+MUTANT m1a-cashout-post-on-read-path  (rule 1: an automated earning action (POST /cashout) fired from the read path, bypassing the guard)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m1a-cashout-post-on-read-path\pkg
+  mutation  : readonly_client.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  no HTTP write verb literal reaches any call
+
+------------------------------------------------------------------------------
+MUTANT m1b-method-allowlist-widened  (rule 1: deny-by-default transport widened to permit a write verb)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m1b-method-allowlist-widened\pkg
+  mutation  : readonly_client.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  no HTTP write verb literal reaches any call
+
+------------------------------------------------------------------------------
+MUTANT m2a-day-lock-disabled  (rule 2: two runs on the same operator-local day both perform the status read)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m2a-day-lock-disabled\pkg
+  mutation  : run_daily_check.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  the entry point acquires a day lock
+
+------------------------------------------------------------------------------
+MUTANT m2b-lock-name-not-the-day  (rule 2: the exclusive-create barrier keys on a per-run nonce instead of the calendar day)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m2b-lock-name-not-the-day\pkg
+  mutation  : gate.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  run #2 on the same day D does NOT perform a status read
+
+------------------------------------------------------------------------------
+MUTANT m3a-notify-always  (rule 3: the routine notifies on a day where nothing changed (alarm fatigue; the rule is 'on change'))
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m3a-notify-always\pkg
+  mutation  : notify.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  day 3 (no change) notifies nobody
+
+------------------------------------------------------------------------------
+MUTANT m3b-change-never-notified  (rule 3: the earnings/status change is detected and logged but no notification is ever dispatched)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m3b-change-never-notified\pkg
+  mutation  : run_daily_check.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  day 2 (earnings 1025 -> 1050) is detected and notified
+
+------------------------------------------------------------------------------
+MUTANT m4a-queue-arms-itself  (rule 4: an approval item is armed: execution allowed and the state no longer NOT_EXECUTED)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m4a-queue-arms-itself\pkg
+  mutation  : approval_queue.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  the only execution state the queue writes is NOT_EXECUTED
+
+------------------------------------------------------------------------------
+MUTANT m4b-non-human-decider  (rule 4: any string (including 'system') can sign an approval, so no human approval is required)
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m4b-non-human-decider\pkg
+  mutation  : approval_queue.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  the approval queue defines a human decision path that can refuse
+
+------------------------------------------------------------------------------
+MUTANT m4c-approval-executes  (rule 4: an approved item is auto-executed (a shell call reachable only through an approval))
+------------------------------------------------------------------------------
+  copy      : C:\Users\cd-pr\AppData\Local\Temp\verifier-v2-2026-10-01\work-selftest\self-test\m4c-approval-executes\pkg
+  mutation  : approval_queue.py
+  exit      : 1   rule result: FAIL   flagged: True
+  first FAIL line: FAIL  every external-effect call site in the package is pinned and reviewed
+
+==============================================================================
+SELF-TEST TABLE  (control exit 0, rule results ['PASS', 'PASS', 'PASS', 'PASS'])
+==============================================================================
+  mutation                         rule  exit  rule result    flagged
+  m0-syntax-annotation             G0    2     NOT_VERIFIABLE yes
+  m1a-cashout-post-on-read-path    1     1     FAIL           yes
+  m1b-method-allowlist-widened     1     1     FAIL           yes
+  m2a-day-lock-disabled            2     1     FAIL           yes
+  m2b-lock-name-not-the-day        2     1     FAIL           yes
+  m3a-notify-always                3     1     FAIL           yes
+  m3b-change-never-notified        3     1     FAIL           yes
+  m4a-queue-arms-itself            4     1     FAIL           yes
+  m4b-non-human-decider            4     1     FAIL           yes
+  m4c-approval-executes            4     1     FAIL           yes
+
+  PROVEN: every one of the 4 operator rules has >= 1 seeded violation the gate flags with a non-zero exit
+  control: unmutated copy exits 0 with R1..R4 = ['PASS', 'PASS', 'PASS', 'PASS']
+
+SELF-TEST VERDICT: PASS
+==============================================================================
+SELFTEST_EXIT=0

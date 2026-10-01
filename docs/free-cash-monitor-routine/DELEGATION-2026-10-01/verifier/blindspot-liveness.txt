@@ -1,0 +1,22 @@
+BLIND-SPOT LIVENESS PROBE  (are the two UNCAUGHT mutations real violations?)
+
+==============================================================================
+A. adv3-r4-getattr-exec : enqueue() -> drain_and_execute() -> os.system('echo ...')
+==============================================================================
+EXECUTED 303bf3dc-8f5c-4ffe-b549-b742e5234e00
+ENQUEUED id=303bf3dc-8f5c-4ffe-b549-b742e5234e00 status=PENDING execution_state=NOT_EXECUTED
+exit=0
+
+==============================================================================
+B. adv4-r1-conditional-backdoor : condition FREECASH_LIVE_READ=1 SET  (the mutant's own condition)
+==============================================================================
+run exit=0 stdout='RUN_OK 2026-03-10 outcome=INITIAL_BASELINE source=agenticos_local_metrics(data_available=True) snapshot=2026-03-10.json '
+WIRE=[('POST', '/api/v1/status/cashout'), ('GET', '/api/v1/status/metrics'), ('POST', '/api/v1/cashout'), ('HEAD', '/api/v1/status')]
+exit=0
+
+==============================================================================
+C. adv4-r1-conditional-backdoor : condition FREECASH_LIVE_READ unset  (what every detector run does)
+==============================================================================
+run exit=0 stdout='RUN_OK 2026-03-10 outcome=INITIAL_BASELINE source=agenticos_local_metrics(data_available=True) snapshot=2026-03-10.json '
+WIRE=[('GET', '/api/v1/status/metrics'), ('HEAD', '/api/v1/status')]
+exit=0

@@ -1,0 +1,23 @@
+### captured at
+Do,  1. Okt 2026 11:44:11
+
+### ET.parse of the two DECISION-V2 XML payloads (THIS pass)
+PARSE_OK docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/DECISION-V2-FreeCash-Daily-Monitor.xml
+  URI= \FreeCash-Daily-Monitor
+  StartBoundary= 2026-10-02T09:00:00
+  Command= C:\Windows\System32\cmd.exe
+  Arguments= /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state 1>> D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2>&1
+  WorkingDirectory= D:\AgenticOS
+  StartWhenAvailable= true
+  parse_exit=0
+
+PARSE_OK docs/free-cash-monitor-routine/DELEGATION-2026-10-01/scheduler/DECISION-V2-FreeCash-Daily-Monitor-Missed-Day-Watchdog.xml
+  URI= \FreeCash-Daily-Monitor-Missed-Day-Watchdog
+  StartBoundary= 2026-10-02T21:30:00
+  Command= C:\Windows\System32\cmd.exe
+  Arguments= /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\watchdog.py 1>> D:\AgenticOS\data\freecash-monitor\logs\task-b-watchdog.log 2>&1
+  WorkingDirectory= D:\AgenticOS
+  StartWhenAvailable= true
+  parse_exit=0
+
+### prior pass (evidence-11, 09:02) for contrast: the same two files FAILED ET.parse on a raw '&'

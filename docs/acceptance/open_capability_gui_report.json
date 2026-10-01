@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-09-21T19:38:05.566Z",
+  "backendBuildId": "d14253df-dirty-20260921-193122",
+  "mandatoryCommands": [
+    {
+      "command": "Open YouTube",
+      "reply": "I've opened YouTube.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\cmd_1_Open_YouTube.png"
+    },
+    {
+      "command": "Open Google",
+      "reply": "I've opened Google.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\cmd_2_Open_Google.png"
+    },
+    {
+      "command": "Go to youtube.com",
+      "reply": "I've opened YouTube.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\cmd_3_Go_to_youtube_com.png"
+    },
+    {
+      "command": "Search YouTube for AI agents",
+      "reply": "I've opened YouTube.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\cmd_4_Search_YouTube_for_AI_agents.png"
+    },
+    {
+      "command": "Open Notepad",
+      "reply": "Notepad is open.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\cmd_5_Open_Notepad.png"
+    },
+    {
+      "command": "Open the AgenticOS folder",
+      "reply": "What would you like me to do with AgenticOS folder?",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\cmd_6_Open_the_AgenticOS_folder.png"
+    }
+  ],
+  "continuation": [
+    {
+      "turn": "Open YouTube.",
+      "reply": "I've opened YouTube.",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\continuation_turn_1.png"
+    },
+    {
+      "turn": "Search for Moritz Jarvis.",
+      "reply": "What would you like me to do with Moritz?",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\continuation_turn_2.png"
+    },
+    {
+      "turn": "Open the first result.",
+      "reply": "What would you like me to do with Moritz?",
+      "screenshot": "D:\\AgenticOS\\docs\\acceptance\\screenshots\\open_capability\\continuation_turn_3.png"
+    }
+  ]
+}

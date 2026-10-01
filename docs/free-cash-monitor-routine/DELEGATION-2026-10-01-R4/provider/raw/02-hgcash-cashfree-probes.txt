@@ -1,0 +1,149 @@
+### date
+Do,  1. Okt 2026 11:45:56
+
+########## HG.Cash live probes (unauthenticated GET) ##########
+=== GET https://hg.cash/api/v1/accounts ===
+HTTP/1.1 401 Unauthorized
+Age: 0
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: application/json
+Date: Thu, 01 Oct 2026 09:45:56 GMT
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Matched-Path: /api/v1/accounts
+X-Vercel-Cache: MISS
+X-Vercel-Id: fra1::iad1::d7gw9-1790847956533-2d2199a06b11
+Transfer-Encoding: chunked
+
+HTTP=401 CT=application/json SIZE=77
+shell_rc=0
+--- body (first 500 bytes) ---
+{"error":"Missing or invalid authorization header. Expected: Bearer <token>"}
+
+=== GET https://hg.cash/api/v1/account/1/balance ===
+HTTP/1.1 401 Unauthorized
+Age: 0
+Cache-Control: public, max-age=0, must-revalidate
+Content-Type: application/json
+Date: Thu, 01 Oct 2026 09:45:57 GMT
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Matched-Path: /api/v1/account/[id]/balance
+X-Vercel-Cache: MISS
+X-Vercel-Id: fra1::iad1::4vclp-1790847957113-27ab8d440d8a
+Transfer-Encoding: chunked
+
+HTTP=401 CT=application/json SIZE=77
+shell_rc=0
+--- body (first 500 bytes) ---
+{"error":"Missing or invalid authorization header. Expected: Bearer <token>"}
+
+=== GET https://hg.cash/api/v1/this-path-does-not-exist-fcr4 ===
+HTTP/1.1 404 Not Found
+Accept-Ranges: bytes
+Access-Control-Allow-Origin: *
+Age: 54994
+Cache-Control: public, max-age=0, must-revalidate
+Content-Disposition: inline; filename="404"
+Content-Length: 11016
+Content-Type: text/html; charset=utf-8
+Date: Thu, 01 Oct 2026 09:45:57 GMT
+Etag: "7151784e2f6b63854a77ed9334922ad7"
+Last-Modified: Wed, 30 Sep 2026 18:29:22 GMT
+Server: Vercel
+Strict-Transport-Security: max-age=63072000
+X-Matched-Path: /404
+X-Vercel-Cache: HIT
+X-Vercel-Id: fra1::zqhv4-1790847957731-a7ae7e8d1800
+
+HTTP=404 CT=text/html; charset=utf-8 SIZE=11016
+shell_rc=0
+--- body (first 500 bytes) ---
+<!DOCTYPE html><html data-dpl-id="dpl_CfU7JhSpTHsTeF9LL2EecXQh7mbb" class="geistsans_d5a4f12f-module__Ur3q_a__variable geistmono_157ca88a-module__iaM1Ya__variable"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/_next/static/immutable/chunks/0ivt_zpt7h-j_.css" data-precedence="next"/><link rel="stylesheet" href="/_next/static/immutable/chunks/2-frq3p38wrwe.css" data-precedence="next"/><link rel="stylesheet" href="/_n
+
+=== GET https://docs.hg.cash/llms.txt ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:45:58 GMT
+Content-Type: text/plain; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+CF-Ray: a43a899a5d52b351-FRA
+CF-Cache-Status: HIT
+Cache-Control: public
+ETag: W/"GT4cAXR6SL_5L4uv_vZABSqNpiPyC8BI1z7Vg8bvelo"
+x-vercel-id: iad1::iad1::chjg6-1790699307568-401e8a287874
+Server: cloudflare
+Strict-Transport-Security: max-age=63072000
+Vary: rsc, accept-encoding
+content-security-policy: worker-src 'self' blob:; object-src 'none'; base-uri 'self'; upgrade-insecure-requests; frame-ancestors 'self' https://dashboard.mintlify.com https://app.mintlify.com; form-action 'self'; default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' data: blob: https:; frame-src 'self' blob: https:; connect-src 'self' data: https: wss:;
+content-security-policy-report-only: default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' data: blob: https:; frame-src 'self' blob: https:; connect-src 'self' data: https: wss:; worker-src 'self' blob:; object-src 'none'; report-uri /_mintlify/api/csp-report; report-to mintlify-csp;
+reporting-endpoints: mintlify-csp="/_mintlify/api/csp-report"
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-matched-path: /_sites/[subdomain]/llms.txt
+x-vercel-cache: MISS
+alt-svc: h3=":443"; ma=86400
+
+HTTP=200 CT=text/plain; charset=utf-8 SIZE=10704
+shell_rc=0
+--- body (first 500 bytes) ---
+# HG.Cash
+
+## Documentation
+
+- [Introduction](https://docs.hg.cash/introduction.md)
+
+### Settlement
+
+- [Introduction](https://docs.hg.cash/settlement/introduction.md): Buy USDT with ARS, hold balances, and withdraw—on your schedule
+- [Withdrawal wallets](https://docs.hg.cash/settlement/withdrawals.md): Verify and sign withdrawal wallets
+- [Buy SPOT  USDT](https://docs.hg.cash/settlement/spot.md): Buy spot USDT
+- [USDT Withdrawals](https://docs.hg.cash/exchange/usdt-withdrawals.md): Create USDT
+
+
+########## Cashfree Payouts live probes (unauthenticated GET) ##########
+=== GET https://payout-api.cashfree.com/payout/v1/getBalance ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:45:59 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: keep-alive
+RateLimit-Limit: 50
+RateLimit-Remaining: 49
+RateLimit-Reset: 0.76
+
+HTTP=200 CT=application/json SIZE=68
+shell_rc=0
+--- body (first 500 bytes) ---
+{ "status":"ERROR", "message":"Token is not valid", "subCode":"403"}
+
+=== GET https://payout-api.cashfree.com/payout/v1.2/getBalance ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:46:00 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: keep-alive
+RateLimit-Limit: 50
+RateLimit-Remaining: 49
+RateLimit-Reset: 59.08
+
+HTTP=200 CT=application/json SIZE=68
+shell_rc=0
+--- body (first 500 bytes) ---
+{ "status":"ERROR", "message":"Token is not valid", "subCode":"403"}
+
+=== GET https://payout-api.cashfree.com/payout/v1/this-path-does-not-exist-fcr4 ===
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 09:46:02 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: keep-alive
+RateLimit-Limit: 50
+RateLimit-Remaining: 49
+RateLimit-Reset: 57.36
+
+HTTP=200 CT=application/json SIZE=68
+shell_rc=0
+--- body (first 500 bytes) ---
+{ "status":"ERROR", "message":"Token is not valid", "subCode":"403"}
+

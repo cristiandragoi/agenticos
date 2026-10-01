@@ -1,0 +1,28 @@
+module under test : D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/identity/work/repo-proposed/monitoring/freecash\approval_queue.py
+package           : D:/AgenticOS/docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R4/identity/work/repo-proposed/monitoring/freecash
+guard in force    : proposed allowlist, UNCONFIGURED (fail-closed)
+throwaway root    : C:\Users\cd-pr\AppData\Local/Temp/fc-r4-identity-denylist-9192
+
+--by           exit   outcome  detail
+'hermes-agent' 4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\hermes-agent\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'assistant'    4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\assistant\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'claude'       4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\claude\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'Claude'       4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\Claude\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'operator-1'   4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\operator-1\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'the monitor'  4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\the_monitor\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'agent'        4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\agent\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'monitor'      4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\monitor\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'system'       4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\system\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'bot'          4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: refused: no operator identity is configured. Create C:\Users\cd-pr\AppData\Local\Temp\fc-r4-identity-denylist-9192\bot\state\human-deciders.json as {"schema_version": 1, "operators": ["<your name>"]} or set FREECASH_OPERATOR_IDENTITY="<your name>"; an unconfigured allowlist refuses every decider (fail-closed).
+'   '          4      REFUSED  status=PENDING decided_by=None expires_at_utc=None execution_state=NOT_EXECUTED
+                      stderr: REFUSED: --by is required: a decision must name the human who made it

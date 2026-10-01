@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "operators": [
+    "Alice Operator"
+  ],
+  "_comment": "R4 operator-owned allowlist for the Free Cash monitor approval queue. LIVES AT <data root>/state/human-deciders.json (here shown as an EXAMPLE with an obviously synthetic name). The operator writes this file by hand; the routine only ever READS it. Every entry must be a real human's name. Machine-looking entries (agent/bot/monitor/hermes/assistant/...) are refused at load time. If this file is missing, malformed, empty, or has the wrong schema_version, EVERY decider is refused (fail closed) and the refusal says why."
+}

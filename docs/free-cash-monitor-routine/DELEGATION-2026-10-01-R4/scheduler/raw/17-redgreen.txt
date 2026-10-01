@@ -1,0 +1,52 @@
+=== RED/GREEN harness: xml_gate.py vs 12 planted mutants ===
+GATE            : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\scheduler\xml_gate.py
+ARTIFACT        : D:\AgenticOS\docs\free-cash-monitor-routine\DELEGATION-2026-10-01-R4\scheduler\FreeCash-Daily-Monitor-R4.xml
+INTERPRETER     : C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe
+ASSUMED TODAY   : 2026-10-01
+
+RED        : mv01-raw-ampersand           exit 1  | R4 APPROVAL BEFORE EXTERNAL ACTION / well-formedness: raw & in <Arguments>
+             gate said: VIOLATION: R4 APPROVAL BEFORE EXTERNAL ACTION :: not well-formed XML: not well-formed (invalid token): line 114, column 233
+
+RED        : mv02-wrong-interpreter       exit 1  | R2 ONCE PER DAY: non-tzdata interpreter loses the operator-local day key
+             gate said: VIOLATION: R2 ONCE PER DAY :: <Arguments> does not name the pinned interpreter 'C:\\Users\\cd-pr\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe'
+
+RED        : mv03-second-exec             exit 1  | R2 ONCE PER DAY: a second <Exec> joins the day read with a second command
+             gate said: VIOLATION: R1 NO EARNING ACTION :: forbidden literal '--force-recheck' present in the task definition
+
+RED        : mv04-shell-chaining          exit 1  | R2 ONCE PER DAY: shell chaining turns one Exec into several commands
+             gate said: VIOLATION: R2 ONCE PER DAY :: shell chaining operator '&&' in <Arguments>: /c C:\Users\cd-pr\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe D:\AgenticOS\monitoring\freecash\run_daily_check.py --source operator_state && echo done 1>> D:\AgenticOS\data\freecash-monitor\logs\task-a.log 2>&1
+
+RED        : mv05-past-start-boundary     exit 1  | R2 ONCE PER DAY: past boundary plus StartWhenAvailable fires a catch-up run that burns the day
+             gate said: VIOLATION: R2 ONCE PER DAY :: <StartBoundary> 2026-09-01T09:00:00 is not after 2026-10-01: registering now would fire a catch-up run that consumes the day without a reading
+
+RED        : mv06-parallel-instances      exit 1  | R2 ONCE PER DAY: Parallel lets a slow run stack with the next trigger
+             gate said: VIOLATION: R2 ONCE PER DAY :: <MultipleInstancesPolicy> is 'Parallel', expected IgnoreNew so a slow run is never stacked
+
+RED        : mv07-no-start-when-available exit 1  | R2 ONCE PER DAY: a missed day is silently lost
+             gate said: VIOLATION: R2 ONCE PER DAY :: <StartWhenAvailable> is 'false', expected true so a missed day is fired once instead of being lost
+
+RED        : mv08-elevated-runlevel       exit 1  | R1 NO EARNING ACTION: elevation is not needed to read and must not be held
+             gate said: VIOLATION: R1 NO EARNING ACTION :: <RunLevel> is 'HighestAvailable', expected LeastPrivilege (nothing here needs elevation)
+
+RED        : mv09-skip-days               exit 1  | R2 ONCE PER DAY: DaysInterval 2 silently drops every other day
+             gate said: VIOLATION: R2 ONCE PER DAY :: <ScheduleByDay><DaysInterval> is '2', expected 1 so every day is covered
+
+RED        : mv10-forbidden-verb          exit 1  | R1 NO EARNING ACTION: an earning/withdraw flag on the scheduled command
+             gate said: VIOLATION: R1 NO EARNING ACTION :: forbidden token 'withdraw' present in the task definition
+
+RED        : mv11-double-hyphen-in-comment exit 1  | R4 APPROVAL BEFORE EXTERNAL ACTION / well-formedness: '--' inside an XML comment, which expat rejects
+             gate said: VIOLATION: R4 APPROVAL BEFORE EXTERNAL ACTION :: illegal '--' inside an XML comment (byte offset 39): expat rejects a double hyphen inside a comment
+
+RED        : mv12-second-exec-benign      exit 1  | R2 ONCE PER DAY: a second, verb-free <Exec> still multiplies the action
+             gate said: VIOLATION: R2 ONCE PER DAY :: found 2 <Exec> actions, exactly 1 permitted (the day read must not be multiplied or joined by a second command)
+
+------------------------------------------------------------------------------
+GREEN      : FreeCash-Daily-Monitor-R4.xml exit 0  | unmodified artifact
+             gate said: OK: FreeCash-Daily-Monitor-R4.xml is observe-only (single daily read of the canonical entry point, pinned tzdata interpreter, no write verb, boundary in the future)
+
+mutants planted   : 12
+mutants caught    : 12
+mutants survived  : 0 
+plant failures    : 0 
+HARNESS VERDICT   : ALL MUTANTS CAUGHT, ARTIFACT CLEAN
+harness exit=0

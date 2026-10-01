@@ -1,0 +1,225 @@
+EVIDENCE-01 -- R3 exact source quotes (command -> output, run 2026-10-01T07:10:29Z)
+
+### CMD: sha256sum monitoring/freecash/{changedetect,notify,run_daily_check}.py
+296c65aaf0be395d391ff3cb5ec92bcc1c83b191f7c3cf73377a36ff5773786b *monitoring/freecash/changedetect.py
+9bfca8cddfdea913353e7a27bb6bb9d0c17f5959c3ca11935954a0c445abcb22 *monitoring/freecash/notify.py
+bda54e7d56d31f2eb7d70ae1fb5697ef4e08693060fbd2ee5c6b81327487a54c *monitoring/freecash/run_daily_check.py
+exit=0
+
+### CMD: wc -l on the same three files
+  333 monitoring/freecash/changedetect.py
+  424 monitoring/freecash/notify.py
+  476 monitoring/freecash/run_daily_check.py
+ 1233 total
+
+### CMD: grep -n -B4 -A4 "def dedupe_key" monitoring/freecash/changedetect.py
+210-
+211-# --------------------------------------------------------------------------- compare
+212-
+213-
+214:def dedupe_key(day, change_type, field, old_value, new_value) -> str:
+215-    subject = "%s|%s|%s|%s|%s" % (day, change_type, field, old_value, new_value)
+216-    return hashlib.sha256(subject.encode("utf-8")).hexdigest()
+217-
+218-
+exit=0
+
+### CMD: grep -n -A16 "^def compare" monitoring/freecash/changedetect.py
+226:def compare(prior, current) -> dict:
+227-    """Compare *current* against *prior*.
+228-
+229-    Returns ``{"baseline": bool, "changes": [...], "degraded": [...]}``.
+230-    ``baseline`` is True when there is nothing trustworthy to compare against
+231-    (no prior snapshot, or either side has no data) -- a first run must never
+232-    produce a fake alarm.
+233-    """
+234-    result = {"baseline": False, "changes": [], "degraded": []}
+235-    if not _has_data(prior) or not _has_data(current):
+236-        result["baseline"] = True
+237-        if prior is not None and not _has_data(current):
+238-            result["degraded"].append(
+239-                "no data for %s; comparison skipped" % current.get("day_key")
+240-            )
+241-        return result
+242-    if prior.get("currency") != current.get("currency"):
+
+### CMD: grep -n -A14 "^    earnings_moved = \|^    for field, change_type, subtype in COMPARED_FIELDS" monitoring/freecash/changedetect.py
+256:    earnings_moved = prior.get("earnings_total_cents") != current.get("earnings_total_cents")
+257-    for field, change_type, subtype in COMPARED_FIELDS:
+258-        if field in money_fields:
+259-            continue
+260-        if field == "balance_cents" and earnings_moved:
+261-            continue
+262-        old = prior.get(field)
+263-        new = current.get(field)
+264-        if old == new:
+265-            continue
+266-        change = {
+267-            "change_type": change_type,
+268-            "field": field,
+269-            "old_value": old,
+270-            "new_value": new,
+
+### CMD: grep -n -B2 -A12 "COMPARED_FIELDS = (" monitoring/freecash/changedetect.py
+32-import paths
+33-
+34:COMPARED_FIELDS = (
+35-    ("account_status", "STATUS_CHANGED", None),
+36-    ("earnings_total_cents", "EARNINGS_CHANGED", None),
+37-    ("balance_cents", "BALANCE_CHANGED", None),
+38-    ("pending_cents", "EARNINGS_CHANGED", "pending"),
+39-)
+40-
+41-STATUS_BASELINE = "INITIAL_BASELINE"
+42-STATUS_NO_CHANGE = "OK_NO_CHANGE"
+43-DEGRADED = "MONITOR_DEGRADED"
+44-
+45-_RETENTION_SNAPSHOT_DAYS = 90
+46-_RETENTION_LOG_DAYS = 30
+
+### CMD: grep -n -A9 "^def load_prior_snapshot" monitoring/freecash/changedetect.py
+197:def load_prior_snapshot(day):
+198-    """Most recent snapshot strictly before *day*, or None."""
+199-    if not paths.snapshots_dir().exists():
+200-        return None
+201-    best = None
+202-    for entry in paths.snapshots_dir().glob("*.json"):
+203-        key = entry.stem
+204-        if key >= day:
+205-            continue
+206-        if best is None or key > best:
+207-            best = key
+208-    return load_snapshot(best) if best else None
+
+### CMD: grep -n -B2 -A6 "prior = changedetect.load_prior_snapshot" monitoring/freecash/run_daily_check.py
+400-    }
+401-    metrics = raw.get("payload") if source["data_available"] else {}
+402:    prior = changedetect.load_prior_snapshot(day)
+403-    snapshot = changedetect.build_snapshot(day, metrics, source, raw.get("raw_body") or b"", now=now)
+404-    verdict = changedetect.compare(prior, snapshot)
+405-    snapshot_file, written = changedetect.save_snapshot(snapshot, now=now)
+406-    observed = observed_for(snapshot, source, prior)
+407-
+408-    notifications = 0
+
+### CMD: grep -n -A8 "^def change_dedupe_key" monitoring/freecash/run_daily_check.py
+102:def change_dedupe_key(day, change) -> str:
+103-    return changedetect.dedupe_key(
+104-        day,
+105-        change["change_type"],
+106-        change["field"],
+107-        change["old_value"],
+108-        change["new_value"],
+109-    )
+110-
+
+### CMD: grep -n -A20 "^def key_seen\|^def record_notified_key" monitoring/freecash/notify.py
+123:def key_seen(key: str) -> bool:
+124-    return key in load_notified_keys()["keys"]
+125-
+126-
+127-def key_delivery(key: str):
+128-    entry = load_notified_keys()["keys"].get(key)
+129-    return entry.get("delivery") if isinstance(entry, dict) else None
+130-
+131-
+132-def record_notified_key(key: str, delivery: str) -> dict:
+132:def record_notified_key(key: str, delivery: str) -> dict:
+133-    """Write the key (atomically) into the index.  Called BEFORE any dispatch."""
+134-    doc = load_notified_keys()
+135-    entry = doc["keys"].get(key)
+136-    if isinstance(entry, dict):
+137-        entry["delivery"] = delivery
+138-        entry["updated_at_utc"] = paths.iso_utc()
+139-    else:
+140-        doc["keys"][key] = {
+141-            "first_notified_at_utc": paths.iso_utc(),
+142-            "delivery": delivery,
+143-        }
+144-    paths.write_json_atomic(paths.notified_keys_path(), doc)
+145-    return doc["keys"][key]
+146-
+
+### CMD: grep -n -A22 "^def dispatch" monitoring/freecash/notify.py
+220:def dispatch(message, dedupe_key, day_key, event_type, sender=None, sleep_seconds=None) -> str:
+221-    """Notify at most twice, then give up loudly.  Returns the delivery label."""
+222-    sender = sender or get_sender()
+223-    label = getattr(sender, "delivery_label", DELIVERY_TOAST_OK)
+224-    record_notified_key(dedupe_key, DELIVERY_QUEUED)
+225-    sleep_for = retry_sleep_seconds() if sleep_seconds is None else sleep_seconds
+226-    attempts = 0
+227-    last_error = None
+228-    while attempts < MAX_ATTEMPTS:
+229-        attempts += 1
+230-        try:
+231-            sender(message)
+232-            record_notified_key(dedupe_key, label)
+233-            return label
+234-        except Exception as exc:  # noqa: BLE001 - a delivery failure must never escalate
+235-            last_error = exc
+236-            if attempts < MAX_ATTEMPTS and sleep_for:
+237-                time.sleep(sleep_for)
+238-    record_notified_key(dedupe_key, DELIVERY_FAILED)
+239-    alert(
+240-        "DELIVERY_FAILED",
+241-        day_key,
+242-        message,
+243-        severity=SEVERITY_ALERT,
+244-        dedupe_key=dedupe_key,
+
+### CMD: grep -n -A12 "    if key_seen(dedupe_key):" monitoring/freecash/run_daily_check.py
+131:    if notify.key_seen(key):
+132-        notify.alert(
+133-            change["change_type"],
+134-            day,
+135-            notify.message_for_change(day, change, snapshot, prior, source_note=source.get("note")),
+136-            severity=notify.SEVERITY_INFO,
+137-            dedupe_key=key,
+138-            observed={
+139-                "field": change.get("field"),
+140-                "old_value": change.get("old_value"),
+141-                "new_value": change.get("new_value"),
+142-                "already_notified": True,
+143-            },
+144-        )
+145-        return "DEDUPED"
+
+### CMD: grep -n -B3 -A9 "def alert" monitoring/freecash/notify.py   (the append-only line writer)
+63:def alert(event_type, day_key, message, severity=None, dedupe_key=None, observed=None) -> dict:
+64-    """Append exactly one line to the append-only alert log.  Returns the record."""
+65-    text = "" if message is None else str(message)
+66-    if len(text) > MAX_MESSAGE:
+67-        text = text[: MAX_MESSAGE - 3] + "..."
+68-    record = {
+69-        "event_id": str(uuid.uuid4()),
+70-        "ts_utc": paths.iso_utc(),
+71-        "day_key": day_key,
+72-        "event_type": event_type,
+73-        "dedupe_key": dedupe_key,
+74-        "severity": severity or default_severity(event_type),
+75-        "message": text,
+76-        "observed": observed if isinstance(observed, dict) else {},
+77-    }
+78-    paths.append_jsonl(paths.alerts_path(), record)
+79-    return record
+
+### CMD: grep -n -A18 "def append_jsonl" monitoring/freecash/paths.py
+183:def append_jsonl(path, obj) -> Path:
+184-    """Append one JSON object as a single line, using one O_APPEND write.
+185-
+186-    Append mode means the file is never rewritten, so an existing line can
+187-    never be lost -- the alert log is the routine's evidence record.
+188-    """
+189-    p = Path(path)
+190-    p.parent.mkdir(parents=True, exist_ok=True)
+191-    line = json.dumps(obj, sort_keys=True, ensure_ascii=False) + "\n"
+192-    blob = line.encode("utf-8")
+193-    fd = os.open(str(p), os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o644)
+194-    try:
+195-        written = os.write(fd, blob)
+196-        if written != len(blob):
+197-            raise OSError("short append to %s (%d of %d bytes)" % (p, written, len(blob)))
+198-    finally:
+199-        os.close(fd)
+200-    return p
+201-

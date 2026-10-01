@@ -1,0 +1,272 @@
+--- monitoring/freecash/approval_queue.py	2026-09-20 06:57:40.024218500 +0200
++++ docs/free-cash-monitor-routine/DELEGATION-2026-10-01-R3/identity/proposed/approval_queue.py	2026-10-01 09:32:22.916866600 +0200
+@@ -1,4 +1,6 @@
+-"""approval_queue.py -- R4: enqueue only.  This routine cannot execute anything.
++"""approval_queue.py -- R4 (operator title: "human approval before ANY external
++action; nothing auto-executes"): enqueue only.  This routine cannot execute
++anything.
+ 
+ What this module can do:
+ 
+@@ -18,16 +20,40 @@
+   watchdog, timer, cron entry or scheduler retry may change a pending item's
+   status.  A pending item waits indefinitely.
+ 
++Identity control (R4) -- ALLOWLIST, fail-closed
++-----------------------------------------------
++The decider guard is an **operator-owned allowlist**, not a denylist of bad
++words:
++
++* the allowlist lives at ``<data root>/state/human-deciders.json`` (resolve it
++  read-only with ``approval_queue.py allowlist``).  It is a plain JSON file the
++  operator writes by hand; the routine has **no code path that writes it**;
++* an optional single identity may also be supplied with the
++  ``FREECASH_OPERATOR_IDENTITY`` environment variable, for hosts that prefer not
++  to keep a file.  It is read, never written, by this routine;
++* **missing, unreadable, malformed, out-of-schema, empty, or machine-labelled
++  allowlist -> EVERY decider is refused** (fail closed, exit 4).  An
++  unconfigured allowlist never means "allow anything";
++* even if the allowlist is tampered with, an entry that looks machine-generated
++  ("hermes-agent", "assistant", "the monitor", ...) is refused at load time, and
++  the decider must *also* pass the machine-label floor below.  Tampering with
++  the allowlist is therefore not sufficient to sign;
++* ``NON_HUMAN_DECIDERS`` is retained only as a cheap word floor.  It is **not**
++  the control: the control is the allowlist.
++
+ CLI (human only)::
+ 
+-    py -3 D:/AgenticOS/monitoring/freecash/approval_queue.py decide \
++    py -3 D:/AgenticOS/monitoring/freecash/approval_queue.py decide \\
+         --id <uuid> --decision approve|reject --by "<name>" --note "<why>"
+ 
+     py -3 D:/AgenticOS/monitoring/freecash/approval_queue.py list
++    py -3 D:/AgenticOS/monitoring/freecash/approval_queue.py allowlist
+ """
+ 
+ import argparse
++import json
+ import os
++import re
+ import sys
+ import uuid
+ 
+@@ -51,11 +77,34 @@
+ #: an instruction this routine carries out.
+ ACTION_LABEL_FOR_HUMAN_REVIEW = "REQUEST_PAYOUT"  # readonly-exempt: design-schema label for a human decision; no code executes it
+ 
+-#: A machine may not sign a decision.
++#: A cheap word floor -- it catches the bare words only.  It is NOT the control;
++#: the control is the operator-owned allowlist (see OPERATOR_ALLOWLIST_FILENAME).
+ NON_HUMAN_DECIDERS = frozenset(
+     {"system", "routine", "automation", "agent", "cron", "scheduler", "monitor", "bot", "script", "machine"}
+ )
+ 
++#: --- THE CONTROL ---------------------------------------------------------
++#: The operator-owned allowlist.  Fixed filename inside the routine's *state*
++#: directory, so the name cannot be redirected by an environment variable; the
++#: routine only ever reads it.  When it is missing/corrupt/empty, every decider
++#: is refused (fail closed) -- see load_operator_allowlist().
++OPERATOR_ALLOWLIST_FILENAME = "human-deciders.json"
++
++#: Optional single-identity source, read (never written) from the host
++#: environment.  Same trust boundary as the allowlist file: whoever can set it
++#: can already edit the file.  A machine-looking value is refused (fail closed).
++OPERATOR_IDENTITY_ENV = "FREECASH_OPERATOR_IDENTITY"
++
++#: Accepted shape version of the allowlist file.
++ALLOWLIST_SCHEMA_VERSION = 1
++
++#: Anything that smells machine-generated may not be configured, and may not
++#: sign.  Applied to allowlist entries, to the env override, and to the decider.
++MACHINE_LABEL_PATTERN = re.compile(
++    r"(?i)\b(agent|bot|automation|automated|system|scheduler|cron|daemon|service|"
++    r"machine|script|monitor|routine|worker|pipeline|hermes|assistant|ai)\b"
++)
++
+ NAG_INTERVAL_DAYS = 7
+ NAG_EVENT = "APPROVAL_PENDING"
+ 
+@@ -64,6 +113,133 @@
+     """Raised when a decision does not carry a human identity."""
+ 
+ 
++class AllowlistError(NotHumanError):
++    """Raised when the operator allowlist is absent or unusable.
++
++    A subclass of NotHumanError on purpose: the CLI already maps NotHumanError
++    to a refusal (exit 4), and an unusable allowlist must refuse, never accept.
++    """
++
++
++# --------------------------------------------------------------------------- identity
++
++
++def operator_allowlist_path():
++    """Where the operator-editable allowlist lives (never created here)."""
++    return paths.state_dir() / OPERATOR_ALLOWLIST_FILENAME
++
++
++def _allowlist_entries(raw, source):
++    """Validate one allowlist source into a list of identities (or raise)."""
++    if not isinstance(raw, list) or not raw:
++        raise AllowlistError(
++            "refused: the operator allowlist (%s) lists no identities; refusing "
++            "every decider (fail-closed)" % source
++        )
++    out = []
++    for entry in raw:
++        if not isinstance(entry, str) or not entry.strip():
++            raise AllowlistError(
++                "refused: the operator allowlist (%s) has a malformed entry %r; "
++                "every entry must be a non-empty name; refusing every decider "
++                "(fail-closed)" % (source, entry)
++            )
++        name = entry.strip()
++        if MACHINE_LABEL_PATTERN.search(name):
++            raise AllowlistError(
++                "refused: the operator allowlist (%s) lists a machine-looking "
++                "identity %r; a machine may not be allowlisted; refusing every "
++                "decider (fail-closed)" % (source, name)
++            )
++        out.append(name)
++    return out
++
++
++def _read_allowlist_file(path):
++    """Return the file's identities, or None when the file does not exist."""
++    try:
++        with open(path, "r", encoding="utf-8") as fh:
++            raw = fh.read()
++    except FileNotFoundError:
++        return None
++    except OSError as exc:
++        raise AllowlistError(
++            "refused: the operator allowlist at %s cannot be read (%s); refusing "
++            "every decider (fail-closed)" % (path, exc.__class__.__name__)
++        )
++    try:
++        doc = json.loads(raw)
++    except ValueError as exc:
++        raise AllowlistError(
++            "refused: the operator allowlist at %s is not valid JSON (%s); "
++            "refusing every decider (fail-closed)" % (path, exc)
++        )
++    if not isinstance(doc, dict):
++        raise AllowlistError(
++            "refused: the operator allowlist at %s must be a JSON object, found "
++            "%s; refusing every decider (fail-closed)" % (path, type(doc).__name__)
++        )
++    if doc.get("schema_version") != ALLOWLIST_SCHEMA_VERSION:
++        raise AllowlistError(
++            "refused: the operator allowlist at %s has schema_version=%r (need %d); "
++            "refusing every decider (fail-closed)"
++            % (path, doc.get("schema_version"), ALLOWLIST_SCHEMA_VERSION)
++        )
++    return _allowlist_entries(doc.get("operators"), str(path))
++
++
++def _read_allowlist_env():
++    """Return the identities supplied by the environment override (or [])."""
++    raw = (os.environ.get(OPERATOR_IDENTITY_ENV) or "").strip()
++    if not raw:
++        return []
++    return _allowlist_entries([raw], "%s environment variable" % OPERATOR_IDENTITY_ENV)
++
++
++def load_operator_allowlist():
++    """Return ``(identities, path)`` -- the configured human identities.
++
++    Fails CLOSED: when nothing is configured, or when a configured source is
++    unusable, raises AllowlistError (a NotHumanError) so that *every* decider is
++    refused.  A missing allowlist is never an open door.
++    """
++    path = operator_allowlist_path()
++    file_ops = _read_allowlist_file(path)
++    env_ops = _read_allowlist_env()
++    if file_ops is None and not env_ops:
++        raise AllowlistError(
++            "refused: no operator identity is configured. Create %s as "
++            '{"schema_version": 1, "operators": ["<your name>"]} or set %s="<your '
++            "name>\"; an unconfigured allowlist refuses every decider "
++            "(fail-closed)." % (path, OPERATOR_IDENTITY_ENV)
++        )
++    merged = list(dict.fromkeys((file_ops or []) + env_ops))
++    return merged, path
++
++
++def _normalise_decider(name):
++    """Return the signing human's name, or refuse (allowlist, fail-closed)."""
++    who = (name or "").strip()
++    if not who:
++        raise NotHumanError("--by is required: a decision must name the human who made it")
++    # The control: the operator-owned allowlist.  An absent/corrupt/unconfigured
++    # allowlist raises here, so every decider is refused before any check below.
++    allowed, path = load_operator_allowlist()
++    # Cheap word floor -- retained, but NOT the control.
++    if who.lower() in NON_HUMAN_DECIDERS:
++        raise NotHumanError(
++            "refused: %r is a machine label; a machine may not sign a decision" % who
++        )
++    if MACHINE_LABEL_PATTERN.search(who):
++        raise NotHumanError("refused: %r matches a machine-label pattern" % who)
++    if not any(who.casefold() == entry.casefold() for entry in allowed):
++        raise NotHumanError(
++            "refused: %r is not in the operator allowlist at %s (%d identity/ies "
++            "configured); only a configured human may sign" % (who, path, len(allowed))
++        )
++    return who
++
++
+ # --------------------------------------------------------------------------- store
+ 
+ 
+@@ -146,18 +322,6 @@
+ # --------------------------------------------------------------------------- decide
+ 
+ 
+-def _normalise_decider(name) -> str:
+-    who = (name or "").strip()
+-    if not who:
+-        raise NotHumanError("--by is required: a decision must name the human who made it")
+-    if who.lower() in NON_HUMAN_DECIDERS:
+-        raise NotHumanError(
+-            "refused: %r is not a human identity; this routine may only record a "
+-            "decision made by a person" % who
+-        )
+-    return who
+-
+-
+ def decide(approval_id, decision, by, note, now=None) -> dict:
+     """Record a human decision.  Never changes the execution state."""
+     if decision not in DECISIONS:
+@@ -251,12 +415,29 @@
+     decide_parser = sub.add_parser("decide", help="record a human decision on a pending item")
+     decide_parser.add_argument("--id", required=True, help="approval_id (uuid) from pending.json")
+     decide_parser.add_argument("--decision", required=True, choices=sorted(DECISIONS))
+-    decide_parser.add_argument("--by", required=True, help="your name (a human identity)")
++    decide_parser.add_argument("--by", required=True, help="your name (must match the operator allowlist)")
+     decide_parser.add_argument("--note", required=True, help="why you decided this")
+ 
+     sub.add_parser("list", help="show the queue (read-only)")
++    sub.add_parser("allowlist", help="show where the operator allowlist lives and who is configured (read-only)")
+ 
+     args = parser.parse_args(argv)
++
++    try:
++        if args.command == "allowlist":
++            path = operator_allowlist_path()
++            env_set = bool((os.environ.get(OPERATOR_IDENTITY_ENV) or "").strip())
++            print("operator allowlist : %s" % path)
++            print("override env var   : %s (%s)" % (OPERATOR_IDENTITY_ENV, "set" if env_set else "unset"))
++            allowed, _ = load_operator_allowlist()
++            print("state              : CONFIGURED (%d identity/ies)" % len(allowed))
++            for name in allowed:
++                print("  - %s" % name)
++            return 0
++    except NotHumanError as exc:
++        print("REFUSED: %s" % exc, file=sys.stderr)
++        return 4
++
+     paths.ensure_layout()
+ 
+     if args.command == "list":

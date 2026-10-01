@@ -1,0 +1,4 @@
+rule=3
+why=R3 evasion: the load/save order and the comparison operator are untouched, but compare() returns no change for any real pair
+edits=1
+  changedetect.py: 1 change(s)

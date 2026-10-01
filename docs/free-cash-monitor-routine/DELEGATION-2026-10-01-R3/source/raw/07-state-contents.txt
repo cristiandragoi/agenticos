@@ -1,0 +1,171 @@
+=== data/freecash (recursive, incl hidden) ===
+d /d/AgenticOS/data
+f /d/AgenticOS/data/agents.json
+d /d/AgenticOS/data/artifacts
+d /d/AgenticOS/data/artifacts/screenshots
+f /d/AgenticOS/data/artifacts.json
+f /d/AgenticOS/data/boards.json
+d /d/AgenticOS/data/camera_frames
+f /d/AgenticOS/data/camera_frames/frame-1790514884569.jpg
+f /d/AgenticOS/data/camera_frames/frame-1790514885377.jpg
+f /d/AgenticOS/data/camera_frames/frame-1790514991504.jpg
+f /d/AgenticOS/data/camera_frames/frame-1790514992386.jpg
+f /d/AgenticOS/data/camera_frames/frame-1790544149875-4k85.jpg
+f /d/AgenticOS/data/camera_frames/frame-1790545777853-7nuw.jpg
+f /d/AgenticOS/data/camera_frames/test_frame.jpg
+f /d/AgenticOS/data/camera_frames/test_frame2.jpg
+f /d/AgenticOS/data/camera_frames/test_winrt.jpg
+d /d/AgenticOS/data/freecash
+d /d/AgenticOS/data/freecash-monitor
+d /d/AgenticOS/data/freecash-monitor/alerts
+d /d/AgenticOS/data/freecash-monitor/approvals
+d /d/AgenticOS/data/freecash-monitor/logs
+d /d/AgenticOS/data/freecash-monitor/snapshots
+d /d/AgenticOS/data/freecash-monitor/state
+f /d/AgenticOS/data/jarvis-frontend-trace.log
+f /d/AgenticOS/data/jarvis-live-perception-repair.md
+f /d/AgenticOS/data/jarvis-runtime-trace.log
+f /d/AgenticOS/data/loopDefinitions.json
+f /d/AgenticOS/data/loopRuns.json
+f /d/AgenticOS/data/memoryEntries.json
+f /d/AgenticOS/data/memoryScopes.json
+f /d/AgenticOS/data/providers.json
+f /d/AgenticOS/data/repair-summary.json
+f /d/AgenticOS/data/runs.json
+f /d/AgenticOS/data/runtimes.json
+d /d/AgenticOS/data/screenshots
+f /d/AgenticOS/data/screenshots/current-desktop.png
+f /d/AgenticOS/data/screenshots/screenshot-1790454592719.png
+f /d/AgenticOS/data/screenshots/screenshot-1790454737398.png
+f /d/AgenticOS/data/screenshots/screenshot-1790454777035.png
+f /d/AgenticOS/data/screenshots/screenshot-1790455048069.png
+f /d/AgenticOS/data/selfheal-audit.jsonl
+f /d/AgenticOS/data/syncJobs.json
+f /d/AgenticOS/data/tools.json
+f /d/AgenticOS/data/videoJobs.json
+d /d/AgenticOS/data/voice_turns
+f /d/AgenticOS/data/voice_turns/physical_turn_0_1789913279379.wav
+f /d/AgenticOS/data/voice_turns/physical_turn_1_1789913289758.wav
+f /d/AgenticOS/data/voice_turns/physical_turn_2_1789913299202.wav
+f /d/AgenticOS/data/voice_turns/physical_turn_3_1789913310311.wav
+f /d/AgenticOS/data/voice_turns/physical_turn_4_1789913321938.wav
+
+=== state/operator-state.json ===
+{
+  "schema_version": 1,
+  "kind": "operator_entered_daily_status",
+  "note": "Operator-entered daily status figures. This routine only reads this file; it never contacts the platform and never takes an action. Every snapshot built from it is marked degraded: true.",
+  "how_to": [
+    "Open your own account dashboard in a browser and log in yourself.",
+    "Note four figures: account status, total earnings, current balance, pending amount.",
+    "Append one record to the records list with today's local date as day_key.",
+    "Amounts are integer cents (1340 == 13.40). entered_at_utc is the moment you read them."
+  ],
+  "records": [],
+  "template_record": {
+    "day_key": "YYYY-MM-DD",
+    "entered_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+    "account_status": "ACTIVE",
+    "earnings_total_cents": 0,
+    "balance_cents": 0,
+    "pending_cents": 0,
+    "currency": "USD"
+  }
+}
+
+=== state/last-run.json ===
+{
+  "schema_version": 1,
+  "last_attempt_day": "2026-10-01",
+  "last_success_day": "2026-10-01",
+  "last_attempt_at_utc": "2026-10-01T06:53:46Z",
+  "last_success_at_utc": "2026-10-01T06:53:46Z",
+  "last_outcome": "MONITOR_DEGRADED",
+  "consecutive_missed_days": 0,
+  "timezone": "Europe/Berlin",
+  "updated_at_utc": "2026-10-01T06:53:46Z"
+}
+
+=== snapshots/2026-10-01.json ===
+{
+  "schema_version": 1,
+  "day_key": "2026-10-01",
+  "captured_at_utc": "2026-10-01T06:53:46Z",
+  "source": {
+    "kind": "operator_entered",
+    "read_ops": [],
+    "data_available": false,
+    "note": "no operator-entered record for 2026-10-01 in operator-state.json"
+  },
+  "degraded": true,
+  "account_status": null,
+  "earnings_total_cents": null,
+  "balance_cents": null,
+  "pending_cents": null,
+  "currency": null,
+  "raw_response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
+=== state/notified-keys.json ===
+{
+  "schema_version": 1,
+  "keys": {
+    "e049c636483cf2b910f639b949622be2d7c66322b5f7eb6f8d4bd5a611783dd3": {
+      "first_notified_at_utc": "2026-09-21T16:39:42Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-21T16:39:48Z"
+    },
+    "81e18ed0b027f6f16a646ced0be780facf0bb972f56eef0629d3cc234c97b0f8": {
+      "first_notified_at_utc": "2026-09-30T19:01:05Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:11Z"
+    },
+    "7d6e203be13ccab632dfbf7821015e156cd886062b009e77f17f9245f808e005": {
+      "first_notified_at_utc": "2026-09-30T19:01:11Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:18Z"
+    },
+    "bd88bbf8b43199706ea3bdb58ee2c6d34ddd2135eb08d924f8c089b426a594aa": {
+      "first_notified_at_utc": "2026-09-30T19:01:18Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:24Z"
+    },
+    "55e0f643df502b28dd94f89ae8baca5ac604549e6be183dd733ac4ffba0f5f81": {
+      "first_notified_at_utc": "2026-09-30T19:01:24Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:31Z"
+    },
+    "1da3a8d83a2818c0b9fc7a32ce1c245558c31c3497f04b0a7150b262ebdd9fff": {
+      "first_notified_at_utc": "2026-09-30T19:01:31Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:37Z"
+    },
+    "8ba9df8f803dd153156a297f3cd13c52816df885612771e6614243ab1ebe0313": {
+      "first_notified_at_utc": "2026-09-30T19:01:37Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:44Z"
+    },
+    "4e5422b4ed5db862e28362f4be9b4f0465c81f1fc61157772a3990a28a472879": {
+      "first_notified_at_utc": "2026-09-30T19:01:44Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:51Z"
+    },
+    "fd07c1e4e2d657f94b569ce0c9b4ca3e8b4b3928518e6664c6e7b1d97ca9448c": {
+      "first_notified_at_utc": "2026-09-30T19:01:51Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:01:58Z"
+    },
+    "719a79b94e6ba913d0c407a2ecb97161c5d2da57b74be746904d0f366b43d0ad": {
+      "first_notified_at_utc": "2026-09-30T19:01:58Z",
+      "delivery": "TOAST_OK",
+      "updated_at_utc": "2026-09-30T19:02:05Z"
+    }
+  }
+}
+
+=== alerts/alerts.jsonl (last 5) ===
+{"day_key": "2026-09-30", "dedupe_key": "fd07c1e4e2d657f94b569ce0c9b4ca3e8b4b3928518e6664c6e7b1d97ca9448c", "event_id": "2cdf6c6a-8753-4720-a77f-814cfee3e237", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-28\nNo successful status check recorded for 2026-09-28.\nLast success: 2026-09-20. consecutive_missed_days=9\nACTION:    No action taken. Investigate why no check ran (machine uptime, scheduler history, or a failed run).", "observed": {"field": "last_success_day", "new_value": "2026-09-20", "old_value": "2026-09-28", "prior_day_key": "2026-09-20"}, "severity": "alert", "ts_utc": "2026-09-30T19:01:51Z"}
+{"day_key": "2026-09-30", "dedupe_key": "719a79b94e6ba913d0c407a2ecb97161c5d2da57b74be746904d0f366b43d0ad", "event_id": "30566e8f-ddb7-48d0-96ed-473340f3be4f", "event_type": "MISSED_DAY", "message": "[FreeCash] MISSED DAY 2026-09-29\nNo successful status check recorded for 2026-09-29.\nLast success: 2026-09-20. consecutive_missed_days=9\nACTION:    No action taken. Investigate why no check ran (machine uptime, scheduler history, or a failed run).", "observed": {"field": "last_success_day", "new_value": "2026-09-20", "old_value": "2026-09-29", "prior_day_key": "2026-09-20"}, "severity": "alert", "ts_utc": "2026-09-30T19:01:58Z"}
+{"day_key": "2026-09-30", "dedupe_key": null, "event_id": "59600892-4b09-4da4-b0ba-65537c4f110c", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-09-30 (no operator-entered record for 2026-09-30 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": "2026-09-20", "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-09-30T19:02:05Z"}
+{"day_key": "2026-09-30", "dedupe_key": null, "event_id": "43d7ba43-f273-4e85-92f5-a048e26aa3ea", "event_type": "SKIP_DUPLICATE_DAY", "message": "Day 2026-09-30 already consumed (lock 2026-09-30.lock). Duplicate run performed no read and wrote no snapshot.", "observed": {"lock": "D:\\AgenticOS\\data\\freecash-monitor\\state\\day-locks\\2026-09-30.lock"}, "severity": "info", "ts_utc": "2026-09-30T19:02:06Z"}
+{"day_key": "2026-10-01", "dedupe_key": null, "event_id": "c4b7e50d-b141-49c3-8305-c2ffd1160fd6", "event_type": "MONITOR_DEGRADED", "message": "No data for 2026-10-01 (no operator-entered record for 2026-10-01 in operator-state.json). Snapshot written with null fields; nothing is compared and nothing is notified until a reading exists.", "observed": {"account_status": null, "balance_cents": null, "degraded": true, "earnings_total_cents": null, "pending_cents": null, "prior_day_key": "2026-09-30", "source": "operator_entered"}, "severity": "info", "ts_utc": "2026-10-01T06:53:46Z"}

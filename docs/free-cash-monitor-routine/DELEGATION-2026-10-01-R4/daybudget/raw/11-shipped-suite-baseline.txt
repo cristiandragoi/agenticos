@@ -1,0 +1,22 @@
+### COMMAND: FREECASH_DATA_ROOT=C:/Users/cd-pr/AppData/Local/Temp/fc-r4-daybudget-suite-shipped/root "C:/Users/cd-pr/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe" monitoring/freecash/tests/run_all.py
+### exit=0
+RUN_OK 2026-12-26 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-12-26.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-12-26.lock
+WATCHDOG_OK 2026-12-26 attempt=2026-12-26 outcome=MONITOR_DEGRADED
+RUN_OK 2026-12-27 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-12-27.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-12-27.lock
+WATCHDOG_OK 2026-12-27 attempt=2026-12-27 outcome=MONITOR_DEGRADED
+RUN_OK 2026-12-28 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-12-28.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-12-28.lock
+WATCHDOG_OK 2026-12-28 attempt=2026-12-28 outcome=MONITOR_DEGRADED
+RUN_OK 2026-12-29 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-12-29.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-12-29.lock
+WATCHDOG_OK 2026-12-29 attempt=2026-12-29 outcome=MONITOR_DEGRADED
+RUN_OK 2026-12-30 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-12-30.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-12-30.lock
+WATCHDOG_OK 2026-12-30 attempt=2026-12-30 outcome=MONITOR_DEGRADED
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-02 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-10-02.json written=True changes=1 notifications=0 approvals=0 reminders=0 lock=2026-10-02.lock
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+RUN_OK 2026-10-01 outcome=MONITOR_DEGRADED source=operator_entered(data_available=False) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+SKIP_DUPLICATE_DAY 2026-10-01
+RUN_OK 2026-10-01 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-01.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-01.lock
+WATCHDOG_OK 2026-10-01 attempt=2026-10-01 outcome=INITIAL_BASELINE
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=NOTIFIED
+WATCHDOG_MISSED_DAY 2026-10-01 last_attempt_day=None last_outcome=None coverage=DEDUPED
+run_all: tests=52 failures=0 errors=0 skipped=0

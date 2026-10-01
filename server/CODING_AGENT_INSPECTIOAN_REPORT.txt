@@ -1,0 +1,92 @@
+=== CODING AGENT MVP — ARCHITECTURE INSPECTION REPORT ===
+
+REUSED ASSETS:
+==============
+
+EXISTING SERVICES (D:/AgenticOS/server/src/services/voice/):
+  - piperTts.ts    ← Service layer pattern for TTS synthesis
+  - localTts.ts    ← Local/offline execution handler  
+  - edgeTts.ts     ← Edge cloud API handler
+  Pattern: services/{feature}/{engine}.ts → reusable for coding agent
+
+EXISTING ROUTES (D:/AgenticOS/server/src/routers/):
+  - voice.ts       ← Request routing pattern, can adapt for coding requests
+
+UTILITIES (D:/AgenticOS/server/src/):
+  - utils/*.ts     ← Validation helpers, async utilities
+  - common/*.ts    ← Shared types, constants
+
+
+STATE MACHINE (12 states):
+==========================
+
+[0] DRAFT             → Initial task creation
+[1] PLANNING          → Agent generating implementation plan  
+[2] WAITING_FOR_PLAN_APPROVAL → Human review pending
+[3] PREPARING_WORKSPACE → Setting up isolated worktree/run branch
+[4] EXECUTING         → Running approved implementation steps
+[5] TESTING           → Executing npm test / lint checks
+[6] BUILDING          → Running npm run build
+[7] REVIEW_READY      → Build artifact ready for preview
+[8] WAITING_FOR_HUMAN_REVIEW → User must review changes/diff
+[9] APPROVED          → Human approved, proceed to next phase
+[10] REJECTED         → Human rejected, agent re-plans or stops
+[11] FAILED           → Execution failed (test/build error)
+
+
+SCOPE GATES:
+============  
+
+READ_PERMISSIONS:
+  - ls, cat, head
+  - git status, git log -n 5
+  - file reads: *.json, *.js, *.ts, *.css
+
+WRITE_PERMISSIONS:
+  - write_file, patch (workspace only)
+  - terminal: npm test, npm run build, node scripts
+  - NO network access by default
+  - NO git push ever
+  - NO deployment ever
+
+MODEL_INFRASTRUCTURE:
+=====================  
+Reuse AgenticOS existing provider config or create minimal ModelGateway:
+  - Primary model from HerMES MCP / user config
+  - Fallback on: timeout, rate limit, provider outage
+  - Never fallback on bad code/tests (that requires human review)
+
+
+WORKTREE ISOLATION PATTERN:
+============================  
+Each task creates: D:/AgenticOS/server/.codec-agent/<TASK-ID>/  
+→ Git clone/starter checkout to temp location
+→ All writes happen inside isolated worktree only
+→ No pushes, no remote refs updated
+
+
+POC TASK (React/Vite landing page):
+===================================  
+"Create a modern AgenticOS landing page with: hero section, features
+section, CTA, responsive layout, use existing styles, no new packages"
+
+
+NEXT PHASE: IMPLEMENT CODING RUN ORCHESTRATION
+================================================
+
+1. Create codec-agent.ts (main coordinator)
+2. Wire state transitions via hermes tool calls / file events  
+3. Generate plan → wait for human approval → execute workspace
+4. Run build/tests → show preview/diff → wait for review
+5. Approve/Reject → stop or continue
+
+
+FILES TO CREATE:
+=================
+
+D:/AgenticOS/server/src/services/coding.ts    ← Core coding agent service
+D:/AgenticOS/server/.codec-agent/.gitconfig   ← Isolated worktree rules  
+D:/AgenticOS/server/AGENTS/coding.md          ← Coding agent context file
+
+
+=== INSPECTION COMPLETE ===

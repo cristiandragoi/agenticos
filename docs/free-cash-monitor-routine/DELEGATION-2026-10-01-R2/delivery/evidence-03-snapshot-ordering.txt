@@ -1,0 +1,89 @@
+
+==============================================================================
+ORDER PROOF -- day 1 (2026-09-24) on an empty root: no prior exists
+==============================================================================
+RUN_OK 2026-09-24 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-09-24.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-09-24.lock
+exit_code=0
+recorded call order: [
+  [
+    "load_prior_snapshot",
+    "2026-09-24",
+    null
+  ],
+  [
+    "save_snapshot",
+    "2026-09-24",
+    "written=True"
+  ]
+]
+load_prior_snapshot called before save_snapshot? True
+
+==============================================================================
+ORDER PROOF -- day 2 (2026-09-25) with a change present
+==============================================================================
+RUN_OK 2026-09-25 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-25.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-25.lock
+exit_code=0
+recorded call order: [
+  [
+    "load_prior_snapshot",
+    "2026-09-25",
+    "2026-09-24"
+  ],
+  [
+    "save_snapshot",
+    "2026-09-25",
+    "written=True"
+  ]
+]
+prior snapshot the compare used: 2026-09-24
+
+==============================================================================
+SELF-COMPARISON IMPOSSIBLE -- load_prior_snapshot never returns today
+==============================================================================
+snapshots on disk before the probe: ['2026-09-24.json', '2026-09-25.json']
+changedetect.load_prior_snapshot('2026-09-25') -> day_key=2026-09-24
+changedetect.load_snapshot('2026-09-25')     -> day_key=2026-09-25 earnings=900
+-> the loader skips every key >= day (changedetect.py lines 202-208), so today's own figures can never be the comparison baseline.
+
+==============================================================================
+FIRST DAY AFTER A GAP -- prior is stale, does R3 still fire?
+==============================================================================
+snapshots on disk: ['2026-09-24.json', '2026-09-25.json']
+ledger: {"consecutive_missed_days": 0, "last_attempt_at_utc": "2026-09-25T12:00:00Z", "last_attempt_day": "2026-09-25", "last_outcome": "EARNINGS_CHANGED", "last_success_at_utc": "2026-09-25T12:00:00Z", "last_success_day": "2026-09-25", "schema_version": 1, "timezone": "UTC", "updated_at_utc": "2026-09-25T12:00:00Z"}
+gate.missed_days('2026-09-30', ledger) = ['2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29']
+RUN_OK 2026-09-30 outcome=EARNINGS_CHANGED source=operator_entered(data_available=True) snapshot=2026-09-30.json written=True changes=1 notifications=1 approvals=1 reminders=0 lock=2026-09-30.lock
+exit_code=0
+recorded call order: [
+  [
+    "load_prior_snapshot",
+    "2026-09-30",
+    "2026-09-25"
+  ],
+  [
+    "save_snapshot",
+    "2026-09-30",
+    "written=True"
+  ]
+]
+alert lines produced on the return day:
+  EARNINGS_CHANGED dedupe16=324033d622afe88d observed={"field": "earnings_total_cents", "new_value": 100, "old_value": 900, "prior_day_key": "2026-09-25"}
+
+==============================================================================
+SECOND-DAY-AFTER-GAP WITH NO PRIOR SNAPSHOT AT ALL (fresh root) -- baseline must be silent
+==============================================================================
+RUN_OK 2026-10-05 outcome=INITIAL_BASELINE source=operator_entered(data_available=True) snapshot=2026-10-05.json written=True changes=0 notifications=0 approvals=0 reminders=0 lock=2026-10-05.lock
+exit_code=0
+recorded call order: [
+  [
+    "load_prior_snapshot",
+    "2026-10-05",
+    null
+  ],
+  [
+    "save_snapshot",
+    "2026-10-05",
+    "written=True"
+  ]
+]
+  INITIAL_BASELINE severity=info msg='First run: baseline recorded for 2026-10-05. No notification sent. Source DEGRAD'
+notifications dispatched (stub log lines): 0
