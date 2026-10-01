@@ -36,6 +36,49 @@ async function latestAgentMessageSince(conversationId: string, sinceIso: string)
   } catch { return ''; }
 }
 
+/**
+ * Route directly to jarvisOrchestrator for explicit worker delegation (codex/hermes/teams).
+ *
+ * This is a first-class lifecycle execution path: it preserves turn ownership and
+ * deduplication (because legacyHandler runs under the lifecycle's context key and
+ * turn-ownership frame) while creating EXACTLY ONE delegated goal request via the
+ * orchestrator. turnRouter is deliberately bypassed to prevent it from answering
+ * with a generic fallback ("Respond to the user (planner unavailable)").
+ */
+async function runOrchestratorDelegation(record: TurnRecord, workspace: string): Promise<ExecutionReceipt> {
+  const startedAt = new Date().toISOString();
+  const req = record.request;
+  const contextKey = record.contextKey;
+  try {
+    const { jarvisOrchestrator } = await import('../jarvis/orchestrator.js');
+    const since = new Date().toISOString();
+    const res: any = await jarvisOrchestrator.handleMessage(contextKey, req.text, workspace, 'manual', req.requestId);
+    const text = (res?.message as string) || (await latestAgentMessageSince(contextKey, since)) || (res?.error ? String(res.error) : '');
+    const route = String(res?.route || 'codex');
+    return {
+      executor: `legacy.jarvisOrchestrator:${route}`,
+      attempted: true,
+      completedWithoutError: !res?.error,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      error: res?.error,
+      handlerText: text,
+      handlerClaimedSideEffect: ORCHESTRATOR_SIDE_EFFECT_ROUTES.has(route) && !res?.error,
+      details: { route, status: res?.status ?? null, goalId: res?.goalId ?? null, taskId: res?.taskId ?? null },
+    };
+  } catch (err: any) {
+    return {
+      executor: 'legacy.jarvisOrchestrator',
+      attempted: true,
+      completedWithoutError: false,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      error: `orchestrator_delegation_error: ${err?.message || err}`,
+      details: {},
+    };
+  }
+}
+
 export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isStale: () => boolean): Promise<ExecutionReceipt> {
   const startedAt = new Date().toISOString();
   const req = record.request;
@@ -46,6 +89,28 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
   const turnId = req.externalTurnId && /^\d+$/.test(req.externalTurnId) ? Number(req.externalTurnId) : Date.parse(req.receivedAt);
 
   return runWithTurnOwnership({ conversationId: contextKey, turnId, operationId: req.requestId }, async () => {
+
+    // ── Explicit delegation fast-path (HIGHEST PRECEDENCE inside the lifecycle) ──
+    // When the user explicitly requests CodeX/Hermes/a worker, go directly to
+    // jarvisOrchestrator — exactly ONE call, no turnRouter fallback. This prevents
+    // ControlPlaneTurnHandler from producing a generic "Respond to the user" answer
+    // that swallows the delegation intent.
+    try {
+      const { detectDelegationSignals } = await import('../jarvis/intentRouter.js');
+      const signals = detectDelegationSignals(req.text);
+      if (signals.explicitDelegationRequested) {
+        logger.info('[TurnLifecycle] explicit delegation detected — routing to orchestrator directly', {
+          requestId: req.requestId, worker: signals.explicitWorkerRequested,
+        });
+        const { getWorkspaceRoot } = await import('../../services/workspaceStore.js');
+        let workspace = '';
+        try { workspace = getWorkspaceRoot(); } catch { /* optional */ }
+        return await runOrchestratorDelegation(record, workspace);
+      }
+    } catch (err: any) {
+      logger.warn('[TurnLifecycle] delegation signal detection error; continuing to turnRouter', { requestId: req.requestId, error: err?.message });
+    }
+
     try {
       const { routeTurn } = await import('../jarvisNext/turnRouter.js');
       const routed = await routeTurn({

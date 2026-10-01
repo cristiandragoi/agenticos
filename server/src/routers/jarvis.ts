@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger.js';
+﻿import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { conversationService } from '../domains/conversations/service.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
@@ -57,7 +57,7 @@ function normalizeApprovalPolicy(value: any): 'manual' | 'auto' {
  *   (gateway/config.ts), so the label always matches the real fallback.
  * - selected model: the runtime DB assignment model wins (the gateway
  *   injects assignment.modelId into the request), otherwise the live
- *   OPENROUTER_MODEL env default. Read at request time — never from
+ *   OPENROUTER_MODEL env default. Read at request time â€” never from
  *   module-load constants, which can freeze before dotenv loads.
  */
 async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; selectedModel: string; fallbackModel: string }> {
@@ -90,8 +90,8 @@ async function resolveDirectChatMetadata(): Promise<{ selectedProvider: string; 
  * Bounded recovery wrapper (GAP1 closeout): the streaming gateway does not
  * thread per-call escalation into the provider's stream attempts, so a
  * transient provider failure (connection reset, 429, Ollama EOF) surfaces as
- * an error chunk. Retry the SAME real request ONCE — the second execution is
- * a genuine LLM call — before surfacing the error. Mirrors RecoveryPolicy's
+ * an error chunk. Retry the SAME real request ONCE â€” the second execution is
+ * a genuine LLM call â€” before surfacing the error. Mirrors RecoveryPolicy's
  * same-model-retry semantics at the smallest layer.
  */
 async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0]) {
@@ -115,7 +115,7 @@ async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0])
         if (chunk.type === 'done') return;
       }
       if (sawError && attempt < 1 && RETRYABLE.test(String(errorChunk?.error || errorChunk?.message || errorChunk?.content || ''))) {
-        logStreamStage(opts.requestId || 'jarvis', 'transient provider error (chunk) — retrying request', { attempt: attempt + 1, error: String(errorChunk?.error || errorChunk?.message || '').slice(0, 160) });
+        logStreamStage(opts.requestId || 'jarvis', 'transient provider error (chunk) â€” retrying request', { attempt: attempt + 1, error: String(errorChunk?.error || errorChunk?.message || '').slice(0, 160) });
         continue;
       }
       if (sawError && errorChunk) yield errorChunk;
@@ -123,7 +123,7 @@ async function* llmChatStreamRetrying(opts: Parameters<typeof llmChatStream>[0])
     } catch (err: any) {
       const msg = String(err?.message || err || '');
       if (attempt < 1 && RETRYABLE.test(msg)) {
-        logStreamStage(opts.requestId || 'jarvis', 'transient provider error (thrown) — retrying request', { attempt: attempt + 1, error: msg.slice(0, 160) });
+        logStreamStage(opts.requestId || 'jarvis', 'transient provider error (thrown) â€” retrying request', { attempt: attempt + 1, error: msg.slice(0, 160) });
         continue;
       }
       throw err;
@@ -149,7 +149,7 @@ async function resolveEffectiveJarvisIdentity(conversationId: string): Promise<{
       const m = typeof meta.model === 'string' && meta.model ? meta.model : null;
       if (p || m) return { effectiveProvider: p, effectiveModel: m };
     }
-  } catch { /* best effort — assigned values are the fallback */ }
+  } catch { /* best effort â€” assigned values are the fallback */ }
   return { effectiveProvider: null, effectiveModel: null };
 }
 
@@ -290,11 +290,11 @@ function logStreamStage(operationId: string | undefined, stage: string, details:
 }
 
 /**
- * Prompt-hierarchy gate (§prompt-hierarchy): decides whether operational state
+ * Prompt-hierarchy gate (Â§prompt-hierarchy): decides whether operational state
  * (active/recent tasks, runtime status) is injected into the direct-chat
  * system prompt. Only TRUE when the current user message genuinely asks about
  * tasks, agents, or runtime state. Ordinary conversation must never receive
- * task-state directives — that was the root cause of "Are you there?" being
+ * task-state directives â€” that was the root cause of "Are you there?" being
  * answered with a Hermes-gateway inspection tangent.
  */
 const OPERATIONAL_QUESTION_RE = /\b(task|tasks|run|runs|codex|hermes|agent team|agent teams|background|status|execution|goal|goals|active|what('s| is)? (happening|running|going on)|is .*(done|finished|complete)|how .*(going|progress))\b/i;
@@ -306,7 +306,7 @@ function isOperationalQuestion(text: string): boolean {
 /**
  * Strip tool-call / function-call markup the model may emit as literal text.
  * The system prompt forbids it; this is a safety net so the user never sees
- * raw `<tool_call>…</tool_call>` in a reply (§18 — no leaked plumbing).
+ * raw `<tool_call>â€¦</tool_call>` in a reply (Â§18 â€” no leaked plumbing).
  */
 function stripToolCallMarkup(text: string): string {
   if (!text) return text;
@@ -318,7 +318,7 @@ function stripToolCallMarkup(text: string): string {
     .trim();
 }
 
-/* ── GET /api/jarvis/conversations ────────────────────────── */
+/* â”€â”€ GET /api/jarvis/conversations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 router.get('/conversations', async (req, res) => {
   try {
     const list = await conversationService.listConversations();
@@ -329,7 +329,7 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
-/* ── POST /api/jarvis/conversations ───────────────────────── */
+/* â”€â”€ POST /api/jarvis/conversations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 router.post('/conversations', async (req, res) => {
   try {
     const { title, workspaceId } = req.body;
@@ -340,7 +340,7 @@ router.post('/conversations', async (req, res) => {
   }
 });
 
-/* ── GET /api/jarvis/conversations/:id/messages ───────────── */
+/* â”€â”€ GET /api/jarvis/conversations/:id/messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 router.get('/conversations/:id/messages', async (req, res) => {
   try {
     const messages = await conversationService.getMessages(req.params.id);
@@ -356,7 +356,7 @@ function writeSse(res: any, event: string, data: any) {
 }
 
 /**
- * D14 §5 — navigation ACK endpoint. The CLIENT reports proven state here; the
+ * D14 Â§5 â€” navigation ACK endpoint. The CLIENT reports proven state here; the
  * transaction decides. Duplicate/stale/mismatched ACKs never flip a decision.
  */
 router.post('/navigation/ack', async (req, res) => {
@@ -558,8 +558,8 @@ function resolveWorkspacePath(body: any) {
     ? body.repositoryPath
     : body?.workspacePath;
   const explicit = typeof value === 'string' ? value.trim() : '';
-  // §1: ONE canonical workspace. When the client omits the repository,
-  // every route still operates against the canonical selected root — the
+  // Â§1: ONE canonical workspace. When the client omits the repository,
+  // every route still operates against the canonical selected root â€” the
   // user never has to re-state where the repository is.
   return explicit || getCanonicalWorkspaceRoot();
 }
@@ -741,10 +741,10 @@ router.post('/actions/:id/status', async (req, res) => {
   res.json({ success: !!updated, action: updated });
 });
 
-/* ── POST /api/jarvis/conversations/:id/approve_team ──────── */
+/* â”€â”€ POST /api/jarvis/conversations/:id/approve_team â”€â”€â”€â”€â”€â”€â”€â”€ */
 /**
- * PRE-PHASE-1 typed stream pipeline (≈40 independent routing branches that
- * executed and responded on their own). RETAINED FOR REFERENCE ONLY — it is no
+ * PRE-PHASE-1 typed stream pipeline (â‰ˆ40 independent routing branches that
+ * executed and responded on their own). RETAINED FOR REFERENCE ONLY â€” it is no
  * longer mounted. Typed chat now submits to TurnLifecycleController below.
  */
 const legacyMessageStreamHandler = async (req: any, res: any) => {
@@ -809,7 +809,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
   const fallbackProvider = 'ollama';
 
   // Conversation-level provider/model override (PRIORITY 3): a manual choice
-  // in the Jarvis chat routing control applies ONLY to this execution — it
+  // in the Jarvis chat routing control applies ONLY to this execution â€” it
   // never changes the global assignment.
   const overrideProvider: string | null = typeof req.body?.overrideProvider === 'string' && req.body.overrideProvider ? req.body.overrideProvider : null;
   const overrideModel: string | null = typeof req.body?.overrideModel === 'string' && req.body.overrideModel ? req.body.overrideModel : null;
@@ -845,13 +845,13 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
   const requestMetadata = normalizedOperationId ? { operationId: normalizedOperationId } : undefined;
   const abortController = new AbortController();
 
-  // ── Canonical execution state (coherence milestone) ──
+  // â”€â”€ Canonical execution state (coherence milestone) â”€â”€
   // This stream registers ONE record; the task manager / goal loop continue
   // the SAME operationId when work is delegated. UI reads this record only.
   // The pre-existing current record (an active task or a WAITING_FOR_USER
   // clarification) is captured BEFORE this stream's begin supersedes it, so
   // task-control cues ("what are you doing", "stop") answer about the state
-  // the user is actually asking about — never this stream's own routing.
+  // the user is actually asking about â€” never this stream's own routing.
   const { registerStreamAborter, unregisterStreamAborter } = await import('../routers/execution.js');
   const executionState = await import('../services/executionState.js');
   const execOpId = normalizedOperationId || `jarvis-${Date.now()}`;
@@ -864,14 +864,14 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
     requestedProvider: selectedProvider,
     requestedModel: selectedModel,
     cancel: { kind: 'stream', id: execOpId },
-    // §8: every operation carries the canonical workspace root so file/path
+    // Â§8: every operation carries the canonical workspace root so file/path
     // failures are debuggable from the execution record.
     workspace: workspacePath || null,
   });
   registerStreamAborter(execOpId, abortController);
   const endStreamExecution = (status: 'COMPLETED' | 'FAILED' | 'CANCELLED', result?: string | null) => {
     const rec = executionState.get(execOpId);
-    // A delegation (task/goal) may have taken over the record — only end when
+    // A delegation (task/goal) may have taken over the record â€” only end when
     // the record is still stream-owned (no task/goal continuation).
     if (rec?.worker === 'jarvis' && !rec.note) {
       // A user-initiated STOP must win over a late normal completion.
@@ -928,7 +928,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
   });
 
   try {
-    // ── Conversational Authority & Isolation Intercept ──
+    // â”€â”€ Conversational Authority & Isolation Intercept â”€â”€
     const { classifyInputAuthority, canonicalObjectiveManager } = await import('../domains/jarvis/conversationalAuthority.js');
     const passedConfidence = typeof (req.body as any)?.confidence === 'number'
       ? (req.body as any).confidence
@@ -999,7 +999,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Explicit Engineering Delegation Intercept (AntiGravity - HIGHEST PRECEDENCE) ──
+    // â”€â”€ Explicit Engineering Delegation Intercept (AntiGravity - HIGHEST PRECEDENCE) â”€â”€
     // Must execute strictly BEFORE language preference, operational controller, browser, desktop, or normal routing.
     const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('../domains/controlPlane/ExplicitEngineeringDelegation.js');
     const explicitEngineering = parseExplicitEngineeringDelegation(prompt);
@@ -1088,7 +1088,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Operational Controller Intercept (Evidence-First Grounding) ──
+    // â”€â”€ Operational Controller Intercept (Evidence-First Grounding) â”€â”€
     const { OperationalController } = await import('../domains/jarvis/operationalEvidence.js');
     const opIntercept = await OperationalController.handleOperationalRequest(prompt, req.params.id);
     if (opIntercept) {
@@ -1122,7 +1122,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Language Switch Intercept & Verified State Mutation (HIGHEST PRIORITY) ──
+    // â”€â”€ Language Switch Intercept & Verified State Mutation (HIGHEST PRIORITY) â”€â”€
     // Must run BEFORE supervisor_v2, task-control, task-reference, task-status, or intent routing.
     const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('../domains/jarvis/conversationLanguage.js');
 
@@ -1178,13 +1178,13 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Canonical Turn Router (ONE Shared Controller Path) ──
+    // â”€â”€ Canonical Turn Router (ONE Shared Controller Path) â”€â”€
     try {
       const { routeTurn } = await import('../domains/jarvisNext/turnRouter.js');
-      // ── D14: typed navigation transport ────────────────────────────────
+      // â”€â”€ D14: typed navigation transport â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // The typed chat has NO LiveKit room, so navigation must be carried on the
       // response stream the client is already reading, and the ACK must come back
-      // over HTTP. One transaction model, one canonical packet shape (§2/§3).
+      // over HTTP. One transaction model, one canonical packet shape (Â§2/Â§3).
       const { beginNavigation, buildNavigationPacket } = await import('../services/navigation/navigationTransactions.js');
       const navigationVerifier = async (navReq: {
         navigationId: string; route: string; entityId: string; entityType: string; entityName: string;
@@ -1431,7 +1431,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       logger.warn('[JarvisStream] routeTurn call error, falling back:', turnErr);
     }
 
-    // ── Deterministic Action Runtime & Contextual Entity Resolution (TASK: JARVIS-ACTION-RUNTIME-001) ──
+    // â”€â”€ Deterministic Action Runtime & Contextual Entity Resolution (TASK: JARVIS-ACTION-RUNTIME-001) â”€â”€
     const { parseJarvisAction, recordAction, getLatestAction } = await import('../domains/jarvis/actionRuntime.js');
     const actionResult = await parseJarvisAction(prompt, workspaceContext);
     if (actionResult.isAction) {
@@ -1655,16 +1655,16 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
 
     const hasProceedVerb = /\b(proceed|continue|start|run|execute|do|go ahead)\b/i.test(prompt);
     const hasProceedTarget = /\b(it|implementation|project|task|work|goal)\b/i.test(prompt);
-    // Semantic Turn Repair §4: when Jarvis dialogue state already tracks a task
+    // Semantic Turn Repair Â§4: when Jarvis dialogue state already tracks a task
     // for THIS conversation, continuation ("continue it", "do that") is resolved
-    // deterministically by resolveSemanticTurn — don't shadow it with the vague
+    // deterministically by resolveSemanticTurn â€” don't shadow it with the vague
     // queued/paused resume refusal below.
     let semanticsHasTrackedTask = false;
     try {
       const { getDialogueState } = await import('../domains/jarvis/dialogueState.js');
       const dState = getDialogueState(req.params.id);
       semanticsHasTrackedTask = Boolean(dState?.activeTaskId || dState?.delegatedTaskId || dState?.pendingActionId || dState?.activeEntity);
-    } catch { /* best-effort — fall through to legacy behavior */ }
+    } catch { /* best-effort â€” fall through to legacy behavior */ }
     const isFollowUpCommand = hasProceedVerb && hasProceedTarget && !/\b(what|status|how|check|show|list)\b/i.test(prompt) && !semanticsHasTrackedTask;
     if (isFollowUpCommand) {
       const { backgroundTaskManager } = await import('../services/backgroundTasks/manager.js');
@@ -1719,7 +1719,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       }
     }
 
-    // ── Deterministic Executive Capabilities (Navigation & Capability Start) ──
+    // â”€â”€ Deterministic Executive Capabilities (Navigation & Capability Start) â”€â”€
     // Commands like "Open <capability>" or "Start <capability>" must never
     // fall through to generic LLM chat. They execute deterministically.
     const { classifyExecutiveIntent } = await import('../domains/jarvis/executiveIntent.js');
@@ -1882,7 +1882,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── SUPERVISOR V2 PATH (Feature Switch: JARVIS_SUPERVISOR_V2) ──
+    // â”€â”€ SUPERVISOR V2 PATH (Feature Switch: JARVIS_SUPERVISOR_V2) â”€â”€
     const { detectLocalFastReply } = await import('../domains/jarvis/fastLocalReplies.js');
     const localFast = detectLocalFastReply(prompt);
     if (localFast) {
@@ -1912,15 +1912,15 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── SEMANTIC TURN RESOLVER (Semantic Turn Repair §6) — Supervisor V2 path
+    // â”€â”€ SEMANTIC TURN RESOLVER (Semantic Turn Repair Â§6) â€” Supervisor V2 path
     // One canonical deterministic pipeline for what the supervisor must not see:
     // pending-action confirm/reject, delegation proposals ("Give it to Hermes"),
     // entity resolution, continuation, deterministic intent. When nothing
     // deterministic matches it builds structured SemanticContext so the
-    // supervisor never re-derives entity/task/action state — it is handed the
+    // supervisor never re-derives entity/task/action state â€” it is handed the
     // authoritative context. `resolveSemanticTurn` persists dialogue state
     // itself (SQLite) for decisions that change it.
-    // NOTE: gated to the Supervisor V2 path — the legacy pipeline is unchanged.
+    // NOTE: gated to the Supervisor V2 path â€” the legacy pipeline is unchanged.
     const { isSupervisorV2Enabled, handleSupervisorV2Stream } = await import('../domains/jarvis/supervisorLoop.js');
     if (isSupervisorV2Enabled(req)) {
       const { resolveSemanticTurn } = await import('../domains/jarvis/semanticTurnResolver.js');
@@ -1928,7 +1928,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       try {
         const msgs = await conversationService.getMessages(req.params.id);
         recentTurnHistory = (msgs || []).slice(-10).map((m: any) => ({ role: m.role, content: m.content }));
-      } catch { /* best-effort history — empty is fine */ }
+      } catch { /* best-effort history â€” empty is fine */ }
       const semanticResult = await resolveSemanticTurn(prompt, req.params.id, {
         workspacePath,
         workspaceContext,
@@ -2105,7 +2105,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Task-control intercept (Milestone: explicit commands override routing) ──
+    // â”€â”€ Task-control intercept (Milestone: explicit commands override routing) â”€â”€
     // A normal conversation message NEVER touches task state. Only these
     // explicit task-control intents do. Check BEFORE intent routing.
     const { classifyTaskControl, executeTaskControl } = await import('../services/backgroundTasks/taskControl.js');
@@ -2131,7 +2131,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Canonical Task Reference & Anaphora Intercept ──
+    // â”€â”€ Canonical Task Reference & Anaphora Intercept â”€â”€
     const { resolveActiveOperationReference } = await import('../domains/jarvis/taskReferenceResolver.js');
     const taskRef = await resolveActiveOperationReference({
       conversationId: req.params.id,
@@ -2178,7 +2178,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Deterministic Canonical Task Status Intercept ──
+    // â”€â”€ Deterministic Canonical Task Status Intercept â”€â”€
     try {
       const { isTaskStatusQuery, formatCanonicalSnapshotAnswer } = await import('../domains/jarvis/taskStatusFormatter.js');
       if (isTaskStatusQuery(prompt)) {
@@ -2226,16 +2226,16 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
 
     logStreamStage(normalizedOperationId, 'intent routing started');
 
-    // ── Local fast-path (voice-reliability closure, Phases 4–5) ──
+    // â”€â”€ Local fast-path (voice-reliability closure, Phases 4â€“5) â”€â”€
 
     // Presence checks ("Jarvis, are you there?") and direct local-knowledge
     // questions ("What is Jarvis?", "What is Agentic OS?") are answered
     // locally with grounded text BEFORE any LLM/tool/memory work. This is the
-    // lightest path — a short spoken reply without the model round-trip.
-    // ── Current Work Context (Phase 15, Failure C) ──
+    // lightest path â€” a short spoken reply without the model round-trip.
+    // â”€â”€ Current Work Context (Phase 15, Failure C) â”€â”€
     // "What are we currently working on?" and semantic variants resolve from
     // REAL AgenticOS state (execution record, background tasks, active
-    // project, scheduler) — NEVER a hard-coded phrase→canned answer. The
+    // project, scheduler) â€” NEVER a hard-coded phraseâ†’canned answer. The
     // reply is assembled from the authoritative sources above; if no state
     // exists, Jarvis says so instead of inventing a project status.
     const { isCurrentWorkQuestion, resolveCurrentWorkContext, formatCurrentWorkContext } = await import('../domains/jarvis/currentWorkContext.js');
@@ -2268,9 +2268,9 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Execution-aware control (coherence milestone) ──
+    // â”€â”€ Execution-aware control (coherence milestone) â”€â”€
     // While an operation is active, "what are you doing?", "is it stuck?",
-    // and "stop it." are answered from the canonical execution record — never
+    // and "stop it." are answered from the canonical execution record â€” never
     // a generic direct reset. The pre-existing record (captured before this
     // stream's begin) is what the user is asking about.
     const execNow = (preExistingCurrent && preExistingCurrent.operationId !== normalizedOperationId
@@ -2283,7 +2283,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       if (STOP_CUE.test(trimmed)) {
         logStreamStage(normalizedOperationId, 'execution-stop cue', { operationId: execNow.operationId });
         if (execNow.status === 'WAITING_FOR_USER') {
-          const reply = "There's nothing running to stop — I'm waiting for your reply.";
+          const reply = "There's nothing running to stop â€” I'm waiting for your reply.";
           streamTextAsChunks(res, reply, normalizedOperationId);
           writeSse(res, 'done', { route: 'execution_stop', operationId: normalizedOperationId, status: 'waiting_for_user' });
           completed = true;
@@ -2292,17 +2292,17 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         }
         const { dispatchCancel } = await import('../routers/execution.js');
         await executionState.cancel(execNow.operationId, dispatchCancel);
-        const reply = `Stopping ${execNow.worker} (${execNow.operationId.slice(-12)})…`;
+        const reply = `Stopping ${execNow.worker} (${execNow.operationId.slice(-12)})â€¦`;
         streamTextAsChunks(res, reply, normalizedOperationId);
         writeSse(res, 'done', { route: 'execution_stop', operationId: normalizedOperationId, status: 'stopping' });
         completed = true;
-        updateStreamExecution({ status: 'STOPPING', currentAction: 'Stopping…' });
+        updateStreamExecution({ status: 'STOPPING', currentAction: 'Stoppingâ€¦' });
         return res.end();
       }
       if (STATUS_CUE.test(trimmed)) {
         logStreamStage(normalizedOperationId, 'execution-status cue', { operationId: execNow.operationId });
-        // WAITING_FOR_USER: Jarvis is NOT working — it is waiting for the
-        // user. The status answer must never say "Routing…".
+        // WAITING_FOR_USER: Jarvis is NOT working â€” it is waiting for the
+        // user. The status answer must never say "Routingâ€¦".
         if (execNow.status === 'WAITING_FOR_USER') {
           const reply =
             `I'm waiting for you to clarify your request${execNow.currentAction ? ` (${execNow.currentAction})` : ''}. ` +
@@ -2322,7 +2322,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
           (llm ? `LLM: ${llm}. ` : '') +
           (execNow.currentAction ? `Current action: ${execNow.currentAction}. ` : '') +
           `It entered ${execNow.status.replace(/_/g, ' ').toLowerCase()} ${elapsedS}s ago; last backend activity was ${idleS}s ago.` +
-          (idleS > 30 ? ' This looks stalled — you can stop it and retry.' : (execNow.cancel ? ' You can stop it anytime.' : ''));
+          (idleS > 30 ? ' This looks stalled â€” you can stop it and retry.' : (execNow.cancel ? ' You can stop it anytime.' : ''));
         streamTextAsChunks(res, reply, normalizedOperationId);
         writeSse(res, 'done', { route: 'execution_status', operationId: normalizedOperationId });
         completed = true;
@@ -2331,7 +2331,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       }
     }
 
-    // ── Executive intent intercept (internal-worker awareness) ──
+    // â”€â”€ Executive intent intercept (internal-worker awareness) â”€â”€
     // Runs after explicit task-control but before the generic intent router.
     // When the prompt names an internal capability (Hermes/CodeX/Research/
     // Teams/Boards/Memory/Automations), the executive classifier decides
@@ -2346,19 +2346,19 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
 
     // direct_explanation (e.g. "What can Codex do?", "What is Hermes for?") must
     // flow through the conversational LLM with structured capability context injected
-    // into the system prompt — NOT return a canned registry dump. We record the
+    // into the system prompt â€” NOT return a canned registry dump. We record the
     // capability context here so the direct-chat path (below) can inject it.
     let executiveCapabilityContext: string | null = null;
     if (executive?.intent === 'direct_explanation') {
       const cap = executive.capability;
       executiveCapabilityContext = [
-        `CAPABILITY CONTEXT (for the user's question — answer conversationally using this, do not reproduce it verbatim):`,
+        `CAPABILITY CONTEXT (for the user's question â€” answer conversationally using this, do not reproduce it verbatim):`,
         `Worker: ${cap.displayName}`,
         `Role: ${cap.responsibilities}`,
         `Supported actions: ${cap.supportedActions.join(', ')}.`,
         cap.limitations ? `Limitations: ${cap.limitations}` : null,
       ].filter(Boolean).join('\n');
-      logStreamStage(normalizedOperationId, 'executive direct_explanation → LLM with context', {
+      logStreamStage(normalizedOperationId, 'executive direct_explanation â†’ LLM with context', {
         capability: cap.id,
         confidence: executive.confidence
       });
@@ -2371,7 +2371,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         capability: cap.id,
         operationId: normalizedOperationId
       });
-      // Fall through to the LLM path — do NOT early-return here.
+      // Fall through to the LLM path â€” do NOT early-return here.
     }
 
     if (executive && executive.intent !== 'worker_delegation' && executive.intent !== 'revenue_pipeline' && executive.intent !== 'direct_explanation') {
@@ -2515,10 +2515,10 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Executive delegation: create a persistent background task ──
+    // â”€â”€ Executive delegation: create a persistent background task â”€â”€
     // JARVIS must respond with task ref, selected worker, status, read-only
     // flag, and the fact that the task continues while conversation remains
-    // available — immediately, before the worker stream starts.
+    // available â€” immediately, before the worker stream starts.
     if (executive?.intent === 'worker_delegation' && executive.workerKind) {
       const workerKind = executive.workerKind as 'hermes' | 'codex' | 'research' | 'team' | 'automation' | 'antigravity';
       const workerTitle =
@@ -2547,11 +2547,11 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         operationId: normalizedOperationId
       });
 
-      // ── File pre-resolution (§5–§7): resolve file references against the
+      // â”€â”€ File pre-resolution (Â§5â€“Â§7): resolve file references against the
       //     canonical workspace BEFORE delegating. A unique match is injected
       //     into the worker objective; when nothing referenced exists, Jarvis
       //     reports exactly what was searched instead of starting a doomed
-      //     worker ("file not found" must be truthful, not generic). ──
+      //     worker ("file not found" must be truthful, not generic). â”€â”€
       const fileOutcome = resolvePromptFileReferences(prompt, workspacePath || undefined);
       const notFoundReply = buildFileNotFoundReply(fileOutcome, prompt);
       if (notFoundReply) {
@@ -2614,7 +2614,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         return res.end();
       }
 
-      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}â€¦` : prompt;
       let delegatedObjective = enrichPromptWithResolvedFiles(prompt, fileOutcome);
       const executionMode = (executive as any).executionMode || 'immediate';
 
@@ -2672,7 +2672,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
           readOnly: Boolean(executive.readOnly),
           capabilityId: executive.capability.id,
           executionMode,
-          // §8: workspace + resolved files are part of the execution record.
+          // Â§8: workspace + resolved files are part of the execution record.
           workspace: workspacePath || null,
           resolvedFiles: fileOutcome.resolved.length > 0
             ? fileOutcome.resolved.map((r) => ({ requested: r.token, relativePath: r.relativePath }))
@@ -2821,7 +2821,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── Revenue Pipeline: create a persistent background task ──
+    // â”€â”€ Revenue Pipeline: create a persistent background task â”€â”€
     // Intake is parsed deterministically; the pipeline defaults to dry-run
     // (safe). One task + one Board card, exactly like other delegations.
     if (executive?.intent === 'revenue_pipeline' && executive.workerKind === 'revenue') {
@@ -2863,7 +2863,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         const questions = intake.missing.map((m: string) => askMap[m] || m);
         const reply =
           `I need a bit more detail before starting the Revenue Pipeline: please tell me ${questions.join(', and ')}. ` +
-          `No task was created — I will not guess.`;
+          `No task was created â€” I will not guess.`;
         writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
         await conversationService.appendMessage({
           conversationId: req.params.id,
@@ -2889,14 +2889,14 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         completed = true;
         updateStreamExecution({
           status: 'WAITING_FOR_USER',
-          currentAction: 'Clarification required — waiting for your reply',
+          currentAction: 'Clarification required â€” waiting for your reply',
           resolvedProvider: null,
           resolvedModel: null,
         });
         return res.end();
       }
 
-      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}…` : prompt;
+      const title = prompt.length > 64 ? `${prompt.slice(0, 61)}â€¦` : prompt;
       let _activeProjectId: string | null = null;
       try {
         const { projectsStore } = await import('../services/projectsStore.js');
@@ -2911,7 +2911,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         worker: workerKind,
         conversationId: req.params.id,
         resumable: false,
-        // §9: capture the canonical root at creation — a later repository
+        // Â§9: capture the canonical root at creation â€” a later repository
         // change never redirects this task.
         workspaceRoot: workspacePath || undefined,
         projectId: _activeProjectId || undefined,
@@ -2938,10 +2938,10 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       const shortId = taskShortId(task.taskId);
       const pipelineStartedAt = Date.now();
       const dryRunNote = intake.config.dryRun
-        ? ' DRY-RUN — nothing will be contacted, published, or deployed.'
-        : ' Live mode requested — V1 discovery requires a specific business URL.';
+        ? ' DRY-RUN â€” nothing will be contacted, published, or deployed.'
+        : ' Live mode requested â€” V1 discovery requires a specific business URL.';
       const reply =
-        `I started task ${shortId} — Revenue Pipeline: ${intake.config.niche} · ${intake.config.city || 'no region specified'} · ${intake.config.prospectCount} prospect(s).` +
+        `I started task ${shortId} â€” Revenue Pipeline: ${intake.config.niche} Â· ${intake.config.city || 'no region specified'} Â· ${intake.config.prospectCount} prospect(s).` +
         `${dryRunNote} Status: queued. Ask "show task ${shortId}" for progress.`;
       writeSse(res, 'chunk', { delta: reply, provider: 'agentic-os', model: 'task-manager', operationId: normalizedOperationId });
       await conversationService.appendMessage({
@@ -3082,14 +3082,14 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       operationId: normalizedOperationId
     });
 
-    // ── MEMORY recall + decision statements (memory milestone) ──
+    // â”€â”€ MEMORY recall + decision statements (memory milestone) â”€â”€
     // Natural-language past/decision questions are answered from stored
-    // memory with provenance — no new task required. Runs before the
+    // memory with provenance â€” no new task required. Runs before the
     // investigate/question branches so recall is not swallowed as a task.
     // Guarded: if the memory store is unavailable (e.g. a test env mocking
     // the db), fall through to the normal direct handling.
-    // P2 — DETERMINISTIC active-project answers. Exact factual state questions
-    // are answered from projectsStore directly — never routed through the
+    // P2 â€” DETERMINISTIC active-project answers. Exact factual state questions
+    // are answered from projectsStore directly â€” never routed through the
     // local model (which regurgitates injected context). NARROW pattern: only
     // the plain project-state question forms; anything with extra intent
     // ("what did we decide about the project", "create a plan for the
@@ -3118,7 +3118,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         });
         return res.end();
       }
-    } catch { /* deterministic answer unavailable — normal handling */ }
+    } catch { /* deterministic answer unavailable â€” normal handling */ }
 
     // Deterministic Canonical Task Status Answer:
     // Returns exact snapshot with matching counts and active task names across English, German, Romanian.
@@ -3152,10 +3152,10 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       }
     } catch { /* task status handler fallback */ }
 
-    // P7 — "continue where we left off" must resolve project/task/memory
+    // P7 â€” "continue where we left off" must resolve project/task/memory
 
     // records even when the intent router classifies the phrase as
-    // investigate — the deterministic continuation pattern wins over the
+    // investigate â€” the deterministic continuation pattern wins over the
     // heuristic route. Checked before the route gate below.
     try {
       const contStarted = Date.now();
@@ -3168,7 +3168,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       const { isContinuationRequest, resolveContinuation, formatContinuation, recordMemoryActivity } = await import('../domains/jarvis/projectMemory.js');
       if (isContinuationRequest(prompt)) {
         recordMemoryActivity({ kind: 'memory.lookup.started', projectId: contProjectId, category: 'continuation', operationId: normalizedOperationId });
-        updateStreamExecution({ status: 'RUNNING', currentAction: contProjectId ? 'Retrieving project memory' : 'No active project — asking for context' });
+        updateStreamExecution({ status: 'RUNNING', currentAction: contProjectId ? 'Retrieving project memory' : 'No active project â€” asking for context' });
         const contResult = resolveContinuation(contProjectId);
         const contReply = formatContinuation(contResult);
         recordMemoryActivity({ kind: 'memory.lookup.completed', projectId: contProjectId, category: 'continuation', resultCount: contResult.lastMemory ? 1 : 0, operationId: normalizedOperationId });
@@ -3188,19 +3188,19 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
         });
         return res.end();
       }
-    } catch { /* continuation unavailable — normal handling */ }
+    } catch { /* continuation unavailable â€” normal handling */ }
 
     if (intent.route !== 'investigate' && intent.route !== 'clarification_required') {
       try {
         const startedAt = Date.now();
-        // Resolve the ACTIVE PROJECT once — project-scoped memory/continuation
+        // Resolve the ACTIVE PROJECT once â€” project-scoped memory/continuation
         // answers use it (never inferred; null when none selected).
         let activeProjectId: string | null = null;
         try {
           const { projectsStore } = await import('../services/projectsStore.js');
           activeProjectId = projectsStore.getActiveProjectId();
           if (activeProjectId && !projectsStore.getProject(activeProjectId)) activeProjectId = null;
-        } catch { /* project store unavailable — global memory only */ }
+        } catch { /* project store unavailable â€” global memory only */ }
         const { isMemoryStore, handleMemoryStore, isMemoryRecall, isDecisionStatement, handleMemoryRecall, handleDecisionStatement } = await import('../domains/jarvis/memoryRecall.js');
         const { recordMemoryActivity } = await import('../domains/jarvis/projectMemory.js');
 
@@ -3265,10 +3265,10 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
           });
           return res.end();
         }
-      } catch { /* memory store unavailable — normal direct handling */ }
+      } catch { /* memory store unavailable â€” normal direct handling */ }
     }
 
-    // ── INVESTIGATE (implicit bug reports / contextual problem statements) ──
+    // â”€â”€ INVESTIGATE (implicit bug reports / contextual problem statements) â”€â”€
     // Inspect-first, ask-later. Runs a read-only state inspection and streams
     // an evidence report; never the generic "What interface?" clarification.
     if (intent.route === 'investigate') {
@@ -3276,7 +3276,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       // Persist the USER message first so a FOLLOW-UP turn ("Can you change
       // that?", "Continue.") can resolve deictics against this turn's context.
       // The direct branch and the delegated orchestrator both persist it; the
-      // investigate and clarification branches must too — otherwise recentText
+      // investigate and clarification branches must too â€” otherwise recentText
       // for the next turn omits the user's statement and follow-ups degrade to
       // generic clarification (live acceptance: 1b/2b failed exactly here).
       await conversationService.appendMessage({
@@ -3341,7 +3341,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // ── CLARIFICATION_REQUIRED (conversation-state milestone) ──
+    // â”€â”€ CLARIFICATION_REQUIRED (conversation-state milestone) â”€â”€
     // Jarvis is NOT executing: it is waiting for the user. The canonical
     // execution record transitions to WAITING_FOR_USER and STAYS current
     // until the user replies (the next stream supersedes it). Nothing is
@@ -3350,7 +3350,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       // Persist the USER message too (parity with direct/investigate): the
       // next turn's recentText must include what the user actually said, so a
       // follow-up after a clarification reinterprets the combined context
-      // (§5) instead of starting from a blank slate.
+      // (Â§5) instead of starting from a blank slate.
       await conversationService.appendMessage({
         conversationId: req.params.id,
         role: 'user',
@@ -3388,7 +3388,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       completed = true;
       updateStreamExecution({
         status: 'WAITING_FOR_USER',
-        currentAction: 'Clarification required — waiting for your reply',
+        currentAction: 'Clarification required â€” waiting for your reply',
         resolvedProvider: null,
         resolvedModel: null,
       });
@@ -3595,16 +3595,16 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
           persistentMemoryContext = `\n\nPersistent Memory (Structured Core Memory):\n${scopedMem}`;
         }
       } catch {
-        // best effort — memory retrieval must never break direct chat
+        // best effort â€” memory retrieval must never break direct chat
       }
     }
 
-    // ONE conversation context object (§3) — runtime truth for the direct
+    // ONE conversation context object (Â§3) â€” runtime truth for the direct
     // path: workspace, active/historical task, provider, capabilities, and
     // previous-clarification state. Injected as a compact block so the model
     // answers follow-ups and task questions from actual state, never canned.
-    // PROMPT HIERARCHY (§prompt-hierarchy): active/recent TASK state is only
-    // included when the current user message is an operational question —
+    // PROMPT HIERARCHY (Â§prompt-hierarchy): active/recent TASK state is only
+    // included when the current user message is an operational question â€”
     // ordinary conversation gets static facts only (workspace, provider,
     // approval mode), so task state cannot hijack a simple question.
     let conversationContextPrompt = '';
@@ -3618,7 +3618,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       if (userProfile.avoidNameDrops) {
         nameRule = 'The user explicitly requested that you do NOT address them as "Christian". Always stay completely silent of their name. Do not use their name at all.';
       } else if (userProfile.preferredTitle) {
-        nameRule = `The user's preferred title/form of address is "${userProfile.preferredTitle}". Use this title naturally and sparingly—never in every sentence. Do not call them Christian unless explicitly asked.`;
+        nameRule = `The user's preferred title/form of address is "${userProfile.preferredTitle}". Use this title naturally and sparinglyâ€”never in every sentence. Do not call them Christian unless explicitly asked.`;
       } else {
         nameRule = 'The user\'s preferred name is "Christian". Use the preferred name contextually and sparingly (e.g., greetings or identity corrections), never as a repetitive salutation. Avoid calling them Christian in simple acknowledgments.';
       }
@@ -3628,7 +3628,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       conversationContextPrompt = contextToSystemPrompt(turnContext, { includeOperational });
       operationalContextInjected = includeOperational;
     } catch {
-      // context optional — direct chat must never break on context failure
+      // context optional â€” direct chat must never break on context failure
     }
 
     // Authoritative runtime identity (P3)
@@ -3643,7 +3643,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
 
     const systemPrompt = [
       `You are Jarvis, the conversational AI partner in Agentic OS. Be natural, direct, concise, and helpful. ${nameRule} NEVER address the user with military or subordinate titles unless explicitly requested as a preferred title (e.g. Master, Commander, Chief, Executive). Never start responses with boilerplate monitoring jargon.`,
-      'AGENTIC OS GROUNDING: "Agentic OS" (also written "Agenticos") is THIS local application — a real, local AI-operations platform you are running inside. When the user mentions Agentic OS, Agenticos, Hermes, Routine, Routine Bridge, Jarvis, Mission, or other local project concepts, resolve them against THIS local project, not generic world knowledge. If you do not have local information about a specific requested detail, say so concisely instead of inventing an unrelated generic architecture.',
+      'AGENTIC OS GROUNDING: "Agentic OS" (also written "Agenticos") is THIS local application â€” a real, local AI-operations platform you are running inside. When the user mentions Agentic OS, Agenticos, Hermes, Routine, Routine Bridge, Jarvis, Mission, or other local project concepts, resolve them against THIS local project, not generic world knowledge. If you do not have local information about a specific requested detail, say so concisely instead of inventing an unrelated generic architecture.',
       'The user message is your PRIMARY instruction. Answer it directly, concisely, and accurately without unrequested operational summaries or internal status narration.',
       'Persistent memory informs relevant user goals, working preferences, and stored rules across conversations. When asked about them, answer from Persistent Memory.',
       'When user instructions are incomplete or ambiguous, use stored preferences, current conversation, and available Agentic OS state to infer reasonable intent and take constructive action before asking to rephrase.',
@@ -3654,12 +3654,12 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       'CONVERSATIONAL CORRECTIONS: If the user says "You said that already", "Don\'t repeat that", "You don\'t have to repeat", or informs you that a reply was already given, acknowledge the correction concisely (e.g. "Understood. I will not repeat that.") and ask how you can assist next. NEVER repeat previous lists, bullet points, or prior answers.',
       'MODEL IDENTITY: When asked what model or provider you are using, state clearly and concisely that you are running ' + effModelName + ' via ' + effProviderName + (fallbackModelName ? ' (with ' + fallbackModelName + ' as local fallback).' : '.') + ' Never invent unconfigured models or append unrelated task summaries.',
       'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
-      'Do not ask "How can I help you today?" when the user asked a specific question — answer that question.',
+      'Do not ask "How can I help you today?" when the user asked a specific question â€” answer that question.',
       'OPERATIONAL INVARIANT: If there is an active operational browser task or goal, NEVER output generic conversational filler such as "The door is open", "Ask away", or "I\'m ready for your questions or instructions whenever you are". Either report the exact status of the active browser operation or stay focused on the user\'s operational goal.',
       ...(turnContext?.language === 'de' ? [
-        'KRITISCHE SPRACHANWEISUNG: Du musst ausschließlich auf Deutsch antworten. Antworte direkt, präzise und professionell. Verwende keine englischen Standardfloskeln.'
+        'KRITISCHE SPRACHANWEISUNG: Du musst ausschlieÃŸlich auf Deutsch antworten. Antworte direkt, prÃ¤zise und professionell. Verwende keine englischen Standardfloskeln.'
       ] : turnContext?.language === 'ro' ? [
-        'INSTRUCȚIUNE CRITICĂ DE LIMBĂ: Trebuie să răspunzi exclusiv în limba română. Răspunde direct, concis și profesional. Nu folosi formule automate în engleză.'
+        'INSTRUCÈšIUNE CRITICÄ‚ DE LIMBÄ‚: Trebuie sÄƒ rÄƒspunzi exclusiv Ã®n limba romÃ¢nÄƒ. RÄƒspunde direct, concis È™i profesional. Nu folosi formule automate Ã®n englezÄƒ.'
       ] : []),
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
@@ -3716,14 +3716,14 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       // the gateway's routing untouched.
       ...(overrideProvider ? { provider: overrideProvider } : {}),
       ...(overrideModel ? { model: overrideModel } : {}),
-      // Recovery (GAP1 closeout — real defect found): a transient provider
+      // Recovery (GAP1 closeout â€” real defect found): a transient provider
       // failure (connection reset, 429, Ollama EOF) must retry the SAME
       // request on the configured fallback model instead of failing the turn.
       // The gateway's attempts chain is bounded (base + fallback); the second
       // execution is a real LLM call.
       ...(fallbackModel ? { escalationModel: fallbackModel } : {})
     });
-    writeSse(res, 'thinking', { action: 'Generating response…', operationId: normalizedOperationId });
+    writeSse(res, 'thinking', { action: 'Generating responseâ€¦', operationId: normalizedOperationId });
     updateStreamExecution({ status: 'WAITING_FOR_MODEL', currentAction: `Waiting for ${selectedProvider} / ${selectedModel}` });
     logStreamStage(normalizedOperationId, 'provider call started', {
       provider: selectedProvider,
@@ -3794,7 +3794,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       } else if (chunk.type === 'error') {
         // ERROR BOUNDARY: never silently drop a provider/gateway failure.
         // The previous code swallowed error chunks and then threw the generic
-        // "Jarvis returned an empty response." — hiding the real cause. Keep
+        // "Jarvis returned an empty response." â€” hiding the real cause. Keep
         // the reason, surface it to the client, and remember it so the final
         // empty-reply guard below does not overwrite it.
         const errText = String((chunk as any)?.error || (chunk as any)?.message || chunk.content || 'Jarvis provider failed');
@@ -3821,12 +3821,12 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       }
     }
 
-    // §18/§10: strip any tool-call markup the model emitted as literal text
-    // so the user never sees raw <tool_call>…</tool_call> plumbing.
+    // Â§18/Â§10: strip any tool-call markup the model emitted as literal text
+    // so the user never sees raw <tool_call>â€¦</tool_call> plumbing.
     let rawFinalReply = stripToolCallMarkup(reply).trim();
     if (!rawFinalReply) {
       if (surfacedError) {
-        // A real provider/gateway error was already emitted above — finish the
+        // A real provider/gateway error was already emitted above â€” finish the
         // stream honestly instead of overwriting it with the generic message.
         logStreamStage(normalizedOperationId, 'stream ended after surfaced provider error', { error: surfacedError });
         completed = true;
@@ -3855,11 +3855,11 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       finalReply = turnContext?.language === 'de'
         ? 'Ich habe deine Nachricht verstanden. Wie kann ich dir weiterhelfen?'
         : turnContext?.language === 'ro'
-        ? 'Am înțeles mesajul tău. Cu ce te pot ajuta mai departe?'
+        ? 'Am Ã®nÈ›eles mesajul tÄƒu. Cu ce te pot ajuta mai departe?'
         : 'I understand your message. How can I help you proceed?';
     }
 
-    // §11/§12: Operational Claim Gate — secure against hallucinated/fabricated operational state
+    // Â§11/Â§12: Operational Claim Gate â€” secure against hallucinated/fabricated operational state
     const { OperationalClaimGate } = await import('../domains/jarvis/operationalEvidence.js');
     const claimCheck = OperationalClaimGate.verifyClaims(finalReply, req.params.id, prompt);
     if (!claimCheck.ok) {
@@ -3971,7 +3971,7 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
 };
 void legacyMessageStreamHandler;
 
-/* ── POST /api/jarvis/conversations/:id/message/stream (Phase 1: lifecycle-owned) ── */
+/* â”€â”€ POST /api/jarvis/conversations/:id/message/stream (Phase 1: lifecycle-owned) â”€â”€ */
 router.post('/conversations/:id/message/stream', async (req, res) => {
   const { prompt: rawPrompt, operationId } = req.body || {};
   const rawAttachments = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
@@ -4012,7 +4012,7 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       writeSse(res, 'navigation_request', buildNavigationPacket(base));
       return result;
     };
-    // ── Operational Controller Intercept (Evidence-First Grounding) ──────────
+    // â”€â”€ Operational Controller Intercept (Evidence-First Grounding) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Must run BEFORE the turn lifecycle to block fabricated claims and handle
     // canonical grounded responses: 'yes' with no pending task, Shopify auth
     // queries, notification requests, task status lookups.
@@ -4037,8 +4037,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       return;
     }
 
-    // ── Canonical Task Reference & Approval Intercept ─────────────────────────
-    // Handles 'yes' → 'Approval granted' when a waiting_approval task exists,
+    // â”€â”€ Canonical Task Reference & Approval Intercept â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Handles 'yes' â†’ 'Approval granted' when a waiting_approval task exists,
     // explicit STOP/CANCEL, anaphoric task status queries, etc.
     const { resolveActiveOperationReference } = await import('../domains/jarvis/taskReferenceResolver.js');
     const taskRef = await resolveActiveOperationReference({
@@ -4080,8 +4080,9 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
     } else {
       const record = submitted.record;
       streamTextAsChunks(res, record.responseText || '', normalizedOperationId, 'agentic-os', 'turn-lifecycle');
+      const receiptDetails = (record.receipt?.details || {}) as Record<string, unknown>;
       writeSse(res, 'done', {
-        route: record.handler || record.goal?.action?.type || record.goal?.kind || 'lifecycle',
+        route: receiptDetails.route as string || record.handler || record.goal?.action?.type || record.goal?.kind || 'lifecycle',
         category: record.goal?.kind,
         requestId: record.request.requestId,
         outcome: record.outcome,
@@ -4093,6 +4094,8 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
         model: 'turn-lifecycle',
         firstTokenMs: 0,
         totalMs: Date.now() - Date.parse(record.request.receivedAt),
+        ...(receiptDetails.goalId != null ? { goalId: receiptDetails.goalId } : {}),
+        ...(receiptDetails.taskId != null ? { taskId: receiptDetails.taskId } : {}),
       });
     }
   } catch (err: any) {
@@ -4165,7 +4168,7 @@ router.post('/conversations/:id/approve_team', async (req, res) => {
   }
 });
 
-/* ── POST /api/jarvis/conversations/:id/cancel_team ──────── */
+/* â”€â”€ POST /api/jarvis/conversations/:id/cancel_team â”€â”€â”€â”€â”€â”€â”€â”€ */
 router.post('/conversations/:id/cancel_team', async (req, res) => {
   try {
     const conversationId = req.params.id;
@@ -4199,7 +4202,7 @@ router.post('/conversations/:id/cancel_team', async (req, res) => {
   }
 });
 
-/* ── GET /api/jarvis/stream/:id ───────────────────────────── */
+/* â”€â”€ GET /api/jarvis/stream/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 router.get('/stream/:id', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -4212,7 +4215,7 @@ router.get('/stream/:id', (req, res) => {
     conversationService.removeStreamClient(req.params.id, res);
   });
 });
-/* ── GET /api/jarvis/diagnostics ─────────────────────────── */
+/* â”€â”€ GET /api/jarvis/diagnostics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 router.get('/diagnostics', async (_req, res) => {
   // Return lightweight system diagnostics without exposing model reasoning
   res.json({
@@ -4273,7 +4276,7 @@ router.get('/live-events', async (req, res) => {
 });
 
 // GET /api/jarvis/memory-activity
-// P12 — recent memory.lookup.* / memory.write.* activity (safe metadata only,
+// P12 â€” recent memory.lookup.* / memory.write.* activity (safe metadata only,
 // no hidden reasoning). Drives the future cognitive Memory node.
 router.get('/memory-activity', async (_req, res) => {
   try {
@@ -4299,9 +4302,9 @@ router.get('/runtime-state', async (_req, res) => {
     // Live-execution precedence: an in-flight request/turn always wins.
     // Background tasks only mean "delegated" when they are GENUINELY in
     // flight: running (startedAt set, recently updated) or freshly queued
-    // (<2 min old — still waiting for a worker slot, not abandoned).
+    // (<2 min old â€” still waiting for a worker slot, not abandoned).
     // A task stuck in 'queued' for minutes without startedAt is stale and
-    // must never pin Jarvis into a permanent "Delegated…" state.
+    // must never pin Jarvis into a permanent "Delegatedâ€¦" state.
     const FRESH_QUEUE_MS = 2 * 60 * 1000;
     const nowMs = Date.now();
     const inFlightTasks = tasks.filter((t: any) => {
@@ -4318,7 +4321,7 @@ router.get('/runtime-state', async (_req, res) => {
       return false;
     });
 
-    // When an active project exists, prefer its tasks — unrelated stale
+    // When an active project exists, prefer its tasks â€” unrelated stale
     // background work must not claim Jarvis's delegated state.
     const scopedTasks = activeProject
       ? inFlightTasks.filter((t: any) => t.projectId === activeProject.id || !t.projectId)
@@ -4353,13 +4356,13 @@ router.get('/runtime-state', async (_req, res) => {
       state,
       activeAgent,
       activeProject: activeProject ? { id: activeProject.id, name: activeProject.name } : null,
-      // P16 — verification truth: when the live execution record is idle but a
+      // P16 â€” verification truth: when the live execution record is idle but a
       // task is VERIFYING, the ACTIVE RUN panel shows the gate status instead
       // of "No active run".
       activeTask: current
         ? { id: current.operationId, action: current.currentAction, status: current.status }
         : (scopedTasks.find((t: any) => t.status === 'verifying') ?? null)
-          ? { id: (scopedTasks.find((t: any) => t.status === 'verifying') as any).taskId, action: (scopedTasks.find((t: any) => t.status === 'verifying') as any).progressMessage || 'Verifying…', status: 'VERIFYING' }
+          ? { id: (scopedTasks.find((t: any) => t.status === 'verifying') as any).taskId, action: (scopedTasks.find((t: any) => t.status === 'verifying') as any).progressMessage || 'Verifyingâ€¦', status: 'VERIFYING' }
           : null,
       activeTool: current?.currentAction || null,
       provider: current?.resolvedProvider || current?.requestedProvider || null,
@@ -4392,11 +4395,11 @@ router.get('/voice-audit', async (_req, res) => {
 });
 
 /**
- * GOLDEN-PATH DIAGNOSTIC (development-only) — isolates the core UI→backend→
- * provider→stream chain with ONE correlation ID and NOTHING else:
+ * GOLDEN-PATH DIAGNOSTIC (development-only) â€” isolates the core UIâ†’backendâ†’
+ * providerâ†’stream chain with ONE correlation ID and NOTHING else:
  *   no intent routing, no memory/context, no delegation, no persistence,
  *   no TTS, no node-state signaling, no history refresh.
- * The provider call is REAL (configured gateway → OpenRouter/Laguna with the
+ * The provider call is REAL (configured gateway â†’ OpenRouter/Laguna with the
  * Ollama fallback). Nothing is faked or hard-coded.
  */
 router.post('/diag/stream', async (req, res) => {
@@ -4461,8 +4464,8 @@ router.post('/diag/stream', async (req, res) => {
         const errText = String((chunk as any)?.error || (chunk as any)?.message || chunk.content || 'provider failed').slice(0, 500);
         writeSse(res, 'error', { error: errText, provider, model, fallbackProvider, fallbackModel, reason: errText, operationId: normalizedOperationId });
       }
-      // gateway lifecycle events (selected/completed/…) intentionally not
-      // forwarded — the golden path has exactly one consumer signal: deltas.
+      // gateway lifecycle events (selected/completed/â€¦) intentionally not
+      // forwarded â€” the golden path has exactly one consumer signal: deltas.
     }
     writeSse(res, 'done', {
       route: 'diag',
