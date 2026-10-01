@@ -60,7 +60,7 @@ export async function resolveLaunchPlan(app: string): Promise<LaunchPlan | null>
   // 3. File-system scan (desktop, start menu, Program Files). Results derived from an
   //    already-running process are not launchers and are ignored.
   const res = desktopExecutor.resolveWindowsDesktopApp(app);
-  if (res.found && !res.isRunning) {
+  if (res.found) {
     const target = res.shortcutPath || res.executablePath;
     if (target && !/\\WindowsApps\\/i.test(target)) {
       const procHint = res.executablePath ? path.basename(res.executablePath, path.extname(res.executablePath)) : res.processName;
@@ -86,6 +86,11 @@ export async function executeLaunchApp(goal: TurnGoal): Promise<ExecutionReceipt
     };
   }
   const launched = await actLaunch(plan.target, plan.kind);
+  await new Promise((r) => setTimeout(r, 400));
+  try {
+    const { desktopExecutor } = await import('../jarvis/execution/executors/desktopExecutor.js');
+    await desktopExecutor.focusApplication(plan.identity.displayName);
+  } catch {}
   return {
     executor: 'lifecycle.launch_app',
     attempted: true,

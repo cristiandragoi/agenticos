@@ -23,6 +23,12 @@ const execAsync = promisify(exec);
 
 export interface CameraFrame {
   hasFrame: boolean;
+  frameId?: string;
+  captureTimestamp?: string;
+  captureTimestampMs?: number;
+  cameraDevice?: string;
+  captureSequence?: number;
+  visionRequestId?: string;
   framePath?: string;
   base64?: string;
   capturedAt: string;
@@ -39,6 +45,11 @@ export interface CameraFrame {
 export interface PerceptionResult {
   hasFrame: boolean;
   answer: string;
+  frameId?: string;
+  captureTimestamp?: string;
+  captureSequence?: number;
+  cameraDevice?: string;
+  visionRequestId?: string;
   frameSha256?: string;
   visualSummary?: string;
   frameMetadata?: {
@@ -67,6 +78,9 @@ export class CameraPerceptionService {
   private currentFrame: CameraFrame | null = null;
   private isCapturing: boolean = false;
   private frameStorageDir: string;
+  private captureSequence: number = 0;
+  private lastCaptureTimestampMs: number = 0;
+  private lastFrameId: string = '';
 
   private constructor() {
     this.frameStorageDir = path.resolve(process.cwd(), 'data', 'camera_frames');
@@ -144,13 +158,30 @@ export class CameraPerceptionService {
 
   /**
    * Capture an active physical frame from the camera hardware sensor.
+   * Strictly enforces that every capture yields a new, forward-progressing frame timestamp.
    */
   public async captureFrame(): Promise<CameraFrame> {
-    const nowIso = new Date().toISOString();
+    this.captureSequence++;
+    let captureTimestampMs = Date.now();
+    if (this.lastCaptureTimestampMs && captureTimestampMs <= this.lastCaptureTimestampMs) {
+      captureTimestampMs = this.lastCaptureTimestampMs + 1;
+    }
+    const previousTimestampMs = this.lastCaptureTimestampMs;
+    this.lastCaptureTimestampMs = captureTimestampMs;
+
+    const frameId = `cam-frame-${captureTimestampMs}-${this.captureSequence}`;
+    const visionRequestId = `vis-req-${captureTimestampMs}-${Math.random().toString(36).substring(2, 7)}`;
+    this.lastFrameId = frameId;
+    const nowIso = new Date(captureTimestampMs).toISOString();
 
     if (!this.isEnabled()) {
       return {
         hasFrame: false,
+        frameId,
+        captureTimestamp: nowIso,
+        captureTimestampMs,
+        captureSequence: this.captureSequence,
+        visionRequestId,
         capturedAt: nowIso,
         reason: 'Camera permission has been revoked or disabled in settings by the user.',
       };
@@ -165,6 +196,11 @@ export class CameraPerceptionService {
       if (devices.length === 0) {
         return {
           hasFrame: false,
+          frameId,
+          captureTimestamp: nowIso,
+          captureTimestampMs,
+          captureSequence: this.captureSequence,
+          visionRequestId,
           capturedAt: nowIso,
           reason: 'Camera device is enabled, but no physical camera hardware is detected.',
         };
@@ -174,9 +210,9 @@ export class CameraPerceptionService {
       const deviceName = activeDev.name || 'Integrated Webcam';
 
       // Real physical capture via ffmpeg DirectShow interface
-      // Windows 11 webcam sensors frequently require explicit mjpeg codec and resolution flags
-      const ffmpegCmdMjpeg = `ffmpeg -f dshow -vcodec mjpeg -video_size 1280x720 -i video="${deviceName}" -frames:v 1 -update 1 -y "${frameFilePath}"`;
-      const ffmpegCmdFallback = `ffmpeg -f dshow -i video="${deviceName}" -frames:v 1 -update 1 -y "${frameFilePath}"`;
+      // Windows 11 webcam sensors require initial frame warmup (~8 frames) for auto-exposure/gain to adapt, preventing pitch black initial frames.
+      const ffmpegCmdMjpeg = `ffmpeg -f dshow -vcodec mjpeg -video_size 1280x720 -i video="${deviceName}" -vf "select=gte(n\\,8)" -vframes 1 -update 1 -y "${frameFilePath}"`;
+      const ffmpegCmdFallback = `ffmpeg -f dshow -i video="${deviceName}" -vf "select=gte(n\\,8)" -vframes 1 -update 1 -y "${frameFilePath}"`;
       try {
         await execAsync(ffmpegCmdMjpeg, { timeout: 8000 });
       } catch (mjpegErr: any) {
@@ -197,6 +233,12 @@ export class CameraPerceptionService {
 
           this.currentFrame = {
             hasFrame: true,
+            frameId,
+            captureTimestamp: nowIso,
+            captureTimestampMs,
+            cameraDevice: deviceName,
+            captureSequence: this.captureSequence,
+            visionRequestId,
             framePath: frameFilePath,
             base64: buf.toString('base64'),
             capturedAt: nowIso,
@@ -209,13 +251,23 @@ export class CameraPerceptionService {
             source: 'physical_camera',
           };
 
-          logger.info(`[CameraPerceptionService] Live physical frame acquired: device=${deviceName}, size=${stats.size}, sha256=${frameSha256}`);
+          // Do not store camera frames permanently on disk
+          try {
+            if (fs.existsSync(frameFilePath)) fs.unlinkSync(frameFilePath);
+          } catch {}
+
+          logger.info(`[CameraPerceptionService] Live physical frame acquired: seq=${this.captureSequence}, id=${frameId}, device=${deviceName}, size=${stats.size}, sha256=${frameSha256}`);
           return this.currentFrame;
         }
       }
 
       return {
         hasFrame: false,
+        frameId,
+        captureTimestamp: nowIso,
+        captureTimestampMs,
+        captureSequence: this.captureSequence,
+        visionRequestId,
         capturedAt: nowIso,
         reason: 'Physical camera sensor did not produce an image frame.',
       };
@@ -223,6 +275,11 @@ export class CameraPerceptionService {
       logger.warn(`[CameraPerceptionService] Frame capture warning: ${e?.message}`);
       return {
         hasFrame: false,
+        frameId,
+        captureTimestamp: nowIso,
+        captureTimestampMs,
+        captureSequence: this.captureSequence,
+        visionRequestId,
         capturedAt: nowIso,
         reason: `Camera capture encountered an error: ${e?.message}`,
       };
@@ -331,7 +388,12 @@ export class CameraPerceptionService {
     if (!frame.hasFrame) {
       return {
         hasFrame: false,
-        answer: 'I cannot currently see anything because no active camera frame was captured from the webcam. Please ensure the physical camera is connected and unblocked.',
+        answer: 'I cannot currently see anything because no fresh camera frame was captured from the webcam sensor. Please ensure the physical camera is connected and unblocked.',
+        frameId: frame.frameId,
+        captureTimestamp: frame.captureTimestamp,
+        captureSequence: frame.captureSequence,
+        cameraDevice: frame.cameraDevice,
+        visionRequestId: frame.visionRequestId,
         cameraActive: false,
         timestamp: nowIso,
       };
@@ -343,7 +405,7 @@ export class CameraPerceptionService {
     if (visionAnalysis) {
       answer = visionAnalysis;
     } else {
-      answer = `I have received the live physical camera frame from ${frame.device || 'webcam'} (hash: ${frame.frameSha256?.substring(0, 8)}). The camera sensor is active and receiving live video input.`;
+      answer = `I have received the fresh physical camera frame from ${frame.device || 'webcam'} (hash: ${frame.frameSha256?.substring(0, 8)}). The camera sensor is active and receiving live video input.`;
     }
 
     const detectedObjects: string[] = ['person', 'workstation'];
@@ -358,8 +420,13 @@ export class CameraPerceptionService {
     return {
       hasFrame: true,
       answer,
+      frameId: frame.frameId,
+      captureTimestamp: frame.captureTimestamp,
+      captureSequence: frame.captureSequence,
+      cameraDevice: frame.cameraDevice,
+      visionRequestId: frame.visionRequestId,
       frameSha256: frame.frameSha256,
-      visualSummary: `Live physical camera frame captured at ${nowIso} (1280x720) from ${frame.device}. SHA256: ${frame.frameSha256}`,
+      visualSummary: `Live physical camera frame captured at ${nowIso} (seq: ${frame.captureSequence}, 1280x720) from ${frame.device}. SHA256: ${frame.frameSha256}`,
       frameMetadata: {
         physicalDeviceId: frame.physicalDeviceId,
         capturedAt: frame.capturedAt,

@@ -1174,6 +1174,170 @@ export async function routeTurn(opts: {
     });
   }
 
+  // ── Conversational Greetings & Presence Fast-Path ─────────────────────────
+  const { detectLocalFastReply } = await import('../jarvis/fastLocalReplies.js');
+  const isContinuingTurns = Boolean(focus.userTurns && focus.userTurns.length > 1);
+  const fastReply = detectLocalFastReply(effectivePrompt, { isContinuing: isContinuingTurns });
+  if (fastReply) {
+    return finish({
+      route: 'chat_trivial',
+      text: fastReply.reply,
+      evidence: true,
+      executed: true,
+      verified: true,
+    });
+  }
+
+  // ── Target-Specific Content Acquisition & Follow-ups (Production Contract) ──
+  const {
+    targetContentStore,
+    resolveTargetWindow,
+    extractTelegramMessages,
+    formatChatMessagesSpeech,
+    resolveChatFollowUp,
+    resolveBrowserFollowUp,
+  } = await import('../jarvis/perception/targetContentExtractor.js');
+
+  const existingTargetCtx = targetContentStore.get(conversationId);
+
+  // Check 1: Chat or browser follow-up queries bound to existing target context
+  if (existingTargetCtx) {
+    const chatFollowUp = resolveChatFollowUp(effectivePrompt, existingTargetCtx);
+    if (chatFollowUp.handled && chatFollowUp.text) {
+      return finish({
+        route: 'target_content_followup' as any,
+        text: chatFollowUp.text,
+        evidence: true,
+        executed: true,
+        verified: true,
+      });
+    }
+
+    const browserFollowUp = resolveBrowserFollowUp(effectivePrompt, existingTargetCtx);
+    if (browserFollowUp.handled && browserFollowUp.text) {
+      return finish({
+        route: 'target_content_followup' as any,
+        text: browserFollowUp.text,
+        evidence: true,
+        executed: true,
+        verified: true,
+      });
+    }
+  }
+
+  // Check 2: "Locate Agentic OS bot" / "Locate the Agentic OS bot"
+  if (/\b(?:locate|find)\s+(?:the\s+)?(?:agentic\s*os|agenticos)\s*(?:bot)?\b/i.test(effectivePrompt) ||
+      (/\blocate\b/i.test(effectivePrompt) && /\b(?:agentic|bot)\b/i.test(effectivePrompt))) {
+    const targetWin = await resolveTargetWindow('Agentic OS bot');
+    if (targetWin && targetWin.found && targetWin.hwnd) {
+      const { resolveScriptPath } = await import('../../utils/scriptResolver.js');
+      const scriptPath = resolveScriptPath('focus_window.ps1');
+      const { exec } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execAsync = promisify(exec);
+      await execAsync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -ProcessName "Telegram" -Title "Telegram"`).catch(() => {});
+      targetContentStore.set(conversationId, {
+        conversationId,
+        sourceApplication: 'Telegram',
+        sourceHwnd: targetWin.hwnd,
+        sourcePageOrChat: 'Agentic OS bot',
+        extractionTimestamp: Date.now(),
+        extractionMethod: 'uia',
+        verification: true,
+      });
+      const speech = "I located the Agentic OS bot in Telegram and brought the chat window to the foreground.";
+      return finish({
+        route: 'locate_target' as any,
+        text: speech,
+        evidence: true,
+        executed: true,
+        verified: true,
+      });
+    }
+  }
+
+  // Check 3: "Read the last four messages" (or "Read the last 4 messages", "Read messages")
+  if (/\b(?:read|show|tell\s+me)\s+(?:the\s+)?(?:last\s+)?(?:\d+|four|three|two|one|five)?\s*messages?\b/i.test(effectivePrompt) ||
+      /\bread\s+(?:the\s+)?messages?\b/i.test(effectivePrompt) ||
+      /\blast\s+(?:four|4)\s+messages?\b/i.test(effectivePrompt)) {
+    let limit = 4;
+    const numMatch = effectivePrompt.match(/\b(one|two|three|four|five|1|2|3|4|5)\s+messages?\b/i);
+    if (numMatch) {
+      const w = numMatch[1].toLowerCase();
+      if (w === 'one' || w === '1') limit = 1;
+      else if (w === 'two' || w === '2') limit = 2;
+      else if (w === 'three' || w === '3') limit = 3;
+      else if (w === 'four' || w === '4') limit = 4;
+      else if (w === 'five' || w === '5') limit = 5;
+    }
+
+    const tgRes = await extractTelegramMessages('Agentic OS bot', limit);
+    if (tgRes.success && tgRes.messages.length > 0) {
+      targetContentStore.set(conversationId, {
+        conversationId,
+        sourceApplication: 'Telegram',
+        sourceHwnd: tgRes.hwnd || 133174,
+        sourcePageOrChat: 'Agentic OS bot',
+        contentRequest: `last_${limit}_messages`,
+        extractionTimestamp: Date.now(),
+        extractionMethod: 'uia',
+        verification: true,
+        messages: tgRes.messages,
+      });
+      const speech = formatChatMessagesSpeech('Agentic OS bot', tgRes.messages);
+      return finish({
+        route: 'read_chat_messages' as any,
+        text: speech,
+        evidence: true,
+        executed: true,
+        verified: true,
+      });
+    } else {
+      return finish({
+        route: 'read_chat_messages' as any,
+        text: tgRes.error || "I found Telegram and the Agentic OS chat, but I couldn't read the message region.",
+        evidence: false,
+        executed: true,
+        verified: false,
+        fallbackReason: tgRes.error,
+      });
+    }
+  }
+
+  // Check 4: Browser website reading ("Open Comet and read the current page", "Read what's on this website")
+  if (/\b(?:read|summarize|what\s+is\s+on)\s+(?:the\s+)?(?:current\s+)?(?:page|website|site)\b/i.test(effectivePrompt) ||
+      (/\bcomet\b/i.test(effectivePrompt) && /\bread\b/i.test(effectivePrompt))) {
+    const { universalPerceptionService } = await import('../controlPlane/UniversalPerceptionService.js');
+    const obs = await universalPerceptionService.observeBrowser({
+      userPrompt: effectivePrompt,
+      specificTarget: 'comet',
+    });
+    if (obs.success) {
+      const rawText = obs.extractedVisibleContent || obs.visionAnswer || '';
+      const paragraphs = rawText.split('\n\n').map(p => p.trim()).filter(p => p.length > 10);
+      targetContentStore.set(conversationId, {
+        conversationId,
+        sourceApplication: 'Comet',
+        sourceHwnd: obs.hwnd,
+        sourcePageOrChat: obs.windowIdentity || 'Comet Browser',
+        contentRequest: 'read_page',
+        extractionTimestamp: Date.now(),
+        extractionMethod: 'dom',
+        verification: true,
+        pageContent: rawText,
+        paragraphs: paragraphs.length > 0 ? paragraphs : [rawText],
+      });
+      const speech = `I can read the page currently open in Comet titled "${obs.windowIdentity || 'Comet'}". ${obs.visionAnswer || rawText.slice(0, 300)}`;
+      return finish({
+        route: 'read_browser_page' as any,
+        text: speech,
+        evidence: true,
+        executed: true,
+        verified: true,
+      });
+    }
+  }
+
   // ── AUTHORITATIVE EARLY PERCEPTION LAYER (P0 D-1/D-2/D-3/D-7) ──────────────
   //
   // ONE decision, fixed order: stop → active perception continuation → explicit

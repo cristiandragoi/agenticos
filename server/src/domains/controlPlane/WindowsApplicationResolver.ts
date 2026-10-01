@@ -70,7 +70,7 @@ export class WindowsApplicationResolver {
   public async resolve(rawQuery: string, options: ResolveAppOptions = {}): Promise<ApplicationCandidate | null> {
     const cleanQuery = (rawQuery || '')
       .replace(/^(?:open|launch|start|run|locate|find|show|bring\s+up|foreground|switch\s+to)\s+/i, '')
-      .replace(/\s+(?:app|application|program|tool|browser|window)$/i, '')
+      .replace(/\s+(?:app|application|program|tool|browser|window|desktop)$/i, '')
       .trim();
 
     if (!cleanQuery) return null;
@@ -178,7 +178,7 @@ export class WindowsApplicationResolver {
           name: app.name,
           source: 'uwp',
           appUserModelId: app.appUserModelId,
-          score: bestUwpScore >= 0.9 ? bestUwpScore * 0.98 : bestUwpScore * 0.92,
+          score: bestUwpScore >= 0.85 ? Math.max(0.92, bestUwpScore * 0.98) : bestUwpScore * 0.92,
           description: `Windows App (UWP): ${app.name} (${app.appUserModelId})`,
         });
       }
@@ -198,8 +198,18 @@ export class WindowsApplicationResolver {
 
     if (candidates.length === 0) return null;
 
-    // Sort descending by score
-    candidates.sort((a, b) => b.score - a.score);
+    // If actionType is 'launch' or 'open', prioritize candidates with a valid launcher (uwp, taskbar, start_menu, desktop, executable)
+    if (options.actionType === 'launch' || options.actionType === 'open') {
+      candidates.sort((a, b) => {
+        const aHasLauncher = Boolean(a.targetPath || a.shortcutPath || a.appUserModelId);
+        const bHasLauncher = Boolean(b.targetPath || b.shortcutPath || b.appUserModelId);
+        if (aHasLauncher && !bHasLauncher && a.score >= 0.8) return -1;
+        if (!aHasLauncher && bHasLauncher && b.score >= 0.8) return 1;
+        return b.score - a.score;
+      });
+    } else {
+      candidates.sort((a, b) => b.score - a.score);
+    }
     const top = candidates[0];
 
     logger.info(`[WindowsApplicationResolver] Resolved query "${cleanQuery}" -> "${top.name}" (${top.source}, score=${top.score.toFixed(2)})`);
@@ -441,6 +451,10 @@ export class WindowsApplicationResolver {
       word: ['winword', 'microsoft word', 'word.application'],
       'microsoft word': ['word', 'winword'],
       winword: ['word', 'microsoft word'],
+      whatsapp: ['whatsapp desktop', 'whatsapp.root', 'whatsappdesktop'],
+      'whatsapp desktop': ['whatsapp', 'whatsapp.root', 'whatsappdesktop'],
+      telegram: ['telegram desktop', 'tg'],
+      'telegram desktop': ['telegram', 'tg'],
     };
 
     for (const [key, synList] of Object.entries(synonyms)) {

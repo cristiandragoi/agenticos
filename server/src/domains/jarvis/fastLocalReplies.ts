@@ -21,9 +21,20 @@ export interface LocalFastReply {
   matched: string;
 }
 
+export function getTimeAwareGreeting(name: string = 'Christian'): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) {
+    return `Good morning, ${name}.`;
+  } else if (hour >= 12 && hour < 18) {
+    return `Good afternoon, ${name}.`;
+  } else {
+    return `Good evening, ${name}.`;
+  }
+}
+
 /** Ordered presence rules; the first match wins. Anchored rules come after the
  *  un-anchored "are you there / still there" check. */
-const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
+const PRESENCE_RULES: Array<{ re: RegExp; reply: string | ((isContinuing?: boolean) => string) }> = [
   {
     // Presence check — "are you there", "you there", "still there", "can you
     // hear me", etc. (un-anchored so "Jarvis, you there?" matches).
@@ -31,10 +42,9 @@ const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
     reply: "Yeah, I'm here. What's up?",
   },
   {
-    // Bare greeting — "Hello", "Hi", "Hey", "Hey there", "Yo", "Howdy"
-    // (with or without "Jarvis").
+    // Bare greeting — "Hello", "Hi", "Hey", "Hey there", "Yo", "Howdy", "Good evening, Jarvis"
     re: /^(?:hey|hi|hello|hiya|yo|howdy|good\s+(?:morning|afternoon|evening))[,.!?\s]*(?:(?:there|jarvis)[,.!?]*)?$/i,
-    reply: "Hey — I'm here. What can I do for you?",
+    reply: (isContinuing?: boolean) => (isContinuing ? "I'm here." : getTimeAwareGreeting('Christian')),
   },
   {
     // Pause / hold — "Wait", "One second", "Hold on", "Give me a minute".
@@ -49,7 +59,7 @@ const PRESENCE_RULES: Array<{ re: RegExp; reply: string }> = [
   {
     // Bare wake — "Jarvis", "Jarvis?", "Hey Jarvis", "Okay Jarvis".
     re: /^(?:hey\s+|ok(?:ay)?\s+|hi\s+|hello\s+)?jarvis[,.!?]*$/i,
-    reply: "Yeah, I'm here. What's up?",
+    reply: (isContinuing?: boolean) => (isContinuing ? "Yeah, I'm here. What's up?" : getTimeAwareGreeting('Christian')),
   },
 ];
 
@@ -95,11 +105,14 @@ const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string }> = [
 ];
 
 /** Detect a presence/reassurance/greeting/pause prompt. */
-export function detectPresencePrompt(text: string): LocalFastReply | null {
+export function detectPresencePrompt(text: string, options?: { isContinuing?: boolean }): LocalFastReply | null {
   const t = (text || '').trim();
   if (!t) return null;
   for (const rule of PRESENCE_RULES) {
-    if (rule.re.test(t)) return { reply: rule.reply, matched: rule.re.source };
+    if (rule.re.test(t)) {
+      const rep = typeof rule.reply === 'function' ? rule.reply(options?.isContinuing) : rule.reply;
+      return { reply: rep, matched: rule.re.source };
+    }
   }
   return null;
 }
@@ -115,6 +128,6 @@ export function detectDirectLocalQuestion(text: string): LocalFastReply | null {
 }
 
 /** Unified fast-path entry: presence first, then local knowledge. */
-export function detectLocalFastReply(text: string): LocalFastReply | null {
-  return detectPresencePrompt(text) ?? detectDirectLocalQuestion(text);
+export function detectLocalFastReply(text: string, options?: { isContinuing?: boolean }): LocalFastReply | null {
+  return detectPresencePrompt(text, options) ?? detectDirectLocalQuestion(text);
 }

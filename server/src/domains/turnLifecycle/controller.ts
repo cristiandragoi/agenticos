@@ -19,6 +19,7 @@ import { takeSnapshot, verify } from './verifier.js';
 import { runLegacyHandler } from './legacyHandler.js';
 import { decideOutcome, renderResponse } from './respond.js';
 import { recoveryContextForRequest, runWithRecoveryContext } from '../selfHeal/recoveryContext.js';
+import { runWithTurnOwnership } from '../jarvis/perception/turnOwnership.js';
 import type {
   ExecutionReceipt, PreExecutionSnapshot, TurnGoal, TurnRecord, TurnRequest, TurnSink, TurnSource, VerificationResult,
 } from './types.js';
@@ -111,10 +112,19 @@ class TurnLifecycleController {
     }
 
     try {
+      const executeTurn = () => runWithTurnOwnership(
+        {
+          conversationId: req.conversationId,
+          turnId: Date.now(),
+          operationId: req.requestId,
+          origin: 'user_turn',
+        },
+        () => this.run(record, sink, isStale, input.structured),
+      );
       if (recovery) {
-        await runWithRecoveryContext(recovery, () => this.run(record, sink, isStale, input.structured));
+        await runWithRecoveryContext(recovery, executeTurn);
       } else {
-        await this.run(record, sink, isStale, input.structured);
+        await executeTurn();
       }
     } catch (err: any) {
       logger.error('[TurnLifecycle] lifecycle error', { requestId: req.requestId, error: err?.message });
@@ -140,6 +150,60 @@ class TurnLifecycleController {
 
     // ── UNDERSTAND ── goal + postcondition, before anything executes.
     const previous = store.previousTurn(req.conversationId, req.requestId);
+    const isContinuing = Boolean(previous);
+
+    // Fast local conversational replies (greeting, presence, identity)
+    if (!structured) {
+      const { detectLocalFastReply } = await import('../jarvis/fastLocalReplies.js');
+      const localFast = detectLocalFastReply(req.text, { isContinuing });
+      if (localFast) {
+        const goal: TurnGoal = {
+          kind: 'answer',
+          summary: 'Direct conversational greeting or presence response',
+          continuesPrevious: isContinuing,
+          understoodBy: 'fallback',
+        };
+        record.contextKey = isContinuing && previous ? previous.contextKey : `ctx-${req.requestId}`;
+        store.setContextKey(req.requestId, record.contextKey);
+        record.goal = goal;
+        record.postcondition = definePostcondition(goal);
+        store.recordStage(req.requestId, 'UNDERSTAND', { goal, postcondition: record.postcondition });
+        record.policy = { allowed: true, reason: 'conversational greeting or presence is always allowed' };
+        store.recordStage(req.requestId, 'POLICY', { policy: record.policy });
+        const t = new Date().toISOString();
+        const receipt: ExecutionReceipt = {
+          executor: 'lifecycle.fast_local_reply',
+          attempted: true,
+          completedWithoutError: true,
+          startedAt: t,
+          finishedAt: t,
+          handlerText: localFast.reply,
+          details: { matched: localFast.matched },
+        };
+        record.receipt = receipt;
+        record.handler = receipt.executor;
+        store.recordStage(req.requestId, 'EXECUTE', { receipt, handler: receipt.executor });
+        record.verification = {
+          verifier: 'TurnLifecycleVerifier',
+          satisfied: true,
+          observable: true,
+          reason: 'answer delivered',
+          evidence: [],
+          checkedAt: t,
+        };
+        store.recordStage(req.requestId, 'VERIFY', { verification: record.verification });
+        record.outcome = 'VERIFIED';
+        record.outcomeReason = 'direct greeting or presence response';
+        store.recordOutcome(req.requestId, 'VERIFIED', record.outcomeReason);
+        record.responseText = localFast.reply;
+        store.recordResponse(req.requestId, record.responseText);
+        await this.deliver(record, sink, isStale);
+        store.recordDone(req.requestId);
+        record.stage = 'DONE';
+        return;
+      }
+    }
+
     const goal: TurnGoal = structured
       ? { kind: 'action', summary: structured.summary, action: { type: 'other' }, continuesPrevious: false, understoodBy: 'structured_submission' }
       : await understand(req, previous);

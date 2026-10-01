@@ -58,9 +58,17 @@ export const KNOWN_DESKTOP_APPS: KnownDesktopApp[] = [
   {
     id: 'telegram',
     displayName: 'Telegram',
-    executable: 'Telegram.exe',
+    executable: path.join(process.env.APPDATA || 'C:\\Users\\cd-pr\\AppData\\Roaming', 'Telegram Desktop', 'Telegram.exe'),
     processName: 'Telegram',
     aliases: ['telegram', 'telegram desktop', 'tg', 'telegram app'],
+  },
+  {
+    id: 'whatsapp',
+    displayName: 'WhatsApp',
+    executable: 'explorer.exe',
+    args: ['shell:AppsFolder\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App'],
+    processName: 'WhatsApp.Root',
+    aliases: ['whatsapp', 'whatsapp desktop', 'whatsapp app', 'whats app'],
   },
   {
     id: 'chatgpt',
@@ -119,6 +127,13 @@ export const KNOWN_DESKTOP_APPS: KnownDesktopApp[] = [
     executable: 'start ms-settings:',
     processName: 'SystemSettings',
     aliases: ['settings', 'windows settings', 'pc settings', 'einstellungen', 'system settings'],
+  },
+  {
+    id: 'comet',
+    displayName: 'Comet',
+    executable: 'C:\\Program Files\\Perplexity\\Comet\\Application\\comet.exe',
+    processName: 'comet',
+    aliases: ['comet', 'perplexity', 'perplexity comet', 'comet browser'],
   },
 ];
 

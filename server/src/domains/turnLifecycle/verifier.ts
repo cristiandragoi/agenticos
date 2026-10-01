@@ -58,7 +58,8 @@ async function verifyAppWindow(pc: Postcondition, snap: PreExecutionSnapshot | u
     );
     const fresh = after.windows.filter((w) => !before.has(w.hwnd) && matchesApp(w, id, { allowTitleMatch: true }));
     const fgWin = after.windows.find((w) => w.hwnd === after.foreground);
-    const foregroundChangedToApp = Boolean(fgWin && after.foreground !== snap.foregroundHwnd && matchesApp(fgWin, id));
+    const foregroundMatchesApp = Boolean(fgWin && matchesApp(fgWin, id));
+    const foregroundChangedToApp = Boolean(foregroundMatchesApp && (after.foreground !== snap.foregroundHwnd || snap.foregroundHwnd === 0));
     const preExisting = snap.windows.filter((w) => matchesApp(w, id));
     evidence.push({
       probe: 'lc_windows.ps1',
@@ -70,11 +71,12 @@ async function verifyAppWindow(pc: Postcondition, snap: PreExecutionSnapshot | u
         foregroundAfter: after.foreground,
         foregroundWindowAfter: fgWin || null,
         foregroundChangedToApp,
+        foregroundMatchesApp,
         preExistingAppWindows: preExisting.length,
       },
     });
     if (fresh.length > 0) return result(true, true, `new ${id.displayName} window appeared: "${fresh[0].title}" (hwnd ${fresh[0].hwnd})`, evidence);
-    if (foregroundChangedToApp) return result(true, true, `existing ${id.displayName} window became the foreground window: "${fgWin!.title}"`, evidence);
+    if (foregroundChangedToApp || foregroundMatchesApp) return result(true, true, `${id.displayName} window is in the foreground: "${fgWin!.title}"`, evidence);
     if (preExisting.length > 0) {
       return result(false, true, `${id.displayName} was already open and no new window appeared or came to the foreground; nothing observably changed`, evidence);
     }

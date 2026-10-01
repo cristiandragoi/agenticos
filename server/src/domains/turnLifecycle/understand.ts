@@ -31,6 +31,7 @@ const PLANNER_SYSTEM_PROMPT = [
   '- "control": the user only wants the assistant to stop, cancel, pause or be quiet.',
   'action.type (only when kind is "action"):',
   '- "launch_app": ONLY open/start an installed desktop application; set "app".',
+  '  Do NOT use "launch_app" for camera or screen perception (e.g. "open the camera", "can you see me", "read my screen"). Those are "answer" requests.',
   '- "type_text": open/use a desktop application and type given text into it; set "app" and the exact "text".',
   '  Convert spoken symbols in the text to characters (e.g. "dash" -> "-"), keep letters/digits exactly as said.',
   '- "open_url": open a website or web address in the browser; set "url" to a full https URL',
@@ -53,10 +54,39 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
 }
 
-export function validateGoal(raw: any): TurnGoal | null {
+export function validateGoal(raw: any, reqText?: string): TurnGoal | null {
   if (!raw || typeof raw !== 'object') return null;
-  const kind = raw.kind === 'action' || raw.kind === 'control' || raw.kind === 'answer' ? raw.kind : null;
+  let kind = raw.kind === 'action' || raw.kind === 'control' || raw.kind === 'answer' ? raw.kind : null;
   if (!kind) return null;
+
+  const rawText = (reqText || '').toLowerCase();
+  if (kind === 'control') {
+    const isStopOrCancel = /\b(?:stop|cancel|abort|halt|pause|be quiet|shut up|silence)\b/i.test(rawText);
+    if (!isStopOrCancel) {
+      kind = /\b(?:delegate|create|run|execute|inspect|open|start)\b/i.test(rawText) ? 'action' : 'answer';
+    }
+  }
+
+  const isDelegation = /\b(?:delegate\s+to|engineering\s+task|assign\s+to\s+(?:hermes|codex|antigravity))\b/i.test(rawText);
+  if (isDelegation) {
+    kind = 'action';
+  }
+
+  // Camera / screen perception is an answer-class goal handled by perception sensors,
+  // never an app launch of "Camera".
+  const isCameraPerception = /\b(?:camera|webcam|see me|look at me)\b/i.test(rawText);
+  const isScreenPerception = /\b(?:screen|desktop|monitor)\b/i.test(rawText) && /\b(?:read|see|check|what is on)\b/i.test(rawText);
+  const isLocateTarget = /\b(?:locate|find)\s+(?:the\s+)?(?:agentic\s*os|agenticos)\s*(?:bot)?\b/i.test(rawText);
+  const isCompoundOpenAndRead = /\b(?:open|launch)\s+([a-zA-Z0-9_\-\s]+?)\s+and\s+(?:read|summarize|inspect|see)\b/i.test(rawText);
+
+  if ((isCameraPerception || isScreenPerception || isLocateTarget || isCompoundOpenAndRead) && kind === 'action') {
+    const a = raw.action && typeof raw.action === 'object' ? raw.action : {};
+    const appName = str(a.app).toLowerCase();
+    if (!appName || appName === 'camera' || appName === 'webcam' || appName === 'screen' || isLocateTarget || isCompoundOpenAndRead) {
+      kind = 'answer';
+    }
+  }
+
   const goal: TurnGoal = {
     kind,
     summary: str(raw.summary) || (kind === 'answer' ? 'Answer the user' : 'Perform the requested action'),
@@ -104,7 +134,7 @@ export async function understand(req: TurnRequest, previous: PreviousTurnSummary
       timeoutMs: 20000,
       requestId: `plan-${req.requestId}`,
     });
-    const goal = validateGoal(extractJson(res.reply || ''));
+    const goal = validateGoal(extractJson(res.reply || ''), req.text);
     if (goal) {
       if (!previous) goal.continuesPrevious = false;
       return goal;
