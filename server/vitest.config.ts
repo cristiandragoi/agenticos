@@ -4,7 +4,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['src/__tests__/**/*.test.ts'],
+    include: [
+      'src/__tests__/**/*.test.ts',
+      'src/domains/**/__tests__/**/*.test.ts',
+    ],
     // Legacy manual scripts that live under __tests__ but are NOT vitest suites.
     // They own their runner (own assert/runTest helpers) and end with
     // `process.exit(...)`, which kills the vitest worker and reports the whole

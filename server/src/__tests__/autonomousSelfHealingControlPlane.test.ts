@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { autonomousRecoveryEngine } from '../domains/controlPlane/AutonomousRecoveryEngine.js';
 import { goalLifecycleManager } from '../domains/controlPlane/GoalLifecycle.js';
 import { engineeringDelegationService } from '../domains/controlPlane/EngineeringDelegationService.js';
@@ -9,9 +9,14 @@ import type { GoalAttempt } from '../domains/controlPlane/types.js';
 
 describe('Autonomous Self-Healing Control Plane', () => {
   const speechHistory: string[] = [];
+  let savedRepairEnv: string | undefined;
 
   beforeEach(() => {
     speechHistory.length = 0;
+    // Enable the Phase 1 guard for this suite. The guard is a production deployment gate; tests
+    // must verify the real pipeline behavior. Save and restore to preserve isolation.
+    savedRepairEnv = process.env.AGENTICOS_AUTONOMOUS_ENGINEERING_REPAIR;
+    process.env.AGENTICOS_AUTONOMOUS_ENGINEERING_REPAIR = '1';
     // Register spy on speechArbiter
     speechArbiter.register({
       speakFn: async (text: string) => {
@@ -20,6 +25,15 @@ describe('Autonomous Self-Healing Control Plane', () => {
       getCurrentTurnId: () => 1,
       isUserTurnActive: () => true,
     });
+  });
+
+  afterEach(() => {
+    if (savedRepairEnv === undefined) {
+      delete process.env.AGENTICOS_AUTONOMOUS_ENGINEERING_REPAIR;
+    } else {
+      process.env.AGENTICOS_AUTONOMOUS_ENGINEERING_REPAIR = savedRepairEnv;
+    }
+    vi.restoreAllMocks();
   });
 
   it('executes full autonomous recovery loop with 4 canonical spoken stages without user prompting', async () => {

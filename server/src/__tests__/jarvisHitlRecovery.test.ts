@@ -3,7 +3,8 @@ import { rawDb } from '../db/index.js';
 import { recoveryController } from '../domains/jarvis/execution/recoveryController.js';
 import { selfHealSupervisor } from '../domains/selfHeal/SelfHealSupervisor.js';
 import { repairMemory } from '../domains/selfHeal/RepairMemory.js';
-import { universalExecutionController } from '../domains/jarvis/execution/universalExecutionController.js';
+// Note: universalExecutionController is no longer called by recoveryController directly.
+// Phase 1 mandates all retries go through selfHealSupervisor.retryOriginalRequestViaLifecycle.
 
 describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
   const incA = 'INC-TEST-001-A';
@@ -14,7 +15,8 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
       CREATE TABLE IF NOT EXISTS repair_incidents (
         id TEXT PRIMARY KEY, status TEXT NOT NULL, component TEXT NOT NULL,
         failure_domain TEXT NOT NULL, symptom TEXT NOT NULL, detected_at TEXT NOT NULL,
-        resolved_at TEXT, triggered_by TEXT NOT NULL, priority TEXT NOT NULL, metadata TEXT NOT NULL
+        resolved_at TEXT, triggered_by TEXT NOT NULL, priority TEXT NOT NULL, metadata TEXT NOT NULL,
+        goal_id TEXT
       );
       CREATE TABLE IF NOT EXISTS repair_evidence (
         id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, type TEXT NOT NULL, label TEXT NOT NULL,
@@ -56,15 +58,18 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
   });
 
   it('Phase 4 & 13: Approval is strictly bound to specific incident ID (multi-incident isolation)', async () => {
-    // Spy deployRepair & handleUserTurn
+    // Phase 1: retry goes through selfHealSupervisor.retryOriginalRequestViaLifecycle, not UEC directly.
     vi.spyOn(selfHealSupervisor, 'deployRepair').mockResolvedValue({ success: true, filesDeployed: ['test.ts'] } as any);
-    vi.spyOn(universalExecutionController, 'handleUserTurn').mockResolvedValue({
-      handled: true,
-      execution: { success: true },
-      verification: { verified: true },
-      spokenText: "I've opened YouTube.",
-      entityName: 'YouTube',
+    vi.spyOn(repairMemory, 'getIncident').mockResolvedValue({
+      incidentId: incA,
+      metadata: { originalGoal: 'Fix broken host check' },
     } as any);
+    vi.spyOn(selfHealSupervisor, 'retryOriginalRequestViaLifecycle').mockResolvedValue({
+      requestId: 'req-test-001',
+      outcome: 'VERIFIED',
+      reason: 'Original goal succeeded on retry',
+      responseText: "I've opened YouTube.",
+    });
 
     const progressStages: string[] = [];
     const res = await recoveryController.approveRepair({
@@ -89,14 +94,16 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
 
     expect(progressStages).toContain('APPROVED');
     expect(progressStages).toContain('APPLYING');
-    expect(progressStages).toContain('VERIFIED');
+    // Phase 1 emits REPAIR_BUILD_OK (not VERIFIED) before the retry.
+    expect(progressStages).toContain('REPAIR_BUILD_OK');
     expect(progressStages).toContain('RETRYING_ORIGINAL_GOAL');
     expect(progressStages).toContain('RECOVERED');
   });
 
   it('Phase 11: Rejection flow leaves production unchanged and transitions to BLOCKED_APPROVAL_REQUIRED', async () => {
     const deploySpy = vi.spyOn(selfHealSupervisor, 'deployRepair');
-    const uecSpy = vi.spyOn(universalExecutionController, 'handleUserTurn');
+    // Phase 1: retry goes through the lifecycle, not UEC directly.
+    const retrySpy = vi.spyOn(selfHealSupervisor, 'retryOriginalRequestViaLifecycle');
 
     const progressStages: string[] = [];
     const res = await recoveryController.rejectRepair({
@@ -113,7 +120,7 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
     // deployRepair must NEVER be called on rejection
     expect(deploySpy).not.toHaveBeenCalled();
     // original goal retry must NOT be triggered on rejection
-    expect(uecSpy).not.toHaveBeenCalled();
+    expect(retrySpy).not.toHaveBeenCalled();
 
     // Incident state becomes BLOCKED_APPROVAL_REQUIRED
     const stateB = selfHealSupervisor.getIncidentState(incB);
@@ -148,7 +155,8 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
 
   it('Phase 6: Verification after apply must succeed before marking as recovered', async () => {
     vi.spyOn(selfHealSupervisor, 'deployRepair').mockResolvedValue({ success: true, filesDeployed: ['test.ts'] } as any);
-    const uecSpy = vi.spyOn(universalExecutionController, 'handleUserTurn');
+    // Phase 1: retry goes through the lifecycle, not UEC directly.
+    const retrySpy = vi.spyOn(selfHealSupervisor, 'retryOriginalRequestViaLifecycle');
 
     const progressStages: string[] = [];
     const res = await recoveryController.approveRepair({
@@ -164,7 +172,7 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
       'The repair was applied in the recovery environment, but verification failed, so I did not treat the issue as resolved.',
     );
     // Original goal retry must not be called if post-apply verification failed
-    expect(uecSpy).not.toHaveBeenCalled();
+    expect(retrySpy).not.toHaveBeenCalled();
     expect(progressStages).toContain('VERIFICATION_FAILED');
   });
 
@@ -175,16 +183,15 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
       metadata: { originalGoal: 'Open YouTube' },
     } as any);
 
-    let retriedPrompt = '';
-    vi.spyOn(universalExecutionController, 'handleUserTurn').mockImplementation(async (opts: any) => {
-      retriedPrompt = opts.prompt;
+    // Phase 1: mock at the lifecycle boundary, not UEC directly.
+    vi.spyOn(selfHealSupervisor, 'retryOriginalRequestViaLifecycle').mockImplementation(async (opts: any) => {
+      expect(opts.text).toBe('Open YouTube');
       return {
-        handled: true,
-        execution: { success: true },
-        verification: { verified: true },
-        spokenText: "I've opened YouTube.",
-        entityName: 'YouTube',
-      } as any;
+        requestId: 'req-retry-001',
+        outcome: 'VERIFIED',
+        reason: 'YouTube is open',
+        responseText: "I've opened YouTube.",
+      };
     });
 
     const res = await recoveryController.approveRepair({
@@ -195,8 +202,9 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
 
     expect(res.success).toBe(true);
     expect(res.status).toBe('recovered');
-    expect(retriedPrompt).toBe('Open YouTube');
-    expect(res.message).toContain('The repair was applied successfully and verified. I retried your request, and YouTube is open now.');
+    // Phase 1 message format: 'The repair was applied and I retried your request; the result was independently verified. <responseText>'
+    expect(res.message).toContain('The repair was applied and I retried your request');
+    expect(res.message).toContain('independently verified');
   });
 
   it('Phase 8: Retry failure transitions truthfully to RECOVERY_FAILED without infinite recursion', async () => {
@@ -207,14 +215,15 @@ describe('Jarvis Human-in-the-Loop Self-Heal Recovery Lifecycle', () => {
     } as any);
 
     let retryCount = 0;
-    vi.spyOn(universalExecutionController, 'handleUserTurn').mockImplementation(async () => {
+    // Phase 1: mock at the lifecycle boundary. retryOriginalRequestViaLifecycle is called once.
+    vi.spyOn(selfHealSupervisor, 'retryOriginalRequestViaLifecycle').mockImplementation(async () => {
       retryCount++;
       return {
-        handled: true,
-        execution: { success: false, error: 'Target still unreachable' },
-        verification: { verified: false, realityCheck: 'Browser target unreachable' },
-        spokenText: "I couldn't complete that command.",
-      } as any;
+        requestId: 'req-retry-fail-001',
+        outcome: 'FAILED',
+        reason: 'Target still unreachable',
+        responseText: "I couldn't complete that command.",
+      };
     });
 
     const progressStages: string[] = [];

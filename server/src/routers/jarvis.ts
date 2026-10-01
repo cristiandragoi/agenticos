@@ -4012,6 +4012,58 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       writeSse(res, 'navigation_request', buildNavigationPacket(base));
       return result;
     };
+    // ── Operational Controller Intercept (Evidence-First Grounding) ──────────
+    // Must run BEFORE the turn lifecycle to block fabricated claims and handle
+    // canonical grounded responses: 'yes' with no pending task, Shopify auth
+    // queries, notification requests, task status lookups.
+    const { OperationalController } = await import('../domains/jarvis/operationalEvidence.js');
+    const opIntercept = await OperationalController.handleOperationalRequest(prompt, req.params.id);
+    if (opIntercept) {
+      streamTextAsChunks(res, opIntercept.reply, normalizedOperationId, 'agentic-os', 'operational-controller');
+      writeSse(res, 'done', {
+        route: 'operational_control',
+        category: 'operational_control',
+        requestId: undefined,
+        outcome: 'VERIFIED',
+        outcomeReason: 'operational evidence gate',
+        verified: true,
+        executed: false,
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'operational-controller',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      return;
+    }
+
+    // ── Canonical Task Reference & Approval Intercept ─────────────────────────
+    // Handles 'yes' → 'Approval granted' when a waiting_approval task exists,
+    // explicit STOP/CANCEL, anaphoric task status queries, etc.
+    const { resolveActiveOperationReference } = await import('../domains/jarvis/taskReferenceResolver.js');
+    const taskRef = await resolveActiveOperationReference({
+      conversationId: req.params.id,
+      message: prompt,
+    });
+    if (taskRef.type !== 'none' && taskRef.replyText) {
+      streamTextAsChunks(res, taskRef.replyText, normalizedOperationId, 'agentic-os', 'task-reference-resolver');
+      writeSse(res, 'done', {
+        route: taskRef.type,
+        category: taskRef.type,
+        requestId: undefined,
+        outcome: 'VERIFIED',
+        outcomeReason: taskRef.reason,
+        verified: true,
+        executed: taskRef.type === 'approval_resolution' || taskRef.type === 'stop',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'task-reference-resolver',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      return;
+    }
+
     const { turnLifecycle } = await import('../domains/turnLifecycle/index.js');
     const submitted = await turnLifecycle.submit(
       { source: 'typed_chat', conversationId: req.params.id, text: prompt, externalTurnId: normalizedOperationId },
