@@ -17,12 +17,12 @@ import { universalExecutionController } from '../domains/jarvis/execution/univer
 
 const TEST_PROJECT = 'proj-phasef-test';
 
-function newTask(title: string, worker: any = 'codex', projectId = TEST_PROJECT) {
+function newTask(title: string, worker: any = 'hermes', projectId = TEST_PROJECT) {
   const res = backgroundTaskManager.createTask({
     title,
     objective: `Phase F test task: ${title}`,
     originalRequest: 'phase-f-test',
-    route: 'codex',
+    route: worker,
     selectedAgent: worker,
     worker,
     projectId,

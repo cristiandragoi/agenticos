@@ -15,6 +15,7 @@ import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js
 import { goalLifecycleManager } from './GoalLifecycle.js';
 import { engineeringWorkerRegistry } from './EngineeringWorkerRegistry.js';
 import type { BackgroundTaskRecord } from '../../services/backgroundTasks/types.js';
+import { authoritativeInteractionContext } from './AuthoritativeInteractionContext.js';
 
 export type OperationalChannel = 'desktop' | 'voice' | 'telegram' | 'internal';
 
@@ -49,6 +50,8 @@ export interface TaskLedgerEntry {
   blocker?: string;
   verificationState?: string;
   completionEvidence?: string;
+  resultText?: string;
+  linkedRunId?: string;
   linkedWorkerSession?: string;
   parentTaskId?: string;
   continuationOf?: string;
@@ -94,6 +97,11 @@ export class UnifiedOperationalContext {
       ...referent,
       updatedAt: new Date().toISOString(),
     };
+    authoritativeInteractionContext.recordVerifiedStepSuccess('global-default', 0, {
+      worker: this.activeReferent.activeWorker,
+      taskId: this.activeReferent.activeTaskId,
+      target: this.activeReferent.activeSubject,
+    });
     logger.info(`[UnifiedOperationalContext] Active referent updated: task=${this.activeReferent.activeTaskId}, worker=${this.activeReferent.activeWorker}, channel=${this.activeReferent.originChannel}, subject="${this.activeReferent.activeSubject?.slice(0, 40)}"`);
     return this.activeReferent;
   }
@@ -272,11 +280,14 @@ export class UnifiedOperationalContext {
       }
     }
 
-    // Check for "that task", "the task", "it", "did he finish it", "what happened with it"
+    // Check for "that task", "the task", "it", "did he finish it", "what happened with it", "findings"
     const isAnaphoricReferent = /\b(?:that|the|this|it|current|previous|last)\s+(?:task|job|work|operation|goal)\b/i.test(lower) ||
       /\b(?:finish|completed?|done|status\s+of)\s+it\b/i.test(lower) ||
+      /\b(?:is\s+it\s+(?:done|finished|completed?|running|ready))\b/i.test(lower) ||
       /\bwhat\s+happened\s+with\s+(?:it|that)\b/i.test(lower) ||
-      /\bwhat\s+is\s+the\s+status\s+of\s+the\s+task\b/i.test(lower);
+      /\bwhat\s+is\s+the\s+status\s+of\s+(?:the\s+)?task\b/i.test(lower) ||
+      /\b(?:tell\s+me|what\s+are|show\s+me|report)?\s*(?:the\s+)?findings\b/i.test(lower) ||
+      /\bwhat\s+did\s+(?:it|you|hermes|codex|antigravity)\s+find\b/i.test(lower);
 
     const hasFilter = Boolean(workerMention || channelMention || subjectKeywords.length > 0);
     if (!hasFilter && !isAnaphoricReferent) {
@@ -287,6 +298,19 @@ export class UnifiedOperationalContext {
         ambiguous: false,
         message: 'I could not find an existing task matching that request.',
       };
+    }
+
+    // If caller conversation is specified, prioritize tasks belonging to THIS conversation
+    if (callerContext?.conversationId) {
+      const convTasks = candidates.filter(t => t.originConversationId === callerContext.conversationId);
+      if (convTasks.length === 1) {
+        const match = convTasks[0];
+        this.setActiveReferent({ activeTaskId: match.taskId, activeGoalRunId: match.goalRunId, activeWorker: match.worker, activeSubject: match.objective, originChannel: match.originChannel });
+        return { match, candidates: convTasks, resolutionMethod: 'origin_channel', ambiguous: false };
+      }
+      if (convTasks.length > 1) {
+        candidates = convTasks;
+      }
     }
 
     if (candidates.length === 1) {
@@ -360,6 +384,11 @@ export class UnifiedOperationalContext {
       metadata: proposal.metadata,
     };
     this.pendingActions.set(pendingActionId, action);
+    authoritativeInteractionContext.setPendingAction(action.conversationId, {
+      action: 'DELEGATE',
+      target: action.proposedWorker,
+      context: { pendingActionId, objective: action.proposedObjective, metadata: action.metadata },
+    });
     logger.info(`[UnifiedOperationalContext] PendingAction proposed: ${pendingActionId} [worker=${action.proposedWorker}, conv=${action.conversationId}] objective="${action.proposedObjective}"`);
     return action;
   }
@@ -385,6 +414,7 @@ export class UnifiedOperationalContext {
     const action = this.pendingActions.get(pendingActionId);
     if (!action || action.status !== 'PENDING') return null;
     action.status = 'ACCEPTED';
+    authoritativeInteractionContext.clearPendingAction(action.conversationId);
     logger.info(`[UnifiedOperationalContext] PendingAction accepted: ${pendingActionId} [worker=${action.proposedWorker}]`);
     return action;
   }
@@ -393,6 +423,7 @@ export class UnifiedOperationalContext {
     const action = this.pendingActions.get(pendingActionId);
     if (!action || action.status !== 'PENDING') return null;
     action.status = 'REJECTED';
+    authoritativeInteractionContext.clearPendingAction(action.conversationId);
     logger.info(`[UnifiedOperationalContext] PendingAction rejected: ${pendingActionId} reason="${reason || 'user cancelled'}"`);
     return action;
   }
@@ -402,6 +433,9 @@ export class UnifiedOperationalContext {
       if (!conversationId || action.conversationId === conversationId) {
         action.status = 'EXPIRED';
       }
+    }
+    if (conversationId) {
+      authoritativeInteractionContext.clearPendingAction(conversationId);
     }
   }
 
@@ -450,6 +484,8 @@ export class UnifiedOperationalContext {
       blocker: task.blocker || undefined,
       verificationState: task.verificationState === 'passed' ? 'VERIFIED' : task.status === 'completed' ? 'UNVERIFIED' : 'PENDING',
       completionEvidence: task.resultText || undefined,
+      resultText: task.resultText || undefined,
+      linkedRunId: task.linkedRunId || undefined,
       linkedWorkerSession: task.linkedRunId || undefined,
       parentTaskId: meta.parentTaskId,
       continuationOf: meta.continuationOf,

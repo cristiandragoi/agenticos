@@ -73,6 +73,16 @@ describe('fastLocalReplies — presence fast path (R5 + P0 expansion)', () => {
       expect(detectPresencePrompt(p), `should NOT detect: ${p}`).toBeNull();
     }
   });
+
+  it('greets time-aware on fresh turns and avoids repeating on continuing turns', () => {
+    const fresh = detectPresencePrompt('Good evening, Jarvis.', { isContinuing: false });
+    expect(fresh).not.toBeNull();
+    expect(fresh!.reply).toMatch(/Good (morning|afternoon|evening), Christian\./);
+
+    const continuing = detectPresencePrompt('Good evening, Jarvis.', { isContinuing: true });
+    expect(continuing).not.toBeNull();
+    expect(continuing!.reply).toBe("I'm here.");
+  });
 });
 
 describe('fastLocalReplies — direct local knowledge (R6/R7)', () => {

@@ -4,7 +4,11 @@ vi.mock('@livekit/rtc-node', () => ({ Room: class {}, AudioSource: class {}, Aud
 vi.mock('../domains/jarvisNext/tokenService.js', () => ({ LIVEKIT_CONFIG: {}, generateAgentToken: vi.fn() }));
 vi.mock('../domains/jarvisNext/audioUtils.js', () => ({ mp3ToPcmFrames: vi.fn(), pcmChunksToWav: vi.fn(() => Buffer.alloc(44)) }));
 vi.mock('../services/voice/localTts.js', () => ({ synthesizeLocally: vi.fn() }));
-vi.mock('../services/voice/localTranscribe.js', () => ({ transcribeLocally: vi.fn() }));
+vi.mock('../services/voice/localTranscribe.js', () => ({
+  transcribeLocally: vi.fn(),
+  cancelLocalTranscription: vi.fn(),
+  purgeObsoleteTranscriptions: vi.fn(),
+}));
 vi.mock('../domains/jarvisNext/operator/operatorController.js', () => ({ operatorController: { handleIntent: vi.fn(async () => ({ handled: false })) } }));
 vi.mock('../services/llmGateway.js', () => ({ llmChat: vi.fn() }));
 vi.mock('../utils/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
@@ -26,7 +30,7 @@ describe('Jarvis live voice cancellation and capture', () => {
     await agent.commitUserTurn();
     expect(agent.currentAssistantPlayoutId).toBe(7);
     expect(agent.currentUserTurnId).toBe(3);
-    expect(transcribeLocally).toHaveBeenCalledWith(expect.anything(), '.wav', 'en');
+    expect(transcribeLocally).toHaveBeenCalledWith(expect.anything(), '.wav', 'en', 3, 400);
   });
 
   it('Stop suppresses an in-flight reasoning reply but permits the next request', async () => {

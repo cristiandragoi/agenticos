@@ -34,6 +34,8 @@ import { capabilityCertificationRegistry } from './CapabilityCertificationRegist
 import { projectsStore } from '../../services/projectsStore.js';
 import type { TurnResult, TurnFocus } from '../jarvisNext/turnRouter.js';
 import type { GoalRun, GoalAttempt, DiscoveredCapability, GoalVerification } from './types.js';
+import type { TurnEnvelope } from './TurnEnvelope.js';
+import type { CompiledTurnIntent } from './AuthoritativeIntentCompiler.js';
 
 export interface ControlPlaneTurnOpts {
   prompt: string;
@@ -44,6 +46,8 @@ export interface ControlPlaneTurnOpts {
   onActionProgress?: (update: any) => void;
   navigationVerifier?: (req: any) => Promise<any>;
   focus: TurnFocus;
+  envelope?: TurnEnvelope;
+  semanticIntent?: CompiledTurnIntent;
 }
 
 export interface ConversationReferent {
@@ -106,39 +110,54 @@ export class ControlPlaneTurnHandler {
     normalizedPrompt = normalizedPrompt.replace(/\b(?:zeus|suisse|zoos)\s+voice\b/gi, 'Zeus voice');
     const lower = normalizedPrompt.toLowerCase().trim();
 
-    // ── 0a. Explicit Worker Delegation (AntiGravity): HIGHEST PRECEDENCE ──
-    // Executes strictly before voice switching, language_preference, browser, desktop,
-    // open-app, Hermes, or LLM fallback.
-    const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('./ExplicitEngineeringDelegation.js');
-    const explicitEngineering = parseExplicitEngineeringDelegation(prompt) || parseExplicitEngineeringDelegation(effectivePrompt);
-    if (explicitEngineering) {
-      logger.info('[ControlPlaneTurnHandler] Explicit AntiGravity delegation detected — executing canonical lifecycle');
-      const delRes = await executeEngineeringDelegation(explicitEngineering, {
-        conversationId,
-        turnId,
-        workspace: 'D:\\AgenticOS',
-        speakFn: async (textToSpeak) => {
-          try {
-            const { jarvisNextAgent } = await import('../jarvisNext/jarvisNextAgent.js');
-            await jarvisNextAgent.speak(textToSpeak, turnId);
-          } catch {}
-        },
-        broadcastFn: (data) => {
-          try {
-            onActionProgress?.(data);
-          } catch {}
-        },
-      });
-      return {
-        handled: true,
-        route: 'engineering_delegation' as any,
-        text: delRes.text,
-        evidence: delRes.success,
-        executed: delRes.success,
-        verified: delRes.success,
-        timings: {},
-        goalId: delRes.goalId,
-      };
+    // ── Authoritative Single-Pass Semantic Intent Arbitration & Envelope (Phase 1) ──
+    const { arbitrateSemanticIntent } = await import('../jarvis/semanticIntentArbitrator.js');
+    const envelope = (opts as any).envelope;
+    const semanticIntent = (opts as any).semanticIntent || envelope?.compiledIntent || arbitrateSemanticIntent(effectivePrompt || prompt, { conversationId });
+    logger.info(`[ControlPlaneTurnHandler] Arbitrated intent: [action=${semanticIntent.action}, app=${semanticIntent.application}, target=${semanticIntent.target}, delReq=${semanticIntent.delegationRequested}]`);
+
+    // ── 0a. Explicit Worker Delegation: Gated strictly by semantic arbitration ──
+    // Rule: Only semanticIntent.action === 'DELEGATE' && semanticIntent.delegationRequested may invoke delegation
+    if (semanticIntent.action === 'DELEGATE' && semanticIntent.delegationRequested) {
+      const { parseExplicitEngineeringDelegation, executeEngineeringDelegation } = await import('./ExplicitEngineeringDelegation.js');
+      const explicitEngineering = parseExplicitEngineeringDelegation(prompt) || parseExplicitEngineeringDelegation(effectivePrompt);
+      if (explicitEngineering) {
+        logger.info('[ControlPlaneTurnHandler] Explicit worker delegation detected — executing canonical lifecycle');
+        const delRes = await executeEngineeringDelegation(explicitEngineering, {
+          conversationId,
+          turnId,
+          workspace: 'D:\\AgenticOS',
+          speakFn: async (textToSpeak) => {
+            try {
+              const { jarvisNextAgent } = await import('../jarvisNext/jarvisNextAgent.js');
+              await jarvisNextAgent.speak(textToSpeak, turnId);
+            } catch {}
+          },
+          broadcastFn: (data) => {
+            try {
+              onActionProgress?.(data);
+            } catch {}
+          },
+        });
+        return {
+          handled: true,
+          route: 'engineering_delegation' as any,
+          text: delRes.text,
+          evidence: delRes.success,
+          executed: delRes.success,
+          verified: delRes.success,
+          timings: {},
+          goalId: delRes.goalId,
+        };
+      }
+    } else if (envelope) {
+      // Intent assertion: if a legacy check attempts to infer delegation when delegationRequested is false
+      const { parseExplicitEngineeringDelegation } = await import('./ExplicitEngineeringDelegation.js');
+      const unwantedDelegation = parseExplicitEngineeringDelegation(prompt) || parseExplicitEngineeringDelegation(effectivePrompt);
+      if (unwantedDelegation) {
+        const { assertIntentCompatibility } = await import('./TurnEnvelope.js');
+        assertIntentCompatibility('ControlPlaneTurnHandler:0a', envelope, 'DELEGATE');
+      }
     }
 
     // ── 0a1. Speech Transcript Corrections ("No, I said X, not Y", "No, not Y, X") ──
@@ -169,6 +188,8 @@ export class ControlPlaneTurnHandler {
         conversationId,
         prompt: effectivePrompt || prompt,
         modality: 'voice',
+        envelope,
+        semanticIntent,
         onProgress: onActionProgress,
         // Phase 1: the orchestrator runs at most ONCE per request, as the lifecycle's
         // final fallback — never here, where its 'direct' result used to be discarded

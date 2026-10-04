@@ -58,7 +58,11 @@ vi.mock('../domains/jarvisNext/audioUtils.js', () => ({
   pcmChunksToWav: vi.fn(() => Buffer.alloc(44)),
 }));
 vi.mock('../services/voice/localTts.js', () => ({ synthesizeLocally: vi.fn(async () => Buffer.alloc(64)) }));
-vi.mock('../services/voice/localTranscribe.js', () => ({ transcribeLocally: vi.fn() }));
+vi.mock('../services/voice/localTranscribe.js', () => ({
+  transcribeLocally: vi.fn(),
+  cancelLocalTranscription: vi.fn(),
+  purgeObsoleteTranscriptions: vi.fn(),
+}));
 vi.mock('../domains/jarvisNext/operator/operatorController.js', () => ({
   operatorController: { handleIntent: vi.fn(async () => ({ handled: false })) },
 }));

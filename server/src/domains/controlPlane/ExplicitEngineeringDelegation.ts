@@ -124,9 +124,13 @@ export function parseExplicitEngineeringDelegation(input: string): EngineeringCo
   // 3. Delegate patterns:
   // e.g. "Delegate to Hermes: inspect why the AgenticOS GitHub update has not been pushed."
   // e.g. "Delegate this to Hermes"
-  // e.g. "Hand off to AntiGravity: <task>"
+  // Prevent misinterpreting window/content reading or UI inspection as worker delegation
+  if (/\b(?:read\s+what\s+is\s+inside|what\s+is\s+inside|read\s+point|what\s+does\s+point|inside\s+this\s+window)\b/i.test(stripped)) {
+    return null;
+  }
+
   const delegateMatch = stripped.match(
-    /^(?:delegate|hand\s+off|assign|pass|forward)\s+(?:this\s+)?(?:the\s+)?(?:task\s+)?to\s+(?:anti[- ]?gravity|hermes|codex|code[- ]?x)[:\s,-]*(.*)$/i
+    /^(?:delegate|hand\s+off|assign|pass|forward)\s+(?:this\s+|the\s+)?(?:task\s+|problem\s+|issue\s+|investigation\s+|work\s+)?to\s+(?:anti[- ]?gravity|hermes|codex|code[- ]?x)[:\s,-]*(.*)$/i
   );
   if (delegateMatch) {
     let task = delegateMatch[1]?.trim() || '';
@@ -165,6 +169,9 @@ export function parseExplicitEngineeringDelegation(input: string): EngineeringCo
   );
   if (directCmdMatch) {
     const task = directCmdMatch[1].trim();
+    if (/\b(?:this\s+window|what\s+is\s+inside|the\s+screen|point\s+\d+|inside\s+this)\b/i.test(task)) {
+      return null;
+    }
     if (task) {
       return {
         worker,
@@ -212,24 +219,13 @@ export async function executeEngineeringDelegation(
     originChannel,
   });
 
-  // 1. Immediate Spoken & Broadcast Acknowledgment
-  const spokenAck = `Understood. Delegating to ${workerDisplayName}: ${command.task}`;
+  // 1. Immediate Broadcast Acknowledgment (no speech here — turn lifecycle owns speech)
+  const spokenAck = `Delegating to ${workerDisplayName}: ${command.task}`;
   opts.broadcastFn?.({
     type: 'assistant_text',
     text: spokenAck,
     meta: { status: 'delegating', worker: targetWorker },
   });
-
-  const speakImmediate = async (text: string) => {
-    if (opts.speakFn) {
-      try {
-        await opts.speakFn(text);
-      } catch (err) {
-        logger.warn('[ExplicitEngineeringDelegation] speakFn error:', err);
-      }
-    }
-  };
-  void speakImmediate(spokenAck);
 
   // 2. GoalLifecycle Initialization
   const goalRun = goalLifecycleManager.initializeGoal({
@@ -331,7 +327,6 @@ export async function executeEngineeringDelegation(
       type: 'assistant_text',
       text: failureText,
     });
-    await speakImmediate(failureText);
 
     return {
       success: false,
@@ -390,7 +385,7 @@ export async function executeEngineeringDelegation(
   });
 
   if (claimCheck.allowed) {
-    const successText = `${workerDisplayName} accepted task ${assignedTaskId} and is working on it.`;
+    const successText = `Accepted. Worker: ${workerDisplayName}. Task: ${assignedTaskId}. Status: running.`;
     logger.info(`[ExplicitEngineeringDelegation] Successful ${workerDisplayName} acceptance:`, {
       taskId: assignedTaskId,
       sessionId: capturedSessionId,
@@ -409,7 +404,6 @@ export async function executeEngineeringDelegation(
       type: 'assistant_text',
       text: successText,
     });
-    void speakImmediate(successText);
 
     return {
       success: true,
@@ -429,7 +423,6 @@ export async function executeEngineeringDelegation(
     type: 'assistant_text',
     text: failureText,
   });
-  void speakImmediate(failureText);
 
   return {
     success: false,

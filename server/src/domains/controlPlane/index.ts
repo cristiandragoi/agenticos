@@ -10,3 +10,17 @@ export * from './RecoveryWatchdog.js';
 export * from './GoalLifecycle.js';
 export * from './ControlPlaneExecutor.js';
 export * from './AutonomousRecoveryEngine.js';
+export * from './TurnEnvelope.js';
+export * from './AuthoritativeIntentCompiler.js';
+export * from './AuthoritativeInteractionContext.js';
+export * from './VerificationGateway.js';
+export * from './CapabilityDispatcher.js';
+export * from './TargetResolver.js';
+export * from './UniversalContentAcquisition.js';
+export * from './SourceOutcomeVerifier.js';
+export * from './CapabilityMethodSelector.js';
+export * from './LatencyTracker.js';
+export * from './UniversalCapabilityRuntime.js';
+export * from './JarvisConstitution.js';
+export * from './adapters/index.js';
+

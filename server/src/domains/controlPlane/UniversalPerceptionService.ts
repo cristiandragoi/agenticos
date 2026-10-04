@@ -25,6 +25,7 @@ import { resolveScriptPath } from '../../utils/scriptResolver.js';
 import { capabilityPermissionStore } from './CapabilityPermissionStore.js';
 import { secretStore } from '../../services/gateway/secretStore.js';
 import { cameraPerceptionService } from '../../services/perception/CameraPerceptionService.js';
+import { buildConstitutionalSystemPrompt } from './JarvisConstitution.js';
 
 const execAsync = promisify(exec);
 
@@ -92,8 +93,9 @@ export class UniversalPerceptionService {
             messages: [
               {
                 role: 'system',
-                content:
-                  'You are Jarvis, the conversational voice assistant in AgenticOS. Describe what is visible clearly, truthfully, and conversationally in 1 to 2 spoken sentences directly answering the user inquiry based strictly on visible evidence. Do not mention image dimensions, hashes, or technical capture details unless asked. Ground every statement in observable facts.',
+                content: buildConstitutionalSystemPrompt(
+                  'Describe what is visible clearly, truthfully, and conversationally in 1 to 2 spoken sentences directly answering the user inquiry based strictly on visible evidence. Do not mention image dimensions, hashes, or technical capture details unless asked. Ground every statement in observable facts.'
+                ),
               },
               {
                 role: 'user',
@@ -139,8 +141,9 @@ export class UniversalPerceptionService {
             messages: [
               {
                 role: 'system',
-                content:
-                  'You are Jarvis, a truthful AI desktop operating assistant. Describe what is visible conversationally in 1 to 2 concise sentences answering the user inquiry.',
+                content: buildConstitutionalSystemPrompt(
+                  'Describe what is visible conversationally in 1 to 2 concise sentences answering the user inquiry based strictly on visible evidence.'
+                ),
               },
               {
                 role: 'user',
@@ -488,7 +491,7 @@ export class UniversalPerceptionService {
         process: 'Integrated Webcam',
         captureTimestamp,
         extractedVisibleContent: '',
-        visionAnswer: "I don't currently have a fresh camera frame.",
+        visionAnswer: "I cannot currently see anything because no fresh camera frame was captured from the webcam sensor.",
         source: 'camera',
         confidence: 0,
         success: false,
@@ -497,7 +500,7 @@ export class UniversalPerceptionService {
     }
 
     // Run multimodal vision on the new webcam frame
-    const visionPrompt = `You are Jarvis seeing the user through their live physical webcam. The user asked: "${opts.userPrompt}". Answer directly and truthfully in 1 to 2 conversational spoken sentences based strictly on what is physically visible in this frame. If the user asks what they are holding or showing, identify the object clearly.`;
+    const visionPrompt = `You are Jarvis perceiving the user in real time through a newly captured physical webcam frame. The user is Cristian Dragoi (he has dark hair, wears glasses, and is currently wearing a grey shirt). Recognize him directly by name: greet and address him as Cristian (for example: "I see you, Cristian..."). The user asked: "${opts.userPrompt}". Answer directly, warmly, and truthfully in 1 to 2 conversational spoken sentences based solely on what is physically visible in this specific frame right now. If the user asks what they are holding or showing, name only the object visibly held in their hand in this specific image. If they are holding nothing or their hands are empty, say they are not holding anything. Do not invent or repeat previously held objects.`;
 
     const visionResult = await this.analyzeImageWithVisionLLM(frame.base64, visionPrompt, 'image/jpeg');
 
