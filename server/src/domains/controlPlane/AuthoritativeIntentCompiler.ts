@@ -122,6 +122,7 @@ export function normalizeEntityNames(input: string): string {
   return input
     .replace(/\banti[- ]gravity\b/gi, 'antigravity')
     .replace(/\bcode[- ]x\b/gi, 'codex')
+    .replace(/\bagentico[- ]?os\b/gi, 'Agentic OS')
     .replace(/\bagentic[- ]?os[,\s]+(?:bot|bought)\b/gi, 'Agentic OS bot')
     .replace(/\bagentic[- ]?os\s+bot\b/gi, 'Agentic OS bot')
     .replace(/\bagentic[- ]?os\b/gi, 'Agentic OS')
@@ -420,7 +421,58 @@ export class AuthoritativeIntentCompiler {
       }
     }
 
-    // 2. Otherwise compile as a single canonical intent
+    // 2. Direct compound video requests from cold/desktop: "open one video from Julian Goldie"
+    const directVideoMatch = normalized.match(/\b(?:open|play|watch)\s+(?:one\s+video|a\s+video|1v|the\s+first\s+video|first\s+video|a\s+clip|video)\s+(?:from|in|by|of)\s+([a-zA-Z0-9_\- ]+?)(?:\s+on\s+youtube)?$/i);
+    if (directVideoMatch) {
+      const entity = directVideoMatch[1].trim();
+      const step1: CompiledTurnIntent = {
+        action: 'NAVIGATE_WEB',
+        targetType: 'WEB_URL',
+        application: 'Chrome',
+        target: entity,
+        contentRequest: `https://www.youtube.com/results?search_query=${encodeURIComponent(entity)}`,
+        ordinal: null,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt: raw,
+        normalizedPrompt: normalized,
+        reason: `Compound action resolution: Navigate to YouTube search for ${entity}`,
+        interpretationPath: 'DETERMINISTIC_FALLBACK',
+      };
+      const step2: CompiledTurnIntent = {
+        action: 'NAVIGATE_WEB',
+        targetType: 'WEB_URL',
+        application: 'Chrome',
+        target: 'first_video_result',
+        contentRequest: JSON.stringify({
+          action: 'SELECT_VIDEO',
+          entityHint: entity,
+          isAnother: false,
+          ordinal: 1,
+        }),
+        ordinal: 1,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt: raw,
+        normalizedPrompt: normalized,
+        reason: `Compound action resolution: Select first video result for ${entity} on YouTube`,
+        interpretationPath: 'DETERMINISTIC_FALLBACK',
+      };
+      return Object.freeze({
+        steps: Object.freeze([Object.freeze(step1), Object.freeze(step2)]),
+        rawPrompt: raw,
+        normalizedPrompt: normalized,
+        isCompound: true,
+      });
+    }
+
+    // 3. Otherwise compile as a single canonical intent
     const single = AuthoritativeIntentCompiler.compileSingleIntent(normalized, raw, normalized, ctx);
     return Object.freeze({
       steps: Object.freeze([Object.freeze({ ...single, interpretationPath: 'DETERMINISTIC_FALLBACK' as const })]),
@@ -986,10 +1038,10 @@ export class AuthoritativeIntentCompiler {
       };
     }
 
-    // ── 0b. Playback Continuation ("continue", "continue reading", "continue with the messages", "next", "read the rest") ──
+    // ── 0b. Playback Continuation ("continue", "yes, go on", "read all", "continue with the message", "you did not finish", etc.) ──
     const isContinuationRequest =
-      /^(?:continue|continue\s+reading|continue\s+with\s+(?:the\s+)?messages|next|read\s+the\s+rest|go\s+on|keep\s+reading|more\s+messages)$/i.test(stripped) ||
-      /\b(?:continue\s+reading|continue\s+with\s+(?:the\s+)?messages|read\s+the\s+rest)\b/i.test(stripped);
+      /^(?:yes|yeah|sure|ok|okay)?\s*(?:continue|go\s*on|go\s*ahead|keep\s*(?:going|reading)|read\s*all|read\s*(?:the\s*)?rest|finish(?:\s*it|\s*reading|\s*the\s*messages?)?|more(?:\s*messages)?|next|you\s*(?:did\s*not|didn'?t)\s*finish(?:\s*the\s*messages?|\s*reading)?|what\s*else)\b/i.test(stripped) ||
+      /\b(?:continue\s+reading|continue\s+with\s+(?:the\s+)?messages?|read\s+(?:all|the\s+rest)|finish\s+(?:the\s+)?messages?|you\s+(?:did\s+not|didn'?t)\s+finish)\b/i.test(stripped);
 
     if (isContinuationRequest) {
       const activePlayback = ctx?.activePlaybackTask || ctx?.discourse?.activePlaybackTask;
@@ -1830,12 +1882,6 @@ export class AuthoritativeIntentCompiler {
 
         // 2. Unknown/unrecognized targets must NEVER automatically become application names.
         // Before OPEN_APPLICATION fallback, consult the current verified interaction state:
-        const isBrowserActive = Boolean(
-          (ctx?.activeApplication && /chrome|edge|firefox|brave|comet/i.test(ctx.activeApplication)) ||
-          ctx?.activeCapability === 'BROWSER' ||
-          ctx?.discourse?.activeModality === 'BROWSER'
-        );
-
         const isYouTubeSurface = Boolean(
           ctx?.activeSurface === 'YouTube' ||
           (ctx?.activeUrl && /youtube\.com|youtu\.be/i.test(ctx.activeUrl)) ||
@@ -1843,6 +1889,14 @@ export class AuthoritativeIntentCompiler {
           (ctx?.activePage && /youtube\.com/i.test(ctx.activePage)) ||
           (ctx?.activePageTitle && /youtube/i.test(ctx.activePageTitle)) ||
           (ctx?.activeTarget && /youtube/i.test(ctx.activeTarget))
+        );
+
+        const isBrowserActive = Boolean(
+          (ctx?.activeApplication && /chrome|edge|firefox|brave|comet/i.test(ctx.activeApplication)) ||
+          ctx?.activeCapability === 'BROWSER' ||
+          ctx?.discourse?.activeModality === 'BROWSER' ||
+          ctx?.activeSurface === 'YouTube' ||
+          isYouTubeSurface
         );
 
         // Ambiguous video requests: "open one video", "open a video", "play one", "open the first one",

@@ -141,6 +141,13 @@ export class VoiceRuntimeStateManager {
     this.languageLocked = false;
   }
 
+  public setVoice(voice: string): void {
+    if (!voice) return;
+    this.activeVoice = voice;
+    this.activeModel = voice;
+    this.lastTimestamp = new Date().toISOString();
+  }
+
   public getActiveVoice(): string {
     return this.activeVoice;
   }

@@ -575,7 +575,14 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
 
   const handleVoiceSelect = useCallback((voiceId: string) => {
     setSelectedVoice(voiceId);
-    try { localStorage.setItem(VOICE_KEY, voiceId); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(VOICE_KEY, voiceId);
+      fetch('/api/jarvis-next/agent/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceId }),
+      }).catch(() => {});
+    } catch { /* ignore */ }
     voiceRef.current?.setVoiceOverride?.(voiceId);
   }, []);
 

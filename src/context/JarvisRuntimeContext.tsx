@@ -123,7 +123,22 @@ export const JarvisRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       localStorage.setItem(VOICE_KEY, v);
       sessionStorage.setItem(VOICE_KEY, v);
+      fetch('/api/jarvis-next/agent/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceId: v }),
+      }).catch(() => {});
     } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (selectedVoice) {
+      fetch('/api/jarvis-next/agent/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceId: selectedVoice }),
+      }).catch(() => {});
+    }
   }, []);
 
   const handleLanguageChange = useCallback((newLang: string) => {

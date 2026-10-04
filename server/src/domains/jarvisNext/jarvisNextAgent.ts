@@ -326,6 +326,64 @@ export class JarvisNextAgent {
   private currentRate: string | undefined = undefined;
   private currentPitch: string | undefined = undefined;
 
+  constructor() {
+    this.loadVoicePreferences();
+  }
+
+  private getVoicePreferencesPath(): string {
+    return path.resolve(process.env.AGENTICOS_DATA_DIR || path.join(process.cwd(), 'data'), 'voicePreferences.json');
+  }
+
+  private loadVoicePreferences(): void {
+    try {
+      const p = this.getVoicePreferencesPath();
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, 'utf-8');
+        const data = JSON.parse(raw);
+        if (data.voiceId) this.currentVoiceId = data.voiceId;
+        if (data.voiceProfile) this.currentVoiceProfile = data.voiceProfile;
+        if (data.rate !== undefined) this.currentRate = data.rate;
+        if (data.pitch !== undefined) this.currentPitch = data.pitch;
+        try {
+          if (this.currentVoiceId) voiceRuntimeState.setVoice(this.currentVoiceId);
+        } catch {}
+        logger.info('[JarvisNext] Loaded persisted voice preferences:', {
+          voiceId: this.currentVoiceId,
+          voiceProfile: this.currentVoiceProfile,
+          rate: this.currentRate,
+          pitch: this.currentPitch,
+        });
+      }
+    } catch (e: any) {
+      logger.warn('[JarvisNext] Failed to load voice preferences:', e?.message);
+    }
+  }
+
+  private saveVoicePreferences(): void {
+    try {
+      const p = this.getVoicePreferencesPath();
+      const dir = path.dirname(p);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        p,
+        JSON.stringify(
+          {
+            voiceId: this.currentVoiceId,
+            voiceProfile: this.currentVoiceProfile,
+            rate: this.currentRate,
+            pitch: this.currentPitch,
+            updatedAt: new Date().toISOString(),
+          },
+          null,
+          2
+        ),
+        'utf-8'
+      );
+    } catch (e: any) {
+      logger.warn('[JarvisNext] Failed to save voice preferences:', e?.message);
+    }
+  }
+
   // Authoritative verified execution & response delivery tracking (§8)
   private lastVerifiedExecutionResult: {
     turnId: number;
@@ -336,7 +394,12 @@ export class JarvisNextAgent {
   } | null = null;
 
   public setVoiceConfig(config: { voiceId?: string; voiceProfile?: string; rate?: string; pitch?: string }): void {
-    if (config.voiceId) this.currentVoiceId = config.voiceId;
+    if (config.voiceId) {
+      this.currentVoiceId = config.voiceId;
+      try {
+        voiceRuntimeState.setVoice(config.voiceId);
+      } catch {}
+    }
     if (config.voiceProfile) {
       this.currentVoiceProfile = config.voiceProfile;
       const p = config.voiceProfile.toLowerCase().replace(/[-_]/g, '');
@@ -360,7 +423,9 @@ export class JarvisNextAgent {
     if (config.rate !== undefined) this.currentRate = config.rate;
     if (config.pitch !== undefined) this.currentPitch = config.pitch;
 
-    logger.info('[JarvisNext] Active voice configuration updated:', {
+    this.saveVoicePreferences();
+
+    logger.info('[JarvisNext] Active voice configuration updated and persisted:', {
       voiceId: this.currentVoiceId,
       voiceProfile: this.currentVoiceProfile,
       rate: this.currentRate,
@@ -2484,14 +2549,18 @@ export class JarvisNextAgent {
 
     // 5b. Active Playback Task State Synchronization
     try {
-      const activePlayback = authoritativeInteractionContext.getActivePlaybackTask('default');
+      const convId = this.voiceConversationId || 'default';
+      let activePlayback = authoritativeInteractionContext.getActivePlaybackTask(convId);
+      if (!activePlayback && convId !== 'default') {
+        activePlayback = authoritativeInteractionContext.getActivePlaybackTask('default');
+      }
       if (activePlayback) {
         if (outcome === 'PLAYOUT_COMPLETED') {
-          authoritativeInteractionContext.updatePlaybackCursor('default', activePlayback.messageRecords.length, 'COMPLETED');
+          authoritativeInteractionContext.updatePlaybackCursor(convId, activePlayback.messageRecords.length, 'COMPLETED');
         } else if (outcome === 'PLAYOUT_INTERRUPTED' || outcome === 'PLAYOUT_CANCELLED') {
           // If interrupted during reading of messages, cursor is at least 1 (first message was spoken)
           const newIdx = Math.max(1, activePlayback.currentMessageIndex);
-          authoritativeInteractionContext.updatePlaybackCursor('default', newIdx, 'INTERRUPTED');
+          authoritativeInteractionContext.updatePlaybackCursor(convId, newIdx, 'INTERRUPTED');
         }
       }
     } catch (playbackSyncErr: any) {

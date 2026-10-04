@@ -23,7 +23,7 @@ process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
-const ELECTRON_RENDERER_ROUTE = process.env['AGENTICOS_ELECTRON_ROUTE'] || '#/mission-control';
+const ELECTRON_RENDERER_ROUTE = process.env['AGENTICOS_ELECTRON_ROUTE'] || '#/jarvis';
 const REMOTE_DEBUGGING_PORT = process.env['AGENTICOS_ELECTRON_REMOTE_DEBUGGING_PORT'];
 
 /**
@@ -486,7 +486,7 @@ function createWindow() {
     } else {
       const prodPath = path.join(RENDERER_DIST, 'index.html');
       logElectron('[STARTUP] RENDERER_LOAD_STARTED', { prodPath, isDev: false });
-      win.loadFile(prodPath, { hash: '/mission-control' });
+      win.loadFile(prodPath, { hash: '/jarvis' });
     }
 
     // Manual DevTools shortcut support (F12 or Ctrl+Shift+I / Cmd+Option+I)

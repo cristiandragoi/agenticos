@@ -861,7 +861,20 @@ export class AuthoritativeInteractionContextManager {
     currentMessageIndex: number,
     status: 'PLAYING' | 'INTERRUPTED' | 'COMPLETED'
   ): AuthoritativeInteractionContextData {
-    const ctx = this.getOrCreate(conversationId);
+    let ctx = this.contexts.get(conversationId);
+    if (!ctx?.activePlaybackTask && conversationId !== 'default') {
+      const def = this.contexts.get('default');
+      if (def?.activePlaybackTask) ctx = def;
+    }
+    if (!ctx?.activePlaybackTask) {
+      for (const c of this.contexts.values()) {
+        if (c.activePlaybackTask) {
+          ctx = c;
+          break;
+        }
+      }
+    }
+    if (!ctx) ctx = this.getOrCreate(conversationId);
     if (ctx.activePlaybackTask) {
       ctx.activePlaybackTask = {
         ...ctx.activePlaybackTask,
@@ -878,9 +891,19 @@ export class AuthoritativeInteractionContextManager {
     return ctx.toImmutable();
   }
 
-  public getActivePlaybackTask(conversationId: string): ActivePlaybackTask | null {
-    const ctx = this.getOrCreate(conversationId);
-    return ctx.activePlaybackTask ? { ...ctx.activePlaybackTask } : null;
+  public getActivePlaybackTask(conversationId?: string): ActivePlaybackTask | null {
+    if (conversationId) {
+      const ctx = this.contexts.get(conversationId);
+      if (ctx?.activePlaybackTask) return { ...ctx.activePlaybackTask };
+    }
+    const def = this.contexts.get('default');
+    if (def?.activePlaybackTask) return { ...def.activePlaybackTask };
+    for (const ctx of this.contexts.values()) {
+      if (ctx.activePlaybackTask && ctx.activePlaybackTask.status !== 'COMPLETED') {
+        return { ...ctx.activePlaybackTask };
+      }
+    }
+    return null;
   }
 
   public recordOpenedVideoUrl(conversationId: string, url: string): AuthoritativeInteractionContextData {

@@ -104,7 +104,7 @@ export class ControlPlaneTurnHandler {
     const { prompt, effectivePrompt, conversationId, turnId, onActionProgress, focus } = opts;
 
     // ── 0. STT/Intent Normalization for key entities ──
-    let normalizedPrompt = effectivePrompt;
+    let normalizedPrompt = effectivePrompt || prompt || '';
     normalizedPrompt = normalizedPrompt.replace(/\b(?:comet\s+per\s*plexity|per\s*plexity\s+page)\b/gi, 'Comet Perplexity');
     normalizedPrompt = normalizedPrompt.replace(/\b(?:hermes\s+one|hermis\s+1|hermis\s+one)\b/gi, 'Hermes 1');
     normalizedPrompt = normalizedPrompt.replace(/\b(?:zeus|suisse|zoos)\s+voice\b/gi, 'Zeus voice');
@@ -479,10 +479,13 @@ export class ControlPlaneTurnHandler {
     }
 
     // ── 0b. Dedicated Voice Switching Intent & Turn Isolation ──
-    const voiceSwitchMatch = lower.match(/\b(?:switch|change|set|use)\s+(?:the\s+)?(?:voice|tts)\s+to\s+([a-z0-9_\-]+)/i) ||
-      lower.match(/\b(?:switch|change|set|use)\s+to\s+([a-z0-9_\-]+)\s+voice\b/i) ||
-      lower.match(/\b(?:use|switch to|change to)\s+(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|killian|emil)(?:\s+voice)?\b/i) ||
-      lower.match(/\b(zeus|helios|orion|athena|angus|orpheus)\s+voice\b/i);
+    const voiceSwitchMatch =
+      lower.match(/\b(?:switch|change|set|use|turn|select)\s+(?:the\s+|your\s+)?(?:voice|tts)\s+(?:to|in|into)\s+([a-z0-9_\-]+)/i) ||
+      lower.match(/\b(?:switch|change|set|use|turn|select)\s+(?:the\s+|your\s+)?(?:voice|tts)\s+([a-z0-9_\-]+)\b/i) ||
+      lower.match(/\b(?:switch|change|set|use|select)\s+to\s+([a-z0-9_\-]+)\s+voice\b/i) ||
+      lower.match(/\b(?:use|switch to|change to|speak in|talk in|speak with)\s+(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|thorsten|killian|mihai|emil)(?:\s+voice)?\b/i) ||
+      lower.match(/^(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|thorsten|killian|mihai|emil)(?:\s+voice)?[\.!]?$/i) ||
+      lower.match(/\b(zeus|helios|orion|athena|angus|orpheus|ryan|thorsten|killian|mihai|emil)\s+voice\b/i);
 
     if (voiceSwitchMatch) {
       const rawTarget = (voiceSwitchMatch[1] || voiceSwitchMatch[2] || '').toLowerCase().trim();
@@ -509,9 +512,15 @@ export class ControlPlaneTurnHandler {
       } else if (rawTarget.includes('ryan')) {
         targetVoiceId = 'en-GB-RyanNeural';
         targetVoiceName = 'Ryan';
+      } else if (rawTarget.includes('thorsten')) {
+        targetVoiceId = 'de_DE-thorsten-high';
+        targetVoiceName = 'Thorsten';
       } else if (rawTarget.includes('killian')) {
         targetVoiceId = 'de-DE-KillianNeural';
         targetVoiceName = 'Killian';
+      } else if (rawTarget.includes('mihai')) {
+        targetVoiceId = 'ro_RO-mihai-medium';
+        targetVoiceName = 'Mihai';
       } else if (rawTarget.includes('emil')) {
         targetVoiceId = 'ro-RO-EmilNeural';
         targetVoiceName = 'Emil';
@@ -526,6 +535,10 @@ export class ControlPlaneTurnHandler {
       } catch (err: any) {
         logger.warn('[ControlPlaneTurnHandler] Error setting voice config on jarvisNextAgent:', err?.message);
       }
+      try {
+        const { voiceRuntimeState } = await import('../../services/voice/VoiceRuntimeState.js');
+        voiceRuntimeState.setVoice(targetVoiceId);
+      } catch {}
 
       // Ensure clean turn isolation: clear stale camera / worker slot context
       if (focus) {
