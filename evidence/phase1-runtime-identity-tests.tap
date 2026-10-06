@@ -1,0 +1,532 @@
+TAP version 13
+# Subtest: matching synthetic identity gives only SYNTHETIC_MATCH
+ok 1 - matching synthetic identity gives only SYNTHETIC_MATCH
+  ---
+  duration_ms: 5.5717
+  type: 'test'
+  ...
+# Subtest: stale build: reject and invalidate
+ok 2 - stale build: reject and invalidate
+  ---
+  duration_ms: 1.0162
+  type: 'test'
+  ...
+# Subtest: substituted executable: reject and invalidate
+ok 3 - substituted executable: reject and invalidate
+  ---
+  duration_ms: 0.8345
+  type: 'test'
+  ...
+# Subtest: missing module: reject and invalidate
+ok 4 - missing module: reject and invalidate
+  ---
+  duration_ms: 0.8489
+  type: 'test'
+  ...
+# Subtest: additional module: reject and invalidate
+ok 5 - additional module: reject and invalidate
+  ---
+  duration_ms: 1.0765
+  type: 'test'
+  ...
+# Subtest: changed configuration: reject and invalidate
+ok 6 - changed configuration: reject and invalidate
+  ---
+  duration_ms: 0.7826
+  type: 'test'
+  ...
+# Subtest: changed permissions: reject and invalidate
+ok 7 - changed permissions: reject and invalidate
+  ---
+  duration_ms: 0.4871
+  type: 'test'
+  ...
+# Subtest: changed privileges: reject and invalidate
+ok 8 - changed privileges: reject and invalidate
+  ---
+  duration_ms: 0.4795
+  type: 'test'
+  ...
+# Subtest: changed scope: reject and invalidate
+ok 9 - changed scope: reject and invalidate
+  ---
+  duration_ms: 0.4633
+  type: 'test'
+  ...
+# Subtest: wrong worker identity: reject and invalidate
+ok 10 - wrong worker identity: reject and invalidate
+  ---
+  duration_ms: 0.6121
+  type: 'test'
+  ...
+# Subtest: wrong OS principal: reject and invalidate
+ok 11 - wrong OS principal: reject and invalidate
+  ---
+  duration_ms: 0.4381
+  type: 'test'
+  ...
+# Subtest: wrong logon session: reject and invalidate
+ok 12 - wrong logon session: reject and invalidate
+  ---
+  duration_ms: 0.4406
+  type: 'test'
+  ...
+# Subtest: wrong incarnation: reject and invalidate
+ok 13 - wrong incarnation: reject and invalidate
+  ---
+  duration_ms: 1.1901
+  type: 'test'
+  ...
+# Subtest: source versus installed confusion: reject and invalidate
+ok 14 - source versus installed confusion: reject and invalidate
+  ---
+  duration_ms: 0.649
+  type: 'test'
+  ...
+# Subtest: source versus production confusion: reject and invalidate
+ok 15 - source versus production confusion: reject and invalidate
+  ---
+  duration_ms: 0.809
+  type: 'test'
+  ...
+# Subtest: different source tree: reject and invalidate
+ok 16 - different source tree: reject and invalidate
+  ---
+  duration_ms: 1.0926
+  type: 'test'
+  ...
+# Subtest: different revision: reject and invalidate
+ok 17 - different revision: reject and invalidate
+  ---
+  duration_ms: 1.0603
+  type: 'test'
+  ...
+# Subtest: wrong policy version: reject and invalidate
+ok 18 - wrong policy version: reject and invalidate
+  ---
+  duration_ms: 0.5218
+  type: 'test'
+  ...
+# Subtest: wrong manifest version: reject and invalidate
+ok 19 - wrong manifest version: reject and invalidate
+  ---
+  duration_ms: 0.4534
+  type: 'test'
+  ...
+# Subtest: wrong manifest hash: reject and invalidate
+ok 20 - wrong manifest hash: reject and invalidate
+  ---
+  duration_ms: 0.3675
+  type: 'test'
+  ...
+# Subtest: wrong boot epoch: reject and invalidate
+ok 21 - wrong boot epoch: reject and invalidate
+  ---
+  duration_ms: 0.7558
+  type: 'test'
+  ...
+# Subtest: missing provenance: reject and invalidate
+ok 22 - missing provenance: reject and invalidate
+  ---
+  duration_ms: 0.388
+  type: 'test'
+  ...
+# Subtest: revoked trust cannot restore old proof
+ok 23 - revoked trust cannot restore old proof
+  ---
+  duration_ms: 0.5497
+  type: 'test'
+  ...
+# Subtest: restoring bytes never resurrects evidence for invalidated incarnation
+ok 24 - restoring bytes never resurrects evidence for invalidated incarnation
+  ---
+  duration_ms: 0.5537
+  type: 'test'
+  ...
+# Subtest: supervisor-looking plain object cannot supply provenance
+ok 25 - supervisor-looking plain object cannot supply provenance
+  ---
+  duration_ms: 0.2557
+  type: 'test'
+  ...
+# Subtest: mutating sealed measurement invalidates provenance
+ok 26 - mutating sealed measurement invalidates provenance
+  ---
+  duration_ms: 0.289
+  type: 'test'
+  ...
+# Subtest: policy change invalidates previous proofs
+ok 27 - policy change invalidates previous proofs
+  ---
+  duration_ms: 0.4407
+  type: 'test'
+  ...
+# Subtest: policy rollback and unchanged trust epoch rejected
+ok 28 - policy rollback and unchanged trust epoch rejected
+  ---
+  duration_ms: 0.3591
+  type: 'test'
+  ...
+# Subtest: proof cannot be copied or transferred between synthetic verifiers
+ok 29 - proof cannot be copied or transferred between synthetic verifiers
+  ---
+  duration_ms: 0.4168
+  type: 'test'
+  ...
+# Subtest: required field schemaVersion
+ok 30 - required field schemaVersion
+  ---
+  duration_ms: 0.1687
+  type: 'test'
+  ...
+# Subtest: required field source
+ok 31 - required field source
+  ---
+  duration_ms: 0.1414
+  type: 'test'
+  ...
+# Subtest: required field source.revision
+ok 32 - required field source.revision
+  ---
+  duration_ms: 0.1406
+  type: 'test'
+  ...
+# Subtest: required field source.treeHash
+ok 33 - required field source.treeHash
+  ---
+  duration_ms: 0.1005
+  type: 'test'
+  ...
+# Subtest: required field source.dirty
+ok 34 - required field source.dirty
+  ---
+  duration_ms: 0.3613
+  type: 'test'
+  ...
+# Subtest: required field build
+ok 35 - required field build
+  ---
+  duration_ms: 0.0958
+  type: 'test'
+  ...
+# Subtest: required field build.fingerprint
+ok 36 - required field build.fingerprint
+  ---
+  duration_ms: 0.0984
+  type: 'test'
+  ...
+# Subtest: required field build.recipeHash
+ok 37 - required field build.recipeHash
+  ---
+  duration_ms: 0.1356
+  type: 'test'
+  ...
+# Subtest: required field build.toolchainHash
+ok 38 - required field build.toolchainHash
+  ---
+  duration_ms: 0.0847
+  type: 'test'
+  ...
+# Subtest: required field executable
+ok 39 - required field executable
+  ---
+  duration_ms: 0.0785
+  type: 'test'
+  ...
+# Subtest: required field executable.artifactId
+ok 40 - required field executable.artifactId
+  ---
+  duration_ms: 0.077
+  type: 'test'
+  ...
+# Subtest: required field executable.contentHash
+ok 41 - required field executable.contentHash
+  ---
+  duration_ms: 0.0713
+  type: 'test'
+  ...
+# Subtest: required field modules
+ok 42 - required field modules
+  ---
+  duration_ms: 0.0623
+  type: 'test'
+  ...
+# Subtest: required field moduleSetHash
+ok 43 - required field moduleSetHash
+  ---
+  duration_ms: 0.1905
+  type: 'test'
+  ...
+# Subtest: required field configuration
+ok 44 - required field configuration
+  ---
+  duration_ms: 0.1317
+  type: 'test'
+  ...
+# Subtest: required field configuration.effectiveHash
+ok 45 - required field configuration.effectiveHash
+  ---
+  duration_ms: 0.1361
+  type: 'test'
+  ...
+# Subtest: required field configuration.schemaVersion
+ok 46 - required field configuration.schemaVersion
+  ---
+  duration_ms: 0.0803
+  type: 'test'
+  ...
+# Subtest: required field runtime
+ok 47 - required field runtime
+  ---
+  duration_ms: 0.0698
+  type: 'test'
+  ...
+# Subtest: required field runtime.incarnation
+ok 48 - required field runtime.incarnation
+  ---
+  duration_ms: 0.0826
+  type: 'test'
+  ...
+# Subtest: required field runtime.bootEpoch
+ok 49 - required field runtime.bootEpoch
+  ---
+  duration_ms: 0.0781
+  type: 'test'
+  ...
+# Subtest: required field runtime.workerId
+ok 50 - required field runtime.workerId
+  ---
+  duration_ms: 0.0769
+  type: 'test'
+  ...
+# Subtest: required field runtime.role
+ok 51 - required field runtime.role
+  ---
+  duration_ms: 0.0891
+  type: 'test'
+  ...
+# Subtest: required field osPrincipal
+ok 52 - required field osPrincipal
+  ---
+  duration_ms: 0.0665
+  type: 'test'
+  ...
+# Subtest: required field osPrincipal.principalId
+ok 53 - required field osPrincipal.principalId
+  ---
+  duration_ms: 0.0866
+  type: 'test'
+  ...
+# Subtest: required field osPrincipal.logonSessionId
+ok 54 - required field osPrincipal.logonSessionId
+  ---
+  duration_ms: 0.078
+  type: 'test'
+  ...
+# Subtest: required field osPrincipal.tokenIdentityHash
+ok 55 - required field osPrincipal.tokenIdentityHash
+  ---
+  duration_ms: 0.0815
+  type: 'test'
+  ...
+# Subtest: required field effectivePermissions
+ok 56 - required field effectivePermissions
+  ---
+  duration_ms: 0.0698
+  type: 'test'
+  ...
+# Subtest: required field effectivePermissions.descriptorHash
+ok 57 - required field effectivePermissions.descriptorHash
+  ---
+  duration_ms: 0.078
+  type: 'test'
+  ...
+# Subtest: required field effectivePermissions.privilegeSetHash
+ok 58 - required field effectivePermissions.privilegeSetHash
+  ---
+  duration_ms: 0.0756
+  type: 'test'
+  ...
+# Subtest: required field effectivePermissions.resourceScopeHash
+ok 59 - required field effectivePermissions.resourceScopeHash
+  ---
+  duration_ms: 0.0755
+  type: 'test'
+  ...
+# Subtest: required field policy
+ok 60 - required field policy
+  ---
+  duration_ms: 0.0659
+  type: 'test'
+  ...
+# Subtest: required field policy.reference
+ok 61 - required field policy.reference
+  ---
+  duration_ms: 0.0768
+  type: 'test'
+  ...
+# Subtest: required field policy.version
+ok 62 - required field policy.version
+  ---
+  duration_ms: 0.0757
+  type: 'test'
+  ...
+# Subtest: required field policy.trustEpoch
+ok 63 - required field policy.trustEpoch
+  ---
+  duration_ms: 0.0819
+  type: 'test'
+  ...
+# Subtest: required field manifest
+ok 64 - required field manifest
+  ---
+  duration_ms: 0.1015
+  type: 'test'
+  ...
+# Subtest: required field manifest.id
+ok 65 - required field manifest.id
+  ---
+  duration_ms: 0.1122
+  type: 'test'
+  ...
+# Subtest: required field manifest.version
+ok 66 - required field manifest.version
+  ---
+  duration_ms: 0.0841
+  type: 'test'
+  ...
+# Subtest: required field manifest.contentHash
+ok 67 - required field manifest.contentHash
+  ---
+  duration_ms: 0.1205
+  type: 'test'
+  ...
+# Subtest: required field acceptanceLayer
+ok 68 - required field acceptanceLayer
+  ---
+  duration_ms: 0.0705
+  type: 'test'
+  ...
+# Subtest: required field provenance
+ok 69 - required field provenance
+  ---
+  duration_ms: 0.1138
+  type: 'test'
+  ...
+# Subtest: required field provenance.authorityId
+ok 70 - required field provenance.authorityId
+  ---
+  duration_ms: 0.136
+  type: 'test'
+  ...
+# Subtest: required field provenance.statementHash
+ok 71 - required field provenance.statementHash
+  ---
+  duration_ms: 0.0837
+  type: 'test'
+  ...
+# Subtest: required field provenance.kind
+ok 72 - required field provenance.kind
+  ---
+  duration_ms: 0.0848
+  type: 'test'
+  ...
+# Subtest: schema rejects unknown field
+ok 73 - schema rejects unknown field
+  ---
+  duration_ms: 0.1832
+  type: 'test'
+  ...
+# Subtest: schema rejects nested unknown field
+ok 74 - schema rejects nested unknown field
+  ---
+  duration_ms: 0.1152
+  type: 'test'
+  ...
+# Subtest: schema rejects unsupported schema
+ok 75 - schema rejects unsupported schema
+  ---
+  duration_ms: 0.1469
+  type: 'test'
+  ...
+# Subtest: schema rejects malformed hash
+ok 76 - schema rejects malformed hash
+  ---
+  duration_ms: 0.118
+  type: 'test'
+  ...
+# Subtest: schema rejects oversized ID
+ok 77 - schema rejects oversized ID
+  ---
+  duration_ms: 0.1426
+  type: 'test'
+  ...
+# Subtest: schema rejects null principal
+ok 78 - schema rejects null principal
+  ---
+  duration_ms: 0.1536
+  type: 'test'
+  ...
+# Subtest: schema rejects fractional version
+ok 79 - schema rejects fractional version
+  ---
+  duration_ms: 0.107
+  type: 'test'
+  ...
+# Subtest: schema rejects zero version
+ok 80 - schema rejects zero version
+  ---
+  duration_ms: 0.1039
+  type: 'test'
+  ...
+# Subtest: schema rejects duplicate module
+ok 81 - schema rejects duplicate module
+  ---
+  duration_ms: 0.1488
+  type: 'test'
+  ...
+# Subtest: schema rejects unsorted modules
+ok 82 - schema rejects unsorted modules
+  ---
+  duration_ms: 0.127
+  type: 'test'
+  ...
+# Subtest: schema rejects empty module inventory
+ok 83 - schema rejects empty module inventory
+  ---
+  duration_ms: 0.0996
+  type: 'test'
+  ...
+# Subtest: schema rejects oversized module inventory
+ok 84 - schema rejects oversized module inventory
+  ---
+  duration_ms: 0.137
+  type: 'test'
+  ...
+# Subtest: schema rejects wrong boolean type
+ok 85 - schema rejects wrong boolean type
+  ---
+  duration_ms: 0.0903
+  type: 'test'
+  ...
+# Subtest: schema rejects invented acceptance layer
+ok 86 - schema rejects invented acceptance layer
+  ---
+  duration_ms: 0.1113
+  type: 'test'
+  ...
+# Subtest: canonical record identity ignores property insertion order and separates hash domains
+ok 87 - canonical record identity ignores property insertion order and separates hash domains
+  ---
+  duration_ms: 0.2421
+  type: 'test'
+  ...
+1..87
+# tests 87
+# suites 0
+# pass 87
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 255.0621

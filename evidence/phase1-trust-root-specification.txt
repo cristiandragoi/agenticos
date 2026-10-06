@@ -1,0 +1,200 @@
+PHASE 1 — TRUST ROOT AND RUNTIME/CODE IDENTITY, v1
+Normative specification; source/design and controlled synthetic work only.
+
+Scope
+No application runtime changes, OS measurements, trust roots/keys generated or
+enrolled, approval issuer, observer adapter, installed-runtime startup or deployment.
+This specification defines future controls; it does not claim they are implemented.
+MUST/MUST NOT are requirements for a later separately authorized implementation.
+The executable identity model is a standalone test fixture, not a production gate.
+
+1. Normative trust root
+An explicitly appointed out-of-band administrative authority MUST approve a
+versioned policy bundle naming the protected verification root and exact accepted
+deployment identities. Root bootstrap must occur through an independently reviewed
+administrative channel. Application HTTP requests, workers, renderers, model output
+and ordinary host accounts MUST NOT select or replace this root. The root public
+identity and approved bundle digest must be pinned in protected verifier storage.
+The future verifier MUST authenticate policy provenance before trusting its content.
+Neither matching hashes nor a supervisor's success/actor assertion is provenance.
+No actual key, authority endpoint or provider is selected/enrolled in this phase.
+
+Build provenance binds the reviewed source tree (including uncommitted files),
+recipe/toolchain, output artifacts and effective configuration. Independently
+obtained runtime measurements bind the loaded executable/modules, principal and
+effective permissions to that reviewed deployment. A process reading and reporting
+its own hash is insufficient against compromise of that process. Signature validity
+would establish issuer attribution, not that the measurement is truthful: the
+measurement collector and its isolation must also pass separate acceptance.
+
+2. Protected policy-store design
+Proposed store is separate from worker-writable application databases and workspace
+files. Only a dedicated administrative maintenance principal may modify its active
+bundle. The verifier service principal has read-only access; worker, supervisor,
+renderer, model and ordinary user have no modification rights. The supervisor may
+submit typed identity-check requests, never policy patches. Production MUST deny
+startup if effective ACLs/ownership differ from the reviewed policy.
+
+Policy bundle v1, closed record, all fields required:
+schemaVersion: literal 1;
+policyId/rootId/authorityId: ID;
+version/trustEpoch/rootGeneration: VERSION;
+previousBundleHash/bundleContentHash: HASH;
+allowedIdentityHashes: sorted unique HASH array, 1..128;
+acceptedLayer: SOURCE|DEVELOPMENT|INSTALLED|PRODUCTION;
+manifestId: ID; manifestVersion: VERSION; manifestHash: HASH;
+revokedIdentityHashes: sorted unique HASH array, 0..128;
+notBeforeUnixMs/notAfterUnixMs: safe nonnegative integer milliseconds;
+provenanceReference: ID resolving to independently authenticated authority evidence.
+Maximum serialized bundle 65536 bytes. No implicit wildcard identities, null policy,
+layer promotion, string predicates or executable rules. Digest is over canonical
+bundle content excluding bundleContentHash; authority authentication also covers
+the content digest with a distinct PolicyBundle/v1 domain separator.
+
+Updates MUST validate provenance, monotonic version/trustEpoch, previous digest,
+validity interval and exact administrator authorization. Atomically switch the
+active pointer and append a tamper-evident audit record; concurrent writers cannot
+overwrite one another. Store version/epoch high-water marks independently of mutable
+bundles. Missing, unreadable, malformed or unexpectedly writable store fails closed.
+Backup restore MUST NOT roll back revocation or high-water marks. Recovery uses a
+newer signed bundle/epoch, not an older bundle reactivated under its old identity.
+Root rotation requires the reviewed out-of-band recovery procedure and invalidates
+old pending evidence; application code cannot self-authorize rotation.
+
+ACLs, atomicity, rollback resistance and authenticated update behavior are DESIGN
+requirements only. Phase 1 does not implement or test a real protected store.
+An administrator able to rewrite the OS/verifier/store can bypass local controls;
+that adversary is explicitly outside this local guarantee (see trust assumptions).
+
+3. Runtime/code identity schema
+Exact closed schema and synthetic validator:
+scripts/contracts/phase1-runtime-identity.mjs, export identitySchema.
+All fields required; unknown fields and unsupported versions reject. ID is ASCII
+[A-Za-z0-9][A-Za-z0-9._:-]{0,127}; HASH is 64 lowercase hex; VERSION is integer
+1..2147483647; booleans are literal true/false. No implicit defaults/coercion/null.
+Maximum canonical identity 65536 UTF-8 bytes; module array length 1..128, uniquely
+sorted by moduleId. All executable modules must be represented; overflow refuses,
+never truncates. Native/dynamic modules count; unmeasured loading invalidates identity.
+
+schemaVersion: 1
+source: {revision:ID, treeHash:HASH, dirty:BOOL}
+build: {fingerprint:HASH, recipeHash:HASH, toolchainHash:HASH}
+executable: {artifactId:ID, contentHash:HASH}
+modules: [{moduleId:ID, contentHash:HASH}]
+moduleSetHash: HASH
+configuration: {effectiveHash:HASH, schemaVersion:VERSION}
+runtime: {incarnation:ID, bootEpoch:ID, workerId:ID, role:WORKER|SUPERVISOR|VERIFIER}
+osPrincipal: {principalId:ID, logonSessionId:ID, tokenIdentityHash:HASH}
+effectivePermissions: {descriptorHash:HASH, privilegeSetHash:HASH, resourceScopeHash:HASH}
+policy: {reference:ID, version:VERSION, trustEpoch:VERSION}
+manifest: {id:ID, version:VERSION, contentHash:HASH}
+acceptanceLayer: SOURCE|DEVELOPMENT|INSTALLED|PRODUCTION
+provenance: {authorityId:ID, statementHash:HASH, kind:SYNTHETIC_FIXTURE}
+
+The provenance kind is intentionally SYNTHETIC_FIXTURE only. This record MUST NOT
+be accepted by any real verifier. Production provenance requires a separate reviewed
+schema/transport binding actual authenticated authority, measurement origin, nonce,
+timestamp, validity, enrollment/revocation and boot epoch under the accepted common
+observer contracts. The fixture's WeakMap seal represents those trust checks only
+for synthetic tests; it is neither cryptography nor a privilege boundary.
+
+Resolved definitions:
+source.treeHash covers the exact reviewed source inventory, including dirty changes;
+revision alone is insufficient. build.fingerprint covers outputs and build inputs,
+not just a human label. artifactId/moduleId resolve to protected artifact locations;
+loadedModuleSet is the actual executable inventory, not only a package lockfile.
+configuration.effectiveHash covers resolved security-relevant settings; secret
+material must not be serialized or hashed into publicly visible records. Principal
+identity binds the OS security identity plus logon session/token; workerId alone is
+not an OS principal. Effective permissions cover ACL descriptors, enabled privileges
+and resource grants, not merely desired permissions. Runtime incarnation is freshly
+assigned by the trusted lifecycle authority at launch and never reused after restart.
+No source revision lookup or Git execution is performed by these fixtures.
+
+Canonical encoding follows restricted ASCII canonical JSON: recursively sorted
+object keys, ordered arrays, safe decimal integers, no whitespace or alternate
+numeric encoding. ModuleSet hash is SHA256('AgenticOS/ModuleSet/v1' || NUL ||
+canonical(modules)); identity hash uses 'AgenticOS/RuntimeIdentity/v1'. These are
+integrity links only. Wire parser/authenticated transport are outside this phase.
+
+4. Explicit trust assumptions
+Worker/handler: potentially hostile; cannot write policy, choose accepted identity,
+mint provenance, relabel SOURCE as INSTALLED or restore an invalidated incarnation.
+Renderer/model: untrusted input and presentation; no security-authority role.
+Supervisor: trusted for canonical scheduling/task identity, but its claims are not
+independent code measurement or observation. It cannot replace verifier policy or
+mint measurements. Compromise of the trusted verifier itself defeats its decisions;
+this phase does not pretend to protect against a verifier that changes its own code.
+Ordinary host user: potentially hostile to service binaries/config/store; future OS
+permissions must prevent replacement, injection and control-channel impersonation.
+The user may deny availability; fail-closed behavior is preferred to false success.
+Administrator: can potentially override local permissions and replace trusted code;
+malicious privileged administration is excluded from the local authenticity claim.
+Approved administrative maintenance is audited and invalidates old acceptance.
+SYSTEM/kernel: trusted platform prerequisite. Kernel/SYSTEM compromise invalidates
+local measurement and isolation assumptions; no local self-attestation can repair it.
+Hypervisor/external verifier: not present or trusted by default. If later used, its
+root, management plane, measurement chain and threat boundary need separate review.
+No hardware or external attestation is claimed by Phase 1.
+
+5. Matching, invalidation and failure
+The verifier MUST compare actual identity with a protected expected identity for
+the exact worker, incarnation, manifest, policy epoch and acceptance layer. Missing
+provenance or any missing/mismatching component fails closed. A validated identity
+means only that scoped identity check passed, never action approval or sandbox safety.
+
+Mismatch invalidates the EXPECTED affected incarnation identified by the trusted
+request context; a caller cannot redirect invalidation to a different worker by
+putting another ID in its payload. Rejection may deny service but never grants trust.
+Invalidate outstanding evidence references and prohibit further use of earlier
+proofs. Append reason, expected/observed digests and causal identity without secrets.
+Never rewrite prior evidence as if it had not existed.
+
+Invalidation/revocation MUST be durable, monotonic and checked at every future use.
+Restoring original files/configuration/permissions does NOT restore evidence validity.
+Recovery requires a fresh runtime incarnation, current policy/trust epoch and newly
+authenticated measurement; it requires separate execution authorization. Restarts,
+store rollback and policy recovery cannot erase tombstones or reuse old proofs.
+Store errors block checks. No automatic restart, retry, launch, dispatch or repair.
+
+Synthetic model failure states: REJECTED with SCHEMA_INVALID,
+PROVENANCE_UNAUTHENTICATED, IDENTITY_MISMATCH or INCARNATION_INVALIDATED. Revocation
+also invalidates the incarnation. Matching returns SYNTHETIC_MATCH only, never
+VERIFIED or a production capability. Its tombstones exist only in memory: the tests
+prove transition behavior, not persistence, concurrency or crash safety.
+
+6. Required tests and evidence separation
+Phase 1 synthetic tests cover stale build, substituted executable, missing/extra
+modules, changed configuration/permissions, wrong worker/principal/session, revoked
+trust, missing/forged provenance, source-versus-installed/production confusion,
+policy/manifest/boot changes, closed schema, canonical hashes and permanent rejection
+of restored bytes within the same modeled incarnation. Proof copying and reuse after
+policy change/invalidation must fail. No actual binaries or OS resources are observed.
+
+Future separately authorized real acceptance MUST establish: independently measured
+loaded artifacts, ordinary-user tampering resistance, protected store updates and
+rollback resistance, OS principal/permission truth, authenticated provenance and
+durable invalidation across restart/crash. Source, development, installed and
+production acceptance are separate; none may substitute for another. No real test
+is authorized by being listed here. Windows Job Object and human approval remain
+subsequent phases; neither is implemented by identity matching.
+
+7. Phase 1 proof limits
+Proves only: the specified closed identity record and synthetic decision rules
+reject the exercised mismatch/provenance/state-confusion cases; a restored record
+does not resurrect a revoked/invalidated modeled incarnation or its proof.
+Does not prove: a real trust root or policy store is protected; loaded code matches
+reviewed code; genuine signatures or OS identities; administrator/kernel resistance;
+observer independence; process containment; trusted human approval; installed or
+production readiness; persistence/crash safety; ability to run untrusted code.
+
+Exit labels may be recorded ONLY after the Phase 1 synthetic suite passes:
+trustRootModel: SPECIFIED_AND_SYNTHETICALLY_TESTED
+runtimeCodeIdentity: CONTROLLED_TESTS_SUCCEEDED
+windowsJobObject: NOT_IMPLEMENTED_OR_NOT_VERIFIED
+trustedHumanApproval: NOT_VERIFIED
+runtimeObservers: NOT_ENROLLED
+wholeGoalVerification: BLOCKED_NO_RUNTIME_OBSERVER
+readyToExecuteUntrustedCode: false
+deployment: PROHIBITED_NOT_PERFORMED
+Stop for review. Phase 2 is not authorized by completion of this checkpoint.
