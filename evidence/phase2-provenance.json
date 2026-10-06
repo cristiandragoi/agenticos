@@ -1,0 +1,114 @@
+{
+  "branch": "phase2-job-object",
+  "phase1Commit": "707f1e2150cfc0e8c969ee9a456f2e9d21c6ccde",
+  "phase2CommitReference": "Final local commit hash is returned in the completion message; no circular self-hash claim.",
+  "scope": "Controlled reviewed native fixtures; not application deployment",
+  "tests": {
+    "command": "npx --no-install vitest run --config vitest.server.config.ts server/src/__tests__/phase1RuntimeIdentity.test.ts server/src/__tests__/phase2JobContainment.test.ts --no-file-parallelism",
+    "phase1Passed": 87,
+    "phase2Passed": 13,
+    "failed": 0,
+    "typecheckExitCode": 0
+  },
+  "status": {
+    "windowsJobObject": "CONTROLLED_TESTS_SUCCEEDED",
+    "trustRootModel": "SPECIFIED_AND_SYNTHETICALLY_TESTED",
+    "runtimeCodeIdentity": "CONTROLLED_TESTS_SUCCEEDED",
+    "trustedHumanApproval": "NOT_VERIFIED",
+    "runtimeObservers": "NOT_ENROLLED",
+    "wholeGoalVerification": "BLOCKED_NO_RUNTIME_OBSERVER",
+    "readyToExecuteUntrustedCode": false,
+    "deployment": "PROHIBITED_NOT_PERFORMED"
+  },
+  "entrypoints": {
+    "shell.execute": "UNCONFINED",
+    "developer.build": "UNCONFINED",
+    "developer.run_tests": "UNCONFINED",
+    "terminalExecutor": "UNCONFINED",
+    "gitExecutor": "UNCONFINED",
+    "hermesWatchdog": "UNCONFINED",
+    "terminalTool": "UNCONFINED",
+    "browser-worker supervision": "UNCONFINED"
+  },
+  "files": [
+    {
+      "path": "scripts/contracts/phase1-runtime-identity.mjs",
+      "sha256": "f63166a0b72f7743bcd7a3102685510a92686a2749c4e87589616e102392bf93"
+    },
+    {
+      "path": "scripts/test-phase1-runtime-identity.mjs",
+      "sha256": "e9e7b208b784f15f2ac38610577c69de580d09991c021a3215d640ab3b8275dc"
+    },
+    {
+      "path": "server/src/__tests__/phase1RuntimeIdentity.test.ts",
+      "sha256": "4f9460716e9726202a16d955cb53a2352bd8f1d343187f52847cb5978aa95aba"
+    },
+    {
+      "path": "evidence/phase1-runtime-identity-tests.tap",
+      "sha256": "4ba0d0be417b256c7620b6dada884cd7afbe8aa15947468bdeb9524c92ad0f6d"
+    },
+    {
+      "path": "evidence/phase1-trust-root-specification.txt",
+      "sha256": "165f1996be1c31998d7e90ae4e96bfb1558f2e84646eb1f208c2d587d64e7558"
+    },
+    {
+      "path": "evidence/phase1-trust-root-report.json",
+      "sha256": "b96194c61750356be0cbbb08128f36f4a24a6525173ac32c6c5641ebdc237de3"
+    },
+    {
+      "path": "evidence/phase1-vitest-tests.json",
+      "sha256": "0dffcb64f7513dbf1eb619f1d1558f9315d358a761ff5c5a5599e0af25d6325b"
+    },
+    {
+      "path": "native/phase2-containment/JobRunner.cs",
+      "sha256": "841204b64e3e85f606b28d6cbd185fb019f9c57fd9d570fe2fe44456502d1d29"
+    },
+    {
+      "path": "native/phase2-containment/ContainmentProbe.cs",
+      "sha256": "b8dadf0ec098ec0d459761b8d9cd3f78010253268b29fe168ee98fe7a4cfc1bb"
+    },
+    {
+      "path": "scripts/build-phase2-fixtures.ps1",
+      "sha256": "e76d9a9a8dfd776a8cdc424765407d6306b161eb17c82826b559432357f550df"
+    },
+    {
+      "path": "server/src/domains/securitySupervisor/phase2JobBoundary.ts",
+      "sha256": "290611082c2cace28ba3c09257317a1273fbb52e4eaedb1b7ebc54d56ff69b3f"
+    },
+    {
+      "path": "server/src/__tests__/phase2JobContainment.test.ts",
+      "sha256": "e8a7394a9280f739dd465541f6ed687d2438818714d2fa4d52c1eef24be40309"
+    },
+    {
+      "path": "evidence/phase2-job-tests.json",
+      "sha256": "70bbeb49408946cdf36cb2eb7150f3bf9aa6051caad6a2adbbea69d98b21f883"
+    },
+    {
+      "path": "evidence/phase2-combined-tests.json",
+      "sha256": "e613fbea767e71f5db9e90bd928f90ed9bef73588ca72bcf0be20e1bbf3c917d"
+    },
+    {
+      "path": "evidence/phase2-native-evidence.json",
+      "sha256": "68583dc44c4d86bfe8b1a1fd364451ee12708753be7365f4a2c812bd53cf6cd7"
+    },
+    {
+      "path": "evidence/phase2-job-object-report.txt",
+      "sha256": "b19f0ba2e22272a1fb6246c739223801b9013f386bd8440ed6f3d7b4eb74d8b8"
+    }
+  ],
+  "disposableBinaries": [
+    {
+      "path": ".tmp/phase2-job-object/JobRunner.exe",
+      "sha256": "af8bf9ccccd63e11b9cf876368036df154f7eda09864f8bc0572400929d110a5"
+    },
+    {
+      "path": ".tmp/phase2-job-object/AssignmentFailure.exe",
+      "sha256": "03db58e189cde34cc2b7938124e9bc1d088c35fd5bda9fc43da025860dad10a3"
+    },
+    {
+      "path": ".tmp/phase2-job-object/ContainmentProbe.exe",
+      "sha256": "27ffe99666b0c45db4eaff57a99b98961771cca4d9c9852d310a74fc7ed526a2"
+    }
+  ],
+  "hashScope": "Exact tested workspace bytes; Git text normalization may change checkout line endings. Report self-hash is detached here. This manifest cannot include its own final hash."
+}

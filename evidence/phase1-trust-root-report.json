@@ -120,20 +120,28 @@
       "sha256": "4ba0d0be417b256c7620b6dada884cd7afbe8aa15947468bdeb9524c92ad0f6d"
     }
   ],
-  "gitCommit": "3f20c47940f50115f445d988bee01eabc33e5a20",
-  "gitCommitMeaning": "Repository base commit before Phase 1/2 scoped commits; final commits are reported separately to avoid self-reference.",
+  "gitCommit": "707f1e2150cfc0e8c969ee9a456f2e9d21c6ccde",
+  "gitCommitMeaning": "Local Phase 1 source/tests/evidence snapshot commit; this report adds provenance afterward. Its final byte hash is in phase2-provenance.json.",
   "phase1EvidenceHashes": [
     {
       "path": "evidence/phase1-runtime-identity-tests.tap",
-      "sha256": "4ba0d0be417b256c7620b6dada884cd7afbe8aa15947468bdeb9524c92ad0f6d"
+      "sha256": "4ba0d0be417b256c7620b6dada884cd7afbe8aa15947468bdeb9524c92ad0f6d",
+      "scope": "final workspace bytes"
     },
     {
       "path": "evidence/phase1-trust-root-specification.txt",
-      "sha256": "165f1996be1c31998d7e90ae4e96bfb1558f2e84646eb1f208c2d587d64e7558"
+      "sha256": "165f1996be1c31998d7e90ae4e96bfb1558f2e84646eb1f208c2d587d64e7558",
+      "scope": "final workspace bytes"
     },
     {
       "path": "evidence/phase1-vitest-tests.json",
-      "sha256": "0dffcb64f7513dbf1eb619f1d1558f9315d358a761ff5c5a5599e0af25d6325b"
+      "sha256": "0dffcb64f7513dbf1eb619f1d1558f9315d358a761ff5c5a5599e0af25d6325b",
+      "scope": "final workspace bytes"
+    },
+    {
+      "path": "evidence/phase1-trust-root-report.json",
+      "sha256": "6900d3097e3dc315113d99a1697e3b57d52f1db636d43526c50b612a4f547c9c",
+      "scope": "historical report bytes at gitCommit; finalized report digest is in phase2-provenance.json"
     }
   ],
   "selfHashRule": "The report cannot contain its own final SHA-256. Its hash is recorded in evidence/phase2-provenance.json after finalization.",

@@ -1,0 +1,124 @@
+PHASE 2 — CONTROLLED WINDOWS JOB OBJECT ACCEPTANCE
+
+Implemented boundary (not enrolled in application tool dispatch)
+native/phase2-containment/JobRunner.cs
+server/src/domains/securitySupervisor/phase2JobBoundary.ts
+
+Native launcher verifies executable SHA-256 while holding a read handle without
+write/delete sharing. Creates the target suspended, assigns it to an unnamed job,
+and resumes only after successful assignment. Failure terminates the suspended
+target. The job handle is non-inheritable; the explicit inherited-handle list
+contains only the target's NUL input and bounded output pipe.
+
+Job limits: KILL_ON_JOB_CLOSE; active process count; per-process and aggregate job
+memory; per-process and aggregate user CPU time; CPU rate hard cap; all eight basic
+UI restriction flags. Neither breakaway nor silent breakaway is enabled. The helper
+queries effective limits before launch and refuses mismatched readback. Normal root
+exit, timeout, cancellation and output overflow terminate descendants. Successful
+cleanup reporting requires the OS job active-process count to reach zero.
+
+UI scope: job restrictions prohibit clipboard read/write, creating/switching
+desktops, global atom access outside the job's atom table, changing system/display
+parameters, exiting Windows and external USER handles. This is NOT a general claim
+that every possible UI or desktop resource is isolated. The controlled fixture
+attempted GetClipboardData and CreateDesktop; both returned access denied (5).
+It never dereferenced clipboard data, switched desktops, injected input, displayed
+UI, or exercised microphones/speakers. Other UI flags were queried, not physically
+exercised. See Microsoft JOB_OBJECT_BASIC_UI_RESTRICTIONS documentation:
+https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_ui_restrictions
+CPU rate reference:
+https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_cpu_rate_control_information
+
+Phase 1 binding
+The supervisor registry binds the full canonical Phase 1 record digest and runtime
+incarnation into every native request and response. An explicit invalidation writes
+and fsyncs a tombstone, cancels active jobs and refuses registration/relaunch of that
+incarnation, including after registry reconstruction. Tests use Phase 1 synthetic
+records; no actual runtime measurement authority or protected identity service is
+claimed. The validation callback and registry are supervisor-only facilities, not
+worker/RPC APIs. Production integration and authenticated invalidation delivery are
+not enrolled. Tombstones survive the tested registry reconstruction but their ACLs,
+administrator resistance, whole-system crash durability and rollback protection
+are not qualified by this phase. Restoring identity bytes cannot clear a tombstone.
+
+Controlled tests and commands
+Build reviewed local fixtures (no download):
+  powershell -NoProfile -File scripts/build-phase2-fixtures.ps1
+Compiler: Windows Framework64 v4.0.30319 csc.exe; x64 binaries are produced only in
+D:/AgenticOS/.tmp/phase2-job-object. A separate compile-time assignment-failure build
+calls AssignProcessToJobObject with an invalid handle; it has no production toggle.
+
+  npx --no-install vitest run --config vitest.server.config.ts
+    server/src/__tests__/phase1RuntimeIdentity.test.ts
+    server/src/__tests__/phase2JobContainment.test.ts --no-file-parallelism
+    --reporter=json --outputFile=evidence/phase2-combined-tests.json
+Result: 100 passed, 0 failed (Phase 1: 87; Phase 2: 13).
+  node server/node_modules/typescript/bin/tsc --noEmit -p server/tsconfig.json
+Result: exit 0.
+
+Phase 2 cases:
+1. Suspended assignment, successful execution and effective native limit readback.
+2. Bounded fork-bomb equivalent: 12 child attempts, only 3 admitted with root count 1.
+3. Per-process memory exhaustion refused.
+4. Aggregate job memory exhausted below the child's per-process allowance.
+5. CPU spin terminated by CPU-time limit before wall timeout; rate setting queried.
+6. CREATE_BREAKAWAY_FROM_JOB refused with access denied.
+7. Child/grandchild job membership and cancellation cleanup.
+8. Owning native supervisor killed: root, child and grandchild gone.
+9. Real assignment failure: no fixture startup/marker file written.
+10. Invalidated incarnation: running job terminated and relaunch refused.
+11. Clipboard and desktop API attempts denied without physical interaction.
+12. Invalid Phase 1 identity rejected before launch.
+13. Incarnation tombstone survives registry reconstruction/restored identity record.
+
+Entry-point disposition (source inspection only; not execution/reachability proof)
+ROUTED: controlled Phase 2 test harness -> IncarnationJobs -> ContainedJob -> native
+JobRunner. No application entrypoint is claimed routed by this checkpoint.
+
+UNCONFINED: shell.execute — worker bridge currently rejects via default
+WORKER_CAPABILITY_DISABLED; no Phase 2 routing. Generic processConfinement throws
+GENERIC_PROCESS_EXECUTION_DISABLED. "UNCONFINED" here means not integrated, not enabled.
+UNCONFINED: developer.build — same disabled worker bridge disposition; no job adapter.
+UNCONFINED: developer.run_tests — same disabled worker bridge disposition; no job adapter.
+UNCONFINED: terminalExecutor — legacy direct spawn/shell and userspace cleanup remain;
+server/src/domains/jarvis/execution/executors/terminalExecutor.ts.
+UNCONFINED: gitExecutor — delegates to legacy terminalExecutor; no Phase 2 binding;
+server/src/domains/jarvis/execution/executors/gitExecutor.ts. Worker Git remains denied.
+UNCONFINED: hermesWatchdog — detached Python gateway spawn remains outside this job;
+server/src/services/hermesWatchdog.ts.
+UNCONFINED: terminalTool — promisified child_process.exec remains outside this job;
+server/src/services/agent/tools/terminalTool.ts.
+UNCONFINED: browser-worker supervision — fork-based worker supervisor not integrated;
+server/src/services/revenueOperator/browser/browserWorkerSupervisor.ts.
+Legacy native/security-supervisor/JobRunner.cs and windowsJob.ts are NOT this tested
+Phase 2 boundary; they have not been silently promoted or deployed. Other process
+wrappers are not certified by this matrix. None of these legacy paths was enabled.
+
+Proof limits
+Proves the exercised OS process lifetime/resource controls for these compiled,
+reviewed fixtures and this Windows environment, plus synthetic Phase 1 binding and
+tested incarnation invalidation. It is not a universal process-entrypoint closure.
+Job Objects do not provide filesystem, network, credential or token isolation.
+No untrusted third-party program, authenticated browser, installed runtime, vault,
+credential access, deployment, physical UI/audio testing or Phase 3 work occurred.
+The parent-kill test covers the running assigned tree, not every instruction-level
+crash point between CreateProcess and assignment. An abrupt helper death during
+that pre-assignment window can leave a suspended process; it has not run fixture
+code but this window is not claimed as fully qualified crash cleanup.
+Same-user handle tampering/injection and malicious administrator/kernel behavior
+are not contained by these tests. Runtime code/protected-store assurance remains
+at Phase 1's synthetic scope. No production scheduling or observer enrollment.
+
+Exit states (controlled tests only)
+windowsJobObject: CONTROLLED_TESTS_SUCCEEDED
+trustRootModel: SPECIFIED_AND_SYNTHETICALLY_TESTED
+runtimeCodeIdentity: CONTROLLED_TESTS_SUCCEEDED
+trustedHumanApproval: NOT_VERIFIED
+runtimeObservers: NOT_ENROLLED
+wholeGoalVerification: BLOCKED_NO_RUNTIME_OBSERVER
+readyToExecuteUntrustedCode: false
+deployment: PROHIBITED_NOT_PERFORMED
+
+Local branch: phase2-job-object. Scoped Phase 1/2 files only; unrelated pre-existing
+working changes preserved. Commit identities and exact file hashes are recorded in
+phase2-provenance.json and the final response. No push or merge.
