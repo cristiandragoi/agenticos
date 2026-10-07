@@ -15,6 +15,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { logger } from '../../../../utils/logger.js';
+import {
+  assertConfinedWorkspacePath,
+  ConfinementError,
+  getDedicatedWorkspaceRoot,
+} from '../../../localWorker/workspaceConfinement.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
 
 export interface FileItemMatch {
@@ -251,9 +256,75 @@ export class FilesystemExecutor {
     }
   }
 
+  /**
+   * Confined file write (SEC-05).
+   * Validates target path against workspace root via realpath and junction/symlink checks.
+   * Outside-workspace writes fail closed with CONFINEMENT_VIOLATION.
+   */
+  public async writeFile(
+    targetPath: string,
+    content: string,
+    options: { workspaceRoot?: string } = {}
+  ): Promise<{ success: boolean; path: string; size: number }> {
+    const confined = await assertConfinedWorkspacePath(targetPath, {
+      forWrite: true,
+      workspaceRoot: options.workspaceRoot,
+    });
+    await fs.mkdir(path.dirname(confined), { recursive: true });
+    await fs.writeFile(confined, content, 'utf8');
+    const size = Buffer.byteLength(content, 'utf8');
+    return { success: true, path: confined, size };
+  }
+
+  /**
+   * Confined directory / folder creation (SEC-05).
+   */
+  public async createFolder(
+    targetPath: string,
+    options: { workspaceRoot?: string } = {}
+  ): Promise<{ success: boolean; path: string }> {
+    const confined = await assertConfinedWorkspacePath(targetPath, {
+      allowDirectory: true,
+      forWrite: true,
+      workspaceRoot: options.workspaceRoot,
+    });
+    await fs.mkdir(confined, { recursive: true });
+    return { success: true, path: confined };
+  }
+
+  /**
+   * Confined file or folder deletion (SEC-05).
+   */
+  public async deletePath(
+    targetPath: string,
+    options: { workspaceRoot?: string } = {}
+  ): Promise<{ success: boolean; path: string }> {
+    const confined = await assertConfinedWorkspacePath(targetPath, {
+      allowDirectory: true,
+      forWrite: true,
+      workspaceRoot: options.workspaceRoot,
+    });
+
+    // Refuse deletion of the workspace root itself
+    const root = options.workspaceRoot ? path.resolve(options.workspaceRoot) : getDedicatedWorkspaceRoot();
+    if (path.resolve(confined).toLowerCase() === path.resolve(root).toLowerCase()) {
+      throw new ConfinementError('Refusing to delete the workspace root directory itself');
+    }
+
+    if (fsSync.existsSync(confined)) {
+      const stat = await fs.lstat(confined);
+      if (stat.isDirectory()) {
+        await fs.rm(confined, { recursive: true, force: true });
+      } else {
+        await fs.unlink(confined);
+      }
+    }
+    return { success: true, path: confined };
+  }
+
   public async executeStep(step: ActionPlanStep, context: TurnContext): Promise<ExecutionResult> {
     const action = step.action || 'read';
-    const targetPath = path.resolve((step.parameters.path as string) || (step.parameters.filePath as string) || context.workspacePath || process.cwd());
+    const targetPath = path.resolve((step.parameters.path as string) || (step.parameters.filePath as string) || context?.workspacePath || process.cwd());
     const content = (step.parameters.content as string) || '';
     const destination = step.parameters.destination ? path.resolve(step.parameters.destination as string) : undefined;
 
@@ -305,13 +376,31 @@ export class FilesystemExecutor {
           };
         }
         case 'write': {
-          await fs.mkdir(path.dirname(targetPath), { recursive: true });
-          await fs.writeFile(targetPath, content, 'utf8');
+          const res = await this.writeFile(targetPath, content, { workspaceRoot: context?.workspacePath });
           return {
             success: true,
-            output: `Wrote ${content.length} bytes to ${path.basename(targetPath)}.`,
-            data: { path: targetPath, size: content.length },
-            evidence: { exists: true, size: content.length },
+            output: `Wrote ${res.size} bytes to ${path.basename(res.path)}.`,
+            data: { path: res.path, size: res.size },
+            evidence: { exists: true, size: res.size },
+          };
+        }
+        case 'create':
+        case 'create_folder': {
+          const res = await this.createFolder(targetPath, { workspaceRoot: context?.workspacePath });
+          return {
+            success: true,
+            output: `Created folder at ${res.path}.`,
+            data: { path: res.path },
+            evidence: { exists: true },
+          };
+        }
+        case 'delete': {
+          const res = await this.deletePath(targetPath, { workspaceRoot: context?.workspacePath });
+          return {
+            success: true,
+            output: `Deleted ${res.path}.`,
+            data: { path: res.path },
+            evidence: { deleted: true },
           };
         }
         case 'list': {
@@ -328,9 +417,13 @@ export class FilesystemExecutor {
           throw new Error(`Unsupported filesystem action: ${action}`);
       }
     } catch (err: any) {
+      const isConfinement = err instanceof ConfinementError ||
+        err?.code === 'CONFINEMENT_VIOLATION' ||
+        String(err?.message || '').includes('CONFINEMENT_VIOLATION');
       return {
         success: false,
         error: err?.message || String(err),
+        ...(isConfinement ? { code: 'CONFINEMENT_VIOLATION' } : {}),
       };
     }
   }

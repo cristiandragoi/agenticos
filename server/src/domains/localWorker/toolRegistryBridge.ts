@@ -298,73 +298,92 @@ export class ToolRegistryBridge {
       }
 
       case 'filesystem.write': {
-        const targetPath = path.resolve(String(args.path || ''));
+        const targetPath = String(args.path || '');
         const content = String(args.content || '');
-
-        await fs.mkdir(path.dirname(targetPath), { recursive: true });
-        await fs.writeFile(targetPath, content, 'utf8');
-
-        const writtenExists = fsSync.existsSync(targetPath);
-        const writtenSize = writtenExists ? fsSync.statSync(targetPath).size : 0;
-
-        return {
-          success: writtenExists,
-          output: `Wrote ${content.length} characters to ${targetPath}`,
-          rawOutput: { path: targetPath, size: writtenSize },
-          evidenceSource: 'filesystemExecutor.write',
-          verification: {
-            verified: writtenExists,
-            realityCheck: writtenExists
-              ? `Verified file written on disk: ${targetPath} (${writtenSize} bytes)`
-              : `File write failed: ${targetPath} not found after write`,
-            evidenceSource: 'fs.statSync',
-          },
-        };
+        try {
+          const res = await filesystemExecutor.writeFile(targetPath, content);
+          return {
+            success: true,
+            output: `Wrote ${res.size} characters to ${res.path}`,
+            rawOutput: { path: res.path, size: res.size },
+            evidenceSource: 'filesystemExecutor.write',
+            verification: {
+              verified: true,
+              realityCheck: `Verified file written on disk: ${res.path} (${res.size} bytes)`,
+              evidenceSource: 'fs.statSync',
+            },
+          };
+        } catch (err: any) {
+          const isConfinement = String(err?.message || '').includes('CONFINEMENT_VIOLATION');
+          return {
+            success: false,
+            output: `Failed to write ${targetPath}: ${err?.message || String(err)}`,
+            error: isConfinement ? 'CONFINEMENT_VIOLATION' : (err?.message || String(err)),
+            verification: {
+              verified: false,
+              realityCheck: `File write failed: ${err?.message || String(err)}`,
+              evidenceSource: 'filesystemExecutor.writeFile',
+            },
+          };
+        }
       }
 
       case 'filesystem.create_folder': {
-        const targetPath = path.resolve(String(args.path || ''));
-        await fs.mkdir(targetPath, { recursive: true });
-        const exists = fsSync.existsSync(targetPath) && fsSync.statSync(targetPath).isDirectory();
-
-        return {
-          success: exists,
-          output: targetPath,
-          evidenceSource: 'filesystemExecutor.createFolder',
-          verification: {
-            verified: exists,
-            realityCheck: exists
-              ? `Folder verified created at ${targetPath}`
-              : `Folder creation verification failed: ${targetPath}`,
-            evidenceSource: 'fs.statSync',
-          },
-        };
+        const targetPath = String(args.path || '');
+        try {
+          const res = await filesystemExecutor.createFolder(targetPath);
+          return {
+            success: true,
+            output: res.path,
+            evidenceSource: 'filesystemExecutor.createFolder',
+            verification: {
+              verified: true,
+              realityCheck: `Folder verified created at ${res.path}`,
+              evidenceSource: 'fs.statSync',
+            },
+          };
+        } catch (err: any) {
+          const isConfinement = String(err?.message || '').includes('CONFINEMENT_VIOLATION');
+          return {
+            success: false,
+            output: `Failed to create folder ${targetPath}: ${err?.message || String(err)}`,
+            error: isConfinement ? 'CONFINEMENT_VIOLATION' : (err?.message || String(err)),
+            verification: {
+              verified: false,
+              realityCheck: `Folder creation verification failed: ${err?.message || String(err)}`,
+              evidenceSource: 'filesystemExecutor.createFolder',
+            },
+          };
+        }
       }
 
       case 'filesystem.delete': {
-        const targetPath = path.resolve(String(args.path || ''));
-        if (fsSync.existsSync(targetPath)) {
-          const isDir = fsSync.statSync(targetPath).isDirectory();
-          if (isDir) {
-            await fs.rm(targetPath, { recursive: true, force: true });
-          } else {
-            await fs.unlink(targetPath);
-          }
+        const targetPath = String(args.path || '');
+        try {
+          const res = await filesystemExecutor.deletePath(targetPath);
+          return {
+            success: true,
+            output: `Deleted ${res.path}`,
+            evidenceSource: 'filesystemExecutor.delete',
+            verification: {
+              verified: true,
+              realityCheck: `Verified target deleted from disk: ${res.path}`,
+              evidenceSource: 'fs.existsSync',
+            },
+          };
+        } catch (err: any) {
+          const isConfinement = String(err?.message || '').includes('CONFINEMENT_VIOLATION');
+          return {
+            success: false,
+            output: `Failed to delete ${targetPath}: ${err?.message || String(err)}`,
+            error: isConfinement ? 'CONFINEMENT_VIOLATION' : (err?.message || String(err)),
+            verification: {
+              verified: false,
+              realityCheck: `Verification failed: ${err?.message || String(err)}`,
+              evidenceSource: 'filesystemExecutor.deletePath',
+            },
+          };
         }
-        const nowAbsent = !fsSync.existsSync(targetPath);
-
-        return {
-          success: nowAbsent,
-          output: nowAbsent ? `Deleted ${targetPath}` : `Failed to delete ${targetPath}`,
-          evidenceSource: 'filesystemExecutor.delete',
-          verification: {
-            verified: nowAbsent,
-            realityCheck: nowAbsent
-              ? `Verified target deleted from disk: ${targetPath}`
-              : `Verification failed: target still exists: ${targetPath}`,
-            evidenceSource: 'fs.existsSync',
-          },
-        };
       }
 
       // ── Desktop ───────────────────────────────────────────────────────────

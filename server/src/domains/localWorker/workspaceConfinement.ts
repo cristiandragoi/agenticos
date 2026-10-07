@@ -158,6 +158,7 @@ export async function assertConfinedWorkspacePath(
   options: {
     allowDirectory?: boolean;
     forWrite?: boolean;
+    workspaceRoot?: string;
   } = {},
 ): Promise<string> {
   if (typeof rawPath !== 'string' || !rawPath.trim()) {
@@ -167,6 +168,11 @@ export async function assertConfinedWorkspacePath(
   // Null byte injection check
   if (rawPath.includes('\0')) {
     throw new ConfinementError('Null bytes are forbidden in paths');
+  }
+
+  // UNC paths check
+  if (rawPath.startsWith('\\\\') || rawPath.startsWith('//')) {
+    throw new ConfinementError(`UNC path "${rawPath}" is forbidden`);
   }
 
   // Windows Alternate Data Streams (ADS) check
@@ -183,7 +189,7 @@ export async function assertConfinedWorkspacePath(
     }
   }
 
-  const root = getDedicatedWorkspaceRoot();
+  const root = options.workspaceRoot ? path.resolve(options.workspaceRoot) : getDedicatedWorkspaceRoot();
   const rootCanonical = path.resolve(root);
 
   // Verify root itself if it exists
@@ -208,6 +214,13 @@ export async function assertConfinedWorkspacePath(
     if (rel.startsWith('..') || path.isAbsolute(rel)) {
       throw new ConfinementError(`Relative path traversal "${rawPath}" escapes workspace root "${rootCanonical}"`);
     }
+  }
+
+  // Drive hop check across Windows volumes
+  const rootDrive = path.parse(rootCanonical).root.toLowerCase();
+  const candDrive = path.parse(candidate).root.toLowerCase();
+  if (rootDrive && candDrive && rootDrive !== candDrive) {
+    throw new ConfinementError(`Drive hop from "${rootDrive}" to "${candDrive}" is forbidden`);
   }
 
   // Sensitive pattern denial
