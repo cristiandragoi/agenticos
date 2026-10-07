@@ -15,10 +15,12 @@ export class LocalWorkerStore {
   private saveTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
+    const cwd = process.cwd();
+    const isServerCwd = cwd.endsWith('server') || cwd.endsWith('server\\') || cwd.endsWith('server/');
     const candidates = [
       process.env.AGENTICOS_DATA_DIR ? path.join(process.env.AGENTICOS_DATA_DIR, 'local_worker_tasks.json') : '',
-      path.resolve(process.cwd(), 'server', 'data', 'local_worker_tasks.json'),
-      path.resolve(process.cwd(), 'data', 'local_worker_tasks.json'),
+      isServerCwd ? path.resolve(cwd, 'data', 'local_worker_tasks.json') : path.resolve(cwd, 'server', 'data', 'local_worker_tasks.json'),
+      path.resolve(cwd, 'data', 'local_worker_tasks.json'),
       path.join(process.env.APPDATA || '', 'AgenticOS', 'data', 'local_worker_tasks.json'),
     ].filter(Boolean);
 

@@ -894,7 +894,13 @@ export class AuthoritativeDesktopComputerUseProvider {
             try {
               const captureScript = resolveScriptPath('take_screenshot.ps1');
               if (fs.existsSync(captureScript)) {
-                const outPath = path.join(process.cwd(), 'server', 'data', `evidence_uia_${target.hwnd}_${Date.now()}.png`);
+                const cwd = process.cwd();
+                const dataBaseDir = process.env.AGENTICOS_DATA_DIR
+                  ? path.resolve(process.env.AGENTICOS_DATA_DIR)
+                  : (cwd.endsWith('server') || cwd.endsWith('server\\') || cwd.endsWith('server/'))
+                    ? path.resolve(cwd, 'data')
+                    : path.resolve(cwd, 'server', 'data');
+                const outPath = path.join(dataBaseDir, `evidence_uia_${target.hwnd}_${Date.now()}.png`);
                 await execAsync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${captureScript}" -Hwnd ${target.hwnd} -OutputFile "${outPath}"`, { timeout: 3000 });
                 if (fs.existsSync(outPath)) {
                   artifactPath = outPath;

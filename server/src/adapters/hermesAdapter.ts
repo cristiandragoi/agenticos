@@ -191,11 +191,12 @@ ${input.uiContext?.currentRoute === '/hermes-studio' ? '\nCONTEXT: hermes-studio
     }
 
     // Step C: Canonical database read (sqlite_read capability)
+    const cwd = process.cwd();
+    const isServerCwd = cwd.endsWith('server') || cwd.endsWith('server\\') || cwd.endsWith('server/');
     const dbPaths = [
       path.join(process.env.APPDATA || path.join(process.env.USERPROFILE || os.homedir(), 'AppData', 'Roaming'), 'agenticos', 'data', 'agentic-os.db'),
-
-      path.resolve(process.cwd(), 'server', 'data', 'agentic-os.db'),
-      path.resolve(process.cwd(), 'data', 'agentic-os.db'),
+      isServerCwd ? path.resolve(cwd, 'data', 'agentic-os.db') : path.resolve(cwd, 'server', 'data', 'agentic-os.db'),
+      path.resolve(cwd, 'data', 'agentic-os.db'),
     ];
 
     let resolvedDbPath: string | null = null;

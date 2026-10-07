@@ -1,4 +1,4 @@
-import { db, rawDb } from '../../db/index.js';
+import { db, rawDb, sqliteDbPath } from '../../db/index.js';
 import { revenueMissions, revenueExperiments, revenueHumanGates } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { logger } from '../../utils/logger.js';
@@ -45,7 +45,9 @@ export interface BriefingData {
 }
 
 export class RevenueBriefingService {
-  private briefingsDir = path.resolve(process.cwd(), 'server', 'data', 'revenue-operator', 'briefings');
+  private get briefingsDir(): string {
+    return path.join(path.dirname(sqliteDbPath), 'revenue-operator', 'briefings');
+  }
 
   constructor() {
     try {
