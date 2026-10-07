@@ -8,8 +8,14 @@
 
 import { execSync } from 'node:child_process';
 import path from 'node:path';
-import fs from 'node:fs';
 import { logger } from '../../utils/logger.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type SignedApprovalEnvelope,
+  type ApprovalBinding,
+} from '../securitySupervisor/approvalVerifier.js';
 
 export interface GitRepoStatus {
   repositoryPath: string;
@@ -205,11 +211,54 @@ export class AgenticOsGitService {
 
   /**
    * Commit the current changes safely.
+   * Under SEC-06 and Step 4, mutating Git commit requires verified out-of-process human approval.
    */
-  public commitChanges(message?: string, lang: 'en' | 'de' = 'en'): { success: boolean; formattedText: string } {
+  public commitChanges(
+    message?: string,
+    options: {
+      lang?: 'en' | 'de';
+      approval?: SignedApprovalEnvelope;
+    } = {}
+  ): { success: boolean; formattedText: string; error?: string } {
+    const lang = options.lang || 'en';
     const commitMsg = message && message.trim()
       ? message.trim()
       : 'feat: update AgenticOS runtime improvements';
+
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+
+    // Verify out-of-process human approval unless in test bypass mode
+    if (!isTestBypass) {
+      if (!options.approval) {
+        const msg = lang === 'de'
+          ? 'APPROVAL_REQUIRED: Git-Commit erfordert verifizierte menschliche Freigabe (Out-of-Process Issuer).'
+          : 'APPROVAL_REQUIRED: Git commit requires verified out-of-process human approval.';
+        return { success: false, formattedText: msg, error: 'APPROVAL_REQUIRED' };
+      }
+
+      try {
+        const expectedBinding: ApprovalBinding = {
+          goalId: 'git-commit',
+          graphId: 'git',
+          nodeId: 'commit',
+          workerId: 'AgenticOsGitService',
+          operation: 'GIT_COMMIT',
+          attempt: 1,
+          tool: 'git.commit',
+          scopeHash: approvalHash({ repository: this.repoPath }),
+          argumentHash: approvalHash({ message: commitMsg }),
+          previewHash: approvalHash(`Commit in ${this.repoPath}: ${commitMsg}`),
+          runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+          bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+        };
+        getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+      } catch (err: any) {
+        const msg = lang === 'de'
+          ? `APPROVAL_FAILED: Freigabe ungültig: ${err?.message || String(err)}`
+          : `APPROVAL_FAILED: Approval verification failed: ${err?.message || String(err)}`;
+        return { success: false, formattedText: msg, error: err?.message || 'APPROVAL_FAILED' };
+      }
+    }
 
     // Check if there are changes
     const diffCheck = this.runGit('status --porcelain');
@@ -240,9 +289,51 @@ export class AgenticOsGitService {
 
   /**
    * Push current branch safely.
-   * Never force push.
+   * Under SEC-06 and Step 4, mutating Git push requires verified out-of-process human approval.
    */
-  public pushBranch(lang: 'en' | 'de' = 'en'): { success: boolean; formattedText: string } {
+  public pushBranch(
+    options: {
+      lang?: 'en' | 'de';
+      approval?: SignedApprovalEnvelope;
+    } = {}
+  ): { success: boolean; formattedText: string; error?: string } {
+    const lang = options.lang || 'en';
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+
+    // Verify out-of-process human approval unless in test bypass mode
+    if (!isTestBypass) {
+      if (!options.approval) {
+        const msg = lang === 'de'
+          ? 'APPROVAL_REQUIRED: Git-Push erfordert verifizierte menschliche Freigabe (Out-of-Process Issuer).'
+          : 'APPROVAL_REQUIRED: Git push requires verified out-of-process human approval.';
+        return { success: false, formattedText: msg, error: 'APPROVAL_REQUIRED' };
+      }
+
+      try {
+        const branch = this.runGit('branch --show-current').stdout || 'current';
+        const expectedBinding: ApprovalBinding = {
+          goalId: 'git-push',
+          graphId: 'git',
+          nodeId: 'push',
+          workerId: 'AgenticOsGitService',
+          operation: 'GIT_PUSH',
+          attempt: 1,
+          tool: 'git.push',
+          scopeHash: approvalHash({ repository: this.repoPath, branch }),
+          argumentHash: approvalHash({ branch }),
+          previewHash: approvalHash(`Push ${branch} in ${this.repoPath}`),
+          runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+          bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+        };
+        getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+      } catch (err: any) {
+        const msg = lang === 'de'
+          ? `APPROVAL_FAILED: Freigabe ungültig: ${err?.message || String(err)}`
+          : `APPROVAL_FAILED: Approval verification failed: ${err?.message || String(err)}`;
+        return { success: false, formattedText: msg, error: err?.message || 'APPROVAL_FAILED' };
+      }
+    }
+
     const branch = this.runGit('branch --show-current').stdout;
     if (!branch) {
       const msg = lang === 'de' ? 'Konnte aktuellen Branch nicht ermitteln.' : 'Could not determine current branch.';

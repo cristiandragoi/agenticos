@@ -5,6 +5,12 @@ import { failureDetector } from '../domains/selfHeal/FailureDetector.js';
 import { repairMemory } from '../domains/selfHeal/RepairMemory.js';
 import { auditLog } from '../domains/selfHeal/AuditLog.js';
 import { deploymentGate } from '../domains/selfHeal/DeploymentGate.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+} from '../domains/securitySupervisor/approvalVerifier.js';
 
 export const selfHealRouter = Router();
 
@@ -104,12 +110,45 @@ selfHealRouter.post('/incidents/:id/repair', async (req, res) => {
 });
 
 // POST /api/self-heal/incidents/:id/approve — EXPLICIT HUMAN APPROVAL
-// SEC-03: Plain client JSON ({approver:'human'}) cannot grant approval; fails closed until out-of-process issuer exists
-selfHealRouter.post('/incidents/:id/approve', async (_req, res) => {
-  return res.status(503).json({
-    error: 'APPROVAL_ISSUER_UNAVAILABLE',
-    message: "Plain client JSON ({approver}) cannot grant approval; out-of-process issuer is unavailable",
-  });
+// Requires verified signed envelope from out-of-process issuer; plain JSON fails closed.
+selfHealRouter.post('/incidents/:id/approve', async (req, res) => {
+  const { envelope, payload, signature } = req.body || {};
+  const approvalPayload = envelope?.payload || payload;
+  const approvalSig = envelope?.signature || signature;
+
+  if (!approvalPayload || !approvalSig) {
+    return res.status(503).json({
+      error: 'APPROVAL_ISSUER_UNAVAILABLE',
+      message: "Plain client JSON ({approver}) cannot grant approval; out-of-process issuer envelope required",
+    });
+  }
+
+  try {
+    const incidentId = req.params.id;
+    const expectedBinding: ApprovalBinding = {
+      goalId: incidentId,
+      graphId: 'self-heal',
+      nodeId: incidentId,
+      workerId: 'selfHealSupervisor',
+      operation: 'SELF_HEAL_APPROVE',
+      attempt: 1,
+      tool: 'selfHeal.approveRepair',
+      scopeHash: approvalHash({ incidentId }),
+      argumentHash: approvalHash({ incidentId }),
+      previewHash: approvalHash(`Self-heal repair approval for incident ${incidentId}`),
+      runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+      bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+    };
+
+    getSupervisorApprovalVerifier().consume(approvalPayload, approvalSig, expectedBinding);
+    const approved = await selfHealSupervisor.approveIncident(incidentId, 'operator');
+    return res.json({ success: approved, incidentId, status: 'APPROVED' });
+  } catch (err: any) {
+    return res.status(403).json({
+      error: 'APPROVAL_VERIFICATION_FAILED',
+      message: err?.message || String(err),
+    });
+  }
 });
 
 // POST /api/self-heal/incidents/:id/reject

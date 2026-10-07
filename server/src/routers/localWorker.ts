@@ -6,6 +6,13 @@
 
 import { Router, Request, Response } from 'express';
 import { localWorkerManager } from '../domains/localWorker/localWorkerManager.js';
+import { localWorkerStore } from '../domains/localWorker/localWorkerStore.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+} from '../domains/securitySupervisor/approvalVerifier.js';
 import { logger } from '../utils/logger.js';
 
 export const localWorkerRouter = Router();
@@ -83,13 +90,60 @@ localWorkerRouter.post('/tasks/:id/cancel', (req: Request, res: Response) => {
 
 /**
  * POST /api/worker/tasks/:id/approve
- * SEC-03: Plain client approval is disabled; fails closed until out-of-process issuer exists
+ * Requires verified signed envelope from out-of-process issuer; plain JSON fails closed.
  */
-localWorkerRouter.post('/tasks/:id/approve', (_req: Request, res: Response) => {
-  return res.status(503).json({
-    error: 'APPROVAL_ISSUER_UNAVAILABLE',
-    message: 'Plain client approval is disabled; out-of-process issuer is unavailable',
-  });
+localWorkerRouter.post('/tasks/:id/approve', (req: Request, res: Response) => {
+  const { envelope, payload, signature } = req.body || {};
+  const approvalPayload = envelope?.payload || payload;
+  const approvalSig = envelope?.signature || signature;
+
+  if (!approvalPayload || !approvalSig) {
+    return res.status(503).json({
+      error: 'APPROVAL_ISSUER_UNAVAILABLE',
+      message: 'Plain client approval is disabled; signed envelope from out-of-process issuer required',
+    });
+  }
+
+  try {
+    const task = localWorkerManager.getTask(req.params.id);
+    if (!task) {
+      return res.status(404).json({ error: `Task not found: ${req.params.id}` });
+    }
+    const step = task.plan[task.currentStep];
+    const expectedBinding: ApprovalBinding = {
+      goalId: task.id,
+      graphId: 'local-worker',
+      nodeId: step?.id || 'step',
+      workerId: 'localWorkerManager',
+      operation: 'WORKER_TASK_APPROVE',
+      attempt: step?.attempts || 1,
+      tool: step?.tool || 'shell.execute',
+      scopeHash: approvalHash(step?.arguments || {}),
+      argumentHash: approvalHash(step?.arguments || {}),
+      previewHash: approvalHash(step?.description || 'Worker step approval'),
+      runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+      bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+    };
+
+    getSupervisorApprovalVerifier().consume(approvalPayload, approvalSig, expectedBinding);
+
+    // Explicit approval via verified out-of-process envelope:
+    if (step) {
+      step.approved = true;
+    }
+    task.pendingApproval = undefined;
+    task.status = 'running';
+    localWorkerStore.saveTask(task);
+    (localWorkerManager as any).runTaskLoop(task.id);
+
+    return res.json({ success: true, task: localWorkerManager.getTask(task.id) });
+  } catch (err: any) {
+    logger.warn('[localWorkerRouter] Verification failed for task approval:', err);
+    return res.status(403).json({
+      error: 'APPROVAL_VERIFICATION_FAILED',
+      message: err?.message || String(err),
+    });
+  }
 });
 
 /**
@@ -98,12 +152,40 @@ localWorkerRouter.post('/tasks/:id/approve', (_req: Request, res: Response) => {
  */
 localWorkerRouter.post('/tasks/:id/resume', (req: Request, res: Response) => {
   try {
-    const { approved } = req.body || {};
+    const { approved, envelope, payload, signature } = req.body || {};
     if (approved) {
-      return res.status(503).json({
-        error: 'APPROVAL_ISSUER_UNAVAILABLE',
-        message: "Plain client JSON ({approved:true}) cannot grant approval; out-of-process issuer is unavailable",
-      });
+      const approvalPayload = envelope?.payload || payload;
+      const approvalSig = envelope?.signature || signature;
+      if (!approvalPayload || !approvalSig) {
+        return res.status(503).json({
+          error: 'APPROVAL_ISSUER_UNAVAILABLE',
+          message: "Plain client JSON ({approved:true}) cannot grant approval; out-of-process issuer is unavailable",
+        });
+      }
+      const task = localWorkerManager.getTask(req.params.id);
+      if (!task) return res.status(404).json({ error: `Task not found: ${req.params.id}` });
+      const step = task.plan[task.currentStep];
+      const expectedBinding: ApprovalBinding = {
+        goalId: task.id,
+        graphId: 'local-worker',
+        nodeId: step?.id || 'step',
+        workerId: 'localWorkerManager',
+        operation: 'WORKER_TASK_APPROVE',
+        attempt: step?.attempts || 1,
+        tool: step?.tool || 'shell.execute',
+        scopeHash: approvalHash(step?.arguments || {}),
+        argumentHash: approvalHash(step?.arguments || {}),
+        previewHash: approvalHash(step?.description || 'Worker step approval'),
+        runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+        bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+      };
+      getSupervisorApprovalVerifier().consume(approvalPayload, approvalSig, expectedBinding);
+      if (step) step.approved = true;
+      task.pendingApproval = undefined;
+      task.status = 'running';
+      localWorkerStore.saveTask(task);
+      (localWorkerManager as any).runTaskLoop(task.id);
+      return res.json({ success: true, task: localWorkerManager.getTask(task.id) });
     }
     const success = localWorkerManager.resumeTask(req.params.id, false);
     if (!success) {

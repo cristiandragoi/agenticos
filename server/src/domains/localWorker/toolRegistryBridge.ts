@@ -25,6 +25,13 @@ import {
   BACKGROUND_MAINTENANCE_POLICY,
 } from '../jarvis/perception/perceptionOperation.js';
 import { runWithBackgroundOwnership } from '../jarvis/perception/turnOwnership.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type SignedApprovalEnvelope,
+  type ApprovalBinding,
+} from '../securitySupervisor/approvalVerifier.js';
 import type { ToolExecutionResponse, WorkerRiskLevel, WorkerVerification } from './types.js';
 
 /**
@@ -161,17 +168,46 @@ export class ToolRegistryBridge {
     const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
 
     if (risk === 'high_impact' && !isTestBypass) {
-      logger.warn(`[ToolRegistryBridge] Blocked high-impact action without verified approval: ${tool}`, { args });
-      return {
-        success: false,
-        output: 'APPROVAL_ISSUER_UNAVAILABLE: High-impact action requires verified approval from out-of-process issuer',
-        verification: {
-          verified: false,
-          realityCheck: 'APPROVAL_ISSUER_UNAVAILABLE: Execution blocked by security supervisor',
-          evidenceSource: 'securitySupervisor.approvalGate',
-        },
-        error: 'APPROVAL_ISSUER_UNAVAILABLE',
-      };
+      const envelope = args.approval as SignedApprovalEnvelope | undefined;
+      let approvalVerified = false;
+
+      if (envelope?.payload && envelope?.signature) {
+        try {
+          const expectedBinding: ApprovalBinding = {
+            goalId: String(args.goalId || 'local-worker-action'),
+            graphId: String(args.graphId || 'local-worker'),
+            nodeId: String(args.nodeId || 'action'),
+            workerId: String(args.workerId || 'toolRegistryBridge'),
+            operation: tool.toUpperCase().replace(/\./g, '_'),
+            attempt: Number(args.attempt) || 1,
+            tool,
+            scopeHash: approvalHash(args.scope || { tool }),
+            argumentHash: approvalHash(args.arguments || args),
+            previewHash: approvalHash(String(args.preview || `Execute ${tool}`)),
+            runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+            bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+          };
+          getSupervisorApprovalVerifier().consume(envelope.payload, envelope.signature, expectedBinding);
+          approvalVerified = true;
+          logger.info(`[ToolRegistryBridge] High-impact action verified via out-of-process approval envelope: ${tool}`);
+        } catch (err: any) {
+          logger.warn(`[ToolRegistryBridge] Approval envelope verification failed for ${tool}:`, err);
+        }
+      }
+
+      if (!approvalVerified) {
+        logger.warn(`[ToolRegistryBridge] Blocked high-impact action without verified approval: ${tool}`, { args });
+        return {
+          success: false,
+          output: 'APPROVAL_ISSUER_UNAVAILABLE: High-impact action requires verified approval from out-of-process issuer',
+          verification: {
+            verified: false,
+            realityCheck: 'APPROVAL_ISSUER_UNAVAILABLE: Execution blocked by security supervisor',
+            evidenceSource: 'securitySupervisor.approvalGate',
+          },
+          error: 'APPROVAL_ISSUER_UNAVAILABLE',
+        };
+      }
     }
 
     // ── P0: the local worker is BACKGROUND work ─────────────────────────────
