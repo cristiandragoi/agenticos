@@ -30,6 +30,9 @@ export interface ArtifactRef {
   readonly verified: boolean;
   /** Timestamp of creation (epoch ms) */
   readonly createdAt: number;
+  /** Content hash / sha256 */
+  readonly sha256?: string;
+  readonly hash?: string;
   /** Optional metadata (dimensions, hash, size in bytes, prompt, etc.) */
   readonly metadata?: Readonly<Record<string, unknown>>;
 }

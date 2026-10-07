@@ -78,6 +78,38 @@ export interface LocalTranscribeResult {
   effectiveLanguage?: string;
   device?: string;
   latencyMs?: number;
+  timeout?: boolean;
+  cancelled?: boolean;
+}
+
+const activeTranscriptions = new Map<string | number, { cancel: () => void }>();
+
+export function cancelLocalTranscription(turnId?: string | number, reason?: string): void {
+  if (turnId !== undefined && turnId !== null) {
+    const active = activeTranscriptions.get(turnId);
+    if (active) {
+      active.cancel();
+      activeTranscriptions.delete(turnId);
+    }
+  } else {
+    for (const active of activeTranscriptions.values()) {
+      active.cancel();
+    }
+    activeTranscriptions.clear();
+  }
+}
+
+export function purgeObsoleteTranscriptions(thresholdTurnId?: string | number): void {
+  if (thresholdTurnId !== undefined && thresholdTurnId !== null) {
+    for (const [turnId, active] of activeTranscriptions.entries()) {
+      if (typeof turnId === 'number' && typeof thresholdTurnId === 'number' && turnId < thresholdTurnId) {
+        active.cancel();
+        activeTranscriptions.delete(turnId);
+      }
+    }
+  } else {
+    cancelLocalTranscription();
+  }
 }
 
 export function isMeaningfulSpeech(
@@ -426,8 +458,17 @@ import { voiceStudioService } from './VoiceStudioService.js';
 export async function transcribeLocally(
   audioBuffer: Buffer,
   extension: string = '.webm',
-  language?: string
+  language?: string,
+  turnId?: string | number,
+  rawAudioDurationMs?: number
 ): Promise<LocalTranscribeResult> {
+  let isCancelled = false;
+  if (turnId !== undefined && turnId !== null) {
+    activeTranscriptions.set(turnId, { cancel: () => { isCancelled = true; } });
+  }
+  if (isCancelled) {
+    return { text: '', cancelled: true };
+  }
   const t0 = Date.now();
   // If VoiceStudio is healthy/available, use it as first-class local real-time provider
   const vsHealth = await voiceStudioService.checkHealth().catch(() => ({ healthy: false } as any));
@@ -480,6 +521,9 @@ export async function transcribeLocally(
     });
     return res;
   } finally {
+    if (turnId !== undefined && turnId !== null) {
+      activeTranscriptions.delete(turnId);
+    }
     // Single-owner temp-file cleanup: runs exactly once, AFTER the warm-worker
     // attempt and (if it was needed) the one-shot fallback have both settled.
     // Nothing inside the failure branches may delete this file, because the

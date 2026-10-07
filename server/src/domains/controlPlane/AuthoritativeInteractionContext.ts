@@ -23,6 +23,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
+import { rawDb } from '../../db/index.js';
 import type { CompiledTurnIntent, CompiledTurnPlan } from './AuthoritativeIntentCompiler.js';
 import type { ExecutionStepResult } from './VerificationGateway.js';
 import type { DiscourseCompilerView } from './DiscourseReferentResolver.js';
@@ -283,6 +284,9 @@ export interface AuthoritativeInteractionContextData {
   // Persistent Playback State (Telegram / Multi-message continuation)
   readonly activePlaybackTask: ActivePlaybackTask | null;
 
+  // Dialogue History
+  readonly dialogueHistory?: readonly { readonly role: string; readonly text: string; readonly at: number; readonly [key: string]: unknown }[];
+
   // Metadata & Versioning
   readonly contextVersion: number;
   readonly updatedAt: string;
@@ -356,6 +360,7 @@ class MutableInteractionContext {
   public activeContentSnapshot: string | null = null;
   public activeContentItems: string[] = [];
   public activeMessages: ExtractedChatMessageRef[] = [];
+  public dialogueHistory: Array<{ role: string; text: string; at: number; [key: string]: unknown }> = [];
   public lastCompiledIntent: CompiledTurnIntent | null = null;
   public lastCompletedAction: string | null = null;
   public lastVerifiedResult: {
@@ -490,6 +495,9 @@ class MutableInteractionContext {
       // Persistent Playback State
       activePlaybackTask: this.activePlaybackTask ? Object.freeze({ ...this.activePlaybackTask }) : null,
 
+      // Dialogue History
+      dialogueHistory: Object.freeze(this.dialogueHistory.map(d => Object.freeze({ ...d }))),
+
       contextVersion: this.contextVersion,
       updatedAt: this.updatedAt,
     });
@@ -519,6 +527,12 @@ export class AuthoritativeInteractionContextManager {
     let ctx = this.contexts.get(id);
     if (!ctx) {
       ctx = new MutableInteractionContext(id);
+      try {
+        const row = rawDb.prepare('SELECT turns_json FROM jarvis_dialogue_memory WHERE conversation_id = ?').get(id) as { turns_json?: string } | undefined;
+        if (row?.turns_json) {
+          ctx.dialogueHistory = JSON.parse(row.turns_json);
+        }
+      } catch {}
       this.contexts.set(id, ctx);
     }
     return ctx;
@@ -967,12 +981,40 @@ export class AuthoritativeInteractionContextManager {
     logger.info('[AuthoritativeInteractionContext] Persisted execution failure record:', failure);
   }
 
+  public recordSucceededFileOperation(conversationId: string, filePath: string, presentationText?: string): void {
+    const ctx = this.getOrCreate(conversationId);
+    ctx.lastSuccessfulAction = {
+      action: 'CONTROLLED_FILE_OPERATION',
+      target: filePath,
+      at: Date.now(),
+      summary: presentationText,
+    };
+    ctx.touch();
+  }
+
+  public recordDialogueTurn(conversationId: string, role: string, text: string): void {
+    const ctx = this.getOrCreate(conversationId);
+    const turn = { role, text, at: Date.now() };
+    ctx.dialogueHistory.push(turn);
+    ctx.touch();
+    try {
+      rawDb.prepare(`
+        INSERT INTO jarvis_dialogue_memory (conversation_id, turns_json, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(conversation_id) DO UPDATE SET
+          turns_json = excluded.turns_json,
+          updated_at = excluded.updated_at
+      `).run(conversationId, JSON.stringify(ctx.dialogueHistory), new Date().toISOString());
+    } catch {}
+  }
+
   /**
    * Persists the last spoken response text for repetition queries ("say that again", "repeat that").
    */
   public recordSpokenResponse(conversationId: string, text: string): void {
     const ctx = this.getOrCreate(conversationId);
     ctx.lastSpokenResponseText = text;
+    this.recordDialogueTurn(conversationId, 'assistant', text);
     ctx.touch();
   }
 
@@ -1353,8 +1395,14 @@ export class AuthoritativeInteractionContextManager {
   public resetContext(conversationId?: string): void {
     if (conversationId) {
       this.contexts.delete(conversationId);
+      try {
+        rawDb.prepare('DELETE FROM jarvis_dialogue_memory WHERE conversation_id = ?').run(conversationId);
+      } catch {}
     } else {
       this.contexts.clear();
+      try {
+        rawDb.prepare('DELETE FROM jarvis_dialogue_memory').run();
+      } catch {}
     }
   }
 }

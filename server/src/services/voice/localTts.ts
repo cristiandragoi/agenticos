@@ -69,6 +69,18 @@ export const AURA_TO_NEURAL_FALLBACK: Record<string, string> = {
   'aura-orpheus-en': 'en-US-EricNeural',
 };
 
+export function resolveAuthoritativeTtsTarget(requestedVoice: string): { provider: string; voice: string } {
+  const trimmed = (requestedVoice || '').trim();
+  if (trimmed.startsWith('aura-')) {
+    const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
+    if (deepgramKey) {
+      return { provider: 'deepgram', voice: trimmed };
+    }
+    return { provider: 'edge-tts', voice: AURA_TO_NEURAL_FALLBACK[trimmed] || DEFAULT_NEURAL_VOICE };
+  }
+  return { provider: 'edge-tts', voice: trimmed || DEFAULT_NEURAL_VOICE };
+}
+
 export function isVoiceCompatible(voice?: string, lang?: string): boolean {
   if (!voice) return false;
   const l = (lang || 'en').toLowerCase().trim().slice(0, 2);

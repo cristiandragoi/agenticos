@@ -16,7 +16,7 @@ import { logger } from '../../utils/logger.js';
 import type { VerifiedOutcomeInput } from './AuthoritativeInteractionContext.js';
 
 export interface VerificationEvidence {
-  source: 'process_table' | 'window_inspection' | 'uia' | 'cdp' | 'dom' | 'vision' | 'task_registry' | 'conversation' | 'authoritative_desktop_provider';
+  source: 'process_table' | 'window_inspection' | 'uia' | 'cdp' | 'dom' | 'vision' | 'task_registry' | 'conversation' | 'authoritative_desktop_provider' | 'media_generator';
   label: string;
   observedAt: number;
   data: Record<string, unknown>;

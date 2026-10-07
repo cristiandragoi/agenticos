@@ -26,6 +26,7 @@ import { capabilityPermissionStore } from './CapabilityPermissionStore.js';
 import { secretStore } from '../../services/gateway/secretStore.js';
 import { cameraPerceptionService } from '../../services/perception/CameraPerceptionService.js';
 import { buildConstitutionalSystemPrompt } from './JarvisConstitution.js';
+import type { ArtifactRef } from './artifacts/types.js';
 
 const execAsync = promisify(exec);
 
@@ -523,6 +524,42 @@ export class UniversalPerceptionService {
       source: 'camera',
       confidence: 0.95,
       success: true,
+    };
+  }
+
+  public async captureCameraArtifact(opts: {
+    taskId: string;
+    prompt: string;
+  }): Promise<{ success: boolean; artifact?: ArtifactRef; error?: string }> {
+    const obs = await this.observeCamera({
+      userPrompt: opts.prompt,
+    });
+
+    if (!obs.success || !obs.screenshotArtifactPath) {
+      return {
+        success: false,
+        error: obs.error || 'No fresh camera frame was captured',
+      };
+    }
+
+    const artifactId = `art-cam-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const artifact: ArtifactRef = {
+      artifactId,
+      type: 'CAMERA_FRAME',
+      location: obs.screenshotArtifactPath,
+      createdByTaskId: opts.taskId,
+      verified: true,
+      createdAt: Date.now(),
+      metadata: {
+        device: obs.windowIdentity,
+        dimensions: obs.dimensions,
+        visionAnswer: obs.visionAnswer,
+      },
+    };
+
+    return {
+      success: true,
+      artifact,
     };
   }
 }

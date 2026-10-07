@@ -32,6 +32,7 @@ export interface TurnSubmission {
   sttConfidence?: number;
   audioRef?: string;
   attached?: TurnRequest['attached'];
+  envelope?: unknown;
   /**
    * System-originated work that is already structured (scheduler/routines): the
    * goal is given instead of inferred, and `execute` is the existing worker chain.
@@ -73,10 +74,25 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-class TurnLifecycleController {
+export class TurnLifecycleController {
   /** conversationId -> requestId currently in flight (newest wins). */
   private active = new Map<string, string>();
   private superseded = new Set<string>();
+
+  abortInFlightTurn(conversationId?: string | null): void {
+    if (conversationId) {
+      const activeReq = this.active.get(conversationId);
+      if (activeReq) {
+        this.superseded.add(activeReq);
+        this.active.delete(conversationId);
+      }
+    } else {
+      for (const req of this.active.values()) {
+        this.superseded.add(req);
+      }
+      this.active.clear();
+    }
+  }
 
   async submit(input: TurnSubmission, sink: TurnSink = {}): Promise<SubmitResult> {
     const req = normalizeRequest(input);

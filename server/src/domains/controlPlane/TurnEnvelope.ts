@@ -20,6 +20,7 @@ import {
 } from './AuthoritativeIntentCompiler.js';
 import { authoritativeInteractionContext } from './AuthoritativeInteractionContext.js';
 import { semanticDiscourseInterpreter } from './SemanticDiscourseInterpreter.js';
+import type { StructuredIntent } from './StructuredIntent.js';
 
 export type TurnSource =
   | 'voice_livekit'
@@ -39,6 +40,7 @@ export interface TurnEnvelope {
   readonly compiledPlan: readonly Readonly<CompiledTurnIntent>[];
   readonly interactionContextId: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly structuredIntent?: StructuredIntent;
 }
 
 export interface CreateTurnEnvelopeParams {
@@ -103,6 +105,7 @@ export function createTurnEnvelope(params: CreateTurnEnvelopeParams): Readonly<T
     compiledPlan: plan.steps,
     interactionContextId,
     metadata: params.metadata ? Object.freeze({ ...params.metadata }) : undefined,
+    structuredIntent: compiledIntent.structuredIntent,
   };
 
   const frozen = Object.freeze(envelope);
@@ -143,12 +146,14 @@ export async function createTurnEnvelopeAsync(params: CreateTurnEnvelopeParams):
   let plan: Readonly<CompiledTurnPlan>;
   let interpretationPath: 'SEMANTIC_LLM' | 'DETERMINISTIC_FALLBACK' = 'DETERMINISTIC_FALLBACK';
   let shadowDiff: any = undefined;
+  let structuredIntent: StructuredIntent | undefined = undefined;
 
   if (params.source === 'voice_livekit' || params.source === 'voice_text_injection') {
     const res = await semanticDiscourseInterpreter.interpret(rawText, compilerContext);
     plan = res.plan;
     interpretationPath = res.interpretationPath;
     shadowDiff = res.shadowDiff;
+    structuredIntent = res.structuredIntent;
   } else {
     plan = AuthoritativeIntentCompiler.compilePlan(rawText, compilerContext);
   }
@@ -166,6 +171,7 @@ export async function createTurnEnvelopeAsync(params: CreateTurnEnvelopeParams):
     compiledIntent,
     compiledPlan: plan.steps,
     interactionContextId,
+    structuredIntent: structuredIntent || compiledIntent.structuredIntent,
     metadata: Object.freeze({
       ...(params.metadata || {}),
       interpretationPath,

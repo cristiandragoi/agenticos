@@ -45,6 +45,8 @@ export interface CanonicalTurnInput {
   onAcknowledgement?: (text: string) => void;
   /** Phase 1: when true, unmatched prompts return route 'unhandled' instead of running the orchestrator. */
   skipOrchestrator?: boolean;
+  envelope?: unknown;
+  semanticIntent?: unknown;
 }
 
 export interface CanonicalTurnResult {

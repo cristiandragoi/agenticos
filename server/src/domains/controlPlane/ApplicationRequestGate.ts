@@ -1,6 +1,6 @@
 import { AuthoritativeIntentCompiler, type CompiledTurnPlan, type IntentCompilerContext } from './AuthoritativeIntentCompiler.js';
 import { authoritativeInteractionContext as memory } from './AuthoritativeInteractionContext.js';
-import { windowsApplicationResolver } from './WindowsApplicationResolver.js';
+import { windowsApplicationResolver, type ApplicationCandidate } from './WindowsApplicationResolver.js';
 import { parseConcreteAppRequest } from './ConcreteVoiceRequests.js';
 
 /** Resolves names before execution; questions never carry action verification. */
@@ -58,7 +58,7 @@ export async function resolveApplicationRequest(raw: string, ctx?: IntentCompile
   query = parseConcreteAppRequest(`Open ${query}`) || query.replace(/\s+(?:app|application|program)$/i, '').replace(/\s+(?:inside|on)\s+(?:my|the)\s+(?:laptop|desktop|computer)$/i, '');
   const resolution = await windowsApplicationResolver.resolveWithConfidence(query, { actionType: 'open' });
   if (resolution.status !== 'resolved') {
-    const names = resolution.candidates.map(candidate => candidate.name);
+    const names = resolution.candidates.map((candidate: ApplicationCandidate) => candidate.name);
     return question(names.length ? `Which application do you mean: ${names.join(', ')}?` : 'Please repeat which application you want me to open. I could not match that name to an installed application.', names);
   }
   if (conversationId) memory.clearPendingAction(conversationId);

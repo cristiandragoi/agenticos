@@ -47,8 +47,16 @@ export interface ResolveAppOptions {
   actionType?: string;
 }
 
+export interface LauncherMetadataEntry {
+  targetPath?: string;
+  arguments?: string;
+  mtimeMs: number;
+  expiresAt: number;
+}
+
 export class WindowsApplicationResolver {
   private static instance: WindowsApplicationResolver;
+  public launcherMetadata = new Map<string, LauncherMetadataEntry | Promise<LauncherMetadataEntry>>();
   private cachedStartApps: Array<{ name: string; appUserModelId: string }> = [];
   private startAppsCachedAt = 0;
   private cachedLnkShortcuts: Array<{ name: string; path: string; source: 'start_menu' | 'desktop' }> = [];
@@ -63,17 +71,80 @@ export class WindowsApplicationResolver {
     return WindowsApplicationResolver.instance;
   }
 
-  /**
-   * Authoritative resolution entry point:
-   * Finds the best match across all Windows application surfaces for a given user query.
-   */
-  public async resolve(rawQuery: string, options: ResolveAppOptions = {}): Promise<ApplicationCandidate | null> {
+  public async launcherIdentity(candidate: ApplicationCandidate): Promise<ApplicationCandidate> {
+    if (!candidate.shortcutPath) {
+      return candidate;
+    }
+    const shortcut = candidate.shortcutPath;
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(shortcut);
+    } catch {
+      return candidate;
+    }
+
+    const cached = this.launcherMetadata.get(shortcut);
+    if (cached) {
+      if (cached instanceof Promise) {
+        const entry = await cached;
+        return {
+          ...candidate,
+          targetPath: entry.targetPath ?? candidate.targetPath,
+          arguments: entry.arguments ?? candidate.arguments,
+        };
+      }
+      if (cached.expiresAt > Date.now() && cached.mtimeMs === stat.mtimeMs) {
+        if (!cached.targetPath || fs.existsSync(cached.targetPath)) {
+          return {
+            ...candidate,
+            targetPath: cached.targetPath ?? candidate.targetPath,
+            arguments: cached.arguments ?? candidate.arguments,
+          };
+        }
+      }
+      this.launcherMetadata.delete(shortcut);
+    }
+
+    const shellPromise = (async () => {
+      try {
+        const ps = [
+          '$sh = New-Object -ComObject WScript.Shell;',
+          `$sc = $sh.CreateShortcut('${shortcut.replace(/\\/g, '\\\\')}');`,
+          '[PSCustomObject]@{ target = $sc.TargetPath; arguments = $sc.Arguments; } | ConvertTo-Json -Compress',
+        ].join(' ');
+        const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, { timeout: 3000 });
+        const parsed = JSON.parse(stdout.trim());
+        const target = parsed.target || parsed.targetPath;
+        const entry: LauncherMetadataEntry = {
+          targetPath: target ? String(target) : undefined,
+          arguments: parsed.arguments ? String(parsed.arguments) : undefined,
+          mtimeMs: stat.mtimeMs,
+          expiresAt: Date.now() + 60_000,
+        };
+        this.launcherMetadata.set(shortcut, entry);
+        return entry;
+      } catch (err) {
+        this.launcherMetadata.delete(shortcut);
+        throw err;
+      }
+    })();
+
+    this.launcherMetadata.set(shortcut, shellPromise);
+    const entry = await shellPromise;
+    return {
+      ...candidate,
+      targetPath: entry.targetPath ?? candidate.targetPath,
+      arguments: entry.arguments ?? candidate.arguments,
+    };
+  }
+
+  public async discoverCandidates(rawQuery: string, options: ResolveAppOptions = {}): Promise<ApplicationCandidate[]> {
     const cleanQuery = (rawQuery || '')
       .replace(/^(?:open|launch|start|run|locate|find|show|bring\s+up|foreground|switch\s+to)\s+/i, '')
       .replace(/\s+(?:app|application|program|tool|browser|window|desktop)$/i, '')
       .trim();
 
-    if (!cleanQuery) return null;
+    if (!cleanQuery) return [];
 
     const lower = cleanQuery.toLowerCase();
     const explicitTaskbar = options.explicitTaskbar || /\b(?:taskbar|pinned|on\s+my\s+taskbar|pinned\s+on\s+taskbar)\b/i.test(rawQuery);
@@ -90,7 +161,7 @@ export class WindowsApplicationResolver {
     const resolvedShortcut = learned?.parameters?.shortcutPath || (learned?.surface === 'start_menu' || learned?.surface === 'taskbar' ? (learned?.executablePath || learned?.parameters?.shortcutPath) : undefined);
     const appUserModelId = learned?.parameters?.appUserModelId;
     if (learned && (resolvedTarget || resolvedShortcut || appUserModelId)) {
-      return {
+      return [{
         name: learned.target,
         source: 'learned',
         targetPath: resolvedTarget,
@@ -98,10 +169,8 @@ export class WindowsApplicationResolver {
         appUserModelId,
         score: 0.99,
         description: `Learned resolution from RepairKnowledge (${learned.surface})`,
-      };
+      }];
     }
-
-    const candidates: ApplicationCandidate[] = [];
 
     // Helper to score query against both full query and appQuery
     const getBestScore = (candidateName: string, bonus: number = 0): number => {
@@ -110,8 +179,17 @@ export class WindowsApplicationResolver {
       return Math.max(s1, s2);
     };
 
+    const [taskbarApps, runningWindows, allShortcuts, startApps, exe] = await Promise.all([
+      this.getTaskbarPinnedApps(),
+      this.getVisibleWindows(),
+      this.getAllShortcuts(),
+      this.getStartApps(),
+      this.findStandardExecutable(cleanQuery).then(async (e) => e || (appQuery !== cleanQuery ? await this.findStandardExecutable(appQuery) : null)),
+    ]);
+
+    const candidates: ApplicationCandidate[] = [];
+
     // 1. Taskbar Pinned Shortcuts
-    const taskbarApps = await this.getTaskbarPinnedApps();
     for (const app of taskbarApps) {
       const matchScore = getBestScore(app.name, explicitTaskbar ? 0.15 : 0.05);
       if (matchScore > 0.4) {
@@ -132,7 +210,6 @@ export class WindowsApplicationResolver {
     }
 
     // 2. Running Visible Windows (active processes)
-    const runningWindows = await this.getVisibleWindows();
     for (const win of runningWindows) {
       const titleMatch = getBestScore(win.title, 0.02);
       const procMatch = getBestScore(win.process, 0.02);
@@ -152,7 +229,6 @@ export class WindowsApplicationResolver {
     }
 
     // 3. Start Menu & Desktop Shortcuts
-    const allShortcuts = await this.getAllShortcuts();
     for (const sc of allShortcuts) {
       const matchScore = getBestScore(sc.name, 0);
       if (matchScore > 0.4) {
@@ -168,7 +244,6 @@ export class WindowsApplicationResolver {
     }
 
     // 4. Windows Store / UWP Applications (Get-StartApps)
-    const startApps = await this.getStartApps();
     for (const app of startApps) {
       const nameMatch = getBestScore(app.name, 0);
       const idMatch = getBestScore(app.appUserModelId, -0.05);
@@ -185,7 +260,6 @@ export class WindowsApplicationResolver {
     }
 
     // 5. Windows App Paths & Standard Executables
-    const exe = await this.findStandardExecutable(cleanQuery) || (appQuery !== cleanQuery ? await this.findStandardExecutable(appQuery) : null);
     if (exe) {
       candidates.push({
         name: cleanQuery,
@@ -196,24 +270,74 @@ export class WindowsApplicationResolver {
       });
     }
 
-    if (candidates.length === 0) return null;
+    return candidates;
+  }
 
-    // If actionType is 'launch' or 'open', prioritize candidates with a valid launcher (uwp, taskbar, start_menu, desktop, executable)
-    if (options.actionType === 'launch' || options.actionType === 'open') {
-      candidates.sort((a, b) => {
-        const aHasLauncher = Boolean(a.targetPath || a.shortcutPath || a.appUserModelId);
-        const bHasLauncher = Boolean(b.targetPath || b.shortcutPath || b.appUserModelId);
-        if (aHasLauncher && !bHasLauncher && a.score >= 0.8) return -1;
-        if (!aHasLauncher && bHasLauncher && b.score >= 0.8) return 1;
-        return b.score - a.score;
-      });
-    } else {
-      candidates.sort((a, b) => b.score - a.score);
+  public async resolveWithConfidence(rawQuery: string, options: ResolveAppOptions = {}): Promise<{ status: 'resolved' | 'ambiguous' | 'not_found'; candidates: ApplicationCandidate[] }> {
+    const rawCandidates = await this.discoverCandidates(rawQuery, options);
+    if (!rawCandidates || rawCandidates.length === 0) {
+      return { status: 'not_found', candidates: [] };
     }
-    const top = candidates[0];
 
-    logger.info(`[WindowsApplicationResolver] Resolved query "${cleanQuery}" -> "${top.name}" (${top.source}, score=${top.score.toFixed(2)})`);
-    return top;
+    // Deduplicate running_window if an installed launcher with matching processName exists
+    const launcherProcessNames = new Set<string>();
+    for (const c of rawCandidates) {
+      if (c.source !== 'running_window' && c.processName) {
+        launcherProcessNames.add(c.processName.toLowerCase());
+      }
+    }
+    let candidates = rawCandidates.filter(c => {
+      if (c.source === 'running_window' && c.processName && launcherProcessNames.has(c.processName.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+
+    // Deduplicate multiple discovery surfaces for same application name
+    const byName = new Map<string, ApplicationCandidate>();
+    for (const c of candidates) {
+      const norm = c.name.toLowerCase().trim();
+      const existing = byName.get(norm);
+      if (!existing || c.score > existing.score) {
+        byName.set(norm, c);
+      }
+    }
+    candidates = Array.from(byName.values());
+
+    if (candidates.length === 0) {
+      return { status: 'not_found', candidates: [] };
+    }
+
+    // Sort descending by score
+    candidates.sort((a, b) => b.score - a.score);
+
+    const top = candidates[0];
+    if (top.score < 0.9) {
+      return { status: 'ambiguous', candidates };
+    }
+
+    if (candidates.length > 1) {
+      const second = candidates[1];
+      if (Math.abs(top.score - second.score) < 0.05) {
+        return { status: 'ambiguous', candidates };
+      }
+    }
+
+    return { status: 'resolved', candidates: [top] };
+  }
+
+  /**
+   * Authoritative resolution entry point:
+   * Finds the best match across all Windows application surfaces for a given user query.
+   */
+  public async resolve(rawQuery: string, options: ResolveAppOptions = {}): Promise<ApplicationCandidate | null> {
+    const res = await this.resolveWithConfidence(rawQuery, options);
+    if (res.status === 'resolved' && res.candidates.length > 0) {
+      const top = res.candidates[0];
+      logger.info(`[WindowsApplicationResolver] Resolved query "${rawQuery}" -> "${top.name}" (${top.source}, score=${top.score.toFixed(2)})`);
+      return top;
+    }
+    return null;
   }
 
   /**

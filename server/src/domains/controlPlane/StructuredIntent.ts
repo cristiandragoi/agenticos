@@ -64,6 +64,20 @@ export interface StructuredIntentStep {
   useVerifiedPreviousResult?: boolean;
 }
 
+export interface GoalIntent {
+  schemaVersion: string;
+  executionMode?: 'AUTONOMOUS_GOAL' | string;
+  userGoal: string;
+  confidence: number;
+  needsClarification?: boolean;
+  clarificationQuestion?: string;
+  targetCapability?: string;
+  extractedTarget?: string;
+  requiresConfirmation?: boolean;
+  entities?: string[];
+  [key: string]: unknown;
+}
+
 export interface StructuredIntent {
   schemaVersion: '1';
   turnType: TurnType;
@@ -76,6 +90,8 @@ export interface StructuredIntent {
   };
   steps?: StructuredIntentStep[];
   clarificationPrompt?: string;
+  executionMode?: 'AUTONOMOUS_GOAL' | string;
+  goalIntent?: GoalIntent;
 }
 
 export interface StructuredIntentValidationResult {

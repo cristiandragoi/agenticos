@@ -18,6 +18,7 @@
 import { logger } from '../../../utils/logger.js';
 import { executeOpenUrl } from '../../turnLifecycle/executors.js';
 import { authoritativeInteractionContext } from '../AuthoritativeInteractionContext.js';
+import { browserCodeProvider } from '../browser/BrowserCodeProvider.js';
 import type { CompiledTurnIntent } from '../AuthoritativeIntentCompiler.js';
 import type { ExecutionStepResult } from '../VerificationGateway.js';
 import { humanizeNavigationResponse } from '../UserFacingResponseGuard.js';
@@ -780,6 +781,173 @@ export class BrowserCapabilityAdapter implements ICapabilityAdapter {
       failureReason: 'Browser session is not connected or active.',
       outputText: 'I could not access the browser page to select a video.',
     };
+  }
+
+  public async executeYouTubeStage(
+    stage: 'YOUTUBE_OPEN_HOME' | 'YOUTUBE_SEARCH_CHANNEL' | 'YOUTUBE_OPEN_CHANNEL' | 'YOUTUBE_OPEN_VIDEO' | string,
+    channelName?: string,
+    signal?: AbortSignal,
+    conversationId?: string
+  ): Promise<ExecutionStepResult> {
+    if (signal?.aborted) {
+      return {
+        stepId: stage,
+        action: stage,
+        success: false,
+        verified: false,
+        failureReason: 'Operation was cancelled.',
+        outputText: 'The YouTube operation was cancelled.',
+      };
+    }
+
+    try {
+      if (signal?.aborted) {
+        return { stepId: stage, action: stage, success: false, verified: false, failureReason: 'Operation was cancelled.', outputText: 'The YouTube operation was cancelled.' };
+      }
+
+      if (stage === 'YOUTUBE_OPEN_HOME') {
+        await browserCodeProvider.navigate('https://www.youtube.com', 15000);
+        return {
+          stepId: stage,
+          action: stage,
+          success: true,
+          verified: true,
+          outputText: 'I opened YouTube.',
+          verificationEvidence: {
+            source: 'cdp',
+            label: 'YouTube Home Opened',
+            observedAt: Date.now(),
+            data: { url: 'https://www.youtube.com' },
+          },
+        };
+      }
+
+      if (stage === 'YOUTUBE_SEARCH_CHANNEL') {
+        const query = encodeURIComponent(channelName || '');
+        await browserCodeProvider.navigate(`https://www.youtube.com/results?search_query=${query}`, 15000);
+        return {
+          stepId: stage,
+          action: stage,
+          success: true,
+          verified: true,
+          outputText: `I searched for "${channelName}" on YouTube.`,
+          verificationEvidence: {
+            source: 'cdp',
+            label: `Searched for ${channelName}`,
+            observedAt: Date.now(),
+            data: { channel: channelName },
+          },
+        };
+      }
+
+      if (stage === 'YOUTUBE_OPEN_CHANNEL') {
+        const scriptRes = await browserCodeProvider.executeScript<{ channelUrl?: string }>(`
+          (() => {
+            const el = document.querySelector('ytd-channel-renderer a#main-link, a.channel-link');
+            return { channelUrl: el ? el.href : null };
+          })()
+        `);
+        if (signal?.aborted) {
+          return { stepId: stage, action: stage, success: false, verified: false, failureReason: 'Operation was cancelled.', outputText: 'The YouTube operation was cancelled.' };
+        }
+        if (scriptRes?.channelUrl) {
+          await browserCodeProvider.navigate(scriptRes.channelUrl, 15000);
+          return {
+            stepId: stage,
+            action: stage,
+            success: true,
+            verified: true,
+            outputText: `I opened the channel ${channelName} on YouTube.`,
+          };
+        }
+        return {
+          stepId: stage,
+          action: stage,
+          success: false,
+          verified: false,
+          failureReason: `Could not locate channel for "${channelName}".`,
+          outputText: `I could not locate the channel "${channelName}".`,
+        };
+      }
+
+      if (stage === 'YOUTUBE_OPEN_VIDEO') {
+        const scriptRes = await browserCodeProvider.executeScript<{
+          url?: string;
+          channelName?: string;
+          videos?: Array<{ url: string; title?: string }>;
+        }>(`
+          (() => {
+            const pageUrl = window.location.href;
+            const channelHeader = document.querySelector('#channel-header-container, #page-header');
+            const channelTitle = channelHeader ? channelHeader.textContent : '';
+            const links = Array.from(document.querySelectorAll('a#video-title, ytd-grid-video-renderer a#video-title-link'));
+            return {
+              url: pageUrl,
+              channelName: channelTitle,
+              videos: links.slice(0, 5).map(l => ({ url: l.href, title: l.textContent?.trim() }))
+            };
+          })()
+        `);
+
+        if (channelName && scriptRes?.channelName) {
+          const normReq = channelName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const normActual = scriptRes.channelName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!normActual.includes(normReq) && !normReq.includes(normActual)) {
+            return {
+              stepId: stage,
+              action: stage,
+              success: false,
+              verified: false,
+              failureReason: `Current page channel "${scriptRes.channelName}" does not match requested "${channelName}".`,
+              outputText: `The current channel does not match "${channelName}".`,
+            };
+          }
+        }
+
+        const video = scriptRes?.videos?.[0];
+        if (signal?.aborted) {
+          return { stepId: stage, action: stage, success: false, verified: false, failureReason: 'Operation was cancelled.', outputText: 'The YouTube operation was cancelled.' };
+        }
+        if (video?.url) {
+          await browserCodeProvider.navigate(video.url, 15000);
+          return {
+            stepId: stage,
+            action: stage,
+            success: true,
+            verified: true,
+            outputText: `I opened the video from ${channelName || 'YouTube'}.`,
+          };
+        }
+
+        return {
+          stepId: stage,
+          action: stage,
+          success: false,
+          verified: false,
+          failureReason: `Could not find any videos on channel "${channelName}".`,
+          outputText: `I could not find any videos on the channel "${channelName}".`,
+        };
+      }
+
+      return {
+        stepId: stage,
+        action: stage,
+        success: false,
+        verified: false,
+        failureReason: `Unknown YouTube stage: ${stage}`,
+        outputText: `Unknown YouTube stage: ${stage}`,
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        stepId: stage,
+        action: stage,
+        success: false,
+        verified: false,
+        failureReason: message || 'CDP connection failure',
+        outputText: 'I could not connect to YouTube in the browser.',
+      };
+    }
   }
 }
 

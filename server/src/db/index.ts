@@ -316,6 +316,12 @@ try {
       confidence REAL NOT NULL,
       last_validated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS jarvis_dialogue_memory (
+      conversation_id TEXT PRIMARY KEY,
+      turns_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 } catch (tableErr: any) {
   console.warn('[db] Control plane table init notice:', tableErr?.message);

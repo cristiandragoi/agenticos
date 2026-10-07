@@ -234,10 +234,22 @@ export class GoalLifecycleManager extends EventEmitter {
     this.persist(run);
   }
 
+  public recordFinalResponse(goalId: string, response: string): void {
+    const run = this.activeGoals.get(goalId);
+    if (!run) return;
+    run.finalResponseText = response;
+    run.updatedAt = new Date().toISOString();
+    this.persist(run);
+  }
+
   public getActiveGoalForConversation(conversationId: string): GoalRun | null {
     const goalId = this.conversationGoals.get(conversationId);
     if (!goalId) return null;
     return this.activeGoals.get(goalId) || this.loadFromDb(goalId);
+  }
+
+  public getLatestGoalForConversation(conversationId: string): GoalRun | null {
+    return this.getActiveGoalForConversation(conversationId);
   }
 
   public getGoalRun(goalId: string): GoalRun | null {

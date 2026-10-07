@@ -78,7 +78,7 @@ export interface TurnGoal {
   };
   /** Whether this request explicitly continues the previous request in this conversation. */
   continuesPrevious: boolean;
-  understoodBy: 'llm_planner' | 'fallback' | 'structured_submission';
+  understoodBy: 'llm_planner' | 'fallback' | 'structured_submission' | 'authoritative_intent_compiler';
   plannerError?: string;
 }
 
