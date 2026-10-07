@@ -1,0 +1,6 @@
+{
+  "repository": "vercel-labs/agent-browser",
+  "baseline": "playwright@1.61.1",
+  "imageId": "sha256:7f284072dfa70170e5816d2656a197c14bbb885eaa3cd943cf44f74adf6f7ceb",
+  "packageVersion": "0.38.2"
+}
