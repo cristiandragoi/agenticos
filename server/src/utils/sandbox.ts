@@ -4,6 +4,68 @@ import path from 'path';
 import { execFile, spawn } from 'child_process';
 import os from 'os';
 import { minimatch } from 'minimatch';
+import { createHash } from 'crypto';
+import { WindowsJob } from '../domains/securitySupervisor/windowsJob.js';
+import type { GitPlan } from '../domains/localWorker/structuredGit.js';
+
+function findJobRunnerHelper(): { helperPath: string; helperSha256: string } | null {
+  if (os.platform() !== 'win32') return null;
+  const candidates = [
+    path.resolve(process.cwd(), '.tmp/security-native/JobRunner.exe'),
+    path.resolve(process.cwd(), '../.tmp/security-native/JobRunner.exe'),
+    path.resolve(process.cwd(), '.tmp/phase2-job-object/JobRunner.exe'),
+    path.resolve(process.cwd(), '../.tmp/phase2-job-object/JobRunner.exe'),
+    path.resolve('D:/AgenticOS/.tmp/security-native/JobRunner.exe'),
+    path.resolve('D:/AgenticOS/.tmp/phase2-job-object/JobRunner.exe'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const helperSha256 = createHash('sha256').update(fs.readFileSync(candidate)).digest('hex');
+        return { helperPath: candidate, helperSha256 };
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+const cachedExeHashes = new Map<string, string>();
+function getExeHash(filePath: string): string {
+  let hash = cachedExeHashes.get(filePath);
+  if (!hash) {
+    hash = createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+    cachedExeHashes.set(filePath, hash);
+  }
+  return hash;
+}
+
+function resolveDirectExe(binary: string): string | null {
+  if (binary === 'node') {
+    return process.execPath;
+  }
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const full = path.join(dir, binary.endsWith('.exe') ? binary : binary + '.exe');
+    try {
+      if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+        return full;
+      }
+    } catch {}
+  }
+  if (binary === 'git') {
+    const gitCandidates = [
+      'C:\\Program Files\\Git\\cmd\\git.exe',
+      'C:\\Program Files\\Git\\bin\\git.exe',
+      'C:\\Program Files (x86)\\Git\\cmd\\git.exe',
+    ];
+    for (const cand of gitCandidates) {
+      if (fs.existsSync(cand)) return cand;
+    }
+  }
+  return null;
+}
 
 const ALLOWLIST_BINARIES = [
   // Primary dev toolchain (always cross-platform)
@@ -20,6 +82,7 @@ const ALLOWLIST_BINARIES = [
 // be launched through `cmd.exe /c`. Real `.exe` binaries (node/git/rg/python)
 // stay on the direct `shell: false` path for safety.
 const CMD_SHIM_BINARIES = new Set(['npm', 'npx', 'tsc', 'jest', 'vitest']);
+
 
 function isPathInScope(absPath: string, workspacePath: string, scopes?: string[]): boolean {
   if (!scopes || scopes.length === 0) return true; // Default to allowing all if no scopes provided
@@ -194,13 +257,93 @@ export async function runSandboxedCommand(
     safeEnv.PATHEXT = process.env.PATHEXT || '';
   }
 
+  if (isWin) {
+    const isTestOptOut = process.env.AGENTICOS_UNCONFINED_TEST_ONLY === 'true';
+    const helperInfo = findJobRunnerHelper();
+
+    if (!helperInfo) {
+      if (!isTestOptOut) {
+        logger.error('[runSandboxedCommand] JOB_BOUNDARY_UNAVAILABLE: Phase 2 native helper missing; failing closed by default.');
+        throw new Error('BLOCKED_UNCONFINED: Sandboxed execution outside Phase 2 Windows Job boundary is blocked by policy');
+      }
+      logger.warn('[runSandboxedCommand] JOB_BOUNDARY_OPT_OUT: Phase 2 native helper missing; bypassing boundary under AGENTICOS_UNCONFINED_TEST_ONLY=true.');
+    } else {
+      if (signal?.aborted) {
+        throw new Error(`Command aborted/killed.\nSTDOUT:\n\nSTDERR:\n`);
+      }
+
+      const directExe = resolveDirectExe(binary);
+      let exePath: string;
+      let exeArgs: string[];
+      let exeHash: string;
+
+      if (directExe) {
+        exePath = directExe;
+        exeArgs = safeArgs;
+        exeHash = getExeHash(exePath);
+      } else {
+        const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+        exePath = path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+        exeHash = getExeHash(exePath);
+        const psScript = `
+$ProgressPreference = 'SilentlyContinue'
+& ${JSON.stringify(binary)} ${safeArgs.map(a => JSON.stringify(a)).join(' ')}
+`;
+        const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+        exeArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded];
+      }
+
+      const job = new WindowsJob(helperInfo.helperPath, helperInfo.helperSha256);
+      const plan: GitPlan = {
+        executable: exePath,
+        executableSha256: exeHash,
+        cwd,
+        args: exeArgs,
+        env: safeEnv,
+        timeoutMs,
+        maxOutputBytes: 1048576,
+        shell: false,
+        windowsHide: true,
+      };
+
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          job.terminateAndWait().catch(() => {});
+        });
+      }
+
+      let output = '';
+      try {
+        const exitCode = await job.run(plan, (chunk) => {
+          output += chunk.toString('utf8');
+        });
+        if (exitCode !== 0) {
+          if ((binary === 'rg' || binary === 'grep') && exitCode === 1) {
+            return { stdout: '', stderr: truncateOutput(output) };
+          }
+          throw new Error(`Command failed with code ${exitCode}\nSTDOUT:\n${truncateOutput(output)}\nSTDERR:\n`);
+        }
+        return { stdout: truncateOutput(output), stderr: '' };
+      } catch (err: any) {
+        if (signal?.aborted || err?.message?.includes('CANCELLED')) {
+          throw new Error(`Command aborted/killed.\nSTDOUT:\n${truncateOutput(output)}\nSTDERR:\n`);
+        }
+        if (err?.message?.includes('TIMEOUT')) {
+          throw new Error(`Command timed out after ${timeoutMs}ms.\nSTDOUT:\n${truncateOutput(output)}\nSTDERR:\n`);
+        }
+        throw err;
+      } finally {
+        await job.terminateAndWait().catch(() => {});
+      }
+    }
+  }
+
   return new Promise((resolve, reject) => {
     let stdoutData = '';
     let stderrData = '';
 
-    // On Windows, npm-installed CLIs (npm/npx/tsc/jest) are `.cmd` shims that
-    // `spawn()` cannot exec with `shell: false` (ENOENT). Launch them through
-    // `cmd.exe /c`; everything else keeps the direct, no-shell path.
+    // On Windows (only under AGENTICOS_UNCONFINED_TEST_ONLY=true), npm-installed CLIs
+    // (npm/npx/tsc/jest) are `.cmd` shims that `spawn()` cannot exec with `shell: false`.
     const useCmdShim = isWin && CMD_SHIM_BINARIES.has(binary);
     const child = useCmdShim
       ? spawn('cmd.exe', ['/d', '/s', '/c', binary, ...safeArgs], {
@@ -269,32 +412,17 @@ export async function runSandboxedCommand(
 export async function captureWorkspaceSnapshot(workspaceRoot?: string): Promise<{ hash: string, status: string, branch: string }> {
   const cwd = workspaceRoot || process.cwd();
   try {
-    // Attempt git approach
-    const hashCmd = await new Promise<{stdout: string}>((resolve, reject) => {
-      execFile('git', ['rev-parse', 'HEAD'], { cwd }, (error, stdout) => {
-        if (error) reject(error); else resolve({ stdout });
-      });
-    });
+    const hashCmd = await runSandboxedCommand('git', ['rev-parse', 'HEAD'], undefined, cwd);
     const hash = hashCmd.stdout.trim();
 
-    const branchCmd = await new Promise<{stdout: string}>((resolve, reject) => {
-      execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd }, (error, stdout) => {
-        if (error) reject(error); else resolve({ stdout });
-      });
-    });
+    const branchCmd = await runSandboxedCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], undefined, cwd);
     const branch = branchCmd.stdout.trim();
 
-    const statusCmd = await new Promise<{stdout: string}>((resolve, reject) => {
-      execFile('git', ['status', '-s'], { cwd }, (error, stdout) => {
-        if (error) reject(error); else resolve({ stdout });
-      });
-    });
+    const statusCmd = await runSandboxedCommand('git', ['status', '-s'], undefined, cwd);
     const status = statusCmd.stdout.trim();
 
     return { hash, status, branch };
   } catch (e) {
-    // Fallback: simple deterministic hash of tracked files in workspace
-    // For milestone brevity, we assume Git is the primary snapshot mechanism.
     return {
       hash: 'no-git-available',
       status: '',
@@ -302,3 +430,4 @@ export async function captureWorkspaceSnapshot(workspaceRoot?: string): Promise<
     };
   }
 }
+

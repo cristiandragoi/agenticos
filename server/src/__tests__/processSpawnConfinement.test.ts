@@ -177,6 +177,28 @@ describe('Process Spawn Confinement Static Audit', () => {
     expect(content).toContain('JOB_BOUNDARY_OPT_OUT_REJECTED');
   });
 
+  it('verifies sandbox.ts routes commands through WindowsJob on win32 and fails closed', () => {
+    const sandboxPath = path.join(srcRoot, 'utils/sandbox.ts');
+    const content = fs.readFileSync(sandboxPath, 'utf8');
+
+    expect(content).toContain('WindowsJob');
+    expect(content).toContain('findJobRunnerHelper');
+    expect(content).toContain('job.run(plan');
+    expect(content).toContain('BLOCKED_UNCONFINED');
+    expect(content).toContain('AGENTICOS_UNCONFINED_TEST_ONLY');
+  });
+
+  it('verifies workflows/workers/claude.ts routes runProcess through WindowsJob on win32 and fails closed', () => {
+    const claudePath = path.join(srcRoot, 'workflows/workers/claude.ts');
+    const content = fs.readFileSync(claudePath, 'utf8');
+
+    expect(content).toContain('WindowsJob');
+    expect(content).toContain('findJobRunnerHelper');
+    expect(content).toContain('job.run(plan');
+    expect(content).toContain('BLOCKED_UNCONFINED');
+    expect(content).toContain('AGENTICOS_UNCONFINED_TEST_ONLY');
+  });
+
   it('enforces that terminalExecutor rejects unconfined execution on win32 by default and fails closed', async () => {
     if (process.platform !== 'win32') return;
     const { terminalExecutor } = await import('../domains/jarvis/execution/executors/terminalExecutor.js');
@@ -224,5 +246,24 @@ describe('Process Spawn Confinement Static Audit', () => {
       }
     }
   });
+
+  it('enforces that claude.ts runProcess routes commands through WindowsJob on win32', async () => {
+    if (process.platform !== 'win32') return;
+    const { runProcess } = await import('../workflows/workers/claude.js');
+    const oldOptOut = process.env.AGENTICOS_UNCONFINED_TEST_ONLY;
+    delete process.env.AGENTICOS_UNCONFINED_TEST_ONLY;
+
+    try {
+      const out = await runProcess('node', ['-e', 'console.log("worker-job-pass")'], process.cwd());
+      expect(out.trim()).toContain('worker-job-pass');
+    } finally {
+      if (oldOptOut !== undefined) {
+        process.env.AGENTICOS_UNCONFINED_TEST_ONLY = oldOptOut;
+      } else {
+        delete process.env.AGENTICOS_UNCONFINED_TEST_ONLY;
+      }
+    }
+  });
 });
+
 
