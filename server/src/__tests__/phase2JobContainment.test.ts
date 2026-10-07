@@ -5,12 +5,16 @@ import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {IncarnationJobs,sha256} from '../domains/securitySupervisor/phase2JobBoundary.js';
 import {specimen,validateIdentity} from '../../../scripts/contracts/phase1-runtime-identity.mjs';
-const root=path.resolve('.tmp/phase2-job-object'),helper=path.join(root,'JobRunner.exe'),probe=path.join(root,'ContainmentProbe.exe');
+const root=fs.existsSync(path.resolve('.tmp/phase2-job-object')) ? path.resolve('.tmp/phase2-job-object') : path.resolve('../.tmp/phase2-job-object');
+const helper=path.join(root,'JobRunner.exe'),probe=path.join(root,'ContainmentProbe.exe');
 const hash=p=>sha256(fs.readFileSync(p));
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const alive=pid=>{try{process.kill(pid,0);return true;}catch{return false;}};
 const nativeEvidence=[];
-afterAll(()=>fs.writeFileSync(path.resolve('evidence/phase2-native-evidence.json'),JSON.stringify({scope:'Controlled native fixtures only',helperSha256:hash(helper),fixtureSha256:hash(probe),observations:nativeEvidence},null,2)+'\n'));
+afterAll(()=>{
+  const evDir = fs.existsSync(path.resolve('evidence')) ? path.resolve('evidence') : path.resolve('../evidence');
+  fs.writeFileSync(path.join(evDir,'phase2-native-evidence.json'),JSON.stringify({scope:'Controlled native fixtures only',helperSha256:hash(helper),fixtureSha256:hash(probe),observations:nativeEvidence},null,2)+'\n');
+});
 beforeAll(()=>{expect(process.platform).toBe('win32');for(const f of [helper,probe,path.join(root,'AssignmentFailure.exe')])expect(fs.existsSync(f)).toBe(true);});
 function fixture(mode,limits={}){
  const cwd=fs.mkdtempSync(path.join(root,'case-')),registry=new IncarnationJobs(path.join(cwd,'identity-ledger')),record=specimen();

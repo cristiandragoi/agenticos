@@ -6,10 +6,7 @@ import { logger } from '../../../utils/logger.js';
  * Windows equivalents (ls→dir, cat→type, etc.) so the LLM's
  * natural Unix-style commands work regardless of the host OS.
  */
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execAsync = promisify(exec);
+import { terminalExecutor } from '../../../domains/jarvis/execution/executors/terminalExecutor.js';
 
 const isWindows = process.platform === 'win32';
 
@@ -94,26 +91,27 @@ export const terminalTool = {
     }
 
     try {
-      const { stdout, stderr } = await execAsync(command, {
-        timeout,
+      const execRes = await terminalExecutor.runCommand({
+        command,
         cwd: workdir,
-        maxBuffer: 10 * 1024 * 1024, // 10MB
-        shell: isWindows ? 'cmd.exe' : '/bin/bash',
+        shell: isWindows ? 'cmd' : 'bash',
+        timeoutMs: timeout,
       });
 
       const result: Record<string, unknown> = {};
-      if (stdout) result.stdout = stdout.slice(0, 50000);
-      if (stderr) result.stderr = stderr.slice(0, 10000);
-      result.exitCode = 0;
+      if (execRes.stdout) result.stdout = execRes.stdout.slice(0, 50000);
+      if (execRes.stderr) result.stderr = execRes.stderr.slice(0, 10000);
+      result.exitCode = execRes.exitCode ?? (execRes.timedOut ? -1 : 0);
+      if (result.exitCode !== 0 && !result.error) {
+        result.error = execRes.stderr || `Exit code ${result.exitCode}`;
+      }
 
       return JSON.stringify(result);
     } catch (err: any) {
       const result: Record<string, unknown> = {
-        exitCode: err.code || -1,
-        error: err.message,
+        exitCode: err?.code || -1,
+        error: err?.message || String(err),
       };
-      if (err.stdout) result.stdout = (err.stdout as string).slice(0, 50000);
-      if (err.stderr) result.stderr = (err.stderr as string).slice(0, 10000);
       return JSON.stringify(result);
     }
   },
