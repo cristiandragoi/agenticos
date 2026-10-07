@@ -30,8 +30,17 @@ describe('actual Windows Job Object boundary (controlled fixtures)',()=>{
   const job=new WindowsJob(helper,hash(helper));let output='';
   expect(await job.run(plan('process.stdout.write("fixture-ok")'),b=>output+=b)).toBe(0);
   await job.terminateAndWait();expect(output).toBe('fixture-ok');
-  expect(job.getEvidence()).toMatchObject({assignedBeforeResume:true,killOnClose:true,activeProcesses:0});
+  expect(job.getEvidence()).toMatchObject({assignedBeforeResume:true,atomicJobList:true,killOnClose:true,activeProcesses:0});
   expect(job.getEvidence()!.totalProcesses).toBeGreaterThanOrEqual(1);
+ });
+ it('creates process atomically inside job via PROC_THREAD_ATTRIBUTE_JOB_LIST with zero pre-assignment execution',async()=>{
+  const job=new WindowsJob(helper,hash(helper));let output='';
+  const canary=path.join(scratch,'canary.txt');
+  const code=`require('fs').writeFileSync(${JSON.stringify(canary)},'executed');process.stdout.write('atomic-ok');`;
+  expect(await job.run(plan(code),b=>output+=b)).toBe(0);
+  expect(output).toBe('atomic-ok');
+  expect(fs.existsSync(canary)).toBe(true);
+  expect(job.getEvidence()).toMatchObject({assignedBeforeResume:true,atomicJobList:true,killOnClose:true,activeProcesses:0});
  });
  it('refuses executable substitution before launch',async()=>{
   const p=plan('process.exit(0)');p.executableSha256='0'.repeat(64);

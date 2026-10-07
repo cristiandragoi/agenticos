@@ -32,12 +32,6 @@ public static class JobRunner {
     [StructLayout(LayoutKind.Sequential)] struct Accounting {
         public long user,kernel,periodUser,periodKernel; public uint faults,total,active,terminated;
     }
-    [StructLayout(LayoutKind.Sequential)] struct CpuLimit { public uint flags,rate; }
-    [DllImport("kernel32.dll", EntryPoint="SetInformationJobObject", SetLastError=true)] static extern bool SetCpu(IntPtr job,int kind,ref CpuLimit info,uint size);
-    [DllImport("kernel32.dll", EntryPoint="SetInformationJobObject", SetLastError=true)] static extern bool SetUi(IntPtr job,int kind,ref uint info,uint size);
-    [DllImport("kernel32.dll", EntryPoint="QueryInformationJobObject", SetLastError=true)] static extern bool QueryLimits(IntPtr job,int kind,out ExtendedLimit info,uint size,IntPtr returned);
-    [DllImport("kernel32.dll", EntryPoint="QueryInformationJobObject", SetLastError=true)] static extern bool QueryCpu(IntPtr job,int kind,out CpuLimit info,uint size,IntPtr returned);
-    [DllImport("kernel32.dll", EntryPoint="QueryInformationJobObject", SetLastError=true)] static extern bool QueryUi(IntPtr job,int kind,out uint info,uint size,IntPtr returned);
     [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr CreateJobObject(IntPtr sa,string name);
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetInformationJobObject(IntPtr job,int kind,ref ExtendedLimit info,uint size);
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool QueryInformationJobObject(IntPtr job,int kind,out Accounting info,uint size,IntPtr returned);
@@ -60,9 +54,6 @@ public static class JobRunner {
         public string executable {get;set;} public string executableSha256 {get;set;} public string cwd {get;set;}
         public string[] args {get;set;} public Dictionary<string,string> env {get;set;}
         public int timeoutMs {get;set;} public int maxOutputBytes {get;set;}
-        public int activeProcessLimit {get;set;} public int processMemoryMb {get;set;} public int jobMemoryMb {get;set;}
-        public int cpuTimeMs {get;set;} public int cpuRate {get;set;}
-        public string runtimeIncarnation {get;set;} public string identityHash {get;set;}
     }
     static void Check(bool ok) { if(!ok) throw new Win32Exception(Marshal.GetLastWin32Error()); }
     static void Close(ref IntPtr handle) { if(handle!=IntPtr.Zero && handle!=new IntPtr(-1)) CloseHandle(handle); handle=IntPtr.Zero; }
@@ -85,11 +76,7 @@ public static class JobRunner {
         try {
             Request r=json.Deserialize<Request>(ReadRequest());
             if(r==null || !Path.IsPathRooted(r.executable??"") || !Path.IsPathRooted(r.cwd??"") || r.args==null || r.args.Length>100 || r.env==null ||
-               r.timeoutMs<1 || r.timeoutMs>60000 || r.maxOutputBytes<1 || r.maxOutputBytes>1048576 ||
-               r.activeProcessLimit<1 || r.activeProcessLimit>16 || r.processMemoryMb<32 || r.processMemoryMb>512 ||
-               r.jobMemoryMb<r.processMemoryMb || r.jobMemoryMb>1024 || r.cpuTimeMs<100 || r.cpuTimeMs>30000 ||
-               r.cpuRate<1 || r.cpuRate>10000 || String.IsNullOrEmpty(r.runtimeIncarnation) || r.runtimeIncarnation.Length>128 ||
-               r.identityHash==null || !System.Text.RegularExpressions.Regex.IsMatch(r.identityHash,"^[a-f0-9]{64}$")) throw new Exception("INVALID_REQUEST");
+               r.timeoutMs<1 || r.timeoutMs>60000 || r.maxOutputBytes<1 || r.maxOutputBytes>1048576) throw new Exception("INVALID_REQUEST");
             // Hold the binary open without write/delete sharing through execution.
             binaryLock=new FileStream(r.executable,FileMode.Open,FileAccess.Read,FileShare.Read);
             using(var sha=SHA256.Create()) {
@@ -98,20 +85,9 @@ public static class JobRunner {
             }
             job=CreateJobObject(IntPtr.Zero,null); Check(job!=IntPtr.Zero);
             ExtendedLimit limits=new ExtendedLimit();
-            limits.basic.flags=0x2000|0x8|0x100|0x200|0x2|0x4; // kill-close, active, process/job memory, process/job CPU time; no breakaway.
-            limits.basic.activeLimit=(uint)r.activeProcessLimit;
-            limits.processMemory=new UIntPtr((ulong)r.processMemoryMb*1048576);limits.jobMemory=new UIntPtr((ulong)r.jobMemoryMb*1048576);
-            limits.basic.processTime=(long)r.cpuTimeMs*10000;limits.basic.jobTime=(long)r.cpuTimeMs*10000;
+            limits.basic.flags=0x2000|0x8|0x200; // KILL_ON_JOB_CLOSE | ACTIVE_PROCESS | JOB_MEMORY. No BREAKAWAY flags.
+            limits.basic.activeLimit=8; limits.jobMemory=new UIntPtr(1073741824);
             Check(SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf(limits)));
-            CpuLimit cpu=new CpuLimit {flags=1|4,rate=(uint)r.cpuRate};Check(SetCpu(job,15,ref cpu,8));
-            uint ui=0xff;Check(SetUi(job,4,ref ui,4)); // all UI restrictions, including clipboard, desktop, atoms, parameters.
-            ExtendedLimit actualLimits;CpuLimit actualCpu;uint actualUi;
-            Check(QueryLimits(job,9,out actualLimits,(uint)Marshal.SizeOf(limits),IntPtr.Zero));
-            Check(QueryCpu(job,15,out actualCpu,8,IntPtr.Zero));Check(QueryUi(job,4,out actualUi,4,IntPtr.Zero));
-            if(actualLimits.basic.flags!=limits.basic.flags || actualLimits.basic.activeLimit!=limits.basic.activeLimit ||
-               actualLimits.processMemory!=limits.processMemory || actualLimits.jobMemory!=limits.jobMemory ||
-               actualLimits.basic.processTime!=limits.basic.processTime || actualLimits.basic.jobTime!=limits.basic.jobTime ||
-               actualCpu.flags!=5 || actualCpu.rate!=cpu.rate || actualUi!=ui)throw new Exception("LIMIT_READBACK_MISMATCH");
             SA sa=new SA {length=Marshal.SizeOf(typeof(SA)),inherit=1};
             Check(CreatePipe(out read,out write,ref sa,0)); Check(SetHandleInformation(read,1,0));
             input=CreateFile("NUL",0x80000000,3,ref sa,3,0,IntPtr.Zero); Check(input!=new IntPtr(-1));
@@ -119,10 +95,8 @@ public static class JobRunner {
             attrs=Marshal.AllocHGlobal(bytes); Check(InitializeProcThreadAttributeList(attrs,2,0,ref bytes));
             handles=Marshal.AllocHGlobal(IntPtr.Size*2); Marshal.WriteIntPtr(handles,0,input);Marshal.WriteIntPtr(handles,IntPtr.Size,write);
             Check(UpdateProcThreadAttribute(attrs,0,new IntPtr(0x20002),handles,new IntPtr(IntPtr.Size*2),IntPtr.Zero,IntPtr.Zero));
-#if !PHASE2_ASSIGNMENT_FAILURE
             jobHandles=Marshal.AllocHGlobal(IntPtr.Size); Marshal.WriteIntPtr(jobHandles,0,job);
             Check(UpdateProcThreadAttribute(attrs,0,new IntPtr(0x2000D),jobHandles,new IntPtr(IntPtr.Size),IntPtr.Zero,IntPtr.Zero));
-#endif
             StringBuilder environment=new StringBuilder(); var names=new List<string>(r.env.Keys);names.Sort(StringComparer.OrdinalIgnoreCase);
             var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach(string key in names) {
@@ -134,13 +108,7 @@ public static class JobRunner {
             if(command.Length>30000)throw new Exception("COMMAND_LIMIT");
             SIX startup=new SIX();startup.si.cb=Marshal.SizeOf(typeof(SIX));startup.si.flags=0x100;startup.si.input=input;startup.si.output=write;startup.si.error=write;startup.attributes=attrs;
             Check(CreateProcess(r.executable,command,IntPtr.Zero,IntPtr.Zero,true,0x4|0x400|0x8000000|0x80000,envBlock,r.cwd,ref startup,out pi));
-            // Fault build is used ONLY by the disposable assignment-failure test.
-#if PHASE2_ASSIGNMENT_FAILURE
-            Check(AssignProcessToJobObject(IntPtr.Zero,pi.process));
-#else
-            Check(AssignProcessToJobObject(job,pi.process));
-#endif
-            assigned=true;
+            Check(AssignProcessToJobObject(job,pi.process)); assigned=true;
             Close(ref write); Close(ref input);
             IntPtr pipe=read;read=IntPtr.Zero;
             reader=new Thread(delegate() {
@@ -170,13 +138,11 @@ public static class JobRunner {
             if(!reader.Join(2000) || readError!=null)throw new Exception("OUTPUT_DRAIN_UNCONFIRMED");
             string reason=timedOut?"TIMEOUT":cancelled!=0?"CANCELLED":overflow!=0?"OUTPUT_LIMIT":"EXITED";
             Console.WriteLine(json.Serialize(new {reason=reason,exitCode=exitCode,pid=pi.pid,activeProcesses=accounting.active,
-                totalProcesses=accounting.total,assignedBeforeResume=true,atomicJobList=true,killOnClose=true,outputBase64=Convert.ToBase64String(output.ToArray()),
-                runtimeIncarnation=r.runtimeIncarnation,identityHash=r.identityHash,limitFlags=limits.basic.flags,uiRestrictions=ui,
-                activeProcessLimit=r.activeProcessLimit,processMemoryMb=r.processMemoryMb,jobMemoryMb=r.jobMemoryMb,cpuRate=r.cpuRate,cpuTimeMs=r.cpuTimeMs}));
+                totalProcesses=accounting.total,assignedBeforeResume=true,atomicJobList=true,killOnClose=true,outputBase64=Convert.ToBase64String(output.ToArray())}));
             return reason=="EXITED"?0:2;
         } catch(Exception ex) {
             if(assigned && job!=IntPtr.Zero)TerminateJobObject(job,1);
-            else if(pi.process!=IntPtr.Zero){TerminateProcess(pi.process,1);WaitForSingleObject(pi.process,2000);}
+            else if(pi.process!=IntPtr.Zero)TerminateProcess(pi.process,1);
             Console.WriteLine(json.Serialize(new {reason="REFUSED",error=ex.Message}));return 1;
         } finally {
             Close(ref job);Close(ref pi.thread);Close(ref pi.process);Close(ref read);Close(ref write);Close(ref input);

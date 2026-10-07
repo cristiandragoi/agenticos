@@ -1,0 +1,12 @@
+{
+  "issuerSid": "REQUIRED_SEPARATE_NONADMIN_ISSUER_SID",
+  "operatorSid": "REQUIRED_AUTHENTICATED_HUMAN_SID",
+  "untrustedSids": [
+    "REQUIRED_WORKER_SID",
+    "REQUIRED_SERVER_SID",
+    "REQUIRED_MODEL_HOST_SID",
+    "REQUIRED_RENDERER_SID"
+  ],
+  "keyName": "AgenticOS-Approval-operator-1",
+  "publicKeyBlobSha256": ""
+}

@@ -7,7 +7,7 @@ import type {GitPlan} from '../localWorker/structuredGit.js';
 import type {OsJob} from './gitSupervisor.js';
 export interface NativeJobEvidence {
   reason: string; exitCode: number; pid: number; activeProcesses: number; totalProcesses: number;
-  assignedBeforeResume: boolean; killOnClose: boolean; outputBase64: string; error?: string;
+  assignedBeforeResume: boolean; atomicJobList?: boolean; killOnClose: boolean; outputBase64: string; error?: string;
 }
 export class WindowsJob implements OsJob {
   private child?: ChildProcessWithoutNullStreams;

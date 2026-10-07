@@ -6,7 +6,7 @@ import path from 'node:path';
 export interface RuntimeIdentityRecord { runtime:{incarnation:string;workerId:string}; [key:string]:unknown }
 export interface JobLimits {activeProcessLimit:number;processMemoryMb:number;jobMemoryMb:number;cpuTimeMs:number;cpuRate:number}
 export interface JobPlan {executable:string;executableSha256:string;cwd:string;args:string[];env:Record<string,string>;timeoutMs:number;maxOutputBytes:number;limits:JobLimits}
-export interface JobEvidence {reason:string;exitCode:number;activeProcesses:number;assignedBeforeResume:boolean;killOnClose:boolean;runtimeIncarnation:string;identityHash:string;outputBase64:string;[key:string]:unknown}
+export interface JobEvidence {reason:string;exitCode:number;activeProcesses:number;assignedBeforeResume:boolean;atomicJobList?:boolean;killOnClose:boolean;runtimeIncarnation:string;identityHash:string;outputBase64:string;[key:string]:unknown}
 export const sha256=(bytes:Buffer|string)=>createHash('sha256').update(bytes).digest('hex');
 const canonical=(v:any):any=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 /** Supervisor-owned registry; caller must supply an independently validated Phase 1 record.

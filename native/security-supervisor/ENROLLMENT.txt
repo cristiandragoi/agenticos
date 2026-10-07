@@ -1,0 +1,31 @@
+Independent security supervisor — enrollment and acceptance procedure
+
+State: source implemented and native controlled tests available. Nothing here has been installed or enrolled automatically. Do not copy .tmp binaries into a production path without review. Build using scripts/build-security-native.ps1; record fresh executable hashes because the framework compiler is not deterministic by default.
+
+Trust boundaries
+The native job helper controls process lifetime and descendants. It is not a filesystem, network, IPC or credential sandbox. Its generic launch protocol must be available only to the reviewed supervisor, never directly as a worker tool. The worker bridge continues to deny raw execution and unenrolled Git dispatch.
+The signing executable and offline enrollment utility must run under a dedicated non-administrator Windows identity, different from worker, server/model host and renderer. The public-key verifier and its durable replay/revocation database belong to a trusted supervisor outside worker write access. A same-user deployment does not satisfy these conditions.
+
+Concrete installation prerequisites (not performed)
+1. Provision the distinct identities through normal Windows administration. Record actual SIDs for each role; do not invent SIDs or copy credentials between accounts. Administrators/SYSTEM remain trusted; this design does not protect against their compromise.
+2. An administrator creates C:\ProgramData\AgenticOS-ApprovalIssuer with protected inheritance. Owner must be SYSTEM or Administrators. Only SYSTEM and Administrators may write/delete/change ownership/ACL. Grant the issuer ReadAndExecute only. Deny untrusted roles access as appropriate. Secure parent deletion/reparse-point behavior as part of effective ACL acceptance.
+3. Install reviewed ApprovalIssuer.exe and ApprovalEnroll.exe in that protected root. Create issuer.json from issuer-manifest.example.json, replacing every placeholder with independently checked SIDs and retaining empty publicKeyBlobSha256 for bootstrap. The manifest and its root must satisfy the executable's ownership/write-policy checks.
+4. Sign in as the separate issuer identity in its own trusted interactive session. Explicitly run ApprovalEnroll.exe with the fixed manifest path. It creates a fresh named per-user CNG ECDSA P-256 key with ExportPolicy=None. It refuses an existing key or already-pinned manifest and outputs only the public blob and hash. This step has NOT run; automated tests use unnamed ephemeral keys.
+5. An administrator independently transfers and pins the public blob hash in issuer.json and the public key in the supervisor's protected trust configuration. Never accept a public key from an approval response. Never put private material in environment variables, HTTP, renderer data, worker workspace or model context.
+6. The issuer accepts an exact canonical request including nonce, task/worker/tool bindings, hashes and <=60-second lifetime. It independently recomputes arguments/scope/preview hashes, presents immutable details on a Windows secure-desktop credential prompt, checks the authenticated operator SID, and requires a second such confirmation. It rechecks expiry before signing. No caller-supplied boolean can bypass these prompts. Unsupported credential providers, cancelled/failed logon, absent key or bad identity refuse issuance. Real secure-desktop authentication has NOT been exercised.
+7. Transfer the signed public envelope back to the trusted supervisor. ApprovedGitSupervisor re-resolves live supervisor-owned identity, validates and atomically consumes the approval, compares the current executable/repository binding with the signed scope, and only then invokes the native job. A failed dispatch burns the nonce; it is never refunded.
+8. Enroll a supervisor-owned immutable JobRunner.exe path and digest. Lock down the installed Git binary and fixed repository against concurrent untrusted mutation. Do not use .tmp helper locations for production. Configure actual identity resolution from authoritative task state, not request fields; no worker/HTTP registration has been enabled in this phase.
+
+Required acceptance before enablement
+- Effective cross-identity access tests for private key, issuer binaries/config, public trust store and nonce/revocation database.
+- A real human accepts and rejects one harmless request through the secure-desktop issuer. Test wrong operator, cancellation, expired request, unavailable key/provider, revoked/rotated key and replay after process restart.
+- Run native job tests under the intended restricted worker/supervisor identities as well as the controlled current-user fixtures. Validate OS filesystem/network/IPC restrictions separately; Job Objects alone are not sufficient.
+- Verify protected binary/repository roots cannot be replaced, junctioned, written or deleted through ancestor permissions by an untrusted role.
+- Review and explicitly authorize deployment. Existing prohibitions on real credentials, installed runtime, browser/CDP and deployment remain in force until changed by the user.
+
+References used for native API design
+https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects
+https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-creduipromptforwindowscredentialsa
+https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.ecdsacng
+
+These instructions describe remaining deployment/human acceptance, not evidence that those steps occurred.
