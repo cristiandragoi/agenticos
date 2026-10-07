@@ -206,7 +206,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
       const streamUrl = apiUrl(`/api/jarvis/conversations/${conversationId}/message/stream`);
       // TEMP DIAGNOSTIC — visible chain trace (remove after confirmation).
       setConvTrace((t) => ({ ...t, request: `POST ${streamUrl}` }));
-      const res = await fetch(streamUrl, {
+      const res = await apiFetch(`/api/jarvis/conversations/${conversationId}/message/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -577,7 +577,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
     setSelectedVoice(voiceId);
     try {
       localStorage.setItem(VOICE_KEY, voiceId);
-      fetch('/api/jarvis-next/agent/voice', {
+      apiFetch('/api/jarvis-next/agent/voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voiceId }),

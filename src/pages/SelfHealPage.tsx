@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiUrl } from '../api/client';
+import { apiFetch } from '../api/client';
 
 // Types
 interface Incident {
@@ -150,7 +150,7 @@ const SelfHealPage: React.FC = () => {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(apiUrl('/self-heal/status'));
+      const res = await apiFetch('/self-heal/status');
       if (res.ok) setStatus(await res.json());
     } catch (e) {
       console.error('Failed to fetch status', e);
@@ -159,7 +159,7 @@ const SelfHealPage: React.FC = () => {
 
   const fetchIncidents = async () => {
     try {
-      const res = await fetch(apiUrl('/self-heal/incidents'));
+      const res = await apiFetch('/self-heal/incidents');
       if (!res.ok) throw new Error('Failed to load incidents');
       const data = await res.json();
       setIncidents(data.incidents ?? []);
@@ -184,7 +184,7 @@ const SelfHealPage: React.FC = () => {
   const handleCreateIncident = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(apiUrl('/self-heal/incidents'), {
+      const res = await apiFetch('/self-heal/incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,7 +207,7 @@ const SelfHealPage: React.FC = () => {
 
   const handleSelectIncident = async (id: string) => {
     try {
-      const res = await fetch(apiUrl(`/self-heal/incidents/${id}`));
+      const res = await apiFetch(`/self-heal/incidents/${id}`);
       if (res.ok) {
         const data = await res.json();
         const attempt = data.attempts?.at(-1);
@@ -230,7 +230,7 @@ const SelfHealPage: React.FC = () => {
   const handleAction = async (id: string, action: string) => {
     try {
       setError('');
-      const res = await fetch(apiUrl(`/self-heal/incidents/${id}/${action}`), {
+      const res = await apiFetch(`/self-heal/incidents/${id}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

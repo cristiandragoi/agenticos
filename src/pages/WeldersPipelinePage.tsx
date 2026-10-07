@@ -219,21 +219,21 @@ export const WeldersPipelinePage: React.FC = () => {
 
   const fetchRawJobs = async () => {
     try {
-      const r = await fetch(`${API}/raw-jobs`);
+      const r = await apiFetch(`${API}/raw-jobs`);
       if (r.ok) setRawJobsData(await r.json());
     } catch (e) { console.error('Failed to fetch raw jobs', e); }
   };
 
   const fetchLeads = async () => {
     try {
-      const r = await fetch(`${API}/leads`);
+      const r = await apiFetch(`${API}/leads`);
       if (r.ok) setLeadsData(await r.json());
     } catch (e) { console.error('Failed to fetch leads', e); }
   };
   
   const fetchTemplates = async () => {
     try {
-      const r = await fetch(`${API}/templates`);
+      const r = await apiFetch(`${API}/templates`);
       if (r.ok) {
         const t = await r.json();
         setTemplatesData(t);
@@ -246,7 +246,7 @@ export const WeldersPipelinePage: React.FC = () => {
 
   const fetchOutreachLog = async () => {
     try {
-      const r = await fetch(`${API}/outreach-log`);
+      const r = await apiFetch(`${API}/outreach-log`);
       if (r.ok) {
         const data = await r.json();
         setOutreachLogData(data.content || '');
@@ -265,7 +265,7 @@ export const WeldersPipelinePage: React.FC = () => {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/status`);
+      const r = await apiFetch(`${API}/status`);
       if (r.ok) {
         const data = await r.json();
         setStatus(data);
@@ -300,13 +300,13 @@ export const WeldersPipelinePage: React.FC = () => {
     addLog('Starting Welders Lead Pipeline...');
 
     try {
-      const r = await fetch(`${API}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const r = await apiFetch(`${API}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       const data = await r.json();
       if (r.ok) {
         addLog(`Pipeline started — Run ID: ${data.runId}`);
         // Poll every 1.5s for step progress
         pollRef.current = setInterval(async () => {
-          const sr = await fetch(`${API}/status`);
+          const sr = await apiFetch(`${API}/status`);
           if (sr.ok) {
             const sd = await sr.json();
             setStatus(sd);
@@ -345,7 +345,7 @@ export const WeldersPipelinePage: React.FC = () => {
     addLog(`Generating email templates (tone: ${emailTone})...`);
     setEmailResult('');
     try {
-      const r = await fetch(`${API}/email-draft`, {
+      const r = await apiFetch(`${API}/email-draft`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tone: emailTone })
       });
@@ -358,7 +358,7 @@ export const WeldersPipelinePage: React.FC = () => {
   const logOutreach = async () => {
     if (!outreachForm.recipient || !outreachForm.company) { addLog('⚠ Recipient and company required.'); return; }
     try {
-      const r = await fetch(`${API}/outreach/log`, {
+      const r = await apiFetch(`${API}/outreach/log`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(outreachForm)
       });
       const data = await r.json();
@@ -378,7 +378,7 @@ export const WeldersPipelinePage: React.FC = () => {
     addLog(`Sending email to ${sendForm.to}...`);
     setIsSending(true);
     try {
-      const r = await fetch(`${API}/send-email`, {
+      const r = await apiFetch(`${API}/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sendForm)
       });
       const data = await r.json();
@@ -393,7 +393,7 @@ export const WeldersPipelinePage: React.FC = () => {
     addLog('Drafting reply...');
     setReplyResult('');
     try {
-      const r = await fetch(`${API}/reply`, {
+      const r = await apiFetch(`${API}/reply`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replyText })
       });
       const data = await r.json();

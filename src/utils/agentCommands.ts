@@ -1,4 +1,4 @@
-import { apiUrl } from '../api/client';
+import { apiFetch } from '../api/client';
 export function useAgentCommand() {
   const runAgentCommand = async (
     agentId: string, 
@@ -8,16 +8,16 @@ export function useAgentCommand() {
   ) => {
     try {
       // Map agent selections to their specific pipelines
-      let pipelineRoute = apiUrl('/api/agentic/pipelines/jarvis-voice-pipeline/run');
+      let pipelineRoute = '/api/agentic/pipelines/jarvis-voice-pipeline/run';
       
       if (agentId === 'agent-video') {
-        pipelineRoute = apiUrl('/api/agentic/pipelines/loop-welders-pipeline/run');
+        pipelineRoute = '/api/agentic/pipelines/loop-welders-pipeline/run';
       } else if (agentId === 'agent-qwythos') {
-        pipelineRoute = apiUrl('/api/agentic/pipelines/qwythos-workspace-pipeline/run');
+        pipelineRoute = '/api/agentic/pipelines/qwythos-workspace-pipeline/run';
       }
 
       // We use the actual pipeline endpoints instead of the non-existent /api/tools
-      const response = await fetch(pipelineRoute, {
+      const response = await apiFetch(pipelineRoute, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command, isTTS: false })

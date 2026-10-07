@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { API_BASE } from '../../api/client';
+import { API_BASE, apiFetch } from '../../api/client';
 import { uiDiagnostics } from '../../diagnostics/uiSnapshot';
 import { AlertTriangle, Save, Server, Loader2 } from 'lucide-react';
 
@@ -43,7 +43,7 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
     setTestingRouting(true);
     setTestResult(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/agent-provider-assignments/${agentId}/test`, { method: 'POST' });
+      const res = await apiFetch(`${API_BASE}/settings/agent-provider-assignments/${agentId}/test`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) setTestResult({ result: 'FAIL', reason: data?.error || `HTTP ${res.status}` });
       else setTestResult(data);
@@ -76,7 +76,7 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
     const fetchData = async () => {
       try {
         // Load assignment
-        const assignRes = await fetch(
+        const assignRes = await apiFetch(
           `${API_BASE}/settings/agent-provider-assignments/${agentId}`,
           { signal: controller.signal }
         );
@@ -108,7 +108,7 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
         }
 
         // Load providers list (independent of assignment)
-        const provRes = await fetch(`${API_BASE}/providers`, { signal: controller.signal });
+        const provRes = await apiFetch(`${API_BASE}/providers`, { signal: controller.signal });
         if (provRes.ok) {
           const provs = await provRes.json();
           setProviders(provs);
@@ -143,7 +143,7 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
     const controller = new AbortController();
     const fetchModels = async () => {
       try {
-        const res = await fetch(`${API_BASE}/providers/${selectedProviderId}/models`, { signal: controller.signal });
+        const res = await apiFetch(`${API_BASE}/providers/${selectedProviderId}/models`, { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           setModels(data.models || []);
@@ -171,7 +171,7 @@ export const AgentRuntimeSelector: React.FC<Props> = ({ agentId, onAssignmentCha
         enabled: true
       };
 
-      const res = await fetch(`${API_BASE}/settings/agent-provider-assignments/${agentId}`, {
+      const res = await apiFetch(`${API_BASE}/settings/agent-provider-assignments/${agentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

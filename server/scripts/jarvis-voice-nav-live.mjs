@@ -6,6 +6,7 @@
 // mounted project (pass) or a deliberately wrong one (fail), so the server's
 // verification gate is genuinely exercised.
 import { Room, RoomEvent } from '@livekit/rtc-node';
+import { authHeaders } from './apiAuth.mjs';
 
 const BASE = 'http://127.0.0.1:4600';
 const ROOM = `jarvis-voice-accept-${Date.now().toString(36)}`;
@@ -17,7 +18,7 @@ let room;
 async function getToken() {
   const r = await fetch(`${BASE}/api/jarvis-next/token`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: authHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ roomName: ROOM, identity: 'acceptance-voice-client', name: 'Acceptance Client' }),
   });
   if (!r.ok) throw new Error(`token endpoint ${r.status}: ${await r.text()}`);

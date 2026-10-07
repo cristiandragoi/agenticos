@@ -4,6 +4,7 @@
  * Provides build identity tracking and mismatch detection between
  * the Electron renderer bundle and the active backend process.
  */
+import { apiFetch } from '../api/client';
 import embeddedIdentity from '../build-identity.json';
 
 export type BuildMismatchType =
@@ -156,7 +157,7 @@ export function compareBuildIdentities(
 export async function checkRuntimeIdentityMatch(apiUrlPrefix = ''): Promise<BuildComparisonResult> {
   const rend = getRendererBuildIdentity();
   try {
-    const res = await fetch(`${apiUrlPrefix}/api/runtime/identity`);
+    const res = await apiFetch(`${apiUrlPrefix}/api/runtime/identity`);
     if (!res.ok) {
       return {
         status: 'UNKNOWN_RUNTIME',

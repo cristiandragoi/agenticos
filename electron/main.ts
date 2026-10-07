@@ -538,6 +538,7 @@ ipcMain.on('agenticos:renderer-diagnostics', (_event, payload) => {
 
 // ── Backend lifecycle IPC (one state machine feeds every UI surface) ──
 ipcMain.handle('backend-lifecycle:get-state', () => backendLifecycle?.getState() ?? null);
+ipcMain.handle('backend-lifecycle:get-api-token', () => backendLifecycle?.getApiToken() ?? null);
 ipcMain.handle('watchdog:get-state', () => {
   const lifecycleState = backendLifecycle?.getState();
   return {

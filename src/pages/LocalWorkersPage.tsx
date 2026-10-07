@@ -3,6 +3,7 @@ import {
   Cpu, Play, CheckCircle2, AlertTriangle, XCircle, Clock,
   ShieldAlert, RefreshCw, ChevronRight, Check, Ban, AlertCircle, FileText
 } from 'lucide-react';
+import { apiFetch } from '../api/client';
 
 interface WorkerStep {
   id: string;
@@ -78,7 +79,7 @@ const LocalWorkersPage: React.FC = () => {
   const fetchTasks = useCallback(async () => {
     try {
       setIsRefreshing(true);
-      const res = await fetch('/api/worker/tasks');
+      const res = await apiFetch('/worker/tasks');
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.tasks)) {
@@ -107,7 +108,7 @@ const LocalWorkersPage: React.FC = () => {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch('/api/worker/tasks', {
+      const res = await apiFetch('/worker/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal: newGoal.trim() }),
@@ -129,7 +130,7 @@ const LocalWorkersPage: React.FC = () => {
 
   const handleApprove = async (taskId: string) => {
     try {
-      await fetch(`/api/worker/tasks/${taskId}/approve`, { method: 'POST' });
+      await apiFetch(`/worker/tasks/${taskId}/approve`, { method: 'POST' });
       await fetchTasks();
     } catch (err) {
       console.error('[LocalWorkers] Failed to approve task:', err);
@@ -138,7 +139,7 @@ const LocalWorkersPage: React.FC = () => {
 
   const handleCancel = async (taskId: string) => {
     try {
-      await fetch(`/api/worker/tasks/${taskId}/cancel`, { method: 'POST' });
+      await apiFetch(`/worker/tasks/${taskId}/cancel`, { method: 'POST' });
       await fetchTasks();
     } catch (err) {
       console.error('[LocalWorkers] Failed to cancel task:', err);

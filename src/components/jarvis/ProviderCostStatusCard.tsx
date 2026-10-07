@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../api/client';
 import { ShieldCheck, Cpu, Mic, Volume2, DollarSign, RefreshCw } from 'lucide-react';
 
 export const ProviderCostStatusCard: React.FC = () => {
@@ -8,7 +9,7 @@ export const ProviderCostStatusCard: React.FC = () => {
   const fetchStatus = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/system/providers/status');
+      const res = await apiFetch('/api/system/providers/status');
       if (res.ok) {
         const json = await res.json();
         setData(json);

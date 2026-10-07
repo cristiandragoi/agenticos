@@ -5,7 +5,7 @@ import type { JarvisChatHandle, JarvisRuntimeStatus, JarvisRuntimeState } from '
 import type { MicState } from '../components/jarvis/JarvisComposer';
 import { voiceTracePush } from '../diagnostics/voiceTrace';
 import { getActiveJarvisEngine, setActiveJarvisEngine, stopAllJarvisAudio } from '../lib/jarvisEngineAuthority';
-import { apiUrl } from '../api/client';
+import { apiUrl, apiFetch } from '../api/client';
 import { jarvisLiveKitSession } from '../lib/jarvisLiveKitSession';
 import { JARVIS_ORB_EVENTS } from '../components/jarvis/jarvisOrbState';
 import { JARVIS_BUILD_ID } from '../buildInfo';
@@ -123,7 +123,7 @@ export const JarvisRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       localStorage.setItem(VOICE_KEY, v);
       sessionStorage.setItem(VOICE_KEY, v);
-      fetch('/api/jarvis-next/agent/voice', {
+      apiFetch('/api/jarvis-next/agent/voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voiceId: v }),
@@ -133,7 +133,7 @@ export const JarvisRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     if (selectedVoice) {
-      fetch('/api/jarvis-next/agent/voice', {
+      apiFetch('/api/jarvis-next/agent/voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voiceId: selectedVoice }),
@@ -491,7 +491,7 @@ export const JarvisRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // HTTP ACK always (typed turns have no LiveKit room) …
         try {
-          await fetch(apiUrl('/api/jarvis/navigation/ack'), {
+          await apiFetch('/api/jarvis/navigation/ack', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(ack),

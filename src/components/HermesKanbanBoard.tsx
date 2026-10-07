@@ -117,7 +117,7 @@ function HermesCard({ card, skills, onClick }: { card: HermesTask, skills: Agent
       const url = isUpdate ? `/api/schedules/${card.schedule!.id}` : `/api/schedules`;
       const method = isUpdate ? 'PATCH' : 'POST';
       
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

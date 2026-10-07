@@ -2,7 +2,7 @@
  * ARGUS API client — independent verification system observability.
  * Thin typed wrapper over the canonical backend ARGUS REST surface.
  */
-import { apiUrl } from './client';
+import { apiFetch } from './client';
 
 export interface ArgusCheck {
   type: 'file-exists' | 'file-content' | 'command';
@@ -84,26 +84,26 @@ export interface ArgusGoalStatus {
 
 export const argusClient = {
   async listContracts(): Promise<ArgusContract[]> {
-    const res = await fetch(apiUrl('/api/argus/contracts'));
+    const res = await apiFetch('/api/argus/contracts');
     if (!res.ok) throw new Error(`ARGUS contracts ${res.status}`);
     const body = await res.json();
     return body.contracts || [];
   },
 
   async getContract(id: string): Promise<{ contract: ArgusContract; goal: ArgusGoalStatus | null; verifications: ArgusVerification[]; defects: ArgusDefect[] }> {
-    const res = await fetch(apiUrl(`/api/argus/contracts/${encodeURIComponent(id)}`));
+    const res = await apiFetch(`/api/argus/contracts/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error(`ARGUS contract ${res.status}`);
     return res.json();
   },
 
   async getGoalStatus(goalId: string): Promise<{ goal: ArgusGoalStatus; contracts: ArgusContract[]; verifications: ArgusVerification[] }> {
-    const res = await fetch(apiUrl(`/api/argus/goals/${encodeURIComponent(goalId)}`));
+    const res = await apiFetch(`/api/argus/goals/${encodeURIComponent(goalId)}`);
     if (!res.ok) throw new Error(`ARGUS goal ${res.status}`);
     return res.json();
   },
 
   async createContract(goalId: string, acceptanceCriteria?: ArgusCheck[], title?: string): Promise<ArgusContract> {
-    const res = await fetch(apiUrl('/api/argus/contracts'), {
+    const res = await apiFetch('/api/argus/contracts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goalId, acceptanceCriteria, title }),
@@ -114,7 +114,7 @@ export const argusClient = {
   },
 
   async verifyGoal(goalId: string): Promise<{ verification: unknown }> {
-    const res = await fetch(apiUrl('/api/argus/verify'), {
+    const res = await apiFetch('/api/argus/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goalId }),
@@ -124,14 +124,14 @@ export const argusClient = {
   },
 
   async listDefects(): Promise<ArgusDefect[]> {
-    const res = await fetch(apiUrl('/api/argus/defects'));
+    const res = await apiFetch('/api/argus/defects');
     if (!res.ok) throw new Error(`ARGUS defects ${res.status}`);
     const body = await res.json();
     return body.defects || [];
   },
 
   async getAssignment(): Promise<{ providerId: string; modelId: string | null; routingMode: string } | null> {
-    const res = await fetch(apiUrl('/api/argus/assignment'));
+    const res = await apiFetch('/api/argus/assignment');
     if (!res.ok) return null;
     const body = await res.json();
     return body.assignment || null;

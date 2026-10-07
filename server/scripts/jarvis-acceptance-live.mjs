@@ -1,6 +1,8 @@
 // P8 — LIVE Jarvis acceptance conversation over the REAL production HTTP API.
 // POST /api/jarvis/conversations/:id/message → SSE (intent/chunk/done) →
 // real model calls. Verifies context, routing, voice, model identity truth.
+import { authHeaders } from './apiAuth.mjs';
+
 const BASE = 'http://127.0.0.1:4600';
 const turns = [
   { text: 'What model are you using?', channel: 'typed' },
@@ -15,7 +17,7 @@ const turns = [
 async function postMessage(convId, message, channel) {
   const res = await fetch(`${BASE}/api/jarvis/conversations/${convId}/message/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+    headers: authHeaders({ 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }),
     body: JSON.stringify({ prompt: message, inputChannel: channel }),
   });
   if (!res.ok) return { error: `HTTP ${res.status}`, intent: null, reply: '', provider: null, model: null };
@@ -45,7 +47,7 @@ async function postMessage(convId, message, channel) {
 }
 
 async function main() {
-  const created = await fetch(`${BASE}/api/jarvis/conversations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'P8 acceptance' }) });
+  const created = await fetch(`${BASE}/api/jarvis/conversations`, { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ title: 'P8 acceptance' }) });
   const conv = await created.json();
   const convId = conv.id || conv.conversationId;
   console.log(`conversationId=${convId}`);

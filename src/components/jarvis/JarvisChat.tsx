@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { API_BASE } from '../../api/client';
+import { API_BASE, apiFetch } from '../../api/client';
 import { AlertCircle, Cpu, Server, User, FileText, Image as ImageIcon } from 'lucide-react';
 import { JarvisComposer, formatFileSize } from './JarvisComposer';
 import type { MicState, JarvisAttachment } from './JarvisComposer';
@@ -453,7 +453,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/jarvis/conversations/${conversationId}/messages`);
+      const res = await apiFetch(`${API_BASE}/jarvis/conversations/${conversationId}/messages`);
       const data = await res.json();
       if (Array.isArray(data)) {
         if (merge) {
@@ -739,7 +739,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
     let targetConversationId = conversationId;
     if (!targetConversationId) {
       try {
-        const createRes = await fetch(`${API_BASE}/jarvis/conversations`, {
+        const createRes = await apiFetch(`${API_BASE}/jarvis/conversations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: text.slice(0, 40) || (hasAttachments ? `File: ${attachments![0].name}` : 'New Conversation') }),
@@ -838,7 +838,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
       if (DEV_TIMING) console.debug('[JarvisChat:timing] fetch-start', { operationId, inputChannel, ms: fetchStartAt - t0 });
       voiceTimelinePush('modelRequestStartAt', `"${text.slice(0, 40)}"`);
 
-      const res = await fetch(`${API_BASE}/jarvis/conversations/${targetConversationId}/message/stream`, {
+      const res = await apiFetch(`${API_BASE}/jarvis/conversations/${targetConversationId}/message/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -1004,7 +1004,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendLegacyMessage = async (text: string, operationId: string, controller: AbortController, inputChannel: 'typed' | 'voice' = 'typed') => {
-    const fallbackRes = await fetch(`${API_BASE}/jarvis/conversations/${conversationId}/message`, {
+    const fallbackRes = await apiFetch(`${API_BASE}/jarvis/conversations/${conversationId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
@@ -1100,7 +1100,7 @@ export const JarvisChat = React.forwardRef<JarvisChatHandle, JarvisChatProps>(({
           };
           onActionRecord?.(failedRecord);
           if (data.actionId) {
-            fetch(`${API_BASE}/jarvis/actions/${data.actionId}/status`, {
+            apiFetch(`${API_BASE}/jarvis/actions/${data.actionId}/status`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

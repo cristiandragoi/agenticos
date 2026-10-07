@@ -1,7 +1,9 @@
+import { authHeaders } from './apiAuth.mjs';
+
 // Dump the raw SSE body of one Jarvis turn to learn the wire format.
 const res = await fetch('http://127.0.0.1:4600/api/jarvis/conversations/conv-fdab68cf-/message', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+  headers: authHeaders({ 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }),
   body: JSON.stringify({ prompt: 'Say OK', inputChannel: 'typed' }),
 });
 const text = await res.text();

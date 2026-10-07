@@ -52,11 +52,11 @@ class Harness {
     error: this.probeHealthy ? undefined : this.probeError,
   });
 
-  spawnBackend = (): BackendChild => {
+  spawnBackend = (cfg?: LifecycleConfig): BackendChild => {
     if (this.spawnShouldThrow) {
       throw new Error(this.spawnShouldThrow);
     }
-    const child = new FakeChild(1000 + this.spawned.length);
+    const child = new FakeChild(1000 + this.spawned.length, cfg?.env);
     this.spawned.push(child);
     return child;
   };
@@ -150,11 +150,15 @@ class Harness {
 
 class FakeChild {
   pid: number;
+  env?: Record<string, string | undefined>;
   killedSignals: Array<NodeJS.Signals | number | undefined> = [];
   private handlers: Record<string, Array<(...args: unknown[]) => void>> = {};
   stdout = null;
   stderr = null;
-  constructor(pid: number) { this.pid = pid; }
+  constructor(pid: number, env?: Record<string, string | undefined>) {
+    this.pid = pid;
+    this.env = env;
+  }
   kill(signal?: NodeJS.Signals | number) {
     this.killedSignals.push(signal);
     // Real children exit asynchronously after kill — simulate it so the
@@ -520,5 +524,32 @@ describe('readPortFromServerEnv', () => {
     expect(readPortFromServerEnv(dir, 4600)).toBe(4711);
     expect(readPortFromServerEnv(path.join(dir, 'missing'), 4600)).toBe(4600);
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('AGENTOS_API_TOKEN lifecycle management (Step 3A)', () => {
+  it('generates a 64-char hex random token, injects into child env, and excludes from state', async () => {
+    const h = new Harness();
+    const manager = h.create();
+    const token = manager.getApiToken();
+    expect(token).toBeDefined();
+    expect(typeof token).toBe('string');
+    expect(token).toHaveLength(64); // 32 bytes hex
+
+    void manager.start();
+    await h.flush();
+
+    expect(h.spawned.length).toBe(1);
+    expect(h.spawned[0].env?.AGENTOS_API_TOKEN).toBe(token);
+
+    // State object must NOT contain the token anywhere
+    const state = manager.getState();
+    expect((state as any).apiToken).toBeUndefined();
+    expect(JSON.stringify(state)).not.toContain(token);
+
+    // Redaction ensures token is redacted if logged
+    const logged = `Auth header sent: Bearer ${token}`;
+    expect(redactSecrets(logged)).not.toContain(token);
+    expect(redactSecrets(logged)).toContain('Bearer [REDACTED]');
   });
 });

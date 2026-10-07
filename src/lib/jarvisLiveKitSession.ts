@@ -1,5 +1,5 @@
 import { Room, RoomEvent, RemoteTrack } from 'livekit-client';
-import { apiUrl } from '../api/client';
+import { apiUrl, apiFetch } from '../api/client';
 import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
 
 export type JarvisSessionState = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -339,7 +339,7 @@ export class JarvisLiveKitSession {
       console.log('[JFE] TOKEN_FETCH_BEGIN', { roomName, url: tokenUrl });
       console.log(`${TAG} requesting token from ${tokenUrl}`);
 
-      const res = await fetch(tokenUrl, {
+      const res = await apiFetch('/api/jarvis-next/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -612,7 +612,7 @@ export class JarvisLiveKitSession {
 
     // 3. Fallback POST to API
     try {
-      await fetch(apiUrl('/api/jarvis-next/agent/interrupt'), { method: 'POST' });
+      await apiFetch('/api/jarvis-next/agent/interrupt', { method: 'POST' });
     } catch {
       // ignore
     }

@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
-import { API_BASE as BACKEND } from '../../api/client';
+import { API_BASE as BACKEND, apiFetch } from '../../api/client';
 
 /**
  * GOLDEN-PATH DIAGNOSTIC PANEL (development-only, hidden by default).
@@ -54,7 +54,7 @@ export const GoldenPathPanel = forwardRef<GoldenPathPanelHandle, { onVoiceRoutin
       setEntries((es) => [entry, ...es]);
       if (!textOverride) setPrompt('');
       try {
-        const res = await fetch(`${BACKEND}/jarvis/diag/stream`, {
+        const res = await apiFetch(`${BACKEND}/jarvis/diag/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: text, operationId }),

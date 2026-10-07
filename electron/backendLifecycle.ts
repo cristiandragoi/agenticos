@@ -26,6 +26,7 @@
  * injected probe/spawn/timer dependencies.
  */
 import { spawn as nodeSpawn, execFileSync, type ChildProcess } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -155,6 +156,8 @@ export interface LifecycleConfig {
   unhealthyTolerance: number;
   logFile: string | null;
   userDataDir?: string;
+  /** Explicit API token or test override. Generated per launch if unset. */
+  apiToken?: string;
   buildIdentity?: {
     buildId?: string | null;
     gitSha?: string | null;
@@ -227,6 +230,8 @@ export interface BackendLifecycleManager extends LifecycleAction {
   shutdown: () => Promise<void>;
   getState: () => BackendLifecycleState;
   onStateChange: (cb: (state: BackendLifecycleState) => void) => () => void;
+  /** Expose the per-launch AGENTOS_API_TOKEN to renderer via IPC only. Never in state or logs. */
+  getApiToken: () => string;
   /** Visible for tests. */
   readonly config: LifecycleConfig;
 }
@@ -235,6 +240,10 @@ export function createBackendLifecycleManager(
   config: LifecycleConfig,
   deps: LifecycleDeps
 ): BackendLifecycleManager {
+  // Generate a random per-launch AGENTOS_API_TOKEN (crypto.randomBytes(32)) if not explicitly passed
+  const apiToken = config.apiToken || config.env.AGENTOS_API_TOKEN || crypto.randomBytes(32).toString('hex');
+  config.env.AGENTOS_API_TOKEN = apiToken;
+
   const now = deps.now ?? (() => Date.now());
   const setTimeoutFn = deps.setTimeout ?? ((fn, ms) => setTimeout(fn, ms));
   const clearTimeoutFn = deps.clearTimeout ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
@@ -797,6 +806,7 @@ export function createBackendLifecycleManager(
     onStateChange: (cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
     restart,
     retry,
+    getApiToken: () => apiToken,
   };
 }
 

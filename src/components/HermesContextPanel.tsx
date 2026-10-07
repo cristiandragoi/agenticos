@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../api/client';
+import { API_BASE, apiFetch } from '../api/client';
 import { AgentRuntimeSelector } from './agents/AgentRuntimeSelector';
 
 
@@ -19,8 +19,8 @@ const HermesContextPanel: React.FC<HermesContextPanelProps> = () => {
     const fetchMemory = async () => {
       try {
         const [wsRes, sessRes] = await Promise.all([
-          fetch(`${API_BASE}/memory/entries?scopeId=mem-workspace`),
-          fetch(`${API_BASE}/memory/entries?scopeId=mem-session`)
+          apiFetch(`${API_BASE}/memory/entries?scopeId=mem-workspace`),
+          apiFetch(`${API_BASE}/memory/entries?scopeId=mem-session`)
         ]);
         const wsData = await wsRes.json();
         const sessData = await sessRes.json();

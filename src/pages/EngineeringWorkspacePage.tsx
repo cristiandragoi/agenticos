@@ -8,7 +8,7 @@ import {
   Database, MonitorPlay, RotateCcw, StopCircle, CornerDownRight,
   FolderGit2, CheckSquare, Volume2, Mic
 } from 'lucide-react';
-import { apiUrl } from '../api/client';
+import { apiFetch, apiUrl } from '../api/client';
 
 interface EngineeringWorkerSession {
   taskId: string;
@@ -104,7 +104,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
 
   const fetchVoiceRuntime = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl('/api/voice/runtime-state'));
+      const res = await apiFetch('/api/voice/runtime-state');
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.runtimeState) {
@@ -131,8 +131,8 @@ export const EngineeringWorkspacePage: React.FC = () => {
   const fetchConsoleData = useCallback(async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
     try {
-      const url = apiUrl(`/control-plane/engineering/console?worker=${composerWorker}`);
-      const res = await fetch(url);
+      const url = `/control-plane/engineering/console?worker=${composerWorker}`;
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setWorkerInfo(data.worker);
@@ -150,7 +150,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
             setActiveSession(current);
             // Also fetch task-specific events if not present
             try {
-              const sessRes = await fetch(apiUrl(`/control-plane/engineering/sessions/${selectedHistoricalTaskId}`));
+              const sessRes = await apiFetch(`/control-plane/engineering/sessions/${selectedHistoricalTaskId}`);
               if (sessRes.ok) {
                 const sessData = await sessRes.json();
                 if (sessData.events) setEvents(sessData.events);
@@ -179,8 +179,8 @@ export const EngineeringWorkspacePage: React.FC = () => {
 
     setIsRefreshing(true);
     try {
-      const url = apiUrl(`/control-plane/engineering/sessions/${taskId}`);
-      const res = await fetch(url);
+      const url = `/control-plane/engineering/sessions/${taskId}`;
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setActiveSession(data.session);
@@ -213,7 +213,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
     }
     setIsExecutingAction(true);
     try {
-      const res = await fetch(apiUrl('/control-plane/engineering/delegate'), {
+      const res = await apiFetch('/control-plane/engineering/delegate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -258,7 +258,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
 
     setIsExecutingAction(true);
     try {
-      const res = await fetch(apiUrl('/control-plane/engineering/continue'), {
+      const res = await apiFetch('/control-plane/engineering/continue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -294,7 +294,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
     }
     setIsExecutingAction(true);
     try {
-      const res = await fetch(apiUrl('/control-plane/engineering/resume'), {
+      const res = await apiFetch('/control-plane/engineering/resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: targetTaskId }),
@@ -325,7 +325,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
     }
     setIsExecutingAction(true);
     try {
-      const res = await fetch(apiUrl('/control-plane/engineering/cancel'), {
+      const res = await apiFetch('/control-plane/engineering/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -353,7 +353,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
   // Optional External Debug Button (Non-blocking, never auto-opened)
   const handleOpenAntigravityExternally = async () => {
     try {
-      const res = await fetch(apiUrl('/control-plane/engineering/open-antigravity'), { method: 'POST' });
+      const res = await apiFetch('/control-plane/engineering/open-antigravity', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setNotice({
@@ -375,7 +375,7 @@ export const EngineeringWorkspacePage: React.FC = () => {
   const handleReconnect = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch(apiUrl('/control-plane/engineering/reconnect'), { method: 'POST' });
+      const res = await apiFetch('/control-plane/engineering/reconnect', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setNotice({

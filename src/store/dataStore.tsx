@@ -5,7 +5,7 @@ import type {
   LeadsResponse
 } from '../types';
 import { extractLeads } from '../types';
-import { apiClient, API_BASE } from '../api/client';
+import { apiClient, API_BASE, apiFetch } from '../api/client';
 import { backendLifecycleStore } from '../diagnostics/backendLifecycleStore';
 
 interface Schedule {
@@ -118,7 +118,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         apiClient.getResearchBriefs() as Promise<ResearchBrief[]>,
         apiClient.getLeads() as Promise<LeadsResponse>,
         apiClient.getSchedules() as Promise<Schedule[]>,
-        fetch(`${API_BASE}/settings/gateway/credentials-status`).then((res): Promise<Record<string, ProviderCredentialStatus>> => res.ok ? res.json() : Promise.resolve({})),
+        apiFetch(`${API_BASE}/settings/gateway/credentials-status`).then((res): Promise<Record<string, ProviderCredentialStatus>> => res.ok ? res.json() : Promise.resolve({})),
       ]);
 
       if (retryTimeoutRef.current) {

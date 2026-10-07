@@ -68,26 +68,73 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${normalized}${suffix}`;
 }
 
+let cachedApiToken: string | null = null;
+let tokenPromise: Promise<string | null> | null = null;
+
+/**
+ * Retrieve the canonical per-launch AGENTOS_API_TOKEN.
+ * Queries Electron IPC contextBridge getter (window.backendLifecycle.getApiToken()).
+ * Falls back to process.env.AGENTOS_API_TOKEN in Node/test environments.
+ */
+export async function getApiToken(): Promise<string | null> {
+  if (cachedApiToken) return cachedApiToken;
+  if (typeof window !== 'undefined' && (window as any).backendLifecycle?.getApiToken) {
+    if (!tokenPromise) {
+      tokenPromise = Promise.resolve((window as any).backendLifecycle.getApiToken())
+        .then((tok: string | null) => {
+          if (tok) cachedApiToken = tok;
+          return tok;
+        })
+        .catch(() => null)
+        .finally(() => {
+          tokenPromise = null;
+        });
+    }
+    return tokenPromise;
+  }
+  if (typeof process !== 'undefined' && process.env?.AGENTOS_API_TOKEN) {
+    return process.env.AGENTOS_API_TOKEN;
+  }
+  return null;
+}
+
+export function setCachedApiToken(token: string | null): void {
+  cachedApiToken = token;
+}
+
+// Eagerly resolve token in background if window.backendLifecycle is mounted
+if (typeof window !== 'undefined' && (window as any).backendLifecycle?.getApiToken) {
+  void getApiToken();
+}
+
 /**
  * Canonical renderer fetch: like fetch, but the input is resolved through
  * apiUrl so relative backend paths work under both web/dev and Electron
- * file:// production. Response bodies are NOT inspected or consumed here —
- * callers keep full control over streaming/JSON/error handling.
+ * file:// production. Automatically attaches Authorization: Bearer <token>.
+ * Response bodies are NOT inspected or consumed here — callers keep full control.
  */
 export async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
-  return fetch(apiUrl(input), init);
+  const token = await getApiToken();
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(apiUrl(input), {
+    ...init,
+    headers,
+  });
 }
 
 import type { RunRecord, LeadsResponse } from '../types';
 
 export const apiClient = {
   async get(path: string) {
-    const res = await fetch(`${BASE_URL.replace('/api', '')}${path}`);
+    const res = await apiFetch(path);
     if (!res.ok) throw new Error(`GET ${path} failed: ${res.statusText}`);
     return res.json();
   },
   async post(path: string, body?: any) {
-    const res = await fetch(`${BASE_URL.replace('/api', '')}${path}`, {
+    const res = await apiFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined
@@ -95,39 +142,53 @@ export const apiClient = {
     if (!res.ok) throw new Error(`POST ${path} failed: ${res.statusText}`);
     return res.json();
   },
+  async delete(path: string) {
+    const res = await apiFetch(path, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.statusText}`);
+    return res.json();
+  },
+  async put(path: string, body?: any) {
+    const res = await apiFetch(path, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) throw new Error(`PUT ${path} failed: ${res.statusText}`);
+    return res.json();
+  },
   async getAgents() {
-    const res = await fetch(`${BASE_URL}/agents`);
+    const res = await apiFetch('/agents');
     if (!res.ok) return [];
     return res.json();
   },
   async getProviders() {
-    const res = await fetch(`${BASE_URL}/providers`);
+    const res = await apiFetch(`${BASE_URL}/providers`);
     if (!res.ok) return [];
     return res.json();
   },
   async getRuns(): Promise<RunRecord[]> {
-    const res = await fetch(`${BASE_URL}/runs`);
+    const res = await apiFetch(`${BASE_URL}/runs`);
     if (!res.ok) throw new Error('Failed to fetch runs');
     return res.json();
   },
 
   async vaultRead(filePath: string): Promise<{ content: string }> {
-    const res = await fetch(`${BASE_URL}/memory/vault/read?filePath=${encodeURIComponent(filePath)}`);
+    const res = await apiFetch(`${BASE_URL}/memory/vault/read?filePath=${encodeURIComponent(filePath)}`);
     if (!res.ok) throw new Error('Failed to read from vault');
     return res.json();
   },
   async getMemoryScopes() {
-    const res = await fetch(`${BASE_URL}/memory/scopes`);
+    const res = await apiFetch(`${BASE_URL}/memory/scopes`);
     if (!res.ok) return [];
     return res.json();
   },
   async getResearchBriefs() {
-    const res = await fetch(`${BASE_URL}/research/briefs`);
+    const res = await apiFetch(`${BASE_URL}/research/briefs`);
     if (!res.ok) return [];
     return res.json();
   },
   async createResearchBrief(data: any) {
-    const res = await fetch(`${BASE_URL}/research/brief`, {
+    const res = await apiFetch(`${BASE_URL}/research/brief`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -135,18 +196,18 @@ export const apiClient = {
     return res.json();
   },
   async approveResearchBrief(id: string) {
-    const res = await fetch(`${BASE_URL}/research/brief/${id}/approve`, {
+    const res = await apiFetch(`${BASE_URL}/research/brief/${id}/approve`, {
       method: 'POST'
     });
     return res.json();
   },
   async getLeads(): Promise<LeadsResponse> {
-    const res = await fetch(`${BASE_URL}/sales/leads`);
+    const res = await apiFetch(`${BASE_URL}/sales/leads`);
     if (!res.ok) return { success: false, leads: [] };
     return res.json();
   },
   async createLead(data: any) {
-    const res = await fetch(`${BASE_URL}/sales/lead`, {
+    const res = await apiFetch(`${BASE_URL}/sales/lead`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -154,23 +215,23 @@ export const apiClient = {
     return res.json();
   },
   async payLead(id: string) {
-    const res = await fetch(`${BASE_URL}/sales/lead/${id}/pay`, {
+    const res = await apiFetch(`${BASE_URL}/sales/lead/${id}/pay`, {
       method: 'POST'
     });
     return res.json();
   },
   async getMemoryEntries() {
-    const res = await fetch(`${BASE_URL}/memory/entries`);
+    const res = await apiFetch(`${BASE_URL}/memory/entries`);
     if (!res.ok) return [];
     return res.json();
   },
   async getArtifacts() {
-    const res = await fetch(`${BASE_URL}/artifacts`);
+    const res = await apiFetch(`${BASE_URL}/artifacts`);
     if (!res.ok) return [];
     return res.json();
   },
   async exchangeToken(id: string, token: string) {
-    const res = await fetch(`${BASE_URL}/artifacts/${id}/exchange`, {
+    const res = await apiFetch(`${BASE_URL}/artifacts/${id}/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
@@ -179,7 +240,7 @@ export const apiClient = {
     return res.json();
   },
   async getArtifactSecure(id: string, sessionToken: string) {
-    const res = await fetch(`${BASE_URL}/artifacts/secure/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/artifacts/secure/${id}`, {
       headers: { 'Authorization': `Bearer ${sessionToken}` }
     });
     if (!res.ok) {
@@ -188,23 +249,23 @@ export const apiClient = {
     return res.json();
   },
   async getBoards() {
-    const res = await fetch(`${BASE_URL}/boards`);
+    const res = await apiFetch(`${BASE_URL}/boards`);
     if (!res.ok) return [];
     return res.json();
   },
   async getRuntimes() {
-    const res = await fetch(`${BASE_URL}/runtimes`);
+    const res = await apiFetch(`${BASE_URL}/runtimes`);
     if (!res.ok) return [];
     return res.json();
   },
   async getTools() {
-    const res = await fetch(`${BASE_URL}/tools`);
+    const res = await apiFetch(`${BASE_URL}/tools`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async resolveIntent(message: string): Promise<{ agentId: string | null, confidence: number }> {
-    const res = await fetch(`${BASE_URL}/chat/resolve`, {
+    const res = await apiFetch(`${BASE_URL}/chat/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message })
@@ -214,7 +275,7 @@ export const apiClient = {
   },
 
   async sendMessage(agentId: string, message: string): Promise<{ runId: string }> {
-    const res = await fetch(`${BASE_URL}/chat/message`, {
+    const res = await apiFetch(`${BASE_URL}/chat/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, message })
@@ -223,7 +284,7 @@ export const apiClient = {
   },
 
   async sendApolloMessage(model: string, message: string) {
-    const res = await fetch(`${BASE_URL}/chat`, {
+    const res = await apiFetch(`${BASE_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, message })
@@ -233,7 +294,7 @@ export const apiClient = {
   },
 
   async voiceHealth(): Promise<{ status: string, stt_available: boolean, execution_available: boolean }> {
-    const res = await fetch(`${BASE_URL}/voice/health`);
+    const res = await apiFetch(`${BASE_URL}/voice/health`);
     if (!res.ok) throw new Error('Voice health check failed');
     return res.json();
   },
@@ -242,7 +303,7 @@ export const apiClient = {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'audio.webm');
 
-    const res = await fetch(`${BASE_URL}/voice/transcribe`, {
+    const res = await apiFetch(`${BASE_URL}/voice/transcribe`, {
       method: 'POST',
       body: formData
     });
@@ -251,7 +312,7 @@ export const apiClient = {
   },
 
   async voiceExecute(text: string, agentId: string, voice?: string) {
-    const res = await fetch(`${BASE_URL}/voice/execute`, {
+    const res = await apiFetch(`${BASE_URL}/voice/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, agentId, voice })
@@ -261,7 +322,7 @@ export const apiClient = {
   },
 
   async saveMemoryEntry(scopeId: string, key: string, content: string) {
-    const res = await fetch(`${BASE_URL}/memory/entries`, {
+    const res = await apiFetch(`${BASE_URL}/memory/entries`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scopeId, key, content })
@@ -280,7 +341,7 @@ export const apiClient = {
     toolIds?: string[];
     providerIds?: string[];
   }) {
-    const res = await fetch(`${BASE_URL}/agents`, {
+    const res = await apiFetch(`${BASE_URL}/agents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -292,7 +353,7 @@ export const apiClient = {
   // ── Schedules ──
 
   async getSchedules() {
-    const res = await fetch(`${BASE_URL}/schedules`);
+    const res = await apiFetch(`${BASE_URL}/schedules`);
     if (!res.ok) return [];
     return res.json();
   },
@@ -304,7 +365,7 @@ export const apiClient = {
     prompt: string;
     type?: string;
   }) {
-    const res = await fetch(`${BASE_URL}/schedules`, {
+    const res = await apiFetch(`${BASE_URL}/schedules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -314,12 +375,12 @@ export const apiClient = {
   },
 
   async deleteSchedule(id: string) {
-    const res = await fetch(`${BASE_URL}/schedules/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/schedules/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete schedule');
   },
 
   async runSchedule(id: string) {
-    const res = await fetch(`${BASE_URL}/schedules/${id}/run`, { method: 'POST' });
+    const res = await apiFetch(`${BASE_URL}/schedules/${id}/run`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to run schedule');
     return res.json();
   },
@@ -327,27 +388,27 @@ export const apiClient = {
   // ── Routines ──
 
   async getProjects() {
-    const res = await fetch(`${BASE_URL}/projects`);
+    const res = await apiFetch(`${BASE_URL}/projects`);
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : (data.projects || []);
   },
 
   async getActiveProject() {
-    const res = await fetch(`${BASE_URL}/projects/active`);
+    const res = await apiFetch(`${BASE_URL}/projects/active`);
     if (!res.ok) return null;
     const data = await res.json();
     return data?.project ?? data?.activeProject ?? null;
   },
 
   async getRoutines() {
-    const res = await fetch(`${BASE_URL}/routines`);
+    const res = await apiFetch(`${BASE_URL}/routines`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async createRoutine(data: Record<string, unknown>) {
-    const res = await fetch(`${BASE_URL}/routines`, {
+    const res = await apiFetch(`${BASE_URL}/routines`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -357,32 +418,32 @@ export const apiClient = {
   },
 
   async runRoutine(id: string) {
-    const res = await fetch(`${BASE_URL}/routines/${id}/run-now`, { method: 'POST' });
+    const res = await apiFetch(`${BASE_URL}/routines/${id}/run-now`, { method: 'POST' });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
   async setRoutineEnabled(id: string, enabled: boolean) {
-    const res = await fetch(`${BASE_URL}/routines/${id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' });
+    const res = await apiFetch(`${BASE_URL}/routines/${id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
   async getRoutineRuns(id: string) {
-    const res = await fetch(`${BASE_URL}/routines/${id}/runs`);
+    const res = await apiFetch(`${BASE_URL}/routines/${id}/runs`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async deleteRoutine(id: string) {
-    const res = await fetch(`${BASE_URL}/routines/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/routines/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete routine');
   },
 
   // ── Providers & Keys ──
 
   async createRun(agentId: string, prompt: string, mode: string = 'chat'): Promise<{ runId: string }> {
-    const res = await fetch(`${BASE_URL}/runs`, {
+    const res = await apiFetch(`${BASE_URL}/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, prompt, mode }),
@@ -392,7 +453,7 @@ export const apiClient = {
   },
 
   async createAutonomousRun(agentId: string, goal: string, constraints?: string, mode: string = 'task'): Promise<{ runId: string }> {
-    const res = await fetch(`${BASE_URL}/runs/autonomous`, {
+    const res = await apiFetch(`${BASE_URL}/runs/autonomous`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId, goal, constraints, mode }),
@@ -408,18 +469,18 @@ export const apiClient = {
     errorMessage?: string;
     hasKey: boolean;
   }> {
-    const res = await fetch(`${BASE_URL}/providers/${providerId}/test`, { method: 'POST' });
+    const res = await apiFetch(`${BASE_URL}/providers/${providerId}/test`, { method: 'POST' });
     return res.json();
   },
 
   async getAgentModelDefaults(agentId: string) {
-    const res = await fetch(`${BASE_URL}/providers/agent-defaults/${agentId}`);
+    const res = await apiFetch(`${BASE_URL}/providers/agent-defaults/${agentId}`);
     if (!res.ok) return null;
     return res.json();
   },
 
   async updateAgentProviderDefaults(agentId: string, providerIds: string[]) {
-    const res = await fetch(`${BASE_URL}/providers/agent-defaults/${agentId}`, {
+    const res = await apiFetch(`${BASE_URL}/providers/agent-defaults/${agentId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ providerIds }),
@@ -429,7 +490,7 @@ export const apiClient = {
   },
 
   async updateProvider(id: string, updates: Record<string, any>) {
-    const res = await fetch(`${BASE_URL}/providers/${id}`, {
+    const res = await apiFetch(`${BASE_URL}/providers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -447,7 +508,7 @@ export const apiClient = {
     maskedKey: string | null;
     isLocal: boolean;
   }> {
-    const res = await fetch(`${BASE_URL}/providers/${providerId}/key`);
+    const res = await apiFetch(`${BASE_URL}/providers/${providerId}/key`);
     if (!res.ok) throw new Error('Failed to get key status');
     return res.json();
   },
@@ -459,7 +520,7 @@ export const apiClient = {
     maskedKey: string;
     message: string;
   }> {
-    const res = await fetch(`${BASE_URL}/providers/${providerId}/key`, {
+    const res = await apiFetch(`${BASE_URL}/providers/${providerId}/key`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyValue }),
@@ -476,7 +537,7 @@ export const apiClient = {
     providerId: string;
     message: string;
   }> {
-    const res = await fetch(`${BASE_URL}/providers/${providerId}/key`, { method: 'DELETE' });
+    const res = await apiFetch(`${BASE_URL}/providers/${providerId}/key`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete key');
     return res.json();
   },

@@ -9,7 +9,7 @@
  */
 import React, { useState, useRef, useCallback } from 'react';
 import { Room, RoomEvent, RemoteTrack, RemoteParticipant, DataPacket_Kind } from 'livekit-client';
-import { apiUrl } from '../api/client';
+import { apiUrl, apiFetch } from '../api/client';
 
 type Stage =
   | 'IDLE'
@@ -82,7 +82,7 @@ const JarvisNextTestPage: React.FC = () => {
     try {
       const url = apiUrl('/api/jarvis-next/token');
       addLog('TOKEN_FETCH', url);
-      const res = await fetch(url, {
+      const res = await apiFetch('/api/jarvis-next/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

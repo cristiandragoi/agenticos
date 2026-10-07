@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useData } from '../store/dataStore';
-import { apiUrl } from '../api/client';
+import { apiFetch } from '../api/client';
 import {
   Send, Shield, CheckCircle2, XCircle, AlertCircle, Eye, EyeOff,
   RefreshCw, Smartphone, Key, Lock, Check, ExternalLink, Zap
@@ -38,7 +38,7 @@ const SettingsPage: React.FC = () => {
   const fetchTelegramStatus = async () => {
     try {
       setTelegramLoading(true);
-      const res = await fetch(apiUrl('/api/integrations/telegram/status'));
+      const res = await apiFetch('/api/integrations/telegram/status');
       if (res.ok) {
         const data = await res.json();
         setTelegramStatus(data);
@@ -70,7 +70,7 @@ const SettingsPage: React.FC = () => {
         payload.allowedChatIds = allowedChatsInput.trim();
       }
 
-      const res = await fetch(apiUrl('/api/integrations/telegram/configure'), {
+      const res = await apiFetch('/api/integrations/telegram/configure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -95,7 +95,7 @@ const SettingsPage: React.FC = () => {
     setTesting(true);
     setBannerMessage(null);
     try {
-      const res = await fetch(apiUrl('/api/integrations/telegram/test'), { method: 'POST' });
+      const res = await apiFetch('/api/integrations/telegram/test', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setBannerMessage({ type: 'success', text: `Telegram connection verified! Bot @${data.status.botUsername} is active and polling.` });
@@ -115,7 +115,7 @@ const SettingsPage: React.FC = () => {
     setSaving(true);
     setBannerMessage(null);
     try {
-      const res = await fetch(apiUrl('/api/integrations/telegram/credentials'), { method: 'DELETE' });
+      const res = await apiFetch('/api/integrations/telegram/credentials', { method: 'DELETE' });
       const data = await res.json();
       if (res.ok) {
         setBannerMessage({ type: 'success', text: 'Telegram credentials cleared.' });

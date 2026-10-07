@@ -611,7 +611,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/jarvis/conversations`);
+        const res = await apiFetch(`${API_BASE}/jarvis/conversations`);
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled || !Array.isArray(data) || data.length === 0) return;
@@ -629,7 +629,7 @@ export default function JarvisStudio() {
     // Generate a new conversation by pushing to the LiveKit session.
     const handleNewConversation = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/jarvis/conversations`, {
+      const res = await apiFetch(`${API_BASE}/jarvis/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'New Conversation' }),
@@ -709,7 +709,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE}/settings/agent-provider-assignments/agent-jarvis`, { signal: AbortSignal.timeout(4000) });
+        const res = await apiFetch(`${API_BASE}/settings/agent-provider-assignments/agent-jarvis`, { signal: AbortSignal.timeout(4000) });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setJarvisAssignment({ providerId: data?.providerId ?? null, modelId: data?.modelId ?? null });
@@ -752,11 +752,11 @@ export default function JarvisStudio() {
     let cancelled = false;
     const check = async () => {
       try {
-        const res = await fetch(`${API_BASE}/hermes-api/status`);
+        const res = await apiFetch(`${API_BASE}/hermes-api/status`);
         if (res.ok && !cancelled) setHermesStatus(await res.json());
       } catch { /* status chip shows offline */ }
       try {
-        const magRes = await fetch(`${API_BASE}/magnitude/status`);
+        const magRes = await apiFetch(`${API_BASE}/magnitude/status`);
         if (magRes.ok && !cancelled) {
           setMagnitudeStatus(await magRes.json());
         } else if (!cancelled) {
@@ -777,7 +777,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/hermes-api/runs`);
+        const res = await apiFetch(`${API_BASE}/hermes-api/runs`);
         if (!res.ok) return;
         const runs: HermesRun[] = await res.json();
         if (cancelled) return;
@@ -785,7 +785,7 @@ export default function JarvisStudio() {
         const live = runs.find(r => ['waiting_for_approval', 'running', 'queued', 'stopping'].includes(r.status));
         if (live) {
           if (live.id !== activeRun?.id || live.status !== activeRun?.status || (activeRun?.pendingApproval && live.status !== 'waiting_for_approval')) {
-            const detail = await fetch(`${API_BASE}/hermes-api/runs/${live.id}`);
+            const detail = await apiFetch(`${API_BASE}/hermes-api/runs/${live.id}`);
             if (detail.ok && !cancelled) {
               const runDetail: HermesRun = await detail.json();
               if (runDetail.pendingApproval) {
@@ -829,7 +829,7 @@ export default function JarvisStudio() {
 
   const pollTasks = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/background-tasks/summary`);
+      const res = await apiFetch(`${API_BASE}/background-tasks/summary`);
       if (res.ok) setTaskSummary(await res.json());
     } catch { /* panel keeps last good state */ }
   }, []);
@@ -918,7 +918,7 @@ export default function JarvisStudio() {
     if (!selectedTaskId || taskControlBusy) return;
     setTaskControlBusy(true);
     try {
-      await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(selectedTaskId)}/${action}`, {
+      await apiFetch(`${API_BASE}/background-tasks/${encodeURIComponent(selectedTaskId)}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -935,7 +935,7 @@ export default function JarvisStudio() {
     setApprovalChoiceBusy(true);
     setApprovalError(null);
     try {
-      const res = await fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}/approval`, {
+      const res = await apiFetch(`${API_BASE}/hermes-api/runs/${activeRun.id}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice }),
@@ -945,8 +945,8 @@ export default function JarvisStudio() {
         setApprovalError(data?.error?.message || data?.error || `Approval failed (HTTP ${res.status})`);
       } else {
         const [detail, appRes] = await Promise.all([
-          fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`),
-          fetch(`${API_BASE}/background-tasks/approvals`),
+          apiFetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`),
+          apiFetch(`${API_BASE}/background-tasks/approvals`),
         ]);
         if (detail.ok) {
           const runDetail = await detail.json();
@@ -982,7 +982,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/background-tasks/approvals`);
+        const res = await apiFetch(`${API_BASE}/background-tasks/approvals`);
         if (res.ok && !cancelled) {
           const list: any[] = await res.json();
           const filtered = list.filter(a => {
@@ -1005,7 +1005,7 @@ export default function JarvisStudio() {
     setApprovalChoiceBusy(true);
     setApprovalError(null);
     try {
-      const res = await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
+      const res = await apiFetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ choice, force }),
@@ -1016,8 +1016,8 @@ export default function JarvisStudio() {
       } else {
         // Refresh immediately so the modal clears when resolved.
         const [appRes, runsRes] = await Promise.all([
-          fetch(`${API_BASE}/background-tasks/approvals`),
-          activeRun ? fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`) : Promise.resolve(null),
+          apiFetch(`${API_BASE}/background-tasks/approvals`),
+          activeRun ? apiFetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`) : Promise.resolve(null),
         ]);
         if (appRes.ok) {
           const list: any[] = await appRes.json();
@@ -1047,14 +1047,14 @@ export default function JarvisStudio() {
     setApprovalChoiceBusy(true);
     setApprovalError(null);
     try {
-      const res = await fetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval/reconcile`, {
+      const res = await apiFetch(`${API_BASE}/background-tasks/${encodeURIComponent(pendingTaskApproval.taskId)}/approval/reconcile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
       const [appRes, runsRes] = await Promise.all([
-        fetch(`${API_BASE}/background-tasks/approvals`),
-        activeRun ? fetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`) : Promise.resolve(null),
+        apiFetch(`${API_BASE}/background-tasks/approvals`),
+        activeRun ? apiFetch(`${API_BASE}/hermes-api/runs/${activeRun.id}`) : Promise.resolve(null),
       ]);
       if (appRes.ok) {
         const list: any[] = await appRes.json();
@@ -1280,7 +1280,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/health/system`);
+        const res = await apiFetch(`${API_BASE}/health/system`);
         if (!res.ok) { if (!cancelled) setSys(null); return; }
         const data = await res.json();
         if (!cancelled) setSys(data);
@@ -1299,7 +1299,7 @@ export default function JarvisStudio() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/system/hardware-profile`);
+        const res = await apiFetch(`${API_BASE}/system/hardware-profile`);
         if (!res.ok) { if (!cancelled) setHwProfile(null); return; }
         const data = await res.json();
         if (!cancelled) setHwProfile(data);

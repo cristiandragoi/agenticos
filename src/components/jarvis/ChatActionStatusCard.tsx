@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../api/client';
 import {
   Activity,
   CheckCircle2,
@@ -204,7 +205,7 @@ export const ChatActionStatusCard: React.FC<ChatActionStatusCardProps> = ({ data
   useEffect(() => {
     if (showDiff && !loadedDiff && repairProposal?.incidentId && !repairProposal?.patch) {
       setIsLoadingDiff(true);
-      fetch(`/api/jarvis/self-heal/incident/${encodeURIComponent(repairProposal.incidentId)}/diff`)
+      apiFetch(`/api/jarvis/self-heal/incident/${encodeURIComponent(repairProposal.incidentId)}/diff`)
         .then((res) => res.json())
         .then((json) => {
           if (json.success && json.diff) {
@@ -223,7 +224,7 @@ export const ChatActionStatusCard: React.FC<ChatActionStatusCardProps> = ({ data
     setLocalRecoveryMsg('Repair approved. Applying patch to production...');
 
     try {
-      const resp = await fetch('/api/jarvis/self-heal/approve', {
+      const resp = await apiFetch('/api/jarvis/self-heal/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -262,7 +263,7 @@ export const ChatActionStatusCard: React.FC<ChatActionStatusCardProps> = ({ data
     if (!repairProposal?.incidentId) return;
     setActionInProgress('rejecting');
     try {
-      const resp = await fetch('/api/jarvis/self-heal/reject', {
+      const resp = await apiFetch('/api/jarvis/self-heal/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

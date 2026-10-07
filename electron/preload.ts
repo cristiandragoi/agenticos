@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 // src/diagnostics/backendLifecycleStore.ts.
 contextBridge.exposeInMainWorld('backendLifecycle', {
   getState: () => ipcRenderer.invoke('backend-lifecycle:get-state'),
+  getApiToken: () => ipcRenderer.invoke('backend-lifecycle:get-api-token'),
   restart: () => ipcRenderer.invoke('backend-lifecycle:restart'),
   retry: () => ipcRenderer.invoke('backend-lifecycle:retry'),
   onState: (callback: (state: unknown) => void) => {

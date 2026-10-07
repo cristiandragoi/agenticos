@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { apiFetch } from '../../api/client';
 import {
   ChevronRight,
   ChevronDown,
@@ -109,7 +110,7 @@ export default function ProjectTree({ projectId }: { projectId: string }) {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/project-execution/${projectId}/tree`, { credentials: 'omit' });
+      const res = await apiFetch(`/api/project-execution/${projectId}/tree`, { credentials: 'omit' });
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load project execution tree`);
       const data = await res.json();
       const goalList: ProjectGoal[] = data.goals || [];
