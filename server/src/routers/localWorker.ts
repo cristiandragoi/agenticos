@@ -83,19 +83,13 @@ localWorkerRouter.post('/tasks/:id/cancel', (req: Request, res: Response) => {
 
 /**
  * POST /api/worker/tasks/:id/approve
- * Approve a pending step requiring operator authorization.
+ * SEC-03: Plain client approval is disabled; fails closed until out-of-process issuer exists
  */
-localWorkerRouter.post('/tasks/:id/approve', (req: Request, res: Response) => {
-  try {
-    const success = localWorkerManager.approveTask(req.params.id);
-    if (!success) {
-      return res.status(400).json({ error: `Task ${req.params.id} cannot be approved (not in awaiting_approval state).` });
-    }
-    const updated = localWorkerManager.getTask(req.params.id);
-    return res.json({ success: true, task: updated });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || String(err) });
-  }
+localWorkerRouter.post('/tasks/:id/approve', (_req: Request, res: Response) => {
+  return res.status(503).json({
+    error: 'APPROVAL_ISSUER_UNAVAILABLE',
+    message: 'Plain client approval is disabled; out-of-process issuer is unavailable',
+  });
 });
 
 /**
@@ -105,7 +99,13 @@ localWorkerRouter.post('/tasks/:id/approve', (req: Request, res: Response) => {
 localWorkerRouter.post('/tasks/:id/resume', (req: Request, res: Response) => {
   try {
     const { approved } = req.body || {};
-    const success = localWorkerManager.resumeTask(req.params.id, Boolean(approved));
+    if (approved) {
+      return res.status(503).json({
+        error: 'APPROVAL_ISSUER_UNAVAILABLE',
+        message: "Plain client JSON ({approved:true}) cannot grant approval; out-of-process issuer is unavailable",
+      });
+    }
+    const success = localWorkerManager.resumeTask(req.params.id, false);
     if (!success) {
       return res.status(400).json({ error: `Task ${req.params.id} cannot be resumed.` });
     }

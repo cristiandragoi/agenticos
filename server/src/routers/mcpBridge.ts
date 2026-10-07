@@ -115,13 +115,12 @@ mcpBridgeRouter.post('/prepare', (req: Request, res: Response) => {
 });
 
 /** POST /api/mcp-bridge/tasks/:taskId/approve|reject — authoritative resolution. */
-mcpBridgeRouter.post('/tasks/:taskId/approve', (req: Request, res: Response) => {
-  try {
-    const rec = mcpBridgeService.resolveApproval(req.params.taskId, true, req.body?.reason, req.body?.responder || 'user');
-    res.json({ preparedTaskId: rec.id, taskId: rec.taskId, approvalState: rec.approvalState, approved: true });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
-  }
+mcpBridgeRouter.post('/tasks/:taskId/approve', (_req: Request, res: Response) => {
+  // SEC-03: Plain client JSON ({responder:'user'}) cannot grant approval; fails closed until out-of-process issuer exists
+  return res.status(503).json({
+    error: 'APPROVAL_ISSUER_UNAVAILABLE',
+    message: "Plain client JSON ({responder:'user'}) cannot grant approval; out-of-process issuer is unavailable",
+  });
 });
 
 mcpBridgeRouter.post('/tasks/:taskId/reject', (req: Request, res: Response) => {

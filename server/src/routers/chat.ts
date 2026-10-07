@@ -658,10 +658,12 @@ const handleApproveGoal = async (req: any, res: any) => {
   const goalId = req.params.id;
   const { action } = req.body; // 'approve' | 'reject' | legacy 'resume' | 'abort'
 
+  // SEC-03: Plain client JSON ({action:'approve'}) cannot grant approval; fails closed until out-of-process issuer exists
   if (action === 'approve' || action === 'resume') {
-    const success = await codexService.approveAndResume(goalId);
-    if (!success) return res.status(400).json({ error: 'Failed to resume goal' });
-    res.json({ success: true, status: 'queued' });
+    return res.status(503).json({
+      error: 'APPROVAL_ISSUER_UNAVAILABLE',
+      message: "Plain client JSON ({action:'approve'}) cannot grant approval; out-of-process issuer is unavailable",
+    });
   } else if (action === 'reject' || action === 'abort') {
     await codexService.abortGoal(goalId);
     res.json({ success: true, status: 'stopped' });

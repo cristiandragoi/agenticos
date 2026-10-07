@@ -99,6 +99,13 @@ magnitudeRouter.post('/runs/:id/approval', async (req: Request, res: Response) =
   if (typeof approved !== 'boolean') {
     return res.status(400).json({ error: 'approved boolean field is required.' });
   }
+  // SEC-03: Plain client JSON ({approved:true, responder}) cannot grant approval; fails closed until out-of-process issuer exists
+  if (approved === true) {
+    return res.status(503).json({
+      error: 'APPROVAL_ISSUER_UNAVAILABLE',
+      message: "Plain client JSON ({approved:true}) cannot grant approval; out-of-process issuer is unavailable",
+    });
+  }
   try {
     const success = await magnitudeService.respondApproval(req.params.id, approved, reason, responder);
     return res.json({ success });

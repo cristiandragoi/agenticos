@@ -174,7 +174,13 @@ router.post('/:projectId/tasks/:taskId/runs', async (req: Request, res: Response
       : { permitted: false, classification: classifyAction(description, effectiveWorker, approved ?? false) };
 
     // Re-classify properly
-    const cls = classifyAction(description, effectiveWorker, approved ?? false);
+    const cls = classifyAction(description, effectiveWorker, false);
+    if (cls.requiresApproval && approved === true) {
+      return res.status(503).json({
+        error: 'APPROVAL_ISSUER_UNAVAILABLE',
+        message: "Plain client JSON ({approved:true}) cannot grant approval; out-of-process issuer is unavailable",
+      });
+    }
     if (cls.blocked) {
       return res.status(403).json({
         error: `Execution blocked: ${cls.reason}`,

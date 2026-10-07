@@ -230,6 +230,14 @@ router.post('/:taskId/approval', async (req, res) => {
     return res.status(400).json({ error: "choice must be 'allow' or 'deny'" });
   }
 
+  // SEC-03: Plain client JSON ({choice:'allow'}) cannot grant approval; fails closed until out-of-process issuer exists
+  if (choice === 'allow') {
+    return res.status(503).json({
+      error: 'APPROVAL_ISSUER_UNAVAILABLE',
+      message: "Plain client JSON ({choice:'allow'}) cannot grant approval; out-of-process issuer is unavailable",
+    });
+  }
+
   const result = await backgroundTaskManager.resolveApproval(task.taskId, choice, async (c) => {
     // Bridge to the real worker approval endpoint. Revenue-pipeline tasks are
     // NOT hermes runs — their approval gate lives inside the pipeline adapter,
@@ -254,19 +262,13 @@ router.post('/:taskId/approval/reconcile', async (req, res) => {
   res.json({ ok: true, task: result.task });
 });
 
-// P20 — explicit human approval for a pending human-approval gate. Completes
-// the task only when every required gate has passed. Nothing auto-passes.
+// P20 — explicit human approval for a pending human-approval gate.
+// SEC-03: Fails closed until out-of-process issuer exists
 router.post('/:taskId/gates/:gateId/approve', async (req, res) => {
-  const task = backgroundTaskManager.resolveTaskRef(req.params.taskId);
-  if (!task) return res.status(404).json({ error: 'Task not found' });
-  try {
-    const { approveGate } = await import('../services/gates/gateRunner.js');
-    const r = await approveGate(task.taskId, req.params.gateId);
-    if (!r.ok) return res.status(409).json({ error: r.reason });
-    res.json(r);
-  } catch (err: any) {
-    res.status(500).json({ error: err?.message });
-  }
+  return res.status(503).json({
+    error: 'APPROVAL_ISSUER_UNAVAILABLE',
+    message: 'Plain client approval is disabled; out-of-process issuer is unavailable',
+  });
 });
 
 // P23 — re-run the gate set after a rework attempt (or on a blocked task).

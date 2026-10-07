@@ -104,33 +104,12 @@ selfHealRouter.post('/incidents/:id/repair', async (req, res) => {
 });
 
 // POST /api/self-heal/incidents/:id/approve — EXPLICIT HUMAN APPROVAL
-// This is the ONLY way to transition AWAITING_APPROVAL → APPROVED.
-// The supervisor CANNOT approve itself. An LLM message has ZERO authority.
-selfHealRouter.post('/incidents/:id/approve', async (req, res) => {
-  try {
-    const incidentId = req.params.id;
-    const { approver = 'human' } = req.body;
-
-    // Verify current state
-    const state = selfHealSupervisor.getIncidentState(incidentId);
-    if (state !== 'AWAITING_APPROVAL') {
-      return res.status(409).json({
-        error: `Cannot approve: incident is in state ${state}, not AWAITING_APPROVAL`,
-      });
-    }
-
-    const record = selfHealSupervisor.approveRepair(incidentId, approver);
-
-    res.json({
-      incidentId,
-      status: 'APPROVED',
-      approvalRecord: record,
-      message: 'Deployment approved. Manual deployment required in Phase 1.',
-    });
-  } catch (error: any) {
-    console.error(`[SelfHeal:Router] Error approving repair:`, error);
-    res.status(400).json({ error: error.message });
-  }
+// SEC-03: Plain client JSON ({approver:'human'}) cannot grant approval; fails closed until out-of-process issuer exists
+selfHealRouter.post('/incidents/:id/approve', async (_req, res) => {
+  return res.status(503).json({
+    error: 'APPROVAL_ISSUER_UNAVAILABLE',
+    message: "Plain client JSON ({approver}) cannot grant approval; out-of-process issuer is unavailable",
+  });
 });
 
 // POST /api/self-heal/incidents/:id/reject

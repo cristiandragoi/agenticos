@@ -1,4 +1,4 @@
-﻿import { logger } from '../utils/logger.js';
+import { logger } from '../utils/logger.js';
 import { Router } from 'express';
 import { conversationService } from '../domains/conversations/service.js';
 import { jarvisOrchestrator } from '../domains/jarvis/orchestrator.js';
@@ -435,31 +435,12 @@ router.get('/self-heal/incident/:id/diff', async (req, res) => {
   }
 });
 
-router.post('/self-heal/approve', async (req, res) => {
-  try {
-    const { incidentId, conversationId, turnId, approver } = req.body || {};
-    if (!incidentId || typeof incidentId !== 'string') {
-      return res.status(400).json({ success: false, error: 'incidentId is required.' });
-    }
-
-    logger.info(`[JarvisRouter] Approving repair for incident ${incidentId}`);
-    const result = await recoveryController.approveRepair({
-      incidentId,
-      conversationId,
-      turnId,
-      approver: approver || 'user',
-    });
-
-    res.json(result);
-  } catch (err: any) {
-    logger.error('[JarvisRouter] Error approving repair:', err);
-    res.status(500).json({
-      success: false,
-      status: 'error',
-      message: err?.message || 'Failed to approve repair',
-      incidentId: req.body?.incidentId,
-    });
-  }
+router.post('/self-heal/approve', async (_req, res) => {
+  // SEC-03: Plain client JSON ({approver}) cannot grant approval; fails closed until out-of-process issuer exists
+  return res.status(503).json({
+    error: 'APPROVAL_ISSUER_UNAVAILABLE',
+    message: "Plain client JSON ({approver}) cannot grant approval; out-of-process issuer is unavailable",
+  });
 });
 
 router.post('/self-heal/reject', async (req, res) => {
@@ -4106,66 +4087,12 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
   }
 });
 
-router.post('/conversations/:id/approve_team', async (req, res) => {
-  try {
-    const conversationId = req.params.id;
-    const { teamId } = req.body;
-    if (!teamId) return res.status(400).json({ error: 'teamId is required' });
-
-    // 1. Validate conversation exists
-    const conv = await db.query.conversations.findFirst({
-      where: eq(conversations.id, conversationId)
-    });
-    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
-
-    // 2. Validate team exists and is awaiting approval
-    const team = await db.query.teams.findFirst({
-      where: eq(teams.id, teamId)
-    });
-    if (!team) return res.status(404).json({ error: 'Team not found' });
-
-    // Idempotency: If already running or completed, return existing run
-    if (team.status !== 'awaiting_approval' && team.status !== 'cancelled' && team.status !== 'declined') {
-      const existingRun = await db.query.teamRuns.findFirst({
-        where: eq(teamRuns.teamId, teamId)
-      });
-      if (existingRun) {
-        return res.json({ runId: existingRun.id, teamId, status: existingRun.status });
-      }
-    }
-
-    if (team.status === 'cancelled' || team.status === 'declined') {
-      return res.status(400).json({ error: 'Cannot approve a cancelled team' });
-    }
-
-    // 3. Mark team as approved
-    await db.update(teams)
-      .set({ status: 'approved' })
-      .where(eq(teams.id, teamId))
-      .run();
-
-    const runId = await TeamRunner.startTeam(teamId);
-
-    // Update conversation activeRunId
-    await db.update(conversations)
-      .set({ activeRunId: runId })
-      .where(eq(conversations.id, conversationId))
-      .run();
-
-    // Append execution message so UI switches to live card
-    await conversationService.appendMessage({
-      conversationId,
-      role: 'system',
-      messageType: 'team_execution',
-      content: 'Agent Team execution started.',
-      runId, // store the runId natively
-      metadata: { runId, teamId, executionStatus: 'started', createdAt: new Date().toISOString() }
-    });
-
-    res.json({ runId, teamId });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/conversations/:id/approve_team', async (_req, res) => {
+  // SEC-03: Plain client approval is disabled; fails closed until out-of-process issuer exists
+  return res.status(503).json({
+    error: 'APPROVAL_ISSUER_UNAVAILABLE',
+    message: 'Plain client approval is disabled; out-of-process issuer is unavailable',
+  });
 });
 
 /* â”€â”€ POST /api/jarvis/conversations/:id/cancel_team â”€â”€â”€â”€â”€â”€â”€â”€ */
