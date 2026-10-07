@@ -27,50 +27,153 @@ import {
 import { runWithBackgroundOwnership } from '../jarvis/perception/turnOwnership.js';
 import type { ToolExecutionResponse, WorkerRiskLevel, WorkerVerification } from './types.js';
 
+/**
+ * Allow-list for read-only shell commands (SEC-04).
+ * Only explicitly classified read-only commands may execute without human approval.
+ * Everything else is HIGH_IMPACT and fails closed until the out-of-process approval issuer exists.
+ */
+export function isReadOnlyCommand(command: string): boolean {
+  if (!command || typeof command !== 'string') return false;
+  const trimmed = command.trim();
+  if (!trimmed) return false;
+
+  // Reject shell operators that permit side effects, redirection, command chaining, or code execution:
+  // Redirection: >, >>, 1>, 2>, *>, <
+  // Chaining / separators: ;, &&, ||, &, \n, \r
+  // Command execution / substitution / backticks / subshells: $(), `, <(), >()
+  // Pipelines: |
+  if (/[;&|><`$\n\r]/.test(trimmed)) {
+    return false;
+  }
+
+  // Tokenize arguments (whitespace-delimited)
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+
+  const base = tokens[0].toLowerCase();
+
+  // 1. Version / diagnostic checks
+  if (
+    (base === 'node' && (tokens[1] === '-v' || tokens[1] === '--version')) ||
+    (base === 'npm' && (tokens[1] === '-v' || tokens[1] === '--version')) ||
+    (base === 'python' && (tokens[1] === '-v' || tokens[1] === '--version' || tokens[1] === '-V')) ||
+    (base === 'python3' && (tokens[1] === '-v' || tokens[1] === '--version' || tokens[1] === '-V')) ||
+    (base === 'git' && (tokens[1] === '-v' || tokens[1] === '--version'))
+  ) {
+    return tokens.length === 2;
+  }
+
+  // 2. Safe informational utilities
+  if (['whoami', 'hostname', 'uname', 'pwd'].includes(base)) {
+    return tokens.length === 1;
+  }
+
+  if (['which', 'where'].includes(base)) {
+    return tokens.length >= 2;
+  }
+
+  // 3. Directory listing (dir, ls, Get-ChildItem, gci)
+  if (['dir', 'ls', 'get-childitem', 'gci'].includes(base)) {
+    return true;
+  }
+
+  // 4. File viewing (cat, type, Get-Content, gc, head, tail)
+  if (['cat', 'type', 'get-content', 'gc', 'head', 'tail'].includes(base)) {
+    return true;
+  }
+
+  // 5. Process listing (tasklist, ps, Get-Process)
+  if (['tasklist', 'ps', 'get-process'].includes(base)) {
+    return true;
+  }
+
+  // 6. Echo
+  if (base === 'echo') {
+    return true;
+  }
+
+  // 7. Git read-only subcommands
+  if (base === 'git') {
+    const sub = tokens[1]?.toLowerCase();
+    if (!sub) return false;
+    if (['status', 'diff', 'log', 'show', 'rev-parse', 'describe'].includes(sub)) {
+      return true;
+    }
+    if (sub === 'branch') {
+      // Must not delete or rename branches
+      const mutatingFlags = ['-d', '-D', '-m', '-M', '-c', '-C', '--delete', '--move'];
+      const hasMutating = tokens.some(t => mutatingFlags.includes(t) || mutatingFlags.some(f => t.startsWith(f)));
+      return !hasMutating;
+    }
+    if (sub === 'remote') {
+      return tokens.length === 2 || (tokens.length === 3 && tokens[2] === '-v');
+    }
+    return false;
+  }
+
+  return false;
+}
+
 export class ToolRegistryBridge {
   /**
    * Determine the risk level of a tool call.
+   * Under SEC-04, ONLY explicitly classified read-only commands/tools are 'read'.
+   * Everything else is 'high_impact' and requires verified out-of-process human approval.
    */
   public getRiskLevel(tool: string, args: Record<string, any> = {}): WorkerRiskLevel {
-    // 1. Explicit High-Impact Operations
-    if (tool === 'filesystem.delete') return 'high_impact';
-    if (tool === 'desktop.stop_process') {
-      const target = String(args.target || args.processName || '').toLowerCase();
-      // Stopping critical system processes or unknown broad targets is high impact
-      if (/system|csrss|explorer|winlogon|smss|svchost|lsass/i.test(target)) {
-        return 'high_impact';
-      }
+    // 1. Safe read-only inspection tools
+    const READ_ONLY_TOOLS = new Set([
+      'filesystem.locate',
+      'filesystem.list',
+      'filesystem.read',
+      'desktop.inspect_process',
+      'desktop.inspect_port',
+      'desktop.inspect_environment',
+      'git.status',
+      'git.diff',
+      'git.log',
+      'git.branch',
+      'browser.inspect',
+    ]);
+
+    if (READ_ONLY_TOOLS.has(tool)) {
+      return 'read';
     }
+
+    // 2. Shell execution: ONLY explicitly allow-listed read-only commands
     if (tool === 'shell.execute') {
-      const cmd = String(args.command || '').toLowerCase();
-      if (
-        /\b(?:rmdir|del|rm|format|drop|truncate|kill)\b/i.test(cmd) &&
-        /\b(?:\/s|-rf|-r|\*)\b/i.test(cmd)
-      ) {
-        return 'high_impact';
+      const command = String(args.command || '');
+      if (isReadOnlyCommand(command)) {
+        return 'read';
       }
+      return 'high_impact';
     }
 
-    // 2. Write / Modification Operations
-    if (
-      tool === 'filesystem.write' ||
-      tool === 'filesystem.create_folder' ||
-      tool === 'desktop.open_app' ||
-      tool === 'developer.build' ||
-      tool === 'developer.run_tests' ||
-      tool === 'browser.navigate'
-    ) {
-      return 'write';
-    }
-
-    // 3. Everything else is Read / Low Risk
-    return 'read';
+    // 3. EVERYTHING else is HIGH_IMPACT
+    return 'high_impact';
   }
 
   /**
    * Execute an existing capability through its canonical executor with verification.
    */
   public async executeTool(tool: string, args: Record<string, any> = {}): Promise<ToolExecutionResponse> {
+    const risk = this.getRiskLevel(tool, args);
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+
+    if (risk === 'high_impact' && !isTestBypass) {
+      logger.warn(`[ToolRegistryBridge] Blocked high-impact action without verified approval: ${tool}`, { args });
+      return {
+        success: false,
+        output: 'APPROVAL_ISSUER_UNAVAILABLE: High-impact action requires verified approval from out-of-process issuer',
+        verification: {
+          verified: false,
+          realityCheck: 'APPROVAL_ISSUER_UNAVAILABLE: Execution blocked by security supervisor',
+          evidenceSource: 'securitySupervisor.approvalGate',
+        },
+        error: 'APPROVAL_ISSUER_UNAVAILABLE',
+      };
+    }
+
     // ── P0: the local worker is BACKGROUND work ─────────────────────────────
     // It may run commands, but it may NOT control the user's interactive desktop:
     // opening Chrome/Notepad/Calculator, navigating a browser, foregrounding a

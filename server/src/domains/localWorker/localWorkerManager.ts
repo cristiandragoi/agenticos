@@ -109,20 +109,49 @@ export class LocalWorkerManager {
           const step = task.plan[task.currentStep];
           if (!step) break;
 
-          // Check if step requires approval
-          const risk = step.riskLevel || toolRegistryBridge.getRiskLevel(step.tool || '', step.arguments);
-          if (risk === 'high_impact' && !step.approved && !task.config?.autoApprove) {
-            task.status = 'awaiting_approval';
-            task.pendingApproval = {
-              stepId: step.id,
-              description: step.description,
-              tool: step.tool || '',
-              arguments: step.arguments,
-              riskReason: 'High impact operation requires explicit operator authorization',
-            };
-            localWorkerStore.saveTask(task);
-            logger.info(`[LocalWorkerManager] Task ${taskId} awaiting approval for step: ${step.description}`);
-            return; // Pause loop until approved
+          // Check if step requires approval (SEC-04: autoApprove must NEVER skip high_impact)
+          const calculatedRisk = toolRegistryBridge.getRiskLevel(step.tool || '', step.arguments);
+          const risk = (step.riskLevel === 'high_impact' || calculatedRisk === 'high_impact') ? 'high_impact' : calculatedRisk;
+
+          if (risk === 'high_impact') {
+            const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+            if (!isTestBypass) {
+              // Fail closed: out-of-process issuer is unavailable
+              logger.warn(`[LocalWorkerManager] Task ${taskId} step ${step.id} blocked: high-impact action requires verified approval from out-of-process issuer (SEC-04)`, {
+                tool: step.tool,
+                args: step.arguments,
+              });
+              step.status = 'failed';
+              step.error = 'APPROVAL_ISSUER_UNAVAILABLE: High-impact action requires verified approval from out-of-process issuer';
+              task.status = 'blocked';
+              task.error = 'APPROVAL_ISSUER_UNAVAILABLE';
+              task.pendingApproval = {
+                stepId: step.id,
+                description: step.description,
+                tool: step.tool || '',
+                arguments: step.arguments,
+                riskReason: 'High-impact operation requires verified approval from out-of-process issuer (SEC-04)',
+              };
+              task.completedAt = new Date().toISOString();
+              task.result = this.generateWorkerResult(task, false);
+              localWorkerStore.saveTask(task);
+              return;
+            }
+
+            // In test bypass mode, explicit approval is still required (autoApprove does NOT bypass)
+            if (!step.approved) {
+              task.status = 'awaiting_approval';
+              task.pendingApproval = {
+                stepId: step.id,
+                description: step.description,
+                tool: step.tool || '',
+                arguments: step.arguments,
+                riskReason: 'High-impact operation requires explicit operator authorization (SEC-04)',
+              };
+              localWorkerStore.saveTask(task);
+              logger.info(`[LocalWorkerManager] Task ${taskId} awaiting approval in test bypass mode for step: ${step.description}`);
+              return; // Pause loop until approved
+            }
           }
 
           // Execute step with bounded retry
@@ -247,10 +276,16 @@ export class LocalWorkerManager {
 
   /**
    * Approve a pending high-impact action and resume execution.
+   * Under SEC-03/SEC-04, plain approval fails closed with false unless in test bypass mode.
    */
   public approveTask(taskId: string): boolean {
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+    if (!isTestBypass) {
+      logger.warn(`[LocalWorkerManager] Rejecting plain approval request for task ${taskId}: APPROVAL_ISSUER_UNAVAILABLE`);
+      return false;
+    }
     const task = localWorkerStore.getTask(taskId);
-    if (!task || task.status !== 'awaiting_approval') return false;
+    if (!task || (task.status !== 'awaiting_approval' && task.status !== 'blocked')) return false;
 
     const step = task.plan[task.currentStep];
     if (step) {
@@ -260,7 +295,7 @@ export class LocalWorkerManager {
     task.status = 'running';
     localWorkerStore.saveTask(task);
 
-    logger.info(`[LocalWorkerManager] Task ${taskId} approved. Resuming execution loop...`);
+    logger.info(`[LocalWorkerManager] Task ${taskId} approved in test bypass mode. Resuming execution loop...`);
     this.runTaskLoop(taskId);
     return true;
   }
