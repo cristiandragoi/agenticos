@@ -240,3 +240,4 @@ server/src/data/
 *.wav
 __pycache__/
 server/test_desktop.png
+data/
