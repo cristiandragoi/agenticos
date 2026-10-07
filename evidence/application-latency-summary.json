@@ -1,0 +1,139 @@
+{
+  "task": "Open Word document.",
+  "before": {
+    "build": {
+      "fingerprint": "6c32a3833b026251f4237ad8677db3813644795643201d163f551888feeafa7c",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 598,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-05T21:47:46.491Z",
+      "buildId": "3f20c479-dirty-20261005-214746",
+      "version": "0.0.0",
+      "component": "agenticos"
+    },
+    "trials": 6,
+    "verified": 4,
+    "firstTrialMs": 28873.9974,
+    "allAttemptsMedianMs": 8140.035599999999,
+    "warmVerifiedMedianMs": 7798.6743499999975,
+    "warmVerifiedSamples": 4
+  },
+  "after": {
+    "build": {
+      "fingerprint": "11b38bfb6e3627afb0d790ae368d10c2ec63ec5d542c761a3d252b29149208ec",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 598,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T06:35:09.241Z",
+      "buildId": "3f20c479-dirty-20261006-063509",
+      "version": "0.0.0",
+      "component": "agenticos"
+    },
+    "trials": 6,
+    "verified": 6,
+    "firstTrialMs": 7549.7201000000005,
+    "allAttemptsMedianMs": 3088.3808499999996,
+    "warmVerifiedMedianMs": 3082.986999999999,
+    "warmVerifiedSamples": 5
+  },
+  "changes": [
+    "Independent application discovery overlaps; ranking and ambiguity rules preserved",
+    "Shortcut metadata cached for 60 seconds with file-change, expiry and deleted-target checks; concurrent reads shared",
+    "Visible windows and final verification are never cached"
+  ],
+  "tests": {
+    "passed": 99,
+    "failed": 0,
+    "suites": 17,
+    "contractTestsNotLiveAcceptance": true
+  },
+  "deployment": {
+    "record": {
+      "deployedAt": "2026-10-06T06:46:38.530Z",
+      "deployedBy": "deploy-installed.cjs",
+      "sourceRepo": "D:\\AgenticOS",
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "isDirty": true,
+      "buildId": "3f20c479-dirty-20261006-064620",
+      "buildTimestamp": "2026-10-06T06:46:20.222Z",
+      "fingerprint": "20bd69e5b7bc8ca37491158d36983496b66d7cd45763c89cfc50f78f5a37baef",
+      "fingerprintAlgorithm": "content-sha256-v1",
+      "filesCount": 598,
+      "repoHeadAtDeploy": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "repoDirtyAtDeploy": true,
+      "builtFromCurrentHead": true,
+      "buildFingerprintMatchesDeployed": true,
+      "releaseBoundary": {
+        "linksFound": [],
+        "actions": [],
+        "linksAfter": []
+      },
+      "targets": [
+        {
+          "name": "server/dist",
+          "files": 599
+        },
+        {
+          "name": "server/scripts",
+          "files": 208
+        },
+        {
+          "name": "app/dist-electron",
+          "files": 3
+        },
+        {
+          "name": "app/dist (frontend)",
+          "files": 23
+        }
+      ]
+    },
+    "status": "DEPLOYED_AND_INSTALLED_CODE_VERIFIED",
+    "runningAppHealth": "Pending user launch; automatic approval review blocked launch command",
+    "humanMicrophone": "Pending"
+  },
+  "limitations": [
+    "Sequential before/after groups, small sample counts, unequal success counts",
+    "Real desktop through production text ingress; no microphone or acoustic TTS measurement",
+    "Initial baseline timeout and target-resolution failure retained",
+    "Installed-code text-ingress benchmark passed; Electron health still awaits user launch. Tests do not establish live Telegram/Chrome/Antigravity health."
+  ],
+  "installed": {
+    "build": {
+      "fingerprint": "20bd69e5b7bc8ca37491158d36983496b66d7cd45763c89cfc50f78f5a37baef",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 598,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T06:46:20.222Z",
+      "buildId": "3f20c479-dirty-20261006-064620",
+      "version": "0.0.0",
+      "component": "agenticos"
+    },
+    "verified": 6,
+    "trials": 6,
+    "warmMedianMs": 3313.4098999999987,
+    "firstTrialMs": 9567.7377
+  },
+  "classification": {
+    "prechangeResolverFailedTests": [
+      "Acceptance Case 1: Telegram exact chat selection, verification, and reading",
+      "Acceptance Case 2: Chrome navigation and generic website reading without site-specific code"
+    ],
+    "antigravity": "Passed with old resolver on rerun; real external service dependency in a simulated-window test. Replaced external execution with explicit test fixture and missing-task-id negative assertion.",
+    "chrome": "Pre-existing browser launch prefix misparsed as channel Chrome; fixed narrowly; real browser permissions are not bypassed.",
+    "telegram": "Pre-existing incomplete isolation: real installed launcher resolution mixed with mock desktop handles. Explicit launcher fixture added."
+  },
+  "filesChangedForFix": [
+    "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+    "server/src/domains/controlPlane/ConcreteVoiceRequests.ts",
+    "server/src/__tests__/applicationDiscoveryLatency.test.ts",
+    "server/src/__tests__/concreteVoiceWorkflows.test.ts",
+    "server/src/__tests__/phase5UniversalCapabilityRuntime.test.ts",
+    "scripts/benchmark-jarvis-latency.mjs"
+  ]
+}

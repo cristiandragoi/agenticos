@@ -1,0 +1,57 @@
+{
+  "startupMs": 11894.9811,
+  "backends": {
+    "existing": {
+      "trials": 5,
+      "verified": 5,
+      "failures": 0,
+      "medianAllMs": 4724.2005999999965,
+      "medianVerifiedMs": 4724.2005999999965,
+      "sampleP95Ms": 9015.9459,
+      "modelCalls": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "toolCalls": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "modelInputTokens": 0,
+      "modelOutputTokens": 0,
+      "firstUsefulResponseMedianMs": 4723.175899999995
+    },
+    "fast-agent": {
+      "trials": 5,
+      "verified": 4,
+      "failures": 1,
+      "medianAllMs": 4736.853400000007,
+      "medianVerifiedMs": 4703.394600000003,
+      "sampleP95Ms": 7158.594900000004,
+      "modelCalls": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "toolCalls": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "modelInputTokens": 0,
+      "modelOutputTokens": 0,
+      "firstUsefulResponseMedianMs": 4701.8809
+    }
+  },
+  "medianImprovementPercent": -0.26782943975771634,
+  "recommendation": "REJECT for current Jarvis latency integration; no production activation"
+}

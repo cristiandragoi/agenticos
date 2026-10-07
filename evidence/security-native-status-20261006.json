@@ -1,0 +1,118 @@
+{
+  "phase": "NATIVE_JOB_BOUNDARY_AND_INDEPENDENT_APPROVAL_ISSUER",
+  "status": {
+    "localWorkerProcessBoundary": "CONTROLLED_TESTS_SUCCEEDED",
+    "windowsJobObject": "IMPLEMENTED_NATIVE_CONTROLLED_TESTS_SUCCEEDED",
+    "descendantCleanup": "OS_JOB_ACCOUNTING_ZERO_CONFIRMED_IN_CONTROLLED_TESTS",
+    "allProcessEntrypoints": "NOT_CLOSED",
+    "approvalBridgeSyntheticTests": "SUCCEEDED",
+    "approvalIssuer": "IMPLEMENTED_COMPILED_SYNTHETIC_CNG_TESTS_SUCCEEDED",
+    "trustedHumanApproval": "NOT_VERIFIED",
+    "productionEnrollment": "NOT_PERFORMED",
+    "privilegedActionsPolicy": "FAIL_CLOSED",
+    "credentialIsolation": "HARDENED_SOURCE_ONLY",
+    "browser": "NOT_TESTED",
+    "readyToExecuteUntrustedCode": false,
+    "deployment": "PROHIBITED_NOT_PERFORMED"
+  },
+  "tests": {
+    "passed": 167,
+    "failed": 0,
+    "files": 9,
+    "nativeJobTests": 12,
+    "nativeIssuerTests": 11,
+    "signedNativeGitTests": 5,
+    "reachabilityPassed": 323,
+    "classificationPassed": 3,
+    "typescriptExitCode": 0,
+    "nativeCompile": "SUCCEEDED",
+    "helperProcessesAfterTests": 0
+  },
+  "implemented": {
+    "jobObject": [
+      "CreateProcess suspended; assign to job before ResumeThread",
+      "KILL_ON_JOB_CLOSE; breakaway flags absent",
+      "Active process limit 8 and job memory limit 1 GiB",
+      "Explicit inherited handle list excludes job handle",
+      "Binary hash comparison while holding file open without write/delete sharing",
+      "Sanitized caller-independent Git environment and fixed cwd supplied by structured policy",
+      "Combined bounded output; timeout and supervisor-pipe cancellation",
+      "TerminateJobObject and QueryInformationJobObject activeProcesses==0 before successful cleanup claim",
+      "Kills descendants after normal root exit; helper death closes job handle",
+      "Native WindowsJob adapter and approved Git supervisor flow"
+    ],
+    "approval": [
+      "Separate native issuer executable; no named-key access by server/worker",
+      "Existing per-user non-exportable CNG ECDSA P-256 key only",
+      "Fixed administrator-owned manifest; separate non-admin issuer identity enforced",
+      "Secure-desktop credential prompt checks exact operator SID twice; never exercised in tests",
+      "Exact canonical payload plus independently recomputed args/scope/preview hashes",
+      "Rejects misleading bidirectional/control review text",
+      "Explicit offline enrollment utility compiled but not run",
+      "Public-key-only verifier supports pinned Ed25519 or ES256 keys",
+      "Durable atomic nonce consumption and revocation; tested after database close/reopen",
+      "Signed executable and repository scope retained through native Git dispatch"
+    ]
+  },
+  "nativeTestCoverage": [
+    "normal exit",
+    "executable substitution refusal",
+    "combined stderr/stdout output limit",
+    "timeout descendant cleanup",
+    "normal parent exit descendant cleanup",
+    "cancel",
+    "helper crash kill-on-close",
+    "supervisor pipe EOF",
+    "native CREATE_BREAKAWAY_FROM_JOB refusal",
+    "nested jobs",
+    "structured Git through native adapter",
+    "simultaneous child-process cap"
+  ],
+  "approvalTestLimits": "Only unnamed ephemeral synthetic CNG keys. No real key created, no real credentials collected, no secure-desktop prompt invoked, no account provisioning or enrollment.",
+  "reachability": {
+    "matrix": "evidence/worker-process-entrypoint-matrix-20261006.json",
+    "typescriptProcessNativeCandidates": 321,
+    "reachableFromWorker": 0,
+    "opaqueReachableImports": 0,
+    "nativeComponents": "JobRunner.cs and ApprovalIssuer.cs are separate executables, not imported or registered as worker tools. Their supervisor-only trust boundary remains unenrolled. Static TypeScript inventory does not itself audit native internals."
+  },
+  "globalInventory": {
+    "unresolved": 736,
+    "guarded": 0,
+    "scope": "Existing TypeScript scan only. No global security closure claim."
+  },
+  "remaining": [
+    "Production deployment/enrollment forbidden by existing instruction; no changes made to installed runtime or real identities.",
+    "Dedicated issuer/supervisor identities, effective key/config/database ACLs, protected helper/Git paths and a real human authentication ceremony need acceptance.",
+    "Native job tests ran as current test identity, not as a newly provisioned restricted worker identity.",
+    "Job Objects constrain process lifetime/resources, not filesystem/network/IPC access. Untrusted arbitrary code remains prohibited.",
+    "Generic worker wrappers remain disabled; worker Git dispatch returns GIT_TRUSTED_SUPERVISOR_NOT_ENROLLED.",
+    "Native helper and approval issuer binaries in .tmp are development artifacts, not trusted installed executables.",
+    "Existing filesystem ancestor-race risks and global legacy entrypoints remain outside this closure."
+  ],
+  "artifacts": {
+    "report": "evidence/security-native-report-20261006.txt",
+    "enrollment": "native/security-supervisor/ENROLLMENT.txt",
+    "tests": "evidence/security-native-tests-20261006.json",
+    "typecheck": "evidence/security-native-typecheck-20261006.txt",
+    "reachability": "evidence/security-native-reachability-20261006.txt"
+  },
+  "sourceSha256": {
+    "native/security-supervisor/ApprovalEnroll.cs": "de8353105ecf1c327c25d0b6feb3efcc8f08d3c12f38df9e1951ee1e95b11f31",
+    "native/security-supervisor/ApprovalIssuer.cs": "e83a66db975f8c0c8022a3ec2b27d668cba4d68efe7d8486c61eff3e94ce0f1a",
+    "native/security-supervisor/ApprovalProbe.cs": "425b634a44cd6490be8ca968d984db96101bc9594673fb4728fc6922d26b0b86",
+    "native/security-supervisor/JobRunner.cs": "2342f6805479ba5ef85bef421465c6a1f6199eef00af0ff3c21bb16404530e95",
+    "native/security-supervisor/ProcessProbe.cs": "7c3f514965dce104fd1f5d978e1bdfc73ee9ca09194175a26f35405b6b7a5236",
+    "server/src/domains/securitySupervisor/approvalVerifier.ts": "a47b59fac597cfdb9e8aec047b0fe7955a49d4849372b937d11963c252f596a3",
+    "server/src/domains/securitySupervisor/approvedGit.ts": "ebaa074eab5c2b3c06662ef9c6dd9cbb684b97a3afa1443f1f0b059a895e2247",
+    "server/src/domains/securitySupervisor/gitSupervisor.ts": "1c9cde57b0e3efebc5a4de00785f19a79f911dc1299042ed5c9b108088838a48",
+    "server/src/domains/securitySupervisor/windowsJob.ts": "ed2cab59aaeb7f9e43c0f4656002dac79adb50db1d469be8d572cfb43644f4d7"
+  },
+  "binarySha256": {
+    ".tmp/security-native/JobRunner.exe": "38a8413298a04cfc08d3ac124f05e1a34515afd6cef2314eabf461b28036004b",
+    ".tmp/security-native/ProcessProbe.exe": "300956044be9f7595121a215206c4e12a6a9b759800901a6e7b31393f0d3e2f5",
+    ".tmp/security-native/ApprovalIssuer.exe": "0feb8699e1a4f72bae12444d2278e67d8522720e825edf4dab80b8296726638c",
+    ".tmp/security-native/ApprovalEnroll.exe": "18bfcefcbb4519dedf8ac4c5e7e35e6ad77124eaae876efc7c6fcf6f0ec11c80",
+    ".tmp/security-native/ApprovalProbe.exe": "a34f071e7994f1e749da88eb7154f1ffaf1c040fe98783da8876e3a2f5e37e3f"
+  }
+}

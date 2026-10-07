@@ -1,0 +1,33 @@
+Native security boundary implementation — 6 October 2026
+
+Implemented and empirically tested
+The process-lifetime blocker now has a real Windows Job Object implementation. JobRunner creates the child suspended, assigns it before execution, denies breakaway, uses kill-on-close and resource limits, limits inherited handles, and confirms active process count zero after terminating descendants. Native tests cover parent exit, timeout, cancellation, output overflow, helper death, supervisor disconnect, nested jobs, native breakaway attempts and the process-count limit. This replaces a synthetic cleanup contract with actual controlled Windows OS evidence. No taskkill/WMI/PowerShell cleanup is used for these guarantees.
+
+WindowsJob connects that helper to structured Git. ApprovedGitSupervisor verifies and consumes an exact signed approval before creating a job. It re-resolves supervisor-owned identity and carries the approved executable digest and repository path to dispatch. Tests execute harmless Git status operations in disposable repositories, then demonstrate refusal on replay, revocation, unavailable key and cross-worker substitution. Replay refusal survives database close and reopen.
+
+Independent approval issuer
+ApprovalIssuer.exe implements an out-of-band issuer using an existing per-user, non-exportable Windows CNG ECDSA P-256 key. It refuses shared/admin issuer identities, caller-selected manifests and unavailable keys. The fixed manifest must be administrator-owned and protected against ordinary writes. Issuance requires two secure-desktop Windows credential prompts authenticating the configured operator SID, with exact request details and expiry rechecked before signing.
+The separate ApprovalEnroll.exe provides explicit offline bootstrap and outputs only public material. It was compiled, not used to enroll a real key. The server verifier handles public signatures only and now supports ES256 as well as the earlier synthetic Ed25519 protocol.
+A separate test executable uses unnamed ephemeral CNG keys. Actual private-key export attempts fail, native signatures verify in Node, altered preview/arguments/scope are refused, and no human prompt or real credentials are used in these tests. This validates native protocol/crypto behavior, not trusted human presence or cross-account deployment.
+
+Verification results
+167 tests passed across nine focused suites, including 12 native job tests, 11 native issuer tests and 5 approval-to-native-Git tests. All 323 reachability checks and 3 classification checks passed. TypeScript --noEmit exited 0. Native C# compilation succeeded. No native test helpers remained in the post-test process snapshot.
+The worker import graph contains zero of the 321 TypeScript process/native candidates and no opaque reachable imports. All 736 global inventory candidates retain unresolved classification. The native components are separate source/binary artifacts; their internals are covered by dedicated tests, not by the TypeScript graph scan.
+
+Current production behavior
+Legacy worker execution wrappers stay disabled. Worker Git dispatch refuses with GIT_TRUSTED_SUPERVISOR_NOT_ENROLLED. The trusted approval production gate remains fail closed. No account, service, real signing key, authenticated profile, browser/CDP session, installed runtime or deployed application was changed.
+
+Remaining non-automated acceptance
+A real deployment must enroll separate Windows identities and protected binaries/key/trust-store/database ACLs, then perform a genuine human approval ceremony. The existing no-real-credentials and no-deployment restrictions preclude that work in this run. The concrete procedure and manifest template are under native/security-supervisor/ENROLLMENT.txt and issuer-manifest.example.json. Neither was applied.
+Job Objects are a process lifetime/resource boundary, not a filesystem/network sandbox. Tests under the intended restricted identities, filesystem ancestor-race protection, IPC/network isolation and other legacy entrypoints remain unresolved. readyToExecuteUntrustedCode remains false; trustedHumanApproval remains NOT_VERIFIED.
+
+Evidence
+security-native-status-20261006.json includes source/binary hashes and exact statuses.
+security-native-tests-20261006.json contains individual test results.
+security-native-typecheck-20261006.txt contains the compiler exit code.
+security-native-reachability-20261006.txt contains the source reachability results.
+
+API references
+https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects
+https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-creduipromptforwindowscredentialsa
+https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.ecdsacng

@@ -1,0 +1,41 @@
+{
+  "status": "partial_source_implementation_not_deployed",
+  "buildId": "3f20c479-dirty-20261006-114227",
+  "fingerprint": "c00737342bc8dc7564bbf06f12bb8e75ec73404c082613b4abb957624df7887b",
+  "ownership": "Existing GoalLifecycle and TaskGraphExecutor remain authoritative. Journal is an evidence projection, not a second scheduler.",
+  "changes": [
+    "Tool registry rechecks enabled state, supports registration revocation, validates required arguments/types/enums before invoking handlers.",
+    "Capability authorization reads durable permission state for each check and denies unknown capabilities or failed reads.",
+    "Task graph execution appends versioned, hash-linked snapshots with secret-pattern redaction and SQLite update/delete refusal triggers.",
+    "Generic desktop inputs use execFile with constant Python code and JSON data instead of shell interpolation.",
+    "Missing and unsupported desktop actions fail; scroll and drag dispatch and hotkey chords have explicit implementations and bounds validation.",
+    "Input dispatch evidence explicitly does not assert verified application outcome."
+  ],
+  "validation": {
+    "typescript": "passed",
+    "build": "passed",
+    "firstSuite": { "files": 5, "tests": 41, "passed": true },
+    "secondSuite": { "files": 6, "tests": 67, "passed": true },
+    "uniqueTests": 104,
+    "realFileExecution": "Temporary file read through existing autonomous kernel; journal identity/order/hash and update/delete refusal checked.",
+    "physicalDesktop": "Not performed; restricted VM or dedicated user profile not verified.",
+    "authenticatedBrowser": "Not accepted in this change.",
+    "productionDeployment": "Not performed."
+  },
+  "remainingRequirements": [
+    "Provision and enforce dedicated Windows worker identity or VM; current session lacks Hyper-V management permission.",
+    "Connect all tool paths to authoritative task identity, least-privilege scopes, persistent human approvals, rate limits and revocation.",
+    "Replace weak hostname-derived vault fallback without losing existing credentials.",
+    "Expose and verify complete typed browser selector/form/upload/download operations with user escalation boundaries.",
+    "Require explicit independent postcondition evidence consistently before every operation is promoted to VERIFIED.",
+    "Carry canonical identity and approval/evidence references across all model and specialist-agent paths.",
+    "Run full installed-runtime conversations and physical acceptance in the chosen isolated environment before deployment claims."
+  ],
+  "limitations": [
+    "SQLite append-only triggers do not prevent a database administrator from altering the database.",
+    "Snapshot redaction is not comprehensive secret detection or encryption.",
+    "Generic pyautogui text input intentionally refuses non-ASCII text; structured Unicode text input remains necessary.",
+    "Existing providers and other tools are not made isolated merely by this input-path repair.",
+    "No latency improvement or full autonomous readiness is established by these tests."
+  ]
+}

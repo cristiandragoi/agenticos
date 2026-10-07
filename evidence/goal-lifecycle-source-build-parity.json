@@ -1,0 +1,37 @@
+{
+  "status": "PASS",
+  "comparedJavaScriptFiles": 587,
+  "mismatches": [],
+  "repo": {
+    "fingerprint": "17ed9b5aece017e5652f3dde4db4e97d55ba771521962d705fea4236560a904d",
+    "algorithm": "content-sha256-v1",
+    "filesCount": 589
+  },
+  "installed": {
+    "fingerprint": "17ed9b5aece017e5652f3dde4db4e97d55ba771521962d705fea4236560a904d",
+    "algorithm": "content-sha256-v1",
+    "filesCount": 589
+  },
+  "sourceHashes": {
+    "controlPlane/CapabilityFacts.ts": "34a9675140fad338c193317c072a4c7b079f15b6f8e8b4bf0842d3fb2eefcff5",
+    "controlPlane/AuthoritativeInteractionContext.ts": "93e0a72dcd7a4874e37a003b4ef61bf8fb45363909c503b507af0fb60c79c649",
+    "controlPlane/SemanticDiscourseInterpreter.ts": "e488c849339d3ce6f69149c098f8e61a701dbf9ac909620ca949372f4d128cea",
+    "controlPlane/adapters/MediaCapabilityAdapter.ts": "9f35d61556525cf17b6a409f18d72bc5e897d6a29904aeee99e9eed08416777d",
+    "controlPlane/CapabilityMethodSelector.ts": "a622dce0832563072f74363bab3b4dd7394669b2d5cc9afd46647d1fdd9c6219",
+    "controlPlane/UniversalCapabilityRuntime.ts": "88127b3b7b7a512adbf35d967f21a74f18ecc6707657885f20051111bf9bc720",
+    "controlPlane/StructuredIntent.ts": "cba1746a1a0d780871fcd303d50b5b375de47b163716dadd6b94eaacf249e789",
+    "controlPlane/AuthoritativeIntentCompiler.ts": "9314498e4689e81f1538057bb12fb8d0f8e14914494276ac207d925c569848cd",
+    "controlPlane/adapters/ConversationCapabilityAdapter.ts": "032aec4f92d6b223a98a3696a8f7721657f833ca80cecf68e2382754fddae4ae",
+    "controlPlane/taskGraph/AutonomousPlanner.ts": "51cebdbf65dca37a4f3c16446736aad9cd734a8b4a8766e6beb0aa4781c6897c",
+    "controlPlane/TurnEnvelope.ts": "6ea7b1bd6ec8eec82ab47c5691ff77e5406e02cb7e93a083bf38875e1386cc02",
+    "controlPlane/GoalLifecycle.ts": "2cb97127282e58f721983cc392bec68a70bb5415010613210873d56134a78c7e",
+    "controlPlane/taskGraph/AutonomousExecutionKernel.ts": "399a3c4b9136a202c13ebb4d228fd9ba1353662246b9000f83d08adf06fced4b",
+    "controlPlane/taskGraph/TaskGraphExecutor.ts": "cf4bf4714e698991510933db798824a2960f1f47aec33e657822ec5f333e8f5d",
+    "jarvis/perception/perceptionOperation.ts": "72ff17cddcd1534f296e445de2657f1a8a1337b83005f82e32aead4b4b23c6dc",
+    "jarvisNext/jarvisNextAgent.ts": "749348573520861d09683aa1bf7a82141a2fe1ebf93cef08160318af07e6be6a",
+    "jarvisNext/speechArbiter.ts": "9ad2abc0c7a0408bb5c97bf2dcaec0e5d497e8fb0fbc409b5da1a675fa5951d5",
+    "turnLifecycle/controller.ts": "b30fb8bd1bd8a674f1cbdedd422fb98a5f8787f04857e70012f7cdae9850db3e",
+    "turnLifecycle/types.ts": "385d3db3985afbf4a3a2146d8ff63171cbe47a22c9e338cde0ae850f59ce28c8",
+    "turnLifecycle/autonomousGoalMode.ts": "56b75554e340223fcefc3f6eb197d46da2c51bfa81ad2d8e6746bdfd7837b599"
+  }
+}

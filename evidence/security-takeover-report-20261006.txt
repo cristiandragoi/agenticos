@@ -1,0 +1,35 @@
+Security takeover review packet — 6 October 2026
+
+Implemented source changes
+The local worker bridge no longer imports legacy terminal, Git, desktop, browser or broad filesystem executors. Its only enabled tools are confined filesystem locate/list/read/write/create_folder/delete. Generic shell execution, build/test scripts and every unregistered tool are refused. Structured Git tool names refuse execution until a reviewed OS job launcher exists. Open-ended worker planning no longer imports or calls the model gateway. Existing deterministic plans may contain disabled tools; dispatch refuses them.
+
+Process-entrypoint dispositions
+See worker-process-entrypoint-matrix-20261006.json for every current candidate, source hash and static disposition. All 319 candidates are outside the import closure of localWorker/index.ts. Reachability testing has 321 passing checks. Hermes, voice services, browser supervisors, terminalExecutor, terminalTool, hardwareProfiler and sandbox.ts have no worker import path. No supervisor RPC is enrolled. Native/dynamic module routes are disabled; only explicitly reviewed Node builtins remain in this closure.
+This is source-level reachability, not OS isolation, an exhaustive alias-analysis proof, or permission to execute arbitrary code. Other server entrypoints can still reach legacy code. The global classification inventory retains all 734 entries as unresolved.
+
+Git implementation and validation
+Only status, diff, branch and bounded log queries are structured. Fixed executable: C:\Program Files\Git\cmd\git.exe. Fixed cwd: the dedicated workspace's repository subdirectory. Caller commands, executable paths, cwd, environment and arbitrary configuration are rejected. Git global/system config is disabled; local config is allowlisted. Hooks, fsmonitor, external diff/text conversion, protocols, credentials and submodule recursion are disabled. Linked/alternate repositories are refused.
+The supervisor contract caps execution at 10 seconds, combined output at 65,536 bytes, and cleanup acknowledgement at 2 seconds. Real fixed Git commands were tested only in disposable repositories; cleanup/timeouts/output overflow were tested with synthetic OS-job adapters. An observed executable hash is not an enrolled immutable binary identity. Production must protect both binary and repository against mutation.
+
+Windows Job Object decision
+Require a native supervisor-owned Job Object before enabling Git or any process tool. Create suspended, assign before resume, deny breakaway, enable kill-on-close, enforce process/resource limits, and verify all-descendant termination using OS completion information. Test supervisor crash, timeout, cancellation, output flood, nested jobs and breakaway with the restricted identity. None of this native launcher has been implemented or accepted in this phase. There is no production adapter. WMI/PowerShell/taskkill cleanup is not verified isolation; the previous generic worker implementation has been removed.
+
+Approval issuance trust model
+Production issuance and approval-based dispatch remain fail closed. The old in-process HMAC secret registry is retained only in a test fixture. Even an otherwise valid historical HMAC approval now fails production dispatch without consuming its grant.
+The new prototype verifies Ed25519 signatures with a public key only. It binds version, issuer, goal, graph, node, worker, operation, attempt, tool, scope hash, argument hash, preview hash, nonce, issued time, expiry and explicit secondary confirmation. A durable supervisor-owned nonce store consumes approvals atomically and enforces revocation. Synthetic tests cover validity, tampering, replay, substitution, expiry and service/key failure.
+
+Required independent issuer design (not deployed or enrolled)
+1. Run a minimal issuer as a separate OS principal/process, outside the server, model, worker and renderer. Store its private key only under that identity in an OS-protected keystore or identity-restricted key store. Never pass it through environment variables, app configuration, tool arguments, HTTP, renderer memory or the worker filesystem.
+2. Enroll only the public key into a supervisor-protected trust store through an explicit out-of-band installation procedure. Reject unknown/replaced keys. The source prototype has no enrollment route and no runtime enable flag.
+3. An ordinary HTTP caller may request review, never approve or sign. Use an ACL-restricted local IPC channel for requests. Authenticate the originating supervisor via OS identity; do not trust claimed caller/approver strings. The request remains untrusted data.
+4. A separate trusted interactive approval surface displays the exact immutable request, tool, target and preview. Verify the human's OS session through an OS-authenticated interaction. Require a distinct second confirmation for privileged actions. Caller booleans or model messages cannot serve as that human confirmation.
+5. The issuer signs only the reviewed immutable payload, with a supervisor-generated nonce and maximum 60-second lifetime. It must not provide a general signing oracle. Deny if identity, key, UI, service or immutable binding is unavailable.
+6. The supervisor holds the public key and durable replay/revocation database outside worker write access. It validates the signature and all bindings, consumes the nonce transactionally immediately before dispatch, and fails closed on storage failure. Restart must not reset replay state. Key rotation/revocation and simultaneous consumers require acceptance tests before enrollment.
+7. Prove key and database isolation under the effective worker/model/renderer/HTTP identities using synthetic keys first. Prove human-session authentication separately. Only then propose production integration for review. These OS and human trust guarantees remain NOT_VERIFIED.
+
+Validation
+138 focused tests passed across six suites; 321 static reachability checks passed; 3 classification checks passed; TypeScript --noEmit exited 0. Both database environment selectors pointed to fresh temporary fixtures. No installed runtime, real credentials, browser/CDP or desktop automation was used. No build/deployment was performed.
+
+Residual issues and stop point
+The earlier filesystem changes now include hard-link rejection and adjacent exclusive staging, and all 20 filesystem tests pass. Concurrent ancestor replacement remains an OS-containment risk; no race-proof claim is made. The host/server still shares a trust domain with its worker manager. Credential hardening was not re-audited. Native modules outside the worker closure remain unresolved. Process execution and trusted issuance must stay disabled until the independent OS boundaries are implemented and reviewed.
+This packet is ready for review of the implemented restrictions and protocol. It is not a claim that all requested OS/human trust mechanisms are complete. Work stops here for review, as requested.

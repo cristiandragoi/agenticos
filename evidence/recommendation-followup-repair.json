@@ -1,0 +1,35 @@
+{
+  "before": ".tmp/research-result-live-1791280138770/report.json",
+  "after": ".tmp/research-result-live-1791280206669/report.json",
+  "tests": {
+    "files": 4,
+    "log": ".tmp/recommendation-followup-tests.log",
+    "passed": 57
+  },
+  "buildId": "3f20c479-dirty-20261006-094937",
+  "files": [
+    "server/src/domains/repositoryResearch/resultFollowup.ts",
+    "server/src/domains/controlPlane/CapabilityFacts.ts",
+    "server/src/domains/controlPlane/adapters/ConversationCapabilityAdapter.ts",
+    "server/src/__tests__/researchResultFollowup.test.ts"
+  ],
+  "physicalMicrophoneAcceptance": "pending",
+  "conversationScope": "Saved recommendation lookup remains scoped to its original conversation; no silent cross-conversation reuse.",
+  "runtime": {
+    "status": "healthy",
+    "pid": 33944,
+    "uptime": 20.3398753,
+    "environment": "development",
+    "version": "9.0.0",
+    "build": {
+      "fingerprint": "496572de190754928fd0e6091febe24efe8588896efbb70bdd02589d77791e9e",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 602,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T09:49:37.352Z",
+      "buildId": "3f20c479-dirty-20261006-094937"
+    }
+  }
+}

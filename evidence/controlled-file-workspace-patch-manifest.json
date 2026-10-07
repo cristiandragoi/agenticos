@@ -1,0 +1,11 @@
+{
+  "baselineFingerprint": "e31d69fe704d86f7fa77f98c28246d220d391c843c535c41efae89230eb56ddc",
+  "files": [
+    {
+      "beforeSha256": "d6234667274fc7a1b4ae21b8cbf9d3f32eeaa5a9fb0a2b724b59e22916e78757",
+      "path": "domains/controlPlane/ControlledFileWorkflow.js",
+      "afterSha256": "3566e9c3192395ef4175529946931b91aae663638a3464943ffb344718339ad2"
+    }
+  ],
+  "sourceRoot": "D:\\AgenticOS\\server\\.tmp\\controlled-file-build"
+}

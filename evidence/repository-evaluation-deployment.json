@@ -1,0 +1,32 @@
+{
+  "status": "deployed-controlled-verification-passed",
+  "testsPassed": 68,
+  "workspaceEvaluation": "D:\\AgenticOS\\.tmp\\browser-evaluation-1791278486003\\report.json",
+  "installedEvaluation": "D:\\AgenticOS\\.tmp\\browser-evaluation-1791278580914\\report.json",
+  "cancellation": "D:\\AgenticOS\\.tmp\\browser-evaluation-1791278501705\\report.json",
+  "health": {
+    "status": "healthy",
+    "pid": 32088,
+    "uptime": 24.7539593,
+    "environment": "development",
+    "version": "9.0.0",
+    "build": {
+      "fingerprint": "9db633722ddacec794fcae3014c4d8697b6b4d8c0842c37670434ab5052e071f",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 602,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T09:21:17.071Z",
+      "buildId": "3f20c479-dirty-20261006-092117"
+    }
+  },
+  "profile": {
+    "repository": "vercel-labs/agent-browser",
+    "baseline": "playwright@1.61.1",
+    "imageId": "sha256:7f284072dfa70170e5816d2656a197c14bbb885eaa3cd943cf44f74adf6f7ceb",
+    "packageVersion": "0.38.2"
+  },
+  "scope": "One reviewed candidate; fixture browser actions only. No generic repository installer, no production browser replacement, no full Jarvis latency improvement established.",
+  "microphoneAcceptance": "pending"
+}

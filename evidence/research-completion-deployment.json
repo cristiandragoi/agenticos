@@ -1,0 +1,66 @@
+{
+  "checkedAt": "2026-10-06T10:54:06.5523510+02:00",
+  "status": "deployed-controlled-verification-passed",
+  "automatedTestsPassed": 94,
+  "preexistingFailure": "semanticGoalParserContinuation: expects two steps; previous installed build also returns one search_and_open step; parser bytes identical",
+  "workspaceLiveReport": "D:\\AgenticOS\\.tmp\\research-completion-1791276630097\\report.json",
+  "installedLiveReport": "D:\\AgenticOS\\.tmp\\research-completion-1791276742181\\report.json",
+  "health": {
+    "status": "healthy",
+    "pid": 20804,
+    "uptime": 77.6279786,
+    "environment": "development",
+    "version": "9.0.0",
+    "build": {
+      "fingerprint": "76a3dfa537ae488207a559b6ad4fe03a68b2a95e6da2e99d80e89e0a612976c7",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 601,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T08:49:58.391Z",
+      "buildId": "3f20c479-dirty-20261006-084958"
+    }
+  },
+  "deployment": {
+    "deployedAt": "2026-10-06T08:52:07.536Z",
+    "deployedBy": "deploy-installed.cjs",
+    "sourceRepo": "D:\\AgenticOS",
+    "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+    "isDirty": true,
+    "buildId": "3f20c479-dirty-20261006-084958",
+    "buildTimestamp": "2026-10-06T08:49:58.391Z",
+    "fingerprint": "76a3dfa537ae488207a559b6ad4fe03a68b2a95e6da2e99d80e89e0a612976c7",
+    "fingerprintAlgorithm": "content-sha256-v1",
+    "filesCount": 601,
+    "repoHeadAtDeploy": "3f20c47940f50115f445d988bee01eabc33e5a20",
+    "repoDirtyAtDeploy": true,
+    "builtFromCurrentHead": true,
+    "buildFingerprintMatchesDeployed": true,
+    "releaseBoundary": {
+      "linksFound": [],
+      "actions": [],
+      "linksAfter": []
+    },
+    "targets": [
+      {
+        "name": "server/dist",
+        "files": 602
+      },
+      {
+        "name": "server/scripts",
+        "files": 208
+      },
+      {
+        "name": "app/dist-electron",
+        "files": 3
+      },
+      {
+        "name": "app/dist (frontend)",
+        "files": 23
+      }
+    ]
+  },
+  "humanMicrophoneAcceptance": "pending",
+  "externalRepositoryInstalled": false
+}

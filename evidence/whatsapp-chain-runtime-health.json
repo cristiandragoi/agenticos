@@ -1,0 +1,17 @@
+{
+  "status": "healthy",
+  "pid": 6852,
+  "uptime": 28.0775147,
+  "environment": "development",
+  "version": "9.0.0",
+  "build": {
+    "fingerprint": "07c218157ecf1badfd6ccb57d747e25d45b97e2cb94de5aab933d721fe4b9eee",
+    "algorithm": "content-sha256-v1",
+    "filesCount": 589,
+    "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+    "gitShort": "3f20c479",
+    "isDirty": true,
+    "buildTimestamp": "2026-10-05T15:04:29.234Z",
+    "buildId": "3f20c479-dirty-20261005-150429"
+  }
+}

@@ -1,0 +1,2587 @@
+{
+  "scope": "Static TypeScript import closure from localWorker/index.ts; not an OS sandbox or whole-program proof.",
+  "workerEntry": "server/src/domains/localWorker/index.ts",
+  "reachableFiles": [
+    "server/src/domains/localWorker/index.ts",
+    "server/src/domains/localWorker/localWorkerManager.ts",
+    "server/src/domains/localWorker/localWorkerPlanner.ts",
+    "server/src/domains/localWorker/localWorkerStore.ts",
+    "server/src/domains/localWorker/processConfinement.ts",
+    "server/src/domains/localWorker/structuredGit.ts",
+    "server/src/domains/localWorker/toolRegistryBridge.ts",
+    "server/src/domains/localWorker/types.ts",
+    "server/src/domains/localWorker/workspaceConfinement.ts",
+    "server/src/utils/logger.ts"
+  ],
+  "opaqueReachable": [],
+  "entries": [
+    {
+      "file": "server/src/adapters/hermesAdapter.ts",
+      "line": 10,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "280073246e9f2f59241ba29a3d470f5f4202062c79c4e5fff7567a6df609aff7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/adapters/hermesAdapter.ts",
+      "line": 171,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "280073246e9f2f59241ba29a3d470f5f4202062c79c4e5fff7567a6df609aff7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 236,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "8ad43c07b0c25da736c9cc7a8bb3138756dc808495b3212125e80d3116425cd1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 244,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "8ad43c07b0c25da736c9cc7a8bb3138756dc808495b3212125e80d3116425cd1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 269,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "8ad43c07b0c25da736c9cc7a8bb3138756dc808495b3212125e80d3116425cd1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 276,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "8ad43c07b0c25da736c9cc7a8bb3138756dc808495b3212125e80d3116425cd1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/codexRuntimeAdapter.ts",
+      "line": 22,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "fb27e231122ba41ae3cc88d4498c9be33182768b7ad3ffc0658c9b9732502735",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 14,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 31,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 144,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 148,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 155,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 156,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 157,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 166,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 167,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 168,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 174,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 193,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "b8bb0ad7da67378c189a4e3aab46a1a8e10ac3fedbdd221162802e822da3fb7b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/store.ts",
+      "line": 13,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "ba52ff3da84fffe71dae7bdec287698f4a93b7a7b67061bfb4bd883711965a8c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/AppCapabilityAdapter.ts",
+      "line": 18,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "b88f8d053f2747ae64340562bf015ad7a6afd9478bc43260d70b3e92c4486315",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/AppCapabilityAdapter.ts",
+      "line": 264,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "b88f8d053f2747ae64340562bf015ad7a6afd9478bc43260d70b3e92c4486315",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/ChatCapabilityAdapter.ts",
+      "line": 29,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "f22f848d6599536acddf5a3b3aec331d7ce76b3dbdc29614cacd573a24bc8e14",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/ChatCapabilityAdapter.ts",
+      "line": 221,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "f22f848d6599536acddf5a3b3aec331d7ce76b3dbdc29614cacd573a24bc8e14",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AgenticOsGitService.ts",
+      "line": 9,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "00918ead2a7471f45d9c60be639d9cd3540e62147eeb68ad0bee66ed5a951c7c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AgenticOsGitService.ts",
+      "line": 49,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "00918ead2a7471f45d9c60be639d9cd3540e62147eeb68ad0bee66ed5a951c7c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ArgusService.ts",
+      "line": 305,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "f454acc9337577c973e31266a5c671c4621d070b9cfedf4e6b99c85099a90af8",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AuthoritativeInteractionContext.ts",
+      "line": 584,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "93e0a72dcd7a4874e37a003b4ef61bf8fb45363909c503b507af0fb60c79c649",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AutonomousCapabilityCertificationRunner.ts",
+      "line": 552,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "02c1f1a81e148729780c29f770d3be1354d84d1c84658562460890cd57de7171",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 15,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "927220aefe41aeaad845b7e4c38f16d367a3070b8470efc639cd62b339210854",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 18,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "311aebc2134eaf44bab9fd9b1f8f223bdb11bb6d0e14ff271702ee4febb92ebe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 395,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "311aebc2134eaf44bab9fd9b1f8f223bdb11bb6d0e14ff271702ee4febb92ebe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 476,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "311aebc2134eaf44bab9fd9b1f8f223bdb11bb6d0e14ff271702ee4febb92ebe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 520,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "311aebc2134eaf44bab9fd9b1f8f223bdb11bb6d0e14ff271702ee4febb92ebe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityPermissionStore.ts",
+      "line": 65,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "e0d5c5decd6b3144490576aae9166cb5bfe2d39f39074baa434006efd9bc525a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 18,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "e788c41afe862be075517176b5443c230e2a2b1f4cdb6a25af45b0d12b0911bb",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 101,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "e788c41afe862be075517176b5443c230e2a2b1f4cdb6a25af45b0d12b0911bb",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 233,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "e788c41afe862be075517176b5443c230e2a2b1f4cdb6a25af45b0d12b0911bb",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 405,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "e788c41afe862be075517176b5443c230e2a2b1f4cdb6a25af45b0d12b0911bb",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 23,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "34c334133686bf150107c8a409800d63b4ab9f72725dcbda6e9c9498c82fb72c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 389,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "34c334133686bf150107c8a409800d63b4ab9f72725dcbda6e9c9498c82fb72c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 641,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "34c334133686bf150107c8a409800d63b4ab9f72725dcbda6e9c9498c82fb72c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 842,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "34c334133686bf150107c8a409800d63b4ab9f72725dcbda6e9c9498c82fb72c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 918,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "34c334133686bf150107c8a409800d63b4ab9f72725dcbda6e9c9498c82fb72c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 1138,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "34c334133686bf150107c8a409800d63b4ab9f72725dcbda6e9c9498c82fb72c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/DesktopInput.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "93cc906b29972e45cce67d95bcdc7e46591cc05cc8905abc4c5a66dd6e12fd5f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/WhatsAppChatNavigator.ts",
+      "line": 4,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "d62ff07e5ca80aed18e7b660b53f0ae07ff87554adf5b9e7f9ee3321df0269c5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 14,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 240,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 244,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 259,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 281,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 290,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 313,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 350,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 409,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 433,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "f28d2065b986ab104f764e24a7afdcd54b8d0f17b2e97e26e16a92ebc93db45c",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringWorkerRegistry.ts",
+      "line": 28,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "df7f9350cb27b02d4f671e93d453e7e81acaa0d22d2b2c9fd1ee03d106020003",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringWorkerRegistry.ts",
+      "line": 273,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "df7f9350cb27b02d4f671e93d453e7e81acaa0d22d2b2c9fd1ee03d106020003",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringWorkerRegistry.ts",
+      "line": 740,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "df7f9350cb27b02d4f671e93d453e7e81acaa0d22d2b2c9fd1ee03d106020003",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 16,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "9eed1a476c02740c5dcb093001f1b0b4fad48d7f41b7dd4e5efea94663cabde1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 138,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "9eed1a476c02740c5dcb093001f1b0b4fad48d7f41b7dd4e5efea94663cabde1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 144,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "9eed1a476c02740c5dcb093001f1b0b4fad48d7f41b7dd4e5efea94663cabde1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 150,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "9eed1a476c02740c5dcb093001f1b0b4fad48d7f41b7dd4e5efea94663cabde1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/TargetResolver.ts",
+      "line": 15,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "2dfd5647192a88da77778d8f5f78f3ae61011fe6cf9f6d35bf3df0b615ce6731",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/TargetResolver.ts",
+      "line": 131,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2dfd5647192a88da77778d8f5f78f3ae61011fe6cf9f6d35bf3df0b615ce6731",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/taskGraph/TaskGraphJournal.ts",
+      "line": 8,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "38215c79ea284a8032fd2bd3859e5467a0fb5d36fd62271ff5a5ccf35b4f333a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/taskGraph/ToolAuthorization.ts",
+      "line": 8,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "d257623be309514580f98c657d05d2ba9ec94787faf97691e25aa43eb3aaa180",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalContentAcquisition.ts",
+      "line": 23,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "b78e7c36f6e3ebad4f1fbcdfcbd387661ccb77993804e13f5f1b324952f07129",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalContentAcquisition.ts",
+      "line": 689,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "b78e7c36f6e3ebad4f1fbcdfcbd387661ccb77993804e13f5f1b324952f07129",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 21,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "7ea71dc4e7c3f0e527ca5417255c3d67a14cb77117d5be378e2dc7a6e165564a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 202,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "7ea71dc4e7c3f0e527ca5417255c3d67a14cb77117d5be378e2dc7a6e165564a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 335,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "7ea71dc4e7c3f0e527ca5417255c3d67a14cb77117d5be378e2dc7a6e165564a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalVerifier.ts",
+      "line": 12,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "8b4f40c9f4f85ab3e71ca937d263cc8f18cb41f792779ae22981711048a34900",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalVerifier.ts",
+      "line": 438,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "8b4f40c9f4f85ab3e71ca937d263cc8f18cb41f792779ae22981711048a34900",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 22,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "ec2dc05beb2daefa9897d25c328153bb9a0852e4d88c754cae3d37c49ee35a38",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 93,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ec2dc05beb2daefa9897d25c328153bb9a0852e4d88c754cae3d37c49ee35a38",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 302,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ec2dc05beb2daefa9897d25c328153bb9a0852e4d88c754cae3d37c49ee35a38",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 339,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ec2dc05beb2daefa9897d25c328153bb9a0852e4d88c754cae3d37c49ee35a38",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 414,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ec2dc05beb2daefa9897d25c328153bb9a0852e4d88c754cae3d37c49ee35a38",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 454,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ec2dc05beb2daefa9897d25c328153bb9a0852e4d88c754cae3d37c49ee35a38",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 15,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "0a692902b948d764eac1e5b2cae4fea3fe053fafcbdc57f409be53f4f9c2279f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 395,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "0a692902b948d764eac1e5b2cae4fea3fe053fafcbdc57f409be53f4f9c2279f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 418,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "0a692902b948d764eac1e5b2cae4fea3fe053fafcbdc57f409be53f4f9c2279f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 497,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "0a692902b948d764eac1e5b2cae4fea3fe053fafcbdc57f409be53f4f9c2279f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 107,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "f9291307b42268002fcdc57b77a28abd4140f2cf188a32d1dbd24d7ba5324d64",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 109,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "f9291307b42268002fcdc57b77a28abd4140f2cf188a32d1dbd24d7ba5324d64",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 112,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "f9291307b42268002fcdc57b77a28abd4140f2cf188a32d1dbd24d7ba5324d64",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/behavioralHealth.ts",
+      "line": 21,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "78d3655857f6732cfb86725edca37998209019f02610a84535a026288f6f62b4",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/behavioralHealth.ts",
+      "line": 213,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "78d3655857f6732cfb86725edca37998209019f02610a84535a026288f6f62b4",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/conversationLanguage.ts",
+      "line": 68,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "f7d0c520a7233d23fffc762cc834c80ebafd220219c0681d1c2dfd26d74df131",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/conversationLanguage.ts",
+      "line": 77,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "f7d0c520a7233d23fffc762cc834c80ebafd220219c0681d1c2dfd26d74df131",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/dialogueState.ts",
+      "line": 64,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "fe61cf3dc8e1f89d4a29d5bc9568f03ed5c6fb11cf59e202b1e5633604ddfa03",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/dialogueState.ts",
+      "line": 66,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "fe61cf3dc8e1f89d4a29d5bc9568f03ed5c6fb11cf59e202b1e5633604ddfa03",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 13,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 506,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 509,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 511,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 522,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 558,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 604,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 606,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 637,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 676,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 692,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 718,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 730,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 763,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 813,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 814,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 820,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 877,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2b833c969a32fb31a97af6bb3b8018943aebd3f78491f0a0b84aa4c3abd5a3a5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 17,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "7defb30d8224adf1e4147f975e84159bbba1e0e37a17200c023ed703d70e4089",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 214,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "7defb30d8224adf1e4147f975e84159bbba1e0e37a17200c023ed703d70e4089",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 221,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "7defb30d8224adf1e4147f975e84159bbba1e0e37a17200c023ed703d70e4089",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 245,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "7defb30d8224adf1e4147f975e84159bbba1e0e37a17200c023ed703d70e4089",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 12,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "ae09120227c468ba7f99f734bbac3ae2e6bcd1eb39eeab3c8bde6446e65c9547",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 94,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "ae09120227c468ba7f99f734bbac3ae2e6bcd1eb39eeab3c8bde6446e65c9547",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 141,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "ae09120227c468ba7f99f734bbac3ae2e6bcd1eb39eeab3c8bde6446e65c9547",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 155,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "ae09120227c468ba7f99f734bbac3ae2e6bcd1eb39eeab3c8bde6446e65c9547",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/recoveryController.ts",
+      "line": 13,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "6d2ca9c469bf3732b84bb015c8480f78fb42bae06869aa36bb7870d31029c046",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/recoveryController.ts",
+      "line": 163,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "6d2ca9c469bf3732b84bb015c8480f78fb42bae06869aa36bb7870d31029c046",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 5764,
+      "kind": "process_candidate",
+      "expression": "regex.exec",
+      "sourceSha256": "27f753926bd5463d7e6b0174d0dd555637bc5a1631cc07d04562f1393bba0883",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 25,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "2903f075fe95a0bb561ae799d32990b6a6001541a5c4ec06dc706e281c7a6c6e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 57,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2903f075fe95a0bb561ae799d32990b6a6001541a5c4ec06dc706e281c7a6c6e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 208,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "2903f075fe95a0bb561ae799d32990b6a6001541a5c4ec06dc706e281c7a6c6e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/intentRouter.ts",
+      "line": 454,
+      "kind": "process_candidate",
+      "expression": "refRe.exec",
+      "sourceSha256": "ba46a201e9eb73b6ead30a15e5263b5753a12b17095e9fce9d676436749670ea",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 25,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "a03b6e7b3ce0fd6d2a0a0e7842bfba1b8b67a0d424dd2fafaf3f9d44131faa6a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 136,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "a03b6e7b3ce0fd6d2a0a0e7842bfba1b8b67a0d424dd2fafaf3f9d44131faa6a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 252,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "a03b6e7b3ce0fd6d2a0a0e7842bfba1b8b67a0d424dd2fafaf3f9d44131faa6a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 310,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "a03b6e7b3ce0fd6d2a0a0e7842bfba1b8b67a0d424dd2fafaf3f9d44131faa6a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 527,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "a03b6e7b3ce0fd6d2a0a0e7842bfba1b8b67a0d424dd2fafaf3f9d44131faa6a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/semanticTurnResolver.ts",
+      "line": 557,
+      "kind": "process_candidate",
+      "expression": "ping_worker_RE.exec",
+      "sourceSha256": "2406b4100db5e9c3e616e8d08533b9e86c2f292615b319c5ab6b2f12acf7f704",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvis/supervisorLoop.ts",
+      "line": 71,
+      "kind": "process_candidate",
+      "expression": "tagRegex.exec",
+      "sourceSha256": "01e635eefd50c799756f92c31ed68192fe226d63b1be2966035a2149b932a9b3",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/audioUtils.ts",
+      "line": 3,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "dcf86a4b22b9e63dd6b1f4cc8d07002a872fcc493873f09fe2e101cb91c4bdc4",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/audioUtils.ts",
+      "line": 20,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "dcf86a4b22b9e63dd6b1f4cc8d07002a872fcc493873f09fe2e101cb91c4bdc4",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/controlIntentDetector.ts",
+      "line": 139,
+      "kind": "process_candidate",
+      "expression": "/^(?:stop|kill|terminate|close)\\s+(?:the\\s+)?([a-z0-9_.\\-]+(?:\\.exe)?)$/i.exec",
+      "sourceSha256": "b70e5333d8f85438fdd514f707a862a2711a1742c3b559d7352379bd77cb5c9a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/livekitServerManager.ts",
+      "line": 5,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "ff89ba1469382c64afafda229a82e4929935bcf34355f318891b9c9eaaca8d6e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/livekitServerManager.ts",
+      "line": 89,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "ff89ba1469382c64afafda229a82e4929935bcf34355f318891b9c9eaaca8d6e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/turnRouter.ts",
+      "line": 1335,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ac815f39c4cad4671d3548f8744f3379e216a59855a2cedbd9a26fe27fc2b6f7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisV2/state.ts",
+      "line": 99,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "54b81b05f04b4e846fe3b6f1ec01c0f8183e838c97d7e956d77052d1857d72ab",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/jarvisV2/telemetry.ts",
+      "line": 59,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1b79192eecf32bb376307c3d93c2c3783bb0c6d15d27b560a23730afbc081858",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 33,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "cf12c276bd0221d71d3ecc685fb026957ab36d9da1cee87f2c7053d1b70b8a25",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 76,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "cf12c276bd0221d71d3ecc685fb026957ab36d9da1cee87f2c7053d1b70b8a25",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 80,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "cf12c276bd0221d71d3ecc685fb026957ab36d9da1cee87f2c7053d1b70b8a25",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 86,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "cf12c276bd0221d71d3ecc685fb026957ab36d9da1cee87f2c7053d1b70b8a25",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/evaluation.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "2f39e6b869bf6b46fe20a63c602eabe046b64217108b73e5384d269f6cdbc46b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/evaluation.ts",
+      "line": 17,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2f39e6b869bf6b46fe20a63c602eabe046b64217108b73e5384d269f6cdbc46b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/scoring.ts",
+      "line": 13,
+      "kind": "process_candidate",
+      "expression": "pattern.exec",
+      "sourceSha256": "ed6c734d578ce4fff3ca416183ef9ead7cfe742abbd662caab01019aeec0edc9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/scoring.ts",
+      "line": 31,
+      "kind": "process_candidate",
+      "expression": "featurePatterns[feature].exec",
+      "sourceSha256": "ed6c734d578ce4fff3ca416183ef9ead7cfe742abbd662caab01019aeec0edc9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/scoring.ts",
+      "line": 41,
+      "kind": "process_candidate",
+      "expression": "pattern.exec",
+      "sourceSha256": "ed6c734d578ce4fff3ca416183ef9ead7cfe742abbd662caab01019aeec0edc9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 67,
+      "kind": "process_candidate",
+      "expression": "/^([A-Za-z0-9][A-Za-z0-9_.-]*)(?:\\[.*?\\])?\\s*(?:[<>=!~;]|$)/.exec",
+      "sourceSha256": "4d23799dc6932d817bd3b3bfe2d9bfd4f0388cb21c9b3967a4d49be63487d5cc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 69,
+      "kind": "process_candidate",
+      "expression": "/^(?:require\\s+)?([\\w.-]+\\/[\\w./-]+)\\s+v\\d/.exec",
+      "sourceSha256": "4d23799dc6932d817bd3b3bfe2d9bfd4f0388cb21c9b3967a4d49be63487d5cc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 71,
+      "kind": "process_candidate",
+      "expression": "/^([\\w.-]+)\\s*=/.exec",
+      "sourceSha256": "4d23799dc6932d817bd3b3bfe2d9bfd4f0388cb21c9b3967a4d49be63487d5cc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 103,
+      "kind": "process_candidate",
+      "expression": "/^\\s*(?:export\\s+)?(?:async\\s+)?(?:class|def|function)\\s+([A-Za-z_][A-Za-z0-9_]*)/.exec",
+      "sourceSha256": "4d23799dc6932d817bd3b3bfe2d9bfd4f0388cb21c9b3967a4d49be63487d5cc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/store.ts",
+      "line": 8,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "19eeb3bc6efd5dcb28143386f8978f9ea324d55b762956e7a25372c06abf39c3",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/securitySupervisor/approvalVerifier.ts",
+      "line": 28,
+      "kind": "process_candidate",
+      "expression": "db.exec",
+      "sourceSha256": "a47b59fac597cfdb9e8aec047b0fe7955a49d4849372b937d11963c252f596a3",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/securitySupervisor/windowsJob.ts",
+      "line": 2,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "ed2cab59aaeb7f9e43c0f4656002dac79adb50db1d469be8d572cfb43644f4d7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/securitySupervisor/windowsJob.ts",
+      "line": 23,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "ed2cab59aaeb7f9e43c0f4656002dac79adb50db1d469be8d572cfb43644f4d7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/FailureDetector.ts",
+      "line": 35,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "6ab5d322f59518a98356f7027a407ffd81263dccb4b147dec577dc177f78ea32",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/recoveryChain.ts",
+      "line": 216,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "affeaa7c859b0b713a83169f5c167f655dcc1a5219755d27d32547780afbf767",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/recoveryChain.ts",
+      "line": 280,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "affeaa7c859b0b713a83169f5c167f655dcc1a5219755d27d32547780afbf767",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "5c8f230ba8967fb7232f0c6eb096d3759abd57f9b7285bd7b04acb18d9e16fa9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 70,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "5c8f230ba8967fb7232f0c6eb096d3759abd57f9b7285bd7b04acb18d9e16fa9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 71,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "5c8f230ba8967fb7232f0c6eb096d3759abd57f9b7285bd7b04acb18d9e16fa9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 82,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "5c8f230ba8967fb7232f0c6eb096d3759abd57f9b7285bd7b04acb18d9e16fa9",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairPlanner.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "42f3b26c8629d68e345ea384854cfc7bebe6ac43ec2cf5df87b7ba59b9453d81",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairPlanner.ts",
+      "line": 48,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "42f3b26c8629d68e345ea384854cfc7bebe6ac43ec2cf5df87b7ba59b9453d81",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairPlanner.ts",
+      "line": 88,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "42f3b26c8629d68e345ea384854cfc7bebe6ac43ec2cf5df87b7ba59b9453d81",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairTestRunner.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "5deb7c2060a7a48fbd2d145b24cf9db22107fcc84fb1d223c15e778f750dfa46",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairTestRunner.ts",
+      "line": 192,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "5deb7c2060a7a48fbd2d145b24cf9db22107fcc84fb1d223c15e778f750dfa46",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/runIncident003.ts",
+      "line": 16,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "4b1149dcd71092558ffbf27caf683fd03f15c1fb788fd18fb8ddd6f4076ad438",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SelfHealSupervisor.ts",
+      "line": 18,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "b1ba3e4cf330be6b89384b43c0c690530c5099ddff2a6834cb2b7d01d4f0e84f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SelfHealSupervisor.ts",
+      "line": 451,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "b1ba3e4cf330be6b89384b43c0c690530c5099ddff2a6834cb2b7d01d4f0e84f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 3,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 36,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 42,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 82,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 88,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 100,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 107,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 115,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 139,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 141,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "4edfb975202f2e72796df6097e1597c885fd9515a451a7562d1373e69faf9881",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 3,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "df3be4bc47293c3e6b9fd62a3ad2507281db077f45638f1ad5df3f769eb97a0b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 200,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "df3be4bc47293c3e6b9fd62a3ad2507281db077f45638f1ad5df3f769eb97a0b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 218,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "df3be4bc47293c3e6b9fd62a3ad2507281db077f45638f1ad5df3f769eb97a0b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 238,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "df3be4bc47293c3e6b9fd62a3ad2507281db077f45638f1ad5df3f769eb97a0b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 239,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "df3be4bc47293c3e6b9fd62a3ad2507281db077f45638f1ad5df3f769eb97a0b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/executors.ts",
+      "line": 268,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ef7eb4b73ff29fd152a41076cf20ffc1252e17f8694747eb85f01e0a2e402a5b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/executors.ts",
+      "line": 270,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "ef7eb4b73ff29fd152a41076cf20ffc1252e17f8694747eb85f01e0a2e402a5b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/probes.ts",
+      "line": 11,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "1de26fe5b2c07e2f1e80873fca9d8529b78391e89d87165086b2d64dd267d663",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/probes.ts",
+      "line": 34,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "1de26fe5b2c07e2f1e80873fca9d8529b78391e89d87165086b2d64dd267d663",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/store.ts",
+      "line": 16,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "8594d1b512ee3bd7e1bc5719fd4dabcf925be26081d9555f9029ebb3cdcad803",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/deepseekHarnessAdapter.ts",
+      "line": 21,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "b12f50ea7872f5372ae2865fa1ca69d11113b86c13fa03159bcd89cb8d091c2b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/deepseekHarnessAdapter.ts",
+      "line": 560,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "b12f50ea7872f5372ae2865fa1ca69d11113b86c13fa03159bcd89cb8d091c2b",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/loops/toolCallParser.ts",
+      "line": 246,
+      "kind": "process_candidate",
+      "expression": "argRegex.exec",
+      "sourceSha256": "d2f4fea2a837dff9a100b828f6c9a0dad8fa57cd565198d002aeb7cc1f2f3cd1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 101,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "4c9f5a8e1cb407959734e0c141d23c17934f91a215cf4e2ef667d7b9c3cb0638",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 274,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "4c9f5a8e1cb407959734e0c141d23c17934f91a215cf4e2ef667d7b9c3cb0638",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/diagnostics.ts",
+      "line": 4,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "af73122b8b27cb9c88d3a0cd70e3be59e6ec1810cf67ec9ed611df0207d80e47",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/diagnostics.ts",
+      "line": 34,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "af73122b8b27cb9c88d3a0cd70e3be59e6ec1810cf67ec9ed611df0207d80e47",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 5,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "062fab1dff345b80c5087f38d683ae48a749eabed2b42f8b625c333ab4be6023",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 55,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "062fab1dff345b80c5087f38d683ae48a749eabed2b42f8b625c333ab4be6023",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 110,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "062fab1dff345b80c5087f38d683ae48a749eabed2b42f8b625c333ab4be6023",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 13,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "28811ef5ecde4ad68195cfe0eef959ca2f1cb856700a0ffe0164643fa88acdc5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 140,
+      "kind": "process_candidate",
+      "expression": "child_process.spawnSync",
+      "sourceSha256": "28811ef5ecde4ad68195cfe0eef959ca2f1cb856700a0ffe0164643fa88acdc5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 156,
+      "kind": "process_candidate",
+      "expression": "child_process.spawnSync",
+      "sourceSha256": "28811ef5ecde4ad68195cfe0eef959ca2f1cb856700a0ffe0164643fa88acdc5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-live-progress.ts",
+      "line": 26,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "e5665b153a3ac4976c9b3d72a3e135c1ab6ced5c1b960916308172f4c8b0537d",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/agent/tools/terminalTool.ts",
+      "line": 9,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "da5db7c3f4262217331f3088fed15fc4f7a70b5f7ac7de454be2175e63ff5a76",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/agent/tools/terminalTool.ts",
+      "line": 97,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "da5db7c3f4262217331f3088fed15fc4f7a70b5f7ac7de454be2175e63ff5a76",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/agent/tools/webSearchTool.ts",
+      "line": 63,
+      "kind": "process_candidate",
+      "expression": "linkRegex.exec",
+      "sourceSha256": "0b149a32725b01a89575e2b855ee14332189d2bae7b550bdeb77b07ed1f0bbb4",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/antigravity/antigravityProviderService.ts",
+      "line": 79,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "126955a476c6c3a86422713f49caa6a4e702b3b6f1678e57255af8b6b565b33a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/argus/argusService.ts",
+      "line": 21,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "bc7d4e6b848e4a8dd459ecdf6898ef1c0fd5f8244298c866c30e4fdfadbd14b0",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 24,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "1e713d8ca2c882312c6c53d9df0e6b3f387e62c92bae9cb205809c947fc6f2dc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 29,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "1e713d8ca2c882312c6c53d9df0e6b3f387e62c92bae9cb205809c947fc6f2dc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 691,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "1e713d8ca2c882312c6c53d9df0e6b3f387e62c92bae9cb205809c947fc6f2dc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 788,
+      "kind": "process_candidate",
+      "expression": "(await import('node:child_process')).spawnSync",
+      "sourceSha256": "1e713d8ca2c882312c6c53d9df0e6b3f387e62c92bae9cb205809c947fc6f2dc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 815,
+      "kind": "process_candidate",
+      "expression": "(await import('node:child_process')).spawnSync",
+      "sourceSha256": "1e713d8ca2c882312c6c53d9df0e6b3f387e62c92bae9cb205809c947fc6f2dc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 1016,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "1e713d8ca2c882312c6c53d9df0e6b3f387e62c92bae9cb205809c947fc6f2dc",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/store.ts",
+      "line": 72,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "afc5645b03c9335402988864d01620ea699cbab3e41190cea4e0cc9e574920e3",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/store.ts",
+      "line": 80,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "afc5645b03c9335402988864d01620ea699cbab3e41190cea4e0cc9e574920e3",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserActionContract.ts",
+      "line": 758,
+      "kind": "process_candidate",
+      "expression": "/\\b(\\d+)(?:st|nd|rd|th|\\.)?\\b/i.exec",
+      "sourceSha256": "d4801c5c950350bd3acc62403e837287813626a1ee5c567d5e73c537896a86ef",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 22,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "5056fa3a29536c79f13bacbc172f9a6f9143878c125b1e0037f20390aa04d9fe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 366,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "5056fa3a29536c79f13bacbc172f9a6f9143878c125b1e0037f20390aa04d9fe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 384,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "5056fa3a29536c79f13bacbc172f9a6f9143878c125b1e0037f20390aa04d9fe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 432,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "5056fa3a29536c79f13bacbc172f9a6f9143878c125b1e0037f20390aa04d9fe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2410,
+      "kind": "process_candidate",
+      "expression": "/ for (.+)$/i.exec",
+      "sourceSha256": "5056fa3a29536c79f13bacbc172f9a6f9143878c125b1e0037f20390aa04d9fe",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserSession.ts",
+      "line": 15,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "0c36450efeb8fc1c5a8115b3ad0f72093076c6eb4842a459b0c37889aa42a032",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserSession.ts",
+      "line": 59,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "0c36450efeb8fc1c5a8115b3ad0f72093076c6eb4842a459b0c37889aa42a032",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 168,
+      "kind": "process_candidate",
+      "expression": "execFileSync",
+      "sourceSha256": "8a0a998eb57154980117c3cd9d87b5f54fd18a6f11093e6be57aed81384b54a1",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/deploymentIdentity.ts",
+      "line": 107,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "429ef7eaaa8826515238f7d880ef7711420e71fd946c4ebfa461262273d5cc22",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/evaluation/store.ts",
+      "line": 12,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "98a07bb87f6ef01037295af88675663cf9d9e6a444d6da4d4760eba83e39d4fd",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/gates/registry.ts",
+      "line": 8,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "893eaaf85ca83b7f0316596b8d047ca8a800e65b4cab06001b5b165bd0cfb93e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/gates/registry.ts",
+      "line": 33,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "893eaaf85ca83b7f0316596b8d047ca8a800e65b4cab06001b5b165bd0cfb93e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/gates/registry.ts",
+      "line": 54,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "893eaaf85ca83b7f0316596b8d047ca8a800e65b4cab06001b5b165bd0cfb93e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/gateway/codexBridge.ts",
+      "line": 22,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "823ed5c1c66080b4efb90cae87ffa9da38d62684c9ac201333765c64a2f7410f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/gateway/codexBridge.ts",
+      "line": 182,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "823ed5c1c66080b4efb90cae87ffa9da38d62684c9ac201333765c64a2f7410f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/gateway/secretStore.ts",
+      "line": 264,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "5aa1c93e58ad48061e5311bc3573592c1e3828441f4b045ba96a36afc6ad9ba5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/hermes/resourceManager.ts",
+      "line": 170,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "496c513dcbbdcfb9e1a3563d7287e1bce5549328165b9275128b58aeeb702e39",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 426,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "fb7a247df856e65d1a2177bde486f7b7eb165a60e8b35dd0b4ec4d0c20c96212",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/hermesWatchdog.ts",
+      "line": 14,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "0ef1edef01926708831c016c8ceaaa80613a165ff0d7d06b4271f3b5c65066b2",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/hermesWatchdog.ts",
+      "line": 156,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "0ef1edef01926708831c016c8ceaaa80613a165ff0d7d06b4271f3b5c65066b2",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/maintenance/gitState.ts",
+      "line": 18,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "9c7fa4a1b9b2b7771467581d774bc8e14ceada6e2053ad77fc5b02ed1df0f58d",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/maintenance/gitState.ts",
+      "line": 93,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "9c7fa4a1b9b2b7771467581d774bc8e14ceada6e2053ad77fc5b02ed1df0f58d",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/maintenance/maintenanceStore.ts",
+      "line": 56,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "c627c3441236a7ca1eac1a204e9faf94464f75972fa690586ad68c934d9a2ce5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/maintenance/maintenanceStore.ts",
+      "line": 59,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "c627c3441236a7ca1eac1a204e9faf94464f75972fa690586ad68c934d9a2ce5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/maintenance/realAdapters.ts",
+      "line": 51,
+      "kind": "process_candidate",
+      "expression": "re.exec",
+      "sourceSha256": "09f7568ded4a5ceafc42e073254d3f51f7e8544eafabd9ffc92d83c82b00fa81",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/mcpBridge/mcpBridgeService.ts",
+      "line": 119,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "4fef9f89cb714453e422e79af10ca443e34048ca00f1e817ef6b45ec727c63ec",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/memory/store.ts",
+      "line": 149,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "4d58c3fc320f45063018d36e84454372b113b5cdfd33f62c72cc53d3ed3f1470",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/memory/store.ts",
+      "line": 154,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "4d58c3fc320f45063018d36e84454372b113b5cdfd33f62c72cc53d3ed3f1470",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 16,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "0b2d8319cfc4a005b64c4e397840b18295a070413cf339fbc2c80c0c9214c0e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 132,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "0b2d8319cfc4a005b64c4e397840b18295a070413cf339fbc2c80c0c9214c0e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 217,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "0b2d8319cfc4a005b64c4e397840b18295a070413cf339fbc2c80c0c9214c0e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 221,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "0b2d8319cfc4a005b64c4e397840b18295a070413cf339fbc2c80c0c9214c0e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 16,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "a595b41d1cb8cf110d06461bad2cdc0c0e36c2e753b40cb379d704d7b03f763a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 103,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "a595b41d1cb8cf110d06461bad2cdc0c0e36c2e753b40cb379d704d7b03f763a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 190,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "a595b41d1cb8cf110d06461bad2cdc0c0e36c2e753b40cb379d704d7b03f763a",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/foregroundScreenReader.ts",
+      "line": 37,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "bca3cf6a9840fba995ee0630ec0748c25d6ed418c7a49cf34ffac8a76a998b99",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/foregroundScreenReader.ts",
+      "line": 55,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "bca3cf6a9840fba995ee0630ec0748c25d6ed418c7a49cf34ffac8a76a998b99",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/LocationService.ts",
+      "line": 13,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "eb3ff88290b8cbd965409b8d4456a8cf693e15ac53d252b45b4893fa6803974f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/perception/LocationService.ts",
+      "line": 128,
+      "kind": "process_candidate",
+      "expression": "execAsync",
+      "sourceSha256": "eb3ff88290b8cbd965409b8d4456a8cf693e15ac53d252b45b4893fa6803974f",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/policy/policyStore.ts",
+      "line": 20,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "d67039e7d010fc9e7e8531db1f31b35cb8b5ca7a3ec8976fe4a151091edad2ce",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/prerequisites/activeGoalRegistry.ts",
+      "line": 59,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "39a6c31eb67e16cd2afc6575ce01de19b8b42e34e196913f50623c3ac85ead8e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectExecution/findings.ts",
+      "line": 121,
+      "kind": "process_candidate",
+      "expression": "re.exec",
+      "sourceSha256": "cc477044cb694cf91dca3960cbd743e81709d045deaf90a86e181c85ea72a1cd",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectExecution/schema.ts",
+      "line": 23,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "4d43ac1974a02b51205a4b26b1a823d063ee97545292895f217638971dc33163",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectExecution/schema.ts",
+      "line": 194,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "4d43ac1974a02b51205a4b26b1a823d063ee97545292895f217638971dc33163",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 11,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 55,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 58,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 67,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 68,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 69,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 70,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 71,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 72,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 73,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 74,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "1103da9c521790012f8ffcc82777d5d514ed8acb8ac523106fff4c4f884afcbf",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/recovery/localHarness.ts",
+      "line": 70,
+      "kind": "process_candidate",
+      "expression": "/(\\d+(?:\\.\\d+)?)\\s*b/i.exec",
+      "sourceSha256": "243ca18a5363375f686b0f5b06239ad7b6b4e20a2d761c219cd2f2c19c1a4a8e",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/branchScheduler.ts",
+      "line": 29,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "7580a04a6390c02f2172ef30daef80638b2760501f038cba679431a3b266b7c4",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/briefingService.ts",
+      "line": 59,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "7359bbd168df7d31d9ebac89b7c34cda3ff7ccee5c17c86ed26942ab02235954",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserTaskQueue.ts",
+      "line": 55,
+      "kind": "process_candidate",
+      "expression": "db.exec",
+      "sourceSha256": "e8da6102511cadcae8c819d73688d5bc05b21abfc489db0c126d44039dce0636",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserWorkerSupervisor.ts",
+      "line": 13,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "4bc81793cde3e01c0b71ed443a3f1b3c1fe6ea3991cb74d6480e4972f52e79b5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserWorkerSupervisor.ts",
+      "line": 236,
+      "kind": "process_candidate",
+      "expression": "fork",
+      "sourceSha256": "4bc81793cde3e01c0b71ed443a3f1b3c1fe6ea3991cb74d6480e4972f52e79b5",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/revenueActionExecutor.ts",
+      "line": 48,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "e57109aac21ed645675a2a012e063598806921221755d919efa4dd8f0186e093",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenueOperator/revenueSupervisor.ts",
+      "line": 108,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "defaa5fe7b9f701484aa21f69db7fcfdf9b97ce37bc043cd39116d5eee523a91",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/pipelineService.ts",
+      "line": 17,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "184609e62c4a5656f2c0d5a19d6b2c46f8bbfaea5b0145a43ba4132f04090def",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 76,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "fb37c8248aeaaacac96300381cd3750334d269b5dee95cfb23577261a2861f08",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 81,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "fb37c8248aeaaacac96300381cd3750334d269b5dee95cfb23577261a2861f08",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 87,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "fb37c8248aeaaacac96300381cd3750334d269b5dee95cfb23577261a2861f08",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 90,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "fb37c8248aeaaacac96300381cd3750334d269b5dee95cfb23577261a2861f08",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/routines/store.ts",
+      "line": 114,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "497aa7e0f79736019232cff001fc3a902611ad987cc31c48e8c2c9b025b475d2",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/routines/store.ts",
+      "line": 119,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "497aa7e0f79736019232cff001fc3a902611ad987cc31c48e8c2c9b025b475d2",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/scraperService.ts",
+      "line": 193,
+      "kind": "process_candidate",
+      "expression": "hrefRegex.exec",
+      "sourceSha256": "746ec58f39e49960b710437cc9cdd351363ed523704fc8629a64807db7b350e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 20,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 87,
+      "kind": "process_candidate",
+      "expression": "execSync",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 215,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 240,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 248,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 274,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 292,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 323,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 344,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 356,
+      "kind": "process_candidate",
+      "expression": "exec",
+      "sourceSha256": "be653e8bb731157cff45f471589cd35914c19d8546f8c958cd174c3baa1d1536",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "276e1785cd4c1ba5bbc284884d2fbdc5fbbbfed28d8036f744eb90a1ebb3a388",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 263,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "276e1785cd4c1ba5bbc284884d2fbdc5fbbbfed28d8036f744eb90a1ebb3a388",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 669,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "276e1785cd4c1ba5bbc284884d2fbdc5fbbbfed28d8036f744eb90a1ebb3a388",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "7d5b8614eeac67f1a1dca5b9066e47682cdd15a0256591ce935939820f38d2aa",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 322,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "7d5b8614eeac67f1a1dca5b9066e47682cdd15a0256591ce935939820f38d2aa",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 9,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "9fb3c79c07661ab9f382d57b526dfad9215ed026bb0e997eb9df98c1b601702d",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 162,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "9fb3c79c07661ab9f382d57b526dfad9215ed026bb0e997eb9df98c1b601702d",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/workspaceIndexer.ts",
+      "line": 171,
+      "kind": "process_candidate",
+      "expression": "rawDb.exec",
+      "sourceSha256": "70d04aab7eb44a19f1e14f62d54d53f3b4f9736f3b4406d621091c8a062d5a65",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/services/workspaceIndexer.ts",
+      "line": 198,
+      "kind": "process_candidate",
+      "expression": "SYMBOL_RE.exec",
+      "sourceSha256": "70d04aab7eb44a19f1e14f62d54d53f3b4f9736f3b4406d621091c8a062d5a65",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 4,
+      "kind": "process_or_native_import",
+      "expression": "child_process",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 206,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 211,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 222,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 274,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 281,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 288,
+      "kind": "process_candidate",
+      "expression": "execFile",
+      "sourceSha256": "7f1f0a38dcfc124c85a1048d88575974448ea790e5bc90586d57e281e69ed571",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/workflows/workers/claude.ts",
+      "line": 1,
+      "kind": "process_or_native_import",
+      "expression": "node:child_process",
+      "sourceSha256": "2dc11499706839a3316fc93b7d13d3d3a859a1781ccb7100edaba5d58e9ac3e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    },
+    {
+      "file": "server/src/workflows/workers/claude.ts",
+      "line": 9,
+      "kind": "process_candidate",
+      "expression": "spawn",
+      "sourceSha256": "2dc11499706839a3316fc93b7d13d3d3a859a1781ccb7100edaba5d58e9ac3e7",
+      "disposition": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH"
+    }
+  ]
+}

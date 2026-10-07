@@ -1,0 +1,73 @@
+{
+  "deployment": "PROHIBITED",
+  "overall": "INCOMPLETE_NOT_ACCEPTED",
+  "classification": {
+    "artifact": "evidence/privileged-entrypoint-classification.json",
+    "originalCandidates": 723,
+    "guarded": 0,
+    "safelyNonPrivileged": 33,
+    "intentionallyExcluded": 0,
+    "unresolved": 690,
+    "meaning": "Every original candidate has a classification. This is not completed call-graph review or complete bypass prevention.",
+    "supplementalArtifact": "evidence/additional-security-surfaces.json",
+    "supplementalUnresolvedCandidates": 857,
+    "supplementalCategories": {"ipc":26,"dynamicImport":714,"credentials":76,"native":41},
+    "supplementalCaveat": "Static matches include potential false positives and overlap; do not add these to the original count as distinct proven vulnerabilities."
+  },
+  "implementedThisContinuation": [
+    "Explicit classifications and source fingerprints for the original inventory, with integrity/count tests.",
+    "Supplemental inventory beyond the original server-only patterns.",
+    "Independent read of the existing mcp_prepared_tasks approval record before any grant consumption or dispatch receipt.",
+    "Fail-closed refusal of existing approval records because authenticated human authority cannot be established; no production grant issuer added.",
+    "API authentication middleware denies missing configuration in all environments and compares configured tokens using timingSafeEqual."
+  ],
+  "approvalService": {
+    "status": "NOT_VERIFIED",
+    "integration": "Existing service persistence is consulted independently; authorization remains denied.",
+    "evidence": "server/src/domains/controlPlane/taskGraph/TrustedToolApproval.ts; server/src/routers/mcpBridge.ts:120,129",
+    "reason": "Existing approve/reject routes accept caller-supplied responder names. Shared API authentication is not proof of a human decision. No independently authenticated per-capability/resource/argument/expiry/revocation/finite-use approval bridge exists yet.",
+    "denialTests": "Missing, pending, rejected, expired, malformed expiry, caller-asserted human, storage failure. All leave uses_remaining unchanged and dispatch count zero.",
+    "limitation": "Other unmediated entrypoints remain unresolved. Denial at ToolAuthorization does not protect those paths. Positive grant-accounting tests explicitly mock the approval gate and are not approval acceptance tests."
+  },
+  "tests": {
+    "sourceRegressionUniquePassing": 79,
+    "inventoryChecksPassing": 2,
+    "logs": [".tmp/security-review-regressions.log", ".tmp/security-review-final-tests.log", ".tmp/security-review-build.log"],
+    "database": "D:/AgenticOS/.tmp/security-review-tests/test.db",
+    "typescript": "PASS",
+    "build": "PASS",
+    "buildIdentity": "3f20c479-dirty-20261006-125323",
+    "runAs": "Developer test process, not JarvisWorker",
+    "categoryRuntimeCoverage": "INCOMPLETE: no real confinement acceptance for every privileged category"
+  },
+  "worker": {
+    "status": "NOT_VERIFIED_FOR_CURRENT_BUILD",
+    "previousObservedIdentity": "CDInternational\\JarvisWorker",
+    "previousObservedSid": "S-1-5-21-3435097649-250514390-3575566063-1006",
+    "previousEvidenceTime": "2026-10-06T12:14:42.5989413Z",
+    "previousEvidenceSource": "User-pasted actual worker check output; not a new execution in this continuation.",
+    "previousVerified": ["SID matches manifest", "enabled non-administrator", "separate profile", "workspace create/read/delete", "identity policy write denied", "application file read and Node execution"],
+    "reason": "Current build has not been run under the worker. Previous check explicitly permits own profile/temp and other host-accessible paths; it does not establish workspace-only confinement."
+  },
+  "remaining": {
+    "legacyMigration": "NOT_VERIFIED: legitimate non-graph callers remain blocked or unresolved; executable canonical rebinding is not complete.",
+    "filesystem": "NOT_VERIFIED: complete canonical path, junction/symlink, race-resistant access and workspace policy enforcement not implemented across entrypoints.",
+    "network": "NOT_VERIFIED: no enforced worker outbound allowlist or unauthorized-destination denial acceptance.",
+    "process": "NOT_VERIFIED: shell/child-process/descendant restrictions not enforced across all paths.",
+    "credentials": "NOT_VERIFIED: hostname-derived fallback remains in secretStore.ts; no migration or live credential changes performed.",
+    "api": "NOT_VERIFIED: middleware corrected, but index.ts:272 still excludes multiple API route families; token provisioning and all route callers need review.",
+    "browser": "NOT_VERIFIED: facade unit tests do not prove typed operations, dedicated-profile isolation, multi-user/session confinement or real browser outcomes.",
+    "specialists": "NOT_VERIFIED: canonical identity, approval and evidence propagation not complete across alternate providers and specialist entrypoints.",
+    "independentVerification": "NOT_VERIFIED: all side-effecting operations do not yet have mandatory independent postconditions; handler success must not be presented as real-world verification.",
+    "installedRuntime": "NOT_TESTED: deployment prohibited and new build not installed or launched as worker.",
+    "physicalDesktop": "NOT_TESTED: no actions performed in isolated worker desktop.",
+    "browserAcceptance": "NOT_TESTED: no dedicated test browser profile or synthetic credential workflow exercised.",
+    "unicode": "NOT_VERIFIED: physical Unicode input acceptance not performed."
+  },
+  "operationStates": {
+    "newApprovalDenials": "REFUSED_BEFORE_DISPATCH: zero dispatch receipts, no grant consumption in tests",
+    "sourceTestsAndBuild": "SUCCEEDED: process/test results only",
+    "currentPhysicalOperations": "NONE_DISPATCHED; no new VERIFIED physical operation claimed"
+  },
+  "architecture": "GoalLifecycle and TaskGraphExecutor remain authoritative. Authorization records remain permission/receipt data. Journal remains evidence projection."
+}

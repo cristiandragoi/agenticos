@@ -1,0 +1,31 @@
+{
+  "phase": "isolated_identity_provisioning",
+  "status": "DISPATCHED_AWAITING_PRIVATE_INPUT",
+  "identity": { "requestedName": "JarvisWorker", "sid": null, "administrator": false, "provisioningVerified": false },
+  "setupProcess": { "pid": 31820, "executable": "powershell.exe", "launchObserved": true },
+  "tests": [
+    { "name": "PowerShell parse of provisioning and worker-check scripts", "result": "PASS" },
+    { "name": "Non-elevated provisioning refuses before mutation", "result": "PASS", "evidence": "Administrator elevation is required; no changes made." }
+  ],
+  "filesystem": {
+    "plannedRoot": "C:\\ProgramData\\AgenticOS-IsolatedWorker",
+    "plannedWritableWorkspace": "C:\\ProgramData\\AgenticOS-IsolatedWorker\\workspace",
+    "policy": "SYSTEM and Administrators full control; worker read/execute root, modify workspace. Worker also has its own Windows profile. Effective checks pending.",
+    "limitation": "Dedicated identity is not a VM. Host world-readable files remain readable; global filesystem scopes are not implemented by these scripts."
+  },
+  "network": "Inherited host network/firewall permissions; no enforced outbound allowlist yet. No untrusted execution has been started; these scripts do not implement a network sandbox.",
+  "credentials": "Password entered privately in elevated Windows setup; no API credentials or authenticated profile copied. Existing vault unchanged. Credential isolation acceptance pending.",
+  "rollback": "Run scripts/provision-jarvis-worker.ps1 elevated with -Mode Disable. Script checks persisted SID before disabling. Sign out existing worker sessions separately. Preserve files and evidence; do not delete profiles automatically.",
+  "remaining": [
+    "Finish private account setup and initialize separate Windows session",
+    "Run identity and filesystem checks as worker",
+    "Enforce authorization, scopes, approvals, rate limits and canonical identity on all execution paths",
+    "Migrate unsafe credential fallback",
+    "Complete typed browser and independent verification gates",
+    "Isolated physical and installed-runtime acceptance",
+    "Prepare deployment and sign-off only after acceptance"
+  ],
+  "physicalAcceptance": "NOT_RUN",
+  "installedRuntimeAcceptance": "NOT_RUN",
+  "productionDeployment": "NOT_PERFORMED"
+}

@@ -1,0 +1,387 @@
+OBSERVER COMMON CONTRACTS v1 — specification and synthetic validation only
+
+Normative terms: MUST and MUST NOT are enrollment requirements. This specification
+resolves design requirements; it does NOT close operational enrollment blockers.
+C-01..C-06 and D-01..D-06 remain OPEN_FOR_ACCEPTANCE until their required real tests
+pass against the exact proposed deployment. No production observer, key, adapter,
+approval issuer or lifecycle adapter is implemented or enrolled in this phase.
+
+Machine-readable schema definition and reference canonicalization:
+  scripts/contracts/observer-contract-schema.mjs
+Synthetic schema suite:
+  scripts/test-observer-contract-schema.mjs
+These are standalone specification fixtures, never application modules. They use
+invented identifiers and an all-zero signature, which is never authenticated.
+Passing their validators is not authorization, authenticity, independence or
+whole-goal verification. Domain payloads describe evidence, not action arguments.
+
+C-01 — Evidence envelope, encoding and provenance
+Normative rule: every evidence message MUST match exactly one supported v1 domain
+schema. All declared fields are required, including nested fields. Null, omitted,
+additional, duplicate and wrongly typed fields MUST be rejected. No coercion,
+defaults, silent down-versioning, unsigned extensions or unknown domain fallback.
+
+Data schema: the exported closed schemas are the exact field inventory. Primitive
+types are ID=[A-Za-z0-9][A-Za-z0-9._:-]{0,127}; HASH/NONCE=64 lowercase hexadecimal
+characters; VERSION=integer 1..2147483647; TIME=integer 0..9007199254740991 in ms;
+BOOL=true|false. Other integers have the explicit bounds in the schema. Strings
+are ASCII identifiers, enumerations or digests; paths, URLs, UI text and secrets
+are not transported. IDs resolve through scoped supervisor-owned resource stores.
+Maximum wire size 65536 UTF-8 bytes, nesting depth 12, array length 64 unless a
+smaller schema limit applies. File observation limit 1048576 bytes; launcher chain
+16 entries; redirects 8. Truncation is UNKNOWN, never complete evidence.
+
+Envelope fields group as follows (exact types/nesting in the closed schema):
+  schemaVersion, evidenceId, reservationId, nonce;
+  binding: goalId, graphId, graphVersion, manifestHash, nodeId, operation, attempt,
+    worker and supervisor {principal,incarnation,buildHash}, actorPath,
+    argumentHash, resourceId/hash/generation, postconditionId/schemaVersion/hash,
+    policyRef/version/expiry, approval {state,reference,epoch,expiry},
+    cancellationEpoch, evidenceGeneration;
+  observer {principal,incarnation,buildHash}, observerPath, enrollmentVersion,
+    revocationEpoch, keyId, keyGeneration, sourceId/generation;
+  bootEpoch, observerBootEpoch, issuedMonoMs, observedFromMonoMs, observedAtMonoMs,
+    sentMonoMs, validUntilMonoMs, observedUnixMs, sentUnixMs,
+    enrollmentExpiresMonoMs, observerExpiresMonoMs;
+  evidenceVersion, result MATCH|MISMATCH|UNKNOWN, complete, deploymentHash,
+    domain, payloadHash, typed domain payload.
+The approval state REQUIRED_VALIDATED is a claim requiring independent issuer
+validation, never authority by virtue of parsing. NOT_REQUIRED requires a current
+policy exemption reference. Every attempt has a fresh unpredictable 256-bit nonce
+issued by the broker; randomness quality is a real acceptance requirement.
+
+Canonical encoding is AgenticOS restricted canonical JSON v1, NOT an assertion of
+general RFC compatibility: recursively sort object keys by ASCII code, preserve
+array order, no whitespace/BOM, decimal safe integers without leading zeros,
+exponent form, fractions or negative zero; literal true/false; ASCII JSON strings.
+The sender MUST transmit exactly these bytes. The bounded receiver parses then
+validates then compares canonical bytes with received bytes. Duplicate keys,
+alternate numeric forms and escaped alternate key spellings fail that comparison.
+All textual resource content remains behind content hashes, avoiding Unicode
+normalization ambiguity. Future Unicode or numeric expansion requires a new version.
+
+payloadHash = SHA256(ASCII('AgenticOS/ObserverPayload/v1/' + domain) || 0x00 ||
+  canonical(payload)).
+envelopeDigest = SHA256(ASCII('AgenticOS/ObserverEnvelope/v1') || 0x00 ||
+  canonical(complete envelope)).
+Wire wrapper exactly {envelope,digest,provenance:{algorithm:'Ed25519',signatureHex}}.
+Signature is 64 bytes encoded as 128 lowercase hex characters, over
+ASCII('AgenticOS/ObserverSignature/v1') || 0x00 || the 32 raw digest bytes.
+Key ID/generation and enrollment version are INSIDE the signed envelope. Digest
+and detached signature are outside it, avoiding recursive self-hashing. No field
+of the envelope may be excluded from hashing. Authenticate before considering
+semantic acceptance. Valid hashes or well-shaped signatures are never enough.
+
+Trust boundary: authenticated local transport plus observer signature validated
+against protected enrollment; sender identity MUST equal enrolled key principal.
+Reject incompatible versions as SCHEMA_INCOMPATIBLE with no enrollment or execution
+fallback. The current fixture checks shape/hash only and always reports
+authenticated:false. Bounded parser resource behavior must be tested in deployment.
+Failure: REJECTED_SCHEMA, REJECTED_HASH or REJECTED_PROVENANCE; no promotion.
+Synthetic tests: exact/missing/unknown fields, sizes/types, nested identities,
+version mismatch, canonical order, duplicate keys, hash domain separation and
+payload substitution. Real acceptance: independent sender/verifier byte vectors,
+actual signature validation, malformed-wire resource bounds and authenticated
+transport fault injection. Enrollment blocked until all pass.
+
+C-02 — Identity, enrollment and independence
+Normative rule: an out-of-band administrative enrollment authority approves an
+observer principal, measured deployment, allowed domain/source and read-only
+capabilities. Its protected public trust root is pinned in the verifier. Worker,
+model, renderer and ordinary HTTP requests MUST NOT enroll or rotate identities.
+Observer keys MUST be generated by the observer's protected key service, never
+provided by the acting handler. Private material must be nonexportable where the
+selected provider supports it and otherwise protected by a separately reviewed
+isolation boundary. No provider is selected or qualified by this document.
+
+Data schema: enrollment v1 in the fixture contains observer identity, key ID and
+generation, publicKeyHash, authorityId, enrollmentVersion, revocationEpoch, status,
+allowedDomain/source, observerPath, deploymentHash and UTC validity interval.
+The authority signs this record with a separate Enrollment/v1 domain separator.
+Public key bytes are retrieved from the protected authority store by keyId, checked
+against publicKeyHash, not accepted from evidence. Proof validation MUST recheck
+current enrollment and revocation state at acceptance and aggregate commit.
+Restart creates a fresh observer incarnation and invalidates outstanding requests.
+Rotation increments key generation and enrollment version; new reservations bind
+only the new generation. Old pending evidence is invalidated, not grandfathered.
+Revocation increments the epoch and invalidates all pending/current-use proofs.
+Historical evidence remains recorded. Trust-store unavailability fails closed.
+
+Trust boundary: worker, handler, model, renderer and ordinary host user are hostile
+to observer identity and storage. The supervisor is trusted for scheduling and
+reservation identity, but MUST NOT mint or replace independent observations.
+Observer signature and independent acquisition are mandatory even when the
+supervisor reports success. Observer principal and execution path must differ
+from the actor and supervisor; all identities resolve to enrolled OS principals.
+An honest verifier and protected enrollment authority are trust prerequisites.
+A compromised verifier/supervisor able to rewrite its acceptance code can lie;
+this design does not claim otherwise. Protection against that requires an external
+verifier/trust anchor and separate review.
+
+Transport: local authenticated IPC only in v1, ACL-restricted to the enrolled
+principals, with OS peer validation and per-session nonce binding. Payload integrity
+is additionally signed. No unauthenticated HTTP, model tool output, renderer relay
+or open TCP/CDP endpoint is an evidence channel. Remote observer transport is
+unsupported in v1. Domain/browser observation transport is distinct from this IPC.
+Failure: IDENTITY_UNTRUSTED, REVOKED, INCARNATION_CHANGED or INDEPENDENCE_FAILED.
+Synthetic tests: malformed identity, same principal/path, missing incarnation;
+future lifecycle simulations must cover rotation/revocation and impersonation.
+Real acceptance: attempt worker/renderer/user impersonation, private-key access,
+unauthorized enrollment and stale-key use; verify peer authentication and revocation.
+Enrollment blocked until key isolation, actual provenance and independence pass.
+
+C-03 — Time and freshness
+Normative rule: broker reservations use a host OS monotonic clock and pinned boot
+epoch. Observer timestamps use the SAME host monotonic clock domain, not unrelated
+process uptime. observerBootEpoch identifies observer-service restart. Broker keeps
+its own receipt {bootEpoch,observerBootEpoch,receivedMonoMs,receivedUnixMs}; these
+fields are NOT supplied by or retroactively signed by the observer.
+
+Data schema: envelope clock fields plus local receipt schema in validateReception.
+Require issued <= observedFrom <= observedAt <= sent <= received < validUntil.
+Maximum receipt TTL 30000 ms. Require absolute observedUnix-sentUnix and
+sentUnix-receivedUnix differences <=2000 ms. Wall time is a skew diagnostic, not
+permission to extend a monotonic deadline. Broker securely maps policy/approval/
+enrollment UTC validity to monotonic deadlines at reservation, capped at TTL.
+Evidence validUntil MUST be <= every policy, approval, enrollment and observer
+lifetime deadline. Validate again at aggregate commit; equality means expired.
+Clock discontinuity, source uncertainty or rollback blocks new acceptance until
+time is re-established; monotonic rollback always fails. Restart of broker, host
+or observer invalidates outstanding reservations. No translating old epochs.
+
+Trust boundary: peers cannot supply broker receive time or extend authority-store
+lifetimes. Policy timestamps are resolved from protected records, not envelope
+claims. Failure: CLOCK_UNCERTAIN, EXPIRED or RESTART_INVALIDATED.
+Synthetic tests: ordering, skew, all lifetime caps, boot/incarnation mismatch and
+late receipt. Real acceptance: OS clock changes, delayed IPC, suspend/resume and
+broker/observer restart demonstrate invalidation without lifetime extension.
+Enrollment blocked until selected clocks and restart handling are qualified.
+
+C-04 — Atomic lifecycle
+Normative rule: the supervisor durably reserves an exact operation before any
+observation. Identity, attempt, graph/manifest/policy versions, worker incarnation,
+resource generation and cancellation epoch are read from authoritative ledgers.
+Caller-provided matching-looking strings cannot create a reservation.
+
+Data schema: reservation v1 in the fixture; state RESERVED|ACCEPTED|CONTRADICTORY|
+CANCELLED|EXPIRED|ABORTED_RESTART, unique reservation ID and nonce, revision, exact
+binding, observer/enrollment/revocation versions, boot epoch and deadline.
+acceptedDigest is 64 zeroes only in RESERVED or terminal states without accepted
+evidence; that sentinel MUST NEVER be treated as a valid evidence hash.
+Unique constraints MUST cover nonce and exact operation/attempt/postcondition/
+evidence-generation tuple. Re-observation needs a new authorized generation.
+
+On receipt: validate signature and schema, then in one durable transaction recheck
+reservation revision, current policy/approval/enrollment, epochs, versions and
+deadline. Atomically append immutable evidence and set ACCEPTED exactly once.
+Identical authenticated duplicate after acceptance returns ALREADY_ACCEPTED with
+the original digest and never consumes again or extends expiry. A different
+authenticated payload for the same reservation appends contradiction evidence and
+sets CONTRADICTORY. Unauthenticated garbage cannot poison a valid reservation.
+Missing/partial evidence and UNKNOWN never satisfy a postcondition. MISMATCH is
+retained as contradiction; original evidence MUST NOT be overwritten.
+
+Cancellation increments the durable goal epoch and invalidates reservations in
+the same serialization domain as acceptance/promotion. Late evidence is rejected
+and audit-linked. Policy, manifest, attempt or resource-generation changes also
+invalidate pending reservations. Atomic aggregate commit covers exact current
+node proofs and a unique aggregate ID; it cannot run nodes or retry observations.
+If cancellation commits first, promotion cannot commit. If cancellation follows
+promotion, append cancellation/invalidation without erasing historical facts.
+
+Crash recovery: committed transactions survive; incomplete writes cannot become
+accepted evidence. Restart invalidates pending reservations. Previously committed
+evidence remains history but requires current lifetime/revocation checks before
+any use; no automatic replay, re-observation or resumption. Journal failure rolls
+back acceptance/promotion. Bound audit storage and backpressure; overflow refuses
+new observations rather than dropping evidence needed for completeness.
+Trust boundary: supervisor ledger and transactional journal, not handler memory.
+Failure: CANCELLED, STALE_BINDING, CONTRADICTORY, INCOMPLETE, REPLAY or STORE_FAILURE.
+Synthetic tests: reservation field validation in this phase; prior design tests
+model races. Required additional transactional tests must cover crash points,
+duplicates, contradictory authentic submissions and audit failure.
+Real acceptance: concurrent processes and forced crashes against the actual store
+and IPC, followed by recovery and cancellation/revocation races. Enrollment blocked
+until atomicity, replay durability and full postcondition coverage are demonstrated.
+
+C-05 — Observation-only authority
+Normative rule: the only peer-callable method is OBSERVE with the closed request
+schema. No command text, arbitrary path/URL, script, evaluator, method override,
+scheduler, retry, mutation, dispatch, approval or recovery interface exists.
+Resource capability IDs resolve to pre-authorized read-only targets; no ambient
+access from caller-selected identifiers. Broker validates request against reservation.
+Limits: maxBytes<=1048576, maxDurationMs<=30000, maxItems<=64; policy may lower them.
+At most one outstanding observation per reservation, 4 per observer and 32 per
+broker in v1; excess returns BUSY without queueing or retrying.
+
+Data schema: request v1; method is literal OBSERVE. A response is a signed envelope
+or a bounded error enum UNAVAILABLE|BUSY|TIMEOUT|DENIED|UNKNOWN. Errors carry only
+reservation ID and code, not action suggestions or authority to schedule work.
+Trust boundary: read-only OS capabilities plus interface restrictions, not naming
+conventions. Adapters cannot acquire action capabilities through imported libraries.
+Observation may consume resources but MUST NOT cause the target side effect it
+claims to verify. No active network probes under a passive observation contract.
+Failure: observer unavailability preserves handler SUCCEEDED and blocks verification.
+It MUST NOT enqueue, call or signal any retry/action/recovery path.
+Synthetic tests: reject other methods/extra fields/oversized requests; design tests
+show pure aggregation does not dispatch. Required integration proof: instrument all
+action entrypoints and scheduler queues and assert zero calls/enqueues for every
+observer error and timeout. Real acceptance: OS denial of mutation/dispatch and
+unavailability fault injection with independent action/queue monitoring.
+Enrollment blocked until both interface and effective-permission controls pass.
+
+C-06 — Deployment identity and privileged trust
+Normative rule: every enrollment binds a measured deployment record, and every
+evidence envelope binds its digest. The verifier resolves that record independently
+and compares running identities, not self-reported build labels.
+Data schema: deployment v1 includes sourceRevision, sourceTreeHash (including dirty
+source), buildFingerprint, executableHash, loadedModuleSetHash, configurationHash,
+runtimeIncarnation, osPrincipal, effectivePermissionsHash, bootEpoch and
+acceptanceLayer SOURCE|DEVELOPMENT|INSTALLED|PRODUCTION. Module-set digest covers a
+canonical sorted inventory of all executable modules with path identity and hash.
+Dynamic/unmeasured loading invalidates enrollment. Configuration and permission
+digests cover resolved effective settings/rights, not merely desired configuration.
+
+Trust boundary: protected build provenance, independently measured loaded images,
+ACLs and permissions. Source review, build identity, development runtime acceptance,
+installed acceptance and production acceptance are separate records. A pass at one
+layer MUST NOT promote another. Executable/module/configuration/principal changes
+invalidate evidence and require a newly reviewed enrollment version.
+Privileged administrator/kernel compromise is OUTSIDE this local trust guarantee.
+An administrator able to alter verifier, observer, trust store or OS telemetry can
+defeat it. Suspicion of privileged tampering invalidates the checkpoint; adversarial
+administrator resistance requires a separate external/hardware-rooted design.
+Ordinary user tampering remains in scope and MUST be prevented by OS permissions.
+Failure: DEPLOYMENT_MISMATCH, PERMISSION_MISMATCH or TRUST_ASSUMPTION_VIOLATED.
+Synthetic tests: closed deployment fields/version; future binding tests substitute
+build/config/module/principal identities. Real acceptance: inspect actual loaded
+artifacts, permissions, ordinary-user tampering and mismatch rejection in each
+intended deployment layer. Enrollment blocked until that layer passes independently.
+
+DOMAIN CONTRACTS — shared requirements plus separate real acceptance
+All domain payload fields and exact bounds are in envelope:<domain>. Fields that
+do not apply use only the following documented values: IDs 'not-applicable', zero
+hashes and false flags where explicitly allowed below. These MUST NOT satisfy a
+postcondition requiring that observation. MATCH requires a typed postcondition
+evaluator and complete independent evidence; schema success alone cannot yield it.
+
+D-01 FILE
+Normative: acquire scoped read-only descriptor without following unapproved reparse
+points; default reject all reparse traversal and linkCount!=1. Bind volume/file ID
+and descriptor identity; compare before/after resource generations. Rename or
+replacement affecting a path postcondition invalidates its binding. Same inode/file
+ID alone does not prove unchanged bytes or current path membership. Snapshot/read
+consistency must be provided or result UNKNOWN. Content words are data, not commands.
+Schema: file v1 payload rootId, relativePathHash, volumeId, fileId, generationBefore/
+After, byteLength, contentHash, linkCount, reparse, descriptorIdentityHash.
+Trust: independent restricted principal and descriptor acquisition; protected root
+mapping; administrator interference excluded under C-06, never silently tolerated.
+Failure: ALIAS_UNSAFE, RESOURCE_CHANGED, READ_INCOMPLETE or MISMATCH; no promotion.
+Synthetic: hard-link counts, reparse metadata, rename/replacement and generation
+mismatch vectors. Real: controlled hard links, junction/reparse escapes, rename and
+concurrent-write races, descriptor identity and actor/observer ACL separation.
+Blocker: D-01 remains until actual filesystem/OS boundary and consistency pass.
+
+D-02 PROCESS
+Normative: require independently observed process creation identity, executable,
+launcher chain and complete descendants in a tested Job Object/equivalent boundary.
+PID reuse, delegated launchers, detached processes and breakaway must be accounted
+for. Sequence gaps or observer restart make continuity incomplete. WMI/PowerShell/
+taskkill cleanup remains BEST_EFFORT, never containment verification.
+Schema: process v1 payload process identity, launcherChain, containmentId/kind,
+descendants, complete, event sequence bounds, state, exitCode, breakawayObserved.
+exitCode=0 when RUNNING is a sentinel, not exit success. Truncated descendants fail.
+Trust: OS-owned containment/events and restricted independent observer service.
+Failure: CONTAINMENT_UNKNOWN, EVENT_GAP, IDENTITY_REUSED or UNEXPECTED_DESCENDANT.
+Synthetic: reused PID, detached/delegated children, gaps, breakaway and restart.
+Real: bounded authorized process fixtures exercise all these cases and OS cleanup.
+Blocker: no process containment enrollment before Job Object/equivalent acceptance;
+other domain results cannot substitute for process acceptance.
+
+D-03 BROWSER
+Normative: isolated profile/principal; prove observation endpoint ownership, peer
+identity and read-only broker enforcement. Bind browser/context/target incarnation,
+navigation generation and origin. Reject target replacement/origin changes. Downloads,
+uploads and authentication changes require explicit correlated evidence; a DOM match
+cannot prove transfer completion, login identity or safe authentication state.
+Schema: browser v1 payload profileId, browserIncarnation, endpointOwner, contextId,
+targetId, navigationGeneration, originId/hash, stateHash, authenticationEpoch,
+transfer NONE|DOWNLOAD|UPLOAD, transferId, transferComplete. NONE requires
+transferId='not-applicable', transferComplete=false; no transfer postcondition allowed.
+Trust: dedicated isolated profile and authenticated restricted transport; page content
+cannot become code or authority. No general CDP control channel exposed to observer.
+Failure: ENDPOINT_UNTRUSTED, NAVIGATION_CHANGED, AUTH_STATE_UNKNOWN or TRANSFER_UNKNOWN.
+Synthetic: endpoint substitution, navigation/target/origin races and stale auth/transfer.
+Real: separately authorized isolated-browser ownership/profile separation, read-only
+enforcement and transfer attribution tests. No authenticated profile implied.
+Blocker: D-03 stays open until browser-specific acceptance, distinct from network.
+
+D-04 NETWORK
+Normative: bind approved endpoint, resolved destination and authenticated peer,
+redirect chain and proxy policy. Each transport attempt has independent correlation
+within a logical request. Observer cannot retry or send probes. RESPONSE_ONLY is
+never REMOTE_COMMITTED; durable remote effects need operation-specific authoritative
+receipt and independent remote-state confirmation with defined consistency semantics.
+Schema: network v1 endpointId, destinationHash, peerIdentityHash, redirectChain,
+proxyPolicyRef, logicalRequestId, transportAttempt, requestHash, responseHash, status,
+correlationNonce, commitment, remoteReceiptHash. RESPONSE_ONLY requires zero remote
+receipt hash, which cannot satisfy commitment. More than eight redirects is UNKNOWN.
+Trust: independent attributable telemetry/server authority, not handler response bytes.
+Failure: DESTINATION_CHANGED, ATTRIBUTION_FAILED, RESPONSE_SUBSTITUTED or COMMIT_UNKNOWN.
+Synthetic: DNS/redirect/proxy substitutions, wrong-attempt responses and duplicate
+commitment. Real: separately authorized controlled endpoints/proxies test all these
+cases, remote durability and retry attribution without observer-generated actions.
+Blocker: D-04 stays until network acceptance; browser success is insufficient.
+
+D-05 CREDENTIAL USE
+Normative: never expose secret bytes or low-entropy secret digests. Bind opaque
+handle, exact requesting worker/incarnation, scope, grant and revocation epochs.
+Approval authority and credential broker must have separate identities and protected
+keys. Observer cannot grant access or issue approval. Broker compromise invalidates
+broker-derived proof; its own logs cannot exonerate it. Positive access evidence is
+not a claim of universal credential isolation.
+Schema: credential v1 opaqueHandleId, requestingWorker, scopeHash, grantEpoch,
+revocationEpoch, brokerIdentity, approvalAuthorityId, decision, accessEventId,
+auditSequence. No free-text/secret field; worker must equal reservation binding.
+Trust: OS-separated broker/security observer and separately reviewed approval root.
+Failure: SCOPE_MISMATCH, REVOKED, WORKER_CHANGED, AUDIT_UNTRUSTED or SECRET_DISCLOSURE.
+Synthetic: invented handles, malformed secret fields, stale epochs, scope/identity
+substitution and forged approvals. Real: separately authorized isolation/revocation
+and approval-separation tests using dedicated test secrets, never implicit permission
+to access real credentials. Real boundary evidence required before broader claims.
+Blocker: D-05 stays; trustedHumanApproval remains NOT_VERIFIED independently.
+
+D-06 DESKTOP/VOICE
+Normative: bind OS session/desktop, application creation identity, window generation,
+focus before/after, physical device identity and capture nonce/interval. Reject
+replayed captures and ambiguous/occluded observations. Virtual/synthetic audio or UI
+events cannot satisfy physical predicates. UI, microphone input and speaker output
+are distinct acceptance subdomains; a rendered buffer cannot prove audible output.
+Schema: desktopVoice v1 sessionId, desktopId, application, windowId/generation,
+focusGenerationBefore/After, modality UI|MICROPHONE|SPEAKER, deviceId/identityHash,
+captureId/nonce/hash/start/end, physical, ambiguity. UI without an audio device may
+use deviceId='not-applicable' and zero device hash; physical audio may never do so.
+Trust: dedicated capture-only identity, no input-injection authority; protected
+capture provenance. Observer performs no keystrokes, playback or acoustic stimulus.
+Failure: SESSION_CHANGED, FOCUS_CHANGED, DEVICE_UNTRUSTED, REPLAYED or AMBIGUOUS.
+Synthetic: device/session/window substitution, focus races, stale/replayed captures
+and synthetic-to-physical substitution. Real: explicitly authorized physical desktop,
+microphone and speaker tests independently prove attribution, focus, ambiguity and
+replay resistance. No synthetic result substitutes for any physical subdomain.
+Blocker: D-06 stays until each requested physical modality passes its own acceptance.
+
+Review disposition
+Schema tests cover the machine-readable shapes, canonical encoding, hash bindings
+and selected time/identity rules only. They do NOT test signature authenticity,
+OS isolation, key management, domain predicates, durable races, physical devices or
+installed deployment. All real tests above are future requirements, NOT permission
+to execute them. Accepted application code and historical evidence remain unchanged.
+
+Preserved states:
+runtimeObservers: NOT_ENROLLED
+domainAdapters: NOT_ENROLLED
+wholeGoalVerification: BLOCKED_NO_RUNTIME_OBSERVER
+trustedHumanApproval: NOT_VERIFIED
+windowsJobObject: NOT_IMPLEMENTED_OR_NOT_VERIFIED
+readyToExecuteUntrustedCode: false
+deployment: PROHIBITED_NOT_PERFORMED

@@ -1,0 +1,49 @@
+{
+  "status": "INCOMPLETE_UNDEPLOYED_SECURITY_CHANGE",
+  "buildId": "3f20c479-dirty-20261006-123655",
+  "fingerprint": "43366cd060549d4a0b2515a2d2e8fcb135372d7c2752f03d3138eb72f5631130",
+  "implemented": [
+    "No-identity calls rejected at registry dispatch, shared desktop side-effect guard, local file entry/executor, desktop resolve/activate/action, browser session acquisition, and model chat/stream entry.",
+    "Registry handler accessors route through the same checked execution entry rather than exposing registered handlers.",
+    "Authorization grants for registry/model/browser dispatch bind exact goal, graph, node, operation, attempt, tool and argument hash.",
+    "Grant checks include expiry, revocation, finite use count, per-goal/tool rate limit, and transactionally consumed dispatch receipt.",
+    "Authorization database errors refuse dispatch.",
+    "Browser facade checks execution identity, session validity, method arguments and handle lineage; raw objects are not exposed through prototypes/descriptors.",
+    "Conflicting model provenance is rejected; escaped async work from closed node scopes is rejected."
+  ],
+  "tests": {
+    "passed": 64,
+    "files": 8,
+    "newSecurityCases": 9,
+    "testDatabase": "D:/AgenticOS/.tmp/security-phase-tests/test.db",
+    "typescriptAndBuild": "PASS",
+    "isolatedWorker": "NOT_RUN_FOR_THIS_CHANGE",
+    "installedRuntime": "NOT_RUN",
+    "physicalDesktop": "NOT_RUN",
+    "browserTests": "Facade enforcement tested with synthetic handles; no live browser acceptance claim."
+  },
+  "evidenceStates": {
+    "denialCases": "Handler invocation count zero: DISPATCH_REFUSED",
+    "allowedFixture": "Synthetic handler returned expected text: SUCCEEDED; not independent real-world verification",
+    "operatingLayer": "NOT_VERIFIED"
+  },
+  "inventory": {
+    "path": "evidence/privileged-entrypoint-inventory.json",
+    "candidates": 723,
+    "coverage": "Static pattern candidates, not an exhaustive call-graph proof. Per-entry review incomplete."
+  },
+  "remainingCriticalGaps": [
+    "Legacy callers at guarded entry points are blocked, not all rebound to executable canonical nodes.",
+    "Other process/network/filesystem entry points need review and enforcement; global absence of bypasses is NOT established.",
+    "No human approval UI or trusted issuance bridge issues these new grants. Test grants exist only in the isolated test database.",
+    "Approval references in grants are not yet independently resolved against the existing approval service. Revocation tested here is grant revocation.",
+    "Argument hashes are exact invocation scopes, not semantic path confinement, symlink protection or OS filesystem isolation.",
+    "Browser facade is a restrictive intermediate boundary; all typed browser operations and multi-user authenticated-session confinement remain unaccepted.",
+    "Specialist-agent authorization/evidence propagation remains incomplete.",
+    "Hostname-derived vault fallback and outbound network confinement remain unchanged and incomplete.",
+    "Uniform independent postcondition verification remains incomplete.",
+    "Isolated-worker, installed-runtime, Unicode and physical acceptance have not run for this build."
+  ],
+  "ownership": "Existing GoalLifecycle and TaskGraphExecutor retained. Authorization tables contain permissions and dispatch receipts, not task lifecycle. Journal remains evidence projection.",
+  "deployment": "PROHIBITED_NOT_PERFORMED"
+}

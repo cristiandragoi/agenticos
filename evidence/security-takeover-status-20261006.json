@@ -1,0 +1,176 @@
+{
+  "phase": "PROCESS_ENTRYPOINT_DISPOSITIONS_AND_APPROVAL_PROTOCOL",
+  "reviewState": "STOPPED_FOR_REVIEW_WITH_EXPLICIT_BLOCKERS",
+  "status": {
+    "localWorkerProcessBoundary": "CONTROLLED_TESTS_SUCCEEDED",
+    "allProcessEntrypoints": "NOT_CLOSED",
+    "approvalBridgeSyntheticTests": "SUCCEEDED",
+    "trustedHumanApproval": "NOT_VERIFIED",
+    "privilegedActionsPolicy": "FAIL_CLOSED",
+    "credentialIsolation": "HARDENED_SOURCE_ONLY",
+    "browser": "NOT_TESTED",
+    "readyToExecuteUntrustedCode": false,
+    "deployment": "PROHIBITED_NOT_PERFORMED"
+  },
+  "tests": {
+    "focusedPassed": 138,
+    "focusedFailed": 0,
+    "reachabilityPassed": 321,
+    "classificationPassed": 3,
+    "typescriptExitCode": 0,
+    "database": "Fresh temporary database per run; both AGENTICOS_DATA_DIR and AGENT_TEAMS_DB_PATH overridden. No live database used.",
+    "gitExecution": "Only disposable fixture repositories; actual fixed status, diff, branch, log commands. Timeout/output/cleanup contracts use synthetic OS adapters, not a real Job Object."
+  },
+  "matrix": {
+    "artifact": "evidence/worker-process-entrypoint-matrix-20261006.json",
+    "processAndNativeCandidates": 319,
+    "reachableCandidates": 0,
+    "opaqueReachableImports": 0,
+    "scope": "Static TypeScript import closure from localWorker/index.ts. Not a proof against arbitrary JS/native execution, other server entrypoints, IPC, or hostile same-process code. Candidate set includes database/regex false positives."
+  },
+  "disabledWorkerCapabilities": {
+    "exactPreviouslyAvailable": [
+      "shell.execute",
+      "developer.build",
+      "developer.run_tests",
+      "desktop.open_app",
+      "desktop.inspect_process",
+      "desktop.stop_process",
+      "desktop.inspect_port",
+      "desktop.inspect_environment",
+      "browser.navigate",
+      "browser.inspect"
+    ],
+    "gitPendingOSBoundary": [
+      "git.status",
+      "git.diff",
+      "git.log",
+      "git.branch"
+    ],
+    "removedImports": [
+      "terminalExecutor",
+      "gitExecutor",
+      "desktopExecutor",
+      "browserExecutor",
+      "filesystemExecutor",
+      "llmGateway"
+    ],
+    "legacyWrappersDenied": [
+      "terminalExecutor",
+      "terminalTool",
+      "hardwareProfiler",
+      "sandbox.ts",
+      "all unregistered tool names"
+    ],
+    "enabledToolNames": [
+      "filesystem.locate",
+      "filesystem.list",
+      "filesystem.read",
+      "filesystem.write",
+      "filesystem.create_folder",
+      "filesystem.delete"
+    ],
+    "genericProcessApi": "executeConfinedProcess always throws; executable-registration escape hatch removed",
+    "modelPlanning": "Open-ended fallback disabled; existing deterministic plans cannot bypass dispatch denial"
+  },
+  "dispositions": {
+    "terminalExecutor_terminalTool_hardwareProfiler_sandbox": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH; unknown worker tool names denied",
+    "Hermes": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH; no supervisor RPC enrolled",
+    "voiceServices": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH; disabled worker route",
+    "browserSupervisors": "UNREACHABLE_FROM_WORKER_STATIC_IMPORT_GRAPH; imports removed, no browser execution or testing",
+    "nativeAndDynamicModules": "No external/dynamic imports in worker import closure; native/dynamic capability names denied. Node builtins fs/path/os/crypto remain trusted host dependencies. Arbitrary-code OS isolation not established"
+  },
+  "git": {
+    "implementation": [
+      "server/src/domains/localWorker/structuredGit.ts",
+      "server/src/domains/securitySupervisor/gitSupervisor.ts"
+    ],
+    "fixedExecutable": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "identity": "Absolute installed path, link-path checks and observed SHA256 with prelaunch recheck. Enrolled immutable binary digest and OS ACL acceptance still pending. Installed git.exe is a hard link; repository hard links remain refused.",
+    "cwd": "Dedicated workspace / repository only. Caller cwd, executable, args, env, config and timeout refused.",
+    "operations": [
+      "status",
+      "diff",
+      "log (integer count 1..50)",
+      "branch"
+    ],
+    "policy": "Minimal new environment; system/global config disabled; strict core-only local config allowlist; hooks disabled; no ext-diff/textconv, credentials, protocols, submodule recursion, alternates, linked worktrees or replacement objects. Entire repository tree checked for links.",
+    "limits": "10s execution, combined 65536-byte output, 2s cleanup acknowledgement deadline in supervisor contract. No worker process is spawned.",
+    "workerExecution": "DISABLED_OS_JOB_BOUNDARY_UNAVAILABLE"
+  },
+  "windowsJobObject": {
+    "decision": "Required before Git or any process capability is enabled",
+    "status": "NOT_IMPLEMENTED_NOT_TESTED",
+    "requirements": [
+      "Create child suspended",
+      "Assign to supervisor-owned Job Object before resume",
+      "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+      "Deny breakaway; enforce process/resource limits",
+      "Require completion/termination acknowledgement for all descendants",
+      "Test normal exit, timeout, cancellation, output flood, supervisor death, nested jobs and attempted breakaway under restricted worker identity"
+    ],
+    "userspaceCleanup": "Historical WMI/PowerShell/taskkill implementation removed from worker process module. Never described as verified isolation."
+  },
+  "approval": {
+    "productionIssuance": "DISABLED_FAIL_CLOSED",
+    "runtimeGate": "tha_ legacy HMAC approvals cannot authorize dispatch; no signing keys or enrollment setters in production bridge",
+    "historicalPrototype": "Moved to server/src/__tests__/fixtures/legacyHmacApproval.ts; synthetic fixtures only",
+    "newVerifier": "server/src/domains/securitySupervisor/approvalVerifier.ts",
+    "algorithm": "Ed25519 public-key-only verifier, deterministic canonical signed payload",
+    "binding": [
+      "goalId",
+      "graphId",
+      "nodeId",
+      "workerId",
+      "operation",
+      "attempt",
+      "tool",
+      "scopeHash",
+      "argumentHash",
+      "previewHash",
+      "nonce",
+      "issuer",
+      "issuedAt",
+      "expiresAt",
+      "secondConfirmation"
+    ],
+    "replay": "Supervisor SQLite challenge nonce consumed transactionally; persisted revocation and consumption checked. No production storage enrollment.",
+    "tests": [
+      "valid/invalid signature",
+      "payload tampering",
+      "nonce substitution",
+      "replay and verifier recreation",
+      "each exact binding including cross-worker and cross-goal",
+      "expiry at boundary",
+      "revocation",
+      "service failure",
+      "key absence and key provider failure",
+      "private key rejected by verifier",
+      "signed secondary confirmation",
+      "challenge expiry extension refused",
+      "historical HMAC grant rejected by production gate"
+    ],
+    "trustModel": "See evidence/security-takeover-report-20261006.txt"
+  },
+  "remainingRisks": [
+    "No Windows Job Object implementation or OS-level acceptance. Process execution stays disabled.",
+    "No enrolled independent human approval issuer, OS key ACL acceptance, or authenticated out-of-band human confirmation. Trusted human approval remains NOT_VERIFIED.",
+    "734 global privileged candidates remain unresolved; only worker static reachability dispositions have changed.",
+    "Application-level filesystem checks remain subject to concurrent ancestor replacement; earlier handover added hard-link checks and safer staging but does not establish race-proof OS containment.",
+    "Worker still shares the server trust domain; static dispatch restrictions do not sandbox arbitrary code.",
+    "Native dependencies of the host and other server routes remain outside this phase closure.",
+    "Git policy validation and executable rehash do not prevent hostile concurrent mutation; OS-protected repo snapshot and executable installation are prerequisites.",
+    "Credential isolation inherited source status was not re-audited; no real credentials accessed."
+  ],
+  "prohibitedActions": "No authenticated profile, CDP, desktop automation, installed-runtime use, deployment, or real credentials in this phase.",
+  "sourceSha256": {
+    "server/src/domains/localWorker/toolRegistryBridge.ts": "a4b7d9f24e355ecb7bf5fc66d20f68549e7aa1180d64ae320134549a41956e98",
+    "server/src/domains/localWorker/localWorkerPlanner.ts": "37094d99802c35fae5529ecdda926a535921a8e6368efa95f20d8e05b33e883d",
+    "server/src/domains/localWorker/processConfinement.ts": "9e930acf94aad8012964f70db955b161be96f97085576972afcda6ef658c76bd",
+    "server/src/domains/localWorker/structuredGit.ts": "5a1d98599492706e367db5d2a5e989bfaf5181069e7a01886952904347a1f4c1",
+    "server/src/domains/securitySupervisor/gitSupervisor.ts": "f1f15a863dc339e18041f5eaf30fd8eea4ead04b6180b0f63e2b097ae03a1c51",
+    "server/src/domains/securitySupervisor/approvalVerifier.ts": "73b0f9b37ad5badde0218f924e2729bbbf44f21b491703b0a165d1701f56f06f",
+    "server/src/domains/controlPlane/taskGraph/TrustedHumanApprovalBridge.ts": "f0286208df07cde7c6ee3b9d9355294dafa8e9a7aa71ad9d71cdd3cfa6d6778d",
+    "scripts/lib/worker-process-audit.mjs": "41b0b7f7e69db1a2a0e6267fed5776ecec35d5526be190ca740d087919c88e6e"
+  }
+}

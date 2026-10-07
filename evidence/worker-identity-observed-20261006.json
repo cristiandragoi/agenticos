@@ -1,0 +1,33 @@
+{
+  "account": {
+    "name": "JarvisWorker",
+    "sid": "S-1-5-21-3435097649-250514390-3575566063-1006",
+    "enabled": true,
+    "administratorMembership": false,
+    "state": "VERIFIED_BY_LOCAL_ACCOUNT_QUERIES"
+  },
+  "existingSetupProcess": { "pid": 31820, "observedRunning": true, "consolePromptState": "UNKNOWN", "duplicateStarted": false },
+  "profile": { "state": "NOT_PRESENT_IN_WIN32_USERPROFILE_AT_INSPECTION" },
+  "filesystem": {
+    "rootExists": true,
+    "manifestAndWorkspace": "NOT_VERIFIED: current non-elevated caller received Access denied",
+    "workerEffectiveAccess": "NOT_TESTED",
+    "assumption": "Dedicated Windows identity is not a complete host filesystem or network sandbox. Profile and temporary paths remain writable."
+  },
+  "scriptChanges": [
+    "Existing account requires manifest SID or explicit ExpectedSid and matching enabled/description/non-admin properties",
+    "Existing plain directories reused, including nonempty workspace; files and reparse points rejected",
+    "Current tree ACL snapshots and intended container ACLs saved externally before Set-Acl",
+    "Existing manifest, password, profile and workspace not overwritten or deleted",
+    "Worker check tests policy write denial without writing policy contents"
+  ],
+  "tests": [
+    "Both PowerShell scripts parse: PASS",
+    "Actual temporary directory ACL planning is nonmutating: PASS",
+    "Intended ACL has three rules and protected inheritance: PASS"
+  ],
+  "workerSessionChecks": "NOT_RUN: requires private Windows logon",
+  "agentRuntimeStarted": false,
+  "browserAutomationStarted": false,
+  "deployment": "NOT_PERFORMED"
+}

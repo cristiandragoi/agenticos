@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "domains/controlPlane/ControlledFileWorkflow.js",
+      "beforeSha256": "3566e9c3192395ef4175529946931b91aae663638a3464943ffb344718339ad2",
+      "afterSha256": "0f150d2d71580147da4b34542615444ed125a28fcfa0a1e78ba3d6489a15a54a"
+    },
+    {
+      "path": "domains/controlPlane/LocalFileOperations.js",
+      "beforeSha256": "842d820921b5b4e3c65452a1de50266e39351fefa1145ad254dd7c125ffe0319",
+      "afterSha256": "3818372d4faff910befb0a8a897c77275c46d4e755ad0c1868e5af399df5d4bc"
+    }
+  ],
+  "baselineFingerprint": "11fdfd8c50e2957abf432e3b9f04de6c137ee0825668576611952ad126b4048f",
+  "sourceRoot": "D:\\AgenticOS\\server\\.tmp\\voice-file-build"
+}

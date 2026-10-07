@@ -1,0 +1,39 @@
+{
+  "buildId": "3f20c479-dirty-20261006-095847",
+  "before": ".tmp/research-result-live-1791280723030/dialogue.json",
+  "after": ".tmp/research-result-live-1791280773579/dialogue.json",
+  "tests": {
+    "files": 6,
+    "passed": 64,
+    "log": ".tmp/task-dialogue-tests.log"
+  },
+  "files": [
+    "server/src/domains/controlPlane/TaskFollowup.ts",
+    "server/src/domains/repositoryResearch/resultFollowup.ts",
+    "server/src/domains/repositoryResearch/store.ts",
+    "server/src/__tests__/researchResultFollowup.test.ts",
+    "scripts/verify-task-dialogue.mjs"
+  ],
+  "limits": [
+    "Text lifecycle and speech callbacks verified; physical microphone/TTS acceptance pending",
+    "Saved research remains scoped to its originating conversation",
+    "Does not establish arbitrary task execution or full autonomy"
+  ],
+  "runtime": {
+    "status": "healthy",
+    "pid": 20988,
+    "uptime": 21.1263282,
+    "environment": "development",
+    "version": "9.0.0",
+    "build": {
+      "fingerprint": "326034db2cf77a68e0acf0ed34b64fed826e64ccc170df72813e9aef32546dbe",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 603,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T09:58:47.602Z",
+      "buildId": "3f20c479-dirty-20261006-095847"
+    }
+  }
+}

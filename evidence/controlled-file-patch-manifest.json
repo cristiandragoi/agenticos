@@ -1,0 +1,41 @@
+{
+  "files": [
+    {
+      "path": "domains/controlPlane/LocalFileOperations.js",
+      "afterSha256": "842d820921b5b4e3c65452a1de50266e39351fefa1145ad254dd7c125ffe0319",
+      "beforeSha256": "cb6b56bab500bb68a95fbcea68c5c01b6ab11edc1a2608982b707ccbb24410b8"
+    },
+    {
+      "path": "domains/controlPlane/ControlledFileWorkflow.js",
+      "afterSha256": "d6234667274fc7a1b4ae21b8cbf9d3f32eeaa5a9fb0a2b724b59e22916e78757",
+      "beforeSha256": null
+    },
+    {
+      "path": "domains/controlPlane/taskGraph/TaskGraphExecutor.js",
+      "afterSha256": "c749f5deb4fa41edf664d350d5f88038d9ee3c48c2fbd0635966d48522774efc",
+      "beforeSha256": "7d71f820916610953804e06e5ee983dedcd71dfc3be46a8bbefab6897f0a4906"
+    },
+    {
+      "path": "domains/controlPlane/taskGraph/ExecutionIdentity.js",
+      "afterSha256": "8f68c9cda769de1d6f9f6a05a8f79755dcf42c09b7b58ac046a3e6c87935c08c",
+      "beforeSha256": null
+    },
+    {
+      "path": "domains/controlPlane/taskGraph/TaskGraphJournal.js",
+      "afterSha256": "f7b64135b4f4e69b1fe6d1ffe8f6ea48502edb6e03771d73152b53cf2fcd0c2c",
+      "beforeSha256": null
+    },
+    {
+      "path": "domains/localWorker/workspaceConfinement.js",
+      "afterSha256": "f32db0a937149acdb43156a66d217be9904d4fe3b674c254406f87a197791b62",
+      "beforeSha256": null
+    },
+    {
+      "path": "domains/turnLifecycle/autonomousGoalMode.js",
+      "afterSha256": "eafafaeb0c37749e2b75e689f2a58e490117a8ed06f82e7602c71adc10486c4a",
+      "beforeSha256": "b3a0ac7156496ccf953fc3909a9c36a0f9f18237e603e9f5444c0f837dea8bae"
+    }
+  ],
+  "baselineFingerprint": "22d4da36607c4d8f8e5f199becc5e83d8660dd19fdf3ff3692fbb23f2753b61a",
+  "sourceRoot": "D:\\AgenticOS\\server\\.tmp\\controlled-file-build"
+}

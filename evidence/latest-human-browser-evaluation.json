@@ -1,0 +1,97 @@
+{
+  "researchId": "74e6fd0a-92e5-40b2-829d-0ab8c1a3026f",
+  "evaluation": {
+    "goalId": "goal-1791278769297-1sxpt",
+    "repository": "vercel-labs/agent-browser",
+    "lastEvent": "The isolated tests passed: the candidate read a test page, clicked its button and verified the page change in all three trials. Its median was 2.7 seconds, compared with 1.4 seconds for Playwright. This is a browser-library comparison, not a measurement of Jarvis voice latency or the full existing browser adapter. Nothing was integrated into production.",
+    "report": {
+      "type": "result",
+      "verified": true,
+      "trials": [
+        {
+          "backend": "playwright",
+          "round": 0,
+          "elapsedMs": 1550,
+          "verified": true,
+          "readVerified": true,
+          "clickOutcomeVerified": true
+        },
+        {
+          "backend": "agent-browser",
+          "round": 0,
+          "elapsedMs": 2250,
+          "verified": true,
+          "readVerified": true,
+          "clickOutcomeVerified": true
+        },
+        {
+          "backend": "agent-browser",
+          "round": 1,
+          "elapsedMs": 2695,
+          "verified": true,
+          "readVerified": true,
+          "clickOutcomeVerified": true
+        },
+        {
+          "backend": "playwright",
+          "round": 1,
+          "elapsedMs": 1384,
+          "verified": true,
+          "readVerified": true,
+          "clickOutcomeVerified": true
+        },
+        {
+          "backend": "playwright",
+          "round": 2,
+          "elapsedMs": 943,
+          "verified": true,
+          "readVerified": true,
+          "clickOutcomeVerified": true
+        },
+        {
+          "backend": "agent-browser",
+          "round": 2,
+          "elapsedMs": 2662,
+          "verified": true,
+          "readVerified": true,
+          "clickOutcomeVerified": true
+        }
+      ],
+      "repository": "vercel-labs/agent-browser",
+      "packageVersion": "0.38.2",
+      "baseline": "Playwright 1.61.1 primitive operations, same Chromium and fixture; not full AgenticOS/CDP latency",
+      "scope": "Isolated fixture reading, clicking and DOM postcondition. No external websites, authenticated profile, production integration or voice latency validated.",
+      "candidateMs": 2662,
+      "baselineMs": 1384,
+      "imageId": "sha256:7f284072dfa70170e5816d2656a197c14bbb885eaa3cd943cf44f74adf6f7ceb",
+      "isolationVerified": true,
+      "presentationText": "The isolated tests passed: the candidate read a test page, clicked its button and verified the page change in all three trials. Its median was 2.7 seconds, compared with 1.4 seconds for Playwright. This is a browser-library comparison, not a measurement of Jarvis voice latency or the full existing browser adapter. Nothing was integrated into production."
+    },
+    "at": "2026-10-06T09:26:22.956Z"
+  },
+  "goal": {
+    "goal_id": "goal-1791278769297-1sxpt",
+    "conversation_id": "conv-7fab145a-",
+    "turn_id": "3",
+    "original_user_input": "evaluate the recommended repository in the isolated sandbox. Test reading, clicking, and verification. Compare latency. Do not integrate into production.",
+    "normalized_goal": "evaluate the recommended repository in the isolated sandbox. Test reading, clicking, and verification. Compare latency. Do not integrate into production.",
+    "status": "COMPLETED",
+    "plan": "{\"goalId\":\"goal-1791278769297-1sxpt\",\"summary\":\"TaskGraph (2 nodes)\",\"selectedSurface\":\"autonomous_task_graph\",\"confidence\":0.9,\"steps\":[{\"stepIndex\":1,\"description\":\"GITHUB_EVALUATE (repository_research)\",\"capability\":\"repository_research\",\"target\":\"tg-1791278769300-29e3dd-repository-evaluation\",\"status\":\"pending\"},{\"stepIndex\":2,\"description\":\"PRESENT_RESULT (conversation)\",\"capability\":\"conversation\",\"target\":\"tg-1791278769300-29e3dd-present\",\"status\":\"pending\"}]}",
+    "attempts": "[]",
+    "current_attempt": 1,
+    "capabilities_used": "[]",
+    "evidence": "[]",
+    "failures": "[]",
+    "recovery_incident_id": null,
+    "final_verification": null,
+    "learned_resolution": null,
+    "timeline": "[{\"timestamp\":\"2026-10-06T09:26:09.297Z\",\"state\":\"RECEIVED\",\"actor\":\"User\",\"summary\":\"User commanded: \\\"evaluate the recommended repository in the isolated sandbox. Test reading, clicking, and verification. Compare latency. Do not integrate into production.\\\"\"},{\"timestamp\":\"2026-10-06T09:26:09.298Z\",\"state\":\"ACKNOWLEDGED\",\"actor\":\"Jarvis\",\"summary\":\"Okay, working on that now.\"},{\"timestamp\":\"2026-10-06T09:26:09.299Z\",\"state\":\"PLANNING\",\"actor\":\"Jarvis\",\"summary\":\"Decomposing autonomous goal: \\\"evaluate the recommended repository in the isolated sandbox. Test reading, clicking, and verification. Compare latency. Do not integrate into production.\\\"\"},{\"timestamp\":\"2026-10-06T09:26:09.301Z\",\"state\":\"EXECUTING\",\"actor\":\"Jarvis\",\"summary\":\"Executing task graph with 2 nodes\"},{\"timestamp\":\"2026-10-06T09:26:22.958Z\",\"state\":\"COMPLETED\",\"actor\":\"Argus\",\"summary\":\"The isolated tests passed: the candidate read a test page, clicked its button and verified the page change in all three trials. Its median was 2.7 seconds, compared with 1.4 seconds for Playwright. This is a browser-library comparison, not a measurement of Jarvis voice latency or the full existing browser adapter. Nothing was integrated into production.\",\"detail\":{\"verified\":true}}]",
+    "acknowledgement_text": "Okay, working on that now.",
+    "final_response_text": "The isolated tests passed: the candidate read a test page, clicked its button and verified the page change in all three trials. Its median was 2.7 seconds, compared with 1.4 seconds for Playwright. This is a browser-library comparison, not a measurement of Jarvis voice latency or the full existing browser adapter. Nothing was integrated into production.",
+    "created_at": "2026-10-06T09:26:09.297Z",
+    "updated_at": "2026-10-06T09:26:22.958Z"
+  },
+  "assessed": 20,
+  "candidate": "vercel-labs/agent-browser",
+  "scope": "Read-only audit of the actual application database"
+}

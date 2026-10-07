@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-10-06T19:19:40.065Z",
+  "scope": "Independent read-only comparison against pre-correction audit; no application database startup imported",
+  "databaseOpenedReadOnly": true,
+  "passed": true,
+  "totalChainEntries": 14,
+  "results": [
+    {
+      "requestId": "turn-8ac79010-2b05-45f4-a006-63fc9436b9b9",
+      "goalId": "goal-1791312958465-j1p1u",
+      "graphId": "tg-1791312958467-694c75",
+      "originalTurnUnchanged": true,
+      "originalTurnHash": "bd6087a1605cfa43f49d643d861bfccfbe5719ffa7be106425695b27bc49c761",
+      "originalJournalEntriesUnchanged": true,
+      "originalJournalEntryCount": 6,
+      "totalJournalEntryCount": 7,
+      "chainValid": true,
+      "correctionHashMatchesReport": true,
+      "correctionVersion": 7,
+      "correctionHash": "de1e200ffa7d272df0a4171e141539ad3c92a18d0590a15bec44c6489792572b",
+      "effectiveStatus": "SUCCEEDED_WITHOUT_INDEPENDENT_VERIFICATION",
+      "rawHistoricalOutcome": "VERIFIED"
+    },
+    {
+      "requestId": "turn-cc1c78b6-a57f-47a7-8863-b1d79fe0262b",
+      "goalId": "goal-1791312958580-o3hsk",
+      "graphId": "tg-1791312958581-c541dd",
+      "originalTurnUnchanged": true,
+      "originalTurnHash": "13ccc2016a64f8f9016fca6c0518966563e32d5b9f1d1c491f7d92f4f0175cda",
+      "originalJournalEntriesUnchanged": true,
+      "originalJournalEntryCount": 6,
+      "totalJournalEntryCount": 7,
+      "chainValid": true,
+      "correctionHashMatchesReport": true,
+      "correctionVersion": 7,
+      "correctionHash": "b27921963fc1e40b6cc4eff727f8c06b856faaf3486212a08b999d4af6e478df",
+      "effectiveStatus": "SUCCEEDED_WITHOUT_INDEPENDENT_VERIFICATION",
+      "rawHistoricalOutcome": "VERIFIED"
+    }
+  ],
+  "limits": "Hash-chain integrity proves internal consistency, not authenticity or independence. Running installed source has not been updated; correction-aware source projection is not deployed."
+}

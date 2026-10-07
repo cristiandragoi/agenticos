@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-06",
+  "completeAutonomousRepositoryIntegration": false,
+  "implemented": [
+    "Unsupported graph operations check existing compiled app/chat adapters within the same GoalRun",
+    "Bounded candidate validation, goal-local activation, verified resumption and rollback on failure/cancellation",
+    "Verified upstream graph nodes are not replayed",
+    "Missing workflow research uses existing repository research and source review under the original goal identity",
+    "Public recovery queries exclude personal contact names, file paths and message contents",
+    "Research-only results leave the original task BLOCKED_EXTERNAL with a graph snapshot and research reference",
+    "Pull up/look up GitHub repository recognition and contextual chat research",
+    "Locate the chat with Angie Rondini separates the instruction from the contact name",
+    "An unreadable launcher shortcut no longer aborts independent application discovery"
+  ],
+  "remaining": [
+    "Generic external repository build/test/adapter installation/activation is not implemented",
+    "Existing SelfHealSupervisor explicitly stops before patch/build/deploy/retry",
+    "No automatic restart-resume of a newly installed external capability has been proven",
+    "WhatsApp Angie live selection/readback and human microphone acceptance remain untested",
+    "No listening desktop backend on port 4600 was available; installed modules were tested directly"
+  ],
+  "tests": {
+    "targetedTestsPassed": 124,
+    "testFiles": 9,
+    "log": "D:/AgenticOS/.tmp/recovery-all-tests.log",
+    "workspaceRealDesktopTrials": "D:/AgenticOS/.tmp/goal-recovery-1791272198588/report.json",
+    "installedRealDesktopTrials": "D:/AgenticOS/.tmp/goal-recovery-1791272414085/report.json",
+    "installedPassed": 3,
+    "installedMilliseconds": [3869.68, 2542.92, 2479.50],
+    "scope": "Real Notepad adapter, original goal identity, kernel ingress, milestone callbacks; not microphone or audible TTS"
+  },
+  "buildId": "3f20c479-dirty-20261006-073947",
+  "fingerprint": "73648523318daacdbd9ffb57aa4ab4cbc7f1c0f04169b4ea520e7aa2eef4552e",
+  "deployment": "Canonical deploy-installed.cjs passed byte parity; running desktop application acceptance pending",
+  "filesChangedThisTask": [
+    "server/src/domains/controlPlane/taskGraph/GoalRecovery.ts",
+    "server/src/domains/controlPlane/taskGraph/AutonomousExecutionKernel.ts",
+    "server/src/domains/controlPlane/taskGraph/AutonomousPlanner.ts",
+    "server/src/domains/controlPlane/taskGraph/TaskGraphExecutor.ts",
+    "server/src/domains/controlPlane/CapabilityFacts.ts",
+    "server/src/domains/controlPlane/AuthoritativeIntentCompiler.ts",
+    "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+    "server/src/domains/repositoryResearch/specification.ts",
+    "server/src/__tests__/goalRecovery.test.ts",
+    "scripts/verify-goal-recovery.mjs"
+  ]
+}

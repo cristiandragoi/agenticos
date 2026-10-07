@@ -1,0 +1,58 @@
+{
+  "buildId": "3f20c479-dirty-20261006-101110",
+  "overallAcceptance": "NOT_PASSED",
+  "architecture": {
+    "responsiveness": "Nonblocking 20-second liveness while goal remains active; cleared on completion/cancellation",
+    "ownership": "GoalLifecycle and TaskGraphExecutor retained",
+    "execution": "Eligible immutable compiled plans now run through existing CapabilityDispatcher and verification",
+    "recovery": "Existing bounded adapter recovery retained; identified Telegram media overlay dismissed and main window reacquired",
+    "continuity": "Task status reads durable goals and verified action context across capabilities",
+    "capabilityAcquisition": "Explicit research and reviewed sandbox evaluation only; arbitrary activation not implemented"
+  },
+  "tests": {
+    "regressionLog": ".tmp/cross-capability-final.log",
+    "overlayLog": ".tmp/cross-capability-overlay-tests.log",
+    "regressions": 108,
+    "afterOverlayTests": 43,
+    "installed": ".tmp/cross-capability-1791281583499/report.json",
+    "telegramFailed": ".tmp/cross-capability-telegram-final.log"
+  },
+  "limitations": [
+    "Telegram provider failed requested chat selection; verification prevented wrong-target reading. Long-running goal remained alive and delivered failure, not verified completion.",
+    "File lookup passed at existing executor boundary only. Canonical file request routing remains incomplete.",
+    "Browser check used real isolated Chrome; existing-profile authorization not established.",
+    "No full microphone-to-TTS latency benchmark or human acceptance.",
+    "No generic automatic installation, integration, or resumption for arbitrary repository code."
+  ],
+  "files": [
+    "server/src/domains/controlPlane/GoalLifecycle.ts",
+    "server/src/domains/controlPlane/TaskStatePresentation.ts",
+    "server/src/domains/controlPlane/AuthoritativeIntentCompiler.ts",
+    "server/src/domains/controlPlane/SemanticDiscourseInterpreter.ts",
+    "server/src/domains/controlPlane/adapters/ConversationCapabilityAdapter.ts",
+    "server/src/domains/controlPlane/adapters/ChatCapabilityAdapter.ts",
+    "server/src/domains/controlPlane/taskGraph/AutonomousPlanner.ts",
+    "server/src/domains/controlPlane/taskGraph/TaskGraphExecutor.ts",
+    "server/src/domains/controlPlane/taskGraph/AutonomousExecutionKernel.ts",
+    "server/src/__tests__/crossCapabilityTaskState.test.ts",
+    "server/src/__tests__/goalRecovery.test.ts",
+    "scripts/verify-cross-capability-runtime.mjs"
+  ],
+  "runtime": {
+    "status": "healthy",
+    "pid": 21368,
+    "uptime": 24.7380302,
+    "environment": "development",
+    "version": "9.0.0",
+    "build": {
+      "fingerprint": "bdfe276bc93d32d2055f3b9670db632c84ec9e0f2ca86f743146e89025ccae63",
+      "algorithm": "content-sha256-v1",
+      "filesCount": 604,
+      "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+      "gitShort": "3f20c479",
+      "isDirty": true,
+      "buildTimestamp": "2026-10-06T10:11:10.658Z",
+      "buildId": "3f20c479-dirty-20261006-101110"
+    }
+  }
+}

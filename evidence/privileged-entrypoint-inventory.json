@@ -1,0 +1,4346 @@
+{
+  "generatedAt": "2026-10-06T12:35:01.902Z",
+  "scope": "Static candidate inventory of server/src, excluding tests; does not prove all indirect/aliased/native calls are covered.",
+  "count": 723,
+  "securityStatus": "INCOMPLETE: runtime lifecycle bindings, scoped approvals, and independent verification need per-entry review.",
+  "entries": [
+    {
+      "file": "server/src/adapters/codexAdapter.ts",
+      "line": 89,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/codexAdapter.ts",
+      "line": 199,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/customProvider.ts",
+      "line": 21,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/customProvider.ts",
+      "line": 42,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/heavyGenAdapter.ts",
+      "line": 84,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/hermesAdapter.ts",
+      "line": 171,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/hermesAdapter.ts",
+      "line": 184,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 274,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 330,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 733,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 743,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 795,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 808,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 822,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/adapters/telegramAdapter.ts",
+      "line": 856,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/core/runs/pipeline.ts",
+      "line": 14,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 236,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 244,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 269,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/db/index.ts",
+      "line": 276,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 31,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 144,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 148,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 155,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 156,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 157,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 166,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 167,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 168,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 174,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 182,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/gitWorktree.ts",
+      "line": 193,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/service.ts",
+      "line": 441,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/store.ts",
+      "line": 13,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/codingRuntime/taskPacket.ts",
+      "line": 50,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/AppCapabilityAdapter.ts",
+      "line": 264,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/BrowserCapabilityAdapter.ts",
+      "line": 801,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/ChatCapabilityAdapter.ts",
+      "line": 221,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/adapters/MediaCapabilityAdapter.ts",
+      "line": 90,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AgenticOsGitService.ts",
+      "line": 49,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ArgusService.ts",
+      "line": 305,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/artifacts/ArtifactStore.ts",
+      "line": 71,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/artifacts/ArtifactStore.ts",
+      "line": 73,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AuthoritativeInteractionContext.ts",
+      "line": 584,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AutonomousCapabilityCertificationRunner.ts",
+      "line": 552,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AutonomousCapabilityCertificationRunner.ts",
+      "line": 592,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AutonomousCapabilityCertificationRunner.ts",
+      "line": 647,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/AutonomousCapabilityCertificationRunner.ts",
+      "line": 675,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeProvider.ts",
+      "line": 137,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeProvider.ts",
+      "line": 170,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeProvider.ts",
+      "line": 210,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeProvider.ts",
+      "line": 229,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 118,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 159,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 229,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 276,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 295,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 303,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 323,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 334,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 335,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 338,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 360,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 368,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 407,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 450,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 452,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 456,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 492,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 496,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 514,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 543,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 545,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/browser/BrowserCodeSession.ts",
+      "line": 617,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 395,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 476,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDiscovery.ts",
+      "line": 520,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityDispatcher.ts",
+      "line": 215,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/CapabilityPermissionStore.ts",
+      "line": 65,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 92,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 101,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 111,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 193,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 233,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 357,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AgentSComputerUseProvider.ts",
+      "line": 405,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 389,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 641,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 842,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 918,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/AuthoritativeDesktopComputerUseProvider.ts",
+      "line": 1138,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/computerUse/DesktopInput.ts",
+      "line": 52,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 202,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 240,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 244,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 259,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 281,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 290,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 313,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 350,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 409,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ControlPlaneExecutor.ts",
+      "line": 433,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringAcceptance.ts",
+      "line": 77,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringAcceptance.ts",
+      "line": 104,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringAcceptance.ts",
+      "line": 121,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringAcceptance.ts",
+      "line": 134,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringWorkerRegistry.ts",
+      "line": 273,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/EngineeringWorkerRegistry.ts",
+      "line": 740,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ExplicitEngineeringDelegation.ts",
+      "line": 349,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/ProductionReadinessManager.ts",
+      "line": 192,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 138,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 144,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/RepositoryAuthority.ts",
+      "line": 150,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/TargetResolver.ts",
+      "line": 131,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/taskGraph/TaskGraphJournal.ts",
+      "line": 8,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/taskGraph/ToolAuthorization.ts",
+      "line": 7,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalContentAcquisition.ts",
+      "line": 689,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 85,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 131,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 202,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 237,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 335,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalPerceptionService.ts",
+      "line": 370,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalVerifier.ts",
+      "line": 438,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/UniversalVerifier.ts",
+      "line": 495,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 93,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 302,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 339,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 414,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/controlPlane/WindowsApplicationResolver.ts",
+      "line": 454,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 395,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 418,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/hermes/hermesOrchestrator.ts",
+      "line": 497,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/hermes/service.ts",
+      "line": 202,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 107,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 109,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 112,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/activeInteractionContext.ts",
+      "line": 408,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/behavioralHealth.ts",
+      "line": 128,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/behavioralHealth.ts",
+      "line": 213,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/behavioralHealth.ts",
+      "line": 229,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/conversationLanguage.ts",
+      "line": 68,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/conversationLanguage.ts",
+      "line": 77,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/dialogueState.ts",
+      "line": 64,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/dialogueState.ts",
+      "line": 66,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 429,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 502,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 659,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 669,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 809,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1001,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1010,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1132,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1143,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1191,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1216,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1340,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1457,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1534,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1545,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/browserExecutor.ts",
+      "line": 1577,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 506,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 509,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 511,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 522,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 558,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 604,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 606,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 637,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 676,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 692,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 718,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 730,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 763,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 813,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 814,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 820,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/desktopExecutor.ts",
+      "line": 877,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 133,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 214,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 221,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 245,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 303,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 313,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 314,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/filesystemExecutor.ts",
+      "line": 323,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 94,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 141,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/executors/terminalExecutor.ts",
+      "line": 155,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/recoveryController.ts",
+      "line": 163,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/semanticGoalParser.ts",
+      "line": 297,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/semanticGoalParser.ts",
+      "line": 299,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/semanticGoalParser.ts",
+      "line": 301,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 1733,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 3028,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 3094,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 3123,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 3149,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 5757,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/execution/universalExecutionController.ts",
+      "line": 5764,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 57,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 77,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 115,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/hermesGatewayHealth.ts",
+      "line": 208,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/intentRouter.ts",
+      "line": 454,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/investigation.ts",
+      "line": 34,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/orchestrator.ts",
+      "line": 585,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 136,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 252,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 310,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 313,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 527,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 552,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/perception/targetContentExtractor.ts",
+      "line": 639,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/projectStateContext.ts",
+      "line": 848,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/projectStateContext.ts",
+      "line": 855,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/semanticTurnResolver.ts",
+      "line": 557,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/supervisorLoop.ts",
+      "line": 71,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/supervisorTools.ts",
+      "line": 27,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvis/systemDiagnostics.ts",
+      "line": 198,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/audioUtils.ts",
+      "line": 20,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/controlIntentDetector.ts",
+      "line": 139,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/jarvisNextAgent.ts",
+      "line": 344,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/jarvisNextAgent.ts",
+      "line": 370,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/jarvisNextAgent.ts",
+      "line": 1611,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/livekitServerManager.ts",
+      "line": 89,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/turnRouter.ts",
+      "line": 1335,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisNext/turnRouter.ts",
+      "line": 1763,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisV2/capabilities.ts",
+      "line": 182,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisV2/state.ts",
+      "line": 99,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/jarvisV2/telemetry.ts",
+      "line": 59,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/localWorkerStore.ts",
+      "line": 41,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/localWorkerStore.ts",
+      "line": 72,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 141,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 180,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 201,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 202,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 224,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 246,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/localWorker/toolRegistryBridge.ts",
+      "line": 248,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 33,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 76,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 80,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 86,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 516,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 524,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 536,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 543,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/magnitude/service.ts",
+      "line": 548,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/evaluation.ts",
+      "line": 17,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/evaluation.ts",
+      "line": 44,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/scoring.ts",
+      "line": 13,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/scoring.ts",
+      "line": 31,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/scoring.ts",
+      "line": 41,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 67,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 69,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 71,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/sourceReview.ts",
+      "line": 103,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/repositoryResearch/store.ts",
+      "line": 8,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/AuditLog.ts",
+      "line": 14,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/FailureDetector.ts",
+      "line": 35,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/recoveryChain.ts",
+      "line": 216,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/recoveryChain.ts",
+      "line": 280,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 70,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 71,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairExecutor.ts",
+      "line": 82,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairPlanner.ts",
+      "line": 48,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairPlanner.ts",
+      "line": 88,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/RepairTestRunner.ts",
+      "line": 192,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/runIncident003.ts",
+      "line": 16,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/runIncident003.ts",
+      "line": 161,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SelfHealSupervisor.ts",
+      "line": 451,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 19,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 36,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 42,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 82,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 88,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 94,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 100,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 107,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 115,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 139,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 141,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/SnapshotManager.ts",
+      "line": 281,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 158,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 178,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 200,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 218,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 238,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 239,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 259,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/selfHeal/TraceCollector.ts",
+      "line": 281,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/teams/coordinatorService.ts",
+      "line": 24,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/teams/coordinatorService.ts",
+      "line": 253,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/teams/coordinatorService.ts",
+      "line": 254,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/executors.ts",
+      "line": 212,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/executors.ts",
+      "line": 268,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/executors.ts",
+      "line": 270,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/probes.ts",
+      "line": 34,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/probes.ts",
+      "line": 80,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/turnLifecycle/store.ts",
+      "line": 16,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/agentTeamsAdapter.ts",
+      "line": 56,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/codexAdapter.ts",
+      "line": 64,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/deepseekHarnessAdapter.ts",
+      "line": 227,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/deepseekHarnessAdapter.ts",
+      "line": 417,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/deepseekHarnessAdapter.ts",
+      "line": 560,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/magnitudeAdapter.ts",
+      "line": 58,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/domains/workerAdapters/magnitudeAdapter.ts",
+      "line": 74,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.backup.ts",
+      "line": 206,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.backup.ts",
+      "line": 424,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.backup.ts",
+      "line": 431,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.backup.ts",
+      "line": 486,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.ts",
+      "line": 524,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.ts",
+      "line": 1384,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.ts",
+      "line": 1386,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.ts",
+      "line": 1388,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/codexLoop.ts",
+      "line": 1553,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/fileRead.ts",
+      "line": 39,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/loops/toolCallParser.ts",
+      "line": 246,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 205,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 233,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 238,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 274,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 306,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 329,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 337,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 347,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 388,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 398,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 421,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/agentic.ts",
+      "line": 444,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/chat.ts",
+      "line": 79,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/chat.ts",
+      "line": 500,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/controlPlaneRouter.ts",
+      "line": 139,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/controlPlaneRouter.ts",
+      "line": 140,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/controlPlaneRouter.ts",
+      "line": 294,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/controlPlaneRouter.ts",
+      "line": 471,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/diagnostics.ts",
+      "line": 19,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/diagnostics.ts",
+      "line": 34,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/diagnostics.ts",
+      "line": 39,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/diagnostics.ts",
+      "line": 64,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/gemini.ts",
+      "line": 20,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 55,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 72,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 110,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/health.ts",
+      "line": 170,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/hermesApi.ts",
+      "line": 75,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/kanbanRouter.ts",
+      "line": 84,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/magnitude.ts",
+      "line": 30,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/magnitude.ts",
+      "line": 127,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/memory.ts",
+      "line": 40,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/projectExecution.ts",
+      "line": 193,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/providers.ts",
+      "line": 65,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/providers.ts",
+      "line": 99,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/providers.ts",
+      "line": 447,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/revenuePipeline.ts",
+      "line": 126,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/runtimeDiagnostics.ts",
+      "line": 49,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/runtimeDiagnostics.ts",
+      "line": 75,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/runtimeDiagnostics.ts",
+      "line": 154,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/runtimeIdentity.ts",
+      "line": 46,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/sync.ts",
+      "line": 82,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/system.ts",
+      "line": 111,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/voice.ts",
+      "line": 160,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/voice.ts",
+      "line": 219,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/voice.ts",
+      "line": 436,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/voice.ts",
+      "line": 531,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 29,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 33,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 34,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 120,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 155,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 214,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 228,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 265,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 283,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 344,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 375,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 420,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/routers/weldersPipeline.ts",
+      "line": 441,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/agenticos-doctor.ts",
+      "line": 70,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/agenticos-doctor.ts",
+      "line": 109,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/agenticos-doctor.ts",
+      "line": 162,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/agenticos-doctor.ts",
+      "line": 342,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/agenticos-doctor.ts",
+      "line": 356,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 94,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 113,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 118,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 139,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 140,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 150,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 155,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-acceptance.ts",
+      "line": 156,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-live-progress.ts",
+      "line": 84,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-live-progress.ts",
+      "line": 90,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/scripts/verify-hermes-live-progress.ts",
+      "line": 102,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/agentLoop.ts",
+      "line": 331,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/agentLoop.ts",
+      "line": 695,
+      "family": "registry",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/apiTools.ts",
+      "line": 39,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/apiTools.ts",
+      "line": 75,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/apiTools.ts",
+      "line": 124,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/fileTool.ts",
+      "line": 49,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/fileTool.ts",
+      "line": 85,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/fileTool.ts",
+      "line": 87,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/fileTool.ts",
+      "line": 200,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/patchTool.ts",
+      "line": 29,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/patchTool.ts",
+      "line": 65,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/speakTool.ts",
+      "line": 44,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/terminalTool.ts",
+      "line": 97,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/webExtractTool.ts",
+      "line": 17,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/webSearchTool.ts",
+      "line": 25,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/webSearchTool.ts",
+      "line": 47,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agent/tools/webSearchTool.ts",
+      "line": 63,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agentTeams/recovery.ts",
+      "line": 40,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agentTeams/teamRunner.ts",
+      "line": 138,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agentTeams/teamRunner.ts",
+      "line": 430,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/agentTeams/verificationAdjudicator.ts",
+      "line": 31,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/antigravity/antigravityProviderService.ts",
+      "line": 79,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/antigravity/antigravityProviderService.ts",
+      "line": 221,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/antigravity/antigravityProviderService.ts",
+      "line": 313,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/argus/argusService.ts",
+      "line": 191,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/adapters.ts",
+      "line": 404,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 29,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 107,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 322,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 342,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 691,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 718,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 759,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 788,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 815,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/antigravityAdapter.ts",
+      "line": 1016,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/store.ts",
+      "line": 72,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/backgroundTasks/store.ts",
+      "line": 80,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserActionContract.ts",
+      "line": 758,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 322,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 361,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 366,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 384,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 413,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 421,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 432,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 482,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 703,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 707,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 758,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 763,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 925,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 936,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 1185,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 1590,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2366,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2410,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2515,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2525,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2532,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2540,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2548,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2554,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2569,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2606,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2633,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2724,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2752,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserOperator.ts",
+      "line": 2775,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 252,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 254,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 348,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 374,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 390,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 401,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 414,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 442,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserPageInspection.ts",
+      "line": 443,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSession.ts",
+      "line": 58,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSession.ts",
+      "line": 59,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 119,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 153,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 168,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 182,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 224,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 244,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 322,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/browser/browserSessionAuthority.ts",
+      "line": 336,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/buildIdentity.ts",
+      "line": 82,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/buildIdentity.ts",
+      "line": 108,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/deploymentIdentity.ts",
+      "line": 54,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/deploymentIdentity.ts",
+      "line": 107,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/evaluation/cases.ts",
+      "line": 48,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/evaluation/runner.ts",
+      "line": 69,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/evaluation/runner.ts",
+      "line": 78,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/evaluation/store.ts",
+      "line": 12,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/freeCash/freeCashExecutor.ts",
+      "line": 122,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/freeCash/freeCashExecutor.ts",
+      "line": 154,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/freeCash/freeCashExecutor.ts",
+      "line": 213,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/freeCash/freeCashExecutor.ts",
+      "line": 256,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/freeCash/freeCashExecutor.ts",
+      "line": 283,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/freeCash/freeCashExecutor.ts",
+      "line": 315,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gates/registry.ts",
+      "line": 33,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gates/registry.ts",
+      "line": 54,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gates/registry.ts",
+      "line": 143,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/codexBridge.ts",
+      "line": 125,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/codexBridge.ts",
+      "line": 133,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/codexBridge.ts",
+      "line": 182,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/executor.ts",
+      "line": 47,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/deepseek.ts",
+      "line": 88,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/deepseek.ts",
+      "line": 100,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/deepseek.ts",
+      "line": 128,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/deepseek.ts",
+      "line": 188,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/ollama.ts",
+      "line": 14,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/ollama.ts",
+      "line": 34,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/ollama.ts",
+      "line": 166,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/ollama.ts",
+      "line": 325,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/openai.ts",
+      "line": 67,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/openai.ts",
+      "line": 115,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/gateways/openai.ts",
+      "line": 192,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/ledger.ts",
+      "line": 63,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/ledger.ts",
+      "line": 82,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/ledger.ts",
+      "line": 83,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/memory.ts",
+      "line": 55,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/memory.ts",
+      "line": 78,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/memory.ts",
+      "line": 89,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/memory.ts",
+      "line": 90,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/router.ts",
+      "line": 66,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/router.ts",
+      "line": 100,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/router.ts",
+      "line": 137,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/router.ts",
+      "line": 138,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/router.ts",
+      "line": 303,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/router.ts",
+      "line": 536,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/gateway/secretStore.ts",
+      "line": 113,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/geminiInteractionsService.ts",
+      "line": 40,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/geminiInteractionsService.ts",
+      "line": 96,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/geminiInteractionsService.ts",
+      "line": 128,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/geminiInteractionsService.ts",
+      "line": 156,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermes/resourceManager.ts",
+      "line": 170,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 129,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 152,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 173,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 196,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 225,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 297,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 323,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 350,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 426,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 461,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 481,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 514,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesApiService.ts",
+      "line": 562,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesHelper.ts",
+      "line": 15,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesHelper.ts",
+      "line": 62,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/hermesWatchdog.ts",
+      "line": 156,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/llm.ts",
+      "line": 38,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/llmGateway.ts",
+      "line": 127,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/llmGateway.ts",
+      "line": 174,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/maintenance/gitState.ts",
+      "line": 93,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/maintenance/maintenanceStore.ts",
+      "line": 56,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/maintenance/maintenanceStore.ts",
+      "line": 59,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/maintenance/realAdapters.ts",
+      "line": 51,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/maintenance/snapshot.ts",
+      "line": 34,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/mcpBridge/mcpBridgeService.ts",
+      "line": 119,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/memory/store.ts",
+      "line": 149,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/memory/store.ts",
+      "line": 154,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 5,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 132,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 217,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 221,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 231,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 302,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/CameraPerceptionService.ts",
+      "line": 340,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 103,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 112,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 190,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/DesktopPerceptionService.ts",
+      "line": 229,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/foregroundScreenReader.ts",
+      "line": 55,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/foregroundScreenReader.ts",
+      "line": 400,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/LocationService.ts",
+      "line": 128,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/perception/LocationService.ts",
+      "line": 154,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/policy/policyStore.ts",
+      "line": 20,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/prerequisites/activeGoalRegistry.ts",
+      "line": 59,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/prerequisites/prerequisiteService.ts",
+      "line": 65,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/prerequisites/prerequisiteService.ts",
+      "line": 78,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/prerequisites/prerequisiteService.ts",
+      "line": 141,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectExecution/findings.ts",
+      "line": 121,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectExecution/schema.ts",
+      "line": 23,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectExecution/schema.ts",
+      "line": 194,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 11,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 55,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 58,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 67,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 68,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 69,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 70,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 71,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 72,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 73,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 74,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 95,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/projectsStore.ts",
+      "line": 105,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/recovery/localHarness.ts",
+      "line": 70,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/branchScheduler.ts",
+      "line": 29,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/briefingService.ts",
+      "line": 59,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/briefingService.ts",
+      "line": 207,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 114,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 155,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 176,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 190,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 242,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 254,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 268,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserSessionManager.ts",
+      "line": 270,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserTaskQueue.ts",
+      "line": 55,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/browserWorkerAgent.ts",
+      "line": 219,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/paidlikes/paidlikesCanaryRunner.ts",
+      "line": 101,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/paidlikes/paidlikesCanaryRunner.ts",
+      "line": 105,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/paidlikes/paidlikesProvider.ts",
+      "line": 46,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/paidlikes/paidlikesProvider.ts",
+      "line": 110,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/paidlikes/paidlikesProvider.ts",
+      "line": 239,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/paidlikes/paidlikesProvider.ts",
+      "line": 259,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticRevenueProvider.ts",
+      "line": 31,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticRevenueProvider.ts",
+      "line": 41,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticRevenueProvider.ts",
+      "line": 208,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticRevenueProvider.ts",
+      "line": 212,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticRevenueProvider.ts",
+      "line": 217,
+      "family": "browser",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticTestSite.ts",
+      "line": 132,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticTestSite.ts",
+      "line": 170,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticTestSite.ts",
+      "line": 220,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/browser/providers/synthetic/syntheticTestSite.ts",
+      "line": 253,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/germanSmeEngine.ts",
+      "line": 378,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/revenueActionExecutor.ts",
+      "line": 48,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/revenueMissionRunner.ts",
+      "line": 150,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenueOperator/revenueSupervisor.ts",
+      "line": 108,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/concept.ts",
+      "line": 267,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/concept.ts",
+      "line": 328,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/pipelineService.ts",
+      "line": 265,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/pipelineService.ts",
+      "line": 374,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/pipelineService.ts",
+      "line": 408,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/pipelineService.ts",
+      "line": 554,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/pipelineService.ts",
+      "line": 559,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/proposal.ts",
+      "line": 180,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 76,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 81,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 87,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/store.ts",
+      "line": 90,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/verify.ts",
+      "line": 57,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/verify.ts",
+      "line": 73,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/verify.ts",
+      "line": 132,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/verify.ts",
+      "line": 133,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/revenuePipeline/web.ts",
+      "line": 31,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/routines/store.ts",
+      "line": 114,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/routines/store.ts",
+      "line": 119,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scheduler/scheduleDispatcher.ts",
+      "line": 264,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scheduler/scheduleDispatcher.ts",
+      "line": 303,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scheduler/scheduleDispatcher.ts",
+      "line": 329,
+      "family": "model_or_worker",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scraperService.ts",
+      "line": 30,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scraperService.ts",
+      "line": 44,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scraperService.ts",
+      "line": 62,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scraperService.ts",
+      "line": 72,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/scraperService.ts",
+      "line": 193,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/store.ts",
+      "line": 17,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/store.ts",
+      "line": 40,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 87,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 101,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 215,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 240,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 248,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 274,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 292,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 323,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 344,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/system/hardwareProfiler.ts",
+      "line": 356,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 263,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 598,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 654,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTranscribe.ts",
+      "line": 669,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 256,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 322,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 335,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 340,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 341,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/localTts.ts",
+      "line": 359,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 162,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 184,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 189,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 190,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/piperTts.ts",
+      "line": 213,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/VoiceStudioService.ts",
+      "line": 77,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/VoiceStudioService.ts",
+      "line": 107,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/VoiceStudioService.ts",
+      "line": 169,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/voice/VoiceStudioService.ts",
+      "line": 228,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/workspaceIndexer.ts",
+      "line": 171,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/workspaceIndexer.ts",
+      "line": 198,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/workspaceIndexer.ts",
+      "line": 216,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/workspaceIndexer.ts",
+      "line": 420,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/workspaceStore.ts",
+      "line": 55,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/services/workspaceStore.ts",
+      "line": 70,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 18,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 202,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 206,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 211,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 222,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 274,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 281,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/utils/sandbox.ts",
+      "line": 288,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/fuguProjectBuilder.ts",
+      "line": 50,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/fuguProjectBuilder.ts",
+      "line": 52,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/fuguProjectBuilder.ts",
+      "line": 57,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/fusionPlanner.ts",
+      "line": 50,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/fusionPlanner.ts",
+      "line": 52,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/fusionPlanner.ts",
+      "line": 57,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/lead-research/repository.ts",
+      "line": 12,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/lead-research/repository.ts",
+      "line": 56,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/newsRadar.ts",
+      "line": 15,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/newsRadar.ts",
+      "line": 23,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/newsRadar.ts",
+      "line": 35,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/newsRadar.ts",
+      "line": 63,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/newsRadar.ts",
+      "line": 72,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/newsRadar.ts",
+      "line": 73,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/researchBrief.ts",
+      "line": 50,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/seoPipeline.ts",
+      "line": 17,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/seoPipeline.ts",
+      "line": 57,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/seoPipeline.ts",
+      "line": 62,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/workers/claude.ts",
+      "line": 9,
+      "family": "process",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/workers/coderOrchestrator.ts",
+      "line": 246,
+      "family": "filesystem",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    },
+    {
+      "file": "server/src/workflows/workers/generic-http.ts",
+      "line": 18,
+      "family": "network",
+      "review": "REQUIRES_CALL_GRAPH_REVIEW"
+    }
+  ]
+}

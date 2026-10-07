@@ -1,0 +1,22 @@
+{
+  "build": {
+    "fingerprint": "315d5e753df6936a37ba2a5c3edeba92a6bf757f1a2296675187ce9165277403",
+    "algorithm": "content-sha256-v1",
+    "filesCount": 601,
+    "gitSha": "3f20c47940f50115f445d988bee01eabc33e5a20",
+    "gitShort": "3f20c479",
+    "isDirty": true,
+    "buildTimestamp": "2026-10-06T08:58:26.021Z",
+    "buildId": "3f20c479-dirty-20261006-085826"
+  },
+  "healthy": "healthy",
+  "regressionTestsPassed": 52,
+  "liveReport": "D:\\AgenticOS\\.tmp\\research-completion-1791277188180\\report.json",
+  "installedReplay": "D:\\AgenticOS\\.tmp\\research-result-live-1791277278853\\report.json",
+  "fixes": [
+    "Findings before original request in progress replies",
+    "Saved provisional candidate in pending responses",
+    "Context-bound tolerance of recorded speech-recognition error"
+  ],
+  "physicalAcceptance": "pending"
+}

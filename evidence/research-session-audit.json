@@ -1,0 +1,89 @@
+{
+  "auditedAt": "2026-10-06T08:27:09.781Z",
+  "runs": [
+    {
+      "id": "26467fa4-e931-43b7-a6da-505b5a2029d1",
+      "goalId": "goal-1791275136181-rwcoi",
+      "createdAt": "2026-10-06T08:25:36.202Z",
+      "error": null,
+      "savedAssessments": 22,
+      "savedQueries": 8,
+      "snapshotHashesValid": true,
+      "pinnedCommitsValid": true,
+      "exampleRepositories": [
+        "Shubhamsaboo/awesome-llm-apps",
+        "hesamsheikh/awesome-openclaw-usecases",
+        "musistudio/claude-code-router"
+      ],
+      "completedMetadataReport": false,
+      "caveat": "Saved GitHub evidence proves collection/assessment, not installed capability or benchmark performance."
+    },
+    {
+      "id": "804a1f80-f19f-4267-9357-faa52e63f8ec",
+      "goalId": "goal-1791275101514-n7y5q",
+      "createdAt": "2026-10-06T08:25:01.535Z",
+      "error": "Cancelled by user",
+      "savedAssessments": 13,
+      "savedQueries": 8,
+      "snapshotHashesValid": true,
+      "pinnedCommitsValid": true,
+      "exampleRepositories": [
+        "ivysone/Will-you-be-my-Valentine-",
+        "HashNuke/hound",
+        "unitedbyai/droidclaw"
+      ],
+      "completedMetadataReport": false,
+      "caveat": "Saved GitHub evidence proves collection/assessment, not installed capability or benchmark performance."
+    },
+    {
+      "id": "fc363313-6df9-41ae-a5ea-c96350fbc256",
+      "goalId": "goal-1791272951120-sww5n",
+      "createdAt": "2026-10-06T07:49:11.131Z",
+      "error": "Cancelled by user",
+      "savedAssessments": 2,
+      "savedQueries": 6,
+      "snapshotHashesValid": true,
+      "pinnedCommitsValid": true,
+      "exampleRepositories": [
+        "onejs/one",
+        "Samsung/ONE"
+      ],
+      "completedMetadataReport": false,
+      "caveat": "Saved GitHub evidence proves collection/assessment, not installed capability or benchmark performance."
+    },
+    {
+      "id": "1b7a5ff5-0409-4809-a323-c2e0187e62e6",
+      "goalId": "goal-1791272896247-d8bfs",
+      "createdAt": "2026-10-06T07:48:16.258Z",
+      "error": "Cancelled by user",
+      "savedAssessments": 23,
+      "savedQueries": 2,
+      "snapshotHashesValid": true,
+      "pinnedCommitsValid": true,
+      "exampleRepositories": [
+        "mathquill/mathquill",
+        "primefaces/primereact",
+        "PacktPublishing/Deep-Reinforcement-Learning-Hands-On"
+      ],
+      "completedMetadataReport": false,
+      "caveat": "Saved GitHub evidence proves collection/assessment, not installed capability or benchmark performance."
+    },
+    {
+      "id": "c094e219-a680-4a9a-ba1a-09fd25b7f3fa",
+      "goalId": "goal-1791272830980-yvn1i",
+      "createdAt": "2026-10-06T07:47:10.992Z",
+      "error": "Cancelled by user",
+      "savedAssessments": 50,
+      "savedQueries": 7,
+      "snapshotHashesValid": true,
+      "pinnedCommitsValid": true,
+      "exampleRepositories": [
+        "chartdb/chartdb",
+        "TroubleInTerroristTown/Public",
+        "tinkerbell/actions"
+      ],
+      "completedMetadataReport": true,
+      "caveat": "Saved GitHub evidence proves collection/assessment, not installed capability or benchmark performance."
+    }
+  ]
+}

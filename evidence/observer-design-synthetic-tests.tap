@@ -1,0 +1,418 @@
+TAP version 13
+# Subtest: complete independent synthetic coverage can commit once
+ok 1 - complete independent synthetic coverage can commit once
+  ---
+  duration_ms: 3.7387
+  type: 'test'
+  ...
+# Subtest: pure aggregation has no dispatch and does not mutate state or proofs
+ok 2 - pure aggregation has no dispatch and does not mutate state or proofs
+  ---
+  duration_ms: 0.9955
+  type: 'test'
+  ...
+# Subtest: synthetic file schema tag only; no real adapter
+ok 3 - synthetic file schema tag only; no real adapter
+  ---
+  duration_ms: 0.4595
+  type: 'test'
+  ...
+# Subtest: synthetic process schema tag only; no real adapter
+ok 4 - synthetic process schema tag only; no real adapter
+  ---
+  duration_ms: 0.4772
+  type: 'test'
+  ...
+# Subtest: synthetic browser schema tag only; no real adapter
+ok 5 - synthetic browser schema tag only; no real adapter
+  ---
+  duration_ms: 0.4294
+  type: 'test'
+  ...
+# Subtest: synthetic network schema tag only; no real adapter
+ok 6 - synthetic network schema tag only; no real adapter
+  ---
+  duration_ms: 0.3419
+  type: 'test'
+  ...
+# Subtest: synthetic credential schema tag only; no real adapter
+ok 7 - synthetic credential schema tag only; no real adapter
+  ---
+  duration_ms: 0.359
+  type: 'test'
+  ...
+# Subtest: synthetic desktop schema tag only; no real adapter
+ok 8 - synthetic desktop schema tag only; no real adapter
+  ---
+  duration_ms: 0.3056
+  type: 'test'
+  ...
+# Subtest: rejects substituted goalId
+ok 9 - rejects substituted goalId
+  ---
+  duration_ms: 1.0068
+  type: 'test'
+  ...
+# Subtest: rejects substituted graphId
+ok 10 - rejects substituted graphId
+  ---
+  duration_ms: 0.4103
+  type: 'test'
+  ...
+# Subtest: rejects substituted graphVersion
+ok 11 - rejects substituted graphVersion
+  ---
+  duration_ms: 0.3164
+  type: 'test'
+  ...
+# Subtest: rejects substituted manifestHash
+ok 12 - rejects substituted manifestHash
+  ---
+  duration_ms: 0.3019
+  type: 'test'
+  ...
+# Subtest: rejects substituted cancellationEpoch
+ok 13 - rejects substituted cancellationEpoch
+  ---
+  duration_ms: 0.2645
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition workerId
+ok 14 - rejects mismatched condition workerId
+  ---
+  duration_ms: 0.4126
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition workerIncarnation
+ok 15 - rejects mismatched condition workerIncarnation
+  ---
+  duration_ms: 0.37
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition attempt
+ok 16 - rejects mismatched condition attempt
+  ---
+  duration_ms: 0.327
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition argumentHash
+ok 17 - rejects mismatched condition argumentHash
+  ---
+  duration_ms: 0.3163
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition resourceHash
+ok 18 - rejects mismatched condition resourceHash
+  ---
+  duration_ms: 0.4067
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition policyVersion
+ok 19 - rejects mismatched condition policyVersion
+  ---
+  duration_ms: 0.416
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition definitionHash
+ok 20 - rejects mismatched condition definitionHash
+  ---
+  duration_ms: 0.4857
+  type: 'test'
+  ...
+# Subtest: rejects mismatched condition evidenceVersion
+ok 21 - rejects mismatched condition evidenceVersion
+  ---
+  duration_ms: 1.0436
+  type: 'test'
+  ...
+# Subtest: self-verification rejected by actorId
+ok 22 - self-verification rejected by actorId
+  ---
+  duration_ms: 0.3708
+  type: 'test'
+  ...
+# Subtest: self-verification rejected by path
+ok 23 - self-verification rejected by path
+  ---
+  duration_ms: 0.3944
+  type: 'test'
+  ...
+# Subtest: missing condition nodeId fails closed
+ok 24 - missing condition nodeId fails closed
+  ---
+  duration_ms: 0.3448
+  type: 'test'
+  ...
+# Subtest: missing condition postconditionId fails closed
+ok 25 - missing condition postconditionId fails closed
+  ---
+  duration_ms: 0.259
+  type: 'test'
+  ...
+# Subtest: missing condition operation fails closed
+ok 26 - missing condition operation fails closed
+  ---
+  duration_ms: 0.4196
+  type: 'test'
+  ...
+# Subtest: missing condition workerId fails closed
+ok 27 - missing condition workerId fails closed
+  ---
+  duration_ms: 0.4247
+  type: 'test'
+  ...
+# Subtest: missing condition actorId fails closed
+ok 28 - missing condition actorId fails closed
+  ---
+  duration_ms: 0.4285
+  type: 'test'
+  ...
+# Subtest: missing condition actorPath fails closed
+ok 29 - missing condition actorPath fails closed
+  ---
+  duration_ms: 0.4989
+  type: 'test'
+  ...
+# Subtest: missing condition argumentHash fails closed
+ok 30 - missing condition argumentHash fails closed
+  ---
+  duration_ms: 0.9378
+  type: 'test'
+  ...
+# Subtest: missing condition resourceHash fails closed
+ok 31 - missing condition resourceHash fails closed
+  ---
+  duration_ms: 0.4946
+  type: 'test'
+  ...
+# Subtest: missing condition definitionHash fails closed
+ok 32 - missing condition definitionHash fails closed
+  ---
+  duration_ms: 0.4676
+  type: 'test'
+  ...
+# Subtest: missing condition expectedHash fails closed
+ok 33 - missing condition expectedHash fails closed
+  ---
+  duration_ms: 0.4093
+  type: 'test'
+  ...
+# Subtest: missing condition attempt fails closed
+ok 34 - missing condition attempt fails closed
+  ---
+  duration_ms: 0.2543
+  type: 'test'
+  ...
+# Subtest: missing condition workerIncarnation fails closed
+ok 35 - missing condition workerIncarnation fails closed
+  ---
+  duration_ms: 0.9579
+  type: 'test'
+  ...
+# Subtest: missing condition resourceGeneration fails closed
+ok 36 - missing condition resourceGeneration fails closed
+  ---
+  duration_ms: 0.414
+  type: 'test'
+  ...
+# Subtest: missing condition evidenceVersion fails closed
+ok 37 - missing condition evidenceVersion fails closed
+  ---
+  duration_ms: 0.24
+  type: 'test'
+  ...
+# Subtest: missing condition schemaVersion fails closed
+ok 38 - missing condition schemaVersion fails closed
+  ---
+  duration_ms: 0.2753
+  type: 'test'
+  ...
+# Subtest: missing condition kind fails closed
+ok 39 - missing condition kind fails closed
+  ---
+  duration_ms: 0.337
+  type: 'test'
+  ...
+# Subtest: unmodeled event semantics cannot be mistaken for final-state proof
+ok 40 - unmodeled event semantics cannot be mistaken for final-state proof
+  ---
+  duration_ms: 0.3481
+  type: 'test'
+  ...
+# Subtest: rejects missing coverage
+ok 41 - rejects missing coverage
+  ---
+  duration_ms: 0.357
+  type: 'test'
+  ...
+# Subtest: rejects duplicate coverage
+ok 42 - rejects duplicate coverage
+  ---
+  duration_ms: 0.3991
+  type: 'test'
+  ...
+# Subtest: rejects unknown coverage
+ok 43 - rejects unknown coverage
+  ---
+  duration_ms: 0.3046
+  type: 'test'
+  ...
+# Subtest: rejects empty-manifest coverage
+ok 44 - rejects empty-manifest coverage
+  ---
+  duration_ms: 0.1936
+  type: 'test'
+  ...
+# Subtest: handler structural object and tampered evidence are not authentic
+ok 45 - handler structural object and tampered evidence are not authentic
+  ---
+  duration_ms: 0.3077
+  type: 'test'
+  ...
+# Subtest: rejects policy
+ok 46 - rejects policy
+  ---
+  duration_ms: 0.3049
+  type: 'test'
+  ...
+# Subtest: rejects approval
+ok 47 - rejects approval
+  ---
+  duration_ms: 0.2622
+  type: 'test'
+  ...
+# Subtest: rejects missing-approval
+ok 48 - rejects missing-approval
+  ---
+  duration_ms: 0.2545
+  type: 'test'
+  ...
+# Subtest: rejects missing-exemption
+ok 49 - rejects missing-exemption
+  ---
+  duration_ms: 0.2768
+  type: 'test'
+  ...
+# Subtest: rejects absent evidence sourceId
+ok 50 - rejects absent evidence sourceId
+  ---
+  duration_ms: 0.7014
+  type: 'test'
+  ...
+# Subtest: rejects absent evidence sourceGeneration
+ok 51 - rejects absent evidence sourceGeneration
+  ---
+  duration_ms: 0.2688
+  type: 'test'
+  ...
+# Subtest: rejects absent evidence evidenceVersion
+ok 52 - rejects absent evidence evidenceVersion
+  ---
+  duration_ms: 0.2491
+  type: 'test'
+  ...
+# Subtest: rejects absent evidence observedAt
+ok 53 - rejects absent evidence observedAt
+  ---
+  duration_ms: 0.2684
+  type: 'test'
+  ...
+# Subtest: rejects absent evidence validUntil
+ok 54 - rejects absent evidence validUntil
+  ---
+  duration_ms: 0.2631
+  type: 'test'
+  ...
+# Subtest: disagreement blocks rather than trusting handler expected hash
+ok 55 - disagreement blocks rather than trusting handler expected hash
+  ---
+  duration_ms: 0.3319
+  type: 'test'
+  ...
+# Subtest: blocks unavailable
+ok 56 - blocks unavailable
+  ---
+  duration_ms: 0.2316
+  type: 'test'
+  ...
+# Subtest: blocks pending
+ok 57 - blocks pending
+  ---
+  duration_ms: 0.1719
+  type: 'test'
+  ...
+# Subtest: blocks cancelled
+ok 58 - blocks cancelled
+  ---
+  duration_ms: 0.1763
+  type: 'test'
+  ...
+# Subtest: blocks expired
+ok 59 - blocks expired
+  ---
+  duration_ms: 0.2573
+  type: 'test'
+  ...
+# Subtest: blocks worker-replaced
+ok 60 - blocks worker-replaced
+  ---
+  duration_ms: 0.2751
+  type: 'test'
+  ...
+# Subtest: blocks resource-changed
+ok 61 - blocks resource-changed
+  ---
+  duration_ms: 0.2619
+  type: 'test'
+  ...
+# Subtest: blocks snapshot-changed
+ok 62 - blocks snapshot-changed
+  ---
+  duration_ms: 0.41
+  type: 'test'
+  ...
+# Subtest: blocks manifest-changed
+ok 63 - blocks manifest-changed
+  ---
+  duration_ms: 0.2142
+  type: 'test'
+  ...
+# Subtest: commit rejects cancel race
+ok 64 - commit rejects cancel race
+  ---
+  duration_ms: 0.8304
+  type: 'test'
+  ...
+# Subtest: commit rejects revision race
+ok 65 - commit rejects revision race
+  ---
+  duration_ms: 0.3309
+  type: 'test'
+  ...
+# Subtest: commit rejects expiry race
+ok 66 - commit rejects expiry race
+  ---
+  duration_ms: 0.3601
+  type: 'test'
+  ...
+# Subtest: commit rejects pending race
+ok 67 - commit rejects pending race
+  ---
+  duration_ms: 0.3139
+  type: 'test'
+  ...
+# Subtest: commit rejects contradiction race
+ok 68 - commit rejects contradiction race
+  ---
+  duration_ms: 0.3844
+  type: 'test'
+  ...
+1..68
+# tests 68
+# suites 0
+# pass 68
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 145.168

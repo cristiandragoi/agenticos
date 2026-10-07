@@ -1,0 +1,221 @@
+Observer and Whole-Goal Verification Design — review draft v1
+
+Scope and status
+Design and synthetic contract tests only. This document proposes future behavior;
+it does not enroll an observer, change application execution, implement an OS
+boundary, issue human approval, or qualify the installed runtime. Prior accepted
+implementation/tests remain separate evidence. The synthetic model exercises
+decision rules, not actual observation, IPC security or physical effects.
+
+1. Trusted observer boundary
+The scheduler submits a typed observation request to a supervisor-owned broker.
+The broker resolves canonical operation identity, immutable manifest, policy,
+approval requirements and observer enrollment from authoritative stores. Neither
+the model, worker, renderer nor ordinary HTTP caller can register an observer,
+choose a trust key, waive approval, supply authoritative observations, or request
+arbitrary commands. Requests contain schema IDs and resource capabilities, never
+scripts, executable strings or arbitrary paths/URLs to inspect.
+
+Future enrollment requires a separately isolated observer service, read-only
+resource-specific access, authenticated local IPC, peer identity validation and
+an allowlisted measured build/configuration. Enrollment is administrative and out
+of band. The observer must be unable to act on the target or dispatch tasks. Its
+signing identity is distinct from any human approval authority. Signing material
+must remain inaccessible to acting workers, models, renderers and ordinary HTTP
+callers. No signing keys or credential stores are accessed in this phase.
+
+A process name or actor label is not authentication. A separate function in the
+same compromised process is not a security boundary. Separate processes sharing
+the same writable binaries, identity store or unrestricted resource permissions
+also do not establish independence. Until isolation and enrollment are reviewed,
+production observation is unavailable and whole-goal verification stays blocked.
+Windows Job Object containment remains unimplemented or unverified in acceptance.
+
+2. Independence from the handler
+The actor produces a success receipt, never verification. The observer acquires
+target state again through its own restricted channel; it must not merely compare
+handler-returned bytes with user input, re-sign handler logs or trust screenshots
+supplied by the actor. Actor and observer identity and execution path must differ.
+The broker checks these against enrolled identities, not strings chosen in output.
+Use a typed postcondition evaluator independent of the acting code. Resource
+identity and observation interval must match the operation being evaluated.
+The broker supplies an expected-condition digest; the observer measures actual
+state. Observation of state alone cannot prove the actor caused that state.
+When causality matters require independently collected before/after observations
+and a resource generation or authoritative operation correlation.
+
+3. Identity and binding
+Observation request binds: goalId, graphId, graphVersion, manifestHash, nodeId,
+operation, attempt, actingWorkerId and worker incarnation, actor build identity,
+argumentHash, resourceHash/generation, policyRef/policyVersion, approval state and
+reference, postconditionId/schemaVersion/definitionHash, evidenceVersion, goal
+cancellationEpoch, observer enrollment ID/version, request nonce and deadline.
+The broker assigns these from the current operation ledger. Observer response
+adds observer principal/incarnation, measured build, source identity and source
+generation. Any cross-goal, cross-worker, cross-attempt or cross-resource reuse
+fails. New attempts cannot inherit old receipts. Policy changes invalidate the
+pending receipt. NOT_REQUIRED is a versioned policy exemption reference, not null.
+Required human approval remains fail closed without a validated out-of-band issuer.
+
+4. Evidence envelope
+Envelope schema: schemaVersion; request binding above; evidenceId; evidenceVersion;
+sourceId; sourceGeneration; observer identity; observedFrom; observedAt; receivedAt;
+validUntil; clock/boot epoch; payloadHash; bindingHash; authenticity reference;
+result MATCH | MISMATCH | UNKNOWN; bounded typed payload; predecessor evidence ID.
+Canonical serialization and SHA-256 cover the complete binding and payload, with
+domain separators for observation, receipt and aggregate hashes. Payload schemas
+reject unknown executable fields and enforce length/type limits. Evidence hashes
+are integrity checks; they establish neither authenticity nor independence.
+
+Broker time sets the receipt lifetime and validates observer clock skew. Require
+issuedAt <= observedFrom <= observedAt <= receivedAt <= now < validUntil, subject
+to an explicit policy clock tolerance; validUntil cannot exceed receipt, policy,
+approval, enrollment or source lifetime. Use monotonic deadlines within one broker
+boot and invalidate outstanding deadlines on restart; wall time alone cannot
+extend lifetime after rollback. Source generation changes invalidate snapshots.
+The effective validity window is the intersection of all relevant windows.
+Missing provenance, clock uncertainty, version or source identity is UNKNOWN.
+Redacted evidence must still support its defined postcondition; do not store
+secrets or low-entropy credential digests in evidence.
+
+5. Proposed postcondition schemas (all version 1; no adapters enrolled)
+Common: id, kind, schemaVersion, typed predicate, resource binding, observation
+phase, freshness class, definitionHash and approval-policy reference. No free-form
+instruction execution. Optional human-readable text is data only.
+
+file.content:
+  scopedRootId, normalizedRelativePath, stableFileId, generation, expectedLength,
+  expectedContentHash, encoding/newline mode (or exact bytes), symlink policy,
+  maxBytes, phase FINAL_STATE or EVENT.
+  Independent restricted file descriptor read checks identity before and after
+  reading and hashes actual bounded bytes. A content match proves the specified
+  snapshot, not original creation, persistence forever or safe file permissions.
+  A write may require changed-generation evidence; "Inspect/execute/verify" are data.
+
+process.lifecycle:
+  executableIdentityHash, allowedArgsHash, scopedWorkingDirectoryHash,
+  environmentPolicyRef, OS containment identity, process start identity (not PID
+  alone), expectedExit/state, descendant policy, observation interval.
+  Future OS-owned event/containment observer checks process reuse and child scope.
+  WMI/PowerShell/taskkill cleanup is BEST_EFFORT, never VERIFIED containment.
+  Missing Job Object or equivalent tested OS boundary prevents a containment claim.
+
+browser.state:
+  isolatedProfileId, browserIncarnation, contextId, origin, navigationGeneration,
+  target identity, typed DOM/state predicate and action correlation if required.
+  Future independently controlled observation transport reads live state. Page
+  content is untrusted data. A handler screenshot or DOM claim is insufficient.
+  This phase does not connect CDP, launch browsers or use authenticated profiles.
+
+network.exchange:
+  allowlistedEndpointId, method, requestHash, destination identity policy,
+  request correlation/nonce, response schema/hash, status predicate and freshness.
+  Future independently attributable transport/server receipt distinguishes a
+  response observation from a durable remote side effect. No arbitrary URL probes,
+  implicit retry, remote write or guaranteed delivery claim from local send success.
+
+credential.boundary:
+  secretHandleId (opaque), principal, permittedUseScope, isolationPolicyVersion,
+  grant/revocation epoch, denied-access test definition, required attestation type.
+  A separate security authority observes access-control enforcement, never exports
+  secret bytes. Absence of secrets in logs does not prove isolation; synthetic
+  canary denial is a test result, not proof of real credential isolation. Missing
+  authoritative boundary evidence is UNKNOWN. Credential access remains prohibited.
+
+desktop.state:
+  session/desktopId, application executable identity, process start identity,
+  window identity/generation, typed UI predicate, independent capture reference,
+  foreground/focus preconditions, modality and observation interval.
+  Stale handles, ambiguous windows or occlusion yield UNKNOWN. Physical input or
+  audible output requires separately authorized physical evidence and cannot be
+  inferred from synthetic events, buffers or handler text. No desktop tests here.
+
+6. Cancellation, races and evidence lifecycle
+Reserve observation atomically against goal cancellationEpoch, operation attempt,
+manifest version, evidence generation and current worker incarnation. Reservation
+has a finite deadline; no indefinite lock or implicit retry. Observer work occurs
+outside the DB transaction. Acceptance uses compare-and-swap on all reserved
+versions and revalidates policy, approval and enrollment. Cancellation increments
+the epoch and invalidates outstanding work. Late responses are retained only as
+rejected audit events, never current proof. Duplicate nonces cannot be consumed.
+
+Pending competing observations block promotion. Matching racing writers cannot
+overwrite a newer generation; disagreement produces a contradiction event that
+blocks the attempt. Reconciliation requires an explicitly authorized new attempt,
+not last-writer-wins. Final aggregate validation and journal append use a single
+supervisor transaction with a unique aggregate ID and expected epoch/revision.
+Journal failure rolls the transaction back. A cancellation serialized first wins;
+a later cancellation cannot erase already-committed history, but invalidates future
+use and appends a status event. File/remote side effects are not undone by cancel.
+
+7. Whole-goal aggregation without a second scheduler
+The existing planner freezes a versioned manifest of required operation nodes and
+their postconditions before execution. Manifest includes typed graph edges,
+terminal outcomes, optional nodes with policy-backed exclusions, and temporal
+scope. Hash and approve it as required. The aggregator receives the manifest and
+existing evidence snapshot; it cannot create goals, run nodes, request observations,
+retry, recover, reorder work or revise the manifest. It is a pure predicate plus
+an atomic journal commit owned by the supervisor. Status queries never resume work.
+
+Aggregation requires exact one-to-one coverage of every required node/postcondition
+at its current attempt and worker incarnation, with valid independent proofs and
+current policy/approval. Reject empty coverage, unknown/duplicate entries, missing
+nodes, unresolved failures, running work, pending observers, cycles or invalid
+manifest structure. SKIPPED is not verified; exclusion requires a recorded policy
+decision in the frozen manifest. Presentation text contributes no evidence and
+cannot turn failure into success. Any manifest change invalidates the aggregate.
+
+Each condition declares EVENT (a bounded historical event) or FINAL_STATE (must
+still hold at aggregation). An intermediate file state later intentionally changed
+can prove an EVENT but cannot satisfy FINAL_STATE. A later write invalidates earlier
+final-state evidence through resource generations. Multi-resource final-state
+claims require a common consistency snapshot/barrier or explicit policy tolerance;
+overlapping timestamps alone do not establish a simultaneous snapshot. If the
+needed barrier is unavailable, aggregation returns UNKNOWN rather than guessing.
+
+Output: VERIFIED_AT_SNAPSHOT only with scope, snapshot identity, covered condition
+IDs, exact proof IDs, manifest hash, effective expiry and aggregate hash; otherwise
+BLOCKED with machine-readable reasons. The future lifecycle adapter may translate
+this into whole-goal VERIFIED only at atomic commit. It is not implemented or
+enrolled here. Expired aggregates remain historical facts, not current guarantees.
+
+8. Failure behavior
+Unavailable/timeout/crashed observer: handler can remain SUCCEEDED, verification
+UNKNOWN/BLOCKED; no fallback to handler self-verification. Missing or invalid
+authentication/binding: reject evidence and journal the reason. Disagreement:
+CONTRADICTORY and block the attempt. Revoked approval/enrollment or expired evidence:
+block. Queue overflow: bounded refusal. No automatic scheduler activity from any
+of these decisions. Recovery is an explicit decision of the existing scheduler
+under its own policy; the aggregator neither authorizes nor performs it.
+
+9. Synthetic validation and future review boundary
+scripts/test-observer-design.mjs is a test-only executable contract model. It uses
+invented identities, immutable in-memory payloads, deterministic time, a private
+synthetic observer seal and state snapshots. It performs no resource observation,
+network request, process action, credential access, application DB import, browser
+or desktop operation. Its seal stands in for future authenticated IPC and MUST
+NOT be treated as production attestation. The model is not imported by application
+code. The production gate and lifecycle remain unchanged.
+
+Tests cover exact coverage, identity substitution, unknown/duplicate/missing nodes,
+policy/approval and source binding, self-verification, tampering, expiry, stale
+versions, cancellation epochs, pending observers, contradictions, manifest changes,
+resource-generation and snapshot mismatches, observer unavailability, replay and
+non-dispatch behavior. OS isolation, IPC impersonation, real clocks, crash recovery,
+enrollment/revocation storage and domain adapter behavior remain future acceptance
+work; synthetic tests cannot qualify these boundaries.
+
+Preserved acceptance state
+developmentRuntimeControlledTest: SUCCEEDED
+fileComparison: SUCCEEDED_WITHOUT_INDEPENDENT_VERIFICATION
+evidencePromotionAudit: COMPLETE
+independentVerificationGate: IMPLEMENTED_AND_TESTED
+wholeGoalVerification: BLOCKED_NO_RUNTIME_OBSERVER
+trustedHumanApproval: NOT_VERIFIED
+windowsJobObject: NOT_IMPLEMENTED_OR_NOT_VERIFIED
+installedRuntime: NOT_VERIFIED
+readyToExecuteUntrustedCode: false
+deployment: PROHIBITED_NOT_PERFORMED
+
+Stop after design and synthetic tests. Production enrollment and real-world
+acceptance require a separately reviewed phase.

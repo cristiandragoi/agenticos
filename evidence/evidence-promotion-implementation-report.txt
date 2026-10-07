@@ -1,0 +1,95 @@
+Evidence-promotion implementation correction
+
+Scope: source changes and isolated tests. No deployment, browser/CDP, credentials,
+Git execution, untrusted code, or installed-runtime acceptance in this phase.
+The only live data mutation was the explicitly requested append-only correction
+of the two historical read-back results. Prior deployment history is preserved.
+
+Outcome
+Handler success now produces SUCCEEDED nodes/goals and EXECUTED_UNVERIFIED turns.
+The controlled-file handler reports its comparison as a producer result, not
+independent verification. Its outputs explicitly say verified:false. The kernel
+no longer uses an Argus actor assertion as verification authority. Legacy turn
+verifier booleans, compiled-plan success and ordinary replies cannot award VERIFIED.
+
+The independent verification gate requires canonical goal/graph/node/operation/
+attempt/worker identity, argument and resource hashes, a resolved versioned policy,
+explicit approval or policy exemption reference, explicit postcondition, and
+versioned, hashed, timestamped observer evidence with a finite validity window.
+The host must supply a canonical-binding validator and trusted policy resolver;
+missing trust callbacks deny promotion. Required human approval denies promotion
+unless independently validated; this phase does not establish human approval.
+
+Observers are registered by the trusted supervisor and must have both a different
+actor and a different execution path from the producer. The gate invokes the
+observer itself; caller-supplied handler success or an Argus label is insufficient.
+The positive test uses a separate read of an actual temporary file and compares
+its digest to the explicit postcondition. Proof objects cannot be structurally
+forged, mutated or reused across goals.
+
+Receipt and evidence lifecycle
+Exact bindings are persisted. Receipts are one-use and expire. SQLite immediate
+transactions serialize cancellation, observer reservation, evidence acceptance,
+and promotion. Pending observers block promotion; generation checks reject stale
+concurrent writers. Contradictory evidence poisons the receipt. Late evidence after
+cancellation fails. Promotion rechecks complete evidence and current host binding.
+Synchronous journal failure rolls promotion back; asynchronous commit callbacks
+are rejected. Producer file-continuity receipts also enforce consumed-source
+linkage, generation, expiry, exact operation identity and cancellation checks.
+Producer receipts are never independent proof.
+
+Historical corrections
+goal-1791312958465-j1p1u / tg-1791312958467-694c75:
+  appended VERIFICATION_CORRECTED version 7
+  hash de1e200ffa7d272df0a4171e141539ad3c92a18d0590a15bec44c6489792572b
+goal-1791312958580-o3hsk / tg-1791312958581-c541dd:
+  appended VERIFICATION_CORRECTED version 7
+  hash b27921963fc1e40b6cc4eff727f8c06b856faaf3486212a08b999d4af6e478df
+Both effective outcomes: SUCCEEDED_WITHOUT_INDEPENDENT_VERIFICATION.
+Independent read-only validation confirmed both original turn rows and all 12
+original journal entries unchanged. All 14 chain entries validate. Raw historical
+VERIFIED values intentionally remain; source presentation applies the correction
+overlay. Hash-chain integrity proves internal consistency, not authenticity or
+independence. The installed presentation has not been deployed or verified.
+
+Validation
+61 independent gate regressions; 24 controlled-file workflow regressions;
+18 local-file continuity regressions; 8 promotion-boundary regressions;
+10 producer receipt lifecycle regressions: 121 passed, zero failed.
+6 correction-journal tests passed, including preservation, valid chains,
+idempotence, dry-run and rollback on tampering/conflicting audit identities.
+Server TypeScript: node server/node_modules/typescript/bin/tsc --noEmit
+  -p server/tsconfig.json completed with exit code 0.
+Application tests used fresh temporary data directories and database paths.
+These are source/isolated development tests, not physical voice, installed runtime,
+browser, network, credential isolation, or OS process-containment verification.
+
+Remaining limits
+No production observer, approval issuer or whole-goal proof-coverage adapter is
+enrolled. Whole-goal COMPLETED remains fail closed; successful execution can be
+reported as SUCCEEDED, and dependent actions cannot consume an unverified result.
+Only presentation may consume a successful unverified dependency. The gate can
+produce operation-level VERIFIED in isolated trusted-host tests. This does not
+establish a secure process boundary against arbitrary code in the supervisor,
+nor does it make Jarvis autonomously ready. An observer crash leaves its receipt
+unpromotable. File side effects are not rolled back by cancellation; late evidence
+and promotion are blocked. Ordinary SQLite write access is not an authenticity
+guarantee. Future host enrollment requires separate review.
+
+Final acceptance state
+developmentRuntimeControlledTest: SUCCEEDED
+fileComparison: SUCCEEDED_WITHOUT_INDEPENDENT_VERIFICATION
+evidencePromotionAudit: COMPLETE
+independentVerificationGate: IMPLEMENTED_AND_TESTED
+trustedHumanApproval: NOT_VERIFIED
+windowsJobObject: NOT_IMPLEMENTED_OR_NOT_VERIFIED
+installedRuntime: NOT_VERIFIED
+readyToExecuteUntrustedCode: false
+deployment: PROHIBITED_NOT_PERFORMED
+
+Evidence files
+evidence/evidence-promotion-final-tests.json
+evidence/evidence-receipts-final-tests.json
+evidence/historical-verification-corrections.json
+evidence/historical-verification-corrections-validation.json
+evidence/evidence-promotion-audit-records.json (preserved original audit)

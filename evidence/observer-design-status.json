@@ -1,0 +1,97 @@
+{
+  "scope": "Design and synthetic contract tests only",
+  "status": {
+    "developmentRuntimeControlledTest": "SUCCEEDED",
+    "fileComparison": "SUCCEEDED_WITHOUT_INDEPENDENT_VERIFICATION",
+    "evidencePromotionAudit": "COMPLETE",
+    "independentVerificationGate": "IMPLEMENTED_AND_TESTED",
+    "trustedHumanApproval": "NOT_VERIFIED",
+    "windowsJobObject": "NOT_IMPLEMENTED_OR_NOT_VERIFIED",
+    "installedRuntime": "NOT_VERIFIED",
+    "readyToExecuteUntrustedCode": false,
+    "deployment": "PROHIBITED_NOT_PERFORMED",
+    "wholeGoalVerification": "BLOCKED_NO_RUNTIME_OBSERVER"
+  },
+  "observerWholeGoalDesign": "COMPLETE_AWAITING_REVIEW",
+  "syntheticValidation": {
+    "passed": 68,
+    "failed": 0,
+    "report": "evidence/observer-design-synthetic-tests.tap",
+    "testModel": "scripts/test-observer-design.mjs",
+    "realResourcesObserved": false,
+    "domainAdapterSchemasImplemented": false,
+    "concurrencyModel": "Deterministic in-memory interleavings; not real IPC/OS concurrency"
+  },
+  "productionObserverEnrolled": false,
+  "applicationSourceChecks": [
+    {
+      "path": "server/src/domains/controlPlane/taskGraph/IndependentVerificationGate.ts",
+      "unchanged": true,
+      "sha256": "a9b0a42c8ef3756c737b68e617c01f24a4b9a41860d27d26b17e1b67a90ad0f8"
+    },
+    {
+      "path": "server/src/domains/controlPlane/taskGraph/TaskGraphExecutor.ts",
+      "unchanged": true,
+      "sha256": "f678f8018a08808f9769c12c5db91b6e6e02de2251a0d5b4e7ec1e0188e2577e"
+    },
+    {
+      "path": "server/src/domains/controlPlane/taskGraph/AutonomousExecutionKernel.ts",
+      "unchanged": true,
+      "sha256": "7b6e4a647f953b04d6d19489f2297311de6bb2872ea4f00fcc4c1710e4fc46e8"
+    },
+    {
+      "path": "server/src/domains/controlPlane/taskGraph/ExecutionIdentity.ts",
+      "unchanged": true,
+      "sha256": "14c0e5922eb59f53ed6d04f37d6d814d7df19600cd0d3209b74610e7aeb00991"
+    },
+    {
+      "path": "server/src/domains/controlPlane/taskGraph/TaskGraphJournal.ts",
+      "unchanged": true,
+      "sha256": "4122c3629a8969e8b75560b33f6945dc5f3e1970f126260a4328803e38442500"
+    },
+    {
+      "path": "server/src/domains/controlPlane/GoalLifecycle.ts",
+      "unchanged": true,
+      "sha256": "344187fef214485aee6339191a0c6f93ed7d120245aeffa68b6c04c956a6764f"
+    },
+    {
+      "path": "server/src/domains/controlPlane/ControlledFileWorkflow.ts",
+      "unchanged": true,
+      "sha256": "0293a2b61d4336b7d3ad6263a078fef8c2041b6fb8f3544b18033cf7dd87a4de"
+    },
+    {
+      "path": "server/src/domains/controlPlane/ControlledFileReceipts.ts",
+      "unchanged": true,
+      "sha256": "f5d8ec58750e64db2cf3a7d6cfe44adce571a589550bf9959fdc8edbfde42942"
+    },
+    {
+      "path": "server/src/domains/controlPlane/LocalFileOperations.ts",
+      "unchanged": true,
+      "sha256": "d59cdb9df4f5be07595d801a2d4cb6eca044e5068ea6d4e0354d435cfd5566ea"
+    },
+    {
+      "path": "server/src/domains/controlPlane/AuthoritativeInteractionContext.ts",
+      "unchanged": true,
+      "sha256": "eec034bd4ab3570bbd45d01f9cd36a9618a0e27503947d82b7c509d20fa0eecf"
+    },
+    {
+      "path": "server/src/domains/controlPlane/TaskStatePresentation.ts",
+      "unchanged": true,
+      "sha256": "04168cb68b81984cbe74f10fcb0193e5919daeef78bb2073b028f0b123732853"
+    },
+    {
+      "path": "server/src/domains/turnLifecycle/controller.ts",
+      "unchanged": true,
+      "sha256": "fa8d6c0eea84e36f0dfad5302daed070aa06681679b56b91475980f0fd3737fa"
+    },
+    {
+      "path": "server/src/domains/turnLifecycle/respond.ts",
+      "unchanged": true,
+      "sha256": "22ca638353a96505e748c30f304e29092a19e18db905cd0a8e592391c14ea55b"
+    }
+  ],
+  "artifacts": [
+    "evidence/observer-whole-goal-design.txt",
+    "scripts/test-observer-design.mjs"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "status": "PARTIAL_IMPLEMENTATION_SOURCE_AND_BUILD_ONLY",
+  "buildId": "3f20c479-dirty-20261006-122606",
+  "fingerprint": "efe4a735d8f32f41ccaf1d81dfc6f8ac1ee1093f42086039b9b1f83364cde8b3",
+  "implemented": [
+    "TaskGraphExecutor establishes immutable async-local goal/graph/node/operation/attempt provenance for each node invocation.",
+    "Durable GoalLifecycle state and AbortSignal checked before invocation and after return.",
+    "Nested tool registry, shared desktop side-effect guard, browser session acquisition, local file entry and model gateway check graph-bound ownership.",
+    "Model request provenance comes from internal context rather than caller-supplied identity metadata."
+  ],
+  "tests": {
+    "passed": 55,
+    "files": 7,
+    "newCases": [
+      "Concurrent goals retain separate identities across await and retry",
+      "Durable cancellation blocks nested handler before dispatch",
+      "Returned success after cancellation is rejected",
+      "Unknown goals, substituted nodes and aborted ownership rejected"
+    ],
+    "testDatabase": "D:/AgenticOS/.tmp/canonical-boundary-regression/test.db",
+    "build": "PASS",
+    "physicalWorkerTest": "NOT_RUN",
+    "installedRuntimeTest": "NOT_RUN"
+  },
+  "actionEvidence": {
+    "cancellationTest": "DISPATCH_REFUSED: handler invocation flag remains false",
+    "lateSuccessTest": "RETURN_REJECTED: success payload cannot pass canonical ownership check after cancellation",
+    "operatingLayer": "NOT_VERIFIED"
+  },
+  "remaining": [
+    "Non-graph legacy calls remain permitted by existing behavior and require canonical binding; this is not globally fail-closed authorization.",
+    "Task identity is not a permission grant. Least-privilege resource scopes, persistent approval checks and rate limits are not implemented by this patch.",
+    "External specialist-agent identity, approvals and evidence propagation remain incomplete.",
+    "Browser raw page handles require additional per-operation authorization.",
+    "Credential migration, network confinement and general postcondition verification remain incomplete.",
+    "Physical worker and installed-runtime acceptance have not run."
+  ],
+  "stateOwnership": "GoalLifecycle and TaskGraphExecutor unchanged; journal remains evidence projection.",
+  "deployment": "NOT_PERFORMED"
+}

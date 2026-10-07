@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-06",
+  "sessionEvidence": "D:/AgenticOS/evidence/research-session-audit.json",
+  "findings": [
+    "Five real research runs saved 17, 5, 50, 23 and 2 repository assessments; all snapshot hashes and commit formats passed the audit",
+    "Some searches were irrelevant; discovery count was not evidence of a suitable working capability",
+    "Multiple research goals could overlap and announce interleaved counters",
+    "HTTP interrupt previously halted playout without cancelling autonomous work",
+    "Client HTTP stop fallback waited for the LiveKit control publication",
+    "Speech candidates were recorded while audible output continued until transcription"
+  ],
+  "changes": [
+    "HTTP stop invokes full stop; client sends HTTP without waiting for LiveKit publication",
+    "Accepted voice work installs a synchronous goal-cancellation callback before dispatch",
+    "One live research goal per conversation; refinement cancels previous research; identical active requests are deduplicated",
+    "Research follow-ups retain latency and browser requirements instead of resolving against an unrelated chat",
+    "Research assessment counters remain in progress data instead of speech",
+    "Client mutes on sustained speech candidate; correlated resolution restores rejected candidates; transcript checks still govern cancellation",
+    "Speech arbiter respects microphone capture and pending transcription, including late drain callbacks",
+    "Queries retain browser automation/content extraction and discard generic words such as one and make"
+  ],
+  "tests": {
+    "backendPassed": 108,
+    "backendLog": "D:/AgenticOS/.tmp/research-interruption-final.log",
+    "frontendPassed": 10,
+    "frontendLog": "D:/AgenticOS/.tmp/research-stop-frontend-tests.log",
+    "scope": "Controlled contracts and regression tests, not an acoustic microphone or physical stop-latency measurement"
+  },
+  "buildId": "3f20c479-dirty-20261006-075859",
+  "deploymentLog": "D:/AgenticOS/.tmp/research-stop-deploy.log",
+  "runningState": "Backend health unavailable before deployment; installed files updated with byte parity; desktop reopen required",
+  "remaining": [
+    "Human microphone interruption and one-click stop acceptance",
+    "Fresh live research relevance check using corrected queries",
+    "Automatic repository integration remains incomplete; research does not install a capability"
+  ]
+}
