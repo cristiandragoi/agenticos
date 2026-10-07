@@ -173,5 +173,56 @@ describe('Process Spawn Confinement Static Audit', () => {
     expect(content).toContain('WindowsJob');
     expect(content).toContain('findJobRunnerHelper');
     expect(content).toContain('job.run(plan');
+    expect(content).toContain('AGENTICOS_UNCONFINED_TEST_ONLY');
+    expect(content).toContain('JOB_BOUNDARY_OPT_OUT_REJECTED');
+  });
+
+  it('enforces that terminalExecutor rejects unconfined execution on win32 by default and fails closed', async () => {
+    if (process.platform !== 'win32') return;
+    const { terminalExecutor } = await import('../domains/jarvis/execution/executors/terminalExecutor.js');
+    const { runWithTurnOwnership } = await import('../domains/jarvis/perception/turnOwnership.js');
+    const { beginOperation, noteConversationTurn } = await import('../domains/jarvis/perception/perceptionOperation.js');
+
+    const CID = 'test-job-confinement-opt-out';
+    const op = beginOperation({ conversationId: CID, turnId: 1, capability: 'terminal' });
+    noteConversationTurn(CID, 1);
+    const frame = { conversationId: CID, turnId: 1, operationId: op.operationId, capability: 'terminal' };
+
+    const oldOptOut = process.env.AGENTICOS_UNCONFINED_TEST_ONLY;
+    delete process.env.AGENTICOS_UNCONFINED_TEST_ONLY;
+
+    try {
+      // 1. Attempting to bypass job boundary without test opt-out must fail closed
+      const resOptOut = await runWithTurnOwnership(frame, () =>
+        terminalExecutor.runCommand({
+          command: 'echo unconfined_blocked',
+          cwd: process.cwd(),
+          useJobBoundary: false,
+        })
+      );
+
+      expect(resOptOut.exitCode).toBe(-1);
+      expect(resOptOut.stderr).toContain('JOB_BOUNDARY_REQUIRED');
+
+      // 2. Setting test opt-out permits unconfined fallback
+      process.env.AGENTICOS_UNCONFINED_TEST_ONLY = 'true';
+      const resPermitted = await runWithTurnOwnership(frame, () =>
+        terminalExecutor.runCommand({
+          command: 'echo allowed_opt_out',
+          cwd: process.cwd(),
+          useJobBoundary: false,
+        })
+      );
+
+      expect(resPermitted.exitCode).toBe(0);
+      expect(resPermitted.stdout).toContain('allowed_opt_out');
+    } finally {
+      if (oldOptOut !== undefined) {
+        process.env.AGENTICOS_UNCONFINED_TEST_ONLY = oldOptOut;
+      } else {
+        delete process.env.AGENTICOS_UNCONFINED_TEST_ONLY;
+      }
+    }
   });
 });
+

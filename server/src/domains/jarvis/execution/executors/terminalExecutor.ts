@@ -159,108 +159,143 @@ export class TerminalExecutor {
     }
 
     // ── Phase 2: Route programmatic execution through Windows Job Object boundary ──
-    if (process.platform === 'win32' && opts.useJobBoundary !== false) {
-      const helperInfo = findJobRunnerHelper();
-      if (!helperInfo) {
-        if (process.env.AGENTICOS_REQUIRE_JOB_BOUNDARY === 'true' || process.env.NODE_ENV === 'production') {
-          logger.error('[TerminalExecutor] JOB_BOUNDARY_UNAVAILABLE: Phase 2 native helper missing; failing closed.');
+    if (process.platform === 'win32') {
+      const isTestOptOut = process.env.AGENTICOS_UNCONFINED_TEST_ONLY === 'true';
+
+      if (opts.useJobBoundary === false) {
+        if (!isTestOptOut) {
+          logger.error('[TerminalExecutor] JOB_BOUNDARY_OPT_OUT_REJECTED: opts.useJobBoundary=false is rejected by default unless AGENTICOS_UNCONFINED_TEST_ONLY=true is set.');
           return {
             command,
             cwd,
             shell,
             exitCode: -1,
             stdout: '',
-            stderr: 'JOB_BOUNDARY_UNAVAILABLE: Phase 2 Job Object native helper is not available',
+            stderr: 'JOB_BOUNDARY_REQUIRED: opts.useJobBoundary=false is rejected by default unless AGENTICOS_UNCONFINED_TEST_ONLY=true is set',
             durationMs: Date.now() - t0,
             timedOut: false,
           };
         }
+        logger.warn('[TerminalExecutor] EXPLICIT_OPT_OUT: opts.useJobBoundary=false permitted under AGENTICOS_UNCONFINED_TEST_ONLY=true.');
       } else {
-        try {
-          const { exePath, args: shellPrefixArgs, exeHash } = getWindowsShellExecutable(shell);
-          if (!fs.existsSync(exePath)) {
-            throw new Error(`SHELL_EXECUTABLE_NOT_FOUND: ${exePath}`);
-          }
-          const job = new WindowsJob(helperInfo.helperPath, helperInfo.helperSha256);
-          let outputText = '';
-          const plan = {
-            executable: exePath,
-            executableSha256: exeHash,
-            cwd,
-            args: [...shellPrefixArgs, command],
-            env: {
-              SystemRoot: process.env.SystemRoot || 'C:\\Windows',
-              WINDIR: process.env.WINDIR || 'C:\\Windows',
-              PATH: process.env.PATH || '',
-              ...env,
-            },
-            timeoutMs,
-            maxOutputBytes: 1048576,
-            shell: false as const,
-            windowsHide: true as const,
-          };
-
-          let exitCode: number;
-          let timedOut = false;
-          try {
-            exitCode = await job.run(plan, (chunk) => {
-              outputText += chunk.toString('utf8');
-              if (outputText.length > 2 * 1024 * 1024) {
-                outputText = outputText.slice(-1024 * 1024);
-              }
-            });
-          } catch (err: any) {
-            if (err?.message?.includes('TIMEOUT')) {
-              timedOut = true;
-              exitCode = -1;
-            } else {
-              throw err;
-            }
-          } finally {
-            await job.terminateAndWait().catch(() => {});
-          }
-
-          const durationMs = Date.now() - t0;
-          const evidence = job.getEvidence();
-          logger.info('[TerminalExecutor] Command executed via Phase 2 Job Object boundary:', {
-            command,
-            exitCode,
-            durationMs,
-            assignedBeforeResume: evidence?.assignedBeforeResume,
-            killOnClose: evidence?.killOnClose,
-          });
-
-          return {
-            command,
-            cwd,
-            shell,
-            pid: evidence?.pid,
-            exitCode,
-            stdout: outputText.trim(),
-            stderr: timedOut ? 'Command timed out' : '',
-            durationMs,
-            timedOut,
-          };
-        } catch (jobErr: any) {
-          if (process.env.AGENTICOS_REQUIRE_JOB_BOUNDARY === 'true' || jobErr?.message?.startsWith('OS_JOB_')) {
-            logger.error('[TerminalExecutor] Job boundary execution failed; failing closed:', jobErr);
+        const helperInfo = findJobRunnerHelper();
+        if (!helperInfo) {
+          if (!isTestOptOut) {
+            logger.error('[TerminalExecutor] JOB_BOUNDARY_UNAVAILABLE: Phase 2 native helper missing; failing closed by default.');
             return {
               command,
               cwd,
               shell,
               exitCode: -1,
               stdout: '',
-              stderr: `JOB_BOUNDARY_ERROR: ${jobErr?.message || String(jobErr)}`,
+              stderr: 'JOB_BOUNDARY_UNAVAILABLE: Phase 2 Job Object native helper is not available',
               durationMs: Date.now() - t0,
               timedOut: false,
             };
           }
-          logger.warn('[TerminalExecutor] Job boundary execution fell back to direct spawn:', jobErr);
+          logger.warn('[TerminalExecutor] JOB_BOUNDARY_OPT_OUT: Phase 2 native helper missing; bypassing boundary under AGENTICOS_UNCONFINED_TEST_ONLY=true.');
+        } else {
+          try {
+            const { exePath, args: shellPrefixArgs, exeHash } = getWindowsShellExecutable(shell);
+            if (!fs.existsSync(exePath)) {
+              throw new Error(`SHELL_EXECUTABLE_NOT_FOUND: ${exePath}`);
+            }
+            const job = new WindowsJob(helperInfo.helperPath, helperInfo.helperSha256);
+            let outputText = '';
+            const plan = {
+              executable: exePath,
+              executableSha256: exeHash,
+              cwd,
+              args: [...shellPrefixArgs, command],
+              env: {
+                SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+                WINDIR: process.env.WINDIR || 'C:\\Windows',
+                PATH: process.env.PATH || '',
+                ...env,
+              },
+              timeoutMs,
+              maxOutputBytes: 1048576,
+              shell: false as const,
+              windowsHide: true as const,
+            };
+
+            let exitCode: number;
+            let timedOut = false;
+            try {
+              exitCode = await job.run(plan, (chunk) => {
+                outputText += chunk.toString('utf8');
+                if (outputText.length > 2 * 1024 * 1024) {
+                  outputText = outputText.slice(-1024 * 1024);
+                }
+              });
+            } catch (err: any) {
+              if (err?.message?.includes('TIMEOUT')) {
+                timedOut = true;
+                exitCode = -1;
+              } else {
+                throw err;
+              }
+            } finally {
+              await job.terminateAndWait().catch(() => {});
+            }
+
+            const durationMs = Date.now() - t0;
+            const evidence = job.getEvidence();
+            logger.info('[TerminalExecutor] Command executed via Phase 2 Job Object boundary:', {
+              command,
+              exitCode,
+              durationMs,
+              assignedBeforeResume: evidence?.assignedBeforeResume,
+              killOnClose: evidence?.killOnClose,
+            });
+
+            return {
+              command,
+              cwd,
+              shell,
+              pid: evidence?.pid,
+              exitCode,
+              stdout: outputText.trim(),
+              stderr: timedOut ? 'Command timed out' : '',
+              durationMs,
+              timedOut,
+            };
+          } catch (jobErr: any) {
+            if (!isTestOptOut) {
+              logger.error('[TerminalExecutor] Job boundary execution failed; failing closed by default:', jobErr);
+              return {
+                command,
+                cwd,
+                shell,
+                exitCode: -1,
+                stdout: '',
+                stderr: `JOB_BOUNDARY_ERROR: ${jobErr?.message || String(jobErr)}`,
+                durationMs: Date.now() - t0,
+                timedOut: false,
+              };
+            }
+            logger.warn('[TerminalExecutor] Job boundary execution fell back to direct spawn under AGENTICOS_UNCONFINED_TEST_ONLY=true:', jobErr);
+          }
         }
       }
     }
 
-    // Otherwise, background programmatic execution capturing stdout/stderr/exitCode
+    // Direct spawn fallback: strictly blocked on Windows unless explicit test opt-out is enabled
+    if (process.platform === 'win32' && process.env.AGENTICOS_UNCONFINED_TEST_ONLY !== 'true') {
+      logger.error('[TerminalExecutor] UNCONFINED_EXECUTION_BLOCKED: direct unconfined execution on Windows is blocked by default.');
+      return {
+        command,
+        cwd,
+        shell,
+        exitCode: -1,
+        stdout: '',
+        stderr: 'JOB_BOUNDARY_REQUIRED: Direct unconfined execution is blocked by default on Windows',
+        durationMs: Date.now() - t0,
+        timedOut: false,
+      };
+    }
+
+    // Otherwise, background programmatic execution capturing stdout/stderr/exitCode (POSIX or test opt-out)
     return new Promise<TerminalExecutionData>((resolve, reject) => {
       let procCmd: string;
       let procArgs: string[];
