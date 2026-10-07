@@ -3,6 +3,38 @@ import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
 
 /**
+ * Genuinely read-only health & liveness endpoints permitted without authentication.
+ * All mutating routes and all other endpoints require authentication.
+ */
+export const PUBLIC_READ_ONLY_HEALTH_ENDPOINTS = [
+  '/health',
+  '/health/system',
+  '/health/gateway',
+  '/health/behavioral',
+  '/health/hermes-gateway',
+  '/health/incidents',
+  '/health/production-readiness',
+  '/runtime',
+  '/runtime/identity',
+  '/runtime/health',
+] as const;
+
+/**
+ * Checks whether an incoming HTTP request targets a genuinely read-only health endpoint.
+ * Strictly enforces that only GET, HEAD, and OPTIONS methods are eligible.
+ */
+export function isPublicReadOnlyHealthEndpoint(method: string, path: string): boolean {
+  const normMethod = (method || '').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(normMethod)) {
+    return false;
+  }
+  const normPath = path.replace(/\/+$/, '') || '/';
+  return PUBLIC_READ_ONLY_HEALTH_ENDPOINTS.some(
+    (allowed) => normPath === allowed || normPath === `/api${allowed}`
+  );
+}
+
+/**
  * Constant-time string comparison to prevent timing oracle attacks.
  */
 export function timingSafeTokenCompare(provided: string, expected: string): boolean {

@@ -43,7 +43,7 @@ import express from 'express';
 import cors from 'cors';
 import { logger } from './utils/logger.js';
 import { attachRequestId } from './utils/requestId.js';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, isPublicReadOnlyHealthEndpoint } from './middleware/auth.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { legacyHeadersMiddleware } from './middleware/legacyHeaders.js';
 import { runStore } from './services/runStore.js';
@@ -266,10 +266,13 @@ app.use(express.json({ limit: '2mb' }));
 // Phase 4: Strictly reject legacy configuration headers
 app.use(legacyHeadersMiddleware);
 
-// Auth is bypassed in dev, enforced in production
+// SEC-02: Only genuinely read-only health/liveness endpoints are public.
+// All mutating routes (/api/dispatch, /api/integrations/*, /api/self-heal, etc.) require authentication.
 app.use('/api', (req, res, next) => {
   logger.info(`[BACKEND] INCOMING: ${req.method} ${req.url}`);
-  if (req.path === '/health' || req.path.startsWith('/health/') || req.path.startsWith('/runtime') || req.path.startsWith('/system/') || req.path.startsWith('/kanban') || req.path.startsWith('/dispatch') || req.path.startsWith('/heavy-gen') || req.path.startsWith('/pipeline') || req.path.startsWith('/integrations/')) return next(); // public for now
+  if (isPublicReadOnlyHealthEndpoint(req.method, req.path)) {
+    return next();
+  }
   return authMiddleware(req, res, next);
 });
 
