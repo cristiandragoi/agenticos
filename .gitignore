@@ -232,3 +232,11 @@ docs/backups/**/*.db
 
 # Piper TTS model binaries (downloaded at runtime, not committed)
 server/models/piper/**/*.onnx
+
+# runtime/private data - never commit
+server/data/
+server/server/
+server/src/data/
+*.wav
+__pycache__/
+server/test_desktop.png
