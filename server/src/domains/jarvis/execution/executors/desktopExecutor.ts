@@ -16,6 +16,13 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../../../../utils/logger.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+  type SignedApprovalEnvelope,
+} from '../../../securitySupervisor/approvalVerifier.js';
 
 const execAsync = promisify(exec);
 
@@ -401,12 +408,50 @@ export class DesktopExecutor {
     return null;
   }
 
-  public async openApplication(appInput: string): Promise<{ success: boolean; app: string; pid?: number; error?: string }> {
+  public async openApplication(
+    appInput: string,
+    options?: { approval?: SignedApprovalEnvelope }
+  ): Promise<{ success: boolean; app: string; pid?: number; error?: string }> {
+    // ── SEC-07 Out-of-Process Trusted Human Approval Gating ──────────────────
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+    if (!isTestBypass) {
+      if (!options?.approval) {
+        logger.warn('[DesktopExecutor] Blocked openApplication without verified human approval:', { appInput });
+        return {
+          success: false,
+          app: appInput,
+          error: 'APPROVAL_REQUIRED: Desktop application launch requires verified out-of-process human approval.',
+        };
+      }
+      try {
+        const expectedBinding: ApprovalBinding = {
+          goalId: 'desktop-launch',
+          graphId: 'desktop',
+          nodeId: 'openApplication',
+          workerId: 'desktopExecutor',
+          operation: 'DESKTOP_LAUNCH',
+          attempt: 1,
+          tool: 'desktop.open_app',
+          scopeHash: approvalHash({ app: appInput }),
+          argumentHash: approvalHash({ app: appInput }),
+          previewHash: approvalHash(`Launch desktop application ${appInput}`),
+          runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+          bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+        };
+        getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+      } catch (err: any) {
+        return {
+          success: false,
+          app: appInput,
+          error: `APPROVAL_VERIFICATION_FAILED: ${err?.message || String(err)}`,
+        };
+      }
+    }
+
     // ── P0 turn-ownership enforcement ────────────────────────────────────────
     // Application launch is the most visible external side effect there is. A
     // cancelled or superseded turn must never physically open anything, so the
-    // gate runs at the top of the method — before resolution, before any
-    // PowerShell probe, before spawn.
+    // gate runs before resolution, before any PowerShell probe, before spawn.
     {
       const gate = assertSideEffectOwnership('desktop_launch', 'launch/activate a desktop application');
       if (!gate.ok) {
@@ -1126,7 +1171,8 @@ export class DesktopExecutor {
     }
 
     const appTarget = (step.parameters.app as string) || (step.parameters.application as string) || '';
-    const res = await this.openApplication(appTarget);
+    const approval = (step.parameters.approval as SignedApprovalEnvelope) || undefined;
+    const res = await this.openApplication(appTarget, { approval });
 
     return {
       stepId: step.stepId,

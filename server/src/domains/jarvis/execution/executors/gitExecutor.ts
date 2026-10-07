@@ -9,13 +9,95 @@
 import { terminalExecutor } from './terminalExecutor.js';
 import { logger } from '../../../../utils/logger.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
+import { isReadOnlyCommand } from '../../../localWorker/toolRegistryBridge.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+  type SignedApprovalEnvelope,
+} from '../../../securitySupervisor/approvalVerifier.js';
 
 export class GitExecutor {
   public readonly id = 'git';
 
-  public async executeGit(command: string, cwd: string): Promise<ExecutionResult> {
+  public async executeGit(
+    command: string,
+    cwd: string,
+    options?: { approval?: SignedApprovalEnvelope }
+  ): Promise<ExecutionResult> {
     const fullCmd = command.startsWith('git ') ? command : `git ${command}`;
     logger.info('[GitExecutor] Running git command:', { fullCmd, cwd });
+
+    if (!isReadOnlyCommand(fullCmd)) {
+      const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+      if (!isTestBypass) {
+        if (!options?.approval) {
+          logger.warn('[GitExecutor] Blocked mutating git command without verified approval:', { fullCmd, cwd });
+          return {
+            success: false,
+            data: {
+              command: fullCmd,
+              cwd,
+              shell: 'powershell',
+              exitCode: 1,
+              stdout: '',
+              stderr: 'APPROVAL_REQUIRED',
+              durationMs: 0,
+              timedOut: false,
+            },
+            output: 'APPROVAL_REQUIRED: Mutating git operation requires verified human approval.',
+            error: 'APPROVAL_REQUIRED',
+            evidence: {
+              command: fullCmd,
+              cwd,
+              exitCode: 1,
+              stdout: '',
+            },
+          };
+        }
+
+        try {
+          const expectedBinding: ApprovalBinding = {
+            goalId: 'git-execution',
+            graphId: 'git',
+            nodeId: 'executeGit',
+            workerId: 'GitExecutor',
+            operation: 'GIT_MUTATE',
+            attempt: 1,
+            tool: 'git.execute',
+            scopeHash: approvalHash({ cwd }),
+            argumentHash: approvalHash({ command: fullCmd }),
+            previewHash: approvalHash(`Execute ${fullCmd} in ${cwd}`),
+            runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+            bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+          };
+          getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+        } catch (err: any) {
+          return {
+            success: false,
+            data: {
+              command: fullCmd,
+              cwd,
+              shell: 'powershell',
+              exitCode: 1,
+              stdout: '',
+              stderr: 'APPROVAL_VERIFICATION_FAILED',
+              durationMs: 0,
+              timedOut: false,
+            },
+            output: `APPROVAL_VERIFICATION_FAILED: ${err?.message || String(err)}`,
+            error: 'APPROVAL_VERIFICATION_FAILED',
+            evidence: {
+              command: fullCmd,
+              cwd,
+              exitCode: 1,
+              stdout: '',
+            },
+          };
+        }
+      }
+    }
 
     const data = await terminalExecutor.runCommand({
       command: fullCmd,
@@ -81,6 +163,7 @@ export class GitExecutor {
     const cwd = (step.parameters.cwd as string) || context.workspacePath || process.cwd();
     const args = (step.parameters.args as string) || '';
     const repoUrl = (step.parameters.repoUrl as string) || '';
+    const approval = (step.parameters.approval as SignedApprovalEnvelope) || undefined;
 
     let gitCmd = `git ${action}`;
     if (action === 'clone' && repoUrl) {
@@ -89,7 +172,7 @@ export class GitExecutor {
       gitCmd = `git ${action} ${args}`.trim();
     }
 
-    return await this.executeGit(gitCmd, cwd);
+    return await this.executeGit(gitCmd, cwd, { approval });
   }
 
   public async verify(result: ExecutionResult): Promise<VerificationResult> {

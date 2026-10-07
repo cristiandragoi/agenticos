@@ -19,12 +19,16 @@ revenueSupervisorRouter.get('/status', async (_req, res) => {
 // POST /api/revenue-supervisor/control — START | PAUSE | RESUME | STOP
 revenueSupervisorRouter.post('/control', async (req, res) => {
   try {
-    const { action, missionId } = req.body;
+    const { action, missionId, envelope, payload, signature } = req.body;
     if (!['START', 'PAUSE', 'RESUME', 'STOP'].includes(action)) {
       res.status(400).json({ error: "Invalid action. Must be one of: 'START', 'PAUSE', 'RESUME', 'STOP'" });
       return;
     }
-    const result = revenueSupervisor.setControlState(action, missionId);
+    const approval = envelope || (payload && signature ? { payload, signature } : undefined);
+    const result = revenueSupervisor.setControlState(action, missionId, { approval });
+    if (!result.success && result.error?.startsWith('APPROVAL_REQUIRED')) {
+      return res.status(403).json(result);
+    }
     res.json(result);
   } catch (err: any) {
     logger.error('[RevenueSupervisorRouter] Control error:', err);
@@ -57,8 +61,17 @@ revenueSupervisorRouter.post('/briefing/weekly', async (req, res) => {
 });
 
 // POST /api/revenue-supervisor/trigger — Force run a supervisor cycle
-revenueSupervisorRouter.post('/trigger', async (_req, res) => {
+revenueSupervisorRouter.post('/trigger', async (req, res) => {
   try {
+    const { envelope, payload, signature } = req.body || {};
+    const approval = envelope || (payload && signature ? { payload, signature } : undefined);
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+    if (!isTestBypass && !approval) {
+      return res.status(403).json({
+        error: 'APPROVAL_REQUIRED',
+        message: 'Triggering revenue supervisor cycle requires verified human approval.',
+      });
+    }
     const status = await revenueSupervisor.runSupervisorCycle();
     res.json(status);
   } catch (err: any) {

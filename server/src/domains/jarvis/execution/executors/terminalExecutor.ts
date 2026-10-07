@@ -59,6 +59,42 @@ function getWindowsShellExecutable(shell: string): { exePath: string; args: stri
   return { exePath, args, exeHash };
 }
 
+/**
+ * SEC-08: Sanitize child process environment to prevent accidental inheritance of
+ * sensitive provider API keys, tokens, and secret credentials.
+ */
+export function sanitizeChildEnv(rawEnv: Record<string, string | undefined>): Record<string, string> {
+  const SENSITIVE_KEY_NAMES = new Set([
+    'OPENAI_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'GEMINI_API_KEY',
+    'GOOGLE_API_KEY',
+    'DEEPSEEK_API_KEY',
+    'GROQ_API_KEY',
+    'MISTRAL_API_KEY',
+    'OPENROUTER_API_KEY',
+    'XAI_API_KEY',
+    'PERPLEXITY_API_KEY',
+    'SAKANA_API_KEY',
+    'APIFY_API_KEY',
+    'STORAGE_API_KEY',
+    'N8N_API_KEY',
+    'INTERNAL_OAUTH_TOKEN',
+    'AGENTOS_API_TOKEN',
+  ]);
+
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawEnv)) {
+    if (v === undefined) continue;
+    const upper = k.toUpperCase();
+    if (SENSITIVE_KEY_NAMES.has(upper) || /_API_KEY$|_SECRET$|_TOKEN$/i.test(upper)) {
+      continue;
+    }
+    clean[k] = v;
+  }
+  return clean;
+}
+
 export interface TerminalRunOptions {
   command: string;
   cwd?: string;
@@ -207,12 +243,12 @@ export class TerminalExecutor {
               executableSha256: exeHash,
               cwd,
               args: [...shellPrefixArgs, command],
-              env: {
+              env: sanitizeChildEnv({
                 SystemRoot: process.env.SystemRoot || 'C:\\Windows',
                 WINDIR: process.env.WINDIR || 'C:\\Windows',
                 PATH: process.env.PATH || '',
                 ...env,
-              },
+              }),
               timeoutMs,
               maxOutputBytes: 1048576,
               shell: false as const,
@@ -322,7 +358,7 @@ export class TerminalExecutor {
 
       const child = spawn(procCmd, procArgs, {
         cwd,
-        env: { ...process.env, ...env },
+        env: sanitizeChildEnv({ ...process.env, ...env }),
         windowsHide: true,
       });
 

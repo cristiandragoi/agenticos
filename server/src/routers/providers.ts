@@ -162,8 +162,8 @@ router.put('/:id/key', async (req, res) => {
     if (envVar) await secretStore.set(envVar, trimmed);
     await ProviderCredentialService.saveCredential(provider.id, trimmed);
 
-    // 2. Set in current process.env for immediate in-process propagation
-    if (envVar) process.env[envVar] = trimmed;
+    // 2. SEC-08: Stop injecting provider keys into process.env to prevent child process leakage.
+    // Keys are stored in secretStore and ProviderCredentialService for per-call retrieval.
 
     // 3. Update provider status
     provider.status = 'connected';
@@ -197,7 +197,6 @@ router.delete('/:id/key', async (req, res) => {
     await secretStore.delete(provider.id);
     if (envVar) {
       await secretStore.delete(envVar);
-      delete process.env[envVar];
     }
     await ProviderCredentialService.deleteCredential(provider.id);
 

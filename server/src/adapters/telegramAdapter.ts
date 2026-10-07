@@ -23,6 +23,13 @@ import { getBuildIdentity } from '../services/buildIdentity.js';
 import { DesktopPerceptionService } from '../services/perception/DesktopPerceptionService.js';
 import { goalLifecycleManager } from '../domains/controlPlane/GoalLifecycle.js';
 import { backgroundTaskManager } from '../services/backgroundTasks/manager.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+  type SignedApprovalEnvelope,
+} from '../domains/securitySupervisor/approvalVerifier.js';
 import { backgroundTaskRepo } from '../services/backgroundTasks/store.js';
 import { engineeringWorkerRegistry } from '../domains/controlPlane/EngineeringWorkerRegistry.js';
 
@@ -758,9 +765,45 @@ export class TelegramAdapter {
     chatId: string,
     filePath: string,
     caption?: string,
-    replyToMessageId?: number
-  ): Promise<{ success: boolean; messageId?: number }> {
-    if (!this.botToken || !fs.existsSync(filePath)) return { success: false };
+    replyToMessageId?: number,
+    options?: { approval?: SignedApprovalEnvelope }
+  ): Promise<{ success: boolean; messageId?: number; error?: string }> {
+    if (!this.botToken || !fs.existsSync(filePath)) return { success: false, error: 'FILE_OR_BOT_UNAVAILABLE' };
+
+    // SEC-07/08: Gating outbound photo transmission behind verified approval
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+    if (!isTestBypass) {
+      if (!options?.approval) {
+        logger.warn('[TelegramAdapter] Blocked sendPhoto without verified human approval:', { chatId, filePath });
+        return {
+          success: false,
+          error: 'APPROVAL_REQUIRED: Telegram sendPhoto requires verified out-of-process human approval.',
+        };
+      }
+      try {
+        const expectedBinding: ApprovalBinding = {
+          goalId: 'telegram-send-photo',
+          graphId: 'telegram',
+          nodeId: 'sendPhoto',
+          workerId: 'telegramAdapter',
+          operation: 'TELEGRAM_SEND_PHOTO',
+          attempt: 1,
+          tool: 'telegram.send_photo',
+          scopeHash: approvalHash({ chatId, filePath: path.resolve(filePath) }),
+          argumentHash: approvalHash({ chatId, filePath: path.resolve(filePath), caption: caption || '' }),
+          previewHash: approvalHash(`Send photo ${path.basename(filePath)} to chat ${chatId}`),
+          runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+          bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+        };
+        getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+      } catch (err: any) {
+        return {
+          success: false,
+          error: `APPROVAL_VERIFICATION_FAILED: ${err?.message || String(err)}`,
+        };
+      }
+    }
+
     try {
       const fileBuf = fs.readFileSync(filePath);
       const blob = new Blob([fileBuf], { type: 'image/png' });

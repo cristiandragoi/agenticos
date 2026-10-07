@@ -9,6 +9,13 @@ import { branchScheduler } from './branchScheduler.js';
 import { listCompliance, createHumanGate } from './operatorService.js';
 import { projectsStore } from '../projectsStore.js';
 import { revenueBriefingService, BriefingData } from './briefingService.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+  type SignedApprovalEnvelope,
+} from '../../domains/securitySupervisor/approvalVerifier.js';
 
 export type SupervisorControlState = 'ACTIVE' | 'WAITING' | 'BLOCKED' | 'PAUSED' | 'STOPPED';
 
@@ -90,7 +97,7 @@ function detectHumanGateType(text: string): {
 }
 
 export class RevenueMissionSupervisor {
-  private controlState: SupervisorControlState = 'ACTIVE';
+  private controlState: SupervisorControlState = 'PAUSED';
   private cycleCount = 0;
   private lastCycleAt: string | null = null;
   private activeMissionId: string | null = null;
@@ -181,8 +188,49 @@ export class RevenueMissionSupervisor {
     return { id: mission.id, title: mission.title, projectId: mission.projectId ?? null };
   }
 
-  setControlState(action: 'START' | 'PAUSE' | 'RESUME' | 'STOP', missionId?: string): { success: boolean; state: SupervisorControlState } {
+  setControlState(
+    action: 'START' | 'PAUSE' | 'RESUME' | 'STOP',
+    missionId?: string,
+    options?: { approval?: SignedApprovalEnvelope }
+  ): { success: boolean; state: SupervisorControlState; error?: string } {
     if (missionId) this.activeMissionId = missionId;
+
+    if (action === 'START' || action === 'RESUME') {
+      const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+      if (!isTestBypass) {
+        if (!options?.approval) {
+          logger.warn('[RevenueSupervisor] Blocked START/RESUME without verified human approval:', { action, missionId });
+          return {
+            success: false,
+            state: this.controlState,
+            error: 'APPROVAL_REQUIRED: Starting or resuming revenue supervisor requires verified out-of-process human approval.',
+          };
+        }
+        try {
+          const expectedBinding: ApprovalBinding = {
+            goalId: missionId || 'revenue-supervisor',
+            graphId: 'revenue',
+            nodeId: 'setControlState',
+            workerId: 'RevenueMissionSupervisor',
+            operation: 'REVENUE_SUPERVISOR_CONTROL',
+            attempt: 1,
+            tool: 'revenueSupervisor.control',
+            scopeHash: approvalHash({ action, missionId: missionId || '' }),
+            argumentHash: approvalHash({ action, missionId: missionId || '' }),
+            previewHash: approvalHash(`Set revenue supervisor control state to ${action}`),
+            runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+            bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+          };
+          getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+        } catch (err: any) {
+          return {
+            success: false,
+            state: this.controlState,
+            error: `APPROVAL_VERIFICATION_FAILED: ${err?.message || String(err)}`,
+          };
+        }
+      }
+    }
 
     switch (action) {
       case 'START':

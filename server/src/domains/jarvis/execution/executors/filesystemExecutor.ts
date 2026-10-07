@@ -20,6 +20,13 @@ import {
   ConfinementError,
   getDedicatedWorkspaceRoot,
 } from '../../../localWorker/workspaceConfinement.js';
+import {
+  getSupervisorApprovalVerifier,
+  getRuntimeDeploymentIdentity,
+  approvalHash,
+  type ApprovalBinding,
+  type SignedApprovalEnvelope,
+} from '../../../securitySupervisor/approvalVerifier.js';
 import type { ActionPlanStep, ExecutionResult, VerificationResult, TurnContext } from '../types.js';
 
 export interface FileItemMatch {
@@ -205,10 +212,48 @@ export class FilesystemExecutor {
   /**
    * Open file with Windows default associated application.
    */
-  public async openFile(filePath: string): Promise<{ success: boolean; path: string; error?: string }> {
+  public async openFile(
+    filePath: string,
+    options?: { approval?: SignedApprovalEnvelope }
+  ): Promise<{ success: boolean; path: string; error?: string }> {
     const resolved = path.resolve(filePath);
     if (!fsSync.existsSync(resolved)) {
       return { success: false, path: resolved, error: `File not found: ${resolved}` };
+    }
+
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+    if (!isTestBypass) {
+      if (!options?.approval) {
+        logger.warn('[FilesystemExecutor] Blocked openFile without verified human approval:', { filePath: resolved });
+        return {
+          success: false,
+          path: resolved,
+          error: 'APPROVAL_REQUIRED: Opening file with system application requires verified human approval.',
+        };
+      }
+      try {
+        const expectedBinding: ApprovalBinding = {
+          goalId: 'filesystem-open',
+          graphId: 'filesystem',
+          nodeId: 'openFile',
+          workerId: 'filesystemExecutor',
+          operation: 'FILESYSTEM_OPEN',
+          attempt: 1,
+          tool: 'filesystem.open',
+          scopeHash: approvalHash({ path: resolved }),
+          argumentHash: approvalHash({ path: resolved }),
+          previewHash: approvalHash(`Open file ${resolved}`),
+          runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+          bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+        };
+        getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+      } catch (err: any) {
+        return {
+          success: false,
+          path: resolved,
+          error: `APPROVAL_VERIFICATION_FAILED: ${err?.message || String(err)}`,
+        };
+      }
     }
 
     try {
@@ -235,10 +280,48 @@ export class FilesystemExecutor {
   /**
    * Reveal file or folder in Windows File Explorer.
    */
-  public async revealInExplorer(targetPath: string): Promise<{ success: boolean; path: string; error?: string }> {
+  public async revealInExplorer(
+    targetPath: string,
+    options?: { approval?: SignedApprovalEnvelope }
+  ): Promise<{ success: boolean; path: string; error?: string }> {
     const resolved = path.resolve(targetPath);
     if (!fsSync.existsSync(resolved)) {
       return { success: false, path: resolved, error: `Path not found: ${resolved}` };
+    }
+
+    const isTestBypass = process.env.AGENTICOS_AUTH_TEST_BYPASS === 'true';
+    if (!isTestBypass) {
+      if (!options?.approval) {
+        logger.warn('[FilesystemExecutor] Blocked revealInExplorer without verified human approval:', { targetPath: resolved });
+        return {
+          success: false,
+          path: resolved,
+          error: 'APPROVAL_REQUIRED: Revealing path in File Explorer requires verified human approval.',
+        };
+      }
+      try {
+        const expectedBinding: ApprovalBinding = {
+          goalId: 'filesystem-reveal',
+          graphId: 'filesystem',
+          nodeId: 'revealInExplorer',
+          workerId: 'filesystemExecutor',
+          operation: 'FILESYSTEM_REVEAL',
+          attempt: 1,
+          tool: 'filesystem.reveal',
+          scopeHash: approvalHash({ path: resolved }),
+          argumentHash: approvalHash({ path: resolved }),
+          previewHash: approvalHash(`Reveal in explorer: ${resolved}`),
+          runtimeIncarnation: getRuntimeDeploymentIdentity().incarnation,
+          bootTimestamp: getRuntimeDeploymentIdentity().bootTimestamp,
+        };
+        getSupervisorApprovalVerifier().consume(options.approval.payload, options.approval.signature, expectedBinding);
+      } catch (err: any) {
+        return {
+          success: false,
+          path: resolved,
+          error: `APPROVAL_VERIFICATION_FAILED: ${err?.message || String(err)}`,
+        };
+      }
     }
 
     try {
@@ -348,7 +431,8 @@ export class FilesystemExecutor {
           };
         }
         case 'open': {
-          const res = await this.openFile(targetPath);
+          const approval = (step.parameters.approval as SignedApprovalEnvelope) || undefined;
+          const res = await this.openFile(targetPath, { approval });
           return {
             success: res.success,
             output: res.success ? `Opened ${path.basename(targetPath)}.` : `Failed to open ${path.basename(targetPath)}: ${res.error}`,
@@ -357,7 +441,8 @@ export class FilesystemExecutor {
           };
         }
         case 'reveal': {
-          const res = await this.revealInExplorer(targetPath);
+          const approval = (step.parameters.approval as SignedApprovalEnvelope) || undefined;
+          const res = await this.revealInExplorer(targetPath, { approval });
           return {
             success: res.success,
             output: res.success ? `Revealed ${path.basename(targetPath)} in Explorer.` : `Failed to reveal: ${res.error}`,
