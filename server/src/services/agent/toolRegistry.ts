@@ -9,6 +9,8 @@
  * Tools are registered at import time and discovered by the agent loop.
  */
 
+import { authorizeToolDispatch } from '../../domains/controlPlane/taskGraph/ToolAuthorization.js';
+
 export interface ToolParameter {
   name: string;
   type: string;
@@ -40,11 +42,23 @@ export type ToolSchema = {
   };
 };
 
-class ToolRegistry {
+export class ToolRegistry {
   private tools = new Map<string, ToolDefinition>();
 
   register(tool: ToolDefinition): void {
-    this.tools.set(tool.name, tool);
+    const originalHandler = tool.handler;
+    const wrappedHandler = async (args: Record<string, unknown>): Promise<string> => {
+      authorizeToolDispatch(tool.name, args);
+      return originalHandler(args);
+    };
+    this.tools.set(tool.name, {
+      ...tool,
+      handler: wrappedHandler,
+    });
+  }
+
+  revoke(name: string): void {
+    this.tools.delete(name);
   }
 
   get(name: string): ToolDefinition | undefined {
@@ -92,6 +106,25 @@ class ToolRegistry {
     const tool = this.tools.get(name) || this.tools.get(name.replace(/\./g, '_')) || this.tools.get(name.replace(/_/g, '.'));
     if (!tool) {
       throw new Error(`Unknown tool: ${name}`);
+    }
+    if (tool.enabled && !tool.enabled()) {
+      throw new Error(`Tool disabled: ${name}`);
+    }
+    for (const p of tool.parameters) {
+      if (p.required && (args[p.name] === undefined || args[p.name] === null)) {
+        throw new Error(`Missing required parameter: ${p.name}`);
+      }
+      if (args[p.name] !== undefined) {
+        if (p.type === 'string' && typeof args[p.name] !== 'string') {
+          throw new Error(`Invalid parameter type for ${p.name}: expected string`);
+        }
+        if (p.type === 'number' && (typeof args[p.name] !== 'number' || !Number.isFinite(args[p.name]))) {
+          throw new Error(`Invalid parameter type for ${p.name}: expected number`);
+        }
+        if (p.type === 'boolean' && typeof args[p.name] !== 'boolean') {
+          throw new Error(`Invalid parameter type for ${p.name}: expected boolean`);
+        }
+      }
     }
     return tool.handler(args);
   }

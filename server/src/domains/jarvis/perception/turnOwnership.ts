@@ -109,6 +109,9 @@ export function assertSideEffectOwnership(
     origin: frame?.origin,
     policy: frame?.policy,
   });
+  if (!gate.ok && gate.reason === 'no_ownership_identity') {
+    throw new Error('CANONICAL_TASK_IDENTITY_REQUIRED: Side effect attempted without ownership identity');
+  }
   return { ...gate, capability, description };
 }
 

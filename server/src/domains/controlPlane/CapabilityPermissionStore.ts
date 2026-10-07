@@ -109,11 +109,6 @@ export class CapabilityPermissionStore {
   }
 
   public isAllowed(capability: CapabilityName | string): boolean {
-    const state = this.cache.get(capability as CapabilityName);
-    if (state !== undefined) {
-      return state === 'allowed';
-    }
-    // Check if db has it
     try {
       const row: any = rawDb.prepare('SELECT state FROM capability_permissions WHERE capability = ?').get(capability);
       if (row?.state) {
@@ -122,14 +117,22 @@ export class CapabilityPermissionStore {
       }
     } catch {}
 
-    // Default to allowed for granted local capabilities
-    return DEFAULT_PERMISSIONS[capability as CapabilityName] !== 'denied';
+    const def = DEFAULT_PERMISSIONS[capability as CapabilityName];
+    if (def !== undefined) {
+      return def === 'allowed';
+    }
+    return false;
   }
 
   public getPermission(capability: CapabilityName | string): PermissionState {
-    if (this.cache.has(capability as CapabilityName)) {
-      return this.cache.get(capability as CapabilityName)!;
-    }
+    try {
+      const row: any = rawDb.prepare('SELECT state FROM capability_permissions WHERE capability = ?').get(capability);
+      if (row?.state) {
+        this.cache.set(capability as CapabilityName, row.state as PermissionState);
+        return row.state as PermissionState;
+      }
+    } catch {}
+
     return DEFAULT_PERMISSIONS[capability as CapabilityName] || 'prompt';
   }
 

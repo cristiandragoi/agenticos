@@ -453,7 +453,13 @@ export class DesktopExecutor {
     // cancelled or superseded turn must never physically open anything, so the
     // gate runs before resolution, before any PowerShell probe, before spawn.
     {
-      const gate = assertSideEffectOwnership('desktop_launch', 'launch/activate a desktop application');
+      let gate: SideEffectGate & { capability: string; description: string };
+      try {
+        gate = assertSideEffectOwnership('desktop_launch', 'launch/activate a desktop application');
+      } catch (err: any) {
+        logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', { error: err?.message });
+        return { success: false, app: appInput, error: `rejected:${err?.message || String(err)}` };
+      }
       if (!gate.ok) {
         logger.warn('[DesktopExecutor] SIDE_EFFECT_REJECTED', {
           reason: gate.reason, capability: gate.capability,

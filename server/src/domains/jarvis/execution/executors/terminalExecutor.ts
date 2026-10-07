@@ -128,7 +128,22 @@ export class TerminalExecutor {
     // check runs HERE, immediately before the spawn, so there is no work between
     // validation and the side effect.
     {
-      const gate = assertSideEffectOwnership('terminal', 'terminal / PowerShell command');
+      let gate: SideEffectGate & { capability: string; description: string };
+      try {
+        gate = assertSideEffectOwnership('terminal', 'terminal / PowerShell command');
+      } catch (err: any) {
+        logger.warn('[TerminalExecutor] SIDE_EFFECT_REJECTED', { error: err?.message });
+        return {
+          command: opts.command,
+          cwd: opts.cwd ?? process.cwd(),
+          shell: opts.shell ?? 'powershell',
+          exitCode: null,
+          stdout: '',
+          stderr: `rejected:${err?.message || String(err)}`,
+          durationMs: 0,
+          timedOut: false,
+        };
+      }
       if (!gate.ok) {
         logger.warn('[TerminalExecutor] SIDE_EFFECT_REJECTED', {
           reason: gate.reason, capability: gate.capability,
