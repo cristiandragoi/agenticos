@@ -101,6 +101,18 @@ export function validateGoal(raw: any, reqText?: string): TurnGoal | null {
     let url = str(a.url);
     // A typed action whose required parameters are missing is not executable natively.
     if (type === 'launch_app' && !app) type = 'other';
+
+    // All email requests must route to EmailService via handler chain, NEVER as a raw desktop app launch
+    const isEmailIntent =
+      /\b(?:e-?mails?|gmail|postfach|inbox)\b/i.test(rawText) ||
+      /\b(?:schreibe?|verfasse?|erstelle?|sende?)\s+(?:mir\s+)?(?:eine?\s+)?(?:e-?mail|nachricht)\b/i.test(rawText) ||
+      /\b(?:write|compose|draft|send)\s+(?:an?\s+)?(?:e-?mail|message)\b/i.test(rawText) ||
+      /^(?:an\s+)?(?:email|e-mail|mail)$/i.test(app.toLowerCase());
+
+    if (isEmailIntent && type === 'launch_app') {
+      type = 'other';
+    }
+
     if (type === 'type_text' && (!app || !text)) type = 'other';
     if (type === 'open_url') {
       if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;

@@ -915,6 +915,7 @@ export async function routeTurn(opts: {
   const finish = (r: Partial<TurnResult> & { text: string; route: TurnRoute }): TurnResult => {
     timings.totalToTextMs = Date.now() - t0;
     let finalSpokenText = r.text;
+    let isUnhandledFallback = false;
     // Section 6 invariant: NEVER ALLOW A TURN TO PRODUCE SILENCE (except quiet recovery)
     if (r.handled !== false && (!finalSpokenText || !finalSpokenText.trim())) {
       const activeLang = getActiveLanguage();
@@ -949,6 +950,7 @@ export async function routeTurn(opts: {
             ? `Ich habe im Moment keine weiteren Details zu ${entity}.`
             : `I don't have further details on ${entity} right now.`;
         } else {
+          isUnhandledFallback = true;
           finalSpokenText = isGerman
             ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
             : "I'm not sure how to help with that. Could you rephrase?";
@@ -957,7 +959,7 @@ export async function routeTurn(opts: {
     }
 
     const result: TurnResult = {
-      handled: true, evidence: false, executed: false, verified: false,
+      handled: isUnhandledFallback ? false : (r.handled ?? true), evidence: false, executed: false, verified: false,
       ...r, text: finalSpokenText, timings,
     } as TurnResult;
 
@@ -1445,7 +1447,7 @@ export async function routeTurn(opts: {
       turnId: opts.turnId, clearedFocus: hadFocus, cancelledOperations: cancelled.length,
     });
     // Silence is the correct outcome: the user asked for no work and no speech.
-    return finish({ route: 'chat_trivial', text: '', evidence: true, executed: false, verified: false });
+    return finish({ route: 'chat_trivial', text: '', evidence: true, executed: false, verified: false, silent: true } as any);
   }
 
   if (perceptionDecision.claimed && perceptionDecision.capability) {
@@ -2809,11 +2811,12 @@ export async function routeTurn(opts: {
     }
 
     const isDesktopCmd = /\b(locate|find|open|focus|bring|foreground|screenshot|telegram|hermes|notepad|youtube|google|browser)\b/i.test(prompt);
+    if (!isDesktopCmd) {
+      return finish({ route: 'deep_supervisor', text: '', handled: false, fallbackReason: deep.fallbackReason || 'no_evidence' });
+    }
     return finish({
-      route: isDesktopCmd ? 'action' : 'refusal',
-      text: isDesktopCmd
-        ? `I could not locate or execute the requested desktop target for "${prompt.replace(/[.?]+$/, '')}".`
-        : GROUNDING_REFUSAL,
+      route: 'action',
+      text: `I could not locate or execute the requested desktop target for "${prompt.replace(/[.?]+$/, '')}".`,
       evidence: false,
       fallbackReason: deep.fallbackReason || 'no_evidence',
     });

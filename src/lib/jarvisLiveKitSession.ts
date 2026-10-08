@@ -14,6 +14,8 @@ export interface JarvisLiveKitState {
   errorMsg: string | null;
   micTrackCount: number;
   roomName: string | null;
+  volume: number;
+  isMuted: boolean;
 }
 
 const TAG = '[JARVIS_LIVEKIT_SESSION]';
@@ -51,6 +53,24 @@ export class JarvisLiveKitSession {
   private connectingPromise: Promise<boolean> | null = null;
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 3;
+
+  private volume: number = (() => {
+    try {
+      const v = typeof localStorage !== 'undefined' ? localStorage.getItem('jarvis-voice-volume') : null;
+      if (v != null) {
+        const parsed = parseFloat(v);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) return parsed;
+      }
+    } catch {}
+    return 1.0;
+  })();
+
+  private isMuted: boolean = (() => {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem('jarvis-voice-muted') === 'true' : false;
+    } catch {}
+    return false;
+  })();
 
   private async waitForBackendReady(timeoutMs = 12000): Promise<boolean> {
     if (backendLifecycleStore.isReady()) {
@@ -101,7 +121,49 @@ export class JarvisLiveKitSession {
       errorMsg: this.errorMsg,
       micTrackCount: this.micTrackCount,
       roomName: this.room?.name || null,
+      volume: this.volume,
+      isMuted: this.isMuted,
     };
+  }
+
+  getVolume(): number {
+    return this.volume;
+  }
+
+  setVolume(vol: number): void {
+    const clamped = Math.max(0, Math.min(1, Number(vol)));
+    this.volume = clamped;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('jarvis-voice-volume', String(clamped));
+      }
+    } catch {}
+    if (this.audioElement) {
+      this.audioElement.volume = clamped;
+    }
+    this.notify();
+  }
+
+  getMuted(): boolean {
+    return this.isMuted;
+  }
+
+  setMuted(muted: boolean): void {
+    this.isMuted = Boolean(muted);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('jarvis-voice-muted', String(this.isMuted));
+      }
+    } catch {}
+    if (this.audioElement) {
+      this.audioElement.muted = this.isMuted;
+    }
+    this.notify();
+  }
+
+  toggleMute(): boolean {
+    this.setMuted(!this.isMuted);
+    return this.isMuted;
   }
 
   subscribe(listener: () => void): () => void {
@@ -154,11 +216,14 @@ export class JarvisLiveKitSession {
           el.style.width = '1px';
           el.style.height = '1px';
           el.style.opacity = '0.01';
-          el.style.pointerEvents = 'none';
           document.body.appendChild(el);
         } catch {
           return null;
         }
+      }
+      if (el) {
+        el.volume = this.volume;
+        el.muted = this.isMuted;
       }
       this.audioElement = el;
       return el;
@@ -473,8 +538,8 @@ export class JarvisLiveKitSession {
             this.isSpeaking = this.isSuspended ? false : data.isSpeaking;
             if (this.isSpeaking && this.audioElement && !this.isSuspended) {
               console.log('[JFE-AUDIO] PLAY_BEGIN (on status isSpeaking)');
-              this.audioElement.muted = false;
-              this.audioElement.volume = 1.0;
+              this.audioElement.muted = this.isMuted;
+              this.audioElement.volume = this.volume;
               this.audioElement.play().then(() => {
                 console.log('[JFE-AUDIO] PLAY_RESOLVED (on status isSpeaking)');
               }).catch((err) => {
@@ -496,8 +561,8 @@ export class JarvisLiveKitSession {
           this.notify();
         } else if (data.type === 'assistant_text') {
           if (this.audioElement && !this.isSuspended) {
-            this.audioElement.muted = false;
-            this.audioElement.volume = 1.0;
+            this.audioElement.muted = this.isMuted;
+            this.audioElement.volume = this.volume;
             this.audioElement.play().then(() => {
               console.log('[JFE-AUDIO] PLAY_RESOLVED (on assistant_text)');
             }).catch((err) => {

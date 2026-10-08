@@ -101,7 +101,7 @@ export const DEFAULT_AGENT_MODEL_POLICIES: Record<AgentRoleId, AgentModelPolicy>
 
 /**
  * Health-aware readiness status determined from the live capabilities verification (Phase 2B).
- * - Jarvis: openrouter:xiaomi/mimo-v2.6-flash verified.
+ * - Jarvis: openrouter:meta-llama/llama-3.3-70b-instruct verified.
  * - Hermes: auto/reasoning verified functional on Nemotron 3 Ultra.
  * - Codex: codex:gpt-6-astra verified (repo execution, coding completion, and tool use verified).
  * - Argus: auto/reasoning verified independent from codex (nvidia/nemotron vs openai/gpt).
@@ -111,7 +111,7 @@ const ROLE_READINESS_STORE: Map<AgentRoleId, RoleReadinessInfo> = new Map([
     'jarvis',
     {
       status: 'READY',
-      reason: 'Xiaomi MiMo 2.6 Flash via OpenRouter verified',
+      reason: 'Llama 3.3 70B Instruct via OpenRouter verified',
       lastChecked: new Date().toISOString()
     }
   ],

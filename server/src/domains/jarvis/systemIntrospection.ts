@@ -65,6 +65,7 @@ export function formatFriendlyModelName(modelId: string): string {
   if (!modelId) return 'unknown';
   const clean = modelId.includes(':') ? modelId.split(':')[1] : modelId;
   const lower = clean.toLowerCase();
+  if (lower.includes('llama-3.3-70b-instruct') || lower.includes('llama-3.3-70b')) return 'Llama 3.3 70B Instruct';
   if (lower.includes('mimo-v2.6-flash') || lower.includes('mimo-2.6-flash')) return 'Xiaomi MiMo 2.6 Flash';
   if (lower.includes('mimo-v2.6-pro') || lower.includes('mimo-2.6-pro')) return 'MiMo 2.6 Pro';
   if (lower.includes('gpt-6-astra')) return 'GPT-6 Astra';
@@ -154,9 +155,9 @@ export async function getAuthoritativeRoutingInfo(conversationId?: string): Prom
   const { getAgentModelPolicy, getRecentInferences } = await import('../../services/gateway/agentModelPolicy.js');
   const policy = getAgentModelPolicy('jarvis');
 
-  const configuredPrimaryRoute = policy?.primary || 'openrouter:xiaomi/mimo-v2.6-flash';
+  const configuredPrimaryRoute = policy?.primary || 'openrouter:meta-llama/llama-3.3-70b-instruct';
   const [configuredPrimaryProvider, ...modelParts] = configuredPrimaryRoute.split(':');
-  const configuredPrimaryModel = modelParts.join(':') || 'xiaomi/mimo-v2.6-flash';
+  const configuredPrimaryModel = modelParts.join(':') || 'meta-llama/llama-3.3-70b-instruct';
   const configuredFallbacks = policy?.fallbacks || ['openrouter:xiaomi/mimo-v2.6-pro', 'codex:gpt-6-astra'];
   const configuredLocalFallback = policy?.localFallback || 'ollama:qwen3.5:9b-hermes-64k';
 
@@ -236,7 +237,7 @@ export async function handleSystemIntrospection(
   const routingInfo = await getAuthoritativeRoutingInfo(conversationId);
 
   // Authoritative runtime environment / configuration
-  const runtimePrimaryModel = process.env.JARVIS_PRIMARY_MODEL || routingInfo.configuredPrimaryModel || 'xiaomi/mimo-v2.6-flash';
+  const runtimePrimaryModel = process.env.JARVIS_PRIMARY_MODEL || routingInfo.configuredPrimaryModel || 'meta-llama/llama-3.3-70b-instruct';
   const runtimeReasoningModel = process.env.JARVIS_REASONING_MODEL || 'xiaomi/mimo-v2.6-pro';
   const runtimeProvider = process.env.JARVIS_PROVIDER || process.env.JARVIS_MODEL_PROVIDER || routingInfo.configuredPrimaryProvider || 'openrouter';
 

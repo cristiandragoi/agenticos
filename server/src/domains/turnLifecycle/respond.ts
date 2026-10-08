@@ -6,6 +6,7 @@
  * sentence can only be produced for a VERIFIED outcome.
  */
 import type { ExecutionReceipt, PolicyDecision, TurnGoal, TurnOutcome, VerificationResult } from './types.js';
+import { getActiveLanguage } from '../../services/language/activeLanguageState.js';
 
 export function decideOutcome(
   goal: TurnGoal,
@@ -50,11 +51,11 @@ function lowerFirst(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-function goalPhrase(goal: TurnGoal): string {
+function goalPhrase(goal: TurnGoal, isDe = false): string {
   const a = goal.action;
-  if (a?.type === 'launch_app') return `open ${a.app}`;
-  if (a?.type === 'type_text') return `type "${a.text}" in ${a.app}`;
-  if (a?.type === 'open_url') return `open ${a.url}`;
+  if (a?.type === 'launch_app') return isDe ? `${a.app} öffnen` : `open ${a.app}`;
+  if (a?.type === 'type_text') return isDe ? `"${a.text}" in ${a.app} eingeben` : `type "${a.text}" in ${a.app}`;
+  if (a?.type === 'open_url') return isDe ? `${a.url} öffnen` : `open ${a.url}`;
   return lowerFirst(goal.summary.replace(/[.!]+$/, ''));
 }
 
@@ -65,31 +66,47 @@ export function renderResponse(
   receipt: ExecutionReceipt | undefined,
 ): string {
   const handlerText = (receipt?.handlerText || '').trim();
-  if (receipt?.executor === 'legacy.emailService' && handlerText) {
+  const isDe = getActiveLanguage() === 'de';
+
+  // If a legacy executor or custom action handler already generated response text, return it directly.
+  if (receipt?.executor?.startsWith('legacy.') && handlerText) {
     return handlerText;
   }
+  if (goal.action?.type === 'other' && handlerText) {
+    return handlerText;
+  }
+
   if (goal.kind === 'answer') {
     if (outcome === 'VERIFIED') return handlerText;
     if (outcome === 'EXECUTED_UNVERIFIED') {
-      return `I acted on that, but I could not verify the result.${handlerText ? ` Unverified report: ${handlerText}` : ''}`;
+      if (handlerText) return handlerText;
+      return isDe
+        ? `Ich habe darauf reagiert, konnte das Ergebnis jedoch nicht verifizieren.`
+        : `I acted on that, but I could not verify the result.`;
     }
-    if (outcome === 'BLOCKED') return `I'm not allowed to do that here: ${reason}.`;
-    return `I couldn't produce an answer: ${reason}.`;
+    if (outcome === 'BLOCKED') {
+      return isDe ? `Das ist hier nicht erlaubt: ${reason}.` : `I'm not allowed to do that here: ${reason}.`;
+    }
+    return isDe ? `Ich konnte keine Antwort erzeugen: ${reason}.` : `I couldn't produce an answer: ${reason}.`;
   }
   if (goal.kind === 'control') {
-    return outcome === 'VERIFIED' ? 'Stopped.' : `I couldn't stop that: ${reason}.`;
+    return outcome === 'VERIFIED'
+      ? (isDe ? 'Angehalten.' : 'Stopped.')
+      : (isDe ? `Ich konnte das nicht anhalten: ${reason}.` : `I couldn't stop that: ${reason}.`);
   }
-  const phrase = goalPhrase(goal);
+  const phrase = goalPhrase(goal, isDe);
   switch (outcome) {
     case 'VERIFIED':
-      return `Done. I checked: ${reason}.`;
+      return isDe ? `Erledigt. Prüfung: ${reason}.` : `Done. I checked: ${reason}.`;
     case 'EXECUTED_UNVERIFIED':
-      return `I tried to ${phrase}, but I could not confirm it worked: ${reason}.${handlerText && goal.action?.type === 'other' ? ` Unverified report: ${handlerText}` : ''}`;
+      return isDe
+        ? `Ich habe versucht, ${phrase} auszuführen, konnte aber nicht bestätigen, dass es funktioniert hat: ${reason}.${handlerText ? ` Unbestätigter Bericht: ${handlerText}` : ''}`
+        : `I tried to ${phrase}, but I could not confirm it worked: ${reason}.${handlerText ? ` Unverified report: ${handlerText}` : ''}`;
     case 'BLOCKED':
-      return `I won't ${phrase} here: ${reason}.`;
+      return isDe ? `Ich führe "${phrase}" hier nicht aus: ${reason}.` : `I won't ${phrase} here: ${reason}.`;
     case 'FAILED':
     default:
-      if (goal.action?.type === 'other' && handlerText) return `I couldn't ${phrase}. ${handlerText}`;
-      return `I couldn't ${phrase}: ${reason}.`;
+      if (handlerText) return handlerText;
+      return isDe ? `Ich konnte ${phrase} nicht ausführen: ${reason}.` : `I couldn't ${phrase}: ${reason}.`;
   }
 }

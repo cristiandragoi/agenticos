@@ -187,7 +187,14 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
       try { workspace = getWorkspaceRoot(); } catch { /* optional */ }
       const since = new Date().toISOString();
       const res: any = await jarvisOrchestrator.handleMessage(contextKey, req.text, workspace, 'manual', req.requestId);
-      const text = (res?.message as string) || (await latestAgentMessageSince(contextKey, since)) || (res?.error ? String(res.error) : '');
+      let text = (res?.message as string) || (await latestAgentMessageSince(contextKey, since)) || (res?.error ? String(res.error) : '');
+      if (!text) {
+        const { getActiveLanguage } = await import('../../services/language/activeLanguageState.js');
+        const isDe = getActiveLanguage() === 'de';
+        text = isDe
+          ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
+          : "I'm not sure how to help with that. Could you rephrase?";
+      }
       const route = String(res?.route || 'direct');
       return {
         executor: `legacy.jarvisOrchestrator:${route}`,
@@ -201,6 +208,11 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
         details: { route, status: res?.status ?? null, goalId: res?.goalId ?? null, taskId: res?.taskId ?? null },
       };
     } catch (err: any) {
+      const { getActiveLanguage } = await import('../../services/language/activeLanguageState.js');
+      const isDe = getActiveLanguage() === 'de';
+      const fallbackText = isDe
+        ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
+        : "I'm not sure how to help with that. Could you rephrase?";
       return {
         executor: 'legacy.jarvisOrchestrator',
         attempted: true,
@@ -208,6 +220,7 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
         startedAt,
         finishedAt: new Date().toISOString(),
         error: `legacy_handler_error: ${err?.message || err}`,
+        handlerText: fallbackText,
         details: {},
       };
     }

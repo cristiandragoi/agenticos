@@ -61,6 +61,21 @@ export class AgentProviderAssignmentService {
         };
       }
 
+      // Migrate stale MiMo assignment for Jarvis to meta-llama/llama-3.3-70b-instruct
+      const isStaleJarvisMimo = (agentId === 'agent-jarvis' || agentId === 'jarvis') &&
+        record.modelId === 'xiaomi/mimo-v2.6-flash';
+
+      if (isStaleJarvisMimo) {
+        return {
+          agentId: record.agentId,
+          providerId: 'prov-openrouter',
+          modelId: process.env.JARVIS_PRIMARY_MODEL || 'meta-llama/llama-3.3-70b-instruct',
+          routingMode: 'preferred',
+          enabled: true,
+          updatedAt: new Date().toISOString()
+        };
+      }
+
       return {
         agentId: record.agentId,
         providerId: isForcedEmergencyFallback ? (process.env.OPENROUTER_API_KEY ? 'prov-openrouter' : record.providerId) : record.providerId,
@@ -79,7 +94,7 @@ export class AgentProviderAssignmentService {
       return {
         agentId: 'agent-jarvis',
         providerId,
-        modelId: process.env.JARVIS_PRIMARY_MODEL || 'xiaomi/mimo-v2.6-flash',
+        modelId: process.env.JARVIS_PRIMARY_MODEL || 'meta-llama/llama-3.3-70b-instruct',
         routingMode: 'preferred',
         enabled: true,
         updatedAt: new Date().toISOString()

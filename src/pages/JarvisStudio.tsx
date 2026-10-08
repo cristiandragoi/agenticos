@@ -33,6 +33,7 @@ import { useJarvisRuntime } from '../context/JarvisRuntimeContext';
 import { shouldMarkManualVoiceOwnership } from '../utils/voiceOwnership';
 import { detectControlIntent } from '../lib/controlIntent';
 import { jarvisLiveKitSession, type JarvisLiveKitState } from '../lib/jarvisLiveKitSession';
+import { Volume2, VolumeX, Volume1 } from 'lucide-react';
 import styles from './JarvisStudio.module.css';
 import cc from './JarvisCommandCenter.module.css';
 
@@ -103,7 +104,7 @@ export const JARVIS_VOICES: JarvisVoiceOption[] = [
   // English (Edge TTS)
   { id: 'en-GB-RyanNeural', label: 'Ryan · British English · Edge', gender: 'male', accent: 'British', provider: 'edge-tts' },
   // German: Deepgram aura-2-julius-de ONLY (no fallback voice)
-  { id: 'aura-2-julius-de', label: 'Julius · Native German Male · Deepgram Aura-2', gender: 'male', accent: 'German', provider: 'deepgram' },
+  { id: 'aura-2-julius-de', label: 'Julius (Deutsch)', gender: 'male', accent: 'German', provider: 'deepgram' },
   // Romanian: Piper (primary) + Edge (fallback)
   { id: 'ro_RO-mihai-medium', label: 'Mihai · Native Romanian · Local (Piper)', gender: 'male', accent: 'Romanian', provider: 'piper' },
   { id: 'ro-RO-EmilNeural', label: 'Emil · Romanian Neural · Edge fallback', gender: 'male', accent: 'Romanian', provider: 'edge-tts' },
@@ -125,6 +126,7 @@ export function getVoiceProviderLabel(voiceId: string): string {
 }
 
 export const JARVIS_PROFILES: JarvisVoiceProfile[] = [
+  { id: 'german-julius', label: 'Julius (Deutsch)', description: 'Natürliche deutsche Stimme für Jarvis', defaultVoice: 'aura-2-julius-de' },
   { id: 'deep-jarvis', label: 'Deep Jarvis (Calm & Authoritative)', description: 'Deep, measured, British English tone with cinematic presence', defaultVoice: 'aura-helios-en' },
   { id: 'cinematic', label: 'Cinematic Command', description: 'Authoritative, resonant American delivery', defaultVoice: 'aura-zeus-en' },
   { id: 'natural', label: 'Natural Conversational', description: 'Fluid, conversational tempo', defaultVoice: 'aura-orion-en' },
@@ -575,6 +577,19 @@ export default function JarvisStudio() {
     setSelectedProvider(id);
     persistProvider(id);
   }, []);
+
+  // Ensure that when German is active, the voice selector shows and uses Julius (Deutsch)
+  useEffect(() => {
+    if (conversationLanguage === 'de') {
+      if (selectedVoice !== 'aura-2-julius-de') {
+        handleVoiceSelect('aura-2-julius-de');
+      }
+      if (selectedProfile !== 'german-julius') {
+        setSelectedProfile('german-julius');
+        persistProfile('german-julius');
+      }
+    }
+  }, [conversationLanguage, selectedVoice, selectedProfile, handleVoiceSelect]);
 
   const handlePreviewVoice = useCallback(() => {
     void voiceRef.current?.speak?.('Jarvis voice system online and operational. All core systems responding.');
@@ -1748,6 +1763,57 @@ export default function JarvisStudio() {
               >
                 VOICE {voiceOutEnabled ? 'ON' : 'OFF'}
               </button>
+              <div
+                data-testid="jarvis-command-volume-ctl"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(8,20,40,0.9)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  color: '#94a3b8',
+                  fontSize: 11,
+                }}
+              >
+                <button
+                  type="button"
+                  data-testid="jarvis-command-mute-btn"
+                  onClick={() => jarvisLiveKitSession.toggleMute()}
+                  className={cc.ctl}
+                  style={{
+                    padding: '2px 4px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: liveKitDiagnosticState.isMuted ? '#fca5a5' : '#38bdf8',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                  }}
+                  title={liveKitDiagnosticState.isMuted ? 'Unmute Jarvis' : 'Mute Jarvis'}
+                >
+                  {liveKitDiagnosticState.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  data-testid="jarvis-command-volume-slider"
+                  value={liveKitDiagnosticState.isMuted ? 0 : (liveKitDiagnosticState.volume ?? 1)}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    jarvisLiveKitSession.setVolume(val);
+                    if (liveKitDiagnosticState.isMuted && val > 0) jarvisLiveKitSession.setMuted(false);
+                  }}
+                  style={{ width: 60, accentColor: '#38bdf8', cursor: 'pointer' }}
+                  title={`Jarvis Volume: ${Math.round((liveKitDiagnosticState.isMuted ? 0 : (liveKitDiagnosticState.volume ?? 1)) * 100)}%`}
+                />
+                <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#e2e8f0', minWidth: 28 }}>
+                  {Math.round((liveKitDiagnosticState.isMuted ? 0 : (liveKitDiagnosticState.volume ?? 1)) * 100)}%
+                </span>
+              </div>
               <select
                 data-testid="jarvis-voice-provider-select"
                 value={selectedProvider}
@@ -2120,6 +2186,90 @@ export default function JarvisStudio() {
             hideMic
             disabledReason={backendLifecycle.source === 'electron' && backendOffline ? 'AgenticOS backend is offline.' : undefined}
           />
+
+          {/* ── Jarvis Voice Volume & Mute Bar (§ Lautstärke-Regler) ── */}
+          <div
+            data-testid="jarvis-composer-volume-bar"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '6px 14px',
+              marginTop: 6,
+              background: 'rgba(15, 23, 42, 0.85)',
+              borderRadius: 8,
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              backdropFilter: 'blur(8px)',
+              fontSize: 12,
+              color: '#94a3b8',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                Jarvis Lautstärke
+              </span>
+              <span style={{ fontSize: 10, color: '#64748b' }}>
+                ({conversationLanguage === 'de' ? 'Julius (Deutsch)' : selectedVoice})
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                data-testid="jarvis-volume-mute-btn"
+                onClick={() => jarvisLiveKitSession.toggleMute()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: liveKitDiagnosticState.isMuted ? 'rgba(239, 68, 68, 0.25)' : 'rgba(56, 189, 248, 0.15)',
+                  border: liveKitDiagnosticState.isMuted ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(56, 189, 248, 0.35)',
+                  color: liveKitDiagnosticState.isMuted ? '#fca5a5' : '#38bdf8',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 11,
+                  transition: 'all 0.15s ease',
+                }}
+                title={liveKitDiagnosticState.isMuted ? 'Stummschaltung aufheben' : 'Jarvis stummschalten'}
+              >
+                {liveKitDiagnosticState.isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                <span>{liveKitDiagnosticState.isMuted ? 'Stummgeschaltet' : 'Stumm'}</span>
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  aria-label="Lautstärke Jarvis"
+                  data-testid="jarvis-volume-slider"
+                  value={liveKitDiagnosticState.isMuted ? 0 : (liveKitDiagnosticState.volume ?? 1)}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    jarvisLiveKitSession.setVolume(val);
+                    if (liveKitDiagnosticState.isMuted && val > 0) {
+                      jarvisLiveKitSession.setMuted(false);
+                    }
+                  }}
+                  style={{
+                    width: 130,
+                    accentColor: '#38bdf8',
+                    cursor: 'pointer',
+                    height: 6,
+                  }}
+                  title={`Lautstärke: ${Math.round((liveKitDiagnosticState.isMuted ? 0 : (liveKitDiagnosticState.volume ?? 1)) * 100)}%`}
+                />
+                <span style={{ minWidth: 40, fontFamily: 'monospace', fontWeight: 700, color: '#f8fafc', fontSize: 12, textAlign: 'right' }}>
+                  {Math.round((liveKitDiagnosticState.isMuted ? 0 : (liveKitDiagnosticState.volume ?? 1)) * 100)}%
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
         </div>
 

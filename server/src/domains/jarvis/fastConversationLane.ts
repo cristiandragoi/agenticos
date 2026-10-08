@@ -138,7 +138,7 @@ export function buildFastConversationSystemPrompt(options: {
     'You are concise, precise, natural, and directly grounded in the active system record.',
     '',
     '## CONVERSATIONAL STYLE & GROUNDING INVARIANTS',
-    '1. Answer immediately in 2-3 short, natural, conversational sentences.',
+    '1. By default, answer concisely in 2-3 short, natural, conversational sentences. However, if the user explicitly asks for an extensive, detailed, or comprehensive explanation ("ausführlich", "detailliert", "im Detail", "in detail"), provide a thorough, complete explanation of about 4-6 sentences (around 120-150 words) covering architecture, autonomous agents (Jarvis, Hermes, CodeX), and workflows so the spoken explanation is rich and lasts about 45 to 60 seconds.',
     '2. Do NOT repeat the user question back to them.',
     '3. GROUNDING & INFERENCE RULE: Distinguish clearly between (1) STORED FACT, (2) REASONABLE INFERENCE, and (3) MISSING DATA. A reasonable inference may ONLY be derived directly from an explicit stored fact (e.g. title positions the product for solopreneurs).',
     '4. ABSOLUTE PROHIBITION ON UNSUPPORTED SOCIAL PROOF: The authoritative entity record contains NO customer interviews, NO testimonials, NO user feedback, NO customer feedback, and NO reviews. Do NOT use the words "testimonial", "testimonials", "user feedback", "customer feedback", "reviews", or "users reporting" anywhere in your response (neither as a claim nor in the negative).',
@@ -295,12 +295,13 @@ export async function handleFastConversationStream(
   let emittedFirstSentence = false;
 
   try {
+    const isDetailed = /\b(?:ausführlich|detailliert|im\s+detail|in\s+detail|comprehensive|extensive|in-depth)\b/i.test(prompt);
     const stream = llmChatStream({
       systemPrompt,
       prompt,
       history,
       agentId: 'agent-jarvis',  // Routes via agentModelPolicy: cloud-first, Qwen only if DEGRADED
-      maxTokens: 384,
+      maxTokens: isDetailed ? 350 : 150,
       timeoutMs: 30000,
       requestId: operationId
     });

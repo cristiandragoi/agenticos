@@ -145,22 +145,34 @@ export async function streamGermanJuliusResponse(text: string, options?: { encod
   const encoding = options?.encoding ? `&encoding=${encodeURIComponent(options.encoding)}` : '';
   const sampleRate = options?.sampleRate ? `&sample_rate=${options.sampleRate}` : '';
   const url = `https://api.deepgram.com/v1/speak?model=${GERMAN_DEEPGRAM_VOICE}${encoding}${sampleRate}`;
+
+  const controller = new AbortController();
+  // Timeout strictly for the initial connection / TTFB (headers arrival), NOT for the whole body stream!
+  const ttfbTimeout = setTimeout(() => {
+    controller.abort(new Error('Deepgram TTFB timeout after 8000ms'));
+  }, 8000);
+
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Token ${deepgramKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: cleanText }),
-      signal: AbortSignal.timeout(15_000),
+      signal: controller.signal,
     });
   } catch (netErr: any) {
+    clearTimeout(ttfbTimeout);
+    const isTimeout = netErr?.name === 'AbortError' || netErr?.message?.includes('timeout');
     const err = new GermanVoiceUnavailableError(
-      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram request failed (${netErr?.message || netErr}).`,
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram request failed (${isTimeout ? 'TTFB timeout after 8s' : (netErr?.message || netErr)}).`,
     );
     voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
     logger.error('[LocalTTS] ' + err.message);
     throw err;
+  } finally {
+    clearTimeout(ttfbTimeout);
   }
+
   if (!response.ok) {
     const body = (await response.text().catch(() => '')).slice(0, 300);
     const err = new GermanVoiceUnavailableError(
@@ -177,56 +189,182 @@ export async function streamGermanJuliusResponse(text: string, options?: { encod
 
 /**
  * Stream 24kHz 16-bit mono PCM frames (20ms / 480 samples each) directly from Deepgram.
- * First chunk is yielded in ~400-600ms, with zero ffmpeg subprocess overhead.
+ * Decouples network reading from audio playback:
+ * - Chunks are downloaded from Deepgram as fast as network permits into an in-memory queue.
+ * - Audio playback begins immediately on the first chunk (~300-500ms TTFA).
+ * - Playback can continue smoothly for 40+ seconds even after the network stream finishes.
  */
-export async function* streamGermanJuliusPcmFrames(text: string, onFirstChunk?: (ms: number) => void): AsyncGenerator<Int16Array> {
+async function* streamSingleTextPcmFrames(
+  text: string,
+  onFirstChunk?: (ms: number) => void
+): AsyncGenerator<Int16Array> {
   const t0 = Date.now();
   const response = await streamGermanJuliusResponse(text, { encoding: 'linear16', sampleRate: 24000 });
   if (!response.body) throw new GermanVoiceUnavailableError('No response body from Deepgram');
+
   const reader = response.body.getReader();
-  let buffer = Buffer.alloc(0);
-  let headerSkipped = false;
-  let firstChunkLogged = false;
+  const frameQueue: Int16Array[] = [];
+  const waiter: { resolve: (() => void) | null } = { resolve: null };
+  const notifyFrameAvailable = () => {
+    if (waiter.resolve) {
+      const r = waiter.resolve;
+      waiter.resolve = null;
+      r();
+    }
+  };
+  let readerFinished = false;
+  let readerError: Error | null = null;
+  let totalBytesReceived = 0;
+  let firstChunkReported = false;
 
   const SAMPLES_PER_FRAME = 480; // 24000 * 0.02
   const BYTES_PER_FRAME = SAMPLES_PER_FRAME * 2; // 960
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (!firstChunkLogged) {
-      firstChunkLogged = true;
-      onFirstChunk?.(Date.now() - t0);
+  // Digital gain boost (+4.8 dB) with smooth hyperbolic tangent limiting to prevent clipping
+  function applyDigitalGainSoft(sample: number, gain = 1.75): number {
+    const scaled = sample * gain;
+    if (scaled > 30000) {
+      const excess = scaled - 30000;
+      return Math.min(32767, Math.round(30000 + (2767 * Math.tanh(excess / 4000))));
+    } else if (scaled < -30000) {
+      const excess = -scaled - 30000;
+      return Math.max(-32768, Math.round(-(30000 + (2768 * Math.tanh(excess / 4000)))));
     }
-    buffer = Buffer.concat([buffer, Buffer.from(value)]);
-
-    if (!headerSkipped && buffer.length >= 44) {
-      // 44-byte WAV header produced by Deepgram for linear16
-      buffer = buffer.subarray(44);
-      headerSkipped = true;
-    }
-
-    if (headerSkipped) {
-      while (buffer.length >= BYTES_PER_FRAME) {
-        const frameBuf = buffer.subarray(0, BYTES_PER_FRAME);
-        buffer = buffer.subarray(BYTES_PER_FRAME);
-        const int16 = new Int16Array(SAMPLES_PER_FRAME);
-        for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
-          int16[i] = frameBuf.readInt16LE(i * 2);
-        }
-        yield int16;
-      }
-    }
+    return Math.round(scaled);
   }
 
-  // Final residue frame if there are remaining samples
-  if (headerSkipped && buffer.length > 0) {
-    const int16 = new Int16Array(SAMPLES_PER_FRAME);
-    const availableSamples = Math.floor(buffer.length / 2);
-    for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
-      int16[i] = i < availableSamples ? buffer.readInt16LE(i * 2) : 0;
+  // Background producer: read from Deepgram as fast as network delivers
+  (async () => {
+    let rawBuffer = Buffer.alloc(0);
+    let headerSkipped = false;
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        totalBytesReceived += value.length;
+
+        if (!firstChunkReported) {
+          firstChunkReported = true;
+          onFirstChunk?.(Date.now() - t0);
+        }
+
+        rawBuffer = Buffer.concat([rawBuffer, Buffer.from(value)]);
+
+        if (!headerSkipped && rawBuffer.length >= 44) {
+          // 44-byte WAV header produced by Deepgram for linear16
+          rawBuffer = rawBuffer.subarray(44);
+          headerSkipped = true;
+        }
+
+        if (headerSkipped) {
+          while (rawBuffer.length >= BYTES_PER_FRAME) {
+            const frameBuf = rawBuffer.subarray(0, BYTES_PER_FRAME);
+            rawBuffer = rawBuffer.subarray(BYTES_PER_FRAME);
+            const int16 = new Int16Array(SAMPLES_PER_FRAME);
+            for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
+              int16[i] = applyDigitalGainSoft(frameBuf.readInt16LE(i * 2));
+            }
+            frameQueue.push(int16);
+            notifyFrameAvailable();
+          }
+        }
+      }
+
+      // Handle final residue frame if any
+      if (headerSkipped && rawBuffer.length > 0) {
+        const int16 = new Int16Array(SAMPLES_PER_FRAME);
+        const availableSamples = Math.floor(rawBuffer.length / 2);
+        for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
+          int16[i] = i < availableSamples ? applyDigitalGainSoft(rawBuffer.readInt16LE(i * 2)) : 0;
+        }
+        frameQueue.push(int16);
+        notifyFrameAvailable();
+      }
+      logger.info(`[LocalTTS] Deepgram download completed in ${Date.now() - t0}ms (${totalBytesReceived} bytes received, queued ${frameQueue.length} frames).`);
+    } catch (err: any) {
+      logger.error(`[LocalTTS] Deepgram network stream read error: ${err?.message || err}`);
+      readerError = err instanceof Error ? err : new Error(String(err));
+    } finally {
+      readerFinished = true;
+      notifyFrameAvailable();
     }
-    yield int16;
+  })();
+
+  // Consumer generator: yields frames as requested by playback loop
+  try {
+    while (true) {
+      if (frameQueue.length > 0) {
+        yield frameQueue.shift()!;
+      } else if (readerFinished) {
+        if (readerError) {
+          throw readerError;
+        }
+        break;
+      } else {
+        await new Promise<void>((resolve) => {
+          waiter.resolve = resolve;
+        });
+      }
+    }
+  } finally {
+    // If consumer broke out early (e.g. barge-in or user stop), cancel reader
+    try {
+      await reader.cancel();
+    } catch {
+      /* ignore cancel error */
+    }
+  }
+}
+
+/**
+ * Stream 24kHz 16-bit mono PCM frames (20ms / 480 samples each) directly from Deepgram.
+ * Decouples network reading from audio playback.
+ * Automatically chunks text if it exceeds Deepgram's 2000 character limit so long responses
+ * (40s, 60s, or several minutes) stream seamlessly without hitting HTTP 413.
+ */
+export async function* streamGermanJuliusPcmFrames(
+  text: string,
+  onFirstChunk?: (ms: number) => void
+): AsyncGenerator<Int16Array> {
+  const clean = (sanitizeMarkdownForSpeech(text) || text).trim();
+  if (!clean) return;
+
+  // Deepgram speak API has a hard limit of 2000 characters per request.
+  // When text exceeds 1400 characters, chunk it cleanly by sentences.
+  if (clean.length > 1400) {
+    const protectedText = clean.replace(/(\d)\.(\d)/g, '$1\u2024$2');
+    const rawSentences = (protectedText.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [protectedText])
+      .map((s) => s.replace(/\u2024/g, '.').trim())
+      .filter(Boolean);
+
+    const chunks: string[] = [];
+    let current = '';
+    for (const s of rawSentences) {
+      if ((current + ' ' + s).trim().length > 1400 && current) {
+        chunks.push(current.trim());
+        current = s;
+      } else {
+        current = (current + ' ' + s).trim();
+      }
+    }
+    if (current) chunks.push(current.trim());
+
+    let chunkIdx = 0;
+    for (const chunk of chunks) {
+      for await (const frame of streamSingleTextPcmFrames(chunk, (ttfa) => {
+        if (chunkIdx === 0) onFirstChunk?.(ttfa);
+      })) {
+        yield frame;
+      }
+      chunkIdx++;
+    }
+    return;
+  }
+
+  for await (const frame of streamSingleTextPcmFrames(clean, onFirstChunk)) {
+    yield frame;
   }
 }
 

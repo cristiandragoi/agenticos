@@ -4,7 +4,7 @@ async function updateDb() {
   await AgentProviderAssignmentService.saveAssignment({
     agentId: 'agent-jarvis',
     providerId: 'prov-openrouter',
-    modelId: 'xiaomi/mimo-v2.6-flash',
+    modelId: 'meta-llama/llama-3.3-70b-instruct',
     routingMode: 'preferred',
     enabled: true,
     updatedAt: new Date().toISOString()

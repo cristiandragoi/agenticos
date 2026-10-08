@@ -1929,7 +1929,10 @@ export class JarvisNextAgent {
       const isHeavyOp = (action === 'OPEN_APPLICATION' && !targetResolver.getCachedWindows().some(w => w.process.toLowerCase().includes(expectedTarget))) ||
                         (action === 'OPEN_CHAT' && !targetResolver.getCachedWindows().some(w => w.title.toLowerCase().includes('agentic')));
       if (isHeavyOp) {
-        const ackText = action === 'OPEN_APPLICATION' ? 'Opening it.' : 'Checking.';
+        const isDe = getActiveLanguage() === 'de';
+        const ackText = action === 'OPEN_APPLICATION'
+          ? (isDe ? 'Wird geöffnet.' : 'Opening it.')
+          : (isDe ? 'Einen Moment.' : 'Checking.');
         voicePipelineInstrumentation.recordStage(activeTurnId, 'preAckSentMs', Date.now());
         void this.speak(ackText, activeTurnId, { preliminaryAck: true });
       }
@@ -2318,6 +2321,8 @@ export class JarvisNextAgent {
           let frameCount = 0;
           const frameStartTime = Date.now();
 
+          let abortedReason: string | null = null;
+
           for await (const int16 of streamGermanJuliusPcmFrames(text, (firstChunkMs) => {
             if (!hasPublishedFirstFrame) {
               hasPublishedFirstFrame = true;
@@ -2349,12 +2354,16 @@ export class JarvisNextAgent {
               console.log(`[JRT] TTS_FIRST_CHUNK_STREAMED turn=${activeTurnId} durationMs=${firstChunkMs}`);
             }
           })) {
-            if (
-              this.currentAssistantPlayoutId !== playoutId ||
-              !this.room?.isConnected ||
-              !this.audioSource
-            ) {
-              logger.info(`[JarvisNext] Speech playout aborted mid-stream (playout #${playoutId})!`);
+            if (this.currentAssistantPlayoutId !== playoutId) {
+              abortedReason = `superseded by playout #${this.currentAssistantPlayoutId} (current playout #${playoutId})`;
+              break;
+            }
+            if (!this.room?.isConnected) {
+              abortedReason = 'LiveKit room disconnected';
+              break;
+            }
+            if (!this.audioSource) {
+              abortedReason = 'audioSource unavailable';
               break;
             }
 
@@ -2364,6 +2373,7 @@ export class JarvisNextAgent {
               totalPublishedFrames++;
               frameCount++;
             } catch (frameErr: any) {
+              abortedReason = `audioSource.captureFrame error: ${frameErr?.message}`;
               logger.warn('[JarvisNext] AudioSource.captureFrame error:', frameErr?.message);
               break;
             }
@@ -2373,6 +2383,14 @@ export class JarvisNextAgent {
             if (waitMs > 1) {
               await new Promise((r) => setTimeout(r, waitMs));
             }
+          }
+
+          if (abortedReason) {
+            logger.warn(`[JarvisNext] Speech playout aborted mid-stream (playout #${playoutId})! Reason: ${abortedReason}. Published ${totalPublishedFrames} frames (${(totalPublishedFrames * 0.02).toFixed(1)}s audio).`);
+            logJRT('TTS_ABORTED', `playout=${playoutId} reason="${abortedReason}" framesPublished=${totalPublishedFrames}`);
+          } else {
+            logger.info(`[JarvisNext] Speech playout completed normally (playout #${playoutId}): ${totalPublishedFrames} frames published (${(totalPublishedFrames * 0.02).toFixed(1)}s audio).`);
+            logJRT('TTS_COMPLETED', `playout=${playoutId} framesPublished=${totalPublishedFrames} durationSeconds=${(totalPublishedFrames * 0.02).toFixed(1)}`);
           }
         } catch (err: any) {
           this.reportGermanVoiceFailure(err, activeTurnId, text);
