@@ -308,3 +308,16 @@ server/scripts/shopify-verify-20261001T1408Z.mjs
 # Agent runtime state and Windows artifacts
 .agentic/
 nul
+
+# Autonomous Recovery & Shared Engineering Memory (Cortex & Vault & Identity)
+.cortex/
+**/.cortex/
+**/.cortex/*.db
+*.cortex
+vault/
+*.vault
+identity.json
+**/identity.json
+secrets/
+*.key
+*.pem
