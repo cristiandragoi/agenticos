@@ -875,6 +875,7 @@ export async function routeTurn(opts: {
     entityName: string;
   }) => Promise<{ verified: boolean; actualRoute?: string; visibleEntityId?: string; error?: string }>;
   onActionProgress?: (update: any) => void;
+  onFirstSentence?: (sentence: string) => void;
 }): Promise<TurnResult> {
   const { prompt, conversationId, isStale } = opts;
   const t0 = Date.now();
@@ -2666,7 +2667,7 @@ export async function routeTurn(opts: {
   // ── 8. DEEP — hand to Supervisor V2 ────────────────────────────────────
   const tDeep = Date.now();
   const { runGroundedVoiceTurn, GROUNDING_REFUSAL } = await import('./groundedTurnBridge.js');
-  const deep = await runGroundedVoiceTurn({ prompt, conversationId, isStale });
+  const deep = await runGroundedVoiceTurn({ prompt, conversationId, isStale, onFirstSentence: opts.onFirstSentence });
   timings.supervisorMs = Date.now() - tDeep;
 
   if (deep.handled) {

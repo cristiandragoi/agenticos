@@ -10,15 +10,30 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Ensure nvidia DLLs can be found if installed in site-packages
 try:
+    import ctypes
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    cublas_bin = os.path.abspath(os.path.join(script_dir, '..', '.venv', 'Lib', 'site-packages', 'nvidia', 'cublas', 'bin'))
-    cudnn_bin = os.path.abspath(os.path.join(script_dir, '..', '.venv', 'Lib', 'site-packages', 'nvidia', 'cudnn', 'bin'))
-    if os.path.isdir(cublas_bin):
-        os.add_dll_directory(cublas_bin)
-        os.environ['PATH'] = cublas_bin + ';' + os.environ.get('PATH', '')
-    if os.path.isdir(cudnn_bin):
-        os.add_dll_directory(cudnn_bin)
-        os.environ['PATH'] = cudnn_bin + ';' + os.environ.get('PATH', '')
+    candidate_roots = [
+        sys.prefix,
+        os.path.abspath(os.path.join(script_dir, '..', '.venv')),
+        r"D:\AgenticOS\server\.venv"
+    ]
+    for root in candidate_roots:
+        nvidia_dir = os.path.join(root, 'Lib', 'site-packages', 'nvidia')
+        if os.path.isdir(nvidia_dir):
+            for sub in os.listdir(nvidia_dir):
+                bin_dir = os.path.join(nvidia_dir, sub, 'bin')
+                if os.path.isdir(bin_dir):
+                    try:
+                        os.add_dll_directory(bin_dir)
+                    except Exception:
+                        pass
+                    os.environ['PATH'] = bin_dir + ';' + os.environ.get('PATH', '')
+                    for f in os.listdir(bin_dir):
+                        if f.endswith('.dll'):
+                            try:
+                                ctypes.CDLL(os.path.join(bin_dir, f))
+                            except Exception:
+                                pass
 except Exception as e:
     pass
 
@@ -84,10 +99,15 @@ def main():
                 sys.stdout.flush()
                 continue
 
+            if language == "de":
+                initial_prompt = "Hallo Jarvis, wie spät ist es, was kannst du tun, erzähl mir einen kurzen Witz, danke das reicht, Stopp, Halt, Abbrechen, Ruhe, AgenticOS, bitte auf Deutsch."
+            else:
+                initial_prompt = "Jarvis, stop, halt, cancel, quiet, shut up, be quiet, Hallo Jarvis, Julian Goldy, SEO, YouTube, ChatGPT, Telegram, AgenticOS, Free Cash, Shopify."
+
             transcribe_kwargs = {
                 "beam_size": 1,
                 "temperature": 0.0,
-                "initial_prompt": "Jarvis, stop, halt, cancel, quiet, shut up, be quiet, Julian Goldy, SEO, YouTube, ChatGPT, Telegram, AgenticOS, Free Cash, Shopify."
+                "initial_prompt": initial_prompt
             }
             if language and language != "auto":
                 transcribe_kwargs["language"] = language

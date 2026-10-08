@@ -368,6 +368,22 @@ class WarmWhisperWorker {
             // No unlink: same single-owner rule as above.
             item.reject(new Error('Worker process unavailable'));
           }
+
+          // AUTO-RESTART & USER NOTIFICATION ON UNEXPECTED CRASH
+          if (code !== 0 && code !== null) {
+            logger.warn(`[WarmWhisperWorker] Crash detected (exit code ${code}). Triggering auto-restart and notifying user.`);
+            try {
+              import('../../domains/jarvisNext/jarvisNextAgent.js').then(({ jarvisNextAgent }) => {
+                jarvisNextAgent.speak('Der Spracherkennungsdienst wurde automatisch neu gestartet.').catch(() => {});
+              }).catch(() => {});
+            } catch {}
+
+            setTimeout(() => {
+              this.ensureStarted().catch((restartErr) => {
+                logger.error('[WarmWhisperWorker] Automatic restart failed:', restartErr);
+              });
+            }, 1000);
+          }
         });
 
         proc.on('error', (err) => {

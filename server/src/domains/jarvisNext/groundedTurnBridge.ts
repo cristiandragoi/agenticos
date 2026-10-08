@@ -32,6 +32,8 @@ class SseCollector {
   public done: any = null;
   public intent: any = null;
   public errorEvent: any = null;
+  public firstSentence: string | null = null;
+  public onFirstSentence?: (sentence: string) => void;
   public writableEnded = false;
   private buffer = '';
   private finishHandlers: Array<() => void> = [];
@@ -59,6 +61,10 @@ class SseCollector {
     try { data = JSON.parse(dataRaw); } catch { return; }
 
     if (event === 'chunk' && typeof data.delta === 'string') this.deltas.push(data.delta);
+    else if (event === 'first_sentence' && typeof data.sentence === 'string') {
+      this.firstSentence = data.sentence;
+      this.onFirstSentence?.(data.sentence);
+    }
     else if (event === 'done') this.done = data;
     else if (event === 'intent') this.intent = data;
     else if (event === 'error') this.errorEvent = data;
@@ -116,8 +122,9 @@ export async function runGroundedVoiceTurn(opts: {
   conversationId: string;
   isStale?: () => boolean;
   timeoutMs?: number;
+  onFirstSentence?: (sentence: string) => void;
 }): Promise<GroundedTurnResult> {
-  const { prompt, conversationId, isStale, timeoutMs = 20000 } = opts;
+  const { prompt, conversationId, isStale, timeoutMs = 20000, onFirstSentence } = opts;
   const operationId = `voice-${Date.now().toString(36)}`;
   const operational = isProjectStateRequest(prompt);
 
@@ -226,6 +233,7 @@ export async function runGroundedVoiceTurn(opts: {
   }
 
   const collector = new SseCollector();
+  collector.onFirstSentence = onFirstSentence;
   const reqStub: any = { once: () => reqStub, on: () => reqStub, body: {}, headers: {} };
 
   let timedOut = false;
@@ -247,6 +255,7 @@ export async function runGroundedVoiceTurn(opts: {
         inputChannel: 'voice',
         semanticContext,
         requiresAuthoritativeState: operational,
+        onFirstSentence,
       }),
       new Promise<void>((resolve) => setTimeout(() => { timedOut = true; resolve(); }, timeoutMs)),
     ]);

@@ -112,6 +112,7 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
     }
 
     try {
+      let firstSentenceSpoken = '';
       const { routeTurn } = await import('../jarvisNext/turnRouter.js');
       const routed = await routeTurn({
         prompt: req.text,
@@ -122,8 +123,21 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
         isStale,
         navigationVerifier: sink.navigationVerifier,
         onActionProgress: (p: any) => sink.progress?.({ type: 'action_status', ...p }),
+        onFirstSentence: (firstSentence: string) => {
+          if (sink.speak && !firstSentenceSpoken) {
+            firstSentenceSpoken = firstSentence;
+            void sink.speak(firstSentence, record);
+          }
+        },
       });
       if (routed.handled && (routed.text || '').trim()) {
+        if (firstSentenceSpoken && routed.text) {
+          if (routed.text.startsWith(firstSentenceSpoken)) {
+            (record as any).unspokenText = routed.text.slice(firstSentenceSpoken.length).trim();
+          } else {
+            (record as any).unspokenText = '';
+          }
+        }
         const sideEffect = Boolean(routed.executed) && SIDE_EFFECT_ROUTES.has(String(routed.route));
         return {
           executor: `legacy.turnRouter:${routed.route}`,

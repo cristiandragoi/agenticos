@@ -352,7 +352,12 @@ export class TurnLifecycleController {
     if (!text) { store.recordSpoken(req.requestId, false, 'empty response'); return; }
     if (isStale()) { store.recordSpoken(req.requestId, false, 'superseded by a newer request'); return; }
     try {
-      await sink.speak(text, record);
+      const speechText = (record as any).unspokenText !== undefined
+        ? (record as any).unspokenText
+        : text;
+      if (speechText) {
+        await sink.speak(speechText, record);
+      }
       record.spoken = true;
       store.recordSpoken(req.requestId, true);
     } catch (err: any) {

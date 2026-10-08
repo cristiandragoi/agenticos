@@ -83,18 +83,19 @@ export class SemanticDiscourseInterpreter {
     const t0 = Date.now();
     const cleanText = (rawText || '').trim();
 
-    // If FALLBACK_ONLY mode is explicitly configured:
-    if (this.mode === 'FALLBACK_ONLY') {
-      const fallbackPlan = AuthoritativeIntentCompiler.compilePlan(cleanText, ctx);
+    // 1. Compute deterministic fallback plan
+    const fallbackPlan = AuthoritativeIntentCompiler.compilePlan(cleanText, ctx);
+
+    // Fast path: If AuthoritativeIntentCompiler already classified with high confidence or conversational/greeting,
+    // do not block for seconds on secondary LLM inference.
+    const firstStep = fallbackPlan.steps[0];
+    if (this.mode === 'FALLBACK_ONLY' || firstStep?.action === 'CONVERSATIONAL' || (firstStep?.confidence ?? 0) >= 0.85) {
       return {
         plan: fallbackPlan,
         interpretationPath: 'DETERMINISTIC_FALLBACK',
         latencyMs: Date.now() - t0,
       };
     }
-
-    // 1. Compute deterministic fallback plan
-    const fallbackPlan = AuthoritativeIntentCompiler.compilePlan(cleanText, ctx);
 
     // 2. Perform semantic interpretation
     let semanticIntent: StructuredIntent | null = null;
@@ -313,10 +314,10 @@ User Utterance:
       prompt: userPrompt,
       temperature: 0.0,
       maxTokens: 500,
-      timeoutMs: this.defaultTimeoutMs,
+      timeoutMs: Math.min(this.defaultTimeoutMs, 2000),
       model: this.defaultModel,
       provider: this.defaultProvider,
-      agentId: 'agent-jarvis-discourse',
+      agentId: 'agent-jarvis',
     } as any);
 
     const provider = res.provider || 'unknown';

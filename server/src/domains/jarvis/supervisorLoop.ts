@@ -50,6 +50,8 @@ export interface SupervisorStreamOptions {
    * lane, which answers socially without consulting any store.
    */
   requiresAuthoritativeState?: boolean;
+  /** Callback fired as soon as the first complete sentence is streamed for early TTS. */
+  onFirstSentence?: (sentence: string) => void;
 }
 
 interface ParsedToolCall {

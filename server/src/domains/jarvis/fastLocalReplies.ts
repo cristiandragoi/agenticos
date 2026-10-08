@@ -14,6 +14,8 @@
  * ("Okay, fix it", "Wait, don't change anything yet") is never misread as a
  * bare presence turn — those keep their existing approval/task semantics.
  */
+import { getActiveLanguage } from '../../services/language/activeLanguageState.js';
+
 export interface LocalFastReply {
   /** Human-visible reply text (also spoken by the caller's TTS path). */
   reply: string;
@@ -22,13 +24,14 @@ export interface LocalFastReply {
 }
 
 export function getTimeAwareGreeting(name: string = 'Christian'): string {
+  const isGerman = getActiveLanguage() === 'de';
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12) {
-    return `Good morning, ${name}.`;
+    return isGerman ? `Guten Morgen, ${name}.` : `Good morning, ${name}.`;
   } else if (hour >= 12 && hour < 18) {
-    return `Good afternoon, ${name}.`;
+    return isGerman ? `Guten Tag, ${name}.` : `Good afternoon, ${name}.`;
   } else {
-    return `Good evening, ${name}.`;
+    return isGerman ? `Guten Abend, ${name}.` : `Good evening, ${name}.`;
   }
 }
 
@@ -36,34 +39,84 @@ export function getTimeAwareGreeting(name: string = 'Christian'): string {
  *  un-anchored "are you there / still there" check. */
 const PRESENCE_RULES: Array<{ re: RegExp; reply: string | ((isContinuing?: boolean) => string) }> = [
   {
-    // Presence check — "are you there", "you there", "still there", "can you
-    // hear me", etc. (un-anchored so "Jarvis, you there?" matches).
+    // Presence check (German) — "bist du da", "kannst du mich hören", "wie geht es dir"
+    re: /\b(bist du da|bist du hier|bist du noch da|hörst du mich|kannst du mich hören|bist du wach|noch da|noch hier|wie geht'?s|wie geht es dir)\b/i,
+    reply: "Ja, ich bin da. Wie kann ich dir helfen?",
+  },
+  {
+    // Presence check (English) — "are you there", "you there", "still there", "can you hear me", etc.
     re: /\b(are you there|are you here|you there|you here|you around|are you listening|are you awake|can you hear me|do you hear me|are you still there|still there|still here|still with me|still awake|still around|still listening|anyone there|anyone home|how are you|how are you doing|how's it going|how's life|how is it going)\b/i,
     reply: "Yeah, I'm here. What's up?",
   },
   {
-    // Bare greeting — "Hello", "Hi", "Hey", "Hey there", "Yo", "Howdy", "Good evening, Jarvis"
+    // Bare greeting (German) — "Hallo", "Hallo Jarvis", "Guten Tag", "Guten Morgen", "Guten Abend"
+    re: /^(?:hallo|hi|hey|guten\s+(?:morgen|tag|abend))[,.!?\s]*(?:(?:da|jarvis)[,.!?]*)?$/i,
+    reply: (isContinuing?: boolean) => (isContinuing ? "Ich bin hier." : getTimeAwareGreeting('Christian')),
+  },
+  {
+    // Bare greeting (English) — "Hello", "Hi", "Hey", "Hey there", "Yo", "Howdy", "Good evening, Jarvis"
     re: /^(?:hey|hi|hello|hiya|yo|howdy|good\s+(?:morning|afternoon|evening))[,.!?\s]*(?:(?:there|jarvis)[,.!?]*)?$/i,
     reply: (isContinuing?: boolean) => (isContinuing ? "I'm here." : getTimeAwareGreeting('Christian')),
   },
   {
-    // Pause / hold — "Wait", "One second", "Hold on", "Give me a minute".
+    // Pause / hold (German) — "Warte", "Einen Moment", "Eine Sekunde", "Kurz warten"
+    re: /^(?:warte|moment|einen\s+moment|eine\s+sekunde|halt\s+kurz|stopp\s+kurz|kurz\s+warten)[,.!?]*$/i,
+    reply: "Klar, nimm dir Zeit — ich bin hier, wenn du bereit bist.",
+  },
+  {
+    // Pause / hold (English) — "Wait", "One second", "Hold on", "Give me a minute"
     re: /^(?:wait|hold on|hang on|one second|one sec|one moment|one minute|give me a (?:second|sec|moment|minute)|just a (?:second|sec|moment|minute)|gimme a (?:second|sec|moment|minute))[,.!?]*$/i,
     reply: "Sure, take your time — I'll be here when you're ready.",
   },
   {
-    // Bare acknowledgement — "Okay", "Fine", "Got it", "Thanks" (no task verbs).
+    // Thanks / polite close (German) — "Danke, das reicht", "Danke, dass reicht", "Danke dir", "Vielen Dank"
+    re: /^(?:danke[,\s]+das+s?\s+reicht|das+s?\s+reicht[,\s]+danke|danke\s+dir|vielen\s+dank|danke|perfekt\s+danke|super\s+danke|alles\s+klar)[,.!?\s]*(?:(?:jarvis)[,.!?]*)?$/i,
+    reply: "Gerne. Sag einfach Bescheid, wenn du noch etwas brauchst.",
+  },
+  {
+    // Bare acknowledgement (English) — "Okay", "Fine", "Got it", "Thanks" (no task verbs)
     re: /^(?:okay|ok|k|fine|alright|all right|sure|got it|gotcha|cool|perfect|great|nice|thanks|thank you|sounds good)[,.!?\s]*(?:(?:there|jarvis)[,.!?]*)?$/i,
     reply: "Got it. Just let me know what you'd like to do.",
   },
   {
-    // Bare wake — "Jarvis", "Jarvis?", "Hey Jarvis", "Okay Jarvis".
-    re: /^(?:hey\s+|ok(?:ay)?\s+|hi\s+|hello\s+)?jarvis[,.!?]*$/i,
-    reply: (isContinuing?: boolean) => (isContinuing ? "Yeah, I'm here. What's up?" : getTimeAwareGreeting('Christian')),
+    // Bare wake — "Jarvis", "Jarvis?", "Hey Jarvis", "Okay Jarvis"
+    re: /^(?:hey\s+|ok(?:ay)?\s+|hi\s+|hello\s+|hallo\s+)?jarvis[,.!?]*$/i,
+    reply: (isContinuing?: boolean) => (isContinuing ? (getActiveLanguage() === 'de' ? "Ich bin da." : "Yeah, I'm here. What's up?") : getTimeAwareGreeting('Christian')),
   },
 ];
 
-const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string }> = [
+const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string | (() => string) }> = [
+  {
+    // Time inquiry (German) — "Wie spät ist es?", "Wie spät ist das?", "Wieviel Uhr ist es?"
+    re: /\b(wie\s+spät\s+ist\s+(?:es|das)|wie\s+viel\s+uhr\s+ist\s+(?:es|das)|wieviel\s+uhr\s+ist\s+(?:es|das)|welche\s+uhrzeit\s+haben\s+wir)\b/i,
+    reply: () => {
+      const timeStr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      return `Es ist ${timeStr} Uhr.`;
+    },
+  },
+  {
+    // Time inquiry (English) — "What time is it?", "What's the time?"
+    re: /\b(what\s+time\s+is\s+it|what's\s+the\s+time|current\s+time)\b/i,
+    reply: () => {
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return `It is ${timeStr}.`;
+    },
+  },
+  {
+    // Capabilities inquiry (German) — "Was kannst du tun?", "Was kannst du?"
+    re: /\b(was\s+kannst\s+du\s+tun|was\s+kannst\s+du|was\s+machst\s+du|was\s+sind\s+deine\s+fähigkeiten)\b/i,
+    reply: "Ich bin Jarvis, dein persönlicher Assistent für Agentic OS.",
+  },
+  {
+    // Short joke (German) — "Erzähl mir einen kurzen Witz", "Erzähl einen Witz", Whisper "Ditz" variant
+    re: /\b(erzähl\s+(?:mir\s+)?(?:einen\s+)?(?:kurzen\s+)?[wd]itz|hast\s+du\s+einen\s+[wd]itz|kennst\s+du\s+einen\s+[wd]itz)\b/i,
+    reply: "Warum können Geister so schlecht lügen? Weil sie leicht zu durchschauen sind.",
+  },
+  {
+    // Short joke (English) — "Tell me a short joke", "Tell me a joke"
+    re: /\b(tell\s+me\s+(?:a\s+)?(?:short\s+)?joke|know\s+any\s+jokes?)\b/i,
+    reply: "Why do programmers prefer dark mode? Because light attracts bugs.",
+  },
   {
     // New project handoff (with immediate execution instruction)
     re: /\bi'll give you a (new\s+)?project\b.*\b(?:start now|has to start now|start)\b/i,
@@ -122,7 +175,10 @@ export function detectDirectLocalQuestion(text: string): LocalFastReply | null {
   const t = (text || '').trim();
   if (!t) return null;
   for (const entry of DIRECT_LOCAL_QUESTION_PATTERNS) {
-    if (entry.re.test(t)) return { reply: entry.reply, matched: entry.re.source };
+    if (entry.re.test(t)) {
+      const rep = typeof entry.reply === 'function' ? entry.reply() : entry.reply;
+      return { reply: rep, matched: entry.re.source };
+    }
   }
   return null;
 }

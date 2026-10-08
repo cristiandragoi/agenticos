@@ -115,6 +115,21 @@ export function validateGoal(raw: any, reqText?: string): TurnGoal | null {
 }
 
 export async function understand(req: TurnRequest, previous: PreviousTurnSummary | null): Promise<TurnGoal> {
+  // Fast conversational classification: if the request is conversational without operational signals,
+  // skip the planner LLM call and classify directly as an answer goal.
+  try {
+    const { isFastConversationRequest } = await import('../jarvis/fastConversationLane.js');
+    const fast = isFastConversationRequest(req.text);
+    if (fast.isFast) {
+      return {
+        kind: 'answer',
+        summary: 'Conversational response',
+        continuesPrevious: Boolean(previous),
+        understoodBy: 'authoritative_intent_compiler',
+      };
+    }
+  } catch {}
+
   const prevBlock = previous
     ? [
         'Previous exchange in this conversation:',

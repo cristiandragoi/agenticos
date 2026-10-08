@@ -740,12 +740,18 @@ export class SemanticGoalParser {
     }
 
     // ── 4. TERMINAL SHELL COMMAND CANDIDATE ──────────────────────────────
-    // ABSOLUTE INVARIANT: Natural language (e.g. "open Google", "Can you open YouTube")
+    // ABSOLUTE INVARIANT: Natural language (e.g. "open Google", "Can you open YouTube", "Ja, das habe ich dir gefragt")
     // must NEVER be treated as a terminal shell command.
-    const isExplicitTerminalCommand =
-      /^(?:run|exec|execute)\s+/i.test(part) ||
-      /\b(npm test|npm run|npm install|npx|pip install|pytest|cargo|dir|cls|curl)\b/i.test(part) ||
-      /^(?:powershell|cmd|bash)\s+-/i.test(part);
+    const isConversationalSpeech =
+      /\b(?:ich|du|er|sie|es|wir|ihr|habe|hat|gefragt|bitte|danke|warum|wieso|kannst|könnte|dauert|brauche|hallo|guten|morgen|abend|antwort|frage)\b/i.test(part) ||
+      /\b(?:tell me|explain|can you|could you|what is|how do|why did|please)\b/i.test(part);
+
+    const isExplicitTerminalCommand = !isConversationalSpeech && (
+      /^(?:run|exec|execute)\s+(?!\b(?:a\s+search|youtube|google|browser|the\s+web)\b)/i.test(part) ||
+      /\b(?:npm\s+(?:test|run|install|start|build)|npx\s+[\w@\/\-]+|pip\s+install|pytest|cargo\s+(?:build|run|test|check)|curl\s+https?:\/\/)\b/i.test(part) ||
+      /^(?:dir|ls|cls|clear)(?:\s+[\/\\a-zA-Z0-9_\-\.\*]+)?$/i.test(part.trim()) ||
+      /^(?:powershell|cmd|bash)\s+-/i.test(part)
+    );
 
     if (isExplicitTerminalCommand && !hasCanonicalKeyword) {
       let cmd = part.replace(/^(?:run|exec|execute)\s+/i, '').trim();

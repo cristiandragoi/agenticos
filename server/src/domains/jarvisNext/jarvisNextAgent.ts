@@ -1314,7 +1314,8 @@ export class JarvisNextAgent {
             const capturedFrames = [...this.speechFrames];
             const specWav = pcmChunksToWav(capturedFrames, this.lastFrameSampleRate, this.lastFrameChannels);
             this.speculativeTranscribeTurnId = currentTurn;
-            transcribeLocally(specWav, '.wav', 'en', currentTurn, Math.round(capturedFrames.length * 20)).then((res) => {
+            const sttLang = getActiveLanguage();
+            transcribeLocally(specWav, '.wav', sttLang, currentTurn, Math.round(capturedFrames.length * 20)).then((res) => {
               if (this.currentUserTurnId === currentTurn && this.silenceTimeout && res && res.text) {
                 this.precomputedSttResult = res;
                 const evalResult = AdaptiveTurnEndpoint.evaluateEndpoint(accumulatedAudioMs, res.text);
@@ -1524,7 +1525,8 @@ export class JarvisNextAgent {
         this.precomputedSttResult = null;
         logJRT('STT_SPECULATIVE_REUSE', `turn=${turnId} text="${transcribeResult.text}"`);
       } else {
-        transcribeResult = await transcribeLocally(wavBuffer, '.wav', 'en', turnId, rawAudioDurationMs);
+        const sttLang = getActiveLanguage();
+        transcribeResult = await transcribeLocally(wavBuffer, '.wav', sttLang, turnId, rawAudioDurationMs);
       }
 
       if (transcribeResult.timeout || transcribeResult.cancelled) {

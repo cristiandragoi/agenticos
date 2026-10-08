@@ -58,7 +58,14 @@ const CONVERSATIONAL_CUES = [
   /\b(?:tell me about|what is|what are|what evidence|what verified|what do we know|what should happen)\b/i,
   /\b(?:how much|how many|why is|why are|can you explain|explain|summarize|simplify|describe|overview of)\b/i,
   /\b(?:what about|and what|what else|what are we missing|is there|are there|does it|do we have|who is|which one)\b/i,
-  /\b(?:explain (?:that|this)|more simply|simple terms|in plain english)\b/i
+  /\b(?:explain (?:that|this)|more simply|simple terms|in plain english)\b/i,
+  // German informational and conversational question cues
+  /\b(?:was ist|was sind|was meinst|was bedeutet|was weißt|was wissen wir|was gibt es)\b/i,
+  /\b(?:warum|wieso|weshalb|warum ist|warum sind|warum hat|warum hat es|warum dauert|wie lange|wie viel|wie viele|wie geht|wie funktioniert)\b/i,
+  /\b(?:kannst du|kannst du erklären|erklär mir|erkläre|beschreibe|fasse zusammen|sag mir|erzähl mir)\b/i,
+  /\b(?:wer ist|welche|welcher|welches|gibt es|haben wir|fehlt etwas)\b/i,
+  /\b(?:einfacher|auf deutsch|in einfachen worten)\b/i,
+  /\b(?:ja,|nein,|genau|stimmt|verstehe|okay|gut,|das habe ich|ich brauche)\b/i
 ];
 
 /**
@@ -89,7 +96,12 @@ export function isFastConversationRequest(
     }
   }
 
-  // 3. If there is an active entity or active module in context and the query is non-operational question
+  // 3. Any non-operational conversational German or English question
+  if (p.endsWith('?') || /\b(?:tell|explain|what|how|why|warum|wieso|weshalb|was|wie|wer|erklär)\b/i.test(p)) {
+    return { isFast: true, reason: 'conversational inquiry' };
+  }
+
+  // 4. If there is an active entity or active module in context and the query is non-operational question
   if ((context?.activeEntityId || context?.activeModule) && (p.endsWith('?') || /\b(?:tell|explain|what|how|why)\b/i.test(p))) {
     return { isFast: true, reason: 'contextual entity conversational inquiry' };
   }
@@ -267,6 +279,7 @@ export async function handleFastConversationStream(
   let firstTokenMs: number | null = null;
   let resolvedProvider = 'unknown';
   let resolvedModel = 'unknown';
+  let emittedFirstSentence = false;
 
   try {
     const stream = llmChatStream({
@@ -302,6 +315,27 @@ export async function handleFastConversationStream(
           provider: resolvedProvider,
           model: resolvedModel
         });
+
+        // Early sentence detection: synthesize first sentence while rest streams
+        if (!emittedFirstSentence) {
+          const match = fullReply.match(/([.!?])(?:\s+|$)/);
+          if (match && match.index !== undefined) {
+            const candidate = fullReply.slice(0, match.index + 1).trim();
+            if (candidate.length >= 10) {
+              emittedFirstSentence = true;
+              writeSse('first_sentence', {
+                sentence: candidate,
+                operationId,
+                elapsedMs: Date.now() - startedAt
+              });
+              try {
+                opts.onFirstSentence?.(candidate);
+              } catch (err: any) {
+                logger.warn('[FastConversationLane] onFirstSentence callback error', err?.message);
+              }
+            }
+          }
+        }
       } else if (chunk.type === 'done') {
         // Capture final resolved provider/model from done chunk
         if (chunk.provider && chunk.provider !== 'unknown') resolvedProvider = chunk.provider;
