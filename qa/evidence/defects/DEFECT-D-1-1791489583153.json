@@ -1,0 +1,43 @@
+{
+  "defectId": "DEFECT-D-1-1791489583153",
+  "scenarioId": "D",
+  "stepIndex": 1,
+  "description": "Speak: \"Stopp. Öffne WhatsApp.\" and verify clean interruption / task switch",
+  "expected": "Spoken command executed, verified on desktop, and acknowledged with audible response",
+  "actual": "Interruption failed or task was not switched",
+  "failureStage": "Interruption failed or task was not switched",
+  "traceEvidence": {
+    "spoken": {
+      "text": "Stopp. Öffne WhatsApp.",
+      "language": "de"
+    },
+    "audio": {
+      "heardAudio": false,
+      "durationMs": 0,
+      "maxRms": 0
+    },
+    "desktop": {
+      "foregroundWindowTitle": "Unknown",
+      "foregroundProcessName": "Unknown",
+      "runningProcesses": [
+        "AgenticOS",
+        "chrome",
+        "comet"
+      ],
+      "screenshotPath": "D:\\AgenticOS\\qa\\evidence\\screenshots\\scenarioD_interruption_whatsapp_1791489582972.png",
+      "observedAt": "2026-10-08T19:59:43.150Z"
+    },
+    "trace": {
+      "whisperFinalTranscript": "Jarvis, switch to German language, I'll speak German now.",
+      "normalizedTranscript": "switch to German language, I'll speak German now."
+    }
+  },
+  "hindsightLessons": [
+    "This file contains durable, validated engineering lessons distilled from real-world failures, repairs, and regression evidence.",
+    "1. Every lesson must trace to confirmed evidence and tests.",
+    "4. Keep Ornith/Hermes (user/business memory), Cortex (code knowledge), and Hindsight (lessons) separate.",
+    "- **Subsystem**: `task_continuation`",
+    "- **Confirmed Root Cause**: Task continuation broken: Capability failure or task continuation broken"
+  ],
+  "createdAt": "2026-10-08T19:59:43.154Z"
+}

@@ -1354,7 +1354,28 @@ export async function routeTurn(opts: {
     }
   }
 
+  // Check 3.5: Email / Gmail Integration & Multi-turn Continuation
+  try {
+    const { emailService } = await import('../../services/email/EmailService.js');
+    const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
+    const convLang = getConversationLanguage(conversationId) || getActiveLanguage() || 'de';
+    const emailResult = await emailService.handleTurn({ prompt: effectivePrompt, conversationId, lang: convLang });
+    if (emailResult) {
+      logger.info('[JRT] EMAIL_SERVICE_HANDLED_TURN', { prompt: effectivePrompt, output: emailResult.outputText });
+      return finish({
+        route: 'email_tool' as any,
+        text: emailResult.outputText,
+        evidence: true,
+        executed: true,
+        verified: emailResult.verified ?? true,
+      });
+    }
+  } catch (emailErr) {
+    logger.warn('[JRT] EmailService error in turnRouter:', emailErr);
+  }
+
   // Check 4: Browser website reading ("Open Comet and read the current page", "Read what's on this website")
+
   if (/\b(?:read|summarize|what\s+is\s+on)\s+(?:the\s+)?(?:current\s+)?(?:page|website|site)\b/i.test(effectivePrompt) ||
       (/\bcomet\b/i.test(effectivePrompt) && /\bread\b/i.test(effectivePrompt))) {
     const { universalPerceptionService } = await import('../controlPlane/UniversalPerceptionService.js');

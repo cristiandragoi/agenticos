@@ -1,0 +1,52 @@
+{
+  "defectId": "DEFECT-C-1-1791490668693",
+  "scenarioId": "C",
+  "stepIndex": 1,
+  "description": "Speak: \"Schreibe an cdinternationalproject@gmail.com.\"",
+  "expected": "Spoken command executed, verified on desktop, and acknowledged with audible response",
+  "actual": "Recipient was not parsed or continuation lost",
+  "failureStage": "Recipient was not parsed or continuation lost",
+  "traceEvidence": {
+    "spoken": {
+      "text": "Schreibe an cdinternationalproject@gmail.com.",
+      "language": "de"
+    },
+    "audio": {
+      "heardAudio": true,
+      "durationMs": 8487,
+      "maxRms": 0.5
+    },
+    "desktop": {
+      "foregroundWindowTitle": "",
+      "foregroundProcessName": "Idle",
+      "runningProcesses": [
+        "AgenticOS",
+        "chrome",
+        "comet"
+      ],
+      "screenshotPath": "",
+      "observedAt": "2026-10-08T20:17:32.228Z"
+    },
+    "trace": {
+      "ttsCompletedTs": 1791490651383,
+      "turnId": "2",
+      "userSpeechStartTs": 1791490627006,
+      "whisperFinalTranscript": "Shravenseed International Project at Gmail.com.",
+      "normalizedTranscript": "Shravenseed International Project at Gmail.com.",
+      "executionDispatchedTs": 1791490630680,
+      "executionVerifiedTs": 1791490640919,
+      "fullAssistantText": "I couldn't open gmail.com. The browser is still on Google.",
+      "ttsPlayoutStartTs": 1791490642821,
+      "commandToActionLatencyMs": 26,
+      "commandToResponseLatencyMs": 12167
+    }
+  },
+  "hindsightLessons": [
+    "This file contains durable, validated engineering lessons distilled from real-world failures, repairs, and regression evidence.",
+    "1. Every lesson must trace to confirmed evidence and tests.",
+    "3. Deduplicate in-place; do not append redundant duplicate entries.",
+    "4. Keep Ornith/Hermes (user/business memory), Cortex (code knowledge), and Hindsight (lessons) separate.",
+    "### [2026-10-08] compose on Gmail: Spoken recipient address lost during multi-turn continuation; context dropped (VERIFIED)"
+  ],
+  "createdAt": "2026-10-08T20:17:48.694Z"
+}

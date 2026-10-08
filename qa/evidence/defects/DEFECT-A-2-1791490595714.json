@@ -1,0 +1,47 @@
+{
+  "defectId": "DEFECT-A-2-1791490595714",
+  "scenarioId": "A",
+  "stepIndex": 2,
+  "description": "Speak: \"Sprich ab jetzt Deutsch.\" and verify German response",
+  "expected": "Spoken command executed, verified on desktop, and acknowledged with audible response",
+  "actual": "Subsequent response was not in German or failed lifecycle",
+  "failureStage": "Subsequent response was not in German or failed lifecycle",
+  "traceEvidence": {
+    "spoken": {
+      "text": "Sprich ab jetzt Deutsch.",
+      "language": "de"
+    },
+    "audio": {
+      "heardAudio": false,
+      "durationMs": 0,
+      "maxRms": 0
+    },
+    "desktop": {
+      "foregroundWindowTitle": "",
+      "foregroundProcessName": "Idle",
+      "runningProcesses": [
+        "AgenticOS",
+        "chrome",
+        "comet"
+      ],
+      "screenshotPath": "",
+      "observedAt": "2026-10-08T20:16:35.710Z"
+    },
+    "trace": {
+      "whisperFinalTranscript": "Spray the bitch, Deutsche.",
+      "normalizedTranscript": "Spray the bitch, Deutsche.",
+      "ttsPlayoutStartTs": 1791490578392,
+      "fullAssistantText": "I'm ready to assist with your questions or tasks.",
+      "ttsCompletedTs": 1791490583459,
+      "userSpeechStartTs": 1791490582348
+    }
+  },
+  "hindsightLessons": [
+    "This file contains durable, validated engineering lessons distilled from real-world failures, repairs, and regression evidence.",
+    "1. Every lesson must trace to confirmed evidence and tests.",
+    "4. Keep Ornith/Hermes (user/business memory), Cortex (code knowledge), and Hindsight (lessons) separate.",
+    "- **Confirmed Root Cause**: Task continuation broken: Capability failure or task continuation broken",
+    "- **Recurrence Prevention**: Preserve task state in session memory and enforce canonical transition guard"
+  ],
+  "createdAt": "2026-10-08T20:16:35.715Z"
+}

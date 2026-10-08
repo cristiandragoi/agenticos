@@ -1,0 +1,43 @@
+{
+  "defectId": "DEFECT-E-2-1791489621953",
+  "scenarioId": "E",
+  "stepIndex": 2,
+  "description": "Speak: \"Jarvis, wie spät ist es?\" and verify prompt responsiveness",
+  "expected": "Spoken command executed, verified on desktop, and acknowledged with audible response",
+  "actual": "Jarvis was hung or blocked on previous failed turn",
+  "failureStage": "Jarvis was hung or blocked on previous failed turn",
+  "traceEvidence": {
+    "spoken": {
+      "text": "Jarvis, wie spät ist es?",
+      "language": "de"
+    },
+    "audio": {
+      "heardAudio": false,
+      "durationMs": 0,
+      "maxRms": 0
+    },
+    "desktop": {
+      "foregroundWindowTitle": "Unknown",
+      "foregroundProcessName": "Unknown",
+      "runningProcesses": [
+        "AgenticOS",
+        "chrome",
+        "comet"
+      ],
+      "screenshotPath": "D:\\AgenticOS\\qa\\evidence\\screenshots\\scenarioE_step2_recovery_1791489621771.png",
+      "observedAt": "2026-10-08T20:00:21.951Z"
+    },
+    "trace": {
+      "whisperFinalTranscript": "Jarvis, switch to German language, I'll speak German now.",
+      "normalizedTranscript": "switch to German language, I'll speak German now."
+    }
+  },
+  "hindsightLessons": [
+    "This file contains durable, validated engineering lessons distilled from real-world failures, repairs, and regression evidence.",
+    "1. Every lesson must trace to confirmed evidence and tests.",
+    "4. Keep Ornith/Hermes (user/business memory), Cortex (code knowledge), and Hindsight (lessons) separate.",
+    "- **Confirmed Root Cause**: Task continuation broken: Capability failure or task continuation broken",
+    "- **Recurrence Prevention**: Preserve task state in session memory and enforce canonical transition guard"
+  ],
+  "createdAt": "2026-10-08T20:00:21.964Z"
+}

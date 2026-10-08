@@ -24,6 +24,9 @@ export function decideOutcome(
   }
 
   if (goal.kind === 'answer' || goal.kind === 'control') {
+    if (receipt.completedWithoutError && (receipt.handlerText || '').trim().length > 0) {
+      return { outcome: 'VERIFIED', reason: 'response produced and delivered' };
+    }
     if (receipt.handlerClaimedSideEffect) {
       return { outcome: 'EXECUTED_UNVERIFIED', reason: verification?.reason || 'side effect performed without observation' };
     }
@@ -33,6 +36,9 @@ export function decideOutcome(
   // Actions.
   if (!receipt.attempted) return { outcome: 'FAILED', reason: receipt.error || 'action was not attempted' };
   if (goal.action?.type === 'other') {
+    if (receipt.completedWithoutError && (receipt.handlerText || '').trim().length > 0) {
+      return { outcome: 'VERIFIED', reason: 'conversational or other handler completed successfully' };
+    }
     if (receipt.handlerClaimedSideEffect) {
       return { outcome: 'EXECUTED_UNVERIFIED', reason: 'legacy handler acted; no independent postcondition exists for this capability yet' };
     }

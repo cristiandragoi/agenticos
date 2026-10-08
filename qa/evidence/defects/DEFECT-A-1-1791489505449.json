@@ -1,0 +1,43 @@
+{
+  "defectId": "DEFECT-A-1-1791489505449",
+  "scenarioId": "A",
+  "stepIndex": 1,
+  "description": "Speak: \"Jarvis, kannst du mich hören?\" and verify audible response",
+  "expected": "Spoken command executed, verified on desktop, and acknowledged with audible response",
+  "actual": "No audible response produced for initial greeting",
+  "failureStage": "No audible response produced for initial greeting",
+  "traceEvidence": {
+    "spoken": {
+      "text": "Jarvis, kannst du mich hören?",
+      "language": "de"
+    },
+    "audio": {
+      "heardAudio": false,
+      "durationMs": 0,
+      "maxRms": 0
+    },
+    "desktop": {
+      "foregroundWindowTitle": "Unknown",
+      "foregroundProcessName": "Unknown",
+      "runningProcesses": [
+        "AgenticOS",
+        "chrome",
+        "comet"
+      ],
+      "screenshotPath": "D:\\AgenticOS\\qa\\evidence\\screenshots\\scenarioA_step1_1791489489744.png",
+      "observedAt": "2026-10-08T19:58:09.923Z"
+    },
+    "trace": {
+      "whisperFinalTranscript": "Jarvis, switch to German language, I'll speak German now.",
+      "normalizedTranscript": "switch to German language, I'll speak German now."
+    }
+  },
+  "hindsightLessons": [
+    "This file contains durable, validated engineering lessons distilled from real-world failures, repairs, and regression evidence.",
+    "1. Every lesson must trace to confirmed evidence and tests.",
+    "3. Deduplicate in-place; do not append redundant duplicate entries.",
+    "4. Keep Ornith/Hermes (user/business memory), Cortex (code knowledge), and Hindsight (lessons) separate.",
+    "### [2026-10-08] compose on Gmail: Spoken recipient address lost during multi-turn continuation; context dropped (VERIFIED)"
+  ],
+  "createdAt": "2026-10-08T19:58:25.450Z"
+}

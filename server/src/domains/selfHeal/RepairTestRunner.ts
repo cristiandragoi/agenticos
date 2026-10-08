@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../utils/logger.js';
@@ -61,11 +61,11 @@ export class RepairTestRunner {
     logger.info(`[SelfHeal] Running tests in ${worktreePath} (baseline: ${sourceTreePath})`);
 
     // 1. Capture baseline: run `npx tsc --noEmit` in sourceTreePath, parse error lines
-    const baselineResult = this.runCommand('npx tsc --noEmit', 'Baseline TypeScript check', sourceTreePath);
+    const baselineResult = await this.runCommand('npx tsc --noEmit', 'Baseline TypeScript check', sourceTreePath);
     const baselineErrors = this.parseTypeScriptErrors(`${baselineResult.stdout}\n${baselineResult.stderr}`, sourceTreePath);
 
     // 2. Run tsc --noEmit in worktreePath, parse error lines
-    const worktreeTscResult = this.runCommand('npx tsc --noEmit', 'TypeScript check', worktreePath);
+    const worktreeTscResult = await this.runCommand('npx tsc --noEmit', 'TypeScript check', worktreePath);
     const postPatchErrors = this.parseTypeScriptErrors(`${worktreeTscResult.stdout}\n${worktreeTscResult.stderr}`, worktreePath);
 
     const results: TestResult[] = [worktreeTscResult];
@@ -73,7 +73,7 @@ export class RepairTestRunner {
     // 3. Ensure npm run build is always executed and verified in server/
     const serverDir = path.join(worktreePath, 'server');
     if (fs.existsSync(path.join(serverDir, 'package.json'))) {
-      results.push(this.runCommand('npm run build', 'Server Build Check', serverDir));
+      results.push(await this.runCommand('npm run build', 'Server Build Check', serverDir));
     }
 
     // 4. Run additional tests from testsRequired
@@ -103,18 +103,18 @@ export class RepairTestRunner {
         } else {
           testCmd = 'npm test -- src/__tests__/browserActionContract.test.ts';
         }
-        results.push(this.runCommand(testCmd, `Script: ${testCmd}`, cmdCwd));
+        results.push(await this.runCommand(testCmd, `Script: ${testCmd}`, cmdCwd));
       } else if (trimmed.startsWith('npm run ')) {
         const isServer = trimmed.includes('server') || fs.existsSync(path.join(worktreePath, 'server', 'package.json'));
         const cmdCwd = isServer ? path.join(worktreePath, 'server') : worktreePath;
-        results.push(this.runCommand(trimmed, `Script: ${trimmed}`, cmdCwd));
+        results.push(await this.runCommand(trimmed, `Script: ${trimmed}`, cmdCwd));
       } else if (trimmed.includes('frontend') || trimmed.includes('vite')) {
-        results.push(this.runCommand('npx vite build', 'Frontend build', worktreePath));
+        results.push(await this.runCommand('npx vite build', 'Frontend build', worktreePath));
       } else if (trimmed.endsWith('.test.ts') || trimmed.endsWith('.spec.ts') || trimmed.includes('vitest')) {
         const configFlag = fs.existsSync(path.join(worktreePath, 'vitest.server.config.ts')) ? '--config vitest.server.config.ts' : '';
-        results.push(this.runCommand(`npx vitest run ${configFlag} ${trimmed}`.trim(), `Vitest: ${trimmed}`, worktreePath));
+        results.push(await this.runCommand(`npx vitest run ${configFlag} ${trimmed}`.trim(), `Vitest: ${trimmed}`, worktreePath));
       } else if (/^(node|python|sh|bash|vitest)\b/i.test(trimmed)) {
-        results.push(this.runCommand(trimmed, `Command: ${trimmed}`, worktreePath));
+        results.push(await this.runCommand(trimmed, `Command: ${trimmed}`, worktreePath));
       } else {
         logger.info(`[SelfHeal] Skipping descriptive non-command test requirement: "${trimmed}"`);
       }
@@ -180,32 +180,22 @@ export class RepairTestRunner {
     return report;
   }
 
-  /** Helper to run a command and capture result */
-  private runCommand(cmd: string, name: string, cwd: string, timeoutMs: number = 120_000): TestResult {
+  /** Helper to run a command asynchronously and non-blocking without stalling the event loop */
+  private async runCommand(cmd: string, name: string, cwd: string, timeoutMs: number = 120_000): Promise<TestResult> {
     logger.info(`[SelfHeal] Running: ${cmd} in ${cwd}`);
     const startMs = Date.now();
-    let passed = false;
-    let stdout = '';
-    let stderr = '';
-    let exitCode = -1;
-    try {
-      const out = execSync(cmd, { cwd, timeout: timeoutMs, encoding: 'utf8' });
-      passed = true;
-      stdout = String(out);
-      exitCode = 0;
-    } catch (e: any) {
-      passed = false;
-      stdout = String(e.stdout ?? '');
-      stderr = String(e.stderr ?? '');
-      exitCode = typeof e.status === 'number' ? e.status : 1;
-    }
-    const durationMs = Date.now() - startMs;
-
-    // truncate to 2KB each
-    if (stdout.length > 2048) stdout = stdout.substring(0, 2048) + '... (truncated)';
-    if (stderr.length > 2048) stderr = stderr.substring(0, 2048) + '... (truncated)';
-
-    return { name, command: cmd, exitCode, stdout, stderr, durationMs, passed };
+    return new Promise<TestResult>((resolve) => {
+      exec(cmd, { cwd, timeout: timeoutMs, encoding: 'utf8' }, (err, stdoutStr, stderrStr) => {
+        const stdout = String(stdoutStr ?? '');
+        const stderr = String(stderrStr ?? '');
+        const exitCode = err ? (typeof (err as any).code === 'number' ? (err as any).code : 1) : 0;
+        const passed = !err;
+        const durationMs = Date.now() - startMs;
+        const truncOut = stdout.length > 2048 ? stdout.substring(0, 2048) + '... (truncated)' : stdout;
+        const truncErr = stderr.length > 2048 ? stderr.substring(0, 2048) + '... (truncated)' : stderr;
+        resolve({ name, command: cmd, exitCode, stdout: truncOut, stderr: truncErr, durationMs, passed });
+      });
+    });
   }
 
   /**
