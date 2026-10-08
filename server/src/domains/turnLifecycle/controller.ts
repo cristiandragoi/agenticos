@@ -220,6 +220,62 @@ export class TurnLifecycleController {
       }
     }
 
+    // ── UNCLEAR SPEECH / NOISE GUARD ──
+    // User directive: "Wenn die Spracherkennung nur 1–2 unklare Wörter liefert oder unsicher ist,
+    // soll Jarvis kurz fragen „Wie bitte?“ oder „Das habe ich nicht verstanden“, statt etwas zu deuten."
+    if (!structured) {
+      const { isUnclearShortUtterance, getClarificationReply } = await import('../jarvisNext/unclearUtteranceGuard.js');
+      if (isUnclearShortUtterance(req.text, req.sttConfidence)) {
+        const { getConversationLanguage, getActiveLanguage } = await import('../jarvis/conversationLanguage.js');
+        const lang = getConversationLanguage(req.conversationId) || getActiveLanguage();
+        const reply = getClarificationReply(lang);
+        const goal: TurnGoal = {
+          kind: 'answer',
+          summary: 'Unclear speech clarification',
+          continuesPrevious: isContinuing,
+          understoodBy: 'authoritative_intent_compiler',
+        };
+        record.contextKey = isContinuing && previous ? previous.contextKey : `ctx-${req.requestId}`;
+        store.setContextKey(req.requestId, record.contextKey);
+        record.goal = goal;
+        record.postcondition = definePostcondition(goal);
+        store.recordStage(req.requestId, 'UNDERSTAND', { goal, postcondition: record.postcondition });
+        record.policy = { allowed: true, reason: 'clarification question is always allowed' };
+        store.recordStage(req.requestId, 'POLICY', { policy: record.policy });
+        const t = new Date().toISOString();
+        const receipt: ExecutionReceipt = {
+          executor: 'lifecycle.unclear_speech_guard',
+          attempted: true,
+          completedWithoutError: true,
+          startedAt: t,
+          finishedAt: t,
+          handlerText: reply,
+          details: { text: req.text, confidence: req.sttConfidence },
+        };
+        record.receipt = receipt;
+        record.handler = receipt.executor;
+        store.recordStage(req.requestId, 'EXECUTE', { receipt, handler: receipt.executor });
+        record.verification = {
+          verifier: 'TurnLifecycleVerifier',
+          satisfied: true,
+          observable: true,
+          reason: 'clarification requested',
+          evidence: [],
+          checkedAt: t,
+        };
+        store.recordStage(req.requestId, 'VERIFY', { verification: record.verification });
+        record.outcome = 'VERIFIED';
+        record.outcomeReason = 'unclear speech clarification';
+        store.recordOutcome(req.requestId, 'VERIFIED', record.outcomeReason);
+        record.responseText = reply;
+        store.recordResponse(req.requestId, record.responseText);
+        await this.deliver(record, sink, isStale);
+        store.recordDone(req.requestId);
+        record.stage = 'DONE';
+        return;
+      }
+    }
+
     const goal: TurnGoal = structured
       ? { kind: 'action', summary: structured.summary, action: { type: 'other' }, continuesPrevious: false, understoodBy: 'structured_submission' }
       : await understand(req, previous);

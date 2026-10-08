@@ -23,30 +23,30 @@ const WAKE_VARIANTS = '(?:jarvis|javis|jarves|jarviss|javi|javvy|chavis|travis|s
 // Prefixes common before stop commands
 const PREFIX_PATTERN = '(?:(?:hey|ok(?:ay)?|hi|hello|please|i\\s+say|i\\s+said|just|can\\s+you|could\\s+you|will\\s+you|would\\s+you)\\s+)?';
 
-// Canonical control actions
-const CONTROL_ACTIONS = '(?:stop(?:\\s+(?:it|speaking|talking|working|everything|listening|now|all\\s+work|work))?|cancel(?:\\s+(?:it|all|operation|task|work|all\\s+work))?|shut\\s+up|be\\s+quiet|halt|quiet|pause|silence|hold\\s+on)';
+// Canonical control actions (English and German)
+const CONTROL_ACTIONS = '(?:stop(?:\\s+(?:it|speaking|talking|working|everything|listening|now|all\\s+work|work))?|stopp(?:\\s+(?:mal|jetzt|bitte|damit|auf|alles))?|halt(?:\\s+(?:mal|an|kurz))?|cancel(?:\\s+(?:it|all|operation|task|work|all\\s+work))?|abbrechen|shut\\s+up|be\\s+quiet|ruhe|sei\\s+still|h[öo]r\\s+auf|aufh[öo]ren|quiet|pause|silence|hold\\s+on)';
 
-// 1. Wake word before command ("Jarvis stop", "Javi please stop", "Hey Javi halt")
+// 1. Wake word before command ("Jarvis stop", "Javi please stop", "Hey Javi halt", "Jarvis stopp")
 const STRICT_STOP_WAKE_FIRST_RE = new RegExp(
-  `^${PREFIX_PATTERN}${WAKE_VARIANTS}?\\s*[:.,]*\\s*(?:please\\s+)?${CONTROL_ACTIONS}\\s*(?:${WAKE_VARIANTS})?\\s*[\\s.!?]*$`,
+  `^${PREFIX_PATTERN}${WAKE_VARIANTS}?\\s*[:.,]*\\s*(?:please\\s+|bitte\\s+)?${CONTROL_ACTIONS}\\s*(?:${WAKE_VARIANTS})?\\s*[\\s.!?]*$`,
   'i'
 );
 
-// 2. Command before wake word ("Stop Jarvis", "Halt Javi", "Shut up Jarvis", "Stop please")
+// 2. Command before wake word ("Stop Jarvis", "Halt Javi", "Stopp Jarvis", "Shut up Jarvis", "Stop please")
 const STRICT_STOP_CMD_FIRST_RE = new RegExp(
-  `^${PREFIX_PATTERN}${CONTROL_ACTIONS}\\s*[:.,]*\\s*(?:please\\s+)?(?:${WAKE_VARIANTS})?\\s*[\\s.!?]*$`,
+  `^${PREFIX_PATTERN}${CONTROL_ACTIONS}\\s*[:.,]*\\s*(?:please\\s+|bitte\\s+)?(?:${WAKE_VARIANTS})?\\s*[\\s.!?]*$`,
   'i'
 );
 
 // Substring control keywords for short utterances (<= 6 words)
-const CONTROL_KEYWORDS = ['stop', 'halt', 'cancel', 'shut up', 'be quiet', 'quiet', 'silence', 'pause', 'hold on'];
+const CONTROL_KEYWORDS = ['stop', 'stopp', 'halt', 'cancel', 'abbrechen', 'ruhe', 'sei still', 'hör auf', 'aufhören', 'shut up', 'be quiet', 'quiet', 'silence', 'pause', 'hold on'];
 
 // Phonetic / truncated acoustic variants from noisy Whisper output on short speech
 const ACOUSTIC_VARIANTS: Record<string, string> = {
   'top': 'stop',
   'stopp': 'stop',
-  'stope': 'stop',
   'stoppe': 'stop',
+  'stope': 'stop',
   'haut': 'halt',
   'holte': 'halt',
   'hold': 'halt',

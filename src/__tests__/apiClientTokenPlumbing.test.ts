@@ -16,7 +16,7 @@ describe('API Client Token Plumbing (Step 3A)', () => {
         headers: { 'Content-Type': 'application/json' },
       })
     );
-    globalThis.fetch = fetchSpy;
+    globalThis.fetch = fetchSpy as any;
   });
 
   afterEach(() => {

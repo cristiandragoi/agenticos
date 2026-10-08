@@ -111,6 +111,29 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
       logger.warn('[TurnLifecycle] delegation signal detection error; continuing to turnRouter', { requestId: req.requestId, error: err?.message });
     }
 
+    // ── Email Integration ("Öffne Gmail...", "Schreib eine Nachricht an...", "Sende es") ──
+    try {
+      const { emailService } = await import('../../services/email/EmailService.js');
+      const { getActiveLanguage } = await import('../../services/language/activeLanguageState.js');
+      const lang = getActiveLanguage();
+      const emailResult = await emailService.handleTurn({ prompt: req.text, conversationId: req.conversationId, lang });
+      if (emailResult) {
+        return {
+          executor: 'legacy.emailService',
+          attempted: true,
+          completedWithoutError: emailResult.success,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          error: emailResult.error,
+          handlerText: emailResult.outputText,
+          handlerClaimedSideEffect: true,
+          details: { action: emailResult.action, draft: emailResult.draft },
+        };
+      }
+    } catch (err: any) {
+      logger.warn('[TurnLifecycle] emailService error; continuing to turnRouter', { requestId: req.requestId, error: err?.message });
+    }
+
     try {
       let firstSentenceSpoken = '';
       const { routeTurn } = await import('../jarvisNext/turnRouter.js');

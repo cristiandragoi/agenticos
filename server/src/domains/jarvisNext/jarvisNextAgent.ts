@@ -55,6 +55,7 @@ import { AdaptiveTurnEndpoint } from './AdaptiveTurnEndpoint.js';
 import { voicePipelineInstrumentation } from './VoicePipelineInstrumentation.js';
 import { auditResponseTruthfulness } from '../controlPlane/JarvisConstitution.js';
 import { authoritativeInteractionContext } from '../controlPlane/AuthoritativeInteractionContext.js';
+import { isUnclearShortUtterance, getClarificationReply } from './unclearUtteranceGuard.js';
 
 const JRT_TRACE_FILE = path.join(process.env.AGENTICOS_DATA_DIR || path.join(process.cwd(), 'data'), 'jarvis-runtime-trace.log');
 
@@ -1198,14 +1199,13 @@ export class JarvisNextAgent {
     }
 
     // CASE A: Assistant is physically outputting audio to speakers
-    if (this.isSpeaking) {
+    if (this.isSpeaking && !this.isAccumulatingSpeech) {
       const timeSinceSpeechStarted = Date.now() - this.speechStartTime;
       const dynamicBargeIn = Math.max(550, Math.min(1000, this.ambientNoiseFloor * 3.0 + 350));
       // ECHO GUARD: our own speech comes back through the microphone. Jarvis's
       // own audio must never cancel Jarvis. A candidate barge-in during playout
       // must therefore clear a HIGHER floor and be SUSTAINED for longer than one
-      // of our own syllables; a genuine person easily does both. The decision is
-      // the shared pure function so the tests exercise this exact path.
+      // of our own syllables; a genuine person easily does both.
       const decision = decideBargeIn({
         rms,
         msSincePlayoutStart: timeSinceSpeechStarted,
@@ -1217,18 +1217,13 @@ export class JarvisNextAgent {
       });
       const echoGuardThreshold = Math.max(dynamicBargeIn, this.BARGE_IN_PLAYOUT_THRESHOLD);
       if (decision === 'trigger') {
-        logger.info(`[JarvisNext] Candidate user speech detected during playout (rms=${Math.round(rms)}, thresh=${Math.round(echoGuardThreshold)}, frames=${this.consecutiveBargeInFrames + 1}) -> BARGE_IN_TRIGGERED (halting assistant speech)`);
+        logger.info(`[JarvisNext] Candidate user speech detected during playout (rms=${Math.round(rms)}, thresh=${Math.round(echoGuardThreshold)}, frames=${this.consecutiveBargeInFrames + 1}) -> accumulating speech candidate (playout continues until verified stop command or >= 2-3 genuine words)`);
         this.vadTriggeredDuringTts = true;
         this.currentTurnIsBargeIn = true;
         this.lastBargeInRms = rms;
-        this.isSpeaking = false;
-        this.isSynthesizing = false;
         this.setMicState('BARGE_IN_PENDING', `energy_rms_${Math.round(rms)}`);
         this.broadcastData({ type: 'provisional_barge_in', rms, threshold: echoGuardThreshold });
-        // Immediately halt assistant playout so speaker audio ceases blasting into the mic
-        const detectedSpeechTime = Date.now();
-        this.interruptAssistantPlayout('user_barge_in');
-        voicePipelineInstrumentation.recordInterruption(detectedSpeechTime, Date.now());
+        // NOTE: Playout is NOT halted here! Playout only halts on confirmed stop command or >= 2-3 genuine non-echo words.
         this.isAccumulatingSpeech = true;
         this.userSpeechStartTime = Date.now();
         logJRT('SPEECH_START', `rms=${Math.round(rms)} threshold=${Math.round(echoGuardThreshold)} reason=candidate_barge_in`);
@@ -1236,12 +1231,13 @@ export class JarvisNextAgent {
         this.consecutiveBargeInFrames = 0;
       } else if (decision === 'sustain') {
         this.consecutiveBargeInFrames++;
+        return;
       } else {
         // 'reject_echo' = energy that clears the idle floor but not the playout floor
         if (decision === 'reject_echo') this.ttsEchoRejectedFrames++;
         this.consecutiveBargeInFrames = 0;
+        return;
       }
-      return;
     }
 
     // Reset barge-in frames when not speaking
@@ -1318,6 +1314,20 @@ export class JarvisNextAgent {
             transcribeLocally(specWav, '.wav', sttLang, currentTurn, Math.round(capturedFrames.length * 20)).then((res) => {
               if (this.currentUserTurnId === currentTurn && this.silenceTimeout && res && res.text) {
                 this.precomputedSttResult = res;
+
+                // Immediate speculative STOP check: If user said "Stopp" or "Halt", halt immediately!
+                const specControl = detectControlIntent(res.text, { isBargeIn: this.isSpeaking });
+                if (specControl.isControl && specControl.intent === 'STOP') {
+                  logger.info(`[JarvisNext] Fast speculative STOP detected: "${res.text}". Halting playout immediately.`);
+                  this.interruptAssistantPlayout('user_stop_command');
+                  if (this.silenceTimeout) {
+                    clearTimeout(this.silenceTimeout);
+                    this.silenceTimeout = null;
+                  }
+                  this.finishVadEndpoint(100, 'speculative_stop_complete');
+                  return;
+                }
+
                 const evalResult = AdaptiveTurnEndpoint.evaluateEndpoint(accumulatedAudioMs, res.text);
                 if (evalResult.isIncomplete) {
                   // Incomplete sentence: protect user from cut-off, expand silence to 1800ms
@@ -1723,6 +1733,43 @@ export class JarvisNextAgent {
 
       if (isBargeIn) {
         this.sttTriggeredDuringTts = true;
+      }
+
+      const words = (text || '').trim().split(/\s+/).filter(w => w.replace(/[^\p{L}\p{N}]/gu, '').length > 0);
+
+      // Barge-in filter: If audio arrived while assistant was speaking, require either an explicit STOP command or >= 2 genuine words
+      if (isBargeIn && words.length < 2 && !isStop) {
+        logger.info(`[JarvisNext] BARGE_IN_REJECTED_TOO_SHORT: transcript "${text}" has only ${words.length} words during playout. Discarding noise without interrupting playout.`);
+        logJRT('BARGE_IN_REJECTED_TOO_SHORT', `turn=${turnId} words=${words.length} text="${text}"`);
+        this.currentTurnIsBargeIn = false;
+        this.speechFrames = [];
+        this.isAccumulatingSpeech = false;
+        this.releaseTurnLatch('barge_in_too_short');
+        if (this.isSpeaking) {
+          this.setMicState('JARVIS_SPEAKING', 'barge_in_too_short');
+        } else {
+          this.setMicState('LISTENING', 'barge_in_too_short');
+        }
+        return;
+      }
+
+      // ── UNCLEAR SPEECH / NOISE GUARD ──
+      // User directive: "Wenn die Spracherkennung nur 1–2 unklare Wörter liefert oder unsicher ist,
+      // soll Jarvis kurz fragen „Wie bitte?“ oder „Das habe ich nicht verstanden“, statt etwas zu deuten."
+      if (isUnclearShortUtterance(text, confidence)) {
+        logger.info(`[JarvisNext] UNCLEAR_UTTERANCE_GUARD: transcript "${text}" (turn #${turnId}, confidence=${confidence}) is unclear short noise. Prompting "Wie bitte?" instead of guessing.`);
+        logJRT('UNCLEAR_UTTERANCE_GUARD', `turn=${turnId} text="${text}" confidence=${confidence}`);
+        const clarification = getClarificationReply(getActiveLanguage());
+        this.lastUserText = text;
+        this.broadcastData({
+          type: 'transcript',
+          text,
+          isFinal: true,
+        });
+        this.speak(clarification);
+        this.isProcessingUserTurn = false;
+        this.releaseTurnLatch('unclear_short_utterance');
+        return;
       }
 
       const cleanText = (text || '').replace(/[^\p{L}\p{N}]/gu, '').trim();

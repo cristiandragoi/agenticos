@@ -26,7 +26,7 @@ export interface EmailDraft {
   subject: string;
   body: string;
   createdAt: number;
-  status: 'DRAFT' | 'AWAITING_SEND_COMMAND' | 'AWAITING_YES' | 'SENT' | 'FAILED';
+  status: 'DRAFT' | 'AWAITING_RECIPIENT_ADDRESS' | 'AWAITING_SEND_COMMAND' | 'AWAITING_YES' | 'SENT' | 'FAILED';
 }
 
 export interface EmailOperationResult {
@@ -169,21 +169,56 @@ export class EmailService {
       if (bodyMatch) body = bodyMatch[1].trim();
     }
 
-    if (!to) to = 'recipient@example.com';
+    const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const isDev = /\b(?:entwickler|developer|dev)\b/i.test(to) || /\b(?:entwickler|developer|dev)\b/i.test(prompt);
+
+    if (isDev && !EMAIL_RE.test(to)) {
+      const devEnvEmail = process.env.DEVELOPER_EMAIL;
+      if (devEnvEmail && EMAIL_RE.test(devEnvEmail)) {
+        to = devEnvEmail;
+      }
+    }
+
     if (!subject) subject = lang === 'de' ? 'Rückmeldung' : 'Follow-up';
     if (!body) body = lang === 'de' ? 'Hier ist der gewünschte Entwurf.' : 'Here is the draft message.';
+
+    // If recipient is still not a valid email address, pause and ask for it
+    const hasValidEmail = Boolean(to && EMAIL_RE.test(to));
+    const draftStatus = hasValidEmail ? 'AWAITING_SEND_COMMAND' : 'AWAITING_RECIPIENT_ADDRESS';
+    const draftRecipient = hasValidEmail
+      ? to
+      : isDev
+        ? (lang === 'de' ? 'Entwickler' : 'Developer')
+        : (to || (lang === 'de' ? 'Unbekannt' : 'Unknown'));
 
     const draftId = `draft-${Date.now()}`;
     const draft: EmailDraft = {
       id: draftId,
-      to,
+      to: draftRecipient,
       subject,
       body,
       createdAt: Date.now(),
-      status: 'AWAITING_SEND_COMMAND',
+      status: draftStatus,
     };
 
     this.activeDrafts.set(conversationId, draft);
+
+    if (!hasValidEmail) {
+      const askText = lang === 'de'
+        ? (isDev
+            ? 'Ich kenne die E-Mail-Adresse deines Entwicklers noch nicht. An welche Adresse soll ich die Nachricht senden?'
+            : 'An welche E-Mail-Adresse soll ich die Nachricht senden?')
+        : (isDev
+            ? "I don't have your developer's email address yet. What email address should I send the message to?"
+            : 'What email address should I send the message to?');
+      return {
+        success: true,
+        verified: true,
+        action: 'DRAFT',
+        draft,
+        outputText: askText,
+      };
+    }
 
     const preview = lang === 'de'
       ? [
@@ -378,27 +413,86 @@ export class EmailService {
   }): Promise<EmailOperationResult | null> {
     const { prompt, conversationId, lang = 'en' } = params;
     const lower = prompt.toLowerCase().trim();
+    const activeDraft = this.getActiveDraft(conversationId);
 
-    // 1. "Open my email" / "Open my Gmail"
+    // 0. Follow-up: User providing email address for an in-flight draft awaiting recipient
+    if (activeDraft && activeDraft.status === 'AWAITING_RECIPIENT_ADDRESS') {
+      const emailMatch = prompt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        activeDraft.to = emailMatch[0];
+        activeDraft.status = 'AWAITING_SEND_COMMAND';
+        const preview = lang === 'de'
+          ? [
+              `Ich habe den E-Mail-Entwurf für ${activeDraft.to} aktualisiert:`,
+              `• Empfänger: ${activeDraft.to}`,
+              `• Betreff: ${activeDraft.subject}`,
+              `• Text: ${activeDraft.body}`,
+              ``,
+              `Sagen Sie „Sende es“, wenn Sie den Entwurf abschicken möchten.`,
+            ].join('\n')
+          : [
+              `I have updated the email draft for ${activeDraft.to}:`,
+              `• Recipient: ${activeDraft.to}`,
+              `• Subject: ${activeDraft.subject}`,
+              `• Text: ${activeDraft.body}`,
+              ``,
+              `Say "Send it" when you are ready to review and send.`,
+            ].join('\n');
+        return {
+          success: true,
+          verified: true,
+          action: 'DRAFT',
+          draft: activeDraft,
+          needsApproval: true,
+          outputText: preview,
+        };
+      }
+    }
+
+    // 1. Detect open email / Gmail intent
     const isOpenEmail =
       /\b(?:open|launch|check|show)\s+(?:my\s+)?(?:email|emails|mail|inbox|webmail|gmail)\b/i.test(lower) ||
       /\b(?:[oö]ffne|zeige|starte)\s+(?:meine?\s+)?(?:e-?mails?|postfach|inbox|mail|gmail)\b/i.test(lower);
+
+    // 2. Detect write email / draft message intent
+    const isWriteEmail =
+      /\b(?:write|compose|draft|prepare|create|send)\s+(?:an?\s+)?(?:email|mail|message)\b/i.test(lower) ||
+      /\b(?:schreibe?|verfasse?|erstelle?|sende?)\s+(?:eine?\s+)?(?:e-?mail|nachricht)\b/i.test(lower);
+
+    // 3. Compound command: "Öffne Gmail und schreib eine Nachricht..."
+    if (isOpenEmail && isWriteEmail) {
+      await this.openEmailClient(conversationId, lang);
+      const draftRes = this.prepareDraft({ rawPrompt: prompt, conversationId, lang });
+      if (draftRes.draft && draftRes.draft.status === 'AWAITING_RECIPIENT_ADDRESS') {
+        const askText = lang === 'de'
+          ? 'Ich habe Gmail geöffnet. An welche E-Mail-Adresse deines Entwicklers soll ich die Nachricht senden?'
+          : "I have opened Gmail. What is your developer's email address so I can address the message?";
+        return {
+          success: true,
+          verified: true,
+          action: 'DRAFT',
+          draft: draftRes.draft,
+          outputText: askText,
+        };
+      }
+      const combinedText = lang === 'de'
+        ? `Ich habe Gmail geöffnet.\n\n${draftRes.outputText}`
+        : `I have opened Gmail.\n\n${draftRes.outputText}`;
+      return {
+        ...draftRes,
+        outputText: combinedText,
+      };
+    }
 
     if (isOpenEmail) {
       return await this.openEmailClient(conversationId, lang);
     }
 
-    // 2. "Write an email to X"
-    const isWriteEmail =
-      /\b(?:write|compose|draft|prepare|create)\s+(?:an?\s+)?(?:email|mail|message)\b/i.test(lower) ||
-      /\b(?:schreibe|verfasse|erstelle)\s+(?:eine?\s+)?(?:e-?mail|nachricht)\b/i.test(lower);
-
     if (isWriteEmail) {
       return this.prepareDraft({ rawPrompt: prompt, conversationId, lang });
     }
 
-    // 3. User says "yes" when draft is awaiting confirmation
-    const activeDraft = this.getActiveDraft(conversationId);
+    // 4. User says "yes" when draft is awaiting confirmation
     const isYes =
       /^(?:yes|ja|yes\s+please|ja\s+bitte|yes\s+send|confirm|best[aä]tigen?|proceed|send\s+it\s+now)[.!]?$/i.test(lower);
 
@@ -406,7 +500,7 @@ export class EmailService {
       return await this.confirmAndSend(conversationId, lang);
     }
 
-    // 4. "Send it" / "Send this email" / "Sende es"
+    // 5. "Send it" / "Send this email" / "Sende es"
     const isSendIt =
       /\b(?:send\s+it|send\s+(?:this\s+|the\s+)?email|senden?|abschicken?|sende\s+es|schick\s+es\s+ab)\b/i.test(lower);
 

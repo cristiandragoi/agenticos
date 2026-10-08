@@ -272,7 +272,7 @@ export function getConversationLanguage(conversationId: string): SupportedLangua
   } catch (err) {
     logger.warn(`[ConversationLanguage] DB read error for ${conversationId}: ${err}`);
   }
-  return 'en';
+  return getActiveLanguage();
 }
 
 // In-memory cache for explicit language lock

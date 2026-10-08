@@ -145,14 +145,14 @@ export function isSelfHearingEcho(candidateText: string, assistantTextOrTexts: s
   const lowerCandidate = rawCandidate.toLowerCase();
 
   // Invariant: User control commands and interruption phrases must NEVER be dropped as echo.
-  if (/\b(?:stop|halt|cancel|shut\s*up|be\s*quiet|quiet|silence|pause|hold\s*on|start\s*working|stop\s*working)\b/i.test(lowerCandidate)) {
+  if (/\b(?:stop|stopp|halt|cancel|abbrechen|shut\s*up|be\s*quiet|ruhe|sei\s*still|h[öo]r\s*auf|aufh[öo]ren|quiet|silence|pause|hold\s*on|start\s*working|stop\s*working)\b/i.test(lowerCandidate)) {
     return false;
   }
 
   // Invariant: Genuine questions, instructions, and interactive inquiries must NEVER be dropped as echo.
   const isQuestionOrInstruction = rawCandidate.endsWith('?') ||
-    /\b(?:what|how|why|who|when|where|which)\b/i.test(lowerCandidate) ||
-    /^(?:can|could|will|would|tell|show|explain|is|are|do|does|create|read|verify|check|list|describe)\b/i.test(lowerCandidate);
+    /\b(?:what|how|why|who|when|where|which|was|wie|warum|wieso|weshalb|wer|wann|wo|welche|welcher|welches)\b/i.test(lowerCandidate) ||
+    /^(?:can|could|will|would|tell|show|explain|is|are|do|does|create|read|verify|check|list|describe|kannst|kann|könntest|erklär|erkläre|öffne|zeige|lies|schreib|schreibe)\b/i.test(lowerCandidate);
   if (isQuestionOrInstruction) {
     return false;
   }

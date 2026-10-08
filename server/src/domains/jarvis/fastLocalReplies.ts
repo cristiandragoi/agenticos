@@ -102,59 +102,6 @@ const DIRECT_LOCAL_QUESTION_PATTERNS: Array<{ re: RegExp; reply: string | (() =>
       return `It is ${timeStr}.`;
     },
   },
-  {
-    // Capabilities inquiry (German) — "Was kannst du tun?", "Was kannst du?"
-    re: /\b(was\s+kannst\s+du\s+tun|was\s+kannst\s+du|was\s+machst\s+du|was\s+sind\s+deine\s+fähigkeiten)\b/i,
-    reply: "Ich bin Jarvis, dein persönlicher Assistent für Agentic OS.",
-  },
-  {
-    // Short joke (German) — "Erzähl mir einen kurzen Witz", "Erzähl einen Witz", Whisper "Ditz" variant
-    re: /\b(erzähl\s+(?:mir\s+)?(?:einen\s+)?(?:kurzen\s+)?[wd]itz|hast\s+du\s+einen\s+[wd]itz|kennst\s+du\s+einen\s+[wd]itz)\b/i,
-    reply: "Warum können Geister so schlecht lügen? Weil sie leicht zu durchschauen sind.",
-  },
-  {
-    // Short joke (English) — "Tell me a short joke", "Tell me a joke"
-    re: /\b(tell\s+me\s+(?:a\s+)?(?:short\s+)?joke|know\s+any\s+jokes?)\b/i,
-    reply: "Why do programmers prefer dark mode? Because light attracts bugs.",
-  },
-  {
-    // New project handoff (with immediate execution instruction)
-    re: /\bi'll give you a (new\s+)?project\b.*\b(?:start now|has to start now|start)\b/i,
-    reply: "Send it over. I'll turn it into an implementation task and delegate the code work to Codex.",
-  },
-  {
-    // New project handoff (generic)
-    re: /\bi'll give you a (new\s+)?project\b/i,
-    reply: "Send it over.",
-  },
-  {
-    // "What is Jarvis?" / "Who is Jarvis?" — grounded identity, no invented OS.
-    re: /\bwhat\s+is\s+jarvis\b|\bwho\s+is\s+jarvis\b/i,
-    reply:
-      "I'm Jarvis, the operational commander of Agentic OS — the local AI-operations platform you're using. " +
-      "I coordinate Hermes for research and inspection, CodeX for engineering work, and other capabilities, " +
-      "manage tasks and schedules, and answer questions about your projects and the system.",
-  },
-  {
-    // "What is Agentic OS?" / "What is Agenticos?" — local project grounding.
-    re: /\bwhat\s+is\s+(?:agentic\s*os|agenticos|argentic\s*os|authentic\s*os)\b/i,
-    reply:
-      "Agentic OS is the local AI-operations platform you're running right now. It includes Jarvis as the " +
-      "commander, Hermes for research and inspection, CodeX for engineering, the task board, scheduler, " +
-      "memory, and the revenue pipeline — all running on this machine.",
-  },
-  {
-    // "What does Jarvis do?" — capability explanation without a worker chain.
-    re: /\bwhat\s+does\s+jarvis\s+do\b/i,
-    reply:
-      "I coordinate your AI operations: I answer questions, delegate research to Hermes, delegate engineering " +
-      "to CodeX, run schedules and background tasks, and keep track of your projects and memory.",
-  },
-  {
-    // "What does Hermes do?" / "What does CodeX do?"
-    re: /\bwhat\s+does\s+(hermes|codex)\s+do\b/i,
-    reply: "Hermes is our planning and research agent, while CodeX implements and modifies code in your repository. I coordinate both of them to help execute your goals.",
-  },
 ];
 
 /** Detect a presence/reassurance/greeting/pause prompt. */

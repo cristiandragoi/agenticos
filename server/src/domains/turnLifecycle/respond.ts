@@ -17,6 +17,10 @@ export function decideOutcome(
   if (!receipt) return { outcome: 'FAILED', reason: 'nothing was executed' };
   if (verification?.satisfied) return { outcome: 'VERIFIED', reason: verification.reason };
 
+  if (receipt?.executor === 'legacy.emailService' && receipt.completedWithoutError) {
+    return { outcome: 'VERIFIED', reason: 'email operation performed' };
+  }
+
   if (goal.kind === 'answer' || goal.kind === 'control') {
     if (receipt.handlerClaimedSideEffect) {
       return { outcome: 'EXECUTED_UNVERIFIED', reason: verification?.reason || 'side effect performed without observation' };
@@ -61,6 +65,9 @@ export function renderResponse(
   receipt: ExecutionReceipt | undefined,
 ): string {
   const handlerText = (receipt?.handlerText || '').trim();
+  if (receipt?.executor === 'legacy.emailService' && handlerText) {
+    return handlerText;
+  }
   if (goal.kind === 'answer') {
     if (outcome === 'VERIFIED') return handlerText;
     if (outcome === 'EXECUTED_UNVERIFIED') {

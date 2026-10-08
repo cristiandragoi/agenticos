@@ -562,10 +562,14 @@ export class JarvisLiveKitSession {
     }
 
     try {
-      console.log(`${TAG} enabling microphone`);
-      await room.localParticipant.setMicrophoneEnabled(true);
+      console.log(`${TAG} enabling microphone with hardware echo cancellation`);
+      await room.localParticipant.setMicrophoneEnabled(true, {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      });
       this.micTrackCount = room.localParticipant.audioTrackPublications?.size ?? 1;
-      console.log(`${TAG} microphone enabled`);
+      console.log(`${TAG} microphone enabled (echoCancellation=true)`);
     } catch (err: any) {
       const msg = err?.message ?? String(err);
       console.error(`${TAG} microphone enable failed: ${msg}`, err);
