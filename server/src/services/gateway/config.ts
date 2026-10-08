@@ -87,10 +87,10 @@ export function loadGatewayConfig(): GatewayConfig {
       name: 'openrouter',
       baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
       apiKey: openrouterApiKey,
-      model: process.env.JARVIS_PRIMARY_MODEL || process.env.OPENROUTER_MODEL || 'xiaomi/mimo-v2.6-flash',
+      model: process.env.JARVIS_PRIMARY_MODEL || process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct',
       type: 'openai',
       capabilities: ['supportsTools', 'supportsStreaming', 'supportsLongContext', 'supportsReasoning', 'supportsJSON'],
-      tags: ['cloud', 'long-context', 'mimo'],
+      tags: ['cloud', 'fast', 'llama3'],
       maxContext: 128000
     });
   }

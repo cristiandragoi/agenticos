@@ -1,0 +1,67 @@
+[
+  {
+    "id": 1,
+    "prompt": "Warum dauert es so lange?",
+    "model": "openrouter:meta-llama/llama-3.3-70b-instruct",
+    "sttMs": 180,
+    "firstSentenceMs": 592,
+    "fullModelMs": 2947,
+    "ttsFirstAudioMs": 640,
+    "ttsTotalMs": 1651,
+    "totalMs": 1412,
+    "firstSentenceText": "Es tut mir leid, dass die Ausführung länger dauert als erwartet.",
+    "fullResponseText": "Es tut mir leid, dass die Ausführung länger dauert als erwartet. Ich kann dir sagen, dass der aktuelle Systemzustand und die Prioritäten der Projekte möglicherweise die Ausführungsgeschwindigkeit beeinflussen. Die Prioritäten sind derzeit auf Shopify, TikTok Shop und Hermes Operational Acceptance gesetzt. Es gibt jedoch keine Informationen darüber, dass die Ausführung fehlgeschlagen oder unterbrochen wurde. Ich stehe Ihnen gerne zur Verfügung, um weitere Fragen zu beantworten."
+  },
+  {
+    "id": 2,
+    "prompt": "Erklär mir kurz, was AgenticOS ist",
+    "model": "openrouter:meta-llama/llama-3.3-70b-instruct",
+    "sttMs": 180,
+    "firstSentenceMs": 471,
+    "fullModelMs": 975,
+    "ttsFirstAudioMs": 174,
+    "ttsTotalMs": 3028,
+    "totalMs": 825,
+    "firstSentenceText": "AgenticOS ist ein Betriebssystem, das auf künstlicher Intelligenz basiert und darauf abzielt, Aufgaben und Projekte autonom und sicher auszuführen.",
+    "fullResponseText": "AgenticOS ist ein Betriebssystem, das auf künstlicher Intelligenz basiert und darauf abzielt, Aufgaben und Projekte autonom und sicher auszuführen. Es besteht aus verschiedenen Komponenten, wie zum Beispiel mir, Jarvis, der als conversationaler Supervisor fungiert, sowie anderen Tools wie Hermes, Argus und CodeX, die jeweils spezifische Aufgaben übernehmen. Ziel von AgenticOS ist es, den Benutzer bei der Ausführung von Aufgaben zu unterstützen und gleichzeitig eine hohe Code-Qualität und Test-Verifizierung zu gewährleisten."
+  },
+  {
+    "id": 3,
+    "prompt": "Was hast du heute für mich erledigt?",
+    "model": "openrouter:meta-llama/llama-3.3-70b-instruct",
+    "sttMs": 180,
+    "firstSentenceMs": 380,
+    "fullModelMs": 805,
+    "ttsFirstAudioMs": 382,
+    "ttsTotalMs": 1436,
+    "totalMs": 942,
+    "firstSentenceText": "Ich habe heute noch nichts für dich erledigt, da wir gerade erst begonnen haben.",
+    "fullResponseText": "Ich habe heute noch nichts für dich erledigt, da wir gerade erst begonnen haben. Es gibt auch keine aktiven Projekte, die gerade bearbeitet werden. Wenn du jedoch ein neues Projekt starten möchtest, kann ich dir dabei helfen, es zu priorisieren und zu planen. Die aktuellen Prioritäten sind Shopify und TikTok Shop. Lass mich wissen, wie ich dir helfen kann."
+  },
+  {
+    "id": 4,
+    "prompt": "Schreib mir eine kurze Nachricht an meinen Entwickler",
+    "model": "openrouter:meta-llama/llama-3.3-70b-instruct",
+    "sttMs": 180,
+    "firstSentenceMs": 473,
+    "fullModelMs": 888,
+    "ttsFirstAudioMs": 170,
+    "ttsTotalMs": 1743,
+    "totalMs": 823,
+    "firstSentenceText": "Hallo Entwickler, ich benötige deine Hilfe für ein Projekt.",
+    "fullResponseText": "Hallo Entwickler, ich benötige deine Hilfe für ein Projekt. Kannst du mir bitte mitteilen, wann du verfügbar bist, um besprechen zu können, was ich benötige? Mit freundlichen Grüßen, Christian"
+  },
+  {
+    "id": 5,
+    "prompt": "Was ist der Unterschied zwischen dir und Hermes?",
+    "model": "openrouter:meta-llama/llama-3.3-70b-instruct",
+    "sttMs": 180,
+    "firstSentenceMs": 640,
+    "fullModelMs": 1413,
+    "ttsFirstAudioMs": 175,
+    "ttsTotalMs": 7764,
+    "totalMs": 995,
+    "firstSentenceText": "Ich bin Jarvis, der konversationale Assistent, während Hermes ein separates Projekt mit einer anderen Funktion ist.",
+    "fullResponseText": "Ich bin Jarvis, der konversationale Assistent, während Hermes ein separates Projekt mit einer anderen Funktion ist. Als Jarvis bin ich für die konversationale Interaktion und Informationsbereitstellung zuständig, während Hermes Teil eines anderen Projekts ist, dessen Details ich nicht spezifizieren kann, da sie nicht in meinem aktuellen Wissensbereich enthalten sind."
+  }
+]

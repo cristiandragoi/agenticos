@@ -2260,8 +2260,78 @@ export class JarvisNextAgent {
       const authTarget = resolveAuthoritativeTtsTarget(this.currentVoiceId || 'aura-helios-en');
       let activeProvider = authTarget.provider;
       let activeVoice = authTarget.voice;
+      const isGerman = activeVoice === GERMAN_DEEPGRAM_VOICE || this.isGermanVoiceActive(activeVoice);
 
-      if (sentences.length <= 1) {
+      if (isGerman) {
+        // Stream linear16 PCM frames directly from Deepgram (TTFA ~400-600ms, zero ffmpeg overhead)
+        try {
+          const { streamGermanJuliusPcmFrames } = await import('../../services/voice/localTts.js');
+          const { AudioFrame } = await import('@livekit/rtc-node');
+
+          let frameCount = 0;
+          const frameStartTime = Date.now();
+
+          for await (const int16 of streamGermanJuliusPcmFrames(text, (firstChunkMs) => {
+            if (!hasPublishedFirstFrame) {
+              hasPublishedFirstFrame = true;
+              const tFirstAudio = Date.now();
+              voicePipelineInstrumentation.recordStage(activeTurnId, 'ttsFirstAudioMs', tFirstAudio);
+              voicePipelineInstrumentation.recordStage(activeTurnId, 'audioPlaybackStartMs', tFirstAudio);
+              voicePipelineInstrumentation.finalizeVoiceTurn(activeTurnId, tFirstAudio);
+              const lat = this.turnLatencyMap.get(activeTurnId);
+              if (lat && !lat.playbackFirstAudio) {
+                lat.playbackFirstAudio = tFirstAudio;
+                lat.ttsFirstChunk = tFirstAudio;
+              }
+              this.isSynthesizing = false;
+              this.isSpeaking = true;
+              voiceRuntimeState.setPlaybackState('speaking');
+              this.speechStartTime = Date.now();
+              this.lastPlayoutStartedAt = this.speechStartTime;
+              this.setMicState('JARVIS_SPEAKING', 'tts_playout_start');
+              this.broadcastData({
+                type: 'status',
+                state: 'speaking',
+                isSpeaking: true,
+                isListening: true,
+                text,
+                voiceId: activeVoice,
+                voiceProfile: this.currentVoiceProfile,
+              });
+              logJRT('TTS_FIRST_CHUNK_STREAMED', `turn=${activeTurnId} durationMs=${firstChunkMs}`);
+              console.log(`[JRT] TTS_FIRST_CHUNK_STREAMED turn=${activeTurnId} durationMs=${firstChunkMs}`);
+            }
+          })) {
+            if (
+              this.currentAssistantPlayoutId !== playoutId ||
+              !this.room?.isConnected ||
+              !this.audioSource
+            ) {
+              logger.info(`[JarvisNext] Speech playout aborted mid-stream (playout #${playoutId})!`);
+              break;
+            }
+
+            const frame = new AudioFrame(int16, 24000, 1, 480);
+            try {
+              await this.audioSource.captureFrame(frame);
+              totalPublishedFrames++;
+              frameCount++;
+            } catch (frameErr: any) {
+              logger.warn('[JarvisNext] AudioSource.captureFrame error:', frameErr?.message);
+              break;
+            }
+
+            const targetTime = frameStartTime + frameCount * 20;
+            const waitMs = targetTime - Date.now();
+            if (waitMs > 1) {
+              await new Promise((r) => setTimeout(r, waitMs));
+            }
+          }
+        } catch (err: any) {
+          this.reportGermanVoiceFailure(err, activeTurnId, text);
+          throw err;
+        }
+      } else if (sentences.length <= 1) {
         let mp3Buffer: Buffer;
         try {
           mp3Buffer = await synthesizeLocally(text, activeVoice, { ...synthOpts, provider: activeProvider });

@@ -40,7 +40,7 @@ export interface InferenceLogEntry {
 export function buildAgentModelPolicy(role: AgentRoleId): AgentModelPolicy {
   if (role === 'jarvis') {
     const primaryProvider = process.env.JARVIS_MODEL_PROVIDER || process.env.JARVIS_PROVIDER || 'openrouter';
-    const primaryModel = process.env.JARVIS_PRIMARY_MODEL || 'xiaomi/mimo-v2.6-flash';
+    const primaryModel = process.env.JARVIS_PRIMARY_MODEL || 'meta-llama/llama-3.3-70b-instruct';
     const reasoningModel = process.env.JARVIS_REASONING_MODEL || 'xiaomi/mimo-v2.6-pro';
     const localFallback = process.env.JARVIS_FALLBACK_MODEL || 'ollama:qwen3.5:9b-hermes-64k';
     return {

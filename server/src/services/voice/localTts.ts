@@ -128,6 +128,108 @@ export async function synthesizeGermanJulius(text: string): Promise<Buffer> {
 
 export const synthesizeGermanFabian = synthesizeGermanJulius;
 
+/**
+ * Stream German speech directly from Deepgram aura-2-julius-de.
+ * Returns the raw fetch Response so chunks can be consumed as they arrive.
+ */
+export async function streamGermanJuliusResponse(text: string, options?: { encoding?: string; sampleRate?: number }): Promise<Response> {
+  const cleanText = sanitizeMarkdownForSpeech(text) || text;
+  const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
+  if (!deepgramKey) {
+    const err = new GermanVoiceUnavailableError(
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: no Deepgram API key is configured.`,
+    );
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    throw err;
+  }
+  const encoding = options?.encoding ? `&encoding=${encodeURIComponent(options.encoding)}` : '';
+  const sampleRate = options?.sampleRate ? `&sample_rate=${options.sampleRate}` : '';
+  const url = `https://api.deepgram.com/v1/speak?model=${GERMAN_DEEPGRAM_VOICE}${encoding}${sampleRate}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Token ${deepgramKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanText }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (netErr: any) {
+    const err = new GermanVoiceUnavailableError(
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram request failed (${netErr?.message || netErr}).`,
+    );
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    logger.error('[LocalTTS] ' + err.message);
+    throw err;
+  }
+  if (!response.ok) {
+    const body = (await response.text().catch(() => '')).slice(0, 300);
+    const err = new GermanVoiceUnavailableError(
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram returned HTTP ${response.status} ${body}`,
+      response.status,
+    );
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    logger.error('[LocalTTS] ' + err.message);
+    throw err;
+  }
+  voiceRuntimeState.recordTtsSynthesis({ provider: 'deepgram', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: null });
+  return response;
+}
+
+/**
+ * Stream 24kHz 16-bit mono PCM frames (20ms / 480 samples each) directly from Deepgram.
+ * First chunk is yielded in ~400-600ms, with zero ffmpeg subprocess overhead.
+ */
+export async function* streamGermanJuliusPcmFrames(text: string, onFirstChunk?: (ms: number) => void): AsyncGenerator<Int16Array> {
+  const t0 = Date.now();
+  const response = await streamGermanJuliusResponse(text, { encoding: 'linear16', sampleRate: 24000 });
+  if (!response.body) throw new GermanVoiceUnavailableError('No response body from Deepgram');
+  const reader = response.body.getReader();
+  let buffer = Buffer.alloc(0);
+  let headerSkipped = false;
+  let firstChunkLogged = false;
+
+  const SAMPLES_PER_FRAME = 480; // 24000 * 0.02
+  const BYTES_PER_FRAME = SAMPLES_PER_FRAME * 2; // 960
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (!firstChunkLogged) {
+      firstChunkLogged = true;
+      onFirstChunk?.(Date.now() - t0);
+    }
+    buffer = Buffer.concat([buffer, Buffer.from(value)]);
+
+    if (!headerSkipped && buffer.length >= 44) {
+      // 44-byte WAV header produced by Deepgram for linear16
+      buffer = buffer.subarray(44);
+      headerSkipped = true;
+    }
+
+    if (headerSkipped) {
+      while (buffer.length >= BYTES_PER_FRAME) {
+        const frameBuf = buffer.subarray(0, BYTES_PER_FRAME);
+        buffer = buffer.subarray(BYTES_PER_FRAME);
+        const int16 = new Int16Array(SAMPLES_PER_FRAME);
+        for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
+          int16[i] = frameBuf.readInt16LE(i * 2);
+        }
+        yield int16;
+      }
+    }
+  }
+
+  // Final residue frame if there are remaining samples
+  if (headerSkipped && buffer.length > 0) {
+    const int16 = new Int16Array(SAMPLES_PER_FRAME);
+    const availableSamples = Math.floor(buffer.length / 2);
+    for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
+      int16[i] = i < availableSamples ? buffer.readInt16LE(i * 2) : 0;
+    }
+    yield int16;
+  }
+}
+
 export function isGermanVoiceId(voice?: string): boolean {
   const v = (voice || '').toLowerCase().trim();
   return v.endsWith('-de') || v.startsWith('de-') || v.startsWith('de_');

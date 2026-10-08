@@ -1,0 +1,200 @@
+[
+  {
+    "id": "xiaomi/mimo-v2.6-flash",
+    "name": "MiMo-V2.6-Flash (default)",
+    "avgTtft": 6167,
+    "runs": [
+      {
+        "ttft": 697,
+        "totalMs": 1044,
+        "firstWord": "Ich",
+        "fullText": "Ich bin ein von Microsoft entwickeltes KI-Modell (Quamane), während Hermes eine altgriechische Gottheit aus der Mythologie ist.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 7681,
+        "totalMs": 9631,
+        "firstWord": "Ich bin",
+        "fullText": "Ich bin Qwen (Tongyi Qianwen), ein KI-Sprachmodell von Alibaba. Ohne",
+        "reasoningCount": 416
+      },
+      {
+        "ttft": 10123,
+        "totalMs": 10658,
+        "firstWord": "Ich bin",
+        "fullText": "Ich bin **MiMo**, ein großes Sprachmodell, entwickelt von Xiaomis LLM Core Team. **Hermes",
+        "reasoningCount": 383
+      }
+    ],
+    "error": null,
+    "sampleText": "Ich bin ein von Microsoft entwickeltes KI-Modell (Quamane), während Hermes eine altgriechische Gottheit aus der Mythologie ist."
+  },
+  {
+    "id": "xiaomi/mimo-v2.6-flash",
+    "name": "MiMo-V2.6-Flash (reasoning: false)",
+    "avgTtft": 3797,
+    "runs": [
+      {
+        "ttft": 1599,
+        "totalMs": 3996,
+        "firstWord": "Der",
+        "fullText": "Der wesentliche Unterschied ist, dass Hermes in der griechischen Mythologie ein Gott war, während ich ein von Menschen entwickeltes Sprachmodell bin.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 6371,
+        "totalMs": 8349,
+        "firstWord": "H",
+        "fullText": "Hermes ist die offizielle GPT-4-Oberfläche von OpenAI, während ich ein Sprachmodell im Stil von GPT-3.5 von OpenAI bin, das im Werkzeugsatz \"HuggingFace\" integriert ist.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 3422,
+        "totalMs": 10090,
+        "firstWord": "Ich",
+        "fullText": "Ich bin ein von Google entwickelter KI-Modell, während Hermes ein von Nous Research entwickeltes Modell ist.",
+        "reasoningCount": 0
+      }
+    ],
+    "error": null,
+    "sampleText": "Der wesentliche Unterschied ist, dass Hermes in der griechischen Mythologie ein Gott war, während ich ein von Menschen entwickeltes Sprachmodell bin."
+  },
+  {
+    "id": "google/gemini-2.0-flash-001",
+    "name": "Gemini 2.0 Flash",
+    "avgTtft": null,
+    "runs": [
+      {
+        "ttft": 99999,
+        "totalMs": 99999,
+        "error": "HTTP 404: {\"error\":{\"message\":\"No endpoints found for google/gemini-2.0-flash-001.\",\"code\":404},\"user_id\":\"user_32gveVPeeVlt0Me5eEzCXDJlfxg\"}"
+      },
+      {
+        "ttft": 99999,
+        "totalMs": 99999,
+        "error": "HTTP 404: {\"error\":{\"message\":\"No endpoints found for google/gemini-2.0-flash-001.\",\"code\":404},\"user_id\":\"user_32gveVPeeVlt0Me5eEzCXDJlfxg\"}"
+      },
+      {
+        "ttft": 99999,
+        "totalMs": 99999,
+        "error": "HTTP 404: {\"error\":{\"message\":\"No endpoints found for google/gemini-2.0-flash-001.\",\"code\":404},\"user_id\":\"user_32gveVPeeVlt0Me5eEzCXDJlfxg\"}"
+      }
+    ],
+    "error": "HTTP 404: {\"error\":{\"message\":\"No endpoints found for google/gemini-2.0-flash-001.\",\"code\":404},\"user_id\":\"user_32gveVPeeVlt0Me5eEzCXDJlfxg\"}",
+    "sampleText": ""
+  },
+  {
+    "id": "meta-llama/llama-3.3-70b-instruct",
+    "name": "Llama 3.3 70B Instruct",
+    "avgTtft": 1326,
+    "runs": [
+      {
+        "ttft": 775,
+        "totalMs": 3696,
+        "firstWord": "Ich",
+        "fullText": "Ich bin ein künstliches Intelligenzmodell, das auf einem Computer läuft, während Hermes in der griechischen Mythologie der Götterbote und Schutzpatron der Händler und Reisenden ist. Hermes ist eine mythologische Figur, ich hingegen ein technisches System.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 1711,
+        "totalMs": 5460,
+        "firstWord": "Ich",
+        "fullText": "Ich bin ein künstliches Intelligenzmodell, das auf Textbasis funktioniert, während Hermes ein Bote und Gott der griechischen Mythologie ist, bekannt für seine Rolle als Überbringer von Nachrichten und Botschaften.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 1493,
+        "totalMs": 3150,
+        "firstWord": "Ich",
+        "fullText": "Ich bin ein künstliches Intelligenzmodell, das auf Textbasis funktioniert und Informationen bereitstellt, während Hermes ein griechischer Gott und Botengott ist, der in der Mythologie oft als Überbringer von Nachrichten dargestellt wird.",
+        "reasoningCount": 0
+      }
+    ],
+    "error": null,
+    "sampleText": "Ich bin ein künstliches Intelligenzmodell, das auf einem Computer läuft, während Hermes in der griechischen Mythologie der Götterbote und Schutzpatron der Händler und Reisenden ist. Hermes ist eine mythologische Figur, ich hingegen ein technisches System."
+  },
+  {
+    "id": "meta-llama/llama-3.1-8b-instruct",
+    "name": "Llama 3.1 8B Instruct",
+    "avgTtft": 603,
+    "runs": [
+      {
+        "ttft": 516,
+        "totalMs": 2569,
+        "firstWord": "Ich bi",
+        "fullText": "Ich bin ein Computerprogramm, das auf natürlichen Sprachen basiert und in der Lage ist, Informationen zu verarbeiten und zu generieren. Hermes ist ein Gott in der griechischen Mythologie, der als Bote der Götter und Gott der Handelsgüter bekannt ist.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 638,
+        "totalMs": 2190,
+        "firstWord": "Ich bi",
+        "fullText": "Ich bin ein Computerprogramm, das auf natürlichen Sprachen basiert, während Hermes eine mythologische Figur ist, der Gott der Botschaften und der Kommunikation.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 654,
+        "totalMs": 1669,
+        "firstWord": "Ich bi",
+        "fullText": "Ich bin ein Computerprogramm, das auf Texteingaben antwortet, während Hermes ein Gott der griechischen Mythologie ist, der Botschaften und Nachrichten überbringt.",
+        "reasoningCount": 0
+      }
+    ],
+    "error": null,
+    "sampleText": "Ich bin ein Computerprogramm, das auf natürlichen Sprachen basiert und in der Lage ist, Informationen zu verarbeiten und zu generieren. Hermes ist ein Gott in der griechischen Mythologie, der als Bote der Götter und Gott der Handelsgüter bekannt ist."
+  },
+  {
+    "id": "qwen/qwen-2.5-72b-instruct",
+    "name": "Qwen 2.5 72B Instruct",
+    "avgTtft": null,
+    "runs": [
+      {
+        "ttft": 99999,
+        "totalMs": 99999,
+        "error": "The operation was aborted due to timeout"
+      },
+      {
+        "ttft": 99999,
+        "totalMs": 99999,
+        "error": "The operation was aborted due to timeout"
+      },
+      {
+        "ttft": 99999,
+        "totalMs": 99999,
+        "error": "The operation was aborted due to timeout"
+      }
+    ],
+    "error": "The operation was aborted due to timeout",
+    "sampleText": ""
+  },
+  {
+    "id": "deepseek/deepseek-chat",
+    "name": "DeepSeek Chat (V3)",
+    "avgTtft": 895,
+    "runs": [
+      {
+        "ttft": 706,
+        "totalMs": 1755,
+        "firstWord": "Herm",
+        "fullText": "Hermes ist ein griechischer Gott und Götterbote, während ich eine KI bin, die Informationen liefert.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 1345,
+        "totalMs": 2526,
+        "firstWord": "Herm",
+        "fullText": "Hermes ist ein griechischer Gott und Bote der Götter, während \"dir\" eine deutsche Anredeform für \"du\" im Dativ ist.",
+        "reasoningCount": 0
+      },
+      {
+        "ttft": 633,
+        "totalMs": 2808,
+        "firstWord": "Ich",
+        "fullText": "Ich bin ein KI-Assistent, der entwickelt wurde, um Informationen zu liefern und Fragen zu beantworten, während Hermes ein griechischer Gott der Kommunikation und Reisende ist.",
+        "reasoningCount": 0
+      }
+    ],
+    "error": null,
+    "sampleText": "Hermes ist ein griechischer Gott und Götterbote, während ich eine KI bin, die Informationen liefert."
+  }
+]

@@ -109,6 +109,14 @@ export class OpenAICompatibleGateway implements ModelGateway {
             temperature: 0
           };
 
+          const isOpenRouter = this.definition.baseUrl.includes('openrouter.ai') || this.name.toLowerCase().includes('openrouter');
+          if (isOpenRouter) {
+            bodyPayload.provider = { sort: 'latency', allow_fallbacks: true };
+            if (model.toLowerCase().includes('mimo')) {
+              bodyPayload.reasoning = { enabled: false };
+            }
+          }
+
           const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
@@ -191,6 +199,14 @@ export class OpenAICompatibleGateway implements ModelGateway {
       max_tokens: req.maxTokens || 1024, 
       stream: true,
     };
+
+    const isOpenRouter = this.definition.baseUrl.includes('openrouter.ai') || this.name.toLowerCase().includes('openrouter');
+    if (isOpenRouter) {
+      streamPayload.provider = { sort: 'latency', allow_fallbacks: true };
+      if (model.toLowerCase().includes('mimo')) {
+        streamPayload.reasoning = { enabled: false };
+      }
+    }
 
     try {
       res = await fetch(`${this.definition.baseUrl}/chat/completions`, {

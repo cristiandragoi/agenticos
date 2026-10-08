@@ -432,11 +432,28 @@ router.post('/speak', async (req, res) => {
     let audio: Buffer | null = null;
     let contentType = 'audio/mpeg';
 
-    // ── GERMAN: Deepgram aura-2-julius-de ONLY — clear error, never a silent fallback ──
+    // ── GERMAN: Deepgram aura-2-julius-de ONLY — streamed chunk-by-chunk, clear error, never a silent fallback ──
     if (detectedLang === 'de') {
       try {
+        const { streamGermanJuliusResponse } = await import('../services/voice/localTts.js');
+        const deepgramRes = await streamGermanJuliusResponse(cleanText);
+        res.set({
+          'Content-Type': 'audio/mpeg',
+          'Transfer-Encoding': 'chunked',
+          'X-TTS-Voice': GERMAN_DEEPGRAM_VOICE,
+          'X-TTS-Provider': 'deepgram'
+        });
+        if (deepgramRes.body) {
+          const reader = deepgramRes.body.getReader();
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            res.write(Buffer.from(value));
+          }
+          res.end();
+          return;
+        }
         const deAudio = await synthesizeGermanJulius(cleanText);
-        res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': deAudio.byteLength.toString(), 'X-TTS-Voice': GERMAN_DEEPGRAM_VOICE, 'X-TTS-Provider': 'deepgram' });
         return res.send(deAudio);
       } catch (deErr: any) {
         logger.error('[Voice/Speak] German voice failed (no fallback):', deErr?.message);
