@@ -13,6 +13,7 @@ import type { AudioBridge } from '../audioBridge.js';
 import type { DesktopObserver } from '../desktopObserver.js';
 import type { TraceCorrelator } from '../traceCorrelator.js';
 import type { ScenarioResult, StepEvidence } from '../types.js';
+import { notifyStepStart, notifyStepComplete, recordInteractionTurn } from '../monitor/monitorServer.js';
 
 export async function runScenarioB(
   page: Page,
@@ -27,6 +28,7 @@ export async function runScenarioB(
 
   const steps: StepEvidence[] = [];
 
+  notifyStepStart('B', 1, 'Command Gmail compose in Comet Perplexity');
   const t0 = Date.now();
   const utterance = {
     text: 'Öffne Gmail in Comet Perplexity und erstelle eine neue E-Mail.',
@@ -60,7 +62,7 @@ export async function runScenarioB(
 
   const stepPass = Boolean(browserRunning || isGmailOrCometWindow || assistantAskedRecipient);
 
-  steps.push({
+  const stepEvidence: StepEvidence = {
     stepIndex: 1,
     description: 'Speak: "Öffne Gmail in Comet Perplexity und erstelle eine neue E-Mail."',
     spokenCommand: utterance,
@@ -76,7 +78,19 @@ export async function runScenarioB(
       `Screenshot: ${obs.screenshotPath}`,
     ],
     failureStage: stepPass ? undefined : 'Comet/Gmail was not launched or recipient prompt missing',
+  };
+  steps.push(stepEvidence);
+  recordInteractionTurn({
+    scenarioId: 'B',
+    stepIndex: 1,
+    simText: utterance.text,
+    simLang: utterance.language,
+    sttText: trace.whisperFinalTranscript || '',
+    jarvisText: trace.fullAssistantText || (audioResp.heardAudio ? 'Audible response received' : ''),
+    heardAudio: audioResp.heardAudio,
+    latencyMs: trace.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence);
 
   const overallVerdict = steps.every((s) => s.verdict === 'PASS') ? 'PASS' : 'FAIL';
 

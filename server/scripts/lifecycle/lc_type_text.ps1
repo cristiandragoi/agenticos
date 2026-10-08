@@ -14,7 +14,7 @@ public class LcFg {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
@@ -33,13 +33,19 @@ public class LcFg {
         if (IsIconic(h)) ShowWindow(h, 9);
         ShowWindow(h, 5);
         IntPtr fg = GetForegroundWindow();
-        uint fgThread = GetWindowThreadProcessId(fg, IntPtr.Zero);
+        uint fgPid = 0;
+        uint fgThread = GetWindowThreadProcessId(fg, out fgPid);
+        uint hPid = 0;
+        GetWindowThreadProcessId(h, out hPid);
         uint me = GetCurrentThreadId();
         keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero);
         if (fgThread != me) AttachThreadInput(me, fgThread, true);
         SetForegroundWindow(h);
         if (fgThread != me) AttachThreadInput(me, fgThread, false);
-        ok = (GetForegroundWindow() == h);
+        IntPtr newFg = GetForegroundWindow();
+        uint newFgPid = 0;
+        GetWindowThreadProcessId(newFg, out newFgPid);
+        ok = (newFg == h) || (hPid != 0 && newFgPid == hPid);
       } finally {
         if (hDesk != IntPtr.Zero) CloseDesktop(hDesk);
       }
@@ -66,7 +72,12 @@ try {
     $doc = $el.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
     if ($doc) { $doc.SetFocus(); $r.focusedControl = $doc.Current.ControlType.ProgrammaticName }
   } catch { $r.focusWarning = $_.Exception.Message }
-  if ([LcFg]::GetForegroundWindow() -ne $h) { throw "foreground changed before typing; refusing to type" }
+  $fgNow = [LcFg]::GetForegroundWindow()
+  $pidFg = 0
+  [LcFg]::GetWindowThreadProcessId($fgNow, [ref]$pidFg)
+  $pidH = 0
+  [LcFg]::GetWindowThreadProcessId($h, [ref]$pidH)
+  if ($fgNow -ne $h -and ($pidFg -eq 0 -or $pidFg -ne $pidH)) { throw "foreground changed before typing; refusing to type" }
   $escaped = [regex]::Replace($text, '[+^%~(){}\[\]]', { param($m) '{' + $m.Value + '}' })
   [System.Windows.Forms.SendKeys]::SendWait($escaped)
   $r.sent = $true

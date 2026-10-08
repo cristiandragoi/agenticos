@@ -1911,8 +1911,8 @@ export class AuthoritativeIntentCompiler {
 
     // Generic Desktop Application Launch vs Contextual Web/Entity Action
     const genericAppMatch =
-      stripped.match(/^(?:open|launch|bring\s+up|start|focus|play|watch)\s+(?:the\s+)?([a-zA-Z0-9_\-\.\s]+?)(?:\s+(?:inside|in|on)\s+(?:my\s+)?(?:laptop|computer|desktop|pc|machine|lab))?[.!?]?$/i) ||
-      stripped.match(/\b(?:open|launch|bring\s+up|start|focus|play|watch)\s+(?:the\s+)?([a-zA-Z0-9_\-\.]+?)\s+(?:inside|in|on)\s+(?:my\s+)?(?:laptop|computer|desktop|pc|machine|lab)\b/i);
+      stripped.match(/^(?:open|launch|bring\s+up|start|focus|play|watch|öffne|öffnen|offne|offnen|starte|starten)\s+(?:the\s+|das\s+|die\s+|den\s+|mein\s+|meine\s+)?([a-zA-Z0-9_\-\.\s]+?)(?:\s+(?:inside|in|on)\s+(?:my\s+)?(?:laptop|computer|desktop|pc|machine|lab))?[.!?]?$/i) ||
+      stripped.match(/\b(?:open|launch|bring\s+up|start|focus|play|watch|öffne|öffnen|offne|offnen|starte|starten)\s+(?:the\s+|das\s+|die\s+|den\s+|mein\s+|meine\s+)?([a-zA-Z0-9_\-\.]+?)\s+(?:inside|in|on)\s+(?:my\s+)?(?:laptop|computer|desktop|pc|machine|lab)\b/i);
 
     if (genericAppMatch && genericAppMatch[1]) {
       const rawCandidate = genericAppMatch[1].trim();

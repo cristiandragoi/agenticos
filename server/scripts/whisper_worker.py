@@ -99,17 +99,23 @@ def main():
                 sys.stdout.flush()
                 continue
 
-            if language == "de":
-                initial_prompt = "Hallo Jarvis, wie spät ist es, was kannst du tun, erzähl mir einen kurzen Witz, danke das reicht, Stopp, Halt, Abbrechen, Ruhe, AgenticOS, bitte auf Deutsch."
-            else:
-                initial_prompt = "Jarvis, stop, halt, cancel, quiet, shut up, be quiet, Hallo Jarvis, Julian Goldy, SEO, YouTube, ChatGPT, Telegram, AgenticOS, Free Cash, Shopify."
+            # High-fidelity bilingual initial prompt covering key commands, entity names, and language switching
+            initial_prompt = (
+                "Hallo Jarvis, wie spät ist es, was kannst du tun, erzähl mir einen kurzen Witz, danke das reicht, "
+                "Stopp, Halt, Abbrechen, Ruhe, Sprich ab jetzt Deutsch, bitte auf Deutsch, öffne Gmail, "
+                "erstelle eine neue E-Mail, Schreibe an, cdinternationalproject@gmail.com, Betreff, Test AgenticOS, "
+                "Öffne WhatsApp, WhatsApp, Telegram, YouTube, ChatGPT, Comet, Perplexity, AgenticOS, Free Cash, Shopify, "
+                "stop, halt, cancel, quiet, shut up, be quiet, switch to English, what time is it, how are you."
+            )
 
             transcribe_kwargs = {
                 "beam_size": 1,
                 "temperature": 0.0,
                 "initial_prompt": initial_prompt
             }
-            if language and language != "auto":
+            # Only force language if explicitly pinned to a non-English language (e.g. 'de' or 'ro').
+            # If 'en', 'auto', or None, allow multilingual language identification to detect German/English dynamically.
+            if language and language not in ["auto", "en"]:
                 transcribe_kwargs["language"] = language
 
             segments, info = model.transcribe(audio_path, **transcribe_kwargs)

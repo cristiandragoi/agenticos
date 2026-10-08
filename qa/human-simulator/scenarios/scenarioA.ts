@@ -11,6 +11,7 @@ import type { AudioBridge } from '../audioBridge.js';
 import type { DesktopObserver } from '../desktopObserver.js';
 import type { TraceCorrelator } from '../traceCorrelator.js';
 import type { ScenarioResult, StepEvidence } from '../types.js';
+import { notifyStepStart, notifyStepComplete, recordInteractionTurn } from '../monitor/monitorServer.js';
 
 export async function runScenarioA(
   page: Page,
@@ -26,6 +27,7 @@ export async function runScenarioA(
   const steps: StepEvidence[] = [];
 
   // Step 1: "Jarvis, kannst du mich hören?"
+  notifyStepStart('A', 1, 'Inquire voice audibility: "Jarvis, kannst du mich hören?"');
   console.log('[Scenario A] Step 1: Inquiring voice audibility...');
   const t0 = Date.now();
   const utterance1 = { text: 'Jarvis, kannst du mich hören?', language: 'de' as const };
@@ -37,7 +39,7 @@ export async function runScenarioA(
   const trace1 = correlator.correlateTurn(t0);
 
   const step1Pass = audioResp1.heardAudio || Boolean(trace1.fullAssistantText);
-  steps.push({
+  const stepEvidence1: StepEvidence = {
     stepIndex: 1,
     description: 'Speak: "Jarvis, kannst du mich hören?" and verify audible response',
     spokenCommand: utterance1,
@@ -51,9 +53,22 @@ export async function runScenarioA(
       `Lifecycle outcome: ${trace1.lifecycleOutcome || 'unknown'}`,
     ],
     failureStage: step1Pass ? undefined : 'No audible response produced for initial greeting',
+  };
+  steps.push(stepEvidence1);
+  recordInteractionTurn({
+    scenarioId: 'A',
+    stepIndex: 1,
+    simText: utterance1.text,
+    simLang: utterance1.language,
+    sttText: trace1.whisperFinalTranscript || '',
+    jarvisText: trace1.fullAssistantText || (audioResp1.heardAudio ? 'Audible acknowledgment received' : ''),
+    heardAudio: audioResp1.heardAudio,
+    latencyMs: trace1.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence1);
 
   // Step 2: "Sprich ab jetzt Deutsch."
+  notifyStepStart('A', 2, 'Command language switch: "Sprich ab jetzt Deutsch."');
   console.log('\n[Scenario A] Step 2: Commanding language switch to German...');
   const t1 = Date.now();
   const utterance2 = { text: 'Sprich ab jetzt Deutsch.', language: 'de' as const };
@@ -69,7 +84,7 @@ export async function runScenarioA(
     audioResp2.heardAudio;
 
   const step2Pass = Boolean(isGermanResponse);
-  steps.push({
+  const stepEvidence2: StepEvidence = {
     stepIndex: 2,
     description: 'Speak: "Sprich ab jetzt Deutsch." and verify German response',
     spokenCommand: utterance2,
@@ -83,7 +98,19 @@ export async function runScenarioA(
       `Lifecycle outcome: ${trace2.lifecycleOutcome || 'unknown'}`,
     ],
     failureStage: step2Pass ? undefined : 'Subsequent response was not in German or failed lifecycle',
+  };
+  steps.push(stepEvidence2);
+  recordInteractionTurn({
+    scenarioId: 'A',
+    stepIndex: 2,
+    simText: utterance2.text,
+    simLang: utterance2.language,
+    sttText: trace2.whisperFinalTranscript || '',
+    jarvisText: trace2.fullAssistantText || (audioResp2.heardAudio ? 'Audible German response received' : ''),
+    heardAudio: audioResp2.heardAudio,
+    latencyMs: trace2.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence2);
 
   const overallVerdict = steps.every((s) => s.verdict === 'PASS') ? 'PASS' : 'FAIL';
 

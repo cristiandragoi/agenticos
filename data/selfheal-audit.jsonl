@@ -4286,3 +4286,68 @@
 {"incidentId":"SELFHEAL-354","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T20:18:29.191Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
 {"incidentId":"SELFHEAL-352","fromState":"TESTING","toState":"VERIFYING","timestamp":"2026-10-08T20:18:36.391Z","actor":"supervisor","reason":"Running Argus verification"}
 {"incidentId":"SELFHEAL-352","fromState":"VERIFYING","toState":"BLOCKED_VERIFIER_UNAVAILABLE","timestamp":"2026-10-08T20:18:37.642Z","actor":"RepairVerifier","reason":"Verifier provider is empty or offline"}
+{"incidentId":"SELFHEAL-355","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T20:38:21.286Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-355","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T20:38:21.301Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-355","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T20:38:21.302Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-355","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T20:38:25.586Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-355","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T20:38:25.587Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-355","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T20:38:31.237Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-355","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T20:38:31.237Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-355","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T20:38:32.246Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
+{"incidentId":"SELFHEAL-356","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T20:39:27.459Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-356","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T20:39:27.474Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-356","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T20:39:27.475Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-355","fromState":"TESTING","toState":"VERIFYING","timestamp":"2026-10-08T20:39:31.928Z","actor":"supervisor","reason":"Running Argus verification"}
+{"incidentId":"SELFHEAL-356","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T20:39:32.408Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-356","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T20:39:32.409Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-356","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T20:39:38.277Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-356","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T20:39:38.278Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-356","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T20:39:39.665Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
+{"incidentId":"SELFHEAL-355","fromState":"VERIFYING","toState":"BLOCKED_VERIFIER_UNAVAILABLE","timestamp":"2026-10-08T20:39:41.220Z","actor":"RepairVerifier","reason":"Verifier provider is empty or offline"}
+{"incidentId":"SELFHEAL-357","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T20:56:53.852Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-357","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T20:56:53.860Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-357","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T20:56:53.860Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-357","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T20:56:57.908Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-357","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T20:56:57.909Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-357","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T20:57:03.896Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-357","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T20:57:03.898Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-357","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T20:57:05.476Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
+{"incidentId":"SELFHEAL-358","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T20:57:43.012Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-358","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T20:57:43.024Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-358","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T20:57:43.024Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-358","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T20:57:47.765Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-358","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T20:57:47.766Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-358","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T20:57:53.975Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-358","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T20:57:53.975Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-358","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T20:57:55.590Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
+{"incidentId":"SELFHEAL-359","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T20:59:41.289Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-359","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T20:59:41.307Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-359","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T20:59:41.308Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-359","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T20:59:45.582Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-359","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T20:59:45.584Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-359","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T20:59:51.484Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-359","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T20:59:51.485Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-359","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T20:59:52.500Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
+{"incidentId":"SELFHEAL-360","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T21:00:21.839Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-360","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T21:00:21.850Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-360","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T21:00:21.850Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-360","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T21:00:25.544Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-360","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T21:00:25.545Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-360","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T21:00:31.543Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-360","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T21:00:31.544Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-361","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T21:09:47.371Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-361","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T21:09:47.378Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-361","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T21:09:47.380Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-361","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T21:09:52.003Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-361","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T21:09:52.005Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-361","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T21:09:58.471Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-361","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T21:09:58.472Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-361","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T21:09:59.705Z","actor":"supervisor","reason":"Running tests with baseline comparison"}
+{"incidentId":"SELFHEAL-362","fromState":null,"toState":"CREATED","timestamp":"2026-10-08T21:10:33.025Z","actor":"FailureDetector","reason":"Incident detected"}
+{"incidentId":"SELFHEAL-362","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-08T21:10:33.040Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-362","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-08T21:10:33.041Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-362","fromState":"DIAGNOSING","toState":"DIAGNOSIS_COMPLETE","timestamp":"2026-10-08T21:10:37.137Z","actor":"RepairDiagnostician","reason":"Diagnosis confirmed","model":"hermes","provider":"offline"}
+{"incidentId":"SELFHEAL-362","fromState":"DIAGNOSIS_COMPLETE","toState":"SNAPSHOTTING","timestamp":"2026-10-08T21:10:37.138Z","actor":"supervisor","reason":"Creating dirty-state snapshot"}
+{"incidentId":"SELFHEAL-362","fromState":"SNAPSHOTTING","toState":"PLANNING","timestamp":"2026-10-08T21:10:43.483Z","actor":"supervisor","reason":"Snapshot verified, planning repair"}
+{"incidentId":"SELFHEAL-362","fromState":"PLANNING","toState":"REPAIRING","timestamp":"2026-10-08T21:10:43.484Z","actor":"supervisor","reason":"Executing repair in isolated worktree"}
+{"incidentId":"SELFHEAL-362","fromState":"REPAIRING","toState":"TESTING","timestamp":"2026-10-08T21:10:44.829Z","actor":"supervisor","reason":"Running tests with baseline comparison"}

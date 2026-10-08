@@ -8,6 +8,7 @@
 
 import type { Page } from 'puppeteer-core';
 import type { AudioResponseCapture, SpokenUtterance } from './types.js';
+import { notifySimulatorSpoke, notifyJarvisReplied } from './monitor/monitorServer.js';
 
 export class AudioBridge {
   private backendUrl: string;
@@ -115,7 +116,7 @@ export class AudioBridge {
     }
 
     let lastError: any = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 6; attempt++) {
       try {
         const res = await fetch(`${this.backendUrl}/api/voice/tts`, {
           method: 'POST',
@@ -139,8 +140,8 @@ export class AudioBridge {
         };
       } catch (err) {
         lastError = err;
-        if (attempt < 3) {
-          await new Promise((r) => setTimeout(r, 1000));
+        if (attempt < 6) {
+          await new Promise((r) => setTimeout(r, 1500));
         }
       }
     }
@@ -154,6 +155,9 @@ export class AudioBridge {
    */
   async speak(page: Page, utterance: SpokenUtterance): Promise<number> {
     console.log(`[AudioBridge] Speaking to Jarvis: "${utterance.text}" (${utterance.language})`);
+    try {
+      notifySimulatorSpoke(utterance.text, utterance.language);
+    } catch {}
     const { audioData, mimeType } = await this.synthesizeUtterance(utterance.text, utterance.language);
 
     // Give a brief pre-roll silence
@@ -230,10 +234,16 @@ export class AudioBridge {
       };
     }, timeoutMs);
 
-    return {
+    const res: AudioResponseCapture = {
       heardAudio: capture.heardAudio,
       durationMs: capture.durationMs || (capture.heardAudio ? Date.now() - t0 : 0),
       maxRms: capture.maxRms,
     };
+
+    try {
+      notifyJarvisReplied(res.heardAudio ? 'Audible response received' : '', res.heardAudio, res.durationMs, Date.now() - t0);
+    } catch {}
+
+    return res;
   }
 }

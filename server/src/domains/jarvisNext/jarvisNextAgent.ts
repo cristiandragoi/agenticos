@@ -1310,7 +1310,8 @@ export class JarvisNextAgent {
             const capturedFrames = [...this.speechFrames];
             const specWav = pcmChunksToWav(capturedFrames, this.lastFrameSampleRate, this.lastFrameChannels);
             this.speculativeTranscribeTurnId = currentTurn;
-            const sttLang = getActiveLanguage();
+            const activeLang = getActiveLanguage();
+            const sttLang = activeLang === 'de' ? 'de' : 'auto';
             transcribeLocally(specWav, '.wav', sttLang, currentTurn, Math.round(capturedFrames.length * 20)).then((res) => {
               if (this.currentUserTurnId === currentTurn && this.silenceTimeout && res && res.text) {
                 this.precomputedSttResult = res;
@@ -1535,7 +1536,8 @@ export class JarvisNextAgent {
         this.precomputedSttResult = null;
         logJRT('STT_SPECULATIVE_REUSE', `turn=${turnId} text="${transcribeResult.text}"`);
       } else {
-        const sttLang = getActiveLanguage();
+        const activeLang = getActiveLanguage();
+        const sttLang = activeLang === 'de' ? 'de' : 'auto';
         transcribeResult = await transcribeLocally(wavBuffer, '.wav', sttLang, turnId, rawAudioDurationMs);
       }
 
@@ -1630,6 +1632,14 @@ export class JarvisNextAgent {
         logger.info(`[JarvisNext] User turn #${turnId} superseded by turn #${this.currentUserTurnId}.`);
         this.isProcessingUserTurn = false;
         return;
+      }
+
+      // Check for compound barge-in / stop + command (e.g. "Stopp. Öffne WhatsApp.")
+      const compoundStopMatch = text.match(/^(?:stopp?|halt|abbrechen|stop|cancel|ruhe|pause)[.,;:!?]?\s+(.+)$/i);
+      if (compoundStopMatch) {
+        logger.info(`[JarvisNext] Compound barge-in / task switch detected: "${text}". Interrupting active playout and switching to: "${compoundStopMatch[1]}".`);
+        this.interruptAssistantPlayout('compound_stop_switch');
+        text = compoundStopMatch[1].trim();
       }
 
       // Control intent detection via dedicated low-latency detector
@@ -1871,6 +1881,14 @@ export class JarvisNextAgent {
     // Lifecycle Phase 1: STT_COMPLETE
     logJRT('STT_COMPLETE', `turn=${activeTurnId} text_length=${text.length}`);
     logger.info('[JarvisNext] Lifecycle Phase: STT_COMPLETE', { turnId: activeTurnId, textLength: text.length });
+
+    // Check for compound barge-in / stop + command (e.g. "Stopp. Öffne WhatsApp.")
+    const compoundStopMatch = text.match(/^(?:stopp?|halt|abbrechen|stop|cancel|ruhe|pause)[.,;:!?]?\s+(.+)$/i);
+    if (compoundStopMatch) {
+      logger.info(`[JarvisNext] Compound barge-in / task switch detected: "${text}". Interrupting active playout and switching to: "${compoundStopMatch[1]}".`);
+      this.interruptAssistantPlayout('compound_stop_switch');
+      text = compoundStopMatch[1].trim();
+    }
 
     // STOP is transport control (halt playout), not a goal. It never reaches the lifecycle as work.
     const controlResult = detectControlIntent(text, { isBargeIn, sttConfidence: confidence });

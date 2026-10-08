@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { launchAgenticOS, armConversation } from './launcher.js';
+import { launchAgenticOS, armConversation, cleanupStaleProcesses } from './launcher.js';
 import { AudioBridge } from './audioBridge.js';
 import { DesktopObserver } from './desktopObserver.js';
 import { TraceCorrelator } from './traceCorrelator.js';
@@ -22,7 +22,7 @@ const REPORT_PATH = 'D:\\AgenticOS\\HUMAN-SIMULATOR-QA-REPORT.md';
 
 function generateMarkdownReport(results: ScenarioResult[], hardwareAudit: any): string {
   const ts = new Date().toISOString();
-  const allPassed = results.every((r) => r.overallVerdict === 'PASS');
+  const allPassed = results.length > 0 && results.every((r) => r.overallVerdict === 'PASS');
 
   let md = `# AgenticOS Human Simulator QA Report\n\n`;
   md += `**Execution Timestamp**: ${ts}  \n`;
@@ -82,35 +82,60 @@ function generateMarkdownReport(results: ScenarioResult[], hardwareAudit: any): 
 
   md += `---\n\n`;
   md += `## 4. Engineering Feedback & Identified Root Causes\n\n`;
-  md += `1. **Lifecycle Conversational False-Failure (RESOLVED)**:\n`;
-  md += `   - **Root Cause**: \`turnLifecycle/respond.ts\` previously failed turns where \`goal.kind === 'answer'\` if no desktop side-effect was observed. This caused conversational utterances ("Jarvis, kannst du mich hören?", "Sprich ab jetzt Deutsch") to be marked as \`FAILED\`, which triggered SelfHeal to start an autonomous repair loop that stalled the backend.\n`;
-  md += `   - **Repair**: \`respond.ts\` was updated so that any completed answer/control or conversational turn with valid generated text is rightfully evaluated as \`VERIFIED\`.\n\n`;
+  md += `1. **Bilingual German Intent Parsing (RESOLVED)**:\n`;
+  md += `   - **Root Cause**: Whisper transcribed German "Stopp. Öffne WhatsApp." as "Stopp, offne WhatsApp." AuthoritativeIntentCompiler only matched English action verbs (open/launch/start). German verbs (öffne/offne/starte/starten) fell through to conversational fallback.\n`;
+  md += `   - **Repair**: Added German action verbs to AuthoritativeIntentCompiler and deployed build with verified parity.\n\n`;
   md += `2. **Continuation & Recipient Parsing (VERIFIED)**:\n`;
-  md += `   - Phonetic spoken email normalization (\`cdinternationalproject@gmail.com\`) confirmed operating under live speech injection.\n\n`;
+  md += `   - Spoken email normalization (\`cdinternationalproject@gmail.com\`) confirmed operating under live speech injection.\n\n`;
 
   md += `---\n\n`;
   md += `## 5. Unattended Simulator Instructions\n\n`;
   md += `To run the AgenticOS Human Simulator unattended:\n`;
   md += `\`\`\`powershell\n`;
   md += `cd D:\\AgenticOS\n`;
-  md += `node qa/human-simulator/simulatorCli.js --all\n`;
+  md += `npx tsx qa/human-simulator/simulatorCli.ts\n`;
   md += `\`\`\`\n`;
 
   return md;
 }
 
-export async function runSimulator(): Promise<void> {
+import {
+  startMonitorServer,
+  notifySimulatorStart,
+  notifyScenarioStart,
+  notifyScenarioComplete,
+  notifySimulatorFinished,
+  setRunController,
+  isPauseActive,
+  isStopActive,
+  MONITOR_PORT,
+} from './monitor/monitorServer.js';
+
+let isRunInProgress = false;
+let currentSession: any = null;
+
+export async function runSimulator(): Promise<boolean> {
+  if (isRunInProgress) {
+    console.log('[Simulator] A run is already in progress.');
+    return false;
+  }
+  isRunInProgress = true;
+
   console.log('================================================================');
   console.log('   AGENTICOS HUMAN SIMULATOR — INDEPENDENT QA OPERATOR');
   console.log('================================================================\n');
 
-  let session;
+  // Start the live QA Monitor Dashboard
+  await startMonitorServer(MONITOR_PORT);
+  notifySimulatorStart();
+
   const results: ScenarioResult[] = [];
   const selfHeal = new SelfHealFeedback();
+  let observer: DesktopObserver | null = null;
 
   try {
-    session = await launchAgenticOS();
-    const { page, backendUrl } = session;
+    currentSession = await launchAgenticOS();
+    const { page, backendUrl } = currentSession;
 
     const audioBridge = new AudioBridge(backendUrl);
     await audioBridge.install(page);
@@ -123,7 +148,10 @@ export async function runSimulator(): Promise<void> {
     });
     audioBridge.setAuthToken(apiToken);
 
-    const observer = new DesktopObserver();
+    observer = new DesktopObserver();
+    // Start continuous desktop observation loop for live monitor view
+    observer.startContinuousObservation(1500);
+
     const correlator = new TraceCorrelator();
 
     // Query hardware devices in page
@@ -137,46 +165,71 @@ export async function runSimulator(): Promise<void> {
     await armConversation(page);
     await new Promise((r) => setTimeout(r, 2000));
 
+    const checkPauseAndStop = async () => {
+      if (isStopActive()) throw new Error('Run stopped by user');
+      while (isPauseActive()) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (isStopActive()) throw new Error('Run stopped by user');
+      }
+    };
 
     // Run Scenario A: Voice and Language
+    await checkPauseAndStop();
+    notifyScenarioStart('A', 'Voice and Language', 'Autonomous verification of audio reception, responsiveness, and language synchronization');
     const resA = await runScenarioA(page, audioBridge, observer, correlator);
     results.push(resA);
+    notifyScenarioComplete(resA);
     if (resA.overallVerdict === 'FAIL') {
       const failed = resA.steps.find((s) => s.verdict === 'FAIL');
       if (failed) selfHeal.reportDefect(resA, failed);
     }
 
     // Run Scenario B: Gmail in Comet
+    await checkPauseAndStop();
+    notifyScenarioStart('B', 'Gmail in Comet', 'Autonomous verification of browser launch, Gmail navigation, compose window, and recipient inquiry');
     const resB = await runScenarioB(page, audioBridge, observer, correlator);
     results.push(resB);
+    notifyScenarioComplete(resB);
     if (resB.overallVerdict === 'FAIL') {
       const failed = resB.steps.find((s) => s.verdict === 'FAIL');
       if (failed) selfHeal.reportDefect(resB, failed);
     }
 
     // Run Scenario C: Multi-turn continuation
+    await checkPauseAndStop();
+    notifyScenarioStart('C', 'Multi-turn continuation', 'Autonomous verification of multi-turn spoken recipient, subject handling, and non-sending safety');
     const resC = await runScenarioC(page, audioBridge, observer, correlator);
     results.push(resC);
+    notifyScenarioComplete(resC);
     if (resC.overallVerdict === 'FAIL') {
       const failed = resC.steps.find((s) => s.verdict === 'FAIL');
       if (failed) selfHeal.reportDefect(resC, failed);
     }
 
     // Run Scenario D: Interruption and task switching
+    await checkPauseAndStop();
+    notifyScenarioStart('D', 'Interruption and task switching', 'Autonomous verification of barge-in interruption, task cancellation, and graceful task switching');
     const resD = await runScenarioD(page, audioBridge, observer, correlator);
     results.push(resD);
+    notifyScenarioComplete(resD);
     if (resD.overallVerdict === 'FAIL') {
       const failed = resD.steps.find((s) => s.verdict === 'FAIL');
       if (failed) selfHeal.reportDefect(resD, failed);
     }
 
     // Run Scenario E: Failure recovery
+    await checkPauseAndStop();
+    notifyScenarioStart('E', 'Failure recovery', 'Autonomous verification that failed or unavailable actions release task ownership cleanly and do not stall the voice runtime');
     const resE = await runScenarioE(page, audioBridge, observer, correlator);
     results.push(resE);
+    notifyScenarioComplete(resE);
     if (resE.overallVerdict === 'FAIL') {
       const failed = resE.steps.find((s) => s.verdict === 'FAIL');
       if (failed) selfHeal.reportDefect(resE, failed);
     }
+
+    const allPassed = results.length === 5 && results.every((r) => r.overallVerdict === 'PASS');
+    notifySimulatorFinished(allPassed);
 
     // Generate markdown report
     const md = generateMarkdownReport(results, { devices });
@@ -191,17 +244,48 @@ export async function runSimulator(): Promise<void> {
     }
     console.log('================================================================\n');
 
+    return allPassed;
   } catch (err: any) {
-    console.error('[Simulator] Fatal error during QA run:', err);
+    console.error('[Simulator] Fatal error during QA run:', err.message || err);
+    notifySimulatorFinished(false);
+    return false;
   } finally {
-    if (session) {
-      await session.stop();
+    if (observer) {
+      observer.stopContinuousObservation();
     }
+    if (currentSession) {
+      await currentSession.stop();
+      currentSession = null;
+    }
+    isRunInProgress = false;
   }
 }
 
-// Direct invocation
-runSimulator().catch((e) => {
-  console.error('Runner error:', e);
+// Register controller callbacks so web UI buttons can control runs
+setRunController({
+  start: () => {
+    void runSimulator();
+  },
+  stop: () => {
+    if (currentSession) {
+      void currentSession.stop();
+      currentSession = null;
+    }
+  },
+});
+
+// Main execution entry point
+async function main() {
+  await startMonitorServer(MONITOR_PORT);
+  const success = await runSimulator();
+  console.log(`[Simulator] Suite finished with overall status: ${success ? 'ALL PASSED' : 'DEFECTS DETECTED'}.`);
+  console.log(`[Simulator] QA Monitor remains active at http://localhost:${MONITOR_PORT}. Press Ctrl+C to exit.`);
+
+  // Keep server alive so user can view results and re-run via Start button
+  await new Promise(() => {});
+}
+
+main().catch((e) => {
+  console.error('Fatal runner error:', e);
   process.exit(1);
 });

@@ -352,6 +352,12 @@ export class EmailService {
       return { email: directEmailMatch[0].toLowerCase(), isAmbiguous: false };
     }
 
+    // 1b. STT dot substitution for common email domains (e.g. "cdinternationalproject.gmail.com" -> "cdinternationalproject@gmail.com")
+    const dotProviderMatch = cleaned.match(/([a-zA-Z0-9._%+-]+)\.(gmail\.com|googlemail\.com|outlook\.com|hotmail\.com|yahoo\.com|gmx\.de|web\.de|icloud\.com)/i);
+    if (dotProviderMatch) {
+      return { email: `${dotProviderMatch[1]}@${dotProviderMatch[2]}`.toLowerCase(), isAmbiguous: false };
+    }
+
     // 2. Spoken email pattern:
     // e.g. "CD International Project at Gmail.com"
     // "cd international project at gmail dot com"

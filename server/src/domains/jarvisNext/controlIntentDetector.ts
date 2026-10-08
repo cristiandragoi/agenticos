@@ -175,8 +175,14 @@ export function detectControlIntent(
 
   // 4. Check for exact control keywords in short utterances (<= 6 tokens)
   if (tokens.length <= 6) {
+    const ACTIONABLE_VERBS_OR_TARGETS = new Set([
+      'öffne', 'öffnen', 'open', 'starte', 'start', 'launch', 'mach', 'schreib', 'schreibe', 'write',
+      'whatsapp', 'chrome', 'comet', 'gmail', 'mail', 'email', 'youtube', 'telegram', 'suche', 'search',
+      'zeig', 'zeige', 'show', 'lies', 'read', 'erstell', 'erstelle', 'create'
+    ]);
+
     for (const kw of CONTROL_KEYWORDS) {
-      if (clean === kw || clean.startsWith(`${kw} `) || clean.endsWith(` ${kw}`) || clean.includes(` ${kw} `)) {
+      if (clean === kw || clean.endsWith(` ${kw}`)) {
         return {
           isControl: true,
           intent: 'STOP',
@@ -185,6 +191,21 @@ export function detectControlIntent(
           rawText: trimmed,
           reason: `keyword_match_${kw}`,
         };
+      }
+      if (clean.startsWith(`${kw} `) || clean.includes(` ${kw} `)) {
+        // If remainder contains an action verb or application target, this is a compound interruption/task switch
+        const remainingTokens = tokens.filter(t => t !== kw && !SPEECH_CONTROL_FOLLOWERS.has(t));
+        const hasActionable = remainingTokens.some(t => ACTIONABLE_VERBS_OR_TARGETS.has(t));
+        if (!hasActionable) {
+          return {
+            isControl: true,
+            intent: 'STOP',
+            confidence: 0.98,
+            normalizedPhrase: kw,
+            rawText: trimmed,
+            reason: `keyword_match_${kw}`,
+          };
+        }
       }
     }
 

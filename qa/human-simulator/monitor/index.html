@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgenticOS — Human Simulator QA Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090c10;
+      --card-bg: rgba(22, 27, 34, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover-border: rgba(56, 189, 248, 0.3);
+      --text: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    header {
+      background: rgba(13, 17, 23, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.9rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+    }
+    .brand-title {
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .btn-group {
+      display: flex;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      gap: 4px;
+    }
+    .btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.15s ease;
+    }
+    .btn:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, 0.08); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.btn-start { color: var(--accent-emerald); }
+    .btn.btn-start:hover:not(:disabled) { background: rgba(16, 185, 129, 0.15); }
+    .btn.btn-pause { color: var(--accent-amber); }
+    .btn.btn-pause:hover:not(:disabled) { background: rgba(245, 158, 11, 0.15); }
+    .btn.btn-stop { color: var(--accent-rose); }
+    .btn.btn-stop:hover:not(:disabled) { background: rgba(244, 63, 94, 0.15); }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+    .status-badge.running {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border-color: rgba(56, 189, 248, 0.3);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+    }
+    .status-badge.completed {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border-color: rgba(16, 185, 129, 0.3);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+    }
+    .status-badge.paused {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--accent-amber);
+      border-color: rgba(245, 158, 11, 0.3);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+    }
+    .status-badge.error, .status-badge.failed, .status-badge.disconnected {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      border-color: rgba(244, 63, 94, 0.3);
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.2);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+    main {
+      padding: 1.5rem 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 1100px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: border-color 0.2s ease;
+    }
+    .card:hover {
+      border-color: var(--card-hover-border);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 0.75rem;
+    }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .meta-tag {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .screen-container {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #05070a;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .screen-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .screen-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.92), transparent);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+    .chat-card {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .chat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .chat-label.sim { color: var(--accent-cyan); }
+    .chat-label.stt { color: var(--accent-amber); }
+    .chat-label.jarvis { color: var(--accent-emerald); }
+    .chat-bubble {
+      font-size: 0.92rem;
+      color: #f8fafc;
+      font-weight: 500;
+      line-height: 1.45;
+      min-height: 1.4rem;
+    }
+    .chat-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .scenario-item {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      transition: all 0.2s ease;
+    }
+    .scenario-item:hover, .scenario-item.active {
+      border-color: var(--accent-cyan);
+      background: rgba(30, 41, 59, 0.6);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+    }
+    .scenario-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .scenario-tag {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--accent-cyan);
+    }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.25rem 0.55rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge.pass { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge.fail { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); border: 1px solid rgba(244, 63, 94, 0.4); }
+    .badge.running { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.4); animation: pulse 1.5s infinite; }
+    .badge.pending, .badge.unverified { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .log-terminal {
+      background: #05070a;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      height: 200px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .log-line { display: flex; gap: 0.75rem; }
+    .log-ts { color: #64748b; flex-shrink: 0; }
+    .log-msg.info { color: #94a3b8; }
+    .log-msg.success { color: var(--accent-emerald); }
+    .log-msg.warn { color: var(--accent-amber); }
+    .log-msg.error { color: var(--accent-rose); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 16v-4"></path>
+          <path d="M12 8h.01"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">AgenticOS Human Simulator</div>
+        <div class="brand-subtitle">Autonomous QA Operator & Live Observer</div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="btn-group">
+        <button id="btnStart" class="btn btn-start" onclick="sendControl('start')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Start
+        </button>
+        <button id="btnPause" class="btn btn-pause" onclick="sendControl('pause')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          Pause
+        </button>
+        <button id="btnStop" class="btn btn-stop" onclick="sendControl('stop')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16"/></svg>
+          Stop
+        </button>
+      </div>
+
+      <div id="liveStatusBadge" class="status-badge">
+        <span class="pulse-dot"></span>
+        <span id="liveStatusText">CONNECTING...</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid-2">
+      <!-- Live Desktop Observer View -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+            Live Windows Desktop & AgenticOS
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <span id="frameCounterTag" class="meta-tag">Frame #0</span>
+            <span id="activeAppBadge" class="badge pass">Desktop</span>
+          </div>
+        </div>
+        <div class="screen-container">
+          <img id="liveDesktopImg" class="screen-img" src="/api/screenshot/latest" alt="Live Desktop View" onerror="handleImgError(this)">
+          <div class="screen-overlay">
+            <span id="fgWindowTitle">Foreground: [Scanning Desktop...]</span>
+            <span id="fgProcessName">Proc: --</span>
+          </div>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+          <span>Active Apps: <strong id="runningAppsText" style="color: #cbd5e1;">AgenticOS</strong></span>
+          <span id="desktopObservedTime" style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;">Live telemetry active</span>
+        </div>
+      </div>
+
+      <!-- Live Voice & Intent Pipeline -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+            Live Interaction & Speech Correlator
+          </div>
+          <span id="activeScenarioTag" class="meta-tag">Run: Idle</span>
+        </div>
+
+        <div class="chat-card">
+          <div class="chat-label sim">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+            Simulator Spoke (Audio Bridge)
+          </div>
+          <div id="simSpokenText" class="chat-bubble">Awaiting voice injection...</div>
+          <div id="simSpokenMeta" class="chat-meta">Voice: -- • Lang: --</div>
+        </div>
+
+        <div class="chat-card">
+          <div class="chat-label stt">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Whisper Transcribed (Raw STT)
+          </div>
+          <div id="sttTranscriptText" class="chat-bubble">Awaiting audio recognition...</div>
+          <div id="sttTranscriptMeta" class="chat-meta">Confidence: -- • Language: --</div>
+        </div>
+
+        <div class="chat-card">
+          <div class="chat-label jarvis">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
+            Jarvis Assistant Answered
+          </div>
+          <div id="jarvisResponseText" class="chat-bubble">Awaiting assistant response...</div>
+          <div id="jarvisResponseMeta" class="chat-meta">Audible: -- • Duration: --ms</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scenarios Verification Matrix -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Acceptance Scenarios Matrix
+        </div>
+        <span id="runIdTag" class="meta-tag">RUN ID: --</span>
+      </div>
+      <div class="scenario-grid">
+        <div id="cardA" class="scenario-item">
+          <div class="scenario-top">
+            <span class="scenario-tag">SCENARIO A</span>
+            <span id="badgeA" class="badge unverified">Unverified</span>
+          </div>
+          <div style="font-weight: 700; font-size: 0.9rem;">Voice & Language</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Verifies German speech synchronization, Whisper accuracy, and prompt responsiveness.</div>
+        </div>
+        <div id="cardB" class="scenario-item">
+          <div class="scenario-top">
+            <span class="scenario-tag">SCENARIO B</span>
+            <span id="badgeB" class="badge unverified">Unverified</span>
+          </div>
+          <div style="font-weight: 700; font-size: 0.9rem;">Gmail in Comet</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Verifies Comet browser launch, Gmail navigation, compose window, and recipient inquiry.</div>
+        </div>
+        <div id="cardC" class="scenario-item">
+          <div class="scenario-top">
+            <span class="scenario-tag">SCENARIO C</span>
+            <span id="badgeC" class="badge unverified">Unverified</span>
+          </div>
+          <div style="font-weight: 700; font-size: 0.9rem;">Multi-turn continuation</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Verifies spoken recipient parsing, subject handling, and non-sending draft protection.</div>
+        </div>
+        <div id="cardD" class="scenario-item">
+          <div class="scenario-top">
+            <span class="scenario-tag">SCENARIO D</span>
+            <span id="badgeD" class="badge unverified">Unverified</span>
+          </div>
+          <div style="font-weight: 700; font-size: 0.9rem;">Interruption & Task Switch</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Verifies barge-in interruption, previous task cancellation, and WhatsApp launch.</div>
+        </div>
+        <div id="cardE" class="scenario-item">
+          <div class="scenario-top">
+            <span class="scenario-tag">SCENARIO E</span>
+            <span id="badgeE" class="badge unverified">Unverified</span>
+          </div>
+          <div style="font-weight: 700; font-size: 0.9rem;">Failure Recovery</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Verifies unavailable tool rejection and prompt return to clean listening state.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Event & Diagnostics Log -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+          Simulator Event Stream & Diagnostics
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Real-time SSE event pipeline</span>
+      </div>
+      <div id="logTerminal" class="log-terminal">
+        <div class="log-line"><span class="log-ts">[00:00:00]</span><span class="log-msg info">Human Simulator QA Monitor initialized. Waiting for test events...</span></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let evtSource = null;
+
+    function initEventSource() {
+      if (evtSource) {
+        evtSource.close();
+      }
+      evtSource = new EventSource('/events');
+
+      evtSource.onopen = () => {
+        setConnStatus(true);
+      };
+
+      evtSource.onerror = () => {
+        setConnStatus(false);
+      };
+
+      evtSource.addEventListener('status', (e) => {
+        const data = JSON.parse(e.data);
+        renderStatus(data.status, data.runId);
+      });
+
+      evtSource.addEventListener('simulator_speech', (e) => {
+        const data = JSON.parse(e.data);
+        if (data) {
+          document.getElementById('simSpokenText').textContent = data.text;
+          document.getElementById('simSpokenMeta').textContent = `Lang: ${data.language} • ${new Date(data.timestamp).toLocaleTimeString()}`;
+        }
+      });
+
+      evtSource.addEventListener('whisper_transcription', (e) => {
+        const data = JSON.parse(e.data);
+        if (data) {
+          document.getElementById('sttTranscriptText').textContent = data.text;
+          document.getElementById('sttTranscriptMeta').textContent = `Confidence: ${(data.confidence ?? 1.0).toFixed(2)} • Detected: ${data.language || 'auto'}`;
+        }
+      });
+
+      evtSource.addEventListener('jarvis_response', (e) => {
+        const data = JSON.parse(e.data);
+        if (data) {
+          document.getElementById('jarvisResponseText').textContent = data.text || '(Audible playback without transcript)';
+          document.getElementById('jarvisResponseMeta').textContent = `Audible: ${data.audible ? 'YES' : 'NO'} (${data.durationMs}ms) • Latency: ${data.latencyMs ?? '--'}ms`;
+        }
+      });
+
+      evtSource.addEventListener('desktop_state', (e) => {
+        const data = JSON.parse(e.data);
+        document.getElementById('fgWindowTitle').textContent = `Foreground: "${data.foregroundWindowTitle || 'Desktop'}"`;
+        document.getElementById('fgProcessName').textContent = `Proc: ${data.foregroundProcessName || 'Desktop'}`;
+        document.getElementById('runningAppsText').textContent = data.runningProcesses?.join(', ') || 'none';
+        document.getElementById('frameCounterTag').textContent = `Frame #${data.frame || 0}`;
+        document.getElementById('desktopObservedTime').textContent = new Date(data.timestamp).toLocaleTimeString();
+        const appBadge = document.getElementById('activeAppBadge');
+        appBadge.textContent = data.foregroundProcessName || 'Desktop';
+        appBadge.className = 'badge pass';
+        if (data.screenshotUrl) {
+          const img = document.getElementById('liveDesktopImg');
+          img.src = data.screenshotUrl;
+        }
+      });
+
+      evtSource.addEventListener('scenario_start', (e) => {
+        const data = JSON.parse(e.data);
+        document.getElementById('activeScenarioTag').textContent = `Scenario ${data.scenarioId}: ${data.name}`;
+        const badge = document.getElementById('badge' + data.scenarioId);
+        if (badge) updateBadge(badge, 'RUNNING');
+        const card = document.getElementById('card' + data.scenarioId);
+        if (card) {
+          document.querySelectorAll('.scenario-item').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+        }
+      });
+
+      evtSource.addEventListener('step_start', (e) => {
+        const data = JSON.parse(e.data);
+        document.getElementById('activeScenarioTag').textContent = `Scenario ${data.scenarioId} [Step ${data.stepIndex}]: ${data.description}`;
+      });
+
+      evtSource.addEventListener('scenario_complete', (e) => {
+        const data = JSON.parse(e.data);
+        const scenario = data.scenario || data;
+        const badge = document.getElementById('badge' + scenario.scenarioId);
+        if (badge) updateBadge(badge, scenario.overallVerdict);
+        const card = document.getElementById('card' + scenario.scenarioId);
+        if (card) card.classList.remove('active');
+      });
+
+      evtSource.addEventListener('log', (e) => {
+        const data = JSON.parse(e.data);
+        addLogLine(data.level, data.message, data.timestamp);
+      });
+
+      evtSource.addEventListener('initial_state', (e) => {
+        const data = JSON.parse(e.data);
+        applyFullState(data);
+      });
+
+      evtSource.addEventListener('state_reset', (e) => {
+        const data = JSON.parse(e.data);
+        applyFullState(data);
+      });
+    }
+
+    function applyFullState(data) {
+      if (data.runId) {
+        document.getElementById('runIdTag').textContent = `RUN ID: ${data.runId}`;
+      }
+      if (data.status) {
+        renderStatus(data.status, data.runId);
+      }
+      if (data.activeScenarioId && data.activeScenarioName) {
+        document.getElementById('activeScenarioTag').textContent = `Scenario ${data.activeScenarioId}: ${data.activeScenarioName}`;
+      } else if (data.status === 'RUNNING') {
+        document.getElementById('activeScenarioTag').textContent = 'Test running...';
+      } else {
+        document.getElementById('activeScenarioTag').textContent = `Run: ${data.status || 'Idle'}`;
+      }
+      if (data.simulatorSpeech) {
+        document.getElementById('simSpokenText').textContent = data.simulatorSpeech.text;
+        document.getElementById('simSpokenMeta').textContent = `Lang: ${data.simulatorSpeech.language} • ${new Date(data.simulatorSpeech.timestamp).toLocaleTimeString()}`;
+      } else {
+        document.getElementById('simSpokenText').textContent = 'Awaiting voice injection...';
+        document.getElementById('simSpokenMeta').textContent = 'Voice: -- • Lang: --';
+      }
+      if (data.whisperTranscription) {
+        document.getElementById('sttTranscriptText').textContent = data.whisperTranscription.text;
+        document.getElementById('sttTranscriptMeta').textContent = `Confidence: ${(data.whisperTranscription.confidence ?? 1.0).toFixed(2)} • Language: ${data.whisperTranscription.language || 'auto'}`;
+      } else {
+        document.getElementById('sttTranscriptText').textContent = 'Awaiting audio recognition...';
+        document.getElementById('sttTranscriptMeta').textContent = 'Confidence: -- • Language: --';
+      }
+      if (data.jarvisResponse) {
+        document.getElementById('jarvisResponseText').textContent = data.jarvisResponse.text || '(Silence)';
+        document.getElementById('jarvisResponseMeta').textContent = `Audible: ${data.jarvisResponse.audible ? 'YES' : 'NO'} (${data.jarvisResponse.durationMs}ms)`;
+      } else {
+        document.getElementById('jarvisResponseText').textContent = 'Awaiting assistant response...';
+        document.getElementById('jarvisResponseMeta').textContent = 'Audible: -- • Duration: --ms';
+      }
+      if (data.desktop) {
+        document.getElementById('fgWindowTitle').textContent = `Foreground: "${data.desktop.foregroundWindowTitle || 'Desktop'}"`;
+        document.getElementById('fgProcessName').textContent = `Proc: ${data.desktop.foregroundProcessName || 'Desktop'}`;
+        document.getElementById('runningAppsText').textContent = data.desktop.runningProcesses?.join(', ') || 'none';
+        document.getElementById('frameCounterTag').textContent = `Frame #${data.desktop.frame || 0}`;
+        if (data.desktop.screenshotUrl) {
+          document.getElementById('liveDesktopImg').src = data.desktop.screenshotUrl;
+        }
+      }
+      if (data.scenarioResults) {
+        for (const [id, res] of Object.entries(data.scenarioResults)) {
+          const badge = document.getElementById('badge' + id);
+          if (badge) updateBadge(badge, res.overallVerdict);
+        }
+      }
+    }
+
+    function renderStatus(status, runId) {
+      const badge = document.getElementById('liveStatusBadge');
+      const text = document.getElementById('liveStatusText');
+      const btnStart = document.getElementById('btnStart');
+      const btnPause = document.getElementById('btnPause');
+      const btnStop = document.getElementById('btnStop');
+
+      if (runId) document.getElementById('runIdTag').textContent = `RUN ID: ${runId}`;
+
+      switch (status) {
+        case 'RUNNING':
+          badge.className = 'status-badge running';
+          text.textContent = 'TEST RUNNING';
+          if (btnStart) btnStart.disabled = true;
+          if (btnPause) btnPause.disabled = false;
+          if (btnStop) btnStop.disabled = false;
+          break;
+        case 'COMPLETED':
+          badge.className = 'status-badge completed';
+          text.textContent = 'ALL PASSED';
+          if (btnStart) btnStart.disabled = false;
+          if (btnPause) btnPause.disabled = true;
+          if (btnStop) btnStop.disabled = true;
+          break;
+        case 'PAUSED':
+          badge.className = 'status-badge paused';
+          text.textContent = 'PAUSED';
+          if (btnStart) btnStart.disabled = true;
+          if (btnPause) btnPause.disabled = false;
+          if (btnStop) btnStop.disabled = false;
+          break;
+        case 'FAILED':
+        case 'ERROR':
+          badge.className = 'status-badge error';
+          text.textContent = 'DEFECT DETECTED';
+          if (btnStart) btnStart.disabled = false;
+          if (btnPause) btnPause.disabled = true;
+          if (btnStop) btnStop.disabled = true;
+          break;
+        case 'IDLE':
+        default:
+          badge.className = 'status-badge';
+          text.textContent = 'IDLE • READY';
+          if (btnStart) btnStart.disabled = false;
+          if (btnPause) btnPause.disabled = true;
+          if (btnStop) btnStop.disabled = true;
+          break;
+      }
+    }
+
+    function setConnStatus(connected) {
+      const badge = document.getElementById('liveStatusBadge');
+      const text = document.getElementById('liveStatusText');
+      if (!connected) {
+        badge.className = 'status-badge disconnected';
+        text.textContent = 'DISCONNECTED';
+      }
+    }
+
+    function updateBadge(badgeEl, verdict) {
+      if (!badgeEl) return;
+      const v = (verdict || 'UNVERIFIED').toLowerCase();
+      badgeEl.className = 'badge ' + v;
+      badgeEl.textContent = verdict || 'UNVERIFIED';
+    }
+
+    function addLogLine(level, msg, ts) {
+      const term = document.getElementById('logTerminal');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      const timeStr = new Date(ts || Date.now()).toLocaleTimeString();
+      line.innerHTML = `<span class="log-ts">[${timeStr}]</span><span class="log-msg ${level.toLowerCase()}">${msg}</span>`;
+      term.appendChild(line);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function handleImgError(el) {
+      el.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%' fill='%2305070a'><text x='50%' y='50%' fill='%23475569' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif'>Awaiting Desktop Frame...</text></svg>";
+    }
+
+    async function sendControl(action) {
+      try {
+        const res = await fetch(`/api/control/${action}`, { method: 'POST' });
+        const data = await res.json();
+        console.log(`[Control] ${action} result:`, data);
+      } catch (err) {
+        console.error(`[Control] Failed to send ${action}:`, err);
+      }
+    }
+
+    // Initialize SSE connection on load
+    initEventSource();
+  </script>
+</body>
+</html>

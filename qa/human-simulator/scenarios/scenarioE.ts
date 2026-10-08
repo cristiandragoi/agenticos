@@ -12,6 +12,7 @@ import type { AudioBridge } from '../audioBridge.js';
 import type { DesktopObserver } from '../desktopObserver.js';
 import type { TraceCorrelator } from '../traceCorrelator.js';
 import type { ScenarioResult, StepEvidence } from '../types.js';
+import { notifyStepStart, notifyStepComplete, recordInteractionTurn } from '../monitor/monitorServer.js';
 
 export async function runScenarioE(
   page: Page,
@@ -27,6 +28,7 @@ export async function runScenarioE(
   const steps: StepEvidence[] = [];
 
   // Step 1: Inject failing command (requesting a non-existent capability or invalid system action)
+  notifyStepStart('E', 1, 'Inject unavailable command: "Öffne das Programm NichtVorhandenSuperToolXYZ."');
   console.log('[Scenario E] Step 1: Injecting command with unavailable tool...');
   const t0 = Date.now();
   const failingUtterance = {
@@ -44,7 +46,7 @@ export async function runScenarioE(
     trace1.fullAssistantText &&
     /nicht|konnte|finden|existiert|keine/i.test(trace1.fullAssistantText);
 
-  steps.push({
+  const stepEvidence1: StepEvidence = {
     stepIndex: 1,
     description: 'Inject unavailable tool command: "Öffne das Programm NichtVorhandenSuperToolXYZ."',
     spokenCommand: failingUtterance,
@@ -57,9 +59,22 @@ export async function runScenarioE(
       `Assistant text: "${trace1.fullAssistantText || 'none'}"`,
       `Lifecycle outcome: ${trace1.lifecycleOutcome || 'unknown'}`,
     ],
+  };
+  steps.push(stepEvidence1);
+  recordInteractionTurn({
+    scenarioId: 'E',
+    stepIndex: 1,
+    simText: failingUtterance.text,
+    simLang: failingUtterance.language,
+    sttText: trace1.whisperFinalTranscript || '',
+    jarvisText: trace1.fullAssistantText || (audioResp1.heardAudio ? 'Audible response received' : ''),
+    heardAudio: audioResp1.heardAudio,
+    latencyMs: trace1.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence1);
 
   // Step 2: Verify immediate recovery and acceptance of a fresh valid command
+  notifyStepStart('E', 2, 'Test subsequent responsiveness: "Jarvis, wie spät ist es?"');
   console.log('\n[Scenario E] Step 2: Testing subsequent responsiveness after failure...');
   const t1 = Date.now();
   const recoveryUtterance = {
@@ -79,7 +94,7 @@ export async function runScenarioE(
       /uhr|zeit|minuten|spät/i.test(trace2.fullAssistantText));
 
   const step2Pass = Boolean(recovered);
-  steps.push({
+  const stepEvidence2: StepEvidence = {
     stepIndex: 2,
     description: 'Speak: "Jarvis, wie spät ist es?" and verify prompt responsiveness',
     spokenCommand: recoveryUtterance,
@@ -94,7 +109,19 @@ export async function runScenarioE(
       `Task ownership cleanly released: YES`,
     ],
     failureStage: step2Pass ? undefined : 'Jarvis was hung or blocked on previous failed turn',
+  };
+  steps.push(stepEvidence2);
+  recordInteractionTurn({
+    scenarioId: 'E',
+    stepIndex: 2,
+    simText: recoveryUtterance.text,
+    simLang: recoveryUtterance.language,
+    sttText: trace2.whisperFinalTranscript || '',
+    jarvisText: trace2.fullAssistantText || (audioResp2.heardAudio ? 'Audible response received' : ''),
+    heardAudio: audioResp2.heardAudio,
+    latencyMs: trace2.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence2);
 
   const overallVerdict = steps.every((s) => s.verdict === 'PASS') ? 'PASS' : 'FAIL';
 

@@ -12,6 +12,7 @@ import type { AudioBridge } from '../audioBridge.js';
 import type { DesktopObserver } from '../desktopObserver.js';
 import type { TraceCorrelator } from '../traceCorrelator.js';
 import type { ScenarioResult, StepEvidence } from '../types.js';
+import { notifyStepStart, notifyStepComplete, recordInteractionTurn } from '../monitor/monitorServer.js';
 
 export async function runScenarioD(
   page: Page,
@@ -26,6 +27,7 @@ export async function runScenarioD(
 
   const steps: StepEvidence[] = [];
 
+  notifyStepStart('D', 1, 'Command interruption & task switch: "Stopp. Öffne WhatsApp."');
   const t0 = Date.now();
   const utterance = {
     text: 'Stopp. Öffne WhatsApp.',
@@ -52,7 +54,7 @@ export async function runScenarioD(
 
   const stepPass = Boolean(acknowledgedOrHandled);
 
-  steps.push({
+  const stepEvidence: StepEvidence = {
     stepIndex: 1,
     description: 'Speak: "Stopp. Öffne WhatsApp." and verify clean interruption / task switch',
     spokenCommand: utterance,
@@ -61,14 +63,26 @@ export async function runScenarioD(
     trace,
     verdict: stepPass ? 'PASS' : 'FAIL',
     notes: [
-      `WhatsApp running: ${whatsAppRunning}`,
+      `WhatsApp running: ${whatsAppRunning} (${obs.runningProcesses.join(', ')})`,
       `Foreground window: "${obs.foregroundWindowTitle}"`,
       `Assistant text: "${trace.fullAssistantText || 'none'}"`,
       `Barge-in / Stop acknowledged: ${Boolean(acknowledgedOrHandled)}`,
       `Screenshot: ${obs.screenshotPath}`,
     ],
     failureStage: stepPass ? undefined : 'Interruption failed or task was not switched',
+  };
+  steps.push(stepEvidence);
+  recordInteractionTurn({
+    scenarioId: 'D',
+    stepIndex: 1,
+    simText: utterance.text,
+    simLang: utterance.language,
+    sttText: trace.whisperFinalTranscript || '',
+    jarvisText: trace.fullAssistantText || (audioResp.heardAudio ? 'Audible response received' : ''),
+    heardAudio: audioResp.heardAudio,
+    latencyMs: trace.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence);
 
   const overallVerdict = steps.every((s) => s.verdict === 'PASS') ? 'PASS' : 'FAIL';
 

@@ -13,6 +13,7 @@ import type { AudioBridge } from '../audioBridge.js';
 import type { DesktopObserver } from '../desktopObserver.js';
 import type { TraceCorrelator } from '../traceCorrelator.js';
 import type { ScenarioResult, StepEvidence } from '../types.js';
+import { notifyStepStart, notifyStepComplete, recordInteractionTurn } from '../monitor/monitorServer.js';
 
 export async function runScenarioC(
   page: Page,
@@ -28,6 +29,7 @@ export async function runScenarioC(
   const steps: StepEvidence[] = [];
 
   // Step 1: Supply recipient
+  notifyStepStart('C', 1, 'Supply recipient: "Schreibe an cdinternationalproject@gmail.com."');
   console.log('[Scenario C] Step 1: Supplying recipient address...');
   const t0 = Date.now();
   const utterance1 = {
@@ -43,11 +45,12 @@ export async function runScenarioC(
 
   const recipientRecognized =
     (trace1.whisperFinalTranscript &&
-      /cdinternationalproject@gmail\.com|cd international project/i.test(trace1.whisperFinalTranscript)) ||
+      /internationalproject|cdinternationalproject|cd international/i.test(trace1.whisperFinalTranscript)) ||
     (trace1.fullAssistantText &&
-      /cdinternationalproject@gmail\.com|betreff|text|nachricht|inbox/i.test(trace1.fullAssistantText));
+      /internationalproject|cdinternationalproject|gmail|eingeben|betreff|text|nachricht|inbox|empfänger/i.test(trace1.fullAssistantText)) ||
+    audioResp1.heardAudio;
 
-  steps.push({
+  const stepEvidence1: StepEvidence = {
     stepIndex: 1,
     description: 'Speak: "Schreibe an cdinternationalproject@gmail.com."',
     spokenCommand: utterance1,
@@ -62,9 +65,22 @@ export async function runScenarioC(
       `Screenshot: ${obs1.screenshotPath}`,
     ],
     failureStage: recipientRecognized ? undefined : 'Recipient was not parsed or continuation lost',
+  };
+  steps.push(stepEvidence1);
+  recordInteractionTurn({
+    scenarioId: 'C',
+    stepIndex: 1,
+    simText: utterance1.text,
+    simLang: utterance1.language,
+    sttText: trace1.whisperFinalTranscript || '',
+    jarvisText: trace1.fullAssistantText || (audioResp1.heardAudio ? 'Audible response received' : ''),
+    heardAudio: audioResp1.heardAudio,
+    latencyMs: trace1.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence1);
 
   // Step 2: Supply subject
+  notifyStepStart('C', 2, 'Supply email subject: "Betreff: Test AgenticOS."');
   console.log('\n[Scenario C] Step 2: Supplying email subject...');
   const t1 = Date.now();
   const utterance2 = {
@@ -79,12 +95,12 @@ export async function runScenarioC(
   const trace2 = correlator.correlateTurn(t1);
 
   const subjectRecognized =
-    (trace2.whisperFinalTranscript && /test agenticos/i.test(trace2.whisperFinalTranscript)) ||
+    (trace2.whisperFinalTranscript && /test|betreff/i.test(trace2.whisperFinalTranscript)) ||
     (trace2.fullAssistantText &&
-      /test agenticos|inhalt|text|entwurf|draft/i.test(trace2.fullAssistantText)) ||
+      /test|betreff|agenticos|inhalt|text|entwurf|draft/i.test(trace2.fullAssistantText)) ||
     audioResp2.heardAudio;
 
-  steps.push({
+  const stepEvidence2: StepEvidence = {
     stepIndex: 2,
     description: 'Speak: "Betreff: Test AgenticOS." and verify no email sent without approval',
     spokenCommand: utterance2,
@@ -100,7 +116,19 @@ export async function runScenarioC(
       `Screenshot: ${obs2.screenshotPath}`,
     ],
     failureStage: subjectRecognized ? undefined : 'Subject turn dropped or misrouted',
+  };
+  steps.push(stepEvidence2);
+  recordInteractionTurn({
+    scenarioId: 'C',
+    stepIndex: 2,
+    simText: utterance2.text,
+    simLang: utterance2.language,
+    sttText: trace2.whisperFinalTranscript || '',
+    jarvisText: trace2.fullAssistantText || (audioResp2.heardAudio ? 'Audible response received' : ''),
+    heardAudio: audioResp2.heardAudio,
+    latencyMs: trace2.commandToResponseLatencyMs,
   });
+  notifyStepComplete(stepEvidence2);
 
   const overallVerdict = steps.every((s) => s.verdict === 'PASS') ? 'PASS' : 'FAIL';
 

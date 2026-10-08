@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { TurnExecutionTrace } from './types.js';
+import { notifyWhisperTranscribed, notifyJarvisReplied } from './monitor/monitorServer.js';
 
 export class TraceCorrelator {
   private traceLogPath: string;
@@ -131,6 +132,15 @@ export class TraceCorrelator {
     if (userSpeechEnd && ttsStart && ttsStart >= userSpeechEnd) {
       trace.commandToResponseLatencyMs = ttsStart - userSpeechEnd;
     }
+
+    try {
+      if (trace.whisperFinalTranscript) {
+        notifyWhisperTranscribed(trace.whisperFinalTranscript);
+      }
+      if (trace.fullAssistantText) {
+        notifyJarvisReplied(trace.fullAssistantText, true, 0, trace.commandToResponseLatencyMs);
+      }
+    } catch {}
 
     return trace;
   }
