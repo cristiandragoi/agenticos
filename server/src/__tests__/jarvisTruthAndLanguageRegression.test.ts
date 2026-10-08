@@ -299,7 +299,7 @@ describe('Jarvis Truthfulness, Language & Action-Execution Suite', () => {
     }
 
     const conf = buildLanguageSwitchConfirmation('de');
-    expect(conf).toBe('Verstanden. Ich spreche ab jetzt Deutsch mit Ihnen.');
+    expect(conf).toBe('Verstanden. Ich spreche ab jetzt Deutsch mit dir.');
   });
 
   // ── Q: Natural Romanian & English Language-Switch Formulations ─────────────

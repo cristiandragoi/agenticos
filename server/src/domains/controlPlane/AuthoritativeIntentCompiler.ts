@@ -1061,10 +1061,15 @@ export class AuthoritativeIntentCompiler {
     }
 
     // ── 0d. Email Workflows ("Open my email", "Write an email", "Send this email") ──
-    const isEmailOpen =
-      /^(?:please\s+)?(?:open|launch|bring\s+up|check|show|go\s+to)\s+(?:my\s+)?(?:email|emails|mail|inbox|webmail|gmail)[.!?]*$/i.test(stripped) ||
-      /^(?:open|check)\s+(?:my\s+)?(?:inbox|email|mail|gmail)[.!?]*$/i.test(stripped) ||
-      /^(?:bitte\s+)?(?:[oö]ffne|starte|zeige)\s+(?:meine?\s+)?(?:e-?mails?|postfach|inbox|mail|gmail)[.!?]*$/i.test(stripped);
+    const hasEmailKeyword =
+      /(?:^|[^\p{L}\p{N}])(?:gmail|e-?mails?|mail|postfach|inbox|webmail)(?:$|[^\p{L}\p{N}])/iu.test(stripped) ||
+      /@(?:gmail\.com|[\w.-]+\.[a-z]{2,})/iu.test(stripped);
+
+    const hasOpenKeyword =
+      /(?:^|[^\p{L}\p{N}])(?:[oö]ffne|[oö]ffnen|oeffne|oeffnen|er[oö]ffne|er[oö]ffnen|eroeffne|eroeffnen|aufmachen|zeig|zeige|zeigen|open|launch|check|show|start|starte)(?:$|[^\p{L}\p{N}])/iu.test(stripped) ||
+      /(?:^|[^\p{L}\p{N}])(?:mach|mache)(?:$|[^\p{L}\p{N}]).*(?:^|[^\p{L}\p{N}])auf(?:$|[^\p{L}\p{N}])/iu.test(stripped);
+
+    const isEmailOpen = hasEmailKeyword && hasOpenKeyword;
 
     if (isEmailOpen) {
       return {

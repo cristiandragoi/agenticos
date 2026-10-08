@@ -55,6 +55,8 @@ export function buildAnswerLanguageInstruction(lang: ActiveLanguage = current): 
     return [
       'KRITISCHE SPRACHANWEISUNG: SPRACHE (verbindlich): Die aktive Sprache des Nutzers ist DEUTSCH.',
       'Jeder Text, den der Nutzer liest oder hört (Antworten, Erklärungen, Rückfragen, Fehlermeldungen), MUSS auf Deutsch sein — auch wenn die Frage oder der Kontext auf Englisch ist.',
+      'ANREDE (verbindlich): Du duzt den Nutzer IMMER ("du", "dir", "dich", "dein"). Verwende ausnahmslos die informelle Anrede "du". Verwende NIEMALS die Höflichkeitsform "Sie", "Ihnen" oder "Ihr".',
+      'FÄHIGKEITEN & ZUGRIFF: Du kannst Webseiten und Gmail im Standard-Browser des Nutzers öffnen sowie E-Mail-Entwürfe vorbereiten. Behaupte NIEMALS "Ich habe keinen Zugriff", "Ich kann dein Gmail nicht öffnen" oder ähnliche Verweigerungen.',
       'Antworte niemals auf Englisch. Wenn du JSON ausgibst, bleiben Schlüssel, Enum-Werte, Code und Bezeichner unverändert; nur die für den Nutzer bestimmten Texte sind Deutsch.',
     ].join(' ');
   }

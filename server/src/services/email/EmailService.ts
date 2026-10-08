@@ -97,7 +97,7 @@ export class EmailService {
   public getConnectInstructions(lang: string = 'en'): string {
     const effectiveLang = (lang === 'de' || getActiveLanguage() === 'de') ? 'de' : lang;
     if (effectiveLang === 'de') {
-      return 'Es ist kein E-Mail-Konto verbunden. Um ein E-Mail-Konto zu verbinden, konfigurieren Sie Ihre SMTP-Einstellungen (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT) in den Einstellungen > Integrationen oder im Secret Store (für Gmail: Host smtp.gmail.com, Port 587 und ein App-Passwort).';
+      return 'Es ist kein E-Mail-Konto verbunden. Um ein E-Mail-Konto zu verbinden, konfiguriere deine SMTP-Einstellungen (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT) in den Einstellungen > Integrationen oder im Secret Store (für Gmail: Host smtp.gmail.com, Port 587 und ein App-Passwort).';
     }
     return 'No email account is connected. To connect an email account, configure your SMTP settings (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT) in Settings > Integrations, or add them to your environment or Secret Store (e.g. for Gmail, use host smtp.gmail.com on port 587 with an App Password).';
   }
@@ -110,9 +110,12 @@ export class EmailService {
     const url = 'https://mail.google.com';
     try {
       if (process.platform === 'win32') {
-        await execAsync(`powershell -NoProfile -Command "Start-Process '${url}'"`, { timeout: 6000 });
+        // cmd.exe /c start "" "url" opens the Windows user's default browser where they are already logged in
+        await execAsync(`cmd.exe /c start "" "${url}"`, { timeout: 6000 });
+      } else if (process.platform === 'darwin') {
+        await execAsync(`open "${url}"`, { timeout: 6000 });
       } else {
-        await execAsync(`open '${url}' || xdg-open '${url}'`, { timeout: 6000 });
+        await execAsync(`xdg-open "${url}"`, { timeout: 6000 });
       }
       const text = effectiveLang === 'de'
         ? 'Ich habe Gmail im Browser geöffnet.'
@@ -152,9 +155,9 @@ export class EmailService {
 
     if (process.platform === 'win32') {
       try {
-        await execAsync(`powershell -NoProfile -Command "Start-Process '${webmailUrl}'"`, { timeout: 6000 });
+        await execAsync(`cmd.exe /c start "" "${webmailUrl}"`, { timeout: 6000 });
         const text = effectiveLang === 'de'
-          ? `Ich habe Ihre E-Mails im Browser geöffnet (${webmailUrl}).`
+          ? `Ich habe deine E-Mails im Browser geöffnet (${webmailUrl}).`
           : `I have opened your email in your browser at ${webmailUrl}.`;
         return {
           success: true,
@@ -165,7 +168,7 @@ export class EmailService {
       } catch (err: any) {
         logger.error('[EmailService] Failed to open email in browser:', err);
         const text = effectiveLang === 'de'
-          ? `Ich konnte Ihre E-Mails im Browser nicht öffnen: ${err?.message || 'Unbekannter Fehler'}.`
+          ? `Ich konnte deine E-Mails im Browser nicht öffnen: ${err?.message || 'Unbekannter Fehler'}.`
           : `I could not open your email in the browser: ${err?.message || 'Failed to start browser.'}`;
         return {
           success: false,
@@ -288,7 +291,7 @@ export class EmailService {
           `• Betreff: ${draft.subject}`,
           `• Text: ${draft.body}`,
           ``,
-          `Sagen Sie „Sende es“, wenn Sie den Entwurf abschicken möchten.`,
+          `Sage „Sende es“, wenn du den Entwurf abschicken möchtest.`,
         ].join('\n')
       : [
           `I have created an email draft:`,
@@ -316,7 +319,7 @@ export class EmailService {
     const draft = this.activeDrafts.get(conversationId);
     if (!draft) {
       const text = lang === 'de'
-        ? 'Es liegt kein aktiver E-Mail-Entwurf vor. Bitte sagen Sie zuerst „Schreibe eine E-Mail an [Empfänger]“.'
+        ? 'Es liegt kein aktiver E-Mail-Entwurf vor. Bitte sage zuerst „Schreibe eine E-Mail an [Empfänger]“.'
         : 'There is no email draft prepared. Please say "Write an email to [recipient]" first.';
       return {
         success: false,
@@ -331,12 +334,12 @@ export class EmailService {
 
     const reviewText = lang === 'de'
       ? [
-          `Bitte überprüfen Sie die E-Mail vor dem Senden:`,
+          `Bitte überprüfe die E-Mail vor dem Senden:`,
           `• Empfänger: ${draft.to}`,
           `• Betreff: ${draft.subject}`,
           `• Text: ${draft.body}`,
           ``,
-          `Möchten Sie diese E-Mail jetzt senden? Bitte bestätigen Sie mit „Ja“.`,
+          `Möchtest du diese E-Mail jetzt senden? Bitte bestätige mit „Ja“.`,
         ].join('\n')
       : [
           `Please review the email details before sending:`,
@@ -476,6 +479,12 @@ export class EmailService {
     const lower = prompt.toLowerCase().trim();
     const activeDraft = this.getActiveDraft(conversationId);
 
+    const isGerman =
+      lang === 'de' ||
+      getActiveLanguage() === 'de' ||
+      /(?:^|[^\p{L}\p{N}])(?:[oö]ffne|[oö]ffnen|oeffne|oeffnen|er[oö]ffne|er[oö]ffnen|aufmachen|bitte|mein|meine|mach|mache|schreib|schreibe|schreiben|sende|zeig|zeige)(?:$|[^\p{L}\p{N}])/iu.test(lower);
+    const effectiveLang = isGerman ? 'de' : lang;
+
     // 0. Account selection response or follow-up
     const isAwaitingAccount = this.pendingAccountQuestions.has(conversationId);
     const mentionsGmail = /\b(?:gmail|google(?:\s*mail)?)\b/i.test(lower);
@@ -485,13 +494,13 @@ export class EmailService {
       if (mentionsGmail) {
         this.pendingAccountQuestions.delete(conversationId);
         await this.setPreferredAccount('gmail');
-        return await this.openGmailInBrowser(conversationId, lang);
+        return await this.openGmailInBrowser(conversationId, effectiveLang);
       }
       if (mentionsOutlook) {
         this.pendingAccountQuestions.delete(conversationId);
         await this.setPreferredAccount('outlook');
-        const text = lang === 'de'
-          ? 'Ich habe Outlook als Ihr Standard-E-Mail-Konto gespeichert.'
+        const text = effectiveLang === 'de'
+          ? 'Ich habe Outlook als dein Standard-E-Mail-Konto gespeichert.'
           : 'I have saved Outlook as your preferred email account.';
         return {
           success: true,
@@ -508,14 +517,14 @@ export class EmailService {
       if (emailMatch) {
         activeDraft.to = emailMatch[0];
         activeDraft.status = 'AWAITING_SEND_COMMAND';
-        const preview = lang === 'de'
+        const preview = effectiveLang === 'de'
           ? [
               `Ich habe den E-Mail-Entwurf für ${activeDraft.to} aktualisiert:`,
               `• Empfänger: ${activeDraft.to}`,
               `• Betreff: ${activeDraft.subject}`,
               `• Text: ${activeDraft.body}`,
               ``,
-              `Sagen Sie „Sende es“, wenn Sie den Entwurf abschicken möchten.`,
+              `Sag „Sende es“, wenn du den Entwurf abschicken möchtest.`,
             ].join('\n')
           : [
               `I have updated the email draft for ${activeDraft.to}:`,
@@ -536,16 +545,23 @@ export class EmailService {
       }
     }
 
-    // 1. Detect open email / Gmail intent
-    const isOpenEmail =
-      /\b(?:open|launch|check|show)\s+(?:my\s+)?(?:email|emails|mail|inbox|webmail|gmail)\b/i.test(lower) ||
-      /\b(?:[oö]ffne|zeige|starte)\s+(?:meine?\s+)?(?:e-?mails?|postfach|inbox|mail|gmail)\b/i.test(lower);
+    // 1. Flexible open email / Gmail intent detection
+    // Sentence contains an email/inbox keyword AND an opening keyword anywhere in the query
+    const hasEmailKeyword =
+      /(?:^|[^\p{L}\p{N}])(?:gmail|google\s*mail|e-?mails?|mail|postfach|inbox|webmail)(?:$|[^\p{L}\p{N}])/iu.test(lower) ||
+      /@(?:gmail\.com|[\w.-]+\.[a-z]{2,})/iu.test(lower);
 
-    // 2. Detect write email / draft message intent
-    const isWriteEmail =
-      /\b(?:write|compose|draft|prepare|create|send)\s+(?:an?\s+)?(?:email|mail|message)\b/i.test(lower) ||
-      /\b(?:schreibe?|verfasse?|erstelle?|sende?)\s+(?:mir\s+)?(?:eine?\s+)?(?:e-?mail|nachricht)\b/i.test(lower) ||
-      /\be-?mail\s+(?:schreiben|verfassen|senden)\b/i.test(lower);
+    const hasOpenKeyword =
+      /(?:^|[^\p{L}\p{N}])(?:[oö]ffne|[oö]ffnen|oeffne|oeffnen|er[oö]ffne|er[oö]ffnen|eroeffne|eroeffnen|aufmachen|zeig|zeige|zeigen|open|launch|check|show|start|starte)(?:$|[^\p{L}\p{N}])/iu.test(lower) ||
+      /\b(?:mach|mache)\b.*\bauf\b/iu.test(lower) ||
+      /(?:^|[^\p{L}\p{N}])(?:mach|mache)(?:$|[^\p{L}\p{N}]).*(?:^|[^\p{L}\p{N}])auf(?:$|[^\p{L}\p{N}])/iu.test(lower);
+
+    const hasWriteKeyword =
+      /(?:^|[^\p{L}\p{N}])(?:schreib|schreibe|schreiben|verfass|verfasse|verfassen|erstell|erstelle|erstellen|sende?|senden|compose|draft|write|prepare)(?:$|[^\p{L}\p{N}])/iu.test(lower);
+
+    const isOpenEmail = hasEmailKeyword && hasOpenKeyword;
+    const isWriteEmail = (hasEmailKeyword && hasWriteKeyword) ||
+      (!hasEmailKeyword && /\b(?:schreib|schreibe|schreiben)\s+(?:mir\s+)?(?:eine?\s+)?nachricht\b/i.test(lower));
 
     if (isOpenEmail || isWriteEmail) {
       if (mentionsGmail) {
@@ -556,7 +572,7 @@ export class EmailService {
         const pref = await this.getPreferredAccount();
         if (!pref) {
           this.pendingAccountQuestions.add(conversationId);
-          const askText = lang === 'de'
+          const askText = effectiveLang === 'de'
             ? 'Über welches Konto: Gmail oder Outlook?'
             : 'Which account: Gmail or Outlook?';
           return {
@@ -573,23 +589,23 @@ export class EmailService {
       if (effectivePref === 'gmail') {
         // Gmail means: open Gmail in browser. NEVER open Outlook unsolicited.
         if (isWriteEmail) {
-          const draftRes = this.prepareDraft({ rawPrompt: prompt, conversationId, lang });
-          await this.openGmailInBrowser(conversationId, lang);
+          const draftRes = this.prepareDraft({ rawPrompt: prompt, conversationId, lang: effectiveLang });
+          await this.openGmailInBrowser(conversationId, effectiveLang);
           return {
             ...draftRes,
-            outputText: lang === 'de'
+            outputText: effectiveLang === 'de'
               ? `Ich habe Gmail im Browser geöffnet.\n\n${draftRes.outputText}`
               : `I have opened Gmail in your browser.\n\n${draftRes.outputText}`,
           };
         }
-        return await this.openGmailInBrowser(conversationId, lang);
+        return await this.openGmailInBrowser(conversationId, effectiveLang);
       }
 
       // Outlook explicitly preferred
       if (isWriteEmail) {
-        return this.prepareDraft({ rawPrompt: prompt, conversationId, lang });
+        return this.prepareDraft({ rawPrompt: prompt, conversationId, lang: effectiveLang });
       }
-      return await this.openEmailClient(conversationId, lang);
+      return await this.openEmailClient(conversationId, effectiveLang);
     }
 
     // 4. User says "yes" when draft is awaiting confirmation

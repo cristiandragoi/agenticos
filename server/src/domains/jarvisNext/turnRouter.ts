@@ -952,7 +952,7 @@ export async function routeTurn(opts: {
         } else {
           isUnhandledFallback = true;
           finalSpokenText = isGerman
-            ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
+            ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Kannst du das bitte umformulieren?"
             : "I'm not sure how to help with that. Could you rephrase?";
         }
       }

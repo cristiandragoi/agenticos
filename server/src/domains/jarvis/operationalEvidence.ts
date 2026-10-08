@@ -24,7 +24,7 @@ function localizeGateResponse(englishResponse: string, lang?: string): string {
     return 'Es liegt keine verifizierte AntiGravity-Aufgabe vor.';
   }
   if (englishResponse === 'Automatic status notifications are not configured. Ask me for the current status.') {
-    return 'Automatische Statusbenachrichtigungen sind nicht konfiguriert. Fragen Sie mich einfach nach dem aktuellen Status.';
+    return 'Automatische Statusbenachrichtigungen sind nicht konfiguriert. Frag mich einfach nach dem aktuellen Status.';
   }
   return englishResponse;
 }

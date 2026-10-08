@@ -364,7 +364,7 @@ export function setConversationLanguage(
 export function buildLanguageSwitchConfirmation(lang: SupportedLanguage): string {
   switch (lang) {
     case 'de':
-      return 'Verstanden. Ich spreche ab jetzt Deutsch mit Ihnen.';
+      return 'Verstanden. Ich spreche ab jetzt Deutsch mit dir.';
     case 'ro':
       return 'Am înțeles. De acum înainte vorbesc cu dumneavoastră în limba română.';
     case 'en':

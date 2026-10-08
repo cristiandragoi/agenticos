@@ -192,7 +192,7 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
         const { getActiveLanguage } = await import('../../services/language/activeLanguageState.js');
         const isDe = getActiveLanguage() === 'de';
         text = isDe
-          ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
+          ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Kannst du das bitte umformulieren?"
           : "I'm not sure how to help with that. Could you rephrase?";
       }
       const route = String(res?.route || 'direct');
@@ -211,7 +211,7 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
       const { getActiveLanguage } = await import('../../services/language/activeLanguageState.js');
       const isDe = getActiveLanguage() === 'de';
       const fallbackText = isDe
-        ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
+        ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Kannst du das bitte umformulieren?"
         : "I'm not sure how to help with that. Could you rephrase?";
       return {
         executor: 'legacy.jarvisOrchestrator',

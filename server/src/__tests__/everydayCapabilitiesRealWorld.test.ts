@@ -116,7 +116,7 @@ describe('Real-World Everyday Capabilities: Document Reading, German Voice, Emai
       const res = await conversationCapabilityAdapter.execute(step, 'lang-step-1', conversationId);
 
       expect(res.success).toBe(true);
-      expect(res.outputText).toBe('Verstanden. Ich spreche ab jetzt Deutsch mit Ihnen.');
+      expect(res.outputText).toBe('Verstanden. Ich spreche ab jetzt Deutsch mit dir.');
       expect(getConversationLanguage(conversationId)).toBe('de');
       expect(voiceRuntimeState.getLanguage()).toBe('de');
       expect(voiceRuntimeState.getActiveVoice()).toBe('aura-2-fabian-de');

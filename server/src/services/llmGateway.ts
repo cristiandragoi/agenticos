@@ -149,7 +149,7 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
     const isGerman = getActiveLanguage() === 'de';
     return {
       reply: isGerman
-        ? 'Ich laufe derzeit im Offline-Modus. Kein externes Modell ist erreichbar. Bitte überprüfen Sie Ihre API-Schlüssel oder starten Sie den Server neu.'
+        ? 'Ich laufe derzeit im Offline-Modus. Kein externes Modell ist erreichbar. Bitte überprüfe deine API-Schlüssel oder starte den Server neu.'
         : 'I am running in offline mode. No external model is reachable. Please start OmniRoute (`omniroute` in a terminal) or check your API keys in server/.env.',
       provider: 'offline',
       offline: true,

@@ -213,7 +213,7 @@ export function sanitizeDirectResponse(
     const isRomanian = /\b(configurează|proiect|te rog|bună dimineața|instalează)\b/i.test(prompt) || /\b(bună dimineața|proiectul)\b/i.test(sanitized);
 
     if (isGerman) {
-      return 'Ich habe Ihre Anfrage verstanden. Da jedoch kein automatisierter Executor für diese Aktion gestartet wurde, wurde die Aufgabe noch nicht ausgeführt. Möchten Sie, dass ich dafür eine Aufgabe erstelle?';
+      return 'Ich habe deine Anfrage verstanden. Da jedoch kein automatisierter Executor für diese Aktion gestartet wurde, wurde die Aufgabe noch nicht ausgeführt. Möchtest du, dass ich dafür eine Aufgabe erstelle?';
     }
     if (isRomanian) {
       return 'Am înțeles solicitarea dumneavoastră. Cu toate acestea, niciun executant automat nu a fost alocat pentru această acțiune, astfel încât sarcina nu a fost încă executată. Doriți să creez o sarcină pentru aceasta?';
