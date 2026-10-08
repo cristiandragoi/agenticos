@@ -345,6 +345,29 @@ export class TurnLifecycleController {
     store.recordOutcome(req.requestId, outcome, reason);
     logger.info('[TurnLifecycle] OUTCOME', { requestId: req.requestId, outcome, reason, handler: record.handler });
 
+    // ── AUTONOMOUS RECOVERY HOOK ──
+    if (outcome === 'FAILED') {
+      try {
+        const { raiseSelfHealIncident } = await import('../selfHeal/raiseSelfHealIncident.js');
+        await raiseSelfHealIncident({
+          component: record.handler || 'TurnLifecycle',
+          symptom: `Turn execution failed: ${reason || 'unverified or execution error'}`,
+          conversationId: req.conversationId,
+          goalId: req.requestId,
+          originalAction: {
+            prompt: req.text,
+            conversationId: req.conversationId,
+            entityId: record.handler || 'TurnLifecycle',
+            entityType: 'turn_execution',
+            entityName: record.handler || 'TurnLifecycle',
+            verb: goal.kind,
+          },
+        });
+      } catch (shErr: any) {
+        logger.warn('[TurnLifecycle] Failed to raise self-heal incident', { requestId: req.requestId, error: shErr?.message });
+      }
+    }
+
     // ── RESPONSE ── rendered from the outcome only.
     record.responseText = renderResponse(goal, outcome, reason, receipt);
     store.recordResponse(req.requestId, record.responseText);

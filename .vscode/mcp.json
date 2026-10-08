@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "cortex": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/cortex-mcp-server.mjs"],
+      "description": "Cortex Suite shared engineering memory (patterns, anti-patterns, quartz-ctx code symbol maps, hindsight lessons)."
+    }
+  },
+  "inputs": []
+}

@@ -1,11 +1,59 @@
-import { db } from '../../db/index.js';
+import { db, rawDb } from '../../db/index.js';
 import { eq, desc, like } from 'drizzle-orm';
 import { repairIncidents, repairDiagnoses, repairAttempts } from './schema.js';
 import { RepairIncident, AstraDiagnosis, RepairAttempt, IncidentStatus } from './types.js';
 
+let tablesEnsured = false;
+export function ensureRepairTables(): void {
+  if (tablesEnsured) return;
+  try {
+    rawDb.exec(`
+      CREATE TABLE IF NOT EXISTS repair_incidents (
+        id TEXT PRIMARY KEY, goal_id TEXT, status TEXT NOT NULL, component TEXT NOT NULL,
+        failure_domain TEXT NOT NULL, symptom TEXT NOT NULL, detected_at TEXT NOT NULL,
+        resolved_at TEXT, triggered_by TEXT NOT NULL, priority TEXT NOT NULL, metadata TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS repair_evidence (
+        id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, type TEXT NOT NULL,
+        label TEXT NOT NULL, content TEXT NOT NULL, source TEXT NOT NULL, timestamp TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS repair_diagnoses (
+        id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, failure_domain TEXT NOT NULL,
+        root_cause TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL,
+        affected_files TEXT NOT NULL, repair_strategy TEXT NOT NULL, repair_steps TEXT NOT NULL,
+        tests_required TEXT NOT NULL, risk_level TEXT NOT NULL, rollback_plan TEXT NOT NULL,
+        requires_human_approval INTEGER NOT NULL, status TEXT NOT NULL, model TEXT NOT NULL,
+        model_identity TEXT, candidate_causes TEXT, selected_root_cause TEXT, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS repair_attempts (
+        id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, diagnosis_id TEXT NOT NULL,
+        worktree_path TEXT NOT NULL, diff_summary TEXT NOT NULL, full_diff TEXT NOT NULL,
+        files_changed TEXT NOT NULL, test_report TEXT, argus_verdict TEXT NOT NULL,
+        argus_evidence TEXT NOT NULL, argus_model_identity TEXT, status TEXT NOT NULL,
+        created_at TEXT NOT NULL, completed_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS repair_deployments (
+        id TEXT PRIMARY KEY, incident_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+        patch_hash TEXT NOT NULL, applied_at TEXT NOT NULL, status TEXT NOT NULL,
+        backup_snapshot_path TEXT, verified_by_argus INTEGER NOT NULL, rollback_at TEXT
+      );
+    `);
+    tablesEnsured = true;
+  } catch (err: any) {
+    console.error(`[RepairMemory] ensureRepairTables error: ${err?.message}`);
+  }
+}
+
 export class RepairMemory {
+  private inMemoryIncidents: Map<string, RepairIncident> = new Map();
+
+  recordInMemoryIncident(incident: RepairIncident): void {
+    this.inMemoryIncidents.set(incident.incidentId, incident);
+  }
+
   /** Find past incidents with similar component/symptom */
   async findSimilarIncidents(component: string, symptom: string, limit: number = 5): Promise<RepairIncident[]> {
+    ensureRepairTables();
     const results = await db.select()
       .from(repairIncidents)
       .where(eq(repairIncidents.component, component))
@@ -126,21 +174,26 @@ export class RepairMemory {
   
   /** Get incident by ID */
   async getIncident(incidentId: string): Promise<RepairIncident | null> {
-    const results = await db.select().from(repairIncidents).where(eq(repairIncidents.id, incidentId)).limit(1);
-    if (results.length === 0) return null;
-    const r = results[0];
-    return {
-      incidentId: r.id,
-      status: r.status as IncidentStatus,
-      component: r.component,
-      failureDomain: r.failureDomain as any,
-      symptom: r.symptom,
-      detectedAt: r.detectedAt,
-      resolvedAt: r.resolvedAt,
-      triggeredBy: r.triggeredBy as any,
-      priority: r.priority as any,
-      metadata: r.metadata
-    };
+    ensureRepairTables();
+    try {
+      const results = await db.select().from(repairIncidents).where(eq(repairIncidents.id, incidentId)).limit(1);
+      if (results.length === 0) return this.inMemoryIncidents.get(incidentId) || null;
+      const r = results[0];
+      return {
+        incidentId: r.id,
+        status: r.status as IncidentStatus,
+        component: r.component,
+        failureDomain: r.failureDomain as any,
+        symptom: r.symptom,
+        detectedAt: r.detectedAt,
+        resolvedAt: r.resolvedAt,
+        triggeredBy: r.triggeredBy as any,
+        priority: r.priority as any,
+        metadata: r.metadata
+      };
+    } catch {
+      return this.inMemoryIncidents.get(incidentId) || null;
+    }
   }
   
   /** Update incident status */

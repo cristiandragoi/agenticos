@@ -14,6 +14,13 @@ import { speakTool } from './tools/speakTool.js';
 import { workspaceSearchTool } from './tools/workspaceSearchTool.js';
 import { delegateHermesTaskTool } from './tools/delegationTool.js';
 import { leadResearchTool } from './tools/leadResearchTool.js';
+import {
+  cortexRecallTool,
+  cortexAntiPatternsTool,
+  quartzGetApiContextTool,
+  quartzSearchSymbolsTool,
+  hindsightLessonsTool,
+} from './tools/cortexTools.js';
 
 export function registerAllTools(): void {
   toolRegistry.register(terminalTool);
@@ -30,5 +37,10 @@ export function registerAllTools(): void {
   toolRegistry.register(workspaceSearchTool);
   toolRegistry.register(delegateHermesTaskTool);
   toolRegistry.register(leadResearchTool);
+  toolRegistry.register(cortexRecallTool);
+  toolRegistry.register(cortexAntiPatternsTool);
+  toolRegistry.register(quartzGetApiContextTool);
+  toolRegistry.register(quartzSearchSymbolsTool);
+  toolRegistry.register(hindsightLessonsTool);
   logger.info(`[ToolRegistry] Registered ${toolRegistry.list().length} tools: ${toolRegistry.list().join(', ')}`);
 }

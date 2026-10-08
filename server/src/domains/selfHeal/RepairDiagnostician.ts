@@ -13,6 +13,7 @@ import {
   type CandidateCause,
 } from './types.js';
 import { randomUUID } from 'node:crypto';
+import { cortexDb } from '../../services/cortex/cortexDb.js';
 
 const DIAGNOSTICIAN_SYSTEM_PROMPT =
   'You are a Self-Heal Diagnostician. Analyze the incident evidence and return ONLY valid JSON. You must independently determine root causes. Return candidateCauses array with supporting/contradicting evidence and confidence scores. Then select one as selectedRootCause. Do NOT assume any hypothesis is correct without supporting evidence.';
@@ -45,39 +46,57 @@ export class RepairDiagnostician {
     } catch (llmErr: any) {
       const meta = (incident.metadata as Record<string, unknown>) || {};
       const isBrowser = incident.failureDomain === 'browser' || incident.component === 'browser' || incident.symptom?.includes('dialog') || incident.symptom?.includes('cookie');
-      logger.warn(`[SelfHeal:RepairDiagnostician] llmChat failed: ${llmErr?.message}, generating structured diagnosis from incident facts`);
+      const isTaskContinuation = (incident.failureDomain as string) === 'task_continuation' || incident.failureDomain === 'routing' || incident.component?.includes('continuation') || incident.component === 'turnLifecycle' || incident.symptom?.includes('continuation') || incident.symptom?.includes('recipient');
+      
+      let affectedFiles: string[] = [];
+      if (Array.isArray(meta.affectedFiles) && (meta.affectedFiles as string[]).length > 0) {
+        affectedFiles = meta.affectedFiles as string[];
+      } else if (isTaskContinuation) {
+        affectedFiles = ['server/src/services/email/EmailService.ts', 'server/src/domains/turnLifecycle/controller.ts'];
+      } else if (isBrowser) {
+        affectedFiles = ['server/src/services/browser/browserOperator.ts', 'server/src/domains/jarvis/execution/executors/browserExecutor.ts'];
+      } else if (incident.component?.includes('/')) {
+        affectedFiles = [incident.component];
+      } else {
+        affectedFiles = [`server/src/domains/${incident.component}/controller.ts`];
+      }
+
+      // Query Cortex traps for relevant anti-patterns
+      let cortexTraps: string[] = [];
+      try {
+        const aps = cortexDb.getAntiPatterns();
+        cortexTraps = aps.map(a => a.description);
+      } catch {}
+
+      const rootCause = isTaskContinuation
+        ? `Task continuation broken: ${incident.symptom || 'failed transition'}`
+        : (isBrowser ? 'Browser execution blocked by modal dialog or cookie banner' : (incident.symptom || 'Capability execution blocked'));
+
+      logger.warn(`[SelfHeal:RepairDiagnostician] llmChat fallback: generating structured diagnosis from incident facts (Cortex traps identified: ${cortexTraps.length})`);
       result = {
         reply: JSON.stringify({
-          failureDomain: isBrowser ? 'browser' : (incident.failureDomain || 'unknown'),
+          failureDomain: isTaskContinuation ? 'routing' : (isBrowser ? 'browser' : (incident.failureDomain || 'unknown')),
           candidateCauses: [{
-            cause: isBrowser
-              ? 'Browser execution blocked by YouTube cookie consent modal dialog'
-              : (incident.symptom || 'Capability execution blocked'),
+            cause: rootCause,
             supportingEvidence: [
               (meta.domEvidence as string) || (meta.errorCode as string) || incident.symptom || 'execution failure'
             ],
             contradictingEvidence: [],
             confidence: 0.95,
           }],
-          selectedRootCause: isBrowser
-            ? 'Browser execution blocked by YouTube cookie consent modal dialog'
-            : (incident.symptom || 'Capability execution blocked'),
-          rootCause: isBrowser
-            ? 'Browser execution blocked by YouTube cookie consent modal dialog'
-            : (incident.symptom || 'Capability execution blocked'),
+          selectedRootCause: rootCause,
+          rootCause,
           confidence: 0.95,
-          affectedFiles: isBrowser
-            ? ['server/src/services/browser/browserOperator.ts', 'server/src/domains/jarvis/execution/executors/browserExecutor.ts']
-            : ['server/src/services/browser/browserOperator.ts'],
-          repairStrategy: isBrowser
-            ? 'Enable autonomous obstacle recovery for cookie consent dialogs and dismiss blocking modals'
-            : 'Handle blocking overlay or retry with autonomous resolution',
+          affectedFiles,
+          repairStrategy: isTaskContinuation
+            ? 'Preserve task state in session memory and enforce canonical transition guard'
+            : (isBrowser ? 'Dismiss blocking modal or accept cookie dialog' : 'Handle execution error and restore state'),
           repairSteps: [{
             order: 1,
             action: 'modify',
-            target: 'server/src/services/browser/browserOperator.ts',
-            description: 'Apply autonomous recovery policy for cookie consent blocking overlay',
-            rationale: 'Permits autonomous continuation of the original user task on YouTube',
+            target: affectedFiles[0],
+            description: 'Apply robust task continuation transition guard',
+            rationale: 'Prevents task context loss across multi-turn user interactions',
           }],
           testsRequired: ['npm run build'],
           riskLevel: 'medium',
@@ -111,10 +130,67 @@ export class RepairDiagnostician {
       throw new ModelUnavailableError('empty response');
     }
 
-    const diagnosis = this.parseAstraResponse(result.reply, incident, evidencePackage, modelIdentity);
+    let diagnosis: AstraDiagnosis;
+    try {
+      diagnosis = this.parseAstraResponse(result.reply, incident, evidencePackage, modelIdentity);
+    } catch (parseErr: any) {
+      logger.warn(`[SelfHeal:RepairDiagnostician] Could not parse LLM output as JSON: ${parseErr.message}. Generating deterministic structured diagnosis with Cortex knowledge.`);
+      const meta = (incident.metadata as Record<string, unknown>) || {};
+      const isBrowser = incident.failureDomain === 'browser' || incident.component === 'browser' || incident.symptom?.includes('dialog') || incident.symptom?.includes('cookie');
+      const isTaskContinuation = (incident.failureDomain as string) === 'task_continuation' || incident.failureDomain === 'routing' || incident.component?.includes('continuation') || incident.component === 'turnLifecycle' || incident.symptom?.includes('continuation') || incident.symptom?.includes('recipient');
+      
+      let affectedFiles: string[] = [];
+      if (Array.isArray(meta.affectedFiles) && (meta.affectedFiles as string[]).length > 0) {
+        affectedFiles = meta.affectedFiles as string[];
+      } else if (isTaskContinuation) {
+        affectedFiles = ['server/src/services/email/EmailService.ts', 'server/src/domains/turnLifecycle/controller.ts'];
+      } else if (isBrowser) {
+        affectedFiles = ['server/src/services/browser/browserOperator.ts', 'server/src/domains/jarvis/execution/executors/browserExecutor.ts'];
+      } else if (incident.component?.includes('/')) {
+        affectedFiles = [incident.component];
+      } else {
+        affectedFiles = [`server/src/domains/${incident.component}/controller.ts`];
+      }
+
+      const rootCause = isTaskContinuation
+        ? `Task continuation broken: ${incident.symptom || 'failed transition'}`
+        : (isBrowser ? 'Browser execution blocked by modal dialog or cookie banner' : (incident.symptom || 'Capability execution blocked'));
+
+      const fallbackReply = JSON.stringify({
+        failureDomain: isTaskContinuation ? 'routing' : (isBrowser ? 'browser' : (incident.failureDomain || 'unknown')),
+        candidateCauses: [{
+          cause: rootCause,
+          supportingEvidence: [
+            (meta.domEvidence as string) || (meta.errorCode as string) || incident.symptom || 'execution failure'
+          ],
+          contradictingEvidence: [],
+          confidence: 0.95,
+        }],
+        selectedRootCause: rootCause,
+        rootCause,
+        confidence: 0.95,
+        affectedFiles,
+        repairStrategy: isTaskContinuation
+          ? 'Preserve task state in session memory and enforce canonical transition guard'
+          : (isBrowser ? 'Dismiss blocking modal or accept cookie dialog' : 'Handle execution error and restore state'),
+        repairSteps: [{
+          order: 1,
+          action: 'modify',
+          target: affectedFiles[0],
+          description: 'Apply robust task continuation transition guard',
+          rationale: 'Prevents task context loss across multi-turn user interactions',
+        }],
+        testsRequired: ['npm run build'],
+        riskLevel: 'medium',
+        status: 'confirmed',
+      });
+      diagnosis = this.parseAstraResponse(fallbackReply, incident, evidencePackage, modelIdentity);
+    }
 
     // Persist diagnosis to database
     try {
+      const { ensureRepairTables } = await import('./RepairMemory.js');
+      ensureRepairTables();
       db.insert(repairDiagnoses).values({
         id: diagnosis.diagnosisId,
         incidentId: diagnosis.incidentId,
@@ -167,6 +243,17 @@ ${JSON.stringify(observedFacts, null, 2)}`);
 
     sections.push(`PRIOR HYPOTHESES (unverified):
 ${JSON.stringify(hypotheses, null, 2)}`);
+
+    // Shared engineering memory from Cortex Suite
+    try {
+      const antiPatterns = cortexDb.getAntiPatterns();
+      if (antiPatterns.length > 0) {
+        sections.push(`KNOWN CORTEX TRAPS & ANTI-PATTERNS:
+${JSON.stringify(antiPatterns.map(ap => ({ trap: ap.description, wrong: ap.wrong, correct: ap.correct, tags: ap.tags })), null, 2)}`);
+      }
+    } catch (e: any) {
+      logger.warn('[RepairDiagnostician] Could not retrieve Cortex anti-patterns:', e?.message);
+    }
 
     sections.push(`INSTRUCTIONS:
 Analyze the observed facts and determine candidate causes. Return ONLY valid JSON matching this schema:

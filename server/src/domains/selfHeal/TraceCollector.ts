@@ -151,15 +151,25 @@ export class TraceCollector {
     };
   }
 
-  /** Read last N lines from a log file */
+  /** Read last N lines from a log file (bounded to last 64KB to avoid Node.js string buffer limits) */
   private async readRecentLog(logPath: string, maxLines: number): Promise<EvidenceItem> {
     let content = '';
-    if (fs.existsSync(logPath)) {
-      const data = fs.readFileSync(logPath, 'utf8');
-      const lines = data.split('\n');
-      content = lines.slice(-maxLines).join('\n');
-    } else {
-      content = 'Log file not found.';
+    try {
+      if (fs.existsSync(logPath)) {
+        const stat = fs.statSync(logPath);
+        const bytesToRead = Math.min(stat.size, 65536);
+        const buffer = Buffer.alloc(bytesToRead);
+        const fd = fs.openSync(logPath, 'r');
+        fs.readSync(fd, buffer, 0, bytesToRead, Math.max(0, stat.size - bytesToRead));
+        fs.closeSync(fd);
+        const text = buffer.toString('utf8');
+        const lines = text.split('\n');
+        content = lines.slice(-maxLines).join('\n');
+      } else {
+        content = 'Log file not found.';
+      }
+    } catch (e: any) {
+      content = `Log read skipped: ${e?.message}`;
     }
     return {
       type: 'log',

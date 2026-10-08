@@ -112,7 +112,7 @@ export class SnapshotManager {
     // 5. Create parent directory and add worktree at HEAD
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
     logger.info(`[SelfHeal:Snapshot] Adding worktree at ${worktreePath}`);
-    execSync(`git worktree add "${worktreePath}" HEAD`, { cwd: sourceDir });
+    execSync(`git -c core.longpaths=true worktree add "${worktreePath}" HEAD`, { cwd: sourceDir });
 
     // Link node_modules junctions so compiler and test runner can resolve types and packages in worktree
     try {

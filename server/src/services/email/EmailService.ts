@@ -20,7 +20,7 @@ import { secretStore } from '../gateway/secretStore.js';
 import { targetResolver } from '../../domains/controlPlane/TargetResolver.js';
 import { getActiveLanguage } from '../language/activeLanguageState.js';
 import { observeWindows } from '../../domains/turnLifecycle/probes.js';
-import { setActiveDesktopTask } from '../../domains/turnLifecycle/taskState.js';
+import { setActiveDesktopTask, getActiveDesktopTask, clearActiveDesktopTask } from '../../domains/turnLifecycle/taskState.js';
 
 const execAsync = promisify(exec);
 
@@ -240,14 +240,17 @@ export class EmailService {
           status: 'COMPLETED',
         });
 
-        const browserName = wantsComet ? 'Comet' : 'deinem Browser';
         const text = effectiveLang === 'de'
           ? (isCompose
-              ? `Ich habe Gmail in ${browserName} geöffnet. An wen soll die E-Mail gehen?`
-              : `Ich habe Gmail in ${browserName} geöffnet.`)
+              ? (wantsComet
+                  ? 'Ich habe Gmail in Comet geöffnet. An wen soll die E-Mail gehen?'
+                  : 'Ich habe Gmail im Browser geöffnet. An wen soll die E-Mail gehen?')
+              : (wantsComet
+                  ? 'Ich habe Gmail in Comet geöffnet.'
+                  : 'Ich habe Gmail im Browser geöffnet.'))
           : (isCompose
-              ? `I have opened Gmail in ${browserName}. Who should the email go to?`
-              : `I have opened Gmail in ${browserName}.`);
+              ? `I have opened Gmail in ${wantsComet ? 'Comet' : 'your browser'}. Who should the email go to?`
+              : `I have opened Gmail in ${wantsComet ? 'Comet' : 'your browser'}.`);
 
         return {
           success: true,
@@ -334,6 +337,77 @@ export class EmailService {
         outputText: `Could not open email browser: ${err?.message}`,
       };
     }
+  }
+
+  /**
+   * Normalizes spoken email addresses from speech-to-text (e.g., "CD International Project at Gmail.com" -> "cdinternationalproject@gmail.com").
+   */
+  public normalizeSpokenEmailAddress(raw: string): { email: string | null; isAmbiguous: boolean; candidate?: string } {
+    if (!raw || typeof raw !== 'string') return { email: null, isAmbiguous: false };
+    const cleaned = raw.trim();
+
+    // 1. Direct standard email match
+    const directEmailMatch = cleaned.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (directEmailMatch) {
+      return { email: directEmailMatch[0].toLowerCase(), isAmbiguous: false };
+    }
+
+    // 2. Spoken email pattern:
+    // e.g. "CD International Project at Gmail.com"
+    // "cd international project at gmail dot com"
+    // "an cd international project at gmail.com"
+    // "an max at example dot org"
+    // "test ät web punkt de"
+    const norm = cleaned
+      // Strip leading conversational phrases like "an", "to", "für", "die adresse ist", "es soll an"
+      .replace(/^(?:an\s+|to\s+|für\s+|for\s+|die\s+adresse\s+ist\s+|es\s+soll\s+an\s+|schick(?:e|st)?\s+(?:es\s+)?an\s+|send\s+(?:it\s+)?to\s+)+/i, '')
+      .trim();
+
+    // Look for connector: "@", "at", "ät", "et" followed by a domain
+    const spokenPattern = /^(.*?)\s+(?:@|at|ät|et)\s+(.*)$/i;
+    const match = norm.match(spokenPattern);
+    if (match) {
+      let localPart = match[1].trim();
+      let domainPart = match[2].trim();
+
+      // Normalize domain part:
+      domainPart = domainPart
+        .replace(/\s+(?:punkt|dot)\s+/gi, '.')
+        .replace(/\s*([.])\s*/g, '.')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+
+      // Normalize local part:
+      localPart = localPart
+        .replace(/\s+(?:punkt|dot)\s+/gi, '.')
+        .replace(/\s+(?:unterstrich|underscore)\s+/gi, '_')
+        .replace(/\s+(?:minus|dash|bindestrich)\s+/gi, '-')
+        .replace(/[^a-zA-Z0-9._%+-]/g, '')
+        .toLowerCase();
+
+      // If domain doesn't have an extension yet, check common domains (e.g. "gmail" -> "gmail.com")
+      if (!domainPart.includes('.')) {
+        if (/^(?:gmail|googlemail)$/i.test(domainPart)) domainPart = 'gmail.com';
+        else if (/^(?:outlook|hotmail)$/i.test(domainPart)) domainPart = 'outlook.com';
+        else if (/^(?:gmx)$/i.test(domainPart)) domainPart = 'gmx.de';
+        else if (/^(?:web)$/i.test(domainPart)) domainPart = 'web.de';
+        else if (/^(?:yahoo)$/i.test(domainPart)) domainPart = 'yahoo.com';
+        else if (/^(?:icloud)$/i.test(domainPart)) domainPart = 'icloud.com';
+      }
+
+      const candidate = `${localPart}@${domainPart}`;
+      if (/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(candidate)) {
+        return { email: candidate, isAmbiguous: false };
+      }
+    }
+
+    // 3. Spoken candidate name without domain (e.g. "CD International Project", "Max Mustermann")
+    const cleanName = norm.replace(/[.!?]+$/, '').trim();
+    if (cleanName.length > 1 && !/\b(?:nein|stopp?|abbrechen|cancel)\b/i.test(cleanName)) {
+      return { email: null, isAmbiguous: true, candidate: cleanName };
+    }
+
+    return { email: null, isAmbiguous: false };
   }
 
   /**
@@ -649,15 +723,53 @@ export class EmailService {
       }
     }
 
-    // 0b. Follow-up: User providing email address for an in-flight draft awaiting recipient
+    // 0b. Follow-up: User providing email address or command for an in-flight draft awaiting recipient
     if (activeDraft && activeDraft.status === 'AWAITING_RECIPIENT_ADDRESS') {
-      const emailMatch = prompt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (emailMatch) {
-        activeDraft.to = emailMatch[0];
+      // Cancellation check
+      const isCancel = /^(?:stop|abbrechen|stopp|cancel|verwerfen|halt|nein|nicht\s+senden)[.!]?$/i.test(prompt.trim());
+      if (isCancel) {
+        this.activeDrafts.delete(conversationId);
+        clearActiveDesktopTask();
+        const cancelText = effectiveLang === 'de'
+          ? 'E-Mail-Entwurf abgebrochen.'
+          : 'Email draft cancelled.';
+        return {
+          success: true,
+          verified: true,
+          action: 'DRAFT',
+          outputText: cancelText,
+        };
+      }
+
+      const norm = this.normalizeSpokenEmailAddress(prompt);
+      if (norm.email) {
+        activeDraft.to = norm.email;
         activeDraft.status = 'AWAITING_SEND_COMMAND';
+
+        // Synchronize with active desktop task and update browser window
+        const task = getActiveDesktopTask(conversationId);
+        if (task && (task.type === 'COMPOSE_EMAIL' || task.type === 'OPEN_EMAIL')) {
+          const composeUrl = `https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${encodeURIComponent(norm.email)}`;
+          task.targetUrl = composeUrl;
+          task.updatedAt = new Date().toISOString();
+          setActiveDesktopTask(task);
+
+          if (process.platform === 'win32') {
+            const cometExe = task.requestedApp === 'comet' ? findCometExecutable() : null;
+            if (cometExe) {
+              execAsync(`cmd.exe /c start "" "${cometExe}" "${composeUrl}"`, { timeout: 8000 }).catch(() => {});
+            } else {
+              execAsync(`cmd.exe /c start "" "${composeUrl}"`, { timeout: 8000 }).catch(() => {});
+            }
+            if (task.hwnd) {
+              focusWindow(task.hwnd).catch(() => {});
+            }
+          }
+        }
+
         const preview = effectiveLang === 'de'
           ? [
-              `Ich habe den E-Mail-Entwurf für ${activeDraft.to} aktualisiert:`,
+              `Ich habe ${activeDraft.to} als Empfänger in den Gmail-Entwurf eingetragen:`,
               `• Empfänger: ${activeDraft.to}`,
               `• Betreff: ${activeDraft.subject}`,
               `• Text: ${activeDraft.body}`,
@@ -665,7 +777,7 @@ export class EmailService {
               `Sag „Sende es“, wenn du den Entwurf abschicken möchtest.`,
             ].join('\n')
           : [
-              `I have updated the email draft for ${activeDraft.to}:`,
+              `I have set ${activeDraft.to} as the recipient in the Gmail draft:`,
               `• Recipient: ${activeDraft.to}`,
               `• Subject: ${activeDraft.subject}`,
               `• Text: ${activeDraft.body}`,
@@ -679,6 +791,20 @@ export class EmailService {
           draft: activeDraft,
           needsApproval: true,
           outputText: preview,
+        };
+      }
+
+      // If user gave a candidate name/entity without an email domain, ask for confirmation
+      if (norm.isAmbiguous && norm.candidate) {
+        const askText = effectiveLang === 'de'
+          ? `Soll die E-Mail an „${norm.candidate}“ gehen? Bitte nenne mir die vollständige E-Mail-Adresse (z. B. name@beispiel.de).`
+          : `Should the email go to "${norm.candidate}"? Please specify the complete email address (e.g. name@example.com).`;
+        return {
+          success: true,
+          verified: true,
+          action: 'DRAFT',
+          draft: activeDraft,
+          outputText: askText,
         };
       }
     }
@@ -747,14 +873,18 @@ export class EmailService {
             return {
               ...draftRes,
               outputText: effectiveLang === 'de'
-                ? `Ich habe Gmail in ${mentionsComet ? 'Comet' : 'deinem Browser'} geöffnet. An wen soll die E-Mail gehen?`
+                ? (mentionsComet
+                    ? 'Ich habe Gmail in Comet geöffnet. An wen soll die E-Mail gehen?'
+                    : 'Ich habe Gmail im Browser geöffnet. An wen soll die E-Mail gehen?')
                 : `I have opened Gmail in ${mentionsComet ? 'Comet' : 'your browser'}. Who should the email go to?`,
             };
           }
           return {
             ...draftRes,
             outputText: effectiveLang === 'de'
-              ? `Ich habe Gmail in ${mentionsComet ? 'Comet' : 'deinem Browser'} geöffnet.\n\n${draftRes.outputText}`
+              ? (mentionsComet
+                  ? `Ich habe Gmail in Comet geöffnet.\n\n${draftRes.outputText}`
+                  : `Ich habe Gmail im Browser geöffnet.\n\n${draftRes.outputText}`)
               : `I have opened Gmail in ${mentionsComet ? 'Comet' : 'your browser'}.\n\n${draftRes.outputText}`,
           };
         }

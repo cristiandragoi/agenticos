@@ -321,3 +321,4 @@ identity.json
 secrets/
 *.key
 *.pem
+vendor/
