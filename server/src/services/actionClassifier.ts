@@ -91,11 +91,12 @@ export function classifyAction(
   // Write reversible
   for (const pat of WRITE_REVERSIBLE_PATTERNS) {
     if (pat.test(text)) {
+      const isFileWrite = /\b(create file|write file|append to file|update local)\b/i.test(text);
       return {
         actionClass: 'WRITE_REVERSIBLE',
-        requiresApproval: false,
-        reason: 'Local write operation — reversible.',
-        blocked: false,
+        requiresApproval: isFileWrite,
+        reason: isFileWrite ? 'File modification on local disk requires user approval.' : 'Local write operation — reversible.',
+        blocked: isFileWrite ? !approved : false,
       };
     }
   }
@@ -125,9 +126,9 @@ export function classifyAction(
   // Unknown — require review
   return {
     actionClass: 'WRITE_REVERSIBLE',
-    requiresApproval: false,
-    reason: 'No explicit action pattern matched — defaulting to WRITE_REVERSIBLE.',
-    blocked: false,
+    requiresApproval: true,
+    reason: 'No explicit action pattern matched — requires explicit user review before execution.',
+    blocked: !approved,
   };
 }
 

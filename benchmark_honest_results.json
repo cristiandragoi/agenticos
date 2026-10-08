@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "prompt": "Warum dauert es so lange?",
+    "model": "openrouter:xiaomi/mimo-v2.6-flash",
+    "sttMs": 180,
+    "firstTokenMs": 12576,
+    "firstSentenceMs": 13033,
+    "ttsMs": 2367,
+    "totalMs": 15580,
+    "firstSentenceText": "Ich müsste erst wissen, worauf du dich beziehst.",
+    "fullResponseText": "Ich müsste erst wissen, worauf du dich beziehst. Auf was wartest du genau, oder welcher Vorgang dauert deiner Meinung zu lange? Sobald ich weiß, worum es geht, kann ich dir eine sinnvolle Antwort geben."
+  },
+  {
+    "id": 2,
+    "prompt": "Erklär mir kurz, was AgenticOS ist",
+    "model": "openrouter:xiaomi/mimo-v2.6-flash",
+    "sttMs": 180,
+    "firstTokenMs": 12452,
+    "firstSentenceMs": 13039,
+    "ttsMs": 2547,
+    "totalMs": 15766,
+    "firstSentenceText": "AgenticOS ist ein Betriebssystem, das auf KI-Agenten aufbaut.",
+    "fullResponseText": "AgenticOS ist ein Betriebssystem, das auf KI-Agenten aufbaut. Statt dass du selbst Programme öffnest und Aufgaben manuell erledigst, beschreibst du einfach, was du brauchst, und die KI-Agenten erledigen das für dich. Du kannst mit ihnen sprechen wie mit einem Assistenten – schreiben oder per Sprachbefehl. Sie greifen auf deine Dateien, Apps und Werkzeuge zu und machen die Arbeit für dich. Ich bin eine der Stimmen dieses Systems und führe deine Befehle aus."
+  },
+  {
+    "id": 3,
+    "prompt": "Was hast du heute für mich erledigt?",
+    "model": "openrouter:xiaomi/mimo-v2.6-flash",
+    "sttMs": 180,
+    "firstTokenMs": 3331,
+    "firstSentenceMs": 4008,
+    "ttsMs": 2459,
+    "totalMs": 6647,
+    "firstSentenceText": "Ich habe heute noch nichts für dich erledigt, weil wir zuvor noch nicht miteinander gesprochen haben.",
+    "fullResponseText": "Ich habe heute noch nichts für dich erledigt, weil wir zuvor noch nicht miteinander gesprochen haben. Mein Gedächtnis reicht nicht über einzelne Unterhaltungen hinaus. Aber sag mir gerne, worum es geht, dann legen wir direkt los."
+  },
+  {
+    "id": 4,
+    "prompt": "Schreib mir eine kurze Nachricht an meinen Entwickler",
+    "model": "openrouter:xiaomi/mimo-v2.6-flash",
+    "sttMs": 180,
+    "firstTokenMs": 12235,
+    "firstSentenceMs": 13187,
+    "ttsMs": 5426,
+    "totalMs": 18793,
+    "firstSentenceText": "Klar. Worum soll es in der Nachricht an deinen Entwickler gehen? Gib mir kurz den Anlass oder das Thema, dann schreibe ich dir eine passende Nachricht.",
+    "fullResponseText": "Klar. Worum soll es in der Nachricht an deinen Entwickler gehen? Gib mir kurz den Anlass oder das Thema, dann schreibe ich dir eine passende Nachricht."
+  },
+  {
+    "id": 5,
+    "prompt": "Was ist der Unterschied zwischen dir und Hermes?",
+    "model": "openrouter:xiaomi/mimo-v2.6-flash",
+    "sttMs": 180,
+    "firstTokenMs": 9935,
+    "firstSentenceMs": 11289,
+    "ttsMs": 7522,
+    "totalMs": 18991,
+    "firstSentenceText": "Ich bin Jarvis, die deutsche Stimme von AgenticOS – ein spezialisierter KI-Assistent, der dafür gebaut wurde, direkt, präzise und natürlich auf Deutsch zu sprechen und dich bei konkreten Aufgaben zu unterstützen.",
+    "fullResponseText": "Ich bin Jarvis, die deutsche Stimme von AgenticOS – ein spezialisierter KI-Assistent, der dafür gebaut wurde, direkt, präzise und natürlich auf Deutsch zu sprechen und dich bei konkreten Aufgaben zu unterstützen. Wenn du mit Hermes meinst, kann es sein, dass du einen anderen Sprach- oder KI-Dienst im Sinn hast – zum Beispiel den von Nous Research. Der Unterschied ist im Grunde: Ich bin fokussiert auf direkte, gesprochene Kommunikation auf Deutsch"
+  }
+]

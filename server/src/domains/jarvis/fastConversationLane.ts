@@ -82,6 +82,18 @@ export function isFastConversationRequest(
 
   if (/\brevenue operator\b/i.test(p)) return { isFast: false, reason: 'deterministic local capability' };
 
+  // Agent comparison / informational queries (e.g. "Unterschied zwischen dir und Hermes?")
+  // and drafting requests (e.g. "Schreib mir eine kurze Nachricht...") are conversational.
+  const isAgentInfoQuestion = /\b(?:unterschied zwischen|was ist der unterschied|wer ist (?:hermes|codex|jarvis)|difference between (?:you and |hermes|codex)|who is (?:hermes|codex))\b/i.test(p);
+  const isDraftRequest = /\b(?:schreib(?: mir)?|verfasse|formuliere|entwirf|draft(?: a)?|write(?: a)?|compose(?: a)?)\s+(?:eine |ein |a )?(?:kurze )?(?:nachricht|text|antwort|email|mail|message|note)\b/i.test(p);
+
+  if (isAgentInfoQuestion) {
+    return { isFast: true, reason: 'informational comparison between agents' };
+  }
+  if (isDraftRequest) {
+    return { isFast: true, reason: 'conversational drafting request' };
+  }
+
   // 1. Check for any operational, execution, delegation, or tool trigger
   for (const pattern of OPERATIONAL_SIGNALS) {
     if (pattern.test(p)) {

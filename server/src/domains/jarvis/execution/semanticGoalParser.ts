@@ -714,6 +714,9 @@ export class SemanticGoalParser {
         action = 'log';
       }
 
+      const isMutation = action === 'clone' || action === 'pull' || action === 'checkout';
+      const effectiveRisk = isMutation ? 'destructive' : risk;
+
       candidates.push({
         executorId: 'git',
         matched: true,
@@ -730,8 +733,8 @@ export class SemanticGoalParser {
             parameters: { cwd: targetCwd, args, repoUrl },
             description: `Git ${action} in ${targetCwd}`,
           }],
-          estimatedRisk: risk,
-          requiresApproval: false,
+          estimatedRisk: effectiveRisk,
+          requiresApproval: isMutation,
           confidence: 0.96,
         },
       });
@@ -777,10 +780,10 @@ export class SemanticGoalParser {
             executorId: 'terminal',
             action: 'run_command',
             parameters: { command: cmd, cwd: targetCwd },
-            description: `Run terminal command: ${cmd}`,
+            description: `Befehl "${cmd}" im Ordner "${targetCwd}" ausführen`,
           }],
-          estimatedRisk: 'local_write',
-          requiresApproval: false,
+          estimatedRisk: 'destructive',
+          requiresApproval: true,
           confidence: 0.95,
         },
       });

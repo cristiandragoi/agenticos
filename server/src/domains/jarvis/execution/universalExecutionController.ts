@@ -499,6 +499,27 @@ SPOKEN: "${finalSpokenResponse}"`);
     }
 
     const ctx = input.context || {};
+    const pending = ctx.pendingClarification;
+    const PENDING_TTL_MS = 3 * 60 * 1000;
+    let continuationUsed = false;
+    let ambiguityAnswer: string | null = null;
+    const pendingAgeMs = pending ? Date.now() - (Number.isFinite(pending.askedAt) ? pending.askedAt : Date.now()) : Infinity;
+    if (pending && pendingAgeMs <= PENDING_TTL_MS) {
+      const resumed = this.resolvePendingAnswer(commandText, pending, ctx.clarificationType);
+      if (resumed && 'ambiguous' in resumed) {
+        ambiguityAnswer = this.formatWhichOne(resumed.ambiguous);
+      } else if (resumed && 'goal' in resumed) {
+        logger.info('[UniversalExecutionController] Continuation bound to pending clarification', {
+          pendingKind: pending.kind,
+          clarificationType: ctx.clarificationType || pending.clarificationType || 'untyped',
+          target: pending.targetName,
+          heard: commandText,
+          resumedGoal: resumed.goal,
+        });
+        commandText = resumed.goal;
+        continuationUsed = true;
+      }
+    }
 
     // ── EXPLICIT SYSTEM / SELF-DIAGNOSTIC COMMAND (highest routing priority) ──
     // A complete new explicit command outranks ALL conversation context and subsystems.
@@ -599,6 +620,54 @@ SPOKEN: "${finalSpokenResponse}"`);
       const allProjects = projectsStore.listProjects();
       const existing = allProjects.find(p => p.id === targetName || p.name.toLowerCase() === targetName.toLowerCase() || (targetName.toLowerCase().includes('free cash') && (p.id === 'proj-free-cash' || p.revenueVertical === 'free_cash')));
 
+      const isAlreadyConfirmed = continuationUsed && pending && pending.kind === 'confirm_project_delete';
+      if (!isAlreadyConfirmed) {
+        const ask = `Soll ich das Projekt "${existing ? existing.name : targetName}" wirklich aus AgenticOS löschen? Bitte bestätige mit „Ja“.`;
+        input.onProgress?.({
+          type: 'CONFIRMATION_REQUIRED',
+          status: 'awaiting_confirmation',
+          currentStep: ask,
+        });
+        return finalizeTurn({
+          handled: true,
+          goalId: 'confirm_project_delete',
+          goalDescription: `Confirmation required to delete project ${targetName}`,
+          route: 'chat_trivial',
+          plan: {
+            goalId: 'confirm_project_delete',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'delete-project',
+              capabilityId: 'project.delete',
+              executorId: 'projectsStore',
+              action: 'delete',
+              parameters: { target: targetName },
+              description: `Delete project ${targetName}`,
+            }],
+            estimatedRisk: 'destructive',
+            requiresApproval: true,
+            confidence: arbitration.confidence,
+            primaryExecutor: 'projectsStore',
+            candidates: [],
+            clarificationRequired: false,
+          },
+          execution: { success: false, output: ask },
+          verification: { verified: false, realityCheck: 'Awaiting confirmation before deleting project' },
+          spokenText: ask,
+          timings: { totalMs: Date.now() - t0 },
+          pendingClarification: {
+            kind: 'confirm_project_delete',
+            targetName: existing ? existing.name : targetName,
+            targetType: 'project',
+            intendedAction: 'delete',
+            attempt: 1,
+            askedAt: Date.now(),
+            options: ['Ja', 'Nein'],
+            clarificationType: 'yes_no',
+          },
+        });
+      }
+
       let speech = '';
       if (existing) {
         projectsStore.deleteProject(existing.id);
@@ -632,7 +701,7 @@ SPOKEN: "${finalSpokenResponse}"`);
             description: `Delete project ${targetName}`,
           }],
           estimatedRisk: 'destructive',
-          requiresApproval: false,
+          requiresApproval: true,
           confidence: arbitration.confidence,
           primaryExecutor: 'projectsStore',
           candidates: [],
@@ -1209,6 +1278,51 @@ SPOKEN: "${finalSpokenResponse}"`);
       const targetProc = rawTargetProc.replace(/[.,!?]+$/, '').trim();
       const restart = Boolean(actionIntent.metadata?.restart || (arbitration as any).processPlan?.restart);
 
+      const isAlreadyConfirmed = continuationUsed && pending && pending.kind === 'confirm_process_stop';
+      if (!isAlreadyConfirmed) {
+        const ask = `Soll ich den Prozess "${targetProc}" wirklich beenden? Bitte bestätige mit „Ja“.`;
+        input.onProgress?.({
+          type: 'CONFIRMATION_REQUIRED',
+          status: 'awaiting_confirmation',
+          currentStep: ask,
+        });
+        return finalizeTurn({
+          handled: true,
+          goalId: 'confirm_process_stop',
+          goalDescription: `Confirmation required to stop process ${targetProc}`,
+          route: 'chat_trivial',
+          plan: {
+            goalId: 'confirm_process_stop',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'process-stop-step',
+              capabilityId: 'process.stop',
+              executorId: 'desktop',
+              action: 'stop',
+              parameters: { processName: targetProc },
+              description: `Stop process ${targetProc}`,
+            }],
+            estimatedRisk: 'destructive',
+            requiresApproval: true,
+            confidence: arbitration.confidence,
+          },
+          execution: { success: false, output: ask },
+          verification: { verified: false, realityCheck: 'Awaiting confirmation before stopping process' },
+          spokenText: ask,
+          timings: { totalMs: Date.now() - t0 },
+          pendingClarification: {
+            kind: 'confirm_process_stop',
+            targetName: targetProc,
+            targetType: 'process',
+            intendedAction: 'stop',
+            attempt: 1,
+            askedAt: Date.now(),
+            options: ['Ja', 'Nein'],
+            clarificationType: 'yes_no',
+          },
+        });
+      }
+
       input.onProgress?.({
         type: 'ACTION_STARTED',
         lifecycle: 'ACTION_STARTED',
@@ -1252,8 +1366,8 @@ SPOKEN: "${finalSpokenResponse}"`);
           goalId: 'process_stop',
           goalDescription: commandText,
           steps: [],
-          estimatedRisk: 'local_write',
-          requiresApproval: false,
+          estimatedRisk: 'destructive',
+          requiresApproval: true,
           confidence: arbitration.confidence,
         },
         execution: { success: true, output: speech, data: res },
@@ -1278,6 +1392,51 @@ SPOKEN: "${finalSpokenResponse}"`);
       await browserOperator.blurActiveElement();
       const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).shellPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
       sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      const isAlreadyConfirmed = continuationUsed && pending && pending.kind === 'confirm_shell_open';
+      if (!isAlreadyConfirmed) {
+        const ask = `Soll ich eine PowerShell im Ordner "${cwd}" öffnen? Bitte bestätige mit „Ja“.`;
+        input.onProgress?.({
+          type: 'CONFIRMATION_REQUIRED',
+          status: 'awaiting_confirmation',
+          currentStep: ask,
+        });
+        return finalizeTurn({
+          handled: true,
+          goalId: 'confirm_shell_open',
+          goalDescription: `Confirmation required to open shell in ${cwd}`,
+          route: 'chat_trivial',
+          plan: {
+            goalId: 'confirm_shell_open',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'shell-open-step',
+              capabilityId: 'shell.open',
+              executorId: 'desktop',
+              action: 'open',
+              parameters: { cwd },
+              description: `Open shell in ${cwd}`,
+            }],
+            estimatedRisk: 'destructive',
+            requiresApproval: true,
+            confidence: arbitration.confidence,
+          },
+          execution: { success: false, output: ask },
+          verification: { verified: false, realityCheck: 'Awaiting confirmation before opening shell' },
+          spokenText: ask,
+          timings: { totalMs: Date.now() - t0 },
+          pendingClarification: {
+            kind: 'confirm_shell_open',
+            targetName: cwd,
+            targetType: 'cwd',
+            intendedAction: 'open',
+            attempt: 1,
+            askedAt: Date.now(),
+            options: ['Ja', 'Nein'],
+            clarificationType: 'yes_no',
+          },
+        });
+      }
 
       input.onProgress?.({
         type: 'ACTION_STARTED',
@@ -1314,8 +1473,8 @@ SPOKEN: "${finalSpokenResponse}"`);
           goalId: 'shell_open',
           goalDescription: commandText,
           steps: [],
-          estimatedRisk: 'local_write',
-          requiresApproval: false,
+          estimatedRisk: 'destructive',
+          requiresApproval: true,
           confidence: arbitration.confidence,
         },
         execution: { success: true, output: speech, data: res },
@@ -1336,11 +1495,71 @@ SPOKEN: "${finalSpokenResponse}"`);
     // 9. SHELL COMMAND EXECUTION (shell.execute)
     // "Run npm run build there", "Run echo test"
     // ─────────────────────────────────────────────────────────────────────────
-    if (capId === 'shell.execute' || actionIntent.capability === 'shell.execute') {
+    if (capId === 'shell.execute' || actionIntent.capability === 'shell.execute' || commandText.startsWith('execute confirmed command:')) {
       await browserOperator.blurActiveElement();
-      const command = (actionIntent.metadata?.command as string) || (arbitration as any).shellPlan?.command || actionIntent.targetName || 'echo test';
-      const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).shellPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+      let command = (actionIntent.metadata?.command as string) || (arbitration as any).shellPlan?.command || actionIntent.targetName || 'echo test';
+      let cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).shellPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
+      let isAlreadyConfirmed = continuationUsed && pending && pending.kind === 'confirm_command';
+
+      const confirmedMatch = commandText.match(/^execute confirmed command:\s*(.*?)\s+in\s+(.*)$/i);
+      if (confirmedMatch) {
+        command = confirmedMatch[1].trim();
+        cwd = confirmedMatch[2].trim();
+        isAlreadyConfirmed = true;
+      }
       sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      if (!isAlreadyConfirmed) {
+        const ask = `Soll ich folgenden Befehl im Ordner "${cwd}" ausführen?\n\nBefehl: ${command}\nOrdner: ${cwd}\n\nBitte bestätige mit „Ja“.`;
+        input.onProgress?.({
+          type: 'CONFIRMATION_REQUIRED',
+          status: 'awaiting_confirmation',
+          currentStep: ask,
+          command,
+          cwd,
+        });
+        return finalizeTurn({
+          handled: true,
+          goalId: 'confirm_shell_execute',
+          goalDescription: `Confirmation required to execute: ${command}`,
+          route: 'chat_trivial',
+          plan: {
+            goalId: 'confirm_shell_execute',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'shell-exec-step',
+              capabilityId: 'shell.execute',
+              executorId: 'terminal',
+              action: 'execute',
+              parameters: { command, cwd },
+              description: `Befehl "${command}" im Ordner "${cwd}" ausführen`,
+            }],
+            estimatedRisk: 'destructive',
+            requiresApproval: true,
+            confidence: arbitration.confidence,
+          },
+          execution: { success: false, output: ask },
+          verification: { verified: false, realityCheck: 'Awaiting explicit confirmation before command execution' },
+          spokenText: `Soll ich den Befehl "${command}" im Ordner "${cwd}" ausführen? Bitte bestätige mit Ja.`,
+          timings: { totalMs: Date.now() - t0 },
+          pendingClarification: {
+            kind: 'confirm_command',
+            targetName: command,
+            targetType: cwd,
+            intendedAction: 'shell.execute',
+            attempt: 1,
+            askedAt: Date.now(),
+            options: ['Ja', 'Nein'],
+            clarificationType: 'yes_no',
+          },
+        }, {
+          browserInputAuthorized: false,
+          conversationMode: 'CONVERSATION',
+          parsedIntent: 'confirm_shell_execute',
+          activeTool: 'none',
+          completionState: 'COMPLETED',
+        });
+      }
 
       input.onProgress?.({
         type: 'ACTION_STARTED',
@@ -1392,8 +1611,8 @@ SPOKEN: "${finalSpokenResponse}"`);
           goalId: 'shell_execute',
           goalDescription: commandText,
           steps: [],
-          estimatedRisk: 'local_write',
-          requiresApproval: false,
+          estimatedRisk: 'destructive',
+          requiresApproval: true,
           confidence: arbitration.confidence,
         },
         execution: { success, output: speech, data: res },
@@ -1417,6 +1636,52 @@ SPOKEN: "${finalSpokenResponse}"`);
       await browserOperator.blurActiveElement();
       const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).developerPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
       sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      const isAlreadyConfirmed = continuationUsed && pending && pending.kind === 'confirm_run_tests';
+      if (!isAlreadyConfirmed) {
+        const ask = `Soll ich Tests im Ordner "${cwd}" ausführen? Bitte bestätige mit „Ja“.`;
+        input.onProgress?.({
+          type: 'CONFIRMATION_REQUIRED',
+          status: 'awaiting_confirmation',
+          currentStep: ask,
+          cwd,
+        });
+        return finalizeTurn({
+          handled: true,
+          goalId: 'confirm_run_tests',
+          goalDescription: `Confirmation required to run tests in ${cwd}`,
+          route: 'chat_trivial',
+          plan: {
+            goalId: 'confirm_run_tests',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'run-tests-step',
+              capabilityId: 'developer.run_tests',
+              executorId: 'engineering',
+              action: 'run_tests',
+              parameters: { cwd },
+              description: `Run tests in ${cwd}`,
+            }],
+            estimatedRisk: 'destructive',
+            requiresApproval: true,
+            confidence: arbitration.confidence,
+          },
+          execution: { success: false, output: ask },
+          verification: { verified: false, realityCheck: 'Awaiting confirmation before running tests' },
+          spokenText: ask,
+          timings: { totalMs: Date.now() - t0 },
+          pendingClarification: {
+            kind: 'confirm_run_tests',
+            targetName: cwd,
+            targetType: 'cwd',
+            intendedAction: 'run_tests',
+            attempt: 1,
+            askedAt: Date.now(),
+            options: ['Ja', 'Nein'],
+            clarificationType: 'yes_no',
+          },
+        });
+      }
 
       input.onProgress?.({
         type: 'ACTION_STARTED',
@@ -1457,8 +1722,8 @@ SPOKEN: "${finalSpokenResponse}"`);
           goalId: 'developer_run_tests',
           goalDescription: commandText,
           steps: [],
-          estimatedRisk: 'local_write',
-          requiresApproval: false,
+          estimatedRisk: 'destructive',
+          requiresApproval: true,
           confidence: arbitration.confidence,
         },
         execution: { success, output: speech, data: res },
@@ -1479,6 +1744,52 @@ SPOKEN: "${finalSpokenResponse}"`);
       await browserOperator.blurActiveElement();
       const cwd = (actionIntent.metadata?.cwd as string) || (arbitration as any).developerPlan?.cwd || sessionWorkingState.get(conversationId).lastWorkingDir;
       sessionWorkingState.setWorkingDir(conversationId, cwd);
+
+      const isAlreadyConfirmed = continuationUsed && pending && pending.kind === 'confirm_build';
+      if (!isAlreadyConfirmed) {
+        const ask = `Soll ich das Projekt im Ordner "${cwd}" bauen? Bitte bestätige mit „Ja“.`;
+        input.onProgress?.({
+          type: 'CONFIRMATION_REQUIRED',
+          status: 'awaiting_confirmation',
+          currentStep: ask,
+          cwd,
+        });
+        return finalizeTurn({
+          handled: true,
+          goalId: 'confirm_build',
+          goalDescription: `Confirmation required to build project in ${cwd}`,
+          route: 'chat_trivial',
+          plan: {
+            goalId: 'confirm_build',
+            goalDescription: commandText,
+            steps: [{
+              stepId: 'build-step',
+              capabilityId: 'developer.build',
+              executorId: 'engineering',
+              action: 'build',
+              parameters: { cwd },
+              description: `Build project in ${cwd}`,
+            }],
+            estimatedRisk: 'destructive',
+            requiresApproval: true,
+            confidence: arbitration.confidence,
+          },
+          execution: { success: false, output: ask },
+          verification: { verified: false, realityCheck: 'Awaiting confirmation before building project' },
+          spokenText: ask,
+          timings: { totalMs: Date.now() - t0 },
+          pendingClarification: {
+            kind: 'confirm_build',
+            targetName: cwd,
+            targetType: 'cwd',
+            intendedAction: 'build',
+            attempt: 1,
+            askedAt: Date.now(),
+            options: ['Ja', 'Nein'],
+            clarificationType: 'yes_no',
+          },
+        });
+      }
 
       input.onProgress?.({
         type: 'ACTION_STARTED',
@@ -1516,8 +1827,8 @@ SPOKEN: "${finalSpokenResponse}"`);
           goalId: 'developer_build',
           goalDescription: commandText,
           steps: [],
-          estimatedRisk: 'local_write',
-          requiresApproval: false,
+          estimatedRisk: 'destructive',
+          requiresApproval: true,
           confidence: arbitration.confidence,
         },
         execution: { success, output: speech, data: res },
@@ -2475,9 +2786,6 @@ SPOKEN: "${finalSpokenResponse}"`);
       });
     }
 
-    const pending = ctx.pendingClarification;
-    const PENDING_TTL_MS = 3 * 60 * 1000;
-
     // ── SYSTEM INTROSPECTION (HIGHEST ROUTING PRIORITY OVER STALE CONTEXT) ──
     // "What AI model are you using now?", "What model are you running?",
     // "What provider are you using?", etc. are queries about the RUNTIME.
@@ -3310,12 +3618,7 @@ SPOKEN: "${finalSpokenResponse}"`);
     // A short answer to a question Jarvis just asked must resume THAT goal
     // instead of being classified as an unrelated new command ("The channel.",
     // "Yes.", "Start working on it.").
-    let continuationUsed = false;
-    let ambiguityAnswer: string | null = null;
-    // A pending question with a missing/invalid timestamp must still be usable —
-    // an absent clock reading is not evidence that the question is stale.
-    const pendingAgeMs = pending ? Date.now() - (Number.isFinite(pending.askedAt) ? pending.askedAt : Date.now()) : Infinity;
-    if (pending && pendingAgeMs <= PENDING_TTL_MS) {
+    if (!continuationUsed && pending && pendingAgeMs <= PENDING_TTL_MS) {
       const resumed = this.resolvePendingAnswer(commandText, pending, ctx.clarificationType);
       if (resumed && 'ambiguous' in resumed) {
         // F5: a bare "Yes." cannot answer a MULTI-CHOICE question. Ask which one
@@ -5492,7 +5795,7 @@ SPOKEN: "${finalSpokenResponse}"`);
   ): { goal: string } | { ambiguous: string[] } | null {
     const t = (utterance || '').toLowerCase().trim();
     if (!t || !pending) return null;
-    if (/^(?:no|nope|don'?t|cancel|never ?mind|forget it|stop)[.!]?$/.test(t)) return null;
+    if (/^(?:no|nope|don'?t|cancel|never ?mind|forget it|stop|nein|abbrechen|nicht machen)[.!]?$/i.test(t)) return null;
     if (/\b(?:youtube|google|linkedin|twitter|x\.com|github|reddit|wikipedia)\b/i.test(t)) return null;
 
     // A multi-word command or an utterance containing actions like search/find/open or content terms is NOT a short answer to a pending question
@@ -5511,7 +5814,7 @@ SPOKEN: "${finalSpokenResponse}"`);
     const kind = declaredType || pending.clarificationType;
     const options = pending.options || [];
 
-    const yes = /^(?:yes|yeah|yep|ok(?:ay)?|sure|please do|go ahead|do it|yes please|correct|affirmative)[.!]?$/.test(t);
+    const yes = /^(?:yes|yeah|yep|ok(?:ay)?|sure|please do|go ahead|do it|yes please|correct|affirmative|ja|ja bitte|mach das|ausführen|bestätigen)[.!]?$/i.test(t);
 
     // F5: "Yes." is only sufficient against a YES/NO question. Against an
     // offering of alternatives it is ambiguous — ask which one, never guess.
@@ -5537,6 +5840,24 @@ SPOKEN: "${finalSpokenResponse}"`);
     }
 
     if (yes) {
+      if (pending.kind === 'confirm_command') {
+        return { goal: `execute confirmed command: ${pending.targetName} in ${pending.targetType}` };
+      }
+      if (pending.kind === 'confirm_delete_project') {
+        return { goal: `delete project ${pending.targetName}` };
+      }
+      if (pending.kind === 'confirm_process_stop') {
+        return { goal: `stop process ${pending.targetName}` };
+      }
+      if (pending.kind === 'confirm_shell_open') {
+        return { goal: `open powershell in ${pending.targetName}` };
+      }
+      if (pending.kind === 'confirm_run_tests') {
+        return { goal: `run tests in ${pending.targetName}` };
+      }
+      if (pending.kind === 'confirm_build') {
+        return { goal: `build project in ${pending.targetName}` };
+      }
       if (pending.intendedAction === 'operate_project' || pending.intendedAction === 'operate') return { goal: `start working on ${target}` };
       if (pending.intendedAction === 'read') return { goal: `what is happening with ${target}` };
       if (pending.intendedAction === 'navigate_ui' || pending.intendedAction === 'open') return { goal: `open ${target}` };

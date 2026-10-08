@@ -28,12 +28,17 @@ const DESTRUCTIVE_CATEGORIES = new Set([
   'approval_required',
   'codex_delegation', // execution may write
   'pipeline_operation', // only when it triggers side effects; callers refine
+  'command_execution',
+  'terminal',
+  'shell_execute',
+  'process_control',
+  'desktop_launch',
 ]);
 
-const DESTRUCTIVE_ROUTES = new Set(['codex', 'agent_teams']);
+const DESTRUCTIVE_ROUTES = new Set(['codex', 'agent_teams', 'terminal', 'shell', 'desktop']);
 
 const DESTRUCTIVE_SIGNAL_RE =
-  /\b(delete|remove|overwrite|write|create|patch|modify|change|update|refactor|deploy|publish|send|email|call|contact|reach out|pay|buy|purchase|spend|cancel|abort|stop)\b/i;
+  /\b(delete|remove|overwrite|write|create|patch|modify|change|update|refactor|deploy|publish|send|email|call|contact|reach out|pay|buy|purchase|spend|cancel|abort|stop|run|exec|execute|launch|powershell|cmd|bash|sh|npm|pip|cargo)\b/i;
 
 export function classifyActionSafety(
   route: string,
