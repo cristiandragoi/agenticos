@@ -19,6 +19,7 @@ import { logger } from '../../utils/logger.js';
 import type { TargetContentContext } from '../jarvis/perception/targetContentExtractor.js';
 import { resolveDiscourse, type DiscourseCompilerView, type DiscourseResolution } from './DiscourseReferentResolver.js';
 import type { StructuredIntent } from './StructuredIntent.js';
+import { detectLanguageSwitchRequest } from '../jarvis/conversationLanguage.js';
 
 export type CompiledAction =
   | 'OPEN_APPLICATION'
@@ -1035,6 +1036,125 @@ export class AuthoritativeIntentCompiler {
         rawPrompt,
         normalizedPrompt,
         reason: 'Immediate causal-explanatory follow-up referencing preceding operation or failure',
+      };
+    }
+
+    // ── 0c. Explicit Language Switch Request ("Sprich bitte ab jetzt Deutsch", "Speak German", etc.) ──
+    const langSwitch = detectLanguageSwitchRequest(stripped);
+    if (langSwitch.isLanguageSwitch && langSwitch.targetLanguage) {
+      return {
+        action: 'CONVERSATIONAL',
+        targetType: 'NONE' as any,
+        application: null,
+        target: 'language_switch',
+        contentRequest: langSwitch.targetLanguage,
+        ordinal: null,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt,
+        normalizedPrompt,
+        reason: `Explicit user request to switch language to ${langSwitch.targetLanguage}`,
+      };
+    }
+
+    // ── 0d. Email Workflows ("Open my email", "Write an email", "Send this email") ──
+    const isEmailOpen =
+      /^(?:please\s+)?(?:open|launch|bring\s+up|check|show|go\s+to)\s+(?:my\s+)?(?:email|emails|mail|inbox|webmail|gmail)[.!?]*$/i.test(stripped) ||
+      /^(?:open|check)\s+(?:my\s+)?(?:inbox|email|mail|gmail)[.!?]*$/i.test(stripped) ||
+      /^(?:bitte\s+)?(?:[oö]ffne|starte|zeige)\s+(?:meine?\s+)?(?:e-?mails?|postfach|inbox|mail|gmail)[.!?]*$/i.test(stripped);
+
+    if (isEmailOpen) {
+      return {
+        action: 'OPEN_APPLICATION',
+        targetType: 'APPLICATION_WINDOW',
+        application: 'Email',
+        target: 'email',
+        contentRequest: 'open_email',
+        ordinal: null,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt,
+        normalizedPrompt,
+        reason: 'Direct user command to open default email client or webmail',
+      };
+    }
+
+    const isEmailDraft =
+      /\b(?:write|compose|draft|prepare|create)\s+(?:an?\s+)?(?:email|mail|message\s+to)\b/i.test(stripped);
+
+    if (isEmailDraft) {
+      return {
+        action: 'CONVERSATIONAL',
+        targetType: 'NONE' as any,
+        application: 'Email',
+        target: 'email_draft',
+        contentRequest: rawPrompt,
+        ordinal: null,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt,
+        normalizedPrompt,
+        reason: 'Direct user command to compose an email draft',
+      };
+    }
+
+    const isEmailSend =
+      /\b(?:send\s+(?:this\s+|the\s+)?email|send\s+email|send\s+it|confirm\s+send)\b/i.test(stripped);
+
+    if (isEmailSend) {
+      return {
+        action: 'CONVERSATIONAL',
+        targetType: 'NONE' as any,
+        application: 'Email',
+        target: 'email_send',
+        contentRequest: rawPrompt,
+        ordinal: null,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt,
+        normalizedPrompt,
+        reason: 'Direct user command to send the active email draft with approval',
+      };
+    }
+
+    // ── 0e. Document & Passport OCR ("Read this document", "Read my passport", "Read what is in front of the camera") ──
+    const isDocReadingRequest =
+      /\b(?:read|scan|extract|recognize)\s+(?:this\s+|my\s+|the\s+)?(?:document|passport|id\s+card|paper|page|bill|invoice|receipt)\b/i.test(stripped) ||
+      /\bread\s+(?:what\s+is\s+in\s+front\s+of\s+the\s+camera|what\s+i'?m\s+showing(?:\s+to\s+the\s+camera)?|what\s+the\s+camera\s+sees|the\s+text\s+in\s+front\s+of\s+the\s+camera)\b/i.test(stripped) ||
+      /\bread\s+([a-zA-Z0-9_\-\\\/:]+\.(?:png|jpg|jpeg|bmp|webp|tiff|pdf))\b/i.test(stripped);
+
+    if (isDocReadingRequest) {
+      const fileMatch = stripped.match(/([a-zA-Z0-9_\-\\\/:]+\.(?:png|jpg|jpeg|bmp|webp|tiff|pdf))/i);
+      const isPassport = /\bpassport\b/i.test(stripped);
+      return {
+        action: 'READ_CONTENT',
+        targetType: 'DOCUMENT_CONTENT',
+        application: 'DocumentReader',
+        target: fileMatch ? fileMatch[1] : (isPassport ? 'passport' : 'document'),
+        contentRequest: 'document_ocr',
+        ordinal: null,
+        count: null,
+        worker: null,
+        delegationRequested: false,
+        confidence: 1.0,
+        isDirectCommand: true,
+        rawPrompt,
+        normalizedPrompt,
+        reason: isPassport
+          ? 'Direct user command to read visible passport text via OCR'
+          : 'Direct user command to read document text via OCR',
       };
     }
 

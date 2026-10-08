@@ -23,6 +23,7 @@ import type { TurnExecutionResult } from '../jarvis/execution/types.js';
 import { stripWakeWord } from './wakeWord.js';
 import { detectControlIntent, isLikelyControlAttempt } from './controlIntentDetector.js';
 import { bump } from './jarvisHealth.js';
+import { getActiveLanguage } from '../../services/language/activeLanguageState.js';
 
 /**
  * ── STATE-CHANGING TARGET RESOLUTION (P0 cross-project guard) ──────────────
@@ -915,27 +916,41 @@ export async function routeTurn(opts: {
     let finalSpokenText = r.text;
     // Section 6 invariant: NEVER ALLOW A TURN TO PRODUCE SILENCE (except quiet recovery)
     if (r.handled !== false && (!finalSpokenText || !finalSpokenText.trim())) {
+      const activeLang = getActiveLanguage();
+      const isGerman = activeLang === 'de';
       if ((r as any).goalId === 'quiet_recovery' || (r as any).goalId === 'stop' || (r as any).goalId === 'suspended_ignored' || (r as any).goalId === 'wake_reactivated' || (r as any).silent === true) {
         finalSpokenText = '';
       } else if (r.route === 'blocker_detail_read') {
-        finalSpokenText = "I found the blocker, but its task record doesn't specify which API credentials are missing.";
+        finalSpokenText = isGerman
+          ? "Ich habe das Problem gefunden, aber im Aufgabendatensatz ist nicht angegeben, welche API-Zugangsdaten fehlen."
+          : "I found the blocker, but its task record doesn't specify which API credentials are missing.";
       } else if (r.route === 'action' || r.route === 'project_operate') {
-        finalSpokenText = 'I received the request, but could not complete the operation.';
+        finalSpokenText = isGerman
+          ? "Ich habe die Anfrage erhalten, konnte die Operation aber nicht abschließen."
+          : 'I received the request, but could not complete the operation.';
       } else if (r.route === 'navigate') {
         // PHASE E: never claim a navigation that was not verified.
-        finalSpokenText = r.verified ? 'Opened the requested view.' : 'I could not open that view.';
+        finalSpokenText = r.verified
+          ? (isGerman ? 'Die gewünschte Ansicht wurde geöffnet.' : 'Opened the requested view.')
+          : (isGerman ? 'Ich konnte diese Ansicht nicht öffnen.' : 'I could not open that view.');
       } else if (r.route === 'browser') {
         finalSpokenText = r.verified
-          ? `${r.entityName || 'The page'} is open.`
-          : `I could not open ${r.entityName || 'that page'} in the browser.`;
+          ? (isGerman ? `${r.entityName || 'Die Seite'} ist geöffnet.` : `${r.entityName || 'The page'} is open.`)
+          : (isGerman ? `Ich konnte ${r.entityName || 'diese Seite'} nicht im Browser öffnen.` : `I could not open ${r.entityName || 'that page'} in the browser.`);
       } else {
         const entity = r.entityName || (r as any).entityId || focus.activeEntityName || focus.activeEntityId;
         if (entity && entity.toLowerCase() === 'jarvis') {
-          finalSpokenText = "I'm on it. I can help configure and add capabilities to Jarvis.";
+          finalSpokenText = isGerman
+            ? "Ich kümmere mich darum. Ich kann dabei helfen, Jarvis zu konfigurieren und zu erweitern."
+            : "I'm on it. I can help configure and add capabilities to Jarvis.";
         } else if (entity && entity !== 'none' && !/free\s*cash/i.test(entity)) {
-          finalSpokenText = `I don't have further details on ${entity} right now.`;
+          finalSpokenText = isGerman
+            ? `Ich habe im Moment keine weiteren Details zu ${entity}.`
+            : `I don't have further details on ${entity} right now.`;
         } else {
-          finalSpokenText = "I'm not sure how to help with that. Could you rephrase?";
+          finalSpokenText = isGerman
+            ? "Ich bin mir nicht sicher, wie ich dabei helfen kann. Könnten Sie das bitte umformulieren?"
+            : "I'm not sure how to help with that. Could you rephrase?";
         }
       }
     }
@@ -989,6 +1004,38 @@ export async function routeTurn(opts: {
     focus.lastAssistantTurn = result.text;
     return result;
   };
+
+  // ── Natural Language Switch & Auto-German Ingress Intercept ────────────
+  try {
+    const {
+      detectLanguageSwitchRequest,
+      setConversationLanguage,
+      buildLanguageSwitchConfirmation,
+      detectTextLanguage,
+    } = await import('../jarvis/conversationLanguage.js');
+
+    const langSwitch = detectLanguageSwitchRequest(effectivePrompt) || detectLanguageSwitchRequest(prompt);
+    if (langSwitch.isLanguageSwitch && langSwitch.targetLanguage) {
+      setConversationLanguage(conversationId, langSwitch.targetLanguage, true);
+      const confirmation = buildLanguageSwitchConfirmation(langSwitch.targetLanguage);
+      return finish({
+        handled: true,
+        evidence: true,
+        executed: true,
+        verified: true,
+        route: 'chat_trivial',
+        text: confirmation,
+      });
+    }
+
+    // Auto-detect German if user speaks German naturally
+    const detectedLang = detectTextLanguage(effectivePrompt) || detectTextLanguage(prompt);
+    if (detectedLang === 'de') {
+      setConversationLanguage(conversationId, 'de', false);
+    }
+  } catch (langErr) {
+    logger.warn('[JRT] Language switch check error:', langErr);
+  }
 
   // Out-of-band STOP / CANCEL command detection via dedicated controlIntentDetector
   const lowerPrompt = (effectivePrompt || prompt || '').toLowerCase();

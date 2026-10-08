@@ -112,7 +112,7 @@ describe('resolveVoiceSessionConfig (pure)', () => {
   });
   it('resolves German and Romanian male voices', () => {
     const deCfg = resolveVoiceSessionConfig('agent-jarvis', null, undefined, 'de');
-    expect(deCfg.model).toBe('de-DE-KillianNeural');
+    expect(deCfg.model).toBe('aura-2-fabian-de');
     expect(deCfg.locale).toBe('de-DE');
 
     const roCfg = resolveVoiceSessionConfig('agent-jarvis', null, undefined, 'ro');

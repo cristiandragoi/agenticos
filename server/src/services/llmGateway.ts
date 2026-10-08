@@ -84,6 +84,8 @@ function getGlobalRouter() {
   return globalRouter;
 }
 
+import { getActiveLanguage, withAnswerLanguage } from './language/activeLanguageState.js';
+
 function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
   let taskProfile: ChatRequest['taskProfile'] = undefined;
   
@@ -92,9 +94,12 @@ function toGatewayRequest(opts: LlmChatOptions): ChatRequest {
   } else if (opts.provider === 'ollama' && opts.ollamaModel === 'auto') {
     taskProfile = 'tiny_summary';
   }
+
+  const activeLang = getActiveLanguage();
+  const systemPrompt = withAnswerLanguage(opts.systemPrompt, activeLang);
   
   return {
-    systemPrompt: opts.systemPrompt,
+    systemPrompt,
     prompt: opts.prompt,
     history: opts.history,
     maxTokens: opts.maxTokens,
@@ -141,8 +146,11 @@ export async function llmChat(opts: LlmChatOptions): Promise<LlmChatResult> {
       }
     } catch {}
     
+    const isGerman = getActiveLanguage() === 'de';
     return {
-      reply: 'I am running in offline mode. No external model is reachable. Please start OmniRoute (`omniroute` in a terminal) or check your API keys in server/.env.',
+      reply: isGerman
+        ? 'Ich laufe derzeit im Offline-Modus. Kein externes Modell ist erreichbar. Bitte überprüfen Sie Ihre API-Schlüssel oder starten Sie den Server neu.'
+        : 'I am running in offline mode. No external model is reachable. Please start OmniRoute (`omniroute` in a terminal) or check your API keys in server/.env.',
       provider: 'offline',
       offline: true,
       error: message

@@ -91,11 +91,11 @@ describe('Jarvis Synchronous STOP, Multilingual Control, Physical Barge-In & Tur
     expect(result.current).toBeDefined();
   });
 
-  // 23. Language switch to German switches STT and neural voice to de-DE-KillianNeural
-  it('23. Language switch to German switches STT and neural voice to de-DE-KillianNeural', () => {
+  // 23. Language switch to German switches STT and voice to Deepgram aura-2-fabian-de
+  it('23. Language switch to German switches STT and voice to aura-2-fabian-de', () => {
     const cfg = resolveVoiceSessionConfig('agent-jarvis', null, undefined, 'de');
-    expect(cfg.model).toBe('de-DE-KillianNeural');
-    expect(cfg.provider).toBe('edge-tts');
+    expect(cfg.model).toBe('aura-2-fabian-de');
+    expect(cfg.provider).toBe('deepgram');
   });
 
   // 24. Language switch to Romanian switches STT and neural voice to ro-RO-EmilNeural

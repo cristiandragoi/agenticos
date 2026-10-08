@@ -102,9 +102,8 @@ export const JARVIS_VOICE_PROVIDERS = [
 export const JARVIS_VOICES: JarvisVoiceOption[] = [
   // English (Edge TTS)
   { id: 'en-GB-RyanNeural', label: 'Ryan · British English · Edge', gender: 'male', accent: 'British', provider: 'edge-tts' },
-  // German: Piper (primary) + Edge (fallback)
-  { id: 'de_DE-thorsten-high', label: 'Thorsten · Native German, Deep Male · Local (Piper)', gender: 'male', accent: 'German', provider: 'piper' },
-  { id: 'de-DE-KillianNeural', label: 'Killian · German Neural · Edge fallback', gender: 'male', accent: 'German', provider: 'edge-tts' },
+  // German: Deepgram aura-2-julius-de ONLY (no fallback voice)
+  { id: 'aura-2-julius-de', label: 'Julius · Native German Male · Deepgram Aura-2', gender: 'male', accent: 'German', provider: 'deepgram' },
   // Romanian: Piper (primary) + Edge (fallback)
   { id: 'ro_RO-mihai-medium', label: 'Mihai · Native Romanian · Local (Piper)', gender: 'male', accent: 'Romanian', provider: 'piper' },
   { id: 'ro-RO-EmilNeural', label: 'Emil · Romanian Neural · Edge fallback', gender: 'male', accent: 'Romanian', provider: 'edge-tts' },

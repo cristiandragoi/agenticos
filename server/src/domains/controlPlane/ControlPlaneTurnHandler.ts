@@ -483,9 +483,9 @@ export class ControlPlaneTurnHandler {
       lower.match(/\b(?:switch|change|set|use|turn|select)\s+(?:the\s+|your\s+)?(?:voice|tts)\s+(?:to|in|into)\s+([a-z0-9_\-]+)/i) ||
       lower.match(/\b(?:switch|change|set|use|turn|select)\s+(?:the\s+|your\s+)?(?:voice|tts)\s+([a-z0-9_\-]+)\b/i) ||
       lower.match(/\b(?:switch|change|set|use|select)\s+to\s+([a-z0-9_\-]+)\s+voice\b/i) ||
-      lower.match(/\b(?:use|switch to|change to|speak in|talk in|speak with)\s+(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|thorsten|killian|mihai|emil)(?:\s+voice)?\b/i) ||
-      lower.match(/^(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|thorsten|killian|mihai|emil)(?:\s+voice)?[\.!]?$/i) ||
-      lower.match(/\b(zeus|helios|orion|athena|angus|orpheus|ryan|thorsten|killian|mihai|emil)\s+voice\b/i);
+      lower.match(/\b(?:use|switch to|change to|speak in|talk in|speak with)\s+(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|julius|fabian|thorsten|killian|mihai|emil)(?:\s+voice)?\b/i) ||
+      lower.match(/^(?:the\s+)?(zeus|helios|orion|athena|angus|orpheus|ryan|julius|fabian|thorsten|killian|mihai|emil)(?:\s+voice)?[\.!]?$/i) ||
+      lower.match(/\b(zeus|helios|orion|athena|angus|orpheus|ryan|julius|fabian|thorsten|killian|mihai|emil)\s+voice\b/i);
 
     if (voiceSwitchMatch) {
       const rawTarget = (voiceSwitchMatch[1] || voiceSwitchMatch[2] || '').toLowerCase().trim();
@@ -512,12 +512,10 @@ export class ControlPlaneTurnHandler {
       } else if (rawTarget.includes('ryan')) {
         targetVoiceId = 'en-GB-RyanNeural';
         targetVoiceName = 'Ryan';
-      } else if (rawTarget.includes('thorsten')) {
-        targetVoiceId = 'de_DE-thorsten-high';
-        targetVoiceName = 'Thorsten';
-      } else if (rawTarget.includes('killian')) {
-        targetVoiceId = 'de-DE-KillianNeural';
-        targetVoiceName = 'Killian';
+      } else if (rawTarget.includes('julius') || rawTarget.includes('fabian') || rawTarget.includes('thorsten') || rawTarget.includes('killian')) {
+        // German has exactly one voice: Deepgram aura-2-julius-de.
+        targetVoiceId = 'aura-2-julius-de';
+        targetVoiceName = 'Julius';
       } else if (rawTarget.includes('mihai')) {
         targetVoiceId = 'ro_RO-mihai-medium';
         targetVoiceName = 'Mihai';
@@ -688,7 +686,7 @@ export class ControlPlaneTurnHandler {
       const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
       const convLang = getConversationLanguage(conversationId);
       const isGerman = convLang === 'de' || /\b(?:committe|[aä]nderungen)\b/i.test(lower);
-      const { success, formattedText } = agenticOsGitService.commitChanges(undefined, isGerman ? 'de' : 'en');
+      const { success, formattedText } = agenticOsGitService.commitChanges(undefined, { lang: isGerman ? 'de' : 'en' });
       if (focus) {
         focus.lastAssistantTurn = formattedText;
         focus.lastResolvedEntityName = 'AgenticOS Git Commit';
@@ -713,7 +711,7 @@ export class ControlPlaneTurnHandler {
       const { getConversationLanguage } = await import('../jarvis/conversationLanguage.js');
       const convLang = getConversationLanguage(conversationId);
       const isGerman = convLang === 'de' || /\b(?:pushe|branch)\b/i.test(lower);
-      const { success, formattedText } = agenticOsGitService.pushBranch(isGerman ? 'de' : 'en');
+      const { success, formattedText } = agenticOsGitService.pushBranch({ lang: isGerman ? 'de' : 'en' });
       if (focus) {
         focus.lastAssistantTurn = formattedText;
         focus.lastResolvedEntityName = 'AgenticOS Git Push';

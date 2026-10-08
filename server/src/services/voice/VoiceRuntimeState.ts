@@ -13,8 +13,13 @@
 import { voiceStudioService } from './VoiceStudioService.js';
 import { secretStore } from '../gateway/secretStore.js';
 import { logger } from '../../utils/logger.js';
+import { getActiveLanguage, setActiveLanguageState, normalizeLanguage } from '../language/activeLanguageState.js';
 
-export type TtsProvider = 'voicestudio' | 'deepgram' | 'edge-tts' | 'piper';
+/** The ONE German voice for Jarvis (Deepgram Aura-2, native German male). */
+export const GERMAN_VOICE_ID = 'aura-2-julius-de';
+const DEFAULT_LOCALE: Record<string, string> = { en: 'en-GB', de: 'de-DE', ro: 'ro-RO' };
+
+export type TtsProvider = 'voicestudio' | 'deepgram' | 'edge-tts' | 'piper' | 'none';
 export type SttProvider = 'voicestudio' | 'deepgram' | 'local-whisper';
 export type PlaybackState = 'idle' | 'synthesizing' | 'speaking' | 'draining';
 
@@ -55,7 +60,8 @@ export class VoiceRuntimeStateManager {
   private activeSttProvider: SttProvider = 'voicestudio';
   private activeVoice = 'aura-zeus-en';
   private activeModel = 'tts-1';
-  private language = 'en';
+  /** Language is NOT stored here: it is the single shared Jarvis language setting. */
+  private get language(): string { return getActiveLanguage(); }
   private locale = 'en-GB';
   private languageLocked = false;
   private fallbackReason: string | null = null;
@@ -120,17 +126,22 @@ export class VoiceRuntimeStateManager {
   }
 
   public setLanguage(lang: string, locale?: string, isExplicit = false): void {
-    this.language = lang;
-    if (locale) this.locale = locale;
+    const code = normalizeLanguage(lang) || 'en';
+    setActiveLanguageState(code, 'voiceRuntimeState');
+    // Locale ALWAYS follows the language (a stale de-DE locale must never keep German active).
+    this.locale = locale && locale.toLowerCase().startsWith(code) ? locale : DEFAULT_LOCALE[code];
     if (isExplicit) {
       this.languageLocked = true;
     }
-    if (lang === 'de') {
-      this.locale = locale || 'de-DE';
-      this.activeVoice = 'de_DE-thorsten-high';
-      this.activeModel = 'de_DE-thorsten-high';
-      this.activeTtsProvider = 'piper';
+    if (code === 'de') {
+      this.activeVoice = GERMAN_VOICE_ID;
+      this.activeModel = GERMAN_VOICE_ID;
+      this.activeTtsProvider = 'deepgram';
     }
+  }
+
+  public getLanguage(): string {
+    return this.language;
   }
 
   public isLanguageLocked(): boolean {
@@ -165,28 +176,17 @@ export class VoiceRuntimeStateManager {
     model: string;
     fallbackReason: string | null;
   }> {
-    const isGerman = this.language === 'de' || this.locale.startsWith('de') ||
-      (requestedVoice && (requestedVoice.startsWith('de') || requestedVoice.includes('Killian') || requestedVoice.includes('thorsten')));
+    // One setting: the voice follows the active language, never a stale voice id.
+    const isGerman = this.language === 'de';
 
     if (isGerman) {
-      try {
-        const { hasPiperVoiceForLanguage, LANGUAGE_TO_PIPER_VOICE } = await import('./piperTts.js');
-        if (hasPiperVoiceForLanguage('de')) {
-          const piperVoice = LANGUAGE_TO_PIPER_VOICE?.de || 'de_DE-thorsten-high';
-          return {
-            provider: 'piper',
-            voice: piperVoice,
-            model: piperVoice,
-            fallbackReason: null,
-          };
-        }
-      } catch {}
-
+      // German is ALWAYS Deepgram aura-2-julius-de — no Piper / Edge / English fallback.
+      const hasKey = !!(process.env.DEEPGRAM_API_KEY || (await import('../gateway/secretStore.js')).secretStore.getSync('deepgram'));
       return {
-        provider: 'edge-tts',
-        voice: 'de-DE-KillianNeural',
-        model: 'neural-tts',
-        fallbackReason: 'Piper is unavailable, so Edge-TTS de-DE-KillianNeural is active.',
+        provider: hasKey ? 'deepgram' : 'none',
+        voice: GERMAN_VOICE_ID,
+        model: GERMAN_VOICE_ID,
+        fallbackReason: hasKey ? null : `German voice ${GERMAN_VOICE_ID} unavailable: no Deepgram API key is configured.`,
       };
     }
 

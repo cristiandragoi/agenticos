@@ -97,13 +97,19 @@ import { detectControlIntent, isStandaloneWake, hasWakePrefix, type ControlComma
 import { classifyTranscript, recordSpokenSegment, clearSpokenSegments } from '../lib/echoTracker';
 import { jarvisLiveKitSession, JARVIS_CANONICAL_ROOM, type JarvisLiveKitState } from '../lib/jarvisLiveKitSession';
 import { classifyInterruption } from '../lib/adaptiveBargeIn';
-import { resolveVoiceSessionConfig, isVoiceCompatibleWithLanguage, recordVoiceSynthesis, type VoiceSessionConfig } from '../lib/voiceSessionConfig';
+import { resolveVoiceSessionConfig, isVoiceCompatibleWithLanguage, recordVoiceSynthesis, getSavedLanguageChoice, saveLanguageChoice, type VoiceSessionConfig } from '../lib/voiceSessionConfig';
 
 // Per-agent TTS voice mapping (Deepgram Aura voices)
 const AGENT_VOICE: Record<string, string> = {
   'agent-jarvis': 'aura-helios-en',   // Deep British male
   'agent-hermes': 'aura-stella-en',   // Professional female
   'agent-codex': 'aura-orpheus-en',   // Technical male
+};
+
+const AGENT_VOICE_GERMAN: Record<string, string> = {
+  'agent-jarvis': 'aura-2-julius-de', // Native German male (Deepgram Aura-2)
+  'agent-hermes': 'aura-2-julius-de',
+  'agent-codex': 'aura-2-julius-de',
 };
 
 function isSelfEcho(transcript: string, spokenText: string): boolean {
@@ -146,15 +152,18 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
   const conversationIdRef = useRef<string | null>(conversationId);
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
 
-  const languageRef = useRef<string | null>(language);
+  const initialLanguage = language || getSavedLanguageChoice();
+  const languageRef = useRef<string | null>(initialLanguage);
   useEffect(() => {
     if (language !== languageRef.current) {
-      languageRef.current = language;
+      const active = language || getSavedLanguageChoice();
+      languageRef.current = active;
+      if (active) saveLanguageChoice(active);
       voiceSessionConfigRef.current = null;
-      if (language) {
-        const cfg = resolveVoiceSessionConfig(agentId, voiceOverrideRef.current, undefined, language);
+      if (active) {
+        const cfg = resolveVoiceSessionConfig(agentId, voiceOverrideRef.current, undefined, active);
         voiceSessionConfigRef.current = cfg;
-        voiceTracePush('voice_config', 'ok', `Language updated: ${language} -> ${cfg.model}`);
+        voiceTracePush('voice_config', 'ok', `Language updated: ${active} -> ${cfg.model}`);
       }
     }
   }, [agentId, language]);
@@ -363,6 +372,7 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
 
   const setLanguage = useCallback((lang: string | null) => {
     languageRef.current = lang;
+    if (lang) saveLanguageChoice(lang);
     voiceSessionConfigRef.current = null;
     const cfg = resolveVoiceSessionConfig(agentId, voiceOverrideRef.current, undefined, lang || undefined);
     voiceSessionConfigRef.current = cfg;
@@ -980,6 +990,33 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       reportRejection(text, 'Duplicate speech detected within window', 'duplicate_speech');
       resetTurnLatch('duplicate_speech');
       return false;
+    }
+
+    // Voice language switch detection: natural German and English phrases
+    const lowerText = text.toLowerCase().trim();
+    if (
+      /\b(?:bitte\s+)?auf\s+deutsch(?:\s+bitte)?\b/i.test(lowerText) ||
+      /\b(?:bitte\s+)?deutsch\s+(?:reden|sprechen|antworten)\b/i.test(lowerText) ||
+      /\b(?:bitte\s+)?redet?\s+(?:auf\s+)?deutsch\b/i.test(lowerText) ||
+      /\b(?:bitte\s+)?sprich\s+(?:auf\s+)?deutsch\b/i.test(lowerText) ||
+      /\bdeutsch\s+bitte\b/i.test(lowerText) ||
+      /\bspeak\s+german\b/i.test(lowerText) ||
+      /\bswitch\s+(?:back\s+|over\s+)?(?:in|to|into)\s+german\b/i.test(lowerText) ||
+      /\bchange\s+(?:to\s+)?german\b/i.test(lowerText)
+    ) {
+      languageRef.current = 'de';
+      saveLanguageChoice('de');
+      const cfg = resolveVoiceSessionConfig(agentId, voiceOverrideRef.current, undefined, 'de');
+      voiceSessionConfigRef.current = cfg;
+      voiceTracePush('voice_config', 'ok', `Voice language switched to German: ${cfg.model}`);
+    } else if (
+      /\b(?:speak\s+(?:please\s+)?english|sprich\s+(?:wieder\s+)?englisch|english\s+please|switch\s+(?:back\s+)?to\s+english|auf\s+englisch\s+bitte|bitte\s+auf\s+englisch)\b/i.test(lowerText)
+    ) {
+      languageRef.current = 'en';
+      saveLanguageChoice('en');
+      const cfg = resolveVoiceSessionConfig(agentId, voiceOverrideRef.current, undefined, 'en');
+      voiceSessionConfigRef.current = cfg;
+      voiceTracePush('voice_config', 'ok', `Voice language switched to English: ${cfg.model}`);
     }
 
     turnSubmittedRef.current = true;
@@ -2315,7 +2352,14 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
         }
       } else {
         synthesisFailed = true;
-        fallbackReason = `TTS HTTP ${res.status}`;
+        let serverError = '';
+        try {
+          const errBody = await res.json();
+          serverError = typeof errBody?.error === 'string' ? errBody.error : '';
+        } catch { /* non-JSON body */ }
+        fallbackReason = serverError
+          ? `${serverError} (HTTP ${res.status})`
+          : `TTS HTTP ${res.status}`;
       }
     } catch (e: any) {
       if (e.name === 'AbortError') {
@@ -2341,7 +2385,8 @@ export function useVoiceIO(options: UseVoiceIOOptions) {
       setPlaybackError(`TTS synthesis unavailable: ${fallbackReason || 'Speech synthesis error'}`);
 
       // Browser speech synthesis is permitted ONLY if explicitly configured by the user as manual accessibility provider outside conversation mode:
-      if (!conversationActiveRef.current && (cfg.provider as string) === 'browser-speechsynthesis') {
+      // Never for German: the German voice is exclusively aura-2-julius-de, no silent substitute.
+      if (!conversationActiveRef.current && cfg.language !== 'de' && (cfg.provider as string) === 'browser-speechsynthesis') {
         recordVoiceSynthesis({
           voiceSessionId: conversationSessionIdRef.current,
           turnId: turnSeqRef.current,

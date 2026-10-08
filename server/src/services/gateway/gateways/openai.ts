@@ -98,6 +98,8 @@ export class OpenAICompatibleGateway implements ModelGateway {
         }
       }
       const isQwenMax = model.toLowerCase().includes('qwen3.8-max');
+      const isMiMo = model.toLowerCase().includes('mimo');
+      const isOpenRouter = this.definition.baseUrl.includes('openrouter.ai');
       const maxTokens = isQwenMax ? Math.min(req.maxTokens || 120, 120) : (req.maxTokens || 2048);
 
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -108,8 +110,16 @@ export class OpenAICompatibleGateway implements ModelGateway {
             max_tokens: maxTokens,
             temperature: 0
           };
-          if (isQwenMax) {
+          if (isOpenRouter) {
+            bodyPayload.provider = {
+              sort: 'latency',
+              allow_fallbacks: true
+            };
+          }
+          if (isQwenMax || isMiMo) {
             bodyPayload.reasoning = { effort: 'none' };
+            bodyPayload.thinking = { type: 'disabled' };
+            bodyPayload.include_reasoning = false;
           }
 
           const res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
@@ -188,6 +198,28 @@ export class OpenAICompatibleGateway implements ModelGateway {
     const dbKey = await ProviderCredentialService.getCredential(this.name);
     const apiKey = dbKey || this.definition.apiKey;
     let res: Response;
+    const isMiMo = model.toLowerCase().includes('mimo');
+    const isQwenMax = model.toLowerCase().includes('qwen3.8-max');
+    const isOpenRouter = this.definition.baseUrl.includes('openrouter.ai');
+
+    const streamPayload: any = { 
+      model: model, 
+      messages, 
+      max_tokens: req.maxTokens || 1024, 
+      stream: true,
+    };
+    if (isOpenRouter) {
+      streamPayload.provider = {
+        sort: 'latency',
+        allow_fallbacks: true
+      };
+    }
+    if (isQwenMax || isMiMo) {
+      streamPayload.reasoning = { effort: 'none' };
+      streamPayload.thinking = { type: 'disabled' };
+      streamPayload.include_reasoning = false;
+    }
+
     try {
       res = await fetch(`${this.definition.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -195,12 +227,7 @@ export class OpenAICompatibleGateway implements ModelGateway {
           'Content-Type': 'application/json',
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
         },
-        body: JSON.stringify({ 
-          model: model, 
-          messages, 
-          max_tokens: req.maxTokens || 1024, 
-          stream: true,
-        }),
+        body: JSON.stringify(streamPayload),
         signal: buildRequestSignal(req)
       });
     } catch (fetchErr: any) {

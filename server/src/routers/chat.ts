@@ -209,7 +209,7 @@ router.post('/agents/run', async (req, res) => {
     provider = codexAssignment?.providerId ? mapCatalogToGatewayId(codexAssignment.providerId) : 'DeepSeek';
   }
 
-  const systemPrompt = `You are the ${agent} agent inside my Agentic OS. Answer with concrete code patches and plans. Be concise and authoritative. Respond to the user in English. Keep plans, explanations, reports, and execution summaries in English unless the user explicitly requests another language.`;
+  const systemPrompt = `You are the ${agent} agent inside my Agentic OS. Answer with concrete code patches and plans. Be concise and authoritative. Respond to the user in their chosen language.`;
   const result = await llmChat({ systemPrompt, prompt: message, maxTokens: 2048, provider, model });
   res.json({ reply: result.reply, ...(result.offline ? { offline: true, error: result.error } : {}) });
 });

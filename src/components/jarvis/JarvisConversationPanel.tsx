@@ -269,7 +269,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
             requestCompletedSuccessfully = true;
             setStreamMeta((m) => ({ ...m, route }));
             if (payload.language) {
-              const targetVoice = payload.language === 'de' ? 'de-DE-KillianNeural' : payload.language === 'ro' ? 'ro-RO-EmilNeural' : 'en-GB-RyanNeural';
+              const targetVoice = payload.language === 'de' ? 'aura-2-julius-de' : payload.language === 'ro' ? 'ro-RO-EmilNeural' : 'en-GB-RyanNeural';
               voiceRef.current?.setLanguage?.(payload.language);
               voiceRef.current?.setVoiceOverride?.(targetVoice);
             }
@@ -419,7 +419,7 @@ export const JarvisConversationPanel: React.FC<{ backendOffline?: boolean }> = (
     const onLangChanged = (e: any) => {
       const lang = e.detail?.language;
       if (lang) {
-        const targetVoice = lang === 'de' ? 'de-DE-KillianNeural' : lang === 'ro' ? 'ro-RO-EmilNeural' : 'en-GB-RyanNeural';
+        const targetVoice = lang === 'de' ? 'aura-2-julius-de' : lang === 'ro' ? 'ro-RO-EmilNeural' : 'en-GB-RyanNeural';
         voiceRef.current?.setLanguage?.(lang);
         voiceRef.current?.setVoiceOverride?.(targetVoice);
       }

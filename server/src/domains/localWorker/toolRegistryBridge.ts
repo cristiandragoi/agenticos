@@ -200,6 +200,7 @@ export class ToolRegistryBridge {
         return {
           success: false,
           output: 'APPROVAL_ISSUER_UNAVAILABLE: High-impact action requires verified approval from out-of-process issuer',
+          evidenceSource: 'securitySupervisor.approvalGate',
           verification: {
             verified: false,
             realityCheck: 'APPROVAL_ISSUER_UNAVAILABLE: Execution blocked by security supervisor',
@@ -354,6 +355,7 @@ export class ToolRegistryBridge {
           return {
             success: false,
             output: `Failed to write ${targetPath}: ${err?.message || String(err)}`,
+            evidenceSource: 'filesystemExecutor.writeFile',
             error: isConfinement ? 'CONFINEMENT_VIOLATION' : (err?.message || String(err)),
             verification: {
               verified: false,
@@ -383,6 +385,7 @@ export class ToolRegistryBridge {
           return {
             success: false,
             output: `Failed to create folder ${targetPath}: ${err?.message || String(err)}`,
+            evidenceSource: 'filesystemExecutor.createFolder',
             error: isConfinement ? 'CONFINEMENT_VIOLATION' : (err?.message || String(err)),
             verification: {
               verified: false,
@@ -412,6 +415,7 @@ export class ToolRegistryBridge {
           return {
             success: false,
             output: `Failed to delete ${targetPath}: ${err?.message || String(err)}`,
+            evidenceSource: 'filesystemExecutor.deletePath',
             error: isConfinement ? 'CONFINEMENT_VIOLATION' : (err?.message || String(err)),
             verification: {
               verified: false,

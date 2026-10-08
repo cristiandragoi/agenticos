@@ -10,7 +10,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { assertSideEffectOwnership } from '../../perception/turnOwnership.js';
+import { assertSideEffectOwnership, type SideEffectGate } from '../../perception/turnOwnership.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';

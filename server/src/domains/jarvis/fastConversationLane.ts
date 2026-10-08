@@ -21,6 +21,7 @@ import {
   getCleanConversationHistory,
   hydrateActiveEntityContext
 } from './supervisorLoop.js';
+import { getActiveLanguage, buildAnswerLanguageInstruction } from '../../services/language/activeLanguageState.js';
 
 /**
  * @deprecated No longer used for routing; kept for backward-compat with tests.
@@ -148,6 +149,11 @@ export function buildFastConversationSystemPrompt(options: {
 
   if (options.dialogueContext) {
     parts.push(options.dialogueContext);
+  }
+
+  const langInstruction = buildAnswerLanguageInstruction(getActiveLanguage());
+  if (langInstruction) {
+    parts.push(langInstruction);
   }
 
   return parts.join('\n');

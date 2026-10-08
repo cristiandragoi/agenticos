@@ -92,7 +92,7 @@ describe('Jarvis Truthfulness, Language & Action-Execution Suite', () => {
     expect(confirmation).not.toContain('English');
 
     const voice = resolveVoiceForLanguage('de');
-    expect(voice).toContain('de-DE');
+    expect(voice).toBe('aura-2-julius-de');
   });
 
   // ── D: Explicit Romanian Language Switch & Persistence ────────────────────

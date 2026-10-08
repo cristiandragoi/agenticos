@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { GatewayConfigurationService } from './configuration.js';
 import { logger } from '../../utils/logger.js';
+import { getActiveLanguage, withAnswerLanguage } from '../language/activeLanguageState.js';
 
 export class GatewayRouter {
   private static instance: GatewayRouter;
@@ -238,6 +239,9 @@ export class GatewayRouter {
   }
 
   public async chat(req: ChatRequest, overrides?: { provider?: string }): Promise<ChatResponse> {
+    if (!req.agentId || req.agentId.toLowerCase().includes('jarvis')) {
+      req.systemPrompt = withAnswerLanguage(req.systemPrompt, getActiveLanguage());
+    }
     const liveConfig = await GatewayConfigurationService.getConfiguration();
     let order = await this.resolveProviderOrder(req, overrides);
 
@@ -487,6 +491,9 @@ export class GatewayRouter {
   }
 
   public async *stream(req: ChatRequest, overrides?: { provider?: string }): AsyncGenerator<ChatStreamChunk> {
+    if (!req.agentId || req.agentId.toLowerCase().includes('jarvis')) {
+      req.systemPrompt = withAnswerLanguage(req.systemPrompt, getActiveLanguage());
+    }
     const liveConfig = await GatewayConfigurationService.getConfiguration();
     const order = await this.resolveProviderOrder(req, overrides);
 

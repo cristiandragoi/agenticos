@@ -31,6 +31,8 @@ import {
   type SideEffectPolicy,
 } from './perceptionOperation.js';
 
+export type { SideEffectGate };
+
 export interface TurnOwnershipFrame {
   conversationId: string;
   turnId: number | string;

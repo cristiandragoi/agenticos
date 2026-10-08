@@ -536,6 +536,21 @@ export class CanonicalTurnExecutionService {
       };
     }
 
+    // ── 3b2. Email Integration ("Open my email", "Write an email to X", "Send it") ──
+    const { emailService } = await import('../../services/email/EmailService.js');
+    const { getConversationLanguage } = await import('./conversationLanguage.js');
+    const convLang = getConversationLanguage(conversationId) || 'en';
+    const emailResult = await emailService.handleTurn({ prompt: rawPrompt, conversationId, lang: convLang });
+    if (emailResult) {
+      await this.recordTurn(conversationId, rawPrompt, emailResult.outputText, 'email_tool');
+      return {
+        assistantText: emailResult.outputText,
+        route: 'email_tool',
+        status: emailResult.success ? 'completed' : 'pending',
+        verified: emailResult.verified,
+      };
+    }
+
     // ── 3c. Delegation Proposal Recognition ("Could you delegate an investigation of AgenticOS worker routing to Hermes?") ──
     const isDelegationProposal = /\b(?:could\s+you|can\s+you|would\s+you|please)\s+delegate\s+(?:an?\s+)?(.+?)\s+to\s+(hermes|codex|antigravity)\b/i.test(lower);
     if (isDelegationProposal) {

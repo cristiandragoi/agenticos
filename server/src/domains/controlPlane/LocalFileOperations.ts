@@ -51,12 +51,20 @@ export async function executeLocalFileRequest(request: LocalFileRequest | Contro
   const selected=matches[0];
   let presentationText=`I found ${selected.name}.`;
   if(request.action==='read') {
-    if(!/\.(?:txt|md|csv|json|log)$/i.test(selected.path))return {success:false,error:`I located ${selected.name}, but direct text extraction for this file format is not available in this path.`};
-    const stat=await fs.stat(selected.path);
-    if(stat.size>100000)return {success:false,error:'The file is too large for a single read. Please specify the section you need.'};
-    const result=await filesystemExecutor.executeStep({action:'read',parameters:{path:selected.path}} as any,{} as any);
-    if(!result.success)return {success:false,error:'The file was located, but I could not read its contents.'};
-    presentationText=String((result.data as any)?.content||'The file is empty.');
+    if(/\.(?:pdf|png|jpg|jpeg|bmp|webp|tiff)$/i.test(selected.path)) {
+      const { documentReaderService } = await import('../../services/perception/DocumentReaderService.js');
+      const ocrRes = await documentReaderService.readFromFile(selected.path);
+      if(!ocrRes.success) return { success: false, error: ocrRes.explanation };
+      presentationText = ocrRes.extractedText;
+    } else if(!/\.(?:txt|md|csv|json|log)$/i.test(selected.path)) {
+      return {success:false,error:`I located ${selected.name}, but direct text extraction for this file format is not available in this path.`};
+    } else {
+      const stat=await fs.stat(selected.path);
+      if(stat.size>100000)return {success:false,error:'The file is too large for a single read. Please specify the section you need.'};
+      const result=await filesystemExecutor.executeStep({action:'read',parameters:{path:selected.path}} as any,{} as any);
+      if(!result.success)return {success:false,error:'The file was located, but I could not read its contents.'};
+      presentationText=String((result.data as any)?.content||'The file is empty.');
+    }
   } else if(request.action==='open') {
     signal?.throwIfAborted();
     const opened=await filesystemExecutor.openFile(selected.path);

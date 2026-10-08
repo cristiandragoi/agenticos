@@ -1159,7 +1159,58 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       return res.end();
     }
 
-    // â”€â”€ Canonical Turn Router (ONE Shared Controller Path) â”€â”€
+    // ── Email Tool Workflow Intercept ("Open my email", "Write an email to X", "Send it") ──
+    const { emailService } = await import('../services/email/EmailService.js');
+    const { getConversationLanguage } = await import('../domains/jarvis/conversationLanguage.js');
+    const convLang = getConversationLanguage(req.params.id) || 'en';
+    const emailResult = await emailService.handleTurn({ prompt, conversationId: req.params.id, lang: convLang });
+    if (emailResult) {
+      logStreamStage(normalizedOperationId, 'email tool executed', { action: emailResult.action });
+      writeSse(res, 'intent', {
+        type: 'email_tool',
+        route: 'email_tool',
+        mode: 'operational_execution',
+        confidence: 1.0,
+        operationId: normalizedOperationId,
+      });
+
+      streamTextAsChunks(res, emailResult.outputText, normalizedOperationId);
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'user',
+        content: prompt,
+        metadata: { ...(requestMetadata || {}) },
+      });
+      await conversationService.appendMessage({
+        conversationId: req.params.id,
+        role: 'agent',
+        content: emailResult.outputText,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(requestMetadata || {}),
+          provider: 'agentic-os',
+          model: 'email-tool',
+          verified: emailResult.verified,
+        },
+      });
+
+      writeSse(res, 'done', {
+        route: 'email_tool',
+        category: 'action',
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'email-tool',
+        actionVerified: emailResult.verified,
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      completed = true;
+      updateStreamExecution({ status: 'COMPLETING', currentAction: 'Completing' });
+      endStreamExecution('COMPLETED', emailResult.outputText);
+      return res.end();
+    }
+
+    // ── Canonical Turn Router (ONE Shared Controller Path) ──
     try {
       const { routeTurn } = await import('../domains/jarvisNext/turnRouter.js');
       // â”€â”€ D14: typed navigation transport â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -3637,10 +3688,11 @@ const legacyMessageStreamHandler = async (req: any, res: any) => {
       'Never emit tool-call markup (no <tool_call>, <invoke>, or JSON fences in normal replies).',
       'Do not ask "How can I help you today?" when the user asked a specific question â€” answer that question.',
       'OPERATIONAL INVARIANT: If there is an active operational browser task or goal, NEVER output generic conversational filler such as "The door is open", "Ask away", or "I\'m ready for your questions or instructions whenever you are". Either report the exact status of the active browser operation or stay focused on the user\'s operational goal.',
+      'LANGUAGE INVARIANT: Reply in the conversation\'s chosen language (' + (turnContext?.language || 'en') + '). You must NEVER claim you "cannot switch languages", "cannot download models", or lack multilingual capabilities. You natively support English, German ("de"), and Romanian ("ro"). When German is selected, reply naturally and fluently in German.',
       ...(turnContext?.language === 'de' ? [
-        'KRITISCHE SPRACHANWEISUNG: Du musst ausschlieÃŸlich auf Deutsch antworten. Antworte direkt, prÃ¤zise und professionell. Verwende keine englischen Standardfloskeln.'
+        'KRITISCHE SPRACHANWEISUNG: Du musst ausschließlich auf Deutsch antworten. Antworte direkt, präzise und professionell auf Deutsch. Verwende keine englischen Sätze oder Standardfloskeln.'
       ] : turnContext?.language === 'ro' ? [
-        'INSTRUCÈšIUNE CRITICÄ‚ DE LIMBÄ‚: Trebuie sÄƒ rÄƒspunzi exclusiv Ã®n limba romÃ¢nÄƒ. RÄƒspunde direct, concis È™i profesional. Nu folosi formule automate Ã®n englezÄƒ.'
+        'INSTRUCȚIUNE CRITICĂ DE LIMBĂ: Trebuie să răspunzi exclusiv în limba română. Răspunde direct, concis și profesional. Nu folosi formule automate în engleză.'
       ] : []),
       ...(inputChannel === 'voice' ? [
         'Input channel: microphone transcript.',
@@ -3993,7 +4045,54 @@ router.post('/conversations/:id/message/stream', async (req, res) => {
       writeSse(res, 'navigation_request', buildNavigationPacket(base));
       return result;
     };
-    // â”€â”€ Operational Controller Intercept (Evidence-First Grounding) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Language Switch Intercept ────────────────────────────────────────
+    const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation, getConversationLanguage } = await import('../domains/jarvis/conversationLanguage.js');
+    const langReq = detectLanguageSwitchRequest(prompt);
+    if (langReq.isLanguageSwitch && langReq.targetLanguage) {
+      setConversationLanguage(req.params.id, langReq.targetLanguage, true);
+      const confText = buildLanguageSwitchConfirmation(langReq.targetLanguage);
+      streamTextAsChunks(res, confText, normalizedOperationId, 'agentic-os', 'language-switcher');
+      writeSse(res, 'done', {
+        route: 'language_switch',
+        category: 'control',
+        requestId: undefined,
+        outcome: 'VERIFIED',
+        outcomeReason: `language switched to ${langReq.targetLanguage}`,
+        verified: true,
+        executed: true,
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'language-switcher',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      return;
+    }
+
+    // ── Email Tool Intercept ──────────────────────────────────────────────
+    const { emailService } = await import('../services/email/EmailService.js');
+    const currentLang = getConversationLanguage(req.params.id) || 'en';
+    const emailResult = await emailService.handleTurn({ prompt, conversationId: req.params.id, lang: currentLang });
+    if (emailResult) {
+      streamTextAsChunks(res, emailResult.outputText, normalizedOperationId, 'agentic-os', 'email-tool');
+      writeSse(res, 'done', {
+        route: 'email_tool',
+        category: 'action',
+        requestId: undefined,
+        outcome: 'VERIFIED',
+        outcomeReason: emailResult.action,
+        verified: emailResult.verified,
+        executed: emailResult.success,
+        operationId: normalizedOperationId,
+        provider: 'agentic-os',
+        model: 'email-tool',
+        firstTokenMs: 0,
+        totalMs: 0,
+      });
+      return;
+    }
+
+    // ── Operational Controller Intercept (Evidence-First Grounding) ──────────
     // Must run BEFORE the turn lifecycle to block fabricated claims and handle
     // canonical grounded responses: 'yes' with no pending task, Shopify auth
     // queries, notification requests, task status lookups.

@@ -4030,3 +4030,50 @@
 {"incidentId":"SELFHEAL-4325","fromState":"APPROVED","toState":"DEPLOYING","timestamp":"2026-10-01T09:41:35.065Z","actor":"supervisor","reason":"Reloading dynamic capability"}
 {"incidentId":"SELFHEAL-4325","fromState":"DEPLOYING","toState":"MONITORING","timestamp":"2026-10-01T09:41:35.068Z","actor":"supervisor","reason":"Retrying original user action"}
 {"incidentId":"SELFHEAL-4325","fromState":"MONITORING","toState":"COMPLETED","timestamp":"2026-10-01T09:41:48.010Z","actor":"supervisor","reason":"Closed-loop self-heal completed and verified"}
+{"incidentId":"","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T13:52:44.830Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T13:55:05.497Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T13:55:09.440Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-002","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T13:55:09.454Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-002","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T13:55:12.057Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-001","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T13:55:13.923Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T13:55:13.925Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-002","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T13:55:14.017Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-002","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T13:55:14.017Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T14:02:44.928Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T14:09:22.461Z","actor":"human_api","reason":"Approved by test_user"}
+{"incidentId":"INC-TEST-001-A","fromState":"APPROVED","toState":"DEPLOYING","timestamp":"2026-10-07T14:09:22.464Z","actor":"supervisor","reason":"Deploying repair"}
+{"incidentId":"INC-TEST-001-A","fromState":"DEPLOYING","toState":"MONITORING","timestamp":"2026-10-07T14:09:22.464Z","actor":"supervisor","reason":"Advancing to monitoring"}
+{"incidentId":"INC-TEST-001-A","fromState":"MONITORING","toState":"COMPLETED","timestamp":"2026-10-07T14:09:22.465Z","actor":"supervisor","reason":"Original user task succeeded on retry"}
+{"incidentId":"INC-TEST-002-B","fromState":"AWAITING_APPROVAL","toState":"BLOCKED_APPROVAL_REQUIRED","timestamp":"2026-10-07T14:09:22.469Z","actor":"human_api","reason":"Rejected by user"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T14:09:22.473Z","actor":"human_api","reason":"Approved by human"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T14:09:22.476Z","actor":"human_api","reason":"Approved by human"}
+{"incidentId":"INC-TEST-001-A","fromState":"APPROVED","toState":"DEPLOYING","timestamp":"2026-10-07T14:09:22.478Z","actor":"supervisor","reason":"Deploying repair"}
+{"incidentId":"INC-TEST-001-A","fromState":"DEPLOYING","toState":"MONITORING","timestamp":"2026-10-07T14:09:22.478Z","actor":"supervisor","reason":"Advancing to monitoring"}
+{"incidentId":"INC-TEST-001-A","fromState":"MONITORING","toState":"COMPLETED","timestamp":"2026-10-07T14:09:22.479Z","actor":"supervisor","reason":"Original user task succeeded on retry"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T14:09:22.481Z","actor":"human_api","reason":"Approved by human"}
+{"incidentId":"","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T18:17:15.347Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:09:23.759Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:09:40.423Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T21:09:47.701Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-002","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:09:47.748Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-003","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:09:47.752Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-002","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T21:09:54.147Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-003","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T21:10:00.966Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"SELFHEAL-004","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:10:00.974Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-004","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T21:10:09.810Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:10:31.786Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:10:34.420Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-001","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T21:10:34.422Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T21:10:49.068Z","actor":"human_api","reason":"Approved by test_user"}
+{"incidentId":"INC-TEST-001-A","fromState":"APPROVED","toState":"DEPLOYING","timestamp":"2026-10-07T21:10:49.077Z","actor":"supervisor","reason":"Deploying repair"}
+{"incidentId":"INC-TEST-001-A","fromState":"DEPLOYING","toState":"MONITORING","timestamp":"2026-10-07T21:10:49.079Z","actor":"supervisor","reason":"Advancing to monitoring"}
+{"incidentId":"INC-TEST-001-A","fromState":"MONITORING","toState":"COMPLETED","timestamp":"2026-10-07T21:10:49.079Z","actor":"supervisor","reason":"Original user task succeeded on retry"}
+{"incidentId":"INC-TEST-002-B","fromState":"AWAITING_APPROVAL","toState":"BLOCKED_APPROVAL_REQUIRED","timestamp":"2026-10-07T21:10:49.084Z","actor":"human_api","reason":"Rejected by user"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T21:10:49.089Z","actor":"human_api","reason":"Approved by human"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T21:10:49.091Z","actor":"human_api","reason":"Approved by human"}
+{"incidentId":"INC-TEST-001-A","fromState":"APPROVED","toState":"DEPLOYING","timestamp":"2026-10-07T21:10:49.092Z","actor":"supervisor","reason":"Deploying repair"}
+{"incidentId":"INC-TEST-001-A","fromState":"DEPLOYING","toState":"MONITORING","timestamp":"2026-10-07T21:10:49.092Z","actor":"supervisor","reason":"Advancing to monitoring"}
+{"incidentId":"INC-TEST-001-A","fromState":"MONITORING","toState":"COMPLETED","timestamp":"2026-10-07T21:10:49.095Z","actor":"supervisor","reason":"Original user task succeeded on retry"}
+{"incidentId":"INC-TEST-001-A","fromState":"AWAITING_APPROVAL","toState":"APPROVED","timestamp":"2026-10-07T21:10:49.097Z","actor":"human_api","reason":"Approved by human"}
+{"incidentId":"SELFHEAL-002","fromState":"CREATED","toState":"COLLECTING_EVIDENCE","timestamp":"2026-10-07T21:10:49.851Z","actor":"supervisor","reason":"Starting evidence collection"}
+{"incidentId":"SELFHEAL-002","fromState":"COLLECTING_EVIDENCE","toState":"DIAGNOSING","timestamp":"2026-10-07T21:10:49.852Z","actor":"supervisor","reason":"Evidence collected, calling diagnostician","model":"hermes-3-llama-3.1-8b","provider":"hermes"}

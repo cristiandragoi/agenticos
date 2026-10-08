@@ -24,7 +24,7 @@ import type { ExecutionStepResult } from '../VerificationGateway.js';
 import type { ICapabilityAdapter } from './ICapabilityAdapter.js';
 import { targetResolver, type ResolvedTargetEvidence } from '../TargetResolver.js';
 import { universalContentAcquisition, type UniversalAcquisitionResult } from '../UniversalContentAcquisition.js';
-import type { AuthoritativeInteractionContextData } from '../AuthoritativeInteractionContext.js';
+import { authoritativeInteractionContext, type AuthoritativeInteractionContextData } from '../AuthoritativeInteractionContext.js';
 import {
   authoritativeDesktopComputerUseProvider,
   type ImmutableTargetIdentity,
@@ -129,6 +129,51 @@ export class AppCapabilityAdapter implements ICapabilityAdapter {
     try {
       const cleanApp = appName;
       let target: ImmutableTargetIdentity | undefined = turnTargetIdentity;
+
+      // Email application handling
+      if (cleanApp.toLowerCase() === 'email' || cleanApp.toLowerCase() === 'mail' || step.contentRequest === 'open_email') {
+        const { emailService } = await import('../../../services/email/EmailService.js');
+        const emailResult = await emailService.openEmailClient(conversationId);
+        if (emailResult.success) {
+          if (conversationId) {
+            authoritativeInteractionContext.recordVerifiedStepSuccess(conversationId, Number(stepId) || 0, {
+              application: 'Email',
+              capability: 'APPLICATION',
+              target: 'Email',
+              summary: 'Opened email client or webmail',
+            });
+          }
+          return {
+            stepId,
+            action: 'OPEN_APPLICATION',
+            requestedTarget: appName,
+            executedTarget: 'Email',
+            success: true,
+            verified: true,
+            verificationEvidence: {
+              source: 'desktop' as any,
+              label: 'Opened email client or webmail',
+              observedAt: Date.now(),
+              data: { email: true },
+            },
+            contextMutation: {
+              application: 'Email',
+              summary: emailResult.outputText,
+            },
+            outputText: emailResult.outputText,
+          };
+        }
+        return {
+          stepId,
+          action: 'OPEN_APPLICATION',
+          requestedTarget: appName,
+          executedTarget: 'Email',
+          success: false,
+          verified: false,
+          failureReason: emailResult.error || emailResult.outputText,
+          outputText: emailResult.outputText,
+        };
+      }
 
       // 1. Resolve Target
       if (!target || target.application.toLowerCase() !== cleanApp.toLowerCase()) {

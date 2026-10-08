@@ -4,7 +4,7 @@ import {
   resolveLocaleForLanguage,
   verifySpeechSynthesisAvailability,
   DEFAULT_NEURAL_VOICE,
-  GERMAN_NEURAL_VOICE,
+  GERMAN_DEEPGRAM_VOICE,
   ROMANIAN_NEURAL_VOICE,
   synthesizeLocally,
   isVoiceCompatible,
@@ -24,18 +24,18 @@ describe('Jarvis Authoritative Voice Resolution & Separation', () => {
     expect(resolved).toBe('en-GB-RyanNeural');
     expect(resolved).not.toContain('aura');
 
+    // German has exactly one voice: Deepgram aura-2-julius-de (never an English aura voice)
     const resolvedDe = resolveVoiceForLanguage('de', 'aura-helios-en');
-    expect(resolvedDe).toBe('de-DE-KillianNeural');
-    expect(resolvedDe).not.toContain('aura');
+    expect(resolvedDe).toBe('aura-2-julius-de');
 
     const resolvedRo = resolveVoiceForLanguage('ro', 'aura-helios-en');
     expect(resolvedRo).toBe('ro-RO-EmilNeural');
     expect(resolvedRo).not.toContain('aura');
   });
 
-  it('C: German and Romanian resolve to natural male neural voices', () => {
-    expect(GERMAN_NEURAL_VOICE).toBe('de-DE-KillianNeural');
-    expect(resolveVoiceForLanguage('de')).toBe('de-DE-KillianNeural');
+  it('C: German resolves to Deepgram aura-2-julius-de; Romanian to a natural male neural voice', () => {
+    expect(GERMAN_DEEPGRAM_VOICE).toBe('aura-2-julius-de');
+    expect(resolveVoiceForLanguage('de')).toBe('aura-2-julius-de');
     expect(resolveLocaleForLanguage('de')).toBe('de-DE');
 
     expect(ROMANIAN_NEURAL_VOICE).toBe('ro-RO-EmilNeural');
@@ -45,9 +45,9 @@ describe('Jarvis Authoritative Voice Resolution & Separation', () => {
 
   it('D: Incompatible voice overrides are rejected and discarded for that turn', () => {
     // An English voice requested for German text must NOT be used
-    expect(resolveVoiceForLanguage('de', 'en-GB-RyanNeural')).toBe('de-DE-KillianNeural');
-    expect(resolveVoiceForLanguage('de', 'en-GB-ThomasNeural')).toBe('de-DE-KillianNeural');
-    expect(resolveVoiceForLanguage('de', 'en-US-ChristopherNeural')).toBe('de-DE-KillianNeural');
+    expect(resolveVoiceForLanguage('de', 'en-GB-RyanNeural')).toBe('aura-2-julius-de');
+    expect(resolveVoiceForLanguage('de', 'en-GB-ThomasNeural')).toBe('aura-2-julius-de');
+    expect(resolveVoiceForLanguage('de', 'en-US-ChristopherNeural')).toBe('aura-2-julius-de');
 
     // An English voice requested for Romanian text must NOT be used
     expect(resolveVoiceForLanguage('ro', 'en-GB-RyanNeural')).toBe('ro-RO-EmilNeural');
@@ -58,11 +58,11 @@ describe('Jarvis Authoritative Voice Resolution & Separation', () => {
     expect(resolveVoiceForLanguage('en', 'de-DE-ConradNeural')).toBe('en-GB-RyanNeural');
 
     // A Romanian voice requested for German or English text must NOT be used
-    expect(resolveVoiceForLanguage('de', 'ro-RO-EmilNeural')).toBe('de-DE-KillianNeural');
+    expect(resolveVoiceForLanguage('de', 'ro-RO-EmilNeural')).toBe('aura-2-julius-de');
     expect(resolveVoiceForLanguage('en', 'ro-RO-EmilNeural')).toBe('en-GB-RyanNeural');
 
-    // Compatible overrides are preserved
-    expect(resolveVoiceForLanguage('de', 'de-DE-ConradNeural')).toBe('de-DE-ConradNeural');
+    // German never substitutes another voice (not even another German one)
+    expect(resolveVoiceForLanguage('de', 'de-DE-ConradNeural')).toBe('aura-2-julius-de');
     expect(resolveVoiceForLanguage('ro', 'ro-RO-AlinaNeural')).toBe('ro-RO-AlinaNeural');
     expect(resolveVoiceForLanguage('en', 'en-GB-ThomasNeural')).toBe('en-GB-ThomasNeural');
   });
@@ -105,9 +105,15 @@ describe('Jarvis Authoritative Voice Resolution & Separation', () => {
     expect(enBuffer).toBeInstanceOf(Buffer);
     expect(enBuffer.length).toBeGreaterThan(1000);
 
-    const deBuffer = await synthesizeLocally('Guten Tag, ich bin Jarvis.', 'de-DE-KillianNeural');
-    expect(deBuffer).toBeInstanceOf(Buffer);
-    expect(deBuffer.length).toBeGreaterThan(1000);
+    if (process.env.DEEPGRAM_API_KEY) {
+      const deBuffer = await synthesizeLocally('Guten Tag, ich bin Jarvis.', 'aura-2-julius-de');
+      expect(deBuffer).toBeInstanceOf(Buffer);
+      expect(deBuffer.length).toBeGreaterThan(1000);
+    } else {
+      // No key → clear error, never a silent Piper/Edge/English substitute
+      await expect(synthesizeLocally('Guten Tag, ich bin Jarvis.', 'aura-2-julius-de'))
+        .rejects.toThrow(/aura-2-julius-de unavailable/);
+    }
 
     const roBuffer = await synthesizeLocally('Salut, sunt Jarvis.', 'ro-RO-EmilNeural');
     expect(roBuffer).toBeInstanceOf(Buffer);

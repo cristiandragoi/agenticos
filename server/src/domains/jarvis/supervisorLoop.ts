@@ -18,6 +18,7 @@ import type { SemanticContext } from './semanticTurnResolver.js';
 import { getScopedJarvisMemoryContext } from './coreMemory.js';
 import { getWorkspaceRoot } from '../../services/workspaceStore.js';
 import * as executionState from '../../services/executionState.js';
+import { getConversationLanguage, buildAnswerLanguageInstruction } from './conversationLanguage.js';
 
 export function isSupervisorV2Enabled(req?: any): boolean {
   if (process.env.JARVIS_SUPERVISOR_V2 === 'true') return true;
@@ -349,7 +350,7 @@ export async function buildSupervisorSystemPrompt(
     '4. Do NOT append generic customer service sign-offs (e.g. "Is there anything else I can help you with today?") to your answers.',
     '5. For short greetings ("you there?", "hey", "good morning") when no task is pending, reply with brief natural warmth — one short sentence, no generic call-centre phrasing.',
     '6. For math, factual, or simple queries (e.g. "what is 2 plus 2", "tell me a joke"), answer directly and concisely.',
-    '7. SYSTEM HEALTH: When asked about system status, summarize the outcome naturally in plain English without printing raw JSON.',
+    '7. SYSTEM HEALTH: When asked about system status, summarize the outcome naturally without printing raw JSON.',
     '8. GROUNDING INVARIANT: NEVER claim you modified a file, fixed a bug, ran tests, or deployed changes unless an actual tool execution confirms it. Never say you are "starting" or "initiating" an implementation unless you have successfully called the delegate_hermes_task tool.',
     '9. REFERENT RESOLUTION: When the user says "Do that", "Fix it", "Check that", "Continue", "Proceed with it", or "Ask Hermes to check that", resolve the pronoun from the previous conversation turns AND active workspace/memory context into an EXPLICIT, DETAILED objective before delegating.',
     '10. AUTHORITY PRECEDENCE: AUTHORITATIVE CURRENT RUNTIME STATE > tool results > structured memory/project/dialogue state > conversation history > model inference.',
@@ -380,7 +381,8 @@ export async function buildSupervisorSystemPrompt(
     projectContext,
     activeEntityContext,
     semanticContextBlock,
-    options.inputChannel === 'voice' ? '\nInput channel: microphone transcription.' : ''
+    options.inputChannel === 'voice' ? '\nInput channel: microphone transcription.' : '',
+    buildAnswerLanguageInstruction(getConversationLanguage(conversationId)),
   ].filter(Boolean).join('\n');
 }
 
@@ -477,7 +479,7 @@ export async function handleSupervisorV2Stream(
   const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('./conversationLanguage.js');
   const langReq = detectLanguageSwitchRequest(prompt);
   if (langReq.isLanguageSwitch && langReq.targetLanguage) {
-    const mutationResult = setConversationLanguage(conversationId, langReq.targetLanguage);
+    const mutationResult = setConversationLanguage(conversationId, langReq.targetLanguage, true);
     const reply = mutationResult.success
       ? buildLanguageSwitchConfirmation(mutationResult.activeLanguage)
       : `Failed to switch language to ${langReq.targetLanguage}. Current language is ${mutationResult.activeLanguage}.`;
@@ -754,7 +756,7 @@ export async function handleSupervisorV2Stream(
 
     // §11/§12: Operational Claim Gate — secure against hallucinated/fabricated operational state
     const { OperationalClaimGate } = await import('./operationalEvidence.js');
-    const claimCheck = OperationalClaimGate.verifyClaims(cleanReply, conversationId, prompt);
+    const claimCheck = OperationalClaimGate.verifyClaims(cleanReply, conversationId, prompt, convLang);
     if (!claimCheck.ok) {
       cleanReply = claimCheck.response;
     }

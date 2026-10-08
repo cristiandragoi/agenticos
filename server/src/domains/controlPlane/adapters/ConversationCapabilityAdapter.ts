@@ -236,6 +236,87 @@ export class ConversationCapabilityAdapter implements ICapabilityAdapter {
       };
     }
 
+    // 1b-ii. Language Switch Request ("Sprich bitte ab jetzt Deutsch", "Speak German")
+    if (step.target === 'language_switch') {
+      const { setConversationLanguage, buildLanguageSwitchConfirmation } = await import('../../jarvis/conversationLanguage.js');
+      const { voiceRuntimeState } = await import('../../../services/voice/VoiceRuntimeState.js');
+      const targetLang = (step.contentRequest as any) || 'de';
+      setConversationLanguage(conversationId, targetLang, true);
+      voiceRuntimeState.setLanguage(targetLang, targetLang === 'de' ? 'de-DE' : undefined, true);
+      const text = buildLanguageSwitchConfirmation(targetLang);
+
+      return {
+        stepId,
+        action: 'CONVERSATIONAL',
+        requestedTarget: 'user',
+        executedTarget: 'user',
+        success: true,
+        verified: true,
+        verificationEvidence: {
+          source: 'conversation',
+          label: 'Language switch to ' + targetLang,
+          observedAt: Date.now(),
+          data: { language: targetLang },
+        },
+        contextMutation: { summary: text },
+        outputText: text,
+      };
+    }
+
+    // 1b-iii. Email Draft Workflow ("Write an email to...")
+    if (step.target === 'email_draft') {
+      const { emailService } = await import('../../../services/email/EmailService.js');
+      const draftResult = emailService.prepareDraft({
+        rawPrompt: step.contentRequest || raw,
+        conversationId,
+      });
+
+      return {
+        stepId,
+        action: 'CONVERSATIONAL',
+        requestedTarget: 'email',
+        executedTarget: 'email',
+        success: true,
+        verified: true,
+        verificationEvidence: {
+          source: 'conversation',
+          label: 'Email draft prepared',
+          observedAt: Date.now(),
+          data: { draft: draftResult.draft },
+        },
+        contextMutation: { summary: draftResult.outputText },
+        outputText: draftResult.outputText,
+      };
+    }
+
+    // 1b-iv. Email Send Workflow ("Send this email")
+    if (step.target === 'email_send') {
+      const { emailService } = await import('../../../services/email/EmailService.js');
+      const sendResult = await emailService.sendEmail({
+        rawPrompt: step.contentRequest || raw,
+        approved: true,
+        conversationId,
+      });
+
+      return {
+        stepId,
+        action: 'CONVERSATIONAL',
+        requestedTarget: 'email',
+        executedTarget: 'email',
+        success: sendResult.success,
+        verified: sendResult.verified,
+        failureReason: sendResult.error,
+        verificationEvidence: {
+          source: 'conversation',
+          label: sendResult.success ? 'Email sent or handed off' : 'Email send failed',
+          observedAt: Date.now(),
+          data: { confirmationId: sendResult.confirmationId },
+        },
+        contextMutation: { summary: sendResult.outputText },
+        outputText: sendResult.outputText,
+      };
+    }
+
     // 1c. Genuine presence or wake check ONLY ("Jarvis?", "Hello Jarvis", "Are you there?")
     const isPresenceOrWake = /^(?:(?:hey|hi|hello)\s+)?(?:jarvis|are you (?:there|listening)|you there|wake up)[.?!]?$/i.test(raw.trim()) ||
       /^(?:jarvis)[.?!]?$/i.test(raw.trim());
@@ -488,6 +569,21 @@ export class ConversationCapabilityAdapter implements ICapabilityAdapter {
 
     if (askedAboutSuccess && success) return this.explainSuccess(success, ctx);
     if (failure && failureIsLatest) {
+      // Disambiguate if user specifically asks about a target different from the recorded failure
+      const askedMatch = raw.match(/\bwhy\s+(?:could\s+you\s+not|couldn'?t\s+you|can'?t\s+you|did\s+you\s+not|didn'?t\s+you|were\s+you\s+unable\s+to|did)\s+(?:open|read|locate|find|start|send|opening|reading|sending)?\s*(?:my\s+|the\s+)?([a-zA-Z0-9_\-]+)/i)
+        || raw.match(/\bwhy\s+did\s+(?:opening|reading|sending)?\s*(?:my\s+|the\s+)?([a-zA-Z0-9_\-]+)\s+fail/i);
+      if (askedMatch && askedMatch[1]) {
+        const askedTarget = askedMatch[1].trim().toLowerCase();
+        const failureTarget = (failure.target || '').trim().toLowerCase();
+        if (
+          failureTarget &&
+          !askedTarget.includes(failureTarget) &&
+          !failureTarget.includes(askedTarget)
+        ) {
+          return `The previous failure was for a different target (${failure.target}). I do not have a recorded failure for ${askedMatch[1].trim()}.`;
+        }
+      }
+
       const depth = authoritativeInteractionContext.markFailureExplained(conversationId, failure.timestamp);
       return this.explainFailure(failure, depth, ctx);
     }

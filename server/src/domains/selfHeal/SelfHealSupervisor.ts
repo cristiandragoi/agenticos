@@ -493,6 +493,17 @@ export class SelfHealSupervisor extends EventEmitter {
     }
   }
 
+  /** Approve an incident for repair */
+  async approveIncident(incidentId: string, approver = 'operator'): Promise<boolean> {
+    try {
+      const currentState = this.getIncidentState(incidentId) || 'CREATED';
+      this.transitionState(incidentId, currentState, 'APPROVED', approver, 'Manual operator approval');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ── Closed-Loop Repair ───────────────────────────────────────────────────
 
   /**

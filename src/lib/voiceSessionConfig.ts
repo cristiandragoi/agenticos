@@ -15,14 +15,48 @@ export const DEEPGRAM_AGENT_VOICE_DEFAULTS: Record<string, string> = {
   'agent-hermes': 'aura-orion-en',
 };
 
+/** The ONE German voice for Jarvis: native German male Deepgram Aura-2 voice. */
+export const GERMAN_VOICE_ID = 'aura-2-julius-de';
+
+export const DEEPGRAM_GERMAN_AGENT_VOICE_DEFAULTS: Record<string, string> = {
+  'agent-jarvis': GERMAN_VOICE_ID,
+  'agent-hermes': GERMAN_VOICE_ID,
+};
+
 export const LANGUAGE_VOICE_DEFAULTS: Record<string, { locale: string; voice: string }> = {
   en: { locale: 'en-GB', voice: 'en-GB-RyanNeural' },
-  de: { locale: 'de-DE', voice: 'de-DE-KillianNeural' },
+  de: { locale: 'de-DE', voice: GERMAN_VOICE_ID },
   ro: { locale: 'ro-RO', voice: 'ro-RO-EmilNeural' },
 };
 
 export const VOICE_LOCALE = 'en-GB';
 
+export const VOICE_LANGUAGE_STORAGE_KEY = 'agenticos_voice_language';
+
+export function getSavedLanguageChoice(): string {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(VOICE_LANGUAGE_STORAGE_KEY);
+      if (saved && (saved === 'de' || saved === 'en' || saved === 'ro')) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return 'en';
+}
+
+export function saveLanguageChoice(lang: string): void {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const normalized = (lang || 'en').toLowerCase().trim().slice(0, 2);
+      localStorage.setItem(VOICE_LANGUAGE_STORAGE_KEY, normalized);
+    } catch {
+      // ignore
+    }
+  }
+}
 
 export interface VoiceSessionConfig {
   provider: 'deepgram' | 'edge-tts' | 'local';
@@ -38,9 +72,8 @@ export function isVoiceCompatibleWithLanguage(voice: string | null | undefined, 
   const langKey = (language || 'en').toLowerCase().trim().slice(0, 2);
   const v = voice.toLowerCase().trim();
   if (langKey === 'de') {
-    // Edge TTS: de-DE-* | Piper: de_de-* (de_DE-thorsten-high)
-    return v.startsWith('de-') || v.startsWith('de_de-') || v.startsWith('de_') ||
-      v.includes('killian') || v.includes('thorsten') || v.includes('conrad') || v.includes('katja') || v.includes('amala');
+    // German has exactly one voice: Deepgram aura-2-fabian-de.
+    return v === GERMAN_VOICE_ID;
   }
   if (langKey === 'ro') {
     // Edge TTS: ro-RO-* | Piper: ro_ro-* (ro_RO-mihai-medium)
@@ -50,7 +83,7 @@ export function isVoiceCompatibleWithLanguage(voice: string | null | undefined, 
   if (langKey === 'en') {
     return (
       v.startsWith('en-') ||
-      v.startsWith('aura-') ||
+      (v.startsWith('aura-') && !v.endsWith('-de')) ||
       v.includes('ryan') ||
       v.includes('thomas') ||
       v.includes('christopher') ||
@@ -68,13 +101,26 @@ export function resolveVoiceSessionConfig(
   override: string | null,
   fallbackVoice = 'en-GB-RyanNeural',
   language = 'en',
-  hasDeepgram = false
+  hasDeepgram = true
 ): VoiceSessionConfig {
   const rawLang = (language || 'en').toLowerCase().trim();
   const langKey = rawLang === 'auto' ? 'en' : rawLang.slice(0, 2);
   const langConfig = LANGUAGE_VOICE_DEFAULTS[langKey] || LANGUAGE_VOICE_DEFAULTS.en;
 
   const validOverride = override && isVoiceCompatibleWithLanguage(override, langKey) ? override : null;
+
+  // German is ALWAYS Deepgram Fabian. If Deepgram is unavailable the server reports a
+  // clear error — we never silently swap in an Edge/Piper or English voice.
+  if (langKey === 'de') {
+    return {
+      provider: 'deepgram',
+      model: GERMAN_VOICE_ID,
+      voiceId: GERMAN_VOICE_ID,
+      locale: 'de-DE',
+      language: 'de',
+      override: validOverride,
+    };
+  }
 
   if (hasDeepgram && langKey === 'en') {
     const dgModel = (validOverride && validOverride.startsWith('aura-'))

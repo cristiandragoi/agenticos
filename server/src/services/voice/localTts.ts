@@ -57,7 +57,81 @@ export function resolvePythonExecutable(): string {
 import { secretStore } from '../gateway/secretStore.js';
 
 export const DEFAULT_NEURAL_VOICE = 'en-GB-RyanNeural'; // Deep, clear, natural British male English voice
-export const GERMAN_NEURAL_VOICE = 'de-DE-KillianNeural'; // Natural German male voice
+export const GERMAN_NEURAL_VOICE = 'de-DE-KillianNeural'; // Legacy (no longer used for Jarvis German speech)
+/** The ONE German voice for Jarvis: native German male Deepgram Aura-2 voice. */
+export const GERMAN_DEEPGRAM_VOICE = 'aura-2-julius-de';
+
+/**
+ * Raised when the German voice (aura-2-julius-de) cannot be produced. German speech
+ * NEVER silently falls back to another voice (Piper, Edge or an English voice).
+ */
+export class GermanVoiceUnavailableError extends Error {
+  public readonly voice = GERMAN_DEEPGRAM_VOICE;
+  public readonly provider = 'deepgram';
+  public readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'GermanVoiceUnavailableError';
+    this.status = status;
+  }
+}
+
+/**
+ * Synthesize German speech with Deepgram aura-2-julius-de. Throws a clear
+ * GermanVoiceUnavailableError on ANY failure — there is no fallback.
+ */
+export async function synthesizeGermanJulius(text: string): Promise<Buffer> {
+  const cleanText = sanitizeMarkdownForSpeech(text) || text;
+  const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
+  if (!deepgramKey) {
+    const err = new GermanVoiceUnavailableError(
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: no Deepgram API key is configured.`,
+    );
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    throw err;
+  }
+  let response: Response;
+  try {
+    response = await fetch(`https://api.deepgram.com/v1/speak?model=${GERMAN_DEEPGRAM_VOICE}`, {
+      method: 'POST',
+      headers: { Authorization: `Token ${deepgramKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanText }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (netErr: any) {
+    const err = new GermanVoiceUnavailableError(
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram request failed (${netErr?.message || netErr}).`,
+    );
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    logger.error('[LocalTTS] ' + err.message);
+    throw err;
+  }
+  if (!response.ok) {
+    const body = (await response.text().catch(() => '')).slice(0, 300);
+    const err = new GermanVoiceUnavailableError(
+      `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram returned HTTP ${response.status} ${body}`,
+      response.status,
+    );
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    logger.error('[LocalTTS] ' + err.message);
+    throw err;
+  }
+  const audio = Buffer.from(await response.arrayBuffer());
+  if (!audio.length) {
+    const err = new GermanVoiceUnavailableError(`German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: Deepgram returned empty audio.`);
+    voiceRuntimeState.recordTtsSynthesis({ provider: 'none', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: err.message });
+    throw err;
+  }
+  voiceRuntimeState.recordTtsSynthesis({ provider: 'deepgram', voice: GERMAN_DEEPGRAM_VOICE, model: GERMAN_DEEPGRAM_VOICE, fallbackReason: null });
+  return audio;
+}
+
+export const synthesizeGermanFabian = synthesizeGermanJulius;
+
+export function isGermanVoiceId(voice?: string): boolean {
+  const v = (voice || '').toLowerCase().trim();
+  return v.endsWith('-de') || v.startsWith('de-') || v.startsWith('de_');
+}
 export const ROMANIAN_NEURAL_VOICE = 'ro-RO-EmilNeural';  // Natural Romanian male voice
 
 export const AURA_TO_NEURAL_FALLBACK: Record<string, string> = {
@@ -71,6 +145,10 @@ export const AURA_TO_NEURAL_FALLBACK: Record<string, string> = {
 
 export function resolveAuthoritativeTtsTarget(requestedVoice: string): { provider: string; voice: string } {
   const trimmed = (requestedVoice || '').trim();
+  // German is authoritative: always Deepgram Fabian, never an English/neural fallback.
+  if (voiceRuntimeState.getLanguage() === 'de' || isGermanVoiceId(trimmed)) {
+    return { provider: 'deepgram', voice: GERMAN_DEEPGRAM_VOICE };
+  }
   if (trimmed.startsWith('aura-')) {
     const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
     if (deepgramKey) {
@@ -86,7 +164,7 @@ export function isVoiceCompatible(voice?: string, lang?: string): boolean {
   const l = (lang || 'en').toLowerCase().trim().slice(0, 2);
   const v = voice.toLowerCase().trim();
   if (l === 'de') {
-    return v.startsWith('de-') || v.includes('killian') || v.includes('conrad') || v.includes('katja') || v.includes('amala');
+    return v === GERMAN_DEEPGRAM_VOICE;
   }
   if (l === 'ro') {
     return v.startsWith('ro-') || v.includes('emil') || v.includes('alina');
@@ -112,8 +190,8 @@ export function resolveVoiceForLanguage(lang?: string, requestedVoice?: string):
   const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
   if (requestedVoice && requestedVoice.trim()) {
     const trimmed = requestedVoice.trim();
+    if (l === 'de') return GERMAN_DEEPGRAM_VOICE;
     if (trimmed.startsWith('aura-')) {
-      if (l === 'de') return GERMAN_NEURAL_VOICE;
       if (l === 'ro') return ROMANIAN_NEURAL_VOICE;
       if (deepgramKey) return trimmed;
       return AURA_TO_NEURAL_FALLBACK[trimmed] || DEFAULT_NEURAL_VOICE;
@@ -122,7 +200,7 @@ export function resolveVoiceForLanguage(lang?: string, requestedVoice?: string):
       return trimmed;
     }
   }
-  if (l === 'de') return GERMAN_NEURAL_VOICE;
+  if (l === 'de') return GERMAN_DEEPGRAM_VOICE;
   if (l === 'ro') return ROMANIAN_NEURAL_VOICE;
   return DEFAULT_NEURAL_VOICE;
 }
@@ -176,9 +254,21 @@ export async function synthesizeLocally(
 ): Promise<Buffer> {
   const cleanText = sanitizeMarkdownForSpeech(text) || text;
 
-  // If VoiceStudio is healthy/available, use it as first-class local real-time provider
+  // 1. German: ALWAYS Deepgram aura-2-julius-de. No Piper / Edge / English fallback —
+  //    a failure surfaces as GermanVoiceUnavailableError so the caller can show it.
+  const isGerman =
+    voiceRuntimeState.getLanguage() === 'de' ||
+    isGermanVoiceId(voice) ||
+    voice.includes('thorsten') ||
+    voice.includes('Killian');
+
+  if (isGerman) {
+    return synthesizeGermanJulius(cleanText);
+  }
+
+  // 2. If VoiceStudio is healthy/available, use it as first-class local real-time provider for English
   const vsHealth = await voiceStudioService.checkHealth().catch(() => ({ healthy: false } as any));
-  if (vsHealth.healthy || options?.provider === 'voicestudio' || voice.toLowerCase().includes('voicestudio')) {
+  if ((vsHealth.healthy || options?.provider === 'voicestudio' || voice.toLowerCase().includes('voicestudio')) && !isGerman) {
     try {
       const vsAudio = await voiceStudioService.synthesize(cleanText, voice);
       if (vsAudio && vsAudio.byteLength > 0) {
@@ -195,8 +285,8 @@ export async function synthesizeLocally(
     }
   }
 
-  // If voice is an Aura voice, attempt to synthesize via Deepgram API first
-  if (voice && voice.startsWith('aura-')) {
+  // 3. If voice is an Aura voice, attempt to synthesize via Deepgram API first
+  if (voice && voice.startsWith('aura-') && !isGerman) {
     const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
     if (deepgramKey) {
       try {
@@ -225,29 +315,6 @@ export async function synthesizeLocally(
     }
     // Fall back to distinct high-quality Neural voice corresponding to this Aura persona
     voice = AURA_TO_NEURAL_FALLBACK[voice] || DEFAULT_NEURAL_VOICE;
-  }
-
-  // If German voice or language requested, prioritize local Piper neural model
-  if (voice.startsWith('de') || voice.includes('thorsten') || voice.includes('Killian')) {
-    try {
-      const { synthesizeWithPiper, hasPiperVoiceForLanguage, LANGUAGE_TO_PIPER_VOICE } = await import('./piperTts.js');
-      if (hasPiperVoiceForLanguage('de')) {
-        const piperVoice = LANGUAGE_TO_PIPER_VOICE.de || 'de_DE-thorsten-high';
-        const pRes = await synthesizeWithPiper(cleanText, 'de', piperVoice);
-        if (pRes && pRes.audio && pRes.audio.length > 0) {
-          voiceRuntimeState.recordTtsSynthesis({
-            provider: 'piper',
-            voice: pRes.voice,
-            model: pRes.voice,
-            fallbackReason: null,
-          });
-          return pRes.audio;
-        }
-      }
-    } catch (pErr: any) {
-      logger.warn('[LocalTTS] Piper German synthesis failed, using edge-tts:', pErr?.message);
-    }
-    voice = 'de-DE-KillianNeural';
   }
 
   const tmpFile = path.join(os.tmpdir(), `tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`);

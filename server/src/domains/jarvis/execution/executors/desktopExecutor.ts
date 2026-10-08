@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, exec, execFileSync } from 'node:child_process';
-import { assertSideEffectOwnership } from '../../perception/turnOwnership.js';
+import { assertSideEffectOwnership, type SideEffectGate } from '../../perception/turnOwnership.js';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { logger } from '../../../../utils/logger.js';

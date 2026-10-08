@@ -121,7 +121,7 @@ export class JarvisOrchestrator {
     const { detectLanguageSwitchRequest, setConversationLanguage, buildLanguageSwitchConfirmation } = await import('./conversationLanguage.js');
     const langSwitch = detectLanguageSwitchRequest(prompt);
     if (langSwitch.isLanguageSwitch && langSwitch.targetLanguage) {
-      const mutation = setConversationLanguage(conversationId, langSwitch.targetLanguage);
+      const mutation = setConversationLanguage(conversationId, langSwitch.targetLanguage, true);
       const reply = mutation.success
         ? buildLanguageSwitchConfirmation(mutation.activeLanguage)
         : `Failed to switch language to ${langSwitch.targetLanguage}. Current language is ${mutation.activeLanguage}.`;
@@ -139,6 +139,27 @@ export class JarvisOrchestrator {
         },
       });
       return { route: 'direct', status: 'language_changed', operationId };
+    }
+
+    // 1a1. Email Workflow Intercept ("Open my email", "Write an email to X", "Send it")
+    const { emailService } = await import('../../services/email/EmailService.js');
+    const { getConversationLanguage } = await import('./conversationLanguage.js');
+    const convLang = getConversationLanguage(conversationId) || 'en';
+    const emailResult = await emailService.handleTurn({ prompt, conversationId, lang: convLang });
+    if (emailResult) {
+      await conversationService.appendMessage({
+        conversationId,
+        role: 'agent',
+        content: emailResult.outputText,
+        routedAgent: 'jarvis',
+        metadata: {
+          ...(operationId ? { operationId } : {}),
+          provider: 'agentic-os',
+          model: 'email-tool',
+          verified: emailResult.verified,
+        },
+      });
+      return { route: 'direct', status: 'email_action', message: emailResult.outputText, operationId };
     }
 
     // 1a2. Telegram Telemetry Introspection (Desktop Jarvis & Remote query)
@@ -1088,12 +1109,19 @@ export class JarvisOrchestrator {
       // that AgenticOS actually has, and never answers follow-ups as if
       // they were isolated questions.
       const { assembleConversationContext, contextToSystemPrompt } = await import('./conversationContext.js');
+      const { getConversationLanguage } = await import('./conversationLanguage.js');
+      const activeLang = getConversationLanguage(conversationId) || 'en';
       let ctx: any = null;
       try {
         ctx = await assembleConversationContext(conversationId, prompt);
       } catch { /* context optional */ }
 
+      const langInstruction = activeLang === 'de'
+        ? 'LANGUAGE INSTRUCTION: You must reply entirely in German. Antworte auf Deutsch. Jarvis must NEVER say it "cannot switch languages", "cannot download models", or lack multilingual capabilities. You natively support English, German, and Romanian.'
+        : `LANGUAGE INSTRUCTION: Reply in the conversation's active language (${activeLang}). Jarvis must NEVER say it "cannot switch languages", "cannot download models", or lack multilingual capabilities. You natively support English, German, and Romanian.`;
+
       const systemPrompt = `You are Jarvis, the core orchestration agent of Agentic OS. Keep answers short, direct, and conversational.
+${langInstruction}
 You have LIVE INSPECTION capability: AgenticOS tracks real runtime state (active model and provider, gateway-resolved model/provider, selected frontend model, what the UI is displaying, Hermes/Ollama/OpenRouter health, active and last streams, background tasks, recent errors) and exposes it through the investigation pipeline. Do NOT claim you lack access to inspect the current model configuration or UI state. If a request is about current AgenticOS runtime/UI state, say you will inspect it (or report what the investigation found) — the inspection pipeline handles those requests.
 AgenticOS can delegate engineering work through CodeX and Agent Teams. Do NOT say "I cannot modify the UI" or "I don't have the capability to change the interface": if the user asks to change something in the UI/codebase, you can inspect it and delegate the change to the engineering system per approval rules. Distinguish "I personally answer the conversation" from "I can delegate this change to the engineering system".
 You can also: inspect the selected workspace/repository, search/read repository files (CodeX), delegate research, use Hermes for background tasks, inspect task/run state, retrieve relevant memories, and request approval when required.

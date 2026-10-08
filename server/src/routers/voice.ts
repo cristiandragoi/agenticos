@@ -15,6 +15,9 @@ import {
   verifySpeechSynthesisAvailability,
   resolvePythonExecutable,
   DEFAULT_NEURAL_VOICE,
+  GERMAN_DEEPGRAM_VOICE,
+  GermanVoiceUnavailableError,
+  synthesizeGermanJulius,
 } from '../services/voice/localTts.js';
 import {
   synthesizeWithPiper,
@@ -53,22 +56,32 @@ router.get('/tts/status', async (req, res) => {
   let effectiveProvider: string;
   let effectiveVoice: string;
 
-  if (activeLang === 'de' && hasPiperVoiceForLanguage('de')) {
-    effectiveProvider = 'piper';
-    effectiveVoice = LANGUAGE_TO_PIPER_VOICE.de || 'de_DE-thorsten-high';
+  const requestedVoice = (req.query.voice as string) || '';
+  const isGerman = activeLang === 'de';
+  const isDeepgramEnglish = Boolean(deepgramKey && activeLang === 'en' && resolveVoiceForLanguage(activeLang, requestedVoice).startsWith('aura-'));
+
+  if (isGerman) {
+    // German is ALWAYS Deepgram aura-2-julius-de. No Piper / Edge / English fallback.
+    effectiveProvider = 'deepgram';
+    effectiveVoice = GERMAN_DEEPGRAM_VOICE;
+  } else if (isDeepgramEnglish) {
+    effectiveProvider = 'deepgram';
+    effectiveVoice = resolveVoiceForLanguage(activeLang, requestedVoice);
   } else if (vsStatus.healthy) {
     effectiveProvider = 'voicestudio';
-    effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
-  } else if (Boolean(deepgramKey && activeLang === 'en' && resolveVoiceForLanguage(activeLang, req.query.voice as string).startsWith('aura-'))) {
-    effectiveProvider = 'deepgram';
-    effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
+    effectiveVoice = resolveVoiceForLanguage(activeLang, requestedVoice);
   } else {
     effectiveProvider = 'edge-tts';
-    effectiveVoice = resolveVoiceForLanguage(activeLang, req.query.voice as string);
+    effectiveVoice = resolveVoiceForLanguage(activeLang, requestedVoice);
   }
 
   let availability = true;
   let fallbackReason: string | null = null;
+
+  if (isGerman && !deepgramKey) {
+    availability = false;
+    fallbackReason = `German voice ${GERMAN_DEEPGRAM_VOICE} unavailable: no Deepgram API key is configured.`;
+  }
 
   if (effectiveProvider === 'edge-tts') {
     const probe = await verifySpeechSynthesisAvailability(effectiveVoice);
@@ -78,14 +91,23 @@ router.get('/tts/status', async (req, res) => {
     }
   }
 
+  const { voiceRuntimeState } = await import('../services/voice/VoiceRuntimeState.js');
+  const snap: any = (voiceRuntimeState as any).getSnapshot?.() || null;
+
   res.json({
     configured: Boolean(vsStatus.healthy || deepgramKey ? true : availability),
     activeLanguage: activeLang,
     requestedLocale,
     effectiveProvider,
     effectiveVoice,
-    availability: vsStatus.healthy || availability,
-    speechAvailable: vsStatus.healthy || availability,
+    // What was ACTUALLY used for the most recent synthesis (not configuration).
+    lastSynthesis: {
+      provider: voiceRuntimeState.getActiveTtsProvider(),
+      voice: voiceRuntimeState.getActiveVoice(),
+      fallbackReason: snap?.fallbackStatus?.fallbackReason ?? null,
+    },
+    availability: isGerman ? availability : (vsStatus.healthy || availability),
+    speechAvailable: isGerman ? availability : (vsStatus.healthy || availability),
     fallbackReason,
     endpoint: '/api/voice/tts',
     locale: requestedLocale,
@@ -136,7 +158,7 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
     const canUseDeepgram = Boolean(deepgramKey && isDeepgramAllowed);
 
     if (canUseDeepgram) {
-      const dgLang = reqLang === 'de' ? 'de' : reqLang === 'ro' ? 'ro' : (reqLang || 'en-GB');
+      const dgLang = reqLang === 'de' ? 'de' : reqLang === 'ro' ? 'ro' : (reqLang || 'de');
       const dgModel = process.env.DEEPGRAM_MODEL || 'nova-3';
       const startTime = Date.now();
       let response: Response;
@@ -150,9 +172,15 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
         'Telegram',
         'AgenticOS',
         'Jarvis',
+        'Sprich Deutsch',
+        'Speak English',
+        'E-Mail',
       ];
       const keytermQuery = NOVA3_KEYTERMS.map((k) => `keyterm=${encodeURIComponent(k)}`).join('&');
-      const nova3Endpoint = `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(dgModel)}&smart_format=true&punctuate=true&language=${encodeURIComponent(dgLang)}&${keytermQuery}`;
+      const langQuery = (dgLang === 'de')
+        ? 'language=de'
+        : (dgLang === 'multi' || !reqLang ? 'detect_language=true' : `language=${encodeURIComponent(dgLang)}`);
+      const nova3Endpoint = `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(dgModel)}&smart_format=true&punctuate=true&${langQuery}&${keytermQuery}`;
 
       try {
         const controller = new AbortController();
@@ -395,8 +423,8 @@ router.post('/speak', async (req, res) => {
       return res.status(400).json({ error: 'No text provided.' });
     }
 
-    if (!language && conversationId) {
-      language = getConversationLanguage(conversationId);
+    if (!language) {
+      language = conversationId ? getConversationLanguage(conversationId) : undefined;
     }
 
     const cleanText = sanitizeMarkdownForSpeech(text) || text;
@@ -404,8 +432,26 @@ router.post('/speak', async (req, res) => {
     let audio: Buffer | null = null;
     let contentType = 'audio/mpeg';
 
-    // ── PIPER primary for de/ro ────────────────────────────────────────────
-    if ((detectedLang === 'de' || detectedLang === 'ro') && hasPiperVoiceForLanguage(detectedLang)) {
+    // ── GERMAN: Deepgram aura-2-julius-de ONLY — clear error, never a silent fallback ──
+    if (detectedLang === 'de') {
+      try {
+        const deAudio = await synthesizeGermanJulius(cleanText);
+        res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': deAudio.byteLength.toString(), 'X-TTS-Voice': GERMAN_DEEPGRAM_VOICE, 'X-TTS-Provider': 'deepgram' });
+        return res.send(deAudio);
+      } catch (deErr: any) {
+        logger.error('[Voice/Speak] German voice failed (no fallback):', deErr?.message);
+        return res.status(502).json({
+          error: deErr?.message || `German voice ${GERMAN_DEEPGRAM_VOICE} failed.`,
+          voice: GERMAN_DEEPGRAM_VOICE,
+          provider: 'deepgram',
+          deepgramStatus: deErr instanceof GermanVoiceUnavailableError ? deErr.status ?? null : null,
+          speechAvailable: false,
+        });
+      }
+    }
+
+    // ── PIPER primary for ro ──
+    if (detectedLang === 'ro' && hasPiperVoiceForLanguage(detectedLang)) {
       const piperVoiceKey = LANGUAGE_TO_PIPER_VOICE[detectedLang];
       try {
         const piperResult = await synthesizeWithPiper(cleanText, detectedLang, piperVoiceKey);
@@ -426,11 +472,8 @@ router.post('/speak', async (req, res) => {
 
     const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
     if (!audio && deepgramKey && detectedLang === 'en') {
-      let defaultVoice = 'aura-orion-en';
-      if (agentId === 'agent-jarvis') {
-        defaultVoice = 'aura-helios-en';
-      }
-      const voiceModel = voice || defaultVoice;
+      const defaultVoice = agentId === 'agent-jarvis' ? 'aura-helios-en' : 'aura-orion-en';
+      const voiceModel = (voice && voice.startsWith('aura-') && !voice.endsWith('-de')) ? voice : defaultVoice;
 
       try {
         const response = await fetch(`https://api.deepgram.com/v1/speak?model=${voiceModel}`, {
@@ -494,8 +537,30 @@ router.post('/tts', async (req, res) => {
     let usedFormat: 'audio/mpeg' | 'audio/wav' = 'audio/mpeg';
     let fallbackReason: string | undefined;
 
-    // ── PIPER primary for de/ro ────────────────────────────────────────────
-    if ((detectedLang === 'de' || detectedLang === 'ro') && hasPiperVoiceForLanguage(detectedLang)) {
+    // ── GERMAN: Deepgram aura-2-julius-de ONLY — clear error, never a silent fallback ──
+    if (detectedLang === 'de') {
+      try {
+        audio = await synthesizeGermanJulius(cleanText);
+        usedVoice = GERMAN_DEEPGRAM_VOICE;
+        usedProvider = 'deepgram';
+        usedFormat = 'audio/mpeg';
+      } catch (deErr: any) {
+        logger.error('[Voice/TTS] German voice failed (no fallback):', deErr?.message);
+        return res.status(502).json({
+          success: false,
+          text: text.trim(),
+          speechAvailable: false,
+          language: 'de',
+          voice: GERMAN_DEEPGRAM_VOICE,
+          provider: 'deepgram',
+          deepgramStatus: deErr instanceof GermanVoiceUnavailableError ? deErr.status ?? null : null,
+          error: deErr?.message || `German voice ${GERMAN_DEEPGRAM_VOICE} failed.`,
+        });
+      }
+    }
+
+    // ── PIPER primary for ro ──
+    if (!audio && detectedLang === 'ro' && hasPiperVoiceForLanguage(detectedLang)) {
       const piperVoiceKey = LANGUAGE_TO_PIPER_VOICE[detectedLang];
       try {
         const piperResult = await synthesizeWithPiper(cleanText, detectedLang, piperVoiceKey);
@@ -517,15 +582,12 @@ router.post('/tts', async (req, res) => {
       }
     }
 
-    // ── DEEPGRAM for English (if key present) ─────────────────────────────
+    // ── DEEPGRAM for English (if key present) ──
     if (!audio) {
       const deepgramKey = process.env.DEEPGRAM_API_KEY || secretStore.getSync('deepgram');
       if (deepgramKey && detectedLang === 'en') {
-        let defaultVoice = 'aura-orion-en';
-        if (agentId === 'agent-jarvis') {
-          defaultVoice = 'aura-helios-en';
-        }
-        usedVoice = (voice && voice.startsWith('aura-')) ? voice : defaultVoice;
+        const defaultVoice = agentId === 'agent-jarvis' ? 'aura-helios-en' : 'aura-orion-en';
+        usedVoice = (voice && voice.startsWith('aura-') && !voice.endsWith('-de')) ? voice : defaultVoice;
 
         try {
           const response = await fetch(`https://api.deepgram.com/v1/speak?model=${usedVoice}`, {

@@ -3,6 +3,31 @@ import { backgroundTaskManager } from '../../services/backgroundTasks/manager.js
 import { rawDb } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
 import { engineeringWorkerRegistry } from '../controlPlane/EngineeringWorkerRegistry.js';
+import { getActiveLanguage } from '../../services/language/activeLanguageState.js';
+
+function localizeGateResponse(englishResponse: string, lang?: string): string {
+  const isDe = lang === 'de' || getActiveLanguage() === 'de';
+  if (!isDe) return englishResponse;
+  if (englishResponse === 'No matching task exists.') {
+    return 'Es existiert keine passende Aufgabe für diese Anfrage.';
+  }
+  if (englishResponse === 'No pending approvals exist for this conversation.') {
+    return 'Für diese Konversation stehen keine ausstehenden Genehmigungen bereit.';
+  }
+  if (englishResponse === 'No completed Codex task with verification evidence exists.') {
+    return 'Es liegt keine verifizierte CodeX-Aufgabe vor.';
+  }
+  if (englishResponse === 'AntiGravity has not started execution yet.') {
+    return 'AntiGravity hat die Ausführung noch nicht gestartet.';
+  }
+  if (englishResponse === 'No completed AntiGravity task with verification evidence exists.') {
+    return 'Es liegt keine verifizierte AntiGravity-Aufgabe vor.';
+  }
+  if (englishResponse === 'Automatic status notifications are not configured. Ask me for the current status.') {
+    return 'Automatische Statusbenachrichtigungen sind nicht konfiguriert. Fragen Sie mich einfach nach dem aktuellen Status.';
+  }
+  return englishResponse;
+}
 
 export interface OperationalEvidence {
   taskId?: string;
@@ -351,10 +376,15 @@ export class OperationalClaimGate {
   static verifyClaims(
     reply: string,
     conversationId: string,
-    prompt?: string
+    prompt?: string,
+    lang?: string
   ): { ok: boolean; response: string; missingEvidence?: string } {
     const lowerReply = reply.toLowerCase();
     const lowerPrompt = (prompt || '').toLowerCase();
+    const ret = (obj: { ok: boolean; response: string; missingEvidence?: string }) => ({
+      ...obj,
+      response: localizeGateResponse(obj.response, lang),
+    });
 
     // ── Rule 1: Block all subscription/notification claims ─────────────────
     // Notification subscriptions are not implemented. Any claim suggesting the system
@@ -362,12 +392,12 @@ export class OperationalClaimGate {
     const claimsSubscription =
       /\b(?:subscribed|notifications?|keep you updated|update pushed|send you updates?|will (?:send|push|notify)|updates? when|set up.*(?:alerts?|notifications?|updates?))\b/i.test(lowerReply);
     if (claimsSubscription) {
-      return {
+      return ret({
         ok: false,
         response:
           'Automatic status notifications are not configured. Ask me for the current status.',
         missingEvidence: 'No notification subscription capability exists',
-      };
+      });
     }
 
     const allConvTasks = backgroundTaskRepo
@@ -396,11 +426,11 @@ export class OperationalClaimGate {
             logger.warn(
               `[OperationalClaimGate] REJECTED approval claim: task ${targetId} not in conversation ${conversationId}`
             );
-            return {
+            return ret({
               ok: false,
               response: 'No matching task exists.',
               missingEvidence: `Task ID ${targetId} not found in conversation`,
-            };
+            });
           }
           const hasApproval =
             ['waiting_approval', 'allowed', 'denied'].includes(task.approvalState || '') ||
@@ -409,11 +439,11 @@ export class OperationalClaimGate {
             logger.warn(
               `[OperationalClaimGate] REJECTED approval claim: task ${targetId} has no approval record (approvalState=${task.approvalState}, status=${task.status})`
             );
-            return {
+            return ret({
               ok: false,
               response: 'No pending approvals exist for this conversation.',
               missingEvidence: `Task ${targetId} has no approval record`,
-            };
+            });
           }
         }
       } else {
@@ -424,11 +454,11 @@ export class OperationalClaimGate {
             t.status === 'waiting_approval'
         );
         if (!hasAnyApproval) {
-          return {
+          return ret({
             ok: false,
             response: 'No pending approvals exist for this conversation.',
             missingEvidence: 'No approval record found in this conversation',
-          };
+          });
         }
       }
     }
@@ -438,10 +468,10 @@ export class OperationalClaimGate {
     // An advisory response ("I recommend delegating...", "We could create a plan with Hermes...",
     // "Shall I proceed?") is NOT claiming that a task is currently executing or was created.
     const isConceptualOrRoleQuery =
-      /\b(?:role of|who are you|what are you|what can you do|explain|describe|overview of jarvis|about jarvis|what is jarvis)\b/i.test(
+      /\b(?:role of|who are you|what are you|what can you do|explain|describe|overview of jarvis|about jarvis|what is jarvis|wer bist du|was bist du|was kannst du|wie kannst du|hilf mir|helfen|kannst du|wer bist|wer ist|beschreibe|erkläre)\b/i.test(
         lowerPrompt
       ) ||
-      /\b(?:my role|jarvis is|i am designed to|i serve as|i can help|role is to|capabilities include)\b/i.test(
+      /\b(?:my role|jarvis is|i am designed to|i serve as|i can help|role is to|capabilities include|ich bin|meine rolle|ich kann|ich helfe|assistent|unterstütze)\b/i.test(
         lowerReply
       );
 
@@ -463,11 +493,11 @@ export class OperationalClaimGate {
       /\b(?:task|codex|hermes|agent|implementation|sync)\b/i.test(lowerReply);
 
     if (claimsTask && allConvTasks.length === 0) {
-      return {
+      return ret({
         ok: false,
         response: 'No matching task exists.',
         missingEvidence: 'No tasks found for this conversation',
-      };
+      });
     }
 
     // ── Rule 3b: Explicit delegation claims require a real matching task ────
@@ -489,16 +519,17 @@ export class OperationalClaimGate {
         logger.warn(
           `[OperationalClaimGate] REJECTED delegation claim: no ${targetWorker} task in conversation ${conversationId}`
         );
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `No ${targetWorker} task created for delegation in this conversation`,
-        };
+        });
       }
     }
 
     // ── Rule 3c: Codex completion claims require verified execution evidence ────
     const claimsCodexCompleted =
+      !isAdvisoryOrProposal &&
       /\b(?:codex|code-?x)\b/i.test(lowerReply) &&
       /\b(?:completed(?: successfully)?|finished|succeeded)\b/i.test(lowerReply);
 
@@ -513,16 +544,17 @@ export class OperationalClaimGate {
         logger.warn(
           `[OperationalClaimGate] REJECTED Codex completion claim: no verified Codex task found in conversation ${conversationId}`
         );
-        return {
+        return ret({
           ok: false,
           response: 'No completed Codex task with verification evidence exists.',
           missingEvidence: 'Codex completion claimed without verified execution results',
-        };
+        });
       }
     }
 
     // ── Rule 3d: AntiGravity started claims require accepted + session ID + first real execution event ────
     const claimsAntiGravityStarted =
+      !isAdvisoryOrProposal &&
       /\b(?:antigravity|anti-gravity)\b/i.test(lowerReply) &&
       /\b(?:started|accepted|executing|working)\b/i.test(lowerReply);
 
@@ -540,16 +572,17 @@ export class OperationalClaimGate {
         logger.warn(
           `[OperationalClaimGate] REJECTED AntiGravity started claim: missing accepted status, session ID, or first execution event in conversation ${conversationId}`
         );
-        return {
+        return ret({
           ok: false,
           response: 'AntiGravity has not started execution yet.',
           missingEvidence: 'AntiGravity started claim requires worker accepted, session ID, and first real execution event',
-        };
+        });
       }
     }
 
     // ── Rule 3e: AntiGravity completion claims require verified execution evidence ────
     const claimsAntiGravityCompleted =
+      !isAdvisoryOrProposal &&
       /\b(?:antigravity|anti-gravity)\b/i.test(lowerReply) &&
       /\b(?:completed(?: successfully)?|finished|succeeded)\b/i.test(lowerReply);
 
@@ -564,17 +597,18 @@ export class OperationalClaimGate {
         logger.warn(
           `[OperationalClaimGate] REJECTED AntiGravity completion claim: no verified AntiGravity task found in conversation ${conversationId}`
         );
-        return {
+        return ret({
           ok: false,
           response: 'No completed AntiGravity task with verification evidence exists.',
           missingEvidence: 'AntiGravity completion claimed without verified execution results',
-        };
+        });
       }
     }
 
     // ── Rule 4: Shopify context — unrelated task must not validate claim ────
     const isShopifyContext =
-      lowerPrompt.includes('shopify') || lowerReply.includes('shopify');
+      !isAdvisoryOrProposal &&
+      (lowerPrompt.includes('shopify') || (claimsTask && lowerReply.includes('shopify')));
     if (isShopifyContext) {
       const shopifyTasks = allConvTasks.filter(
         t =>
@@ -585,11 +619,11 @@ export class OperationalClaimGate {
         logger.warn(
           `[OperationalClaimGate] REJECTED claim: Shopify context but no Shopify task in conversation ${conversationId}`
         );
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: 'No Shopify task found in this conversation',
-        };
+        });
       }
     }
 
@@ -601,11 +635,11 @@ export class OperationalClaimGate {
         logger.warn(
           `[OperationalClaimGate] REJECTED claim: task ID ${targetId} not in conversation ${conversationId}`
         );
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `Task ID ${targetId} not found in this conversation`,
-        };
+        });
       }
 
       // Worker correlation — claim must match persisted task.worker (kind).
@@ -613,25 +647,25 @@ export class OperationalClaimGate {
       const hasHermesWord = /\b(?:hermes)\b/i.test(reply);
       const hasAntiGravityWord = /\b(?:antigravity|anti-gravity)\b/i.test(reply);
       if (hasCodexWord && task.worker !== 'codex') {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `Worker mismatch: claimed CodeX but persisted workerKind is ${task.worker}`,
-        };
+        });
       }
       if (hasHermesWord && task.worker !== 'hermes') {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `Worker mismatch: claimed Hermes but persisted workerKind is ${task.worker}`,
-        };
+        });
       }
       if (hasAntiGravityWord && task.worker !== 'antigravity') {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `Worker mismatch: claimed AntiGravity but persisted workerKind is ${task.worker}`,
-        };
+        });
       }
 
       // State correlation.
@@ -647,38 +681,38 @@ export class OperationalClaimGate {
       const hasCompletedWord = /\b(?:completed|finished)\b/i.test(lowerReplyNoIds);
 
       if (hasRunningWord && task.status !== 'running') {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `State mismatch: claimed running but persisted status is ${task.status}`,
-        };
+        });
       }
       if (hasQueuedWord && task.status !== 'queued') {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `State mismatch: claimed queued but persisted status is ${task.status}`,
-        };
+        });
       }
       if (
         hasApprovalWord &&
         task.status !== 'waiting_approval' &&
         task.approvalState !== 'pending'
       ) {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `State mismatch: claimed awaiting approval but persisted status is ${task.status}`,
-        };
+        });
       }
 
       // DEFECT-8 FIX: completion requires verificationState='passed' OR resultText.
       if (hasCompletedWord && task.status !== 'completed') {
-        return {
+        return ret({
           ok: false,
           response: 'No matching task exists.',
           missingEvidence: `State mismatch: claimed completed but persisted status is ${task.status}`,
-        };
+        });
       }
       if (hasCompletedWord && task.status === 'completed') {
         const hasVerificationEvidence =
@@ -687,11 +721,11 @@ export class OperationalClaimGate {
           logger.warn(
             `[OperationalClaimGate] Completion claim for ${targetId} has no verification evidence (verificationState=${task.verificationState}, resultText=${task.resultText})`
           );
-          return {
+          return ret({
             ok: false,
             response: `Task ${task.taskId} is marked completed but no verification evidence exists yet.`,
             missingEvidence: `verificationState=${task.verificationState}, resultText absent`,
-          };
+          });
         }
       }
     }

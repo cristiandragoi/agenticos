@@ -31,6 +31,8 @@ import {
   resolveAuthoritativeTtsTarget,
   AURA_TO_NEURAL_FALLBACK,
   DEFAULT_NEURAL_VOICE,
+  GERMAN_DEEPGRAM_VOICE,
+  isGermanVoiceId,
 } from '../../services/voice/localTts.js';
 import {
   transcribeLocally,
@@ -39,6 +41,7 @@ import {
   type LocalTranscribeResult,
 } from '../../services/voice/localTranscribe.js';
 import { voiceRuntimeState } from '../../services/voice/VoiceRuntimeState.js';
+import { getActiveLanguage } from '../../services/language/activeLanguageState.js';
 import { operatorController } from './operator/operatorController.js';
 import { logger } from '../../utils/logger.js';
 import { getBuildIdentity } from '../../services/buildIdentity.js';
@@ -684,7 +687,10 @@ export class JarvisNextAgent {
     }
 
     // 6. Emit an honest timeout result
-    const announcement = "That request timed out while waiting for the application to respond.";
+    const isGerman = getActiveLanguage() === 'de';
+    const announcement = isGerman
+      ? "Diese Anfrage hat das Zeitlimit überschritten, während auf die Antwort gewartet wurde."
+      : "That request timed out while waiting for the application to respond.";
     this.broadcastData({ type: 'assistant_text', text: announcement });
     this.broadcastData({
       type: 'voice_runtime_recovery',
@@ -1970,7 +1976,11 @@ export class JarvisNextAgent {
       logger.error('[JarvisNext] lifecycle submission failed', { turnId: activeTurnId, error: err?.message || String(err) });
       if (this.currentUserTurnId === activeTurnId) {
         try {
-          await this.speak('I encountered an issue processing that request.', activeTurnId);
+          const isGerman = getActiveLanguage() === 'de';
+          const errMsg = isGerman
+            ? 'Bei der Bearbeitung dieser Anfrage ist ein Problem aufgetreten.'
+            : 'I encountered an issue processing that request.';
+          await this.speak(errMsg, activeTurnId);
         } catch {}
       } else {
         logger.info('[JarvisNext] Stale turn error suppressed from speech output', { turnId: activeTurnId, currentTurn: this.currentUserTurnId });
@@ -2021,6 +2031,32 @@ export class JarvisNextAgent {
     turnId?: number,
     opts?: { preliminaryAck?: boolean }
   ): Promise<void> {
+    return this.speakInternal(text, turnId, opts);
+  }
+
+  /**
+   * German voice failure is surfaced, never hidden: the user sees exactly which
+   * voice failed and why. There is NO fallback to Piper, Edge or an English voice.
+   */
+  private reportGermanVoiceFailure(err: any, turnId: number, spokenText: string): void {
+    const reason = err?.message || String(err);
+    const message = `Die deutsche Stimme ${GERMAN_DEEPGRAM_VOICE} konnte nicht abgespielt werden. Fehler: ${reason}`;
+    this.turnLastError = reason;
+    logger.error('[JarvisNext] GERMAN_VOICE_FAILED (no fallback)', { turnId, voice: GERMAN_DEEPGRAM_VOICE, reason });
+    logJRT('GERMAN_VOICE_FAILED', `turn=${turnId} voice=${GERMAN_DEEPGRAM_VOICE} reason=${reason.slice(0, 200)}`);
+    this.broadcastData({ type: 'voice_error', voice: GERMAN_DEEPGRAM_VOICE, provider: 'deepgram', error: reason, text: message, unspokenText: spokenText });
+    this.broadcastData({ type: 'assistant_text', text: `${spokenText}\n\n⚠️ ${message}` });
+  }
+
+  private isGermanVoiceActive(voice?: string): boolean {
+    return voiceRuntimeState.getLanguage() === 'de' || isGermanVoiceId(voice);
+  }
+
+  private async speakInternal(
+    text: string,
+    turnId?: number,
+    opts?: { preliminaryAck?: boolean }
+  ): Promise<void> {
     if (this.isSuspended) {
       logger.info(`[JarvisNext] Cannot speak: agent is SUSPENDED. Dropping speech request: "${text}"`);
       this.isProcessingUserTurn = false;
@@ -2054,7 +2090,11 @@ export class JarvisNextAgent {
           voiceLatencyTracker.record(lat as TurnLatencyRecord);
         }
       } catch (err: any) {
-        logger.warn('[JarvisNext] Headless synthesis failed:', err?.message);
+        if (this.isGermanVoiceActive(this.currentVoiceId)) {
+          this.reportGermanVoiceFailure(err, activeTurnId, text);
+        } else {
+          logger.warn('[JarvisNext] Headless synthesis failed:', err?.message);
+        }
       }
       this.isProcessingUserTurn = false;
       return;
@@ -2224,8 +2264,11 @@ export class JarvisNextAgent {
         try {
           mp3Buffer = await synthesizeLocally(text, activeVoice, { ...synthOpts, provider: activeProvider });
         } catch (err: any) {
+          if (activeVoice === GERMAN_DEEPGRAM_VOICE || this.isGermanVoiceActive(activeVoice)) {
+            this.reportGermanVoiceFailure(err, activeTurnId, text);
+            throw err;
+          }
           if (activeProvider !== 'edge-tts') {
-            logger.warn(`[JarvisNext] Authoritative provider ${activeProvider} failed, falling back whole response to edge-tts:`, err?.message);
             activeProvider = 'edge-tts';
             activeVoice = AURA_TO_NEURAL_FALLBACK[activeVoice] || DEFAULT_NEURAL_VOICE;
             mp3Buffer = await synthesizeLocally(text, activeVoice, { ...synthOpts, provider: activeProvider });
@@ -2290,6 +2333,10 @@ export class JarvisNextAgent {
         try {
           s0Buffer = await synthesizeLocally(sentences[0], activeVoice, { ...synthOpts, provider: activeProvider });
         } catch (err: any) {
+          if (activeVoice === GERMAN_DEEPGRAM_VOICE || this.isGermanVoiceActive(activeVoice)) {
+            this.reportGermanVoiceFailure(err, activeTurnId, text);
+            throw err;
+          }
           if (activeProvider !== 'edge-tts') {
             logger.warn(`[JarvisNext] Authoritative provider ${activeProvider} failed on s0, falling back whole response to edge-tts:`, err?.message);
             activeProvider = 'edge-tts';
@@ -2314,7 +2361,11 @@ export class JarvisNextAgent {
             const buf = await synthesizeLocally(s, voiceForRest, { ...synthOpts, provider: providerForRest });
             return await mp3ToPcmFrames(buf, 24000, 20);
           } catch (err: any) {
-            logger.warn(`[JarvisNext] remaining sentence ${idx} synthesis failed: ${err?.message}`);
+            if (voiceForRest === GERMAN_DEEPGRAM_VOICE) {
+              this.reportGermanVoiceFailure(err, activeTurnId, s);
+            } else {
+              logger.warn(`[JarvisNext] remaining sentence ${idx} synthesis failed: ${err?.message}`);
+            }
             return [];
           }
         };

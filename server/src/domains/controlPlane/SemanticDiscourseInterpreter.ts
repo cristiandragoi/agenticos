@@ -50,7 +50,7 @@ export class SemanticDiscourseInterpreter {
 
   private mode: InterpreterExecutionMode = (process.env.SEMANTIC_INTERPRETER_MODE as InterpreterExecutionMode) || 'AUTHORITATIVE';
   private mockProvider: MockSemanticProvider | null = null;
-  private readonly defaultTimeoutMs: number = Number(process.env.SEMANTIC_INTERPRETER_TIMEOUT_MS) || 2500;
+  private readonly defaultTimeoutMs: number = Number(process.env.SEMANTIC_INTERPRETER_TIMEOUT_MS) || 6000;
   private readonly defaultModel: string | undefined = process.env.SEMANTIC_INTERPRETER_MODEL || undefined;
   private readonly defaultProvider: string | undefined = process.env.SEMANTIC_INTERPRETER_PROVIDER || undefined;
 

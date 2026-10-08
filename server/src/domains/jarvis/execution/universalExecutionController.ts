@@ -15,6 +15,7 @@ import { stripWakeWord } from '../../jarvisNext/wakeWord.js';
 import { detectControlIntent, isLikelyControlAttempt } from '../../jarvisNext/controlIntentDetector.js';
 import { bumpOnce, bump } from '../../jarvisNext/jarvisHealth.js';
 import { logJRT } from '../../jarvisNext/jarvisNextAgent.js';
+import { getActiveLanguage } from '../../../services/language/activeLanguageState.js';
 
 /**
  * Entity-bound task scoping (context-loss class): a question about a named entity
@@ -2333,7 +2334,9 @@ SPOKEN: "${finalSpokenResponse}"`);
 
     if (isAgenticOSStatusQuery) {
       await browserOperator.blurActiveElement();
-      const speech = "AgenticOS runtime is operational and all core services are healthy.";
+      const speech = getActiveLanguage() === 'de'
+        ? "Die AgenticOS-Laufzeitumgebung ist betriebsbereit und alle Kerndienste sind gesund."
+        : "AgenticOS runtime is operational and all core services are healthy.";
       return finalizeTurn({
         handled: true,
         goalId: 'agenticos_status',

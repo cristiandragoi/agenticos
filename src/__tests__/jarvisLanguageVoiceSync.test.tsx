@@ -196,7 +196,7 @@ const LEGACY_AGENT = 'agent-hermes';
 const EN_VOICE = resolveVoiceSessionConfig(LEGACY_AGENT, null).model;
 
 describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (non-Jarvis agent)', () => {
-  it('1. English -> German: updates language, invalidates cache, and uses de-DE-KillianNeural for TTS', async () => {
+  it('1. English -> German: updates language, invalidates cache, and uses aura-2-fabian-de for TTS', async () => {
     const { result, rerender } = renderHook(
       ({ lang, voiceOverride }) =>
         useVoiceIO({
@@ -227,7 +227,7 @@ describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (n
 
     expect(ttsBodies.length).toBe(2);
     expect(ttsBodies[1].language).toBe('de');
-    expect(ttsBodies[1].voice).toBe('de-DE-KillianNeural');
+    expect(ttsBodies[1].voice).toBe('aura-2-fabian-de');
     expect(ttsBodies[1].voice).not.toBe(EN_VOICE); // no stale English voice carried over
   });
 
@@ -246,7 +246,7 @@ describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (n
       await result.current.speak('Guten Tag.');
     });
     expect(ttsBodies[0].language).toBe('de');
-    expect(ttsBodies[0].voice).toBe('de-DE-KillianNeural');
+    expect(ttsBodies[0].voice).toBe('aura-2-fabian-de');
 
     // Switch back to English
     rerender({ lang: 'en' });
@@ -298,7 +298,7 @@ describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (n
     expect(ttsBodies.length).toBe(1);
     expect(ttsBodies[0].language).toBe('de');
     // Must discard the English override and use the German default
-    expect(ttsBodies[0].voice).toBe('de-DE-KillianNeural');
+    expect(ttsBodies[0].voice).toBe('aura-2-fabian-de');
     expect(ttsBodies[0].voice).not.toBe('en-GB-ThomasNeural');
   });
 
@@ -308,9 +308,9 @@ describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (n
     expect(enCfg.model).toBe('en-GB-ThomasNeural');
     expect(enCfg.language).toBe('en');
 
-    // Incompatible English voice passed with German -> resolved to de-DE-KillianNeural
+    // Incompatible English voice passed with German -> resolved to aura-2-fabian-de
     const deWithEnVoice = resolveVoiceSessionConfig('agent-jarvis', 'en-GB-RyanNeural', undefined, 'de');
-    expect(deWithEnVoice.model).toBe('de-DE-KillianNeural');
+    expect(deWithEnVoice.model).toBe('aura-2-fabian-de');
     expect(deWithEnVoice.language).toBe('de');
     expect(deWithEnVoice.locale).toBe('de-DE');
 
@@ -327,8 +327,9 @@ describe('Jarvis Language & Voice Synchronization — legacy browser-TTS mode (n
   });
 
   it('6. Helper isVoiceCompatibleWithLanguage correctly identifies valid and invalid pairs', () => {
-    expect(isVoiceCompatibleWithLanguage('de-DE-KillianNeural', 'de')).toBe(true);
-    expect(isVoiceCompatibleWithLanguage('de-DE-ConradNeural', 'de')).toBe(true);
+    // German accepts ONLY aura-2-fabian-de (no Edge/Piper substitutes)
+    expect(isVoiceCompatibleWithLanguage('aura-2-fabian-de', 'de')).toBe(true);
+    expect(isVoiceCompatibleWithLanguage('de-DE-KillianNeural', 'de')).toBe(false);
     expect(isVoiceCompatibleWithLanguage('en-GB-RyanNeural', 'de')).toBe(false);
     expect(isVoiceCompatibleWithLanguage('ro-RO-EmilNeural', 'de')).toBe(false);
 

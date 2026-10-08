@@ -189,6 +189,71 @@ export class PerceptionCapabilityAdapter implements ICapabilityAdapter {
       };
     }
 
+    // 1b. Document or Passport Reading (Physical camera OCR or Document File)
+    const isDocTarget =
+      step.targetType === 'DOCUMENT_CONTENT' ||
+      step.contentRequest === 'document_ocr' ||
+      /\b(?:passport|document|id_card|paper|page)\b/i.test(step.target || '') ||
+      (step.rawPrompt && /\b(?:read\s+(?:this\s+|my\s+|the\s+)?(?:document|passport|paper|page)|read\s+what\s+(?:i'm\s+showing|is\s+in\s+front\s+of\s+the\s+camera))\b/i.test(step.rawPrompt));
+
+    if (isDocTarget) {
+      const { documentReaderService } = await import('../../../services/perception/DocumentReaderService.js');
+      const fileMatch = step.rawPrompt?.match(/([a-zA-Z0-9_\-\\\/:]+\.(?:png|jpg|jpeg|bmp|webp|tiff|pdf|txt|md))/i);
+      const filePath = fileMatch ? fileMatch[1] : (ctx.activeCapability === 'FILESYSTEM' && ctx.activeTarget ? ctx.activeTarget : null);
+
+      const ocrRes = filePath
+        ? await documentReaderService.readFromFile(filePath, step.rawPrompt)
+        : await documentReaderService.readFromCamera(step.rawPrompt);
+
+      if (ocrRes.success) {
+        authoritativeInteractionContext.recordVerifiedStepSuccess(cid, Number(stepId) || 0, {
+          action: 'READ_CONTENT',
+          source: ocrRes.source,
+          application: 'DocumentReader',
+          contentSnapshot: ocrRes.extractedText,
+          summary: `Read document text (${ocrRes.extractedText.length} characters)`,
+        } as any);
+
+        return {
+          stepId,
+          action: 'READ_CONTENT',
+          requestedTarget: step.target || 'document',
+          executedTarget: ocrRes.source === 'camera' ? 'camera' : (filePath || 'document'),
+          success: true,
+          verified: true,
+          verificationEvidence: {
+            source: 'ocr' as any,
+            label: ocrRes.source === 'camera' ? 'Document read from camera via OCR' : 'Document read from file via OCR',
+            observedAt: Date.now(),
+            data: {
+              extractedTextLength: ocrRes.extractedText.length,
+              documentType: ocrRes.documentType,
+              frameSha256: ocrRes.frameSha256 ?? null,
+              filePath: ocrRes.filePath ?? null,
+            },
+          },
+          contextMutation: {
+            application: 'DocumentReader',
+            targetType: 'DOCUMENT_CONTENT' as any,
+            contentSnapshot: ocrRes.extractedText,
+            contentItems: [ocrRes.extractedText],
+            summary: ocrRes.explanation,
+          },
+          outputText: ocrRes.explanation,
+        };
+      }
+
+      return {
+        stepId,
+        action: 'READ_CONTENT',
+        requestedTarget: step.target || 'document',
+        success: false,
+        verified: false,
+        failureReason: ocrRes.explanation,
+        outputText: ocrRes.explanation,
+      };
+    }
+
     // 2. Screen vs Window / Application Target Content Reading
     const target = step.application || step.target || ctx.activeApplication || 'screen';
     logger.info('[PerceptionCapabilityAdapter] Reading content of target via authoritative provider:', { target });

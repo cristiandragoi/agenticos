@@ -18,6 +18,9 @@
 
 import { rawDb } from '../../db/index.js';
 import { logger } from '../../utils/logger.js';
+import { getActiveLanguage, setActiveLanguageState, buildAnswerLanguageInstruction } from '../../services/language/activeLanguageState.js';
+
+export { getActiveLanguage, setActiveLanguageState, buildAnswerLanguageInstruction };
 
 export type SupportedLanguage = 'en' | 'de' | 'ro';
 
@@ -46,10 +49,9 @@ export const LANGUAGE_CONFIGS: Record<SupportedLanguage, LanguageConfig> = {
     displayName: 'German',
     nativeName: 'Deutsch',
     sttLocale: 'de-DE',
-    ttsVoice: 'de-DE-KillianNeural',
-    fallbackTtsVoice: 'de-DE-ConradNeural',
-    systemPromptInstruction:
-      'KRITISCHE SPRACHANWEISUNG: Du musst ausschließlich auf Deutsch antworten. Antworte natürlich, präzise und professionell. Verwende keine englischen Standardfloskeln.',
+    ttsVoice: 'aura-2-julius-de',
+    fallbackTtsVoice: 'aura-2-julius-de',
+    systemPromptInstruction: buildAnswerLanguageInstruction('de'),
   },
   ro: {
     code: 'ro',
@@ -58,8 +60,7 @@ export const LANGUAGE_CONFIGS: Record<SupportedLanguage, LanguageConfig> = {
     sttLocale: 'ro-RO',
     ttsVoice: 'ro-RO-EmilNeural',
     fallbackTtsVoice: 'ro-RO-AlinaNeural',
-    systemPromptInstruction:
-      'INSTRUCȚIUNE CRITICĂ DE LIMBĂ: Trebuie să răspunzi exclusiv în limba română. Răspunde natural, concis și profesionist. Nu folosi formule automate în engleză.',
+    systemPromptInstruction: buildAnswerLanguageInstruction('ro'),
   },
 };
 
@@ -100,21 +101,28 @@ export function detectLanguageSwitchRequest(prompt: string): {
 
   // German patterns
   if (
+    /\b(?:bitte\s+)?auf\s+deutsch(?:\s+bitte)?\b/iu.test(p) ||
+    /\b(?:bitte\s+)?(?:ab\s+jetzt\s+)?deutsch\s+(?:reden|sprechen|antworten)\b/iu.test(p) ||
+    /\b(?:bitte\s+)?redet?\s+(?:ab\s+jetzt\s+)?(?:auf\s+)?deutsch\b/iu.test(p) ||
+    /\b(?:bitte\s+)?sprich\s+(?:ab\s+jetzt\s+)?(?:auf\s+)?deutsch\b/iu.test(p) ||
+    /\b(?:bitte\s+)?spreche?n?\s+(?:ab\s+jetzt\s+)?(?:auf\s+)?deutsch\b/iu.test(p) ||
+    /\bdeutsch\s+bitte\b/iu.test(p) ||
+    /\bauf\s+deutsch\s+bitte\b/iu.test(p) ||
+    /\bspeak\s+german\b/iu.test(p) ||
+    /\bswitch\s+(?:back\s+|over\s+)?(?:in|to|into)\s+german\b/iu.test(p) ||
+    /\bchange\s+(?:to\s+)?german\b/iu.test(p) ||
+    /\btalk\s+(?:in\s+)?german\b/iu.test(p) ||
     /\b(?:can|could|do|will|would)\s+you\s+(?:please\s+)?(?:speak|talk|reply|respond|answer)\s+(?:in\s+|to\s+me\s+in\s+)?german\b/iu.test(p) ||
     /\b(?:i\s+want|i\s+would\s+like|i'd\s+like|i\s+need|please|let's)\s+(?:you\s+to\s+)?(?:speak|talk|reply|respond|switch\s+(?:back\s+|over\s+)?(?:in|to|into)?|use)\s+(?:in\s+|to\s+me\s+in\s+)?german\b/iu.test(p) ||
     /\b(?:speak|talk|reply|respond|switch\s+(?:back\s+|over\s+)?(?:in|to|into)?|use|answer(?:\s+me)?)\s+(?:in\s+|to\s+me\s+in\s+)?german\b/iu.test(p) ||
     /\b(?:reply|answer|talk|speak)\s+in\s+german(?:\s+only|\s+please)?\b/iu.test(p) ||
-    /\bswitch\s+(?:back\s+|over\s+)?(?:in|to|into)\s+german\b/iu.test(p) ||
-    /\bspeak\s+german\b/iu.test(p) ||
-    /\bdeutsch\s+bitte\b/iu.test(p) ||
     /\b(?:du\s+sollst|du\s+musst|du\s+kannst)\s+(?:ab\s+jetzt\s+)?deutsch\s+sprechen\b/iu.test(p) ||
     /\b(?:ich\s+m[oö]chte|ich\s+will)(?:,\s*dass|\s+dass)?\s+du\s+(?:deutsch\s+sprichst|auf\s+deutsch\s+antwortest|deutsch\s+redest)\b/iu.test(p) ||
     /\b(?:kannst|k[oö]nntest)\s+du\s+(?:bitte\s+)?(?:mit\s+mir\s+)?(?:auf\s+)?deutsch\s+(?:sprechen|antworten|reden)\b/iu.test(p) ||
-    /\bsprich\s+(?:mit\s+mir\s+)?(?:ab\s+jetzt\s+)?(?:auf\s+)?deutsch\b/iu.test(p) ||
-    /\bauf\s+deutsch\s+(?:bitte|antworten|sprechen|weiter|umschalten|wechseln)\b/iu.test(p) ||
-    /\bbitte\s+auf\s+deutsch\b/iu.test(p) ||
+    /\b(?:bitte\s+)?rede\s+(?:bitte\s+)?(?:mit\s+mir\s+)?(?:ab\s+jetzt\s+)?(?:bitte\s+)?(?:auf\s+)?deutsch\b/iu.test(p) ||
+    /\b(?:k[oö]nnen\s+wir|wollen\s+wir)\s+(?:bitte\s+)?(?:ab\s+jetzt\s+)?(?:auf\s+)?deutsch\s+(?:sprechen|reden)\b/iu.test(p) ||
+    /\b(?:ab\s+jetzt\s+)?auf\s+deutsch\s+(?:bitte|antworten|sprechen|weiter|umschalten|wechseln)\b/iu.test(p) ||
     /\bantworte\s+(?:bitte\s+)?auf\s+deutsch\b/iu.test(p) ||
-    /\bdeutsch\s+sprechen\b/iu.test(p) ||
     /\b(?:du\s+sollst\s+deutsch\s+sprechen|ich\s+spreche\s+bereits\s+deutsch|nicht\s+deutsch\s+lernen.*du\s+sollst\s+deutsch\s+sprechen)\b/iu.test(p)
   ) {
     return {
@@ -151,6 +159,12 @@ export function detectLanguageSwitchRequest(prompt: string): {
 
   // English patterns
   if (
+    /\b(?:please\s+)?(?:in\s+)?english(?:\s+please)?\b/iu.test(p) ||
+    /\b(?:speak|talk|reply|respond|switch\s+(?:to\s+)?|change\s+(?:to\s+)?)\s+english\b/iu.test(p) ||
+    /\bsprich\s+(?:wieder\s+)?(?:auf\s+)?englisch\b/iu.test(p) ||
+    /\brede\s+(?:wieder\s+)?(?:auf\s+)?englisch\b/iu.test(p) ||
+    /\bauf\s+englisch\s+bitte\b/iu.test(p) ||
+    /\bbitte\s+auf\s+englisch\b/iu.test(p) ||
     /\b(?:can|could|do|will|would)\s+you\s+(?:please\s+)?(?:speak|talk|reply|respond|answer)\s+(?:in\s+|to\s+me\s+in\s+)?english\b/iu.test(p) ||
     /\b(?:i\s+want|i\s+would\s+like|i'd\s+like|i\s+need|please|let's)\s+(?:you\s+to\s+)?(?:speak|talk|reply|respond|switch\s+(?:back\s+|over\s+)?(?:in|to|into)?|use)\s+(?:in\s+|to\s+me\s+in\s+)?english\b/iu.test(p) ||
     /\b(?:speak|talk|reply|respond|switch\s+(?:back\s+|over\s+)?(?:in|to|into)?|use|answer(?:\s+me)?)\s+(?:in\s+|to\s+me\s+in\s+)?english\b/iu.test(p) ||
@@ -160,7 +174,6 @@ export function detectLanguageSwitchRequest(prompt: string): {
     /\bback\s+to\s+english\b/iu.test(p) ||
     /\bspeak\s+english\b/iu.test(p) ||
     /\benglish\s+please\b/iu.test(p) ||
-    /\bsprich\s+(?:wieder\s+)?englisch\b/iu.test(p) ||
     /\bvorbe[sș]te\s+(?:din\s+nou\s+)?(?:[iî]n\s+)?englez[aă]\b/iu.test(p)
   ) {
     return {
@@ -178,9 +191,9 @@ export function detectLanguageSwitchRequest(prompt: string): {
  */
 export function detectTextLanguage(text: string): SupportedLanguage | null {
   const p = text.toLowerCase().trim();
-  // Common German particles / greetings
+  // Common German particles / greetings / pronouns / interrogatives / auxiliary verbs
   if (
-    /\b(hallo|guten\s+tag|guten\s+morgen|wie\s+geht|danke|bitte|ja|nein|ich|du|wir|sie|ist|sind|war|nicht|kannst|können|wurde|wird|auf|für|mit|nach)\b/i.test(
+    /\b(hallo|guten\s+tag|guten\s+morgen|wie\s+geht|danke|bitte|ja|nein|ich|du|wir|sie|ist|sind|war|nicht|kannst|können|kann|wurde|wird|auf|für|mit|nach|wer|wann|warum|wo|welche|welcher|welches|wie|hilf|zeig|sag|sprich|deutsch|heute|morgen|gestern|uhr|zeit|wetter|deutschland|berlin|fragen|frage|hast|alles|klar|gut|sehr|viel|viele|machen)\b/i.test(
       p
     ) &&
     !/\b(the|is|are|you|this|that|what|how|where)\b/i.test(p)
@@ -243,7 +256,7 @@ export function isSubstantiveLanguageDetection(
  * Get active language for a conversation. Defaults to 'en'.
  */
 export function getConversationLanguage(conversationId: string): SupportedLanguage {
-  if (!conversationId) return 'en';
+  if (!conversationId) return getActiveLanguage();
   if (languageCache.has(conversationId)) {
     return languageCache.get(conversationId)!;
   }
@@ -292,7 +305,8 @@ export function setConversationLanguage(
   isExplicit = false,
 ): { success: boolean; activeLanguage: SupportedLanguage; config: LanguageConfig } {
   if (!conversationId) {
-    return { success: false, activeLanguage: 'en', config: LANGUAGE_CONFIGS.en };
+    setActiveLanguageState(lang, 'conversation:global');
+    return { success: false, activeLanguage: lang, config: LANGUAGE_CONFIGS[lang] || LANGUAGE_CONFIGS.en };
   }
 
   // If an explicit lock is active and this is an implicit auto-detection attempt, reject the mutation
@@ -320,6 +334,7 @@ export function setConversationLanguage(
 
     languageCache.set(conversationId, target);
     explicitLockMap.set(conversationId, explicitVal === 1);
+    setActiveLanguageState(target, `conversation:${conversationId}`);
 
     // Verified read-back
     const verified = getConversationLanguage(conversationId);

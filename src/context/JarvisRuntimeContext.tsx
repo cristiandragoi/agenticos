@@ -146,7 +146,7 @@ export const JarvisRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({
     const code = raw === 'auto' ? 'en' : raw.slice(0, 2);
     setConversationLanguage(code);
     const targetVoice =
-      code === 'de' ? 'de_DE-thorsten-high' :
+      code === 'de' ? 'aura-2-julius-de' :
       code === 'ro' ? 'ro_RO-mihai-medium' :
       'en-GB-RyanNeural';
     setSelectedVoice(targetVoice);
