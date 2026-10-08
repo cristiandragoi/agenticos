@@ -7,6 +7,7 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -TypeDefinition @"
 using System;
+using System.Threading;
 using System.Runtime.InteropServices;
 public class LcFg {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -17,16 +18,35 @@ public class LcFg {
   [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr OpenDesktop(string lpszDesktop, int dwFlags, bool fInherit, uint dwDesiredAccess);
+  [DllImport("user32.dll", SetLastError = true)] public static extern bool SetThreadDesktop(IntPtr hDesktop);
+  [DllImport("user32.dll", SetLastError = true)] public static extern bool CloseDesktop(IntPtr hDesktop);
+
   public static bool Focus(IntPtr h) {
-    if (IsIconic(h)) ShowWindow(h, 9);
-    IntPtr fg = GetForegroundWindow();
-    uint fgThread = GetWindowThreadProcessId(fg, IntPtr.Zero);
-    uint me = GetCurrentThreadId();
-    keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero);
-    if (fgThread != me) AttachThreadInput(me, fgThread, true);
-    SetForegroundWindow(h);
-    if (fgThread != me) AttachThreadInput(me, fgThread, false);
-    return GetForegroundWindow() == h;
+    bool ok = false;
+    Thread t = new Thread(() => {
+      IntPtr hDesk = OpenDesktop("default", 0, false, 0x01FF);
+      if (hDesk != IntPtr.Zero) {
+        SetThreadDesktop(hDesk);
+      }
+      try {
+        if (IsIconic(h)) ShowWindow(h, 9);
+        ShowWindow(h, 5);
+        IntPtr fg = GetForegroundWindow();
+        uint fgThread = GetWindowThreadProcessId(fg, IntPtr.Zero);
+        uint me = GetCurrentThreadId();
+        keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero);
+        if (fgThread != me) AttachThreadInput(me, fgThread, true);
+        SetForegroundWindow(h);
+        if (fgThread != me) AttachThreadInput(me, fgThread, false);
+        ok = (GetForegroundWindow() == h);
+      } finally {
+        if (hDesk != IntPtr.Zero) CloseDesktop(hDesk);
+      }
+    });
+    t.Start();
+    t.Join(5000);
+    return ok;
   }
 }
 "@

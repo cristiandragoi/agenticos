@@ -19,6 +19,10 @@ const DEFAULT_PROCESS_MAP: Record<string, string[]> = {
   telegram: ['telegram'],
   'telegram desktop': ['telegram'],
   comet: ['comet'],
+  perplexity: ['comet'],
+  'comet perplexity': ['comet'],
+  'perplexity comet': ['comet'],
+  plexi: ['comet'],
   chrome: ['chrome'],
   edge: ['msedge'],
   calculator: ['calculatorapp', 'calc'],
@@ -52,6 +56,10 @@ const COMMON_ALIASES: Record<string, string[]> = {
   'whatsapp desktop': ['whatsapp'],
   telegram: ['telegram desktop'],
   'telegram desktop': ['telegram'],
+  comet: ['comet perplexity', 'perplexity', 'plexi'],
+  perplexity: ['comet', 'comet perplexity', 'plexi'],
+  'comet perplexity': ['comet', 'perplexity', 'plexi'],
+  plexi: ['comet', 'perplexity', 'comet perplexity'],
 };
 
 export function matchesApp(w: ObservedWindow, id: AppIdentity, opts: { allowTitleMatch?: boolean } = {}): boolean {

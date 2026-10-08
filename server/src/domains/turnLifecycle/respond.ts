@@ -18,8 +18,9 @@ export function decideOutcome(
   if (!receipt) return { outcome: 'FAILED', reason: 'nothing was executed' };
   if (verification?.satisfied) return { outcome: 'VERIFIED', reason: verification.reason };
 
-  if (receipt?.executor === 'legacy.emailService' && receipt.completedWithoutError) {
-    return { outcome: 'VERIFIED', reason: 'email operation performed' };
+  if ((receipt?.executor === 'legacy.emailService' || receipt?.executor === 'lifecycle.visibilityRecovery') && receipt.completedWithoutError) {
+    const reasonStr = typeof receipt.details?.reason === 'string' ? receipt.details.reason : 'desktop operation performed and verified';
+    return { outcome: 'VERIFIED', reason: reasonStr };
   }
 
   if (goal.kind === 'answer' || goal.kind === 'control') {
@@ -69,7 +70,7 @@ export function renderResponse(
   const isDe = getActiveLanguage() === 'de';
 
   // If a legacy executor or custom action handler already generated response text, return it directly.
-  if (receipt?.executor?.startsWith('legacy.') && handlerText) {
+  if ((receipt?.executor?.startsWith('legacy.') || receipt?.executor?.startsWith('lifecycle.')) && handlerText) {
     return handlerText;
   }
   if (goal.action?.type === 'other' && handlerText) {

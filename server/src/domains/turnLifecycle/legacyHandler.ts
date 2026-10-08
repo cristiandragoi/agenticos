@@ -111,6 +111,32 @@ export async function runLegacyHandler(record: TurnRecord, sink: TurnSink, isSta
       logger.warn('[TurnLifecycle] delegation signal detection error; continuing to turnRouter', { requestId: req.requestId, error: err?.message });
     }
 
+    // ── Visibility & Window Recovery ("Wo ist das?", "Ich sehe nichts") ──
+    try {
+      const { isVisibilityQuery, handleVisibilityRecovery } = await import('./taskState.js');
+      if (isVisibilityQuery(req.text)) {
+        const { getActiveLanguage } = await import('../../services/language/activeLanguageState.js');
+        const activeLang = getActiveLanguage();
+        const isGerman = activeLang === 'de' || /[äöüß]|(?:ist|das|sehe|nichts|wo|fenster|bitte)/i.test(req.text);
+        const rec = await handleVisibilityRecovery(isGerman ? 'de' : activeLang);
+        if (rec.handled) {
+          logger.info('[TurnLifecycle] visibility recovery executed', { requestId: req.requestId, text: rec.responseText });
+          return {
+            executor: 'lifecycle.visibilityRecovery',
+            attempted: true,
+            completedWithoutError: true,
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            handlerText: rec.responseText,
+            handlerClaimedSideEffect: true,
+            details: { query: req.text },
+          };
+        }
+      }
+    } catch (err: any) {
+      logger.warn('[TurnLifecycle] visibility recovery error; continuing', { requestId: req.requestId, error: err?.message });
+    }
+
     // ── Email Integration ("Öffne Gmail...", "Schreib eine Nachricht an...", "Sende es") ──
     try {
       const { emailService } = await import('../../services/email/EmailService.js');

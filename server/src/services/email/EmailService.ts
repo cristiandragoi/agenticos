@@ -10,15 +10,51 @@
  * 6. Disconnected State: If no email account is connected, states exactly that and provides instructions on how to connect it.
  */
 
-import { exec } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { exec, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import nodemailer from 'nodemailer';
 import { logger } from '../../utils/logger.js';
 import { secretStore } from '../gateway/secretStore.js';
 import { targetResolver } from '../../domains/controlPlane/TargetResolver.js';
 import { getActiveLanguage } from '../language/activeLanguageState.js';
+import { observeWindows } from '../../domains/turnLifecycle/probes.js';
+import { setActiveDesktopTask } from '../../domains/turnLifecycle/taskState.js';
 
 const execAsync = promisify(exec);
+
+function findCometExecutable(): string | null {
+  const candidates = [
+    'C:\\Program Files\\Perplexity\\Comet\\Application\\comet.exe',
+    'C:\\Program Files (x86)\\Perplexity\\Comet\\Application\\comet.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Perplexity\\Comet\\Application\\comet.exe'),
+    path.join(process.env.PROGRAMFILES || '', 'Perplexity\\Comet\\Application\\comet.exe'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+function focusWindow(hwnd: number): Promise<boolean> {
+  const script = path.join(process.cwd(), 'server', 'scripts', 'lifecycle', 'lc_type_text.ps1');
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Hwnd', String(hwnd), '-TextB64', ''],
+      { timeout: 8000, windowsHide: true },
+      (err, stdout) => {
+        try {
+          const raw = JSON.parse(String(stdout || '').trim());
+          resolve(Boolean(raw?.foregroundConfirmed));
+        } catch {
+          resolve(false);
+        }
+      }
+    );
+  });
+}
 
 export interface EmailDraft {
   id: string;
@@ -105,26 +141,128 @@ export class EmailService {
   /**
    * Open Gmail in the browser.
    */
-  public async openGmailInBrowser(conversationId: string = 'default', lang: string = 'en'): Promise<EmailOperationResult> {
+  public async openGmailInBrowser(
+    conversationId: string = 'default',
+    lang: string = 'en',
+    opts?: { targetBrowser?: string; isCompose?: boolean; prompt?: string }
+  ): Promise<EmailOperationResult> {
     const effectiveLang = (lang === 'de' || getActiveLanguage() === 'de') ? 'de' : lang;
-    const url = 'https://mail.google.com';
+    const isCompose = Boolean(opts?.isCompose);
+    const url = isCompose
+      ? 'https://mail.google.com/mail/u/0/#inbox?compose=new'
+      : 'https://mail.google.com';
+
+    const promptText = (opts?.prompt || '').toLowerCase();
+    const wantsComet = opts?.targetBrowser === 'comet' || /\b(?:comet|perplexity|plexi)\b/i.test(promptText);
+
     try {
       if (process.platform === 'win32') {
-        // cmd.exe /c start "" "url" opens the Windows user's default browser where they are already logged in
-        await execAsync(`cmd.exe /c start "" "${url}"`, { timeout: 6000 });
-      } else if (process.platform === 'darwin') {
-        await execAsync(`open "${url}"`, { timeout: 6000 });
-      } else {
-        await execAsync(`xdg-open "${url}"`, { timeout: 6000 });
+        const cometExe = wantsComet ? findCometExecutable() : null;
+        if (wantsComet && !cometExe) {
+          const errText = effectiveLang === 'de'
+            ? 'Comet Perplexity wurde auf diesem System nicht gefunden.'
+            : 'Comet Perplexity browser was not found on this system.';
+          return {
+            success: false,
+            verified: false,
+            action: 'OPEN',
+            error: 'comet_browser_not_found',
+            outputText: errText,
+          };
+        }
+
+        if (cometExe) {
+          logger.info('[EmailService] Launching Comet browser with Gmail', { cometExe, url, isCompose });
+          await execAsync(`cmd.exe /c start "" "${cometExe}" "${url}"`, { timeout: 10000 });
+        } else {
+          await execAsync(`cmd.exe /c start "" "${url}"`, { timeout: 8000 });
+        }
+
+        // Wait and poll for the browser window to appear and bring it to foreground
+        let targetWindow: { hwnd: number; pid: number; title: string } | null = null;
+        for (let i = 0; i < 8; i++) {
+          await new Promise((r) => setTimeout(r, 600));
+          const obs = await observeWindows().catch(() => ({ foreground: 0, windows: [] }));
+          const match = obs.windows.find((w) => {
+            const proc = (w.process || '').toLowerCase();
+            const title = (w.title || '').toLowerCase();
+            if (wantsComet) {
+              return proc === 'comet' || title.includes('comet');
+            }
+            return title.includes('gmail') || title.includes('google mail') || proc === 'chrome' || proc === 'msedge';
+          });
+          if (match) {
+            targetWindow = match;
+            if (obs.foreground !== match.hwnd) {
+              await focusWindow(match.hwnd);
+            }
+            break;
+          }
+        }
+
+        // Verify final desktop state
+        const finalObs = await observeWindows().catch(() => ({ foreground: 0, windows: [] }));
+        const verifiedWindow = targetWindow || finalObs.windows.find((w) => {
+          const proc = (w.process || '').toLowerCase();
+          const title = (w.title || '').toLowerCase();
+          return wantsComet ? (proc === 'comet' || title.includes('comet')) : (title.includes('gmail') || proc === 'chrome');
+        });
+
+        if (!verifiedWindow) {
+          const failureText = effectiveLang === 'de'
+            ? 'Das Browserfenster konnte nach dem Start auf dem Desktop nicht verifiziert werden.'
+            : 'Could not verify the browser window on the desktop after launch.';
+          return {
+            success: false,
+            verified: false,
+            action: 'OPEN',
+            error: 'window_not_found_on_desktop',
+            outputText: failureText,
+          };
+        }
+
+        // Save authoritative desktop task state
+        setActiveDesktopTask({
+          taskId: `task-${Date.now()}`,
+          requestId: conversationId,
+          conversationId,
+          type: isCompose ? 'COMPOSE_EMAIL' : 'OPEN_EMAIL',
+          requestedApp: wantsComet ? 'comet' : 'browser',
+          targetUrl: url,
+          hwnd: verifiedWindow.hwnd,
+          pid: verifiedWindow.pid,
+          windowTitle: verifiedWindow.title,
+          isForeground: finalObs.foreground === verifiedWindow.hwnd,
+          composeOpened: isCompose,
+          startedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastVerifiedAt: new Date().toISOString(),
+          status: 'COMPLETED',
+        });
+
+        const browserName = wantsComet ? 'Comet' : 'deinem Browser';
+        const text = effectiveLang === 'de'
+          ? (isCompose
+              ? `Ich habe Gmail in ${browserName} geöffnet. An wen soll die E-Mail gehen?`
+              : `Ich habe Gmail in ${browserName} geöffnet.`)
+          : (isCompose
+              ? `I have opened Gmail in ${browserName}. Who should the email go to?`
+              : `I have opened Gmail in ${browserName}.`);
+
+        return {
+          success: true,
+          verified: true,
+          action: 'OPEN',
+          outputText: text,
+        };
       }
-      const text = effectiveLang === 'de'
-        ? 'Ich habe Gmail im Browser geöffnet.'
-        : 'I have opened Gmail in your browser.';
+
+      await execAsync(`xdg-open "${url}" || open "${url}"`, { timeout: 6000 });
       return {
         success: true,
         verified: true,
         action: 'OPEN',
-        outputText: text,
+        outputText: effectiveLang === 'de' ? 'Ich habe Gmail im Browser geöffnet.' : 'I have opened Gmail in your browser.',
       };
     } catch (err: any) {
       logger.error('[EmailService] Failed to open Gmail in browser:', err);
@@ -270,11 +408,11 @@ export class EmailService {
     if (!hasValidEmail) {
       const askText = lang === 'de'
         ? (isDev
-            ? 'Ich kenne die E-Mail-Adresse deines Entwicklers noch nicht. An welche Adresse soll ich die Nachricht senden?'
-            : 'An welche E-Mail-Adresse soll ich die Nachricht senden?')
+            ? 'Ich kenne die E-Mail-Adresse deines Entwicklers noch nicht. An wen soll die E-Mail gehen?'
+            : 'An wen soll die E-Mail gehen?')
         : (isDev
-            ? "I don't have your developer's email address yet. What email address should I send the message to?"
-            : 'What email address should I send the message to?');
+            ? "I don't have your developer's email address yet. Who should the email go to?"
+            : 'Who should the email go to?');
       return {
         success: true,
         verified: true,
@@ -563,7 +701,13 @@ export class EmailService {
     const isWriteEmail = (hasEmailKeyword && hasWriteKeyword) ||
       (!hasEmailKeyword && /\b(?:schreib|schreibe|schreiben)\s+(?:mir\s+)?(?:eine?\s+)?nachricht\b/i.test(lower));
 
-    if (isOpenEmail || isWriteEmail) {
+    const isCompose = isWriteEmail ||
+      /\b(?:erstelle?|neue?|verfasse?|schreibe?)\s+(?:eine?\s+)?(?:neue?\s+)?(?:e-?mail|nachricht|entwurf)\b/iu.test(lower) ||
+      /\b(?:compose|new\s+email|draft)\b/iu.test(lower);
+
+    const mentionsComet = /\b(?:comet|perplexity|plexi)\b/iu.test(lower);
+
+    if (isOpenEmail || isWriteEmail || isCompose) {
       if (mentionsGmail) {
         await this.setPreferredAccount('gmail');
       } else if (mentionsOutlook) {
@@ -588,21 +732,41 @@ export class EmailService {
 
       if (effectivePref === 'gmail') {
         // Gmail means: open Gmail in browser. NEVER open Outlook unsolicited.
-        if (isWriteEmail) {
+        if (isCompose) {
+          const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+          const hasRecipient = EMAIL_RE.test(lower) || /\b(?:an|to)\s+[a-zA-Z0-9._%+-]+/i.test(lower);
           const draftRes = this.prepareDraft({ rawPrompt: prompt, conversationId, lang: effectiveLang });
-          await this.openGmailInBrowser(conversationId, effectiveLang);
+          const browserRes = await this.openGmailInBrowser(conversationId, effectiveLang, {
+            targetBrowser: mentionsComet ? 'comet' : undefined,
+            isCompose: true,
+            prompt,
+          });
+          if (!browserRes.success) return browserRes;
+
+          if (!hasRecipient) {
+            return {
+              ...draftRes,
+              outputText: effectiveLang === 'de'
+                ? `Ich habe Gmail in ${mentionsComet ? 'Comet' : 'deinem Browser'} geöffnet. An wen soll die E-Mail gehen?`
+                : `I have opened Gmail in ${mentionsComet ? 'Comet' : 'your browser'}. Who should the email go to?`,
+            };
+          }
           return {
             ...draftRes,
             outputText: effectiveLang === 'de'
-              ? `Ich habe Gmail im Browser geöffnet.\n\n${draftRes.outputText}`
-              : `I have opened Gmail in your browser.\n\n${draftRes.outputText}`,
+              ? `Ich habe Gmail in ${mentionsComet ? 'Comet' : 'deinem Browser'} geöffnet.\n\n${draftRes.outputText}`
+              : `I have opened Gmail in ${mentionsComet ? 'Comet' : 'your browser'}.\n\n${draftRes.outputText}`,
           };
         }
-        return await this.openGmailInBrowser(conversationId, effectiveLang);
+        return await this.openGmailInBrowser(conversationId, effectiveLang, {
+          targetBrowser: mentionsComet ? 'comet' : undefined,
+          isCompose: false,
+          prompt,
+        });
       }
 
       // Outlook explicitly preferred
-      if (isWriteEmail) {
+      if (isCompose) {
         return this.prepareDraft({ rawPrompt: prompt, conversationId, lang: effectiveLang });
       }
       return await this.openEmailClient(conversationId, effectiveLang);

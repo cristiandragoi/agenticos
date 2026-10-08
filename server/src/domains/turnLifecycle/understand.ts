@@ -128,6 +128,19 @@ export function validateGoal(raw: any, reqText?: string): TurnGoal | null {
 }
 
 export async function understand(req: TurnRequest, previous: PreviousTurnSummary | null): Promise<TurnGoal> {
+  try {
+    const { isVisibilityQuery } = await import('./taskState.js');
+    if (isVisibilityQuery(req.text)) {
+      return {
+        kind: 'action',
+        action: { type: 'other' },
+        summary: 'Window visibility and desktop recovery check',
+        continuesPrevious: Boolean(previous),
+        understoodBy: 'authoritative_intent_compiler',
+      };
+    }
+  } catch {}
+
   // Fast conversational classification: if the request is conversational without operational signals,
   // skip the planner LLM call and classify directly as an answer goal.
   try {
