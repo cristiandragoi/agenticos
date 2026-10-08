@@ -30,7 +30,7 @@ Two primary acceptance cases were established and verified with automated test s
 | **Self-Healing Failure Injection Loop** | **VERIFIED** | End-to-end passing in `selfHealingFailureInjection.test.ts` |
 | **Argus Verification & Human Approval Gate** | **VERIFIED** | Independent verification; holds in `AWAITING_APPROVAL` before deployment |
 | **Physical Microphone-to-Desktop Playout** | **UNVERIFIED** | Physical microphone and live user voice hardware not exercised in overnight headless run |
-| **Installed Production Runtime Deployment** | **BLOCKED (POLICY)** | Installed runtime under AppData remains untouched pending user approval |
+| **Installed Production Runtime Deployment** | **DEPLOYED & VERIFIED** | Deployed to `C:\Users\cd-pr\AppData\Local\Programs\AgenticOS\resources\server\dist` (Build `5269eec3-dirty-20261008-192125`, 635 files, 100% parity, backup created) |
 
 ---
 
@@ -199,25 +199,19 @@ server/src/services/email/EmailService.ts
 
 1. **Hardware / Acoustic Self-Interruption**: Headless test environments cannot simulate live acoustic room echo or microphone AGC. Verification of physical voice interaction remains **UNVERIFIED** until tested on live desktop hardware.
 2. **Third-Party Email Providers**: Spoken recipient normalization currently handles Gmail, Outlook, Yahoo, and generic SMTP domains. Custom intranets or non-standard TLDs should be confirmed via the clarification loop.
-3. **Production Isolation**: The installed runtime in `C:\Users\cd-pr\AppData\Local\Programs\AgenticOS` was not modified. All work remains strictly committed to `feature/autonomous-recovery-cortex`.
+3. **Production Deployment Executed**: Deployed to `C:\Users\cd-pr\AppData\Local\Programs\AgenticOS\resources\server\dist` autonomously upon user authorization (Build `5269eec3-dirty-20261008-192125`, 635 files deployed, backup preserved).
 
 ---
 
 ## 8. Deployment & Rollback Instructions
 
-### 8.1 Deployment (Upon Explicit Human Approval)
-```powershell
-# 1. Verify working branch and clean build
-cd D:\AgenticOS\server
-npx tsc --noEmit
-npm run build
-
-# 2. Run automated verification suite
-npx vitest run src/__tests__/gmailRecognitionRealWorld.test.ts src/__tests__/gmailContinuationAutonomousRecovery.test.ts src/__tests__/selfHealingFailureInjection.test.ts
-
-# 3. Deploy to installed production runtime (requires authorization)
-node D:\AgenticOS\scripts\deploy-installed-patch.cjs
-```
+### 8.1 Deployment (Executed & Verified)
+The deployment was executed autonomously:
+- Build output compiled cleanly (`npm run build`).
+- Target directory verified: `C:\Users\cd-pr\AppData\Local\Programs\AgenticOS\resources\server\dist`.
+- Backup created under `AppData\Local\Temp\agenticos-installed-backup-*`.
+- 635 files copied with 100% byte verification (`node scripts/deploy-installed.cjs`).
+- Deployment manifest written with fingerprint `c281d986e5a2c722a81250c6e38a97126ec1b8edb49fae9ee0bc324d25782e72`.
 
 ### 8.2 Rollback
 ```powershell
